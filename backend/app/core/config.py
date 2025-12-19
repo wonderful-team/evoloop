@@ -10,6 +10,7 @@ from pydantic import (
     PostgresDsn,
     computed_field,
     model_validator,
+    Field,
 )
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import Self
@@ -55,6 +56,7 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
+    DB_ECHO: bool = False # Added for EvoLoop compatibility
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -93,6 +95,58 @@ class Settings(BaseSettings):
     EMAIL_TEST_USER: EmailStr = "test@example.com"
     FIRST_SUPERUSER: EmailStr
     FIRST_SUPERUSER_PASSWORD: str
+
+    # --- EvoLoop Gen 3 Configuration ---
+    APP_ENV: Literal["development", "production", "testing"] = "development"
+    LOG_LEVEL: str = "INFO"
+
+    # Graph (Neo4j)
+    NEO4J_URI: str = "bolt://localhost:7687"
+    NEO4J_USER: str = "neo4j"
+    NEO4J_PASSWORD: str | None = None
+
+    # Cache (Redis)
+    REDIS_URL: str = "redis://localhost:6379/0"
+
+    # LLM Providers
+    OPENAI_API_KEY: str = "sk-dummy-key-for-local-dev"
+    OPENAI_BASE_URL: str = "http://localhost:1234/v1"
+    OPENAI_MODEL_NAME: str = "gpt-4o"
+    EMBEDDING_MODEL_NAME: str = "text-embedding-nomic-embed-text-v1.5"
+
+    ANTHROPIC_API_KEY: str | None = None
+    GOOGLE_API_KEY: str | None = None
+    BRAVE_API_KEY: str | None = None
+
+    # Local LLM
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+
+    # ImagicBox API
+    IMAGICBOX_API_URL: str = Field("https://mall.imagicbox.cn", validation_alias="IMAGICBOX_API_URL")
+    IMAGICBOX_API_KEY: str | None = Field(None, validation_alias="IMAGICBOX_API_KEY")
+    IMAGICBOX_API_SECRET: str | None = Field(None, validation_alias="IMAGICBOX_API_SECRET")
+
+    # Project Management
+    # Default to user's home/projects if not set
+    PROJECTS_ROOT: str = Field("/Users/huangjinhuan/项目", validation_alias="PROJECTS_ROOT")
+
+    # Logic Limits
+    MEMORY_SEARCH_LIMIT: int = 5
+    RESEARCH_MAX_ITERATIONS: int = 5
+    TREE_VIEW_MAX_LINES: int = 1500
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def CHECKPOINTER_DATABASE_URI(self) -> str:
+        # Re-use Postgres DSN for Checkpointer
+        return str(PostgresDsn.build(
+            scheme="postgresql",
+            username=self.POSTGRES_USER,
+            password=self.POSTGRES_PASSWORD,
+            host=self.POSTGRES_SERVER,
+            port=self.POSTGRES_PORT,
+            path=self.POSTGRES_DB,
+        ))
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":

@@ -9,8 +9,35 @@ export type Body_login_login_access_token = {
     client_secret?: (string | null);
 };
 
+export type ChatRequest = {
+    thread_id: string;
+    message: string;
+    project_id?: (number | null);
+    checkpoint_id?: (string | null);
+};
+
+export type CreateProjectRequest = {
+    name: string;
+};
+
+export type FileContent = {
+    content: string;
+    language: string;
+};
+
+export type FileNode = {
+    name: string;
+    path: string;
+    type: string;
+    children?: (Array<FileNode> | null);
+};
+
 export type HTTPValidationError = {
     detail?: Array<ValidationError>;
+};
+
+export type IndexingRequest = {
+    project_id: number;
 };
 
 export type ItemCreate = {
@@ -35,6 +62,20 @@ export type ItemUpdate = {
     description?: (string | null);
 };
 
+export type LoginRequest = {
+    username: string;
+    password: string;
+};
+
+export type McpServerRequest = {
+    name: string;
+    command: string;
+    args?: Array<(string)>;
+    env?: {
+        [key: string]: (string);
+    };
+};
+
 export type Message = {
     message: string;
 };
@@ -49,6 +90,18 @@ export type PrivateUserCreate = {
     password: string;
     full_name: string;
     is_verified?: boolean;
+};
+
+export type RenameRequest = {
+    title: string;
+};
+
+export type SearchResult = {
+    thread_id: string;
+    role: string;
+    content: string;
+    created_at: string;
+    match_snippet?: (string | null);
 };
 
 export type Token = {
@@ -106,6 +159,67 @@ export type ValidationError = {
     msg: string;
     type: string;
 };
+
+export type WebhookRequest = {
+    source: string;
+    event_type: string;
+    payload: {
+        [key: string]: unknown;
+    };
+    thread_id?: (string | null);
+};
+
+export type AgentChatEndpointData = {
+    requestBody: ChatRequest;
+};
+
+export type AgentChatEndpointResponse = (unknown);
+
+export type AgentWebhookEndpointData = {
+    requestBody: WebhookRequest;
+};
+
+export type AgentWebhookEndpointResponse = (unknown);
+
+export type AgentChatEndpoint1Data = {
+    requestBody: ChatRequest;
+};
+
+export type AgentChatEndpoint1Response = (unknown);
+
+export type AgentWebhookEndpoint1Data = {
+    requestBody: WebhookRequest;
+};
+
+export type AgentWebhookEndpoint1Response = (unknown);
+
+export type HistorySearchConversationsData = {
+    projectId?: (number | null);
+    q: string;
+};
+
+export type HistorySearchConversationsResponse = (Array<SearchResult>);
+
+export type HistoryRenameConversationData = {
+    requestBody: RenameRequest;
+    threadId: string;
+};
+
+export type HistoryRenameConversationResponse = (unknown);
+
+export type FilesListFilesData = {
+    path?: (string | null);
+    projectId: number;
+};
+
+export type FilesListFilesResponse = (Array<FileNode>);
+
+export type FilesGetFileContentData = {
+    path: string;
+    projectId: number;
+};
+
+export type FilesGetFileContentResponse = (FileContent);
 
 export type ItemsReadItemsData = {
     limit?: number;
@@ -165,11 +279,79 @@ export type LoginRecoverPasswordHtmlContentData = {
 
 export type LoginRecoverPasswordHtmlContentResponse = (string);
 
+export type McpAddMcpServerData = {
+    requestBody: McpServerRequest;
+};
+
+export type McpAddMcpServerResponse = (unknown);
+
+export type McpListMcpServersResponse = (unknown);
+
+export type McpDeleteMcpServerData = {
+    name: string;
+};
+
+export type McpDeleteMcpServerResponse = (unknown);
+
+export type MemberLoginData = {
+    requestBody: LoginRequest;
+};
+
+export type MemberLoginResponse = (unknown);
+
+export type MemberStatusResponse = (unknown);
+
+export type MemberLogoutResponse = (unknown);
+
 export type PrivateCreateUserData = {
     requestBody: PrivateUserCreate;
 };
 
 export type PrivateCreateUserResponse = (UserPublic);
+
+export type ProjectsListProjectsResponse = (unknown);
+
+export type ProjectsCreateProjectData = {
+    requestBody: CreateProjectRequest;
+};
+
+export type ProjectsCreateProjectResponse = (unknown);
+
+export type ProjectsDeleteProjectData = {
+    projectId: number;
+};
+
+export type ProjectsDeleteProjectResponse = (unknown);
+
+export type ProjectsRunIndexingEndpointData = {
+    requestBody: IndexingRequest;
+};
+
+export type ProjectsRunIndexingEndpointResponse = (unknown);
+
+export type ProjectsListProjectConversationsData = {
+    projectId: number;
+};
+
+export type ProjectsListProjectConversationsResponse = (unknown);
+
+export type ProjectsGetConversationHistoryData = {
+    threadId: string;
+};
+
+export type ProjectsGetConversationHistoryResponse = (unknown);
+
+export type ProjectsGetConversationActivityData = {
+    threadId: string;
+};
+
+export type ProjectsGetConversationActivityResponse = (unknown);
+
+export type ProjectsDeleteConversationData = {
+    threadId: string;
+};
+
+export type ProjectsDeleteConversationResponse = (unknown);
 
 export type UsersReadUsersData = {
     limit?: number;

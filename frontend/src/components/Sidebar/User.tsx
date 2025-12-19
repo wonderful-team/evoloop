@@ -44,7 +44,20 @@ export function User({ user }: { user: any }) {
   const { logout } = useAuth()
   const { isMobile, setOpenMobile } = useSidebar()
 
-  if (!user) return null
+  if (!user) {
+    return (
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild>
+            <RouterLink to="/login">
+              <LogOut className="rotate-180" /> {/* Reuse LogOut icon rotated or use LogIn if available */}
+              <span>Log In</span>
+            </RouterLink>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
+    )
+  }
 
   const handleMenuClick = () => {
     if (isMobile) {

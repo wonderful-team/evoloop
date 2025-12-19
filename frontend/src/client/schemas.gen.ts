@@ -55,6 +55,107 @@ export const Body_login_login_access_tokenSchema = {
     title: 'Body_login-login_access_token'
 } as const;
 
+export const ChatRequestSchema = {
+    properties: {
+        thread_id: {
+            type: 'string',
+            title: 'Thread Id'
+        },
+        message: {
+            type: 'string',
+            title: 'Message'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id',
+            default: 1
+        },
+        checkpoint_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Checkpoint Id'
+        }
+    },
+    type: 'object',
+    required: ['thread_id', 'message'],
+    title: 'ChatRequest'
+} as const;
+
+export const CreateProjectRequestSchema = {
+    properties: {
+        name: {
+            type: 'string',
+            title: 'Name'
+        }
+    },
+    type: 'object',
+    required: ['name'],
+    title: 'CreateProjectRequest'
+} as const;
+
+export const FileContentSchema = {
+    properties: {
+        content: {
+            type: 'string',
+            title: 'Content'
+        },
+        language: {
+            type: 'string',
+            title: 'Language'
+        }
+    },
+    type: 'object',
+    required: ['content', 'language'],
+    title: 'FileContent'
+} as const;
+
+export const FileNodeSchema = {
+    properties: {
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        path: {
+            type: 'string',
+            title: 'Path'
+        },
+        type: {
+            type: 'string',
+            title: 'Type'
+        },
+        children: {
+            anyOf: [
+                {
+                    items: {
+                        '$ref': '#/components/schemas/FileNode'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Children'
+        }
+    },
+    type: 'object',
+    required: ['name', 'path', 'type'],
+    title: 'FileNode'
+} as const;
+
 export const HTTPValidationErrorSchema = {
     properties: {
         detail: {
@@ -67,6 +168,18 @@ export const HTTPValidationErrorSchema = {
     },
     type: 'object',
     title: 'HTTPValidationError'
+} as const;
+
+export const IndexingRequestSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        }
+    },
+    type: 'object',
+    required: ['project_id'],
+    title: 'IndexingRequest'
 } as const;
 
 export const ItemCreateSchema = {
@@ -182,6 +295,54 @@ export const ItemsPublicSchema = {
     title: 'ItemsPublic'
 } as const;
 
+export const LoginRequestSchema = {
+    properties: {
+        username: {
+            type: 'string',
+            title: 'Username'
+        },
+        password: {
+            type: 'string',
+            title: 'Password'
+        }
+    },
+    type: 'object',
+    required: ['username', 'password'],
+    title: 'LoginRequest'
+} as const;
+
+export const McpServerRequestSchema = {
+    properties: {
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        command: {
+            type: 'string',
+            title: 'Command'
+        },
+        args: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Args',
+            default: []
+        },
+        env: {
+            additionalProperties: {
+                type: 'string'
+            },
+            type: 'object',
+            title: 'Env',
+            default: {}
+        }
+    },
+    type: 'object',
+    required: ['name', 'command'],
+    title: 'McpServerRequest'
+} as const;
+
 export const MessageSchema = {
     properties: {
         message: {
@@ -235,6 +396,53 @@ export const PrivateUserCreateSchema = {
     type: 'object',
     required: ['email', 'password', 'full_name'],
     title: 'PrivateUserCreate'
+} as const;
+
+export const RenameRequestSchema = {
+    properties: {
+        title: {
+            type: 'string',
+            title: 'Title'
+        }
+    },
+    type: 'object',
+    required: ['title'],
+    title: 'RenameRequest'
+} as const;
+
+export const SearchResultSchema = {
+    properties: {
+        thread_id: {
+            type: 'string',
+            title: 'Thread Id'
+        },
+        role: {
+            type: 'string',
+            title: 'Role'
+        },
+        content: {
+            type: 'string',
+            title: 'Content'
+        },
+        created_at: {
+            type: 'string',
+            title: 'Created At'
+        },
+        match_snippet: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Match Snippet'
+        }
+    },
+    type: 'object',
+    required: ['thread_id', 'role', 'content', 'created_at'],
+    title: 'SearchResult'
 } as const;
 
 export const TokenSchema = {
@@ -523,4 +731,36 @@ export const ValidationErrorSchema = {
     type: 'object',
     required: ['loc', 'msg', 'type'],
     title: 'ValidationError'
+} as const;
+
+export const WebhookRequestSchema = {
+    properties: {
+        source: {
+            type: 'string',
+            title: 'Source'
+        },
+        event_type: {
+            type: 'string',
+            title: 'Event Type'
+        },
+        payload: {
+            additionalProperties: true,
+            type: 'object',
+            title: 'Payload'
+        },
+        thread_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Thread Id'
+        }
+    },
+    type: 'object',
+    required: ['source', 'event_type', 'payload'],
+    title: 'WebhookRequest'
 } as const;

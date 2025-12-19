@@ -20,8 +20,11 @@ fileConfig(config.config_file_name)
 
 from app.models import SQLModel  # noqa
 from app.core.config import settings # noqa
+from app.infrastructure.database.sql.database import Base # noqa
+# Import all models to ensure they are registered in metadata
+from app.infrastructure.database.sql import models as infra_models # noqa
 
-target_metadata = SQLModel.metadata
+target_metadata = [SQLModel.metadata, Base.metadata]
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:

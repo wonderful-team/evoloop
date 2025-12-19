@@ -4,3 +4,7 @@ node_modules/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+/backend/.evoloop/
+/frontend/.tanstack/tmp/
+/backend/.idea/
+/.idea/

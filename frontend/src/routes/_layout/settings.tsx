@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router"
 
 import ChangePassword from "@/components/UserSettings/ChangePassword"
 import DeleteAccount from "@/components/UserSettings/DeleteAccount"
+import AppearanceSettings from "@/components/UserSettings/AppearanceSettings"
 import UserInformation from "@/components/UserSettings/UserInformation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import useAuth from "@/hooks/useAuth"
@@ -9,6 +10,8 @@ import useAuth from "@/hooks/useAuth"
 const tabsConfig = [
   { value: "my-profile", title: "My profile", component: UserInformation },
   { value: "password", title: "Password", component: ChangePassword },
+  { value: "appearance", title: "Appearance", component: AppearanceSettings },
+
   { value: "danger-zone", title: "Danger zone", component: DeleteAccount },
 ]
 
@@ -17,7 +20,7 @@ export const Route = createFileRoute("/_layout/settings")({
   head: () => ({
     meta: [
       {
-        title: "Settings - FastAPI Cloud",
+        title: "Settings - EvoLoop",
       },
     ],
   }),
@@ -26,8 +29,8 @@ export const Route = createFileRoute("/_layout/settings")({
 function UserSettings() {
   const { user: currentUser } = useAuth()
   const finalTabs = currentUser?.is_superuser
-    ? tabsConfig.slice(0, 3)
-    : tabsConfig
+    ? tabsConfig
+    : tabsConfig.filter(t => t.value !== "danger-zone") // Simple filtering
 
   if (!currentUser) {
     return null
@@ -36,13 +39,13 @@ function UserSettings() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">User Settings</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-muted-foreground">
-          Manage your account settings and preferences
+          Manage your account and EvoLoop configurations.
         </p>
       </div>
 
-      <Tabs defaultValue="my-profile">
+      <Tabs defaultValue="mcp">
         <TabsList>
           {finalTabs.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value}>

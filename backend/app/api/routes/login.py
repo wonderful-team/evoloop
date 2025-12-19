@@ -28,9 +28,26 @@ def login_access_token(
     """
     OAuth2 compatible token login, get an access token for future requests
     """
-    user = crud.authenticate(
-        session=session, email=form_data.username, password=form_data.password
-    )
+    # 1. Try Remote Login (Imagicbox)
+    from app.infrastructure.external.imagicbox import imagicbox_client
+    from app.models import UserCreate
+    
+    remote_result = imagicbox_client.login(form_data.username, form_data.password)
+    
+    if remote_result.get("success"):
+        # Remote login successful
+        user = crud.get_user_by_email(session=session, email=form_data.username)
+        if not user:
+            # Auto-provision local user if they don't exist
+            # Use remote credentials to init local user
+            user_in = UserCreate(email=form_data.username, password=form_data.password, full_name=form_data.username)
+            user = crud.create_user(session=session, user_create=user_in)
+    else:
+        # Remote login failed, fallback to local authentication (e.g. for superuser/admin)
+        user = crud.authenticate(
+            session=session, email=form_data.username, password=form_data.password
+        )
+
     if not user:
         raise HTTPException(status_code=400, detail="Incorrect email or password")
     elif not user.is_active:

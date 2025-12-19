@@ -1,5 +1,6 @@
-import { Briefcase, Home, Users } from "lucide-react"
+import { Briefcase, Home, Users, FolderOpen, MessageSquare, Settings, Server } from "lucide-react"
 
+import { ProjectSwitcher } from "./ProjectSwitcher"
 import { SidebarAppearance } from "@/components/Common/Appearance"
 import { Logo } from "@/components/Common/Logo"
 import {
@@ -14,7 +15,11 @@ import { User } from "./User"
 
 const baseItems: Item[] = [
   { icon: Home, title: "Dashboard", path: "/" },
+  { icon: FolderOpen, title: "Projects", path: "/projects" },
+  { icon: MessageSquare, title: "Assistant", path: "/chat" },
   { icon: Briefcase, title: "Items", path: "/items" },
+  { icon: Server, title: "MCP Servers", path: "/mcp" },
+  { icon: Settings, title: "Settings", path: "/settings" },
 ]
 
 export function AppSidebar() {
@@ -26,8 +31,8 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="px-4 py-6 group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:items-center">
-        <Logo variant="responsive" />
+      <SidebarHeader>
+        <ProjectSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <Main items={items} />
