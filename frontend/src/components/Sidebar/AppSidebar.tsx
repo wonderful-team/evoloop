@@ -1,4 +1,4 @@
-import { Briefcase, Home, Users, FolderOpen, MessageSquare, Settings, Server } from "lucide-react"
+import { Briefcase, Home, Users, FolderOpen, MessageSquare, Settings, Server, LayoutDashboard } from "lucide-react"
 
 import { ProjectSwitcher } from "./ProjectSwitcher"
 import { SidebarAppearance } from "@/components/Common/Appearance"
@@ -14,10 +14,9 @@ import { type Item, Main } from "./Main"
 import { User } from "./User"
 
 const baseItems: Item[] = [
-  { icon: Home, title: "Dashboard", path: "/" },
+  { icon: LayoutDashboard, title: "Dashboard", path: "/" },
+  { icon: MessageSquare, title: "Chat", path: "/chat" },
   { icon: FolderOpen, title: "Projects", path: "/projects" },
-  { icon: MessageSquare, title: "Assistant", path: "/chat" },
-  { icon: Briefcase, title: "Items", path: "/items" },
   { icon: Server, title: "MCP Servers", path: "/mcp" },
   { icon: Settings, title: "Settings", path: "/settings" },
 ]
