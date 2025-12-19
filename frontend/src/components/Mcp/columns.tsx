@@ -4,7 +4,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { McpService } from "@/client"
 import { Button } from "@/components/ui/button"
-import { ItemActionsMenu } from "@/components/Items/ItemActionsMenu" // Not used, simplified here
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 

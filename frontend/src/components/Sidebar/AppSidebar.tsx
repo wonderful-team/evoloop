@@ -1,4 +1,4 @@
-import { Briefcase, Home, Users, FolderOpen, MessageSquare, Settings, Server, LayoutDashboard } from "lucide-react"
+import { Users, FolderOpen, MessageSquare, Settings, Server, LayoutDashboard } from "lucide-react"
 
 
 import { SidebarAppearance } from "@/components/Common/Appearance"

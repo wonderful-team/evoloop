@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
 import { Server } from "lucide-react"
-import { Suspense } from "react"
+
 
 import { McpService } from "@/client"
 import { DataTable } from "@/components/Common/DataTable"

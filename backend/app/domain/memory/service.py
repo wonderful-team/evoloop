@@ -104,4 +104,18 @@ class MemoryService:
         return "\n".join(lines)
 
 
+    async def search_concepts_data(self, query_text: str, project_id: int) -> list[dict]:
+        driver = await get_graph_db()
+        fallback_cypher = """
+        MATCH (c:Concept)
+        WHERE c.project_id = $pid AND (c.name CONTAINS $query OR c.description CONTAINS $query)
+        RETURN c.name as name, c.description as description
+        LIMIT $limit
+        """
+        async with driver.session() as session:
+            result = await session.run(fallback_cypher, query=query_text, pid=project_id, limit=settings.MEMORY_SEARCH_LIMIT)
+            records = await result.data()
+        return records
+
+
 memory_service = MemoryService()

@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 from typing import List, Dict, Optional, Any
 from fastapi import APIRouter, HTTPException, Query
@@ -119,8 +120,116 @@ async def get_file_content(project_id: int, path: str = Query(..., min_length=1)
         with open(target_file, 'r', encoding='utf-8') as f:
             content = f.read()
             return FileContent(content=content, language=ext.lstrip('.'))
-    except UnicodeDecodeError:
-        return FileContent(content="// Binary file or unsupported encoding", language="unknown")
     except Exception as e:
         logger.error(f"Error reading file {target_file}: {e}")
         raise HTTPException(500, "Error reading file")
+
+class CreateFileRequest(BaseModel):
+    path: str
+    content: str
+
+@router.post("", response_model=FileNode)
+async def create_file(project_id: int, req: CreateFileRequest):
+    """
+    Create or overwrite a file.
+    """
+    project = await project_context_manager.get_project_by_id(project_id)
+    if not project:
+         raise HTTPException(status_code=404, detail="Project not found")
+         
+    root_path = project.get("path")
+    if not root_path or not os.path.exists(root_path):
+        raise HTTPException(status_code=404, detail="Project path invalid")
+    
+    target_file = os.path.join(root_path, req.path.lstrip('/'))
+    
+    # Security check
+    if not os.path.commonpath([root_path, target_file]) == root_path:
+        raise HTTPException(403, "Access denied")
+        
+    try:
+        os.makedirs(os.path.dirname(target_file), exist_ok=True)
+        with open(target_file, "w", encoding="utf-8") as f:
+            f.write(req.content)
+            
+        return FileNode(
+            name=os.path.basename(target_file),
+            path=req.path,
+            type="file"
+        )
+    except Exception as e:
+        logger.error(f"Failed to write file {target_file}: {e}")
+        raise HTTPException(500, f"Failed to write file: {str(e)}")
+
+@router.get("/search", response_model=List[dict])
+async def search_files(project_id: int, q: str):
+    """
+    Search for text content within project files (simple grep).
+    """
+    if not q or len(q.strip()) < 2:
+        return []
+        
+    project = await project_context_manager.get_project_by_id(project_id)
+    if not project:
+         raise HTTPException(status_code=404, detail="Project not found")
+    
+    root_path = project.get("path")
+    if not root_path or not os.path.exists(root_path):
+        return []
+
+    results = []
+    try:
+        # Use grep to find matches
+        # -r: recursive
+        # -i: case insensitive
+        # -n: show line number
+        # -I: ignore binary files
+        # --exclude-dir: ignore common junk
+        cmd = [
+            "grep", "-r", "-i", "-n", "-I", 
+            "--exclude-dir={.git,.venv,node_modules,__pycache__,dist,build,.evoloop}", 
+            q, 
+            root_path
+        ]
+        
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await proc.communicate()
+        
+        if stdout:
+            lines = stdout.decode("utf-8", errors="ignore").splitlines()
+            for line in lines[:50]: # Limit to 50 hits
+                try:
+                    # Grep output format: filename:line:content
+                    # But filepath is absolute or relative depending on grep. 
+                    # Usually grep -r path outputs path/filename:line:content
+                    parts = line.split(":", 2)
+                    if len(parts) >= 3:
+                        file_path_part = parts[0]
+                        line_num = parts[1]
+                        content = parts[2]
+                        
+                        # Fix path if it is absolute
+                        if os.path.isabs(file_path_part):
+                            rel_path = os.path.relpath(file_path_part, root_path)
+                        else:
+                             # If grep was run on directory, it outputs dir/file
+                             # We passed root_path as argument.
+                             # If root_path is absolute, output is absolute.
+                             rel_path = os.path.relpath(file_path_part, root_path)
+
+                        results.append({
+                            "file": rel_path,
+                            "line": int(line_num),
+                            "content": content.strip()[:200]
+                        })
+                except Exception:
+                    continue
+                    
+    except Exception as e:
+        logger.error(f"Search failed: {e}")
+        
+    return results

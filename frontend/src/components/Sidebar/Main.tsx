@@ -1,5 +1,5 @@
 import { Link as RouterLink, useRouterState } from "@tanstack/react-router"
-import { Home, Server, Settings, MessageSquare, LucideIcon } from "lucide-react"
+import { LucideIcon } from "lucide-react"
 
 import {
   SidebarGroup,

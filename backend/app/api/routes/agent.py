@@ -1,7 +1,7 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
 from pydantic import BaseModel
 from typing import Dict, Any, Optional, List
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, RemoveMessage
 from datetime import datetime, timezone
 
 from app.logging import logger, set_context
@@ -139,6 +139,60 @@ async def chat_endpoint(
     background_tasks.add_task(run_agent_background, req.thread_id, inputs)
             
     return {"status": "queued", "thread_id": req.thread_id}
+
+@router.post("/chat/rewind")
+async def rewind_chat(req: ChatRequest):
+    """
+    Rewind the conversation to the previous state (Undo last step).
+    Removes the last User message and any subsequent AI messages.
+    """
+    thread_id = req.thread_id
+    graph = get_graph()
+    
+    if not graph:
+        raise HTTPException(503, "Graph unavailable")
+        
+    config = {"configurable": {"thread_id": thread_id}}
+    state = await graph.aget_state(config)
+    
+    if not state.values:
+        return {"status": "empty", "thread_id": thread_id}
+        
+    messages = state.values.get("messages", [])
+    if not messages:
+        return {"status": "empty", "thread_id": thread_id}
+        
+    # Find the last HumanMessage
+    to_delete = []
+    
+    # Iterate backwards
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        to_delete.append(msg)
+        if isinstance(msg, HumanMessage):
+            # Found the last human message.
+            # We delete this AND everything that came after it (which we already collected).
+            break
+            
+    if not to_delete:
+        return {"status": "no_human_message_found", "thread_id": thread_id}
+        
+    # Create deletion updates
+    # Ensure messages have IDs. If not, we can't delete them safely with RemoveMessage.
+    # Note: add_messages reducer assigns IDs.
+    updates = []
+    for m in to_delete:
+        if hasattr(m, "id") and m.id:
+            updates.append(RemoveMessage(id=m.id))
+            
+    if updates:
+        # Push the update with the deletions
+        await graph.aupdate_state(config, {"messages": updates})
+        logger.info(f"Rewound {len(updates)} messages for {thread_id}")
+        return {"status": "rewound", "removed_count": len(updates)}
+    else:
+        logger.warning(f"No messages with IDs found to delete for {thread_id}")
+        return {"status": "failed_no_ids", "thread_id": thread_id}
 
 @router.post("/webhook")
 async def webhook_endpoint(req: WebhookRequest, background_tasks: BackgroundTasks):

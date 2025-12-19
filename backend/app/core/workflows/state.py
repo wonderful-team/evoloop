@@ -1,5 +1,6 @@
 from typing import TypedDict, Annotated, List, Union, Optional
 from langchain_core.messages import BaseMessage
+from langgraph.graph.message import add_messages
 import operator
 
 
@@ -11,7 +12,7 @@ class RetrievalContext(TypedDict):
 
 class AgentState(TypedDict):
     # Conversation history (append-only)
-    messages: Annotated[List[BaseMessage], operator.add]
+    messages: Annotated[List[BaseMessage], add_messages]
     
     # Project Scope
     project_id: Optional[int]

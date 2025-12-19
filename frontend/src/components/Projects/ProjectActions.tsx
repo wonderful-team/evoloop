@@ -6,7 +6,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
-import { MoreVertical, Trash2, FolderPen } from "lucide-react"
+import { MoreVertical, Trash2 } from "lucide-react"
 import { useMutation } from "@tanstack/react-query"
 import { ProjectsService } from "@/client"
 import useCustomToast from "@/hooks/useCustomToast"
@@ -43,7 +43,7 @@ export function ProjectActions({ project }: ProjectActionsProps) {
 
             // If deleted project was selected, clear selection
             if (currentProject?.id === project.id) {
-                setProject(null)
+                setProject(null as any)
                 // Redirect logic should technically handle this in the main view
             }
         },
