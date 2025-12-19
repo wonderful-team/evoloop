@@ -1,6 +1,6 @@
 import { Briefcase, Home, Users, FolderOpen, MessageSquare, Settings, Server, LayoutDashboard } from "lucide-react"
 
-import { ProjectSwitcher } from "./ProjectSwitcher"
+
 import { SidebarAppearance } from "@/components/Common/Appearance"
 import { Logo } from "@/components/Common/Logo"
 import {
@@ -31,7 +31,9 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <ProjectSwitcher />
+        <div className="flex items-center justify-center py-2 h-12">
+          <Logo variant="responsive" />
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <Main items={items} />
