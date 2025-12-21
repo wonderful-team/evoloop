@@ -7,6 +7,7 @@ import { Send, Cpu, Terminal, AlertTriangle, ArrowLeft, ChevronDown, ChevronRigh
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
+import { useQuery } from "@tanstack/react-query"
 
 
 
@@ -87,6 +88,36 @@ export function ChatScreen() {
     const { isConnected, messages, clearMessages, addMessage } = useEvoLoopWebSocket(Number(deviceId))
     const scrollRef = useRef<HTMLDivElement>(null)
 
+    // Fetch device status
+    const { data: devices } = useQuery({
+        queryKey: ['evoloop', 'devices'],
+        queryFn: EvoLoopApi.getDeviceList,
+        refetchInterval: 5000,
+    })
+
+    const currentDevice = devices?.find(d => d.device_id === Number(deviceId))
+    const isDeviceOnline = currentDevice?.status === 1
+
+    // Determine overall status text and color
+    let statusText = 'Connecting...'
+    let statusColor = 'bg-yellow-500'
+    let statusShadow = ''
+
+    if (isConnected) {
+        if (isDeviceOnline) {
+            statusText = 'Agent Online'
+            statusColor = 'bg-green-500'
+            statusShadow = 'shadow-[0_0_8px_rgba(34,197,94,0.5)]'
+        } else {
+            statusText = 'Device Offline'
+            statusColor = 'bg-gray-400'
+        }
+    } else {
+        statusText = 'Connecting to Server...'
+        statusColor = 'bg-red-500'
+    }
+
+
     // Auto-scroll
     useEffect(() => {
         if (scrollRef.current) {
@@ -155,6 +186,11 @@ export function ChatScreen() {
         }
     }
 
+    // Input disabled state: if sending OR device is offline (and we are not purely testing UI / not connected)
+    // Actually, if device is offline, we definitely shouldn't send.
+    // If not connected to WS, we also shouldn't send.
+    const isInputDisabled = sending || !isConnected || !isDeviceOnline
+
     return (
         <div className="flex flex-col h-screen bg-background">
             {/* Header */}
@@ -164,11 +200,11 @@ export function ChatScreen() {
                 </Button>
                 <div className="flex-1">
                     <h1 className="font-semibold text-sm flex items-center gap-2">
-                        Device #{deviceId}
+                        {currentDevice?.device_name || `Device #${deviceId}`}
                     </h1>
                     <div className="flex items-center gap-1.5">
-                        <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]' : 'bg-red-500'}`} />
-                        <span className="text-xs text-muted-foreground">{isConnected ? 'Agent Online' : 'Connecting...'}</span>
+                        <span className={`w-2 h-2 rounded-full ${statusColor} ${statusShadow} transition-colors duration-300`} />
+                        <span className="text-xs text-muted-foreground transition-all duration-300">{statusText}</span>
                     </div>
                 </div>
                 <Button variant="ghost" size="sm" className="text-muted-foreground text-xs h-8" onClick={clearMessages}>
@@ -180,13 +216,21 @@ export function ChatScreen() {
             <div className="flex-1 overflow-y-auto p-4 scroll-smooth" ref={scrollRef}>
                 {messages.length === 0 && (
                     <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
-                        <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center">
-                            <Terminal className="w-8 h-8 text-muted-foreground" />
+                        <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${isDeviceOnline ? 'bg-muted' : 'bg-red-50'}`}>
+                            {isDeviceOnline ? (
+                                <Terminal className="w-8 h-8 text-muted-foreground" />
+                            ) : (
+                                <AlertTriangle className="w-8 h-8 text-red-300" />
+                            )}
                         </div>
                         <div className="space-y-2">
-                            <h3 className="font-semibold text-foreground">Ready to Connect</h3>
+                            <h3 className="font-semibold text-foreground">
+                                {isDeviceOnline ? 'Ready to Connect' : 'Device Offline'}
+                            </h3>
                             <p className="text-sm text-muted-foreground max-w-[200px]">
-                                Send instructions to control the remote agent.
+                                {isDeviceOnline
+                                    ? 'Send instructions to control the remote agent.'
+                                    : 'The remote device is currently not connected.'}
                             </p>
                         </div>
                     </div>
@@ -200,12 +244,14 @@ export function ChatScreen() {
             <div className="bg-background border-t p-3 shrink-0 pb-[max(env(safe-area-inset-bottom),0.75rem)] sticky bottom-0 z-20">
                 <form
                     onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-                    className={`flex gap-2 items-end bg-muted/50 p-1.5 rounded-3xl border border-transparent focus-within:border-primary/50 focus-within:bg-background transition-all ${isListening ? 'ring-2 ring-red-500/50 bg-red-50/50' : ''}`}
+                    className={`flex gap-2 items-end bg-muted/50 p-1.5 rounded-3xl border border-transparent focus-within:border-primary/50 focus-within:bg-background transition-all ${isListening ? 'ring-2 ring-red-500/50 bg-red-50/50' : ''} ${isInputDisabled ? 'opacity-50 pointer-events-none' : ''}`}
                 >
+                    {/* Voice Button - Hide or Disable if offline */}
                     <Button
                         type="button"
                         variant="ghost"
                         size="icon"
+                        disabled={isInputDisabled}
                         className={`rounded-full w-10 h-10 shrink-0 mb-0.5 transition-colors ${isListening ? 'text-red-500 hover:text-red-600 hover:bg-red-100' : 'text-muted-foreground hover:bg-background hover:text-primary'}`}
                         onClick={toggleVoiceInput}
                     >
@@ -214,13 +260,17 @@ export function ChatScreen() {
                     <Input
                         value={input}
                         onChange={e => setInput(e.target.value)}
-                        placeholder={isListening ? "Listening..." : "Message agent..."}
-                        disabled={sending}
+                        placeholder={
+                            !isConnected ? "Connecting to server..." :
+                                !isDeviceOnline ? "Device is offline" :
+                                    isListening ? "Listening..." : "Message agent..."
+                        }
+                        disabled={isInputDisabled}
                         className="border-0 shadow-none focus-visible:ring-0 bg-transparent min-h-[44px] px-2 py-3 placeholder:text-muted-foreground/70"
                     />
                     <Button
                         type="submit"
-                        disabled={sending || (!input.trim() && !isListening)}
+                        disabled={isInputDisabled || (!input.trim() && !isListening)}
                         size="icon"
                         className="rounded-full w-10 h-10 shrink-0 mb-0.5"
                     >
