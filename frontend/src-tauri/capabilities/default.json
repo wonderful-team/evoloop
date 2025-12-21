@@ -10,6 +10,8 @@
     "opener:default",
     "dialog:default",
     "shell:default",
+    "stt:default",
+    "tts:default",
     {
       "identifier": "http:default",
       "allow": [

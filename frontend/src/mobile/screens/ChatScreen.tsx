@@ -1,5 +1,6 @@
 import { useParams, useNavigate } from "@tanstack/react-router"
 import { useEvoLoopWebSocket, LogMessage } from "@/hooks/useEvoLoopWebSocket"
+import { useVoice } from "@/hooks/useVoice"
 import { EvoLoopApi } from "@/client/evoloopClient"
 import { useState, useRef, useEffect } from "react"
 import { Send, Cpu, Terminal, AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Mic } from "lucide-react"
@@ -120,54 +121,39 @@ export function ChatScreen() {
         }
     }
 
-    // State for the native plugin
-    const [isRecording, setIsRecording] = useState(false);
+    // Native Plugin Hook
+    const { isListening, transcript, startListening, stopListening } = useVoice({ language: 'zh-CN' })
 
-    const toggleVoiceInput = () => {
-        if (isRecording) {
-            // Stop recording logic depends on the instance, but for simple toggle:
-            // Since we don't hold the instance ref in this snippet, we'll just reset state.
-            // In a real app, you'd call recognition.stop().
-            setIsRecording(false);
-            window.speechSynthesis.cancel();
-            return;
+    // Sync transcript to input
+    useEffect(() => {
+        if (transcript) {
+            // Append or replace? Usually append is better for chat.
+            // But if it updates continuously, we need to be careful not to duplicate.
+            // My useVoice sets transcript to the latest result.
+            // If partial results are enabled, it might just be the full current phrase.
+            // A simple approach is: when listening starts, clear input? Or append?
+            // Let's assume transcript is the *current utterance*.
+            // We want to append it to `input` only when it's final?
+            // The current hook just sets `transcript`.
+            // A common pattern: Display transcript in placeholder or separate view, then commit to input on stop?
+            // Or just setInput(transcript).
+            // Let's try: While listening, Input shows `transcript`.
+            // If we want to append to existing text, we need to separate "previous text" and "current voice text".
+            // For simplicity in this v1:
+            // When voice starts, we might clear input or ignore previous?
+            // Let's just setInput(transcript) for now, assuming voice is the primary input method when active.
+            setInput(transcript)
         }
+    }, [transcript])
 
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-        if (!SpeechRecognition) {
-            toast.error("Voice input is not supported in this browser.");
-            return;
+    const toggleVoiceInput = async () => {
+        if (isListening) {
+            await stopListening()
+        } else {
+            // Check platform? The plugin handles permissions.
+            await startListening()
         }
-
-        const recognition = new SpeechRecognition();
-        recognition.lang = 'zh-CN';
-        recognition.continuous = false;
-        recognition.interimResults = false;
-
-        recognition.onstart = () => {
-            setIsRecording(true);
-            toast.info("Listening...");
-        };
-
-        recognition.onend = () => {
-            setIsRecording(false);
-        };
-
-        recognition.onerror = (event: any) => {
-            console.error("Speech recognition error", event.error);
-            setIsRecording(false);
-            toast.error("Voice input error: " + event.error);
-        };
-
-        recognition.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript;
-            if (transcript) {
-                setInput(prev => prev ? prev + " " + transcript : transcript);
-            }
-        };
-
-        recognition.start();
-    };
+    }
 
     return (
         <div className="flex flex-col h-screen bg-background">
@@ -214,27 +200,27 @@ export function ChatScreen() {
             <div className="bg-background border-t p-3 shrink-0 pb-[max(env(safe-area-inset-bottom),0.75rem)] sticky bottom-0 z-20">
                 <form
                     onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-                    className={`flex gap-2 items-end bg-muted/50 p-1.5 rounded-3xl border border-transparent focus-within:border-primary/50 focus-within:bg-background transition-all ${isRecording ? 'ring-2 ring-red-500/50 bg-red-50/50' : ''}`}
+                    className={`flex gap-2 items-end bg-muted/50 p-1.5 rounded-3xl border border-transparent focus-within:border-primary/50 focus-within:bg-background transition-all ${isListening ? 'ring-2 ring-red-500/50 bg-red-50/50' : ''}`}
                 >
                     <Button
                         type="button"
                         variant="ghost"
                         size="icon"
-                        className={`rounded-full w-10 h-10 shrink-0 mb-0.5 transition-colors ${isRecording ? 'text-red-500 hover:text-red-600 hover:bg-red-100' : 'text-muted-foreground hover:bg-background hover:text-primary'}`}
+                        className={`rounded-full w-10 h-10 shrink-0 mb-0.5 transition-colors ${isListening ? 'text-red-500 hover:text-red-600 hover:bg-red-100' : 'text-muted-foreground hover:bg-background hover:text-primary'}`}
                         onClick={toggleVoiceInput}
                     >
-                        <Mic className={`w-5 h-5 ${isRecording ? 'animate-pulse' : ''}`} />
+                        <Mic className={`w-5 h-5 ${isListening ? 'animate-pulse' : ''}`} />
                     </Button>
                     <Input
                         value={input}
                         onChange={e => setInput(e.target.value)}
-                        placeholder={isRecording ? "Listening..." : "Message agent..."}
+                        placeholder={isListening ? "Listening..." : "Message agent..."}
                         disabled={sending}
                         className="border-0 shadow-none focus-visible:ring-0 bg-transparent min-h-[44px] px-2 py-3 placeholder:text-muted-foreground/70"
                     />
                     <Button
                         type="submit"
-                        disabled={sending || (!input.trim() && !isRecording)}
+                        disabled={sending || (!input.trim() && !isListening)}
                         size="icon"
                         className="rounded-full w-10 h-10 shrink-0 mb-0.5"
                     >
