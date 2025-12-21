@@ -148,6 +148,12 @@ class Settings(BaseSettings):
             path=self.POSTGRES_DB,
         ))
 
+    # EvoLoop Link Client Configuration
+    EVOLOOP_LINK_TOKEN: str | None = None
+    EVOLOOP_LINK_BASE_URL: str = "https://mall.imagicbox.cn"
+    EVOLOOP_LINK_WS_URL: str = "wss://mall.imagicbox.cn/wss/"
+    EVOLOOP_DEVICE_NAME: str | None = None
+
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":
             message = (

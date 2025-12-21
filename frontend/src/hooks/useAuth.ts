@@ -7,6 +7,7 @@ import {
   type UserPublic,
   type UserRegister,
   UsersService,
+  MemberService,
 } from "@/client"
 import { handleError } from "@/utils"
 import useCustomToast from "./useCustomToast"
@@ -53,9 +54,17 @@ const useAuth = () => {
     onError: handleError.bind(showErrorToast),
   })
 
-  const logout = () => {
-    localStorage.removeItem("access_token")
-    navigate({ to: "/" })
+  const logout = async () => {
+    try {
+      // Call backend to cleanup EvoLoop connection
+      // Note: MemberService must be imported
+      await MemberService.logout()
+    } catch (e) {
+      console.error("Logout cleanup failed:", e)
+    } finally {
+      localStorage.removeItem("access_token")
+      queryClient.resetQueries()
+    }
   }
 
   return {

@@ -29,3 +29,4 @@ openapi.json
 /playwright/.cache/
 /playwright/.auth/
 /src-tauri/target/
+/src-tauri/gen/*

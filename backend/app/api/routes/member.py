@@ -22,4 +22,32 @@ async def status():
 @router.post("/logout")
 async def logout():
     imagicbox_client.logout()
+    
+    # --- EvoLoop: Disconnect Device ---
+    try:
+        from app.infrastructure.evoloop_link.client import get_evoloop_client
+        from app.logging import logger
+        from app.core.config import settings
+        import redis.asyncio as redis
+
+        # 1. Stop Client
+        client = get_evoloop_client()
+        if client:
+            client.stop()
+            logger.info("[EvoLoop] Client stopped via logout.")
+            
+        # 2. Clear Redis Token
+        try:
+            redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
+            async with redis_client:
+                await redis_client.delete("evoloop:link:token")
+                logger.info("[EvoLoop] Token cleared from Redis via logout.")
+        except Exception as e:
+            logger.warning(f"[EvoLoop] Failed to clear token from Redis: {e}")
+            
+    except Exception as e:
+        # Don't fail the logout response
+        print(f"Error during EvoLoop logout: {e}")
+    # ----------------------------------
+
     return {"message": "Logged out"}

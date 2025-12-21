@@ -22,7 +22,7 @@ router = APIRouter(tags=["login"])
 
 
 @router.post("/login/access-token")
-def login_access_token(
+async def login_access_token(
     session: SessionDep, form_data: Annotated[OAuth2PasswordRequestForm, Depends()]
 ) -> Token:
     """
@@ -36,6 +36,59 @@ def login_access_token(
     
     if remote_result.get("success"):
         # Remote login successful
+        
+        # --- EvoLoop: Auto-connect to Cloud on Login ---
+        try:
+            from app.infrastructure.evoloop_link.client import init_evoloop_client, get_evoloop_client
+            from app.core.config import settings as app_settings
+            import asyncio
+            from app.logging import logger
+            # We can't import router logic easily, so duplicate handler setup or refactor.
+            # Let's reuse the simple init logic.
+            
+            token = remote_result.get("token")
+            if token:
+                logger.info(f"[EvoLoop] Auto-connecting to cloud with token from login...")
+                # Stop existing if any
+                existing = get_evoloop_client()
+                if existing:
+                    existing.stop()
+                
+                # Init new
+                new_client = init_evoloop_client(token=token, device_name=app_settings.EVOLOOP_DEVICE_NAME)
+                
+                # Reuse handler logic - ideally this should be a shared utility function
+                # For now, duplicate standard handler logic to ensure it works
+                
+                # Use shared handler
+                from app.infrastructure.evoloop_link.handler import handle_remote_command
+
+                new_client.set_command_handler(handle_remote_command)
+                
+                # URL overrides
+                if app_settings.EVOLOOP_LINK_BASE_URL:
+                    new_client.base_url = app_settings.EVOLOOP_LINK_BASE_URL.rstrip("/")
+                if app_settings.EVOLOOP_LINK_WS_URL:
+                    new_client.ws_url = app_settings.EVOLOOP_LINK_WS_URL
+
+                # Save token to Redis for auto-recovery on restart
+                try:
+                    import redis.asyncio as redis
+                    redis_client = redis.from_url(app_settings.REDIS_URL, encoding="utf-8", decode_responses=True)
+                    async with redis_client:
+                         # Set generic token key. Since Backend serves one user primarily in this context (PC Client), 
+                         # global key is acceptable. Or use a key structure if multi-user support is needed later.
+                         await redis_client.set("evoloop:link:token", token)
+                except Exception as e:
+                    logger.warning(f"[EvoLoop] Failed to save token to Redis: {e}")
+
+                asyncio.create_task(new_client.start())
+        except Exception as e:
+            # Don't fail login if cloud connection fails
+            from app.logging import logger
+            logger.error(f"[EvoLoop] Failed to auto-connect to cloud: {e}")
+        # ---------------------------------------------
+
         user = crud.get_user_by_email(session=session, email=form_data.username)
         if not user:
             # Auto-provision local user if they don't exist

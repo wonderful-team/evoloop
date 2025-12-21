@@ -18,6 +18,8 @@ from app.infrastructure.database.sql.database import session_scope
 # --- Background Worker ---
 from app.core.callbacks.transparent import TransparentCallbackHandler
 from app.core.callbacks.database_logger import DatabaseCallbackHandler
+from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
+from app.infrastructure.evoloop_link.client import get_evoloop_client
 
 router = APIRouter()
 
@@ -55,7 +57,14 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
     activity_monitor.start_run(thread_id)
     
     try:
-        config["callbacks"] = [callback, db_callback]
+        callbacks = [callback, db_callback]
+        
+        # Add EvoLoop Link Callback if available
+        evoloop_client = get_evoloop_client()
+        if evoloop_client:
+            callbacks.append(EvoLoopCallbackHandler(evoloop_client, thread_id))
+            
+        config["callbacks"] = callbacks
         config["recursion_limit"] = 50
         
         # Run!

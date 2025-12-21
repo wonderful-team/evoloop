@@ -20,6 +20,7 @@ from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.project.service import project_context_manager
 from app.domain.watchers import ProjectDiscoveryWatcher
 from app.infrastructure.mcp.client import mcp_client_manager
+from app.infrastructure.evoloop_link.client import init_evoloop_client
 from app.infrastructure.database.sql.database import engine, Base
 from sqlalchemy import text
 
@@ -77,6 +78,51 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to start startup watcher: {e}")
 
+    # 7. EvoLoop Link Client (PC Client)
+    evoloop_client = None
+    
+    # Try to load token from settings OR local storage via infrastructure/external/imagicbox.py style
+    # Actually, evoloop_link/client.py is separate.
+    # Let's see if we can unify.
+    
+    evoloop_token = settings.EVOLOOP_LINK_TOKEN
+    
+    if not evoloop_token:
+        # Check if we have a saved persisted token in Redis
+        try:
+            import redis.asyncio as redis
+            redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
+            async with redis_client:
+                evoloop_token = await redis_client.get("evoloop:link:token")
+                if evoloop_token:
+                     logger.info("[EvoLoop] Found persisted token in Redis, auto-connecting...")
+        except Exception as e:
+            logger.warning(f"[EvoLoop] Failed to read token from Redis: {e}")
+
+    if evoloop_token:
+        try:
+            evoloop_client = init_evoloop_client(
+                token=evoloop_token,
+                device_name=settings.EVOLOOP_DEVICE_NAME
+            )
+            
+            # Use shared handler
+            from app.infrastructure.evoloop_link.handler import handle_remote_command
+            
+            evoloop_client.set_command_handler(handle_remote_command)
+
+            # Override URLs if provided in settings
+            if settings.EVOLOOP_LINK_BASE_URL:
+                evoloop_client.base_url = settings.EVOLOOP_LINK_BASE_URL.rstrip("/")
+            if settings.EVOLOOP_LINK_WS_URL:
+                evoloop_client.ws_url = settings.EVOLOOP_LINK_WS_URL
+            
+            # Start client in background
+            asyncio.create_task(evoloop_client.start())
+            logger.info("EvoLoop Link Client started in background.")
+        except Exception as e:
+            logger.error(f"Failed to start EvoLoop Link Client: {e}")
+
     yield
 
     # --- Shutdown ---
@@ -85,6 +131,8 @@ async def lifespan(app: FastAPI):
         discovery_watcher.stop()
     await indexing_manager.stop_all()
     await mcp_client_manager.cleanup()
+    if evoloop_client:
+        evoloop_client.stop()
     if db_pool:
         await db_pool.close()
 

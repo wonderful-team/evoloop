@@ -19,6 +19,14 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  build: {
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'index.html'),
+        mobile: path.resolve(__dirname, 'mobile.html'),
+      },
+    },
+  },
   // Tauri expects a fixed port, fail if that port is not available
   server: {
     port: 5173,
