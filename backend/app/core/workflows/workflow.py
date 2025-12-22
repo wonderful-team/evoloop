@@ -34,7 +34,7 @@ def create_graph(checkpointer=None):
             tasks = state.get("parallel_research_tasks", [])
             return [Send("deep_researcher", {"research_topic": topic}) for topic in tasks]
         if next_node == "finish":
-            return END
+            return "finish"
         return next_node
 
     workflow.add_conditional_edges(
