@@ -1,13 +1,13 @@
 from typing import Any, Dict, List, Optional
 from uuid import UUID
-from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import Message
 import asyncio
 
-class DatabaseCallbackHandler(BaseCallbackHandler):
+class DatabaseCallbackHandler(AsyncCallbackHandler):
     """
     Callback Handler that logs messages to the database (Message) for full-text search.
     """
@@ -15,11 +15,11 @@ class DatabaseCallbackHandler(BaseCallbackHandler):
         self.thread_id = thread_id
         self.project_id = project_id
 
-    def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
+    async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         # We don't log every token to DB
         pass
 
-    def on_chat_model_start(
+    async def on_chat_model_start(
         self,
         serialized: Dict[str, Any],
         messages: List[List[BaseMessage]],
@@ -33,7 +33,7 @@ class DatabaseCallbackHandler(BaseCallbackHandler):
         """Run when a chat model starts."""
         pass
 
-    def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
+    async def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
         # This is tricky because "chain" can be anything.
         # We ideally want to capture the final AI response node.
         # But LangGraph is different.
@@ -49,7 +49,7 @@ class DatabaseCallbackHandler(BaseCallbackHandler):
     # Actually, the best place is `on_llm_end` for AI messages.
     # And we log Human messages at controller level (in `agent.py`).
 
-    def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
+    async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         if not response.generations:
             return
 
@@ -60,7 +60,7 @@ class DatabaseCallbackHandler(BaseCallbackHandler):
         # But we can fire and forget or run in loop?
         # We will use sync session or async run?
         # We'll assume we can use `asyncio.create_task`
-        asyncio.create_task(self._save_log("ai", text))
+        await self._save_log("ai", text)
 
     async def _save_log(self, role: str, content: str):
         if not content:

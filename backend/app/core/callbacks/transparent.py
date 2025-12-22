@@ -25,7 +25,7 @@ class TransparentCallbackHandler(BaseCallbackHandler):
     def __init__(self, thread_id: str = None):
         super().__init__()
         self.thread_id = thread_id
-        from core.monitoring.activity import activity_monitor
+        from app.core.monitoring.activity import activity_monitor
         self.monitor = activity_monitor
         self.current_task_id = None
 

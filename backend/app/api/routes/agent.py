@@ -48,6 +48,8 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
     # Inject Checkpoint ID if present
     if inputs.get("checkpoint_id"):
         config["configurable"]["checkpoint_id"] = inputs["checkpoint_id"]
+        
+    evoloop_command_id = inputs.get("command_id")
     
     # Use our transparent callback with thread tracking
     callback = TransparentCallbackHandler(thread_id=thread_id)
@@ -62,7 +64,8 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
         # Add EvoLoop Link Callback if available
         evoloop_client = get_evoloop_client()
         if evoloop_client:
-            callbacks.append(EvoLoopCallbackHandler(evoloop_client, thread_id))
+            # Pass command_id to handler
+            callbacks.append(EvoLoopCallbackHandler(evoloop_client, thread_id, command_id=evoloop_command_id))
             
         config["callbacks"] = callbacks
         config["recursion_limit"] = 50
@@ -81,6 +84,38 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
             pass
             
         activity_monitor.end_run(thread_id, "done")
+        
+        if evoloop_client:
+            try:
+                final_state = await graph_instance.aget_state(config)
+                logger.info(f"Final State Keys: {final_state.values.keys()}")
+                if final_state.values and "messages" in final_state.values:
+                    messages = final_state.values["messages"]
+                    logger.info(f"Total messages: {len(messages)}")
+                    if messages:
+                        last_msg = messages[-1]
+                        logger.info(f"Last message type: {type(last_msg)}, content: {last_msg.content}")
+                        
+                        # Check if it's an AI message with content
+                        if hasattr(last_msg, "content") and last_msg.content:
+                            content_str = last_msg.content
+                            
+                            # CLEAN <think> tags for mobile display
+                            import re
+                            # Remove <think>...</think> including newlines
+                            content_clean = re.sub(r'<think>.*?</think>', '', content_str, flags=re.DOTALL).strip()
+                            
+                            logger.info(f"Uploading final output (cleaned len: {len(content_clean)})...")
+                            
+                            await evoloop_client.upload_log(
+                                thread_id=thread_id,
+                                log_type="output", 
+                                content=content_clean,
+                                command_id=evoloop_command_id
+                            )
+                            logger.info("Upload task awaited.")
+            except Exception as e:
+                logger.warning(f"Failed to send final output to EvoLoop: {e}")
         
     except Exception as e:
         logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)

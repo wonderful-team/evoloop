@@ -78,6 +78,10 @@ class EvoLoopLinkClient:
             if resp.status_code != 200:
                 logger.error(f"[EvoLoop] API Error {resp.status_code}: {resp.text[:500]}")
             
+            # Log successful response for debugging logs
+            if "upload" in endpoint:
+                logger.info(f"[EvoLoop] API Response ({endpoint}): {resp.text}")
+
             try:
                 return resp.json()
             except json.JSONDecodeError:
@@ -314,3 +318,9 @@ def init_evoloop_client(token: str, device_name: Optional[str] = None) -> EvoLoo
     global evoloop_client
     evoloop_client = EvoLoopLinkClient(token=token, device_name=device_name)
     return evoloop_client
+
+
+def set_evoloop_client(client: EvoLoopLinkClient):
+    """设置全局客户端实例"""
+    global evoloop_client
+    evoloop_client = client

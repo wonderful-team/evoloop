@@ -85,8 +85,32 @@ export function ChatScreen() {
     const [input, setInput] = useState("")
     const [sending, setSending] = useState(false)
 
-    const { isConnected, messages, clearMessages, addMessage } = useEvoLoopWebSocket(Number(deviceId))
+    const { isConnected, messages, clearMessages, addMessage, setMessages } = useEvoLoopWebSocket(Number(deviceId))
     const scrollRef = useRef<HTMLDivElement>(null)
+
+    // Fetch history
+    useEffect(() => {
+        if (deviceId) {
+            EvoLoopApi.getRecentLogs(Number(deviceId)).then(logs => {
+                if (Array.isArray(logs)) {
+                    // Convert backend log format to frontend LogMessage
+                    const formatted = logs.map(log => ({
+                        type: log.type || 'info', // 'info' maps to default? check LogItem
+                        content: log.content, // backend might return object or string
+                        thread_id: log.thread_id,
+                        timestamp: log.create_time ? log.create_time * 1000 : Date.now()
+                    })).reverse(); // Recent logs usually desc, chat needs asc (oldest first)? 
+                    // Log.php list() or recent()? recent() implies latest first.
+                    // Chat usually displays top-to-bottom as old-to-new.
+                    // If recent() returns "latest 50", they are likely DESC.
+                    // So we reverse them.
+                    setMessages(formatted as any);
+                }
+            }).catch(err => {
+                console.error("Failed to fetch history", err)
+            })
+        }
+    }, [deviceId, setMessages])
 
     // Fetch device status
     const { data: devices } = useQuery({

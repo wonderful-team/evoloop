@@ -151,6 +151,13 @@ export const EvoLoopApi = {
         } catch {
             return false;
         }
+    },
+
+    getRecentLogs: async (device_id: number, limit: number = 50): Promise<any[]> => {
+        const response = await evoloopClient.get('/evolooplink/api/log/recent', {
+            params: { device_id, limit }
+        });
+        return response.data;
     }
 };
 

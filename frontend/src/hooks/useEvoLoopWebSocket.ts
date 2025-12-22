@@ -50,6 +50,20 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
                         }
                     } else if (data.type === 'ping') {
                         // ignore or pong
+                    } else if (data.type === 'new_logs') {
+                        // Handle batched logs from backend "new_logs" event via Gateway
+                        const logs = data.data.logs || [];
+                        if (Array.isArray(logs)) {
+                            setMessages(prev => {
+                                const newMsgs = logs.map((log: any) => ({
+                                    type: log.type,
+                                    content: log.content,
+                                    thread_id: log.thread_id,
+                                    timestamp: Date.now() // or log.create_time ?
+                                }));
+                                return [...prev, ...newMsgs];
+                            });
+                        }
                     } else if (['thought', 'tool', 'output', 'error'].includes(data.type)) {
                         setMessages(prev => [...prev, {
                             type: data.type,
@@ -85,6 +99,8 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
         }
         return () => {
             if (wsRef.current) {
+                // Prevent reconnect logic from firing on intentional cleanup
+                wsRef.current.onclose = null;
                 wsRef.current.close();
             }
             if (reconnectTimeoutRef.current) {
@@ -99,5 +115,5 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
         }
     }, []);
 
-    return { isConnected, messages, sendMessage, addMessage, clearMessages: () => setMessages([]) };
+    return { isConnected, messages, sendMessage, addMessage, setMessages, clearMessages: () => setMessages([]) };
 }

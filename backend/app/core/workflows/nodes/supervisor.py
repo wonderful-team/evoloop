@@ -58,6 +58,7 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
     Current Plan: {current_plan}
     Project ID: {project_id}
     Iteration: {iteration_count}
+    System Info: {system_info}
     """),
     ("placeholder", "{messages}"),
     ("system", "Follow the protocol: Read docs, Analyze feasibility, Then decide.")
@@ -110,10 +111,16 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     iteration_count = state.get("iteration_count", 0)
 
     # Create a chain for tool calling
+    # Gather System Info
+    import os, platform
+    cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
+    sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}"
+    
     tool_chain = supervisor_prompt.partial(
         project_id=project_id, 
         current_plan=current_plan, 
-        iteration_count=iteration_count
+        iteration_count=iteration_count,
+        system_info=sys_info
     ) | llm_with_tools
     
     # Allow up to 5 turns for planning & analysis
@@ -191,12 +198,14 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     chain = supervisor_prompt.partial(
         project_id=project_id, 
         current_plan=current_plan, 
-        iteration_count=iteration_count
+        iteration_count=iteration_count,
+        system_info=sys_info
     ) | structured_llm
     
     next_node = "deep_researcher"
+    decision: Optional[RoutingDecision] = None
     try:
-        decision: RoutingDecision = await chain.ainvoke(state, config=config)
+        decision = await chain.ainvoke(state, config=config)
         next_node = decision.next_node
     except Exception as e:
         # Fallback if structured output fails
@@ -205,13 +214,16 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     # CRITICAL: Return the new messages so LangGraph persists them!
     # If we return "messages": new_messages, LangGraph's reducer (operator.add) will append them.
     # If map_research is chosen but no tasks, fallback
-    if next_node == "map_research" and not decision.parallel_research_tasks:
-        next_node = "deep_researcher"
+    parallel_research_tasks = []
+    if decision:
+        if next_node == "map_research" and not decision.parallel_research_tasks:
+            next_node = "deep_researcher"
+        parallel_research_tasks = decision.parallel_research_tasks or []
 
     return {
         "next_node": next_node,
         "messages": new_messages,
         "current_plan": state.get("current_plan"),
         "structured_plan": state.get("structured_plan"),
-        "parallel_research_tasks": decision.parallel_research_tasks
+        "parallel_research_tasks": parallel_research_tasks
     }

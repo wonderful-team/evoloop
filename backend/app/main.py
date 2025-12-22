@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from psycopg_pool import AsyncConnectionPool
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 import os
+import asyncio
 
 from app.api.main import api_router
 from app.core.config import settings
@@ -105,6 +106,10 @@ async def lifespan(app: FastAPI):
                 token=evoloop_token,
                 device_name=settings.EVOLOOP_DEVICE_NAME
             )
+            
+            # USE GLOBALS TO SET CLIENT
+            from app.infrastructure.evoloop_link.client import set_evoloop_client
+            set_evoloop_client(evoloop_client)
             
             # Use shared handler
             from app.infrastructure.evoloop_link.handler import handle_remote_command

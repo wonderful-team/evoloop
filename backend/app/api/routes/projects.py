@@ -134,7 +134,7 @@ async def get_conversation_history(thread_id: str):
 @router.get("/conversations/{thread_id}/activity")
 async def get_conversation_activity(thread_id: str):
     """Get real-time activity/status for a thread run."""
-    from core.monitoring.activity import activity_monitor
+    from app.core.monitoring.activity import activity_monitor
     return activity_monitor.get_activity(thread_id)
 
 @router.delete("/conversations/{conversation_id}")
