@@ -5,11 +5,8 @@ import { EvoLoopApi } from "@/client/evoloopClient"
 import { useState, useRef, useEffect } from "react"
 import { Send, Cpu, Terminal, AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Mic, Paperclip, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import { useQuery } from "@tanstack/react-query"
-
-
 
 
 function LogItem({ msg }: { msg: LogMessage }) {
