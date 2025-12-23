@@ -143,6 +143,40 @@ export const EvoLoopApi = {
         return response.data;
     },
 
+    uploadFile: async (file: File): Promise<string> => {
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // This endpoint returns { code: 0, data: { path: "https://..." } }
+        // We use 'chatfile' endpoint we just created in Member Center
+        const response = await evoloopClient.post('/api/upload/chatfile', formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            }
+        });
+
+        // Return full URL
+        if (response.data && response.data.path) {
+            // If path is relative, prepend base url. But fileCloud usually returns full cloud URL or local relative path.
+            // If local relative, we need to prepend domain. 
+            // However, Upload.php usually returns storage path.
+            // Let's assume we need to handle it.
+            let path = response.data.path;
+            if (!path.startsWith('http')) {
+                // If it's a local upload, prepend API_BASE or similar.
+                // But NIUSHOP_BASE_URL is defined.
+                // Let's use get_file_url helper logic if available, or just prepend.
+                if (path.startsWith('/')) {
+                    path = NIUSHOP_BASE_URL + path;
+                } else {
+                    path = NIUSHOP_BASE_URL + '/' + path;
+                }
+            }
+            return path;
+        }
+        throw new Error("Upload failed, no path returned");
+    },
+
     // Status check (Optional)
     ping: async () => {
         try {

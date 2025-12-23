@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AgentService, ProjectsService } from "@/client"
+import { EvoLoopApi } from "@/client/evoloopClient"
+import { toast } from "sonner"
 import { Button } from "../ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 
@@ -31,6 +33,7 @@ export function ChatInterface() {
     const projectId = currentProject?.id
     const queryClient = useQueryClient()
     const [inputValue, setInputValue] = useState("")
+    const [isUploading, setIsUploading] = useState(false)
     const [messages, setMessages] = useState<Message[]>([])
     const [activeThreadId, setActiveThreadId] = useState<string>(() => crypto.randomUUID())
     const [showContextPanel, setShowContextPanel] = useState(true)
@@ -275,9 +278,32 @@ export function ChatInterface() {
                         {/* Floating Input Area - Positioned absolutely within the Center Panel */}
                         <div className="absolute bottom-6 left-0 right-0 px-4 flex justify-center pointer-events-none z-10">
                             <div className="w-full max-w-3xl bg-background rounded-2xl shadow-xl border border-input p-2 flex items-end gap-2 pointer-events-auto transition-all focus-within:ring-2 focus-within:ring-ring ring-offset-2">
-                                <Button variant="ghost" size="icon" className="shrink-0 mb-1 h-8 w-8 rounded-full">
-                                    <Paperclip size={18} className="text-muted-foreground" />
+                                <Button variant="ghost" size="icon" className="shrink-0 mb-1 h-8 w-8 rounded-full" onClick={() => document.getElementById('file-upload')?.click()} disabled={isUploading}>
+                                    {isUploading ? <Loader2 size={18} className="animate-spin text-muted-foreground" /> : <Paperclip size={18} className="text-muted-foreground" />}
                                 </Button>
+                                <input
+                                    type="file"
+                                    id="file-upload"
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                        const file = e.target.files?.[0]
+                                        if (!file) return
+
+                                        setIsUploading(true)
+                                        try {
+                                            const url = await EvoLoopApi.uploadFile(file)
+                                            setInputValue(prev => prev + (prev ? "\n" : "") + `[File: ${url}]`)
+                                            toast.success("File uploaded successfully")
+                                        } catch (error) {
+                                            toast.error("Failed to upload file")
+                                            console.error(error)
+                                        } finally {
+                                            setIsUploading(false)
+                                            // Reset input
+                                            e.target.value = ''
+                                        }
+                                    }}
+                                />
                                 <textarea
                                     value={inputValue}
                                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInputValue(e.target.value)}
@@ -294,7 +320,7 @@ export function ChatInterface() {
                                 />
                                 <Button
                                     onClick={handleSend}
-                                    disabled={!inputValue.trim() || sendMutation.isPending || !currentProject}
+                                    disabled={!inputValue.trim() || sendMutation.isPending || !currentProject || isUploading}
                                     size="icon"
                                     className="mb-0.5 h-9 w-9 rounded-xl shadow-sm"
                                 >

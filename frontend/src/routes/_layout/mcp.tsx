@@ -1,18 +1,23 @@
+import { useState, useMemo } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
-import { Server } from "lucide-react"
-
+import { Server, Plus } from "lucide-react"
 
 import { McpService } from "@/client"
 import { DataTable } from "@/components/Common/DataTable"
-import AddMcpServer from "@/components/Mcp/AddMcpServer"
-import { columns } from "@/components/Mcp/columns"
+import McpServerModal, { McpServerPublic } from "@/components/Mcp/McpServerModal"
+import { getColumns } from "@/components/Mcp/columns"
+import { Button } from "@/components/ui/button"
 
 export const Route = createFileRoute("/_layout/mcp")({
     component: McpPage,
 })
 
-function McpTableContent() {
+function McpPage() {
+    const [modalOpen, setModalOpen] = useState(false)
+    const [modalMode, setModalMode] = useState<"add" | "edit">("add")
+    const [selectedServer, setSelectedServer] = useState<McpServerPublic | null>(null)
+
     const { data: servers, isLoading } = useQuery({
         queryKey: ["mcpServers"],
         queryFn: () => McpService.listMcpServers(),
@@ -21,15 +26,20 @@ function McpTableContent() {
     // Safe cast and format
     const serverList: any[] = Array.isArray(servers) ? servers : (servers as any)?.servers || []
 
-    if (isLoading) {
-        return <div>Loading...</div>
+    const handleAdd = () => {
+        setModalMode("add")
+        setSelectedServer(null)
+        setModalOpen(true)
     }
 
-    // Always show table, even if empty (DataTable handles empty state nicely)
-    return <DataTable columns={columns} data={serverList} />
-}
+    const handleEdit = (server: McpServerPublic) => {
+        setModalMode("edit")
+        setSelectedServer(server)
+        setModalOpen(true)
+    }
 
-function McpPage() {
+    const columns = useMemo(() => getColumns({ onEdit: handleEdit }), [])
+
     return (
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
@@ -39,10 +49,23 @@ function McpPage() {
                         Connect and manage external Model Context Protocol servers.
                     </p>
                 </div>
-                <AddMcpServer />
+                <Button onClick={handleAdd}>
+                    <Plus className="mr-2 h-4 w-4" /> Add Server
+                </Button>
             </div>
 
-            <McpTableContent />
+            {isLoading ? (
+                <div>Loading...</div>
+            ) : (
+                <DataTable columns={columns} data={serverList} />
+            )}
+
+            <McpServerModal
+                open={modalOpen}
+                onOpenChange={setModalOpen}
+                mode={modalMode}
+                initialData={selectedServer}
+            />
 
             <div className="mt-8 border-t pt-6">
                 <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">

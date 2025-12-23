@@ -1,9 +1,16 @@
-import type { ColumnDef } from "@tanstack/react-table"
-import { Trash2, Globe } from "lucide-react"
+import { ColumnDef } from "@tanstack/react-table"
+import { Trash2, Globe, Edit, MoreHorizontal } from "lucide-react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
 import { McpService } from "@/client"
 import { Button } from "@/components/ui/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 
@@ -13,6 +20,8 @@ export type McpServerPublic = {
     command: string
     status: string
     tools_count: number
+    // Allow optional args if backend starts providing it
+    args?: string[]
 }
 
 function DeleteServer({ name }: { name: string }) {
@@ -29,19 +38,21 @@ function DeleteServer({ name }: { name: string }) {
     })
 
     return (
-        <Button
-            variant="ghost"
-            size="icon"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+        <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
             onClick={() => deleteMutation.mutate(name)}
             disabled={deleteMutation.isPending}
         >
-            <Trash2 className="h-4 w-4" />
-        </Button>
+            <Trash2 className="mr-2 h-4 w-4" /> Delete
+        </DropdownMenuItem>
     )
 }
 
-export const columns: ColumnDef<McpServerPublic>[] = [
+interface ColumnProps {
+    onEdit: (server: McpServerPublic) => void
+}
+
+export const getColumns = ({ onEdit }: ColumnProps): ColumnDef<McpServerPublic>[] => [
     {
         accessorKey: "name",
         header: "Name",
@@ -82,11 +93,28 @@ export const columns: ColumnDef<McpServerPublic>[] = [
     },
     {
         id: "actions",
-        header: () => <span className="sr-only">Actions</span>,
-        cell: ({ row }) => (
-            <div className="flex justify-end">
-                <DeleteServer name={row.original.name} />
-            </div>
-        ),
+        cell: ({ row }) => {
+            const server = row.original
+
+            return (
+                <div className="flex justify-end">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                <span className="sr-only">Open menu</span>
+                                <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => onEdit(server)}>
+                                <Edit className="mr-2 h-4 w-4" /> Edit
+                            </DropdownMenuItem>
+                            <DeleteServer name={server.name} />
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+            )
+        },
     },
 ]

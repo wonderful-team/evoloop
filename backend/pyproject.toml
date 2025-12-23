@@ -59,6 +59,7 @@ dependencies = [
     "celery>=5.3.0",
     "redis>=5.0.0",
     "python-socks[asyncio]>=2.8.0",
+    "mammoth>=1.6.0",
 ]
 
 [tool.uv]
