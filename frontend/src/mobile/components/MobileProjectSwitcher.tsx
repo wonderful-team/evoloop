@@ -8,27 +8,26 @@ import { toast } from "sonner"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 interface MobileProjectSwitcherProps {
+    project?: any;
     onProjectChange?: (project: any) => void;
     onLoaded?: (project: any) => void;
 }
 
-export function MobileProjectSwitcher({ onProjectChange, onLoaded }: MobileProjectSwitcherProps) {
+export function MobileProjectSwitcher({ project, onProjectChange, onLoaded }: MobileProjectSwitcherProps) {
     const [open, setOpen] = useState(false)
     const [projects, setProjects] = useState<any[]>([])
-    const [currentProject, setCurrentProject] = useState<any>(null)
+    const [internalProject, setInternalProject] = useState<any>(null)
     const [searchQuery, setSearchQuery] = useState("")
 
-    // Fetch Projects and Current Project
+    const displayProject = project || internalProject
+
+    // Fetch Projects and Init
     useEffect(() => {
         let isMounted = true;
         const init = async () => {
-            let initialProject = null;
+            // Only fetch list if empty? Or always refresh? Always refresh is safer.
             try {
-                // Parallel fetch
-                const [listRes, currentRes] = await Promise.all([
-                    EvoLoopApi.getCloudProjects({ page: 1, page_size: 100 }), // Get all or enough
-                    EvoLoopApi.getCloudCurrentProject()
-                ])
+                const listRes = await EvoLoopApi.getCloudProjects({ page: 1, page_size: 100 })
 
                 if (!isMounted) return;
 
@@ -36,50 +35,55 @@ export function MobileProjectSwitcher({ onProjectChange, onLoaded }: MobileProje
                     setProjects(listRes.list)
                 }
 
-                if (currentRes) {
-                    setCurrentProject(currentRes)
-                    initialProject = currentRes;
-                } else if (listRes && Array.isArray(listRes.list) && listRes.list.length > 0) {
-                    // Auto-select first project if none active
-                    const first = listRes.list[0];
-                    setCurrentProject(first);
-                    initialProject = first;
-                    // Optional: Persist switching to cloud? 
-                    // To match desktop behavior, we should probably switch, but let's just use it for now to avoid side effects during init
-                    // Or maybe we should? If we don't switch, next time it will be null again.
-                    // But init shouldn't trigger heavy side effects. Let's just set context.
+                // If no external project provided, try to fetch current from Server or default to first
+                if (!project) {
+                    const currentRes = await EvoLoopApi.getCloudCurrentProject()
+                    if (currentRes) {
+                        setInternalProject(currentRes)
+                        onProjectChange?.(currentRes) // Sync up
+                        onLoaded?.(currentRes)
+                    } else if (listRes && Array.isArray(listRes.list) && listRes.list.length > 0) {
+                        const first = listRes.list[0];
+                        setInternalProject(first)
+                        onProjectChange?.(first)
+                        onLoaded?.(first)
+                    }
                 }
             } catch (e) {
                 console.error("Failed to load projects", e)
-            } finally {
-                if (isMounted) {
-                    onLoaded?.(initialProject)
-                }
             }
         }
         init()
         return () => { isMounted = false; }
-    }, [])
+    }, []) // Run once on mount
 
-    const handleSelect = async (project: any) => {
-        if (currentProject?.project_id === project.project_id) {
+    // Sync internal if prop changes (not strictly needed since we use displayProject, but good for consistency)
+    useEffect(() => {
+        if (project) {
+            setInternalProject(project)
+        }
+    }, [project])
+
+    const handleSelect = async (selected: any) => {
+        if (displayProject?.project_id === selected.project_id) {
             setOpen(false)
             return
         }
 
-        // Optimistic update? Better wait for confirm
-        const old = currentProject
-        setCurrentProject(project)
-        onProjectChange?.(project)
+        // Optimistic update
+        const old = displayProject
+        setInternalProject(selected) // Update internal immediately
+        onProjectChange?.(selected) // Notify parent
         setOpen(false)
 
-        toast.info(`Switching to ${project.project_name}...`)
+        toast.info(`Switching to ${selected.project_name}...`)
 
         try {
-            await EvoLoopApi.switchCloudProject(project.project_id)
-            toast.success(`Switched to ${project.project_name}`)
+            await EvoLoopApi.switchCloudProject(selected.project_id)
+            toast.success(`Switched to ${selected.project_name}`)
         } catch (e: any) {
-            setCurrentProject(old)
+            setInternalProject(old)
+            onProjectChange?.(old)
             toast.error("Failed to switch: " + e.message)
         }
     }
@@ -99,7 +103,7 @@ export function MobileProjectSwitcher({ onProjectChange, onLoaded }: MobileProje
                         <span className="text-[10px] text-muted-foreground leading-none mb-0.5">Project</span>
                         <div className="flex items-center gap-1">
                             <span className="font-semibold text-sm truncate max-w-[140px]">
-                                {currentProject?.project_name || "Select"}
+                                {displayProject?.project_name || "Select"}
                             </span>
                             <ChevronsUpDown className="h-3 w-3 opacity-50" />
                         </div>
@@ -128,27 +132,27 @@ export function MobileProjectSwitcher({ onProjectChange, onLoaded }: MobileProje
                                 No projects found.
                             </div>
                         ) : (
-                            filteredProjects.map((project) => (
+                            filteredProjects.map((p) => (
                                 <div
-                                    key={project.project_id}
+                                    key={p.project_id}
                                     className={cn(
                                         "flex items-center justify-between p-3 rounded-lg border",
-                                        currentProject?.project_id === project.project_id
+                                        displayProject?.project_id === p.project_id
                                             ? "bg-primary/10 border-primary/50"
                                             : "bg-background border-border"
                                     )}
-                                    onClick={() => handleSelect(project)}
+                                    onClick={() => handleSelect(p)}
                                 >
                                     <div className="flex items-center gap-3 overflow-hidden">
                                         <div className="bg-muted p-2 rounded-md shrink-0">
                                             <FolderOpen className="h-4 w-4" />
                                         </div>
                                         <div className="flex flex-col overflow-hidden">
-                                            <span className="font-medium text-sm truncate">{project.project_name}</span>
-                                            <span className="text-xs text-muted-foreground truncate">{project.project_desc || "No description"}</span>
+                                            <span className="font-medium text-sm truncate">{p.project_name}</span>
+                                            <span className="text-xs text-muted-foreground truncate">{p.project_desc || "No description"}</span>
                                         </div>
                                     </div>
-                                    {currentProject?.project_id === project.project_id && (
+                                    {displayProject?.project_id === p.project_id && (
                                         <Check className="h-4 w-4 text-primary shrink-0" />
                                     )}
                                 </div>

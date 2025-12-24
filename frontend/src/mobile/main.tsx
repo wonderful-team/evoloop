@@ -41,7 +41,7 @@ const router = createRouter({
 if (!window.location.hash || window.location.hash === "#/" || window.location.hash.startsWith("#/mobile")) {
     // Use router to navigate to ensure internal state is updated
     setTimeout(() => {
-        router.navigate({ to: '/devices' as any, replace: true })
+        router.navigate({ to: '/' as any, replace: true })
     }, 0)
 }
 

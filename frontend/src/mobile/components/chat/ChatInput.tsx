@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react"
-import { Mic, Paperclip, Send, Loader2 } from "lucide-react"
+import { Mic, Paperclip, Send, Loader2, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { useVoice } from "@/hooks/useVoice"
@@ -10,9 +10,12 @@ interface ChatInputProps {
     isConnected: boolean
     isDeviceOnline: boolean
     onSend: (content: string) => Promise<void>
+    className?: string
+    innerClassName?: string
+    placeholder?: string
 }
 
-export function ChatInput({ isConnected, isDeviceOnline, onSend }: ChatInputProps) {
+export function ChatInput({ isConnected, isDeviceOnline, onSend, className, innerClassName, placeholder }: ChatInputProps) {
     const [input, setInput] = useState("")
     const [sending, setSending] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
@@ -51,10 +54,10 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend }: ChatInputProp
     const isInputDisabled = sending || !isConnected || !isDeviceOnline
 
     return (
-        <div className="bg-background border-t p-3 shrink-0 pb-[max(env(safe-area-inset-bottom),0.75rem)] sticky bottom-0 z-20">
+        <div className={className || "bg-background border-t p-3 shrink-0 pb-[max(env(safe-area-inset-bottom),0.75rem)] sticky bottom-0 z-20"}>
             <form
                 onSubmit={(e) => { e.preventDefault(); handleSendAction(); }}
-                className={`flex flex-col gap-2 bg-muted/50 p-3 rounded-3xl border border-transparent focus-within:border-primary/50 focus-within:bg-background transition-all ${isListening ? 'ring-2 ring-red-500/50 bg-red-50/50' : ''} ${isInputDisabled ? 'opacity-50 pointer-events-none' : ''}`}
+                className={innerClassName || `flex flex-col gap-2 bg-muted/50 p-3 rounded-3xl border border-transparent focus-within:border-primary/50 focus-within:bg-background transition-all ${isListening ? 'ring-2 ring-red-500/50 bg-red-50/50' : ''} ${isInputDisabled ? 'opacity-50 pointer-events-none' : ''}`}
             >
                 {/* Row 1: Text Input */}
                 <div className="w-full">
@@ -62,9 +65,11 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend }: ChatInputProp
                         value={input}
                         onChange={e => setInput(e.target.value)}
                         placeholder={
-                            !isConnected ? "Connecting to server..." :
-                                !isDeviceOnline ? "Device is offline" :
-                                    isListening ? "Listening..." : "Message agent..."
+                            placeholder || (
+                                !isConnected ? "Connecting to server..." :
+                                    !isDeviceOnline ? "Device is offline" :
+                                        isListening ? "Listening..." : "Message agent..."
+                            )
                         }
                         disabled={isInputDisabled}
                         className="w-full bg-transparent border-none focus:ring-0 p-1 text-base placeholder:text-muted-foreground/70 resize-none min-h-[40px] max-h-[120px] focus-visible:outline-none"
@@ -126,11 +131,45 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend }: ChatInputProp
                             size="icon"
                             disabled={isInputDisabled || isUploading}
                             className="rounded-full w-9 h-9 text-muted-foreground hover:bg-background hover:text-primary"
+                            onClick={() => document.getElementById('mobile-camera-upload')?.click()}
+                        >
+                            <Camera className="w-5 h-5" />
+                        </Button>
+
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            disabled={isInputDisabled || isUploading}
+                            className="rounded-full w-9 h-9 text-muted-foreground hover:bg-background hover:text-primary"
                             onClick={() => document.getElementById('mobile-file-upload')?.click()}
                         >
                             {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
                         </Button>
                     </div>
+
+                    <input
+                        type="file"
+                        id="mobile-camera-upload"
+                        className="hidden"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={async (e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            setIsUploading(true)
+                            try {
+                                const url = await EvoLoopApi.uploadFile(file)
+                                setInput(prev => prev + (prev ? "\n" : "") + `[Image: ${url}]`)
+                                toast.success("Image uploaded")
+                            } catch (error) {
+                                toast.error("Upload failed")
+                            } finally {
+                                setIsUploading(false)
+                                e.target.value = ''
+                            }
+                        }}
+                    />
 
                     {/* Right: Send */}
                     <Button

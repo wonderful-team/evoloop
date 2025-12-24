@@ -2,7 +2,7 @@
 import { useParams, useSearch } from "@tanstack/react-router"
 import { useEvoLoopWebSocket } from "@/hooks/useEvoLoopWebSocket"
 import { EvoLoopApi } from "@/client/evoloopClient"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { toast } from "sonner"
 import { useQuery } from "@tanstack/react-query"
 import { useMobileStore } from "../stores/useMobileStore"
@@ -18,6 +18,20 @@ export function ChatScreen() {
     const searchParams = useSearch({ strict: false }) as any
     const highlight = searchParams.highlight ? Number(searchParams.highlight) : null
     const navigate = useNavigate()
+    const initializedRef = useRef(false)
+
+    // Handle initial message from Home Screen
+    useEffect(() => {
+        if (searchParams.initialMessage && !initializedRef.current) {
+            initializedRef.current = true
+            // Small delay to ensure everything is mounted
+            setTimeout(() => {
+                handleSend(searchParams.initialMessage)
+                // Clear param? Maybe not needed if we rely on ref, but cleaner for URL
+                // navigate({ search: (prev: any) => ({ ...prev, initialMessage: undefined }) })
+            }, 500)
+        }
+    }, [searchParams.initialMessage])
 
     const { currentProject, isProjectInitialized } = useMobileStore()
     const { isConnected, messages, clearMessages, addMessage, setMessages } = useEvoLoopWebSocket(Number(deviceId))
@@ -103,8 +117,6 @@ export function ChatScreen() {
                 content: "Failed to deliver message: " + e.message,
                 timestamp: Date.now()
             })
-            // Re-throw to let ChatInput know? Or handle here. 
-            // ChatInput handles loading state.
         }
     }
 

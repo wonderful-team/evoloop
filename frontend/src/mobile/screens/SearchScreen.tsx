@@ -21,7 +21,26 @@ export function SearchScreen() {
     )
     const [results, setResults] = useState<any[]>([])
     const [isSearching, setIsSearching] = useState(false)
+    const [history, setHistory] = useState<string[]>(() => {
+        try {
+            const saved = localStorage.getItem('search_history')
+            return saved ? JSON.parse(saved) : []
+        } catch {
+            return []
+        }
+    })
 
+    const addToHistory = (term: string) => {
+        if (!term.trim()) return
+        const newHistory = [term, ...history.filter(h => h !== term)].slice(0, 10)
+        setHistory(newHistory)
+        localStorage.setItem('search_history', JSON.stringify(newHistory))
+    }
+
+    const clearHistory = () => {
+        setHistory([])
+        localStorage.removeItem('search_history')
+    }
 
     // Fetch Devices for filter matching/name display
     const { data: devices } = useQuery({
@@ -36,15 +55,16 @@ export function SearchScreen() {
     })
     const projects = projectsData?.list || []
 
-    const handleSearch = async () => {
-        if (!keyword.trim()) return
+    const performSearch = async (term: string) => {
+        if (!term.trim()) return
         setIsSearching(true)
+        addToHistory(term)
         try {
             const logs = await EvoLoopApi.searchLogs(
-                keyword,
+                term,
                 selectedDeviceId || undefined,
                 selectedProjectId || undefined,
-                50 // Limit
+                50
             )
             setResults(logs)
         } catch (e: any) {
@@ -52,6 +72,10 @@ export function SearchScreen() {
         } finally {
             setIsSearching(false)
         }
+    }
+
+    const handleSearch = () => {
+        performSearch(keyword)
     }
 
     const handleResultClick = (log: any) => {
@@ -137,6 +161,33 @@ export function SearchScreen() {
 
             {/* Results */}
             <div className="flex-1 overflow-y-auto px-4 py-2">
+                {/* History */}
+                {!keyword && !isSearching && results.length === 0 && history.length > 0 && (
+                    <div className="mt-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <h3 className="text-sm font-medium text-muted-foreground">Recent Searches</h3>
+                            <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={clearHistory}>
+                                Clear
+                            </Button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            {history.map((term, i) => (
+                                <Badge
+                                    key={i}
+                                    variant="outline"
+                                    className="cursor-pointer hover:bg-muted py-1 px-2 font-normal"
+                                    onClick={() => {
+                                        setKeyword(term)
+                                        performSearch(term)
+                                    }}
+                                >
+                                    {term}
+                                </Badge>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {results.length === 0 && !isSearching && keyword && (
                     <div className="text-center text-muted-foreground mt-8 text-sm">
                         No results found.

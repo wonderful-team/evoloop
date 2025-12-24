@@ -27,7 +27,7 @@ export function ChatHeader({
 
     return (
         <div className="bg-background/80 backdrop-blur-md border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-10 shrink-0">
-            <Button variant="ghost" size="icon" className="-ml-2 hover:bg-muted" onClick={() => navigate({ to: '/devices' as any })}>
+            <Button variant="ghost" size="icon" className="-ml-2 hover:bg-muted" onClick={() => window.history.back()}>
                 <ArrowLeft className="w-5 h-5" />
             </Button>
             <div className="flex-1 overflow-hidden">
@@ -43,6 +43,7 @@ export function ChatHeader({
                 </div>
                 <div className="-ml-1">
                     <MobileProjectSwitcher
+                        project={currentProject}
                         onProjectChange={setCurrentProject}
                         onLoaded={(val) => {
                             setCurrentProject(val)

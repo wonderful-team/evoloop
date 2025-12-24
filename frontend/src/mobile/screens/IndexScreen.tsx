@@ -1,145 +1,169 @@
-import { useState } from "react"
-import { Monitor, Search, Sparkles, FolderOpen, ArrowRight } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
+import { ArrowRight, Clock, Search } from "lucide-react"
+import { Logo } from "@/components/Common/Logo"
 import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { useNavigate } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { EvoLoopApi } from "@/client/evoloopClient"
+import { ChatInput } from "../components/chat/ChatInput"
+import { useMobileStore } from "../stores/useMobileStore"
+import { toast } from "sonner"
 
 export function IndexScreen() {
     const navigate = useNavigate()
-    const [mode, setMode] = useState<'chat' | 'search'>('chat')
-    const [inputText, setInputText] = useState("")
+    const { setCurrentProject, setProjectInitialized } = useMobileStore()
 
-    // Fetch Recent Projects (using list for now, ideally recent API)
+    // Fetch Recent Projects
     const { data: projectsData, isLoading } = useQuery({
         queryKey: ['evoloop', 'projects', 'recent'],
-        queryFn: () => EvoLoopApi.getCloudProjects({ page: 1, page_size: 5 }), // Top 5
+        queryFn: () => EvoLoopApi.getCloudProjects({ page: 1, page_size: 10 }),
     })
     const recentProjects = projectsData?.list || []
 
-    const handleAction = () => {
-        if (!inputText.trim()) return
+    const handleInputSend = async (content: string) => {
+        // Need to find a target device.
+        // For now, let's navigate to device selection but PASS the content?
+        // Or if we have a "default" device?
+        // Let's look for ANY online device.
+        try {
+            const devices = await EvoLoopApi.getDeviceList();
+            const onlineDevice = devices.find(d => d.status === 1);
 
-        if (mode === 'search') {
-            navigate({
-                to: '/search',
-                search: { keyword: inputText }
-            } as any)
-        } else {
-            // Chat mode: Find first device or ask to select?
-            // "Conversation mode" - Usually implies starting a chat. 
-            // If we have a stored last device, go there? Or general intent?
-            // For now, let's navigate to devices list if generic, or search if typed?
-            // Or maybe this input IS just a fancy jumping point.
-            // Requirement said "input box (switchable dialogue / search mode)".
-            // If dialogue, maybe send command to *current* context? But Home has no context.
-            // Let's make it intuitive: "Chat" mode -> Navigate to Device Selection or Chat if One exists.
-            // Let's assume navigating to Devices for now, with text passed?
-            // Actually, maybe just navigate to /devices with a toast "Select a device to chat".
-            // BETTER: Prompt user to pick a device.
+            if (onlineDevice) {
+                // Navigate to chat with that device, and we need a way to pass the initial message.
+                // We can use search params or state.
+                // But ChatScreen doesn't read initial message from search params yet.
+                // Updating ChatScreen to read 'initialMessage'?
+                // Or simplified: Just go to /devices and toast?
+                // User requirement: "Click send... jump to ChatScreen".
+                // So we MUST jump to a ChatScreen.
+                navigate({
+                    to: `/chat/${onlineDevice.device_id}`,
+                    search: { initialMessage: content } as any
+                })
+            } else {
+                navigate({
+                    to: '/devices',
+                    search: { initialMessage: content } as any
+                } as any)
+                toast.info("Please select a device to continue")
+            }
+        } catch (e) {
             navigate({ to: '/devices' as any })
         }
     }
 
+    const handleProjectClick = async (project: any) => {
+        // Switch project context
+        setCurrentProject(project)
+        setProjectInitialized(true)
+
+        // Find a device for this project?
+        // Ideally, we jump to the device that was last used for this project.
+        // But we don't have that info easily.
+        // Let's grep for online devices again.
+        try {
+            const devices = await EvoLoopApi.getDeviceList();
+            const onlineDevice = devices.find(d => d.status === 1);
+
+            if (onlineDevice) {
+                navigate({ to: `/chat/${onlineDevice.device_id}` as any })
+                toast.success(`Opened ${project.project_name}`)
+            } else {
+                navigate({ to: '/devices' as any })
+                toast.info(`Switched to ${project.project_name}. Select a device.`)
+            }
+        } catch {
+            navigate({ to: '/projects' as any })
+        }
+    }
+
     return (
-        <div className="flex flex-col h-full bg-background p-4 gap-6">
-            {/* Logo Section */}
-            <div className="flex flex-col items-center justify-center pt-8 pb-4 animate-in fade-in zoom-in duration-500">
-                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-3 shadow-sm">
-                    <Monitor className="w-8 h-8 text-primary" />
-                </div>
-                <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-blue-600">
-                    EvoLoop
-                </h1>
-                <p className="text-xs text-muted-foreground tracking-widest mt-1">MOBILE AGENT</p>
-            </div>
+        <div className="flex flex-col h-full bg-background relative overflow-hidden">
+            {/* Background Decoration */}
+            <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
 
-            {/* Input Section */}
-            <div className="w-full max-w-md mx-auto relative animate-in slide-in-from-bottom-4 duration-500 delay-100">
-                {/* Mode Switcher */}
-                <div className="absolute -top-3 left-4 bg-background px-1 z-10 flex gap-2">
-                    <button
-                        onClick={() => setMode('chat')}
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full transition-colors ${mode === 'chat' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`}
-                    >
-                        Chat
-                    </button>
-                    <button
-                        onClick={() => setMode('search')}
-                        className={`text-xs font-medium px-2 py-0.5 rounded-full transition-colors ${mode === 'search' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:bg-muted'}`}
-                    >
-                        Search
-                    </button>
-                </div>
-
-                <div className="relative">
-                    <div className="absolute left-3 top-3 text-muted-foreground">
-                        {mode === 'chat' ? <Sparkles className="w-5 h-5" /> : <Search className="w-5 h-5" />}
+            {/* Top Right Search */}
+            <div className="absolute top-4 right-4 z-20">
+                <Button variant="ghost" size="icon" className="rounded-full hover:bg-muted" onClick={() => navigate({ to: '/search' as any })}>
+                    <div className="w-10 h-10 bg-background/50 backdrop-blur-md rounded-full flex items-center justify-center shadow-sm border border-border/50">
+                        <Search className="w-5 h-5 text-foreground" />
                     </div>
-                    <Input
-                        placeholder={mode === 'chat' ? "Ask AI Assistant..." : "Search logs..."}
-                        className="pl-10 h-12 text-base rounded-xl shadow-sm border-muted-foreground/20 focus-visible:ring-primary/20"
-                        value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleAction()}
+                </Button>
+            </div>
+
+            {/* Hero Section (Center) */}
+            <div className="flex-1 flex flex-col items-center justify-center p-6 -mt-20 z-10">
+                <div className="flex flex-col items-center mb-10 animate-in fade-in zoom-in duration-700">
+                    <div className="mb-6 scale-150">
+                        <Logo variant="icon" asLink={false} />
+                    </div>
+                    <h1 className="text-3xl font-bold text-foreground tracking-tight">
+                        EvoLoop AI
+                    </h1>
+                    <p className="text-sm text-muted-foreground mt-2 font-medium">
+                        Your Intelligent Mobile Agent
+                    </p>
+                </div>
+
+                {/* Super Input */}
+                <div className="w-full max-w-lg animate-in slide-in-from-bottom-8 duration-700 delay-100">
+                    <ChatInput
+                        isConnected={true} // Always enable on home
+                        isDeviceOnline={true}
+                        onSend={handleInputSend}
+                        placeholder="Ask anything or command..."
+                        className="w-full"
+                        innerClassName="flex flex-col gap-3 bg-card/80 backdrop-blur-xl p-4 rounded-xl shadow-xl border border-primary/10 transition-all hover:shadow-2xl hover:border-primary/20"
                     />
-                    {inputText && (
-                        <Button
-                            className="absolute right-1 top-1 h-10 w-10 p-0 rounded-lg"
-                            size="icon"
-                            onClick={handleAction}
-                        >
-                            <ArrowRight className="w-5 h-5" />
-                        </Button>
-                    )}
                 </div>
             </div>
 
-            {/* Recent Projects */}
-            <div className="flex-1 overflow-hidden flex flex-col pt-2 animate-in slide-in-from-bottom-8 duration-700 delay-200">
-                <div className="flex items-center justify-between mb-3 px-1">
-                    <h2 className="font-semibold text-lg flex items-center gap-2">
-                        <FolderOpen className="w-4 h-4 text-primary" />
-                        Recent Projects
-                    </h2>
-                    <Button variant="ghost" className="text-xs h-6 px-2 text-muted-foreground" onClick={() => navigate({ to: '/projects' as any })}>
+            {/* Recent Projects (Bottom) */}
+            <div className="shrink-0 pb-6 animate-in slide-in-from-bottom-12 duration-1000 delay-300">
+                <div className="px-6 mb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        Recent Activities
+                    </h3>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs hover:bg-transparent text-primary" onClick={() => navigate({ to: '/projects' as any })}>
                         View All
                     </Button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-3 pb-20"> {/* pb-20 for bottom nav clearance */}
+                <div className="flex overflow-x-auto px-6 gap-4 pb-4 scrollbar-hide snap-x">
                     {isLoading ? (
                         [1, 2, 3].map(i => (
-                            <div key={i} className="h-16 bg-muted/50 rounded-xl animate-pulse" />
+                            <div key={i} className="w-48 h-32 shrink-0 bg-muted/40 rounded-2xl animate-pulse" />
                         ))
                     ) : recentProjects.length > 0 ? (
                         recentProjects.map((p: any) => (
                             <Card
                                 key={p.project_id}
-                                className="border-none bg-muted/30 hover:bg-accent transition-colors cursor-pointer active:scale-[0.99] transition-transform"
-                                onClick={() => navigate({ to: '/projects' as any })} // Ideally navigate to project detail? Or just list for now.
+                                className="w-48 shrink-0 snap-start border-none bg-muted/30 hover:bg-muted/60 transition-colors cursor-pointer group"
+                                onClick={() => handleProjectClick(p)}
                             >
-                                <CardContent className="p-3 flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-background flex items-center justify-center shrink-0 shadow-sm border border-border/50">
-                                        <div className="text-xs font-bold text-primary max-w-full truncate px-1">
+                                <CardContent className="p-4 flex flex-col h-full justify-between gap-2">
+                                    <div className="flex items-start justify-between">
+                                        <div className="w-8 h-8 rounded-lg bg-background shadow-sm flex items-center justify-center text-[10px] font-bold text-primary">
                                             {p.project_name.substring(0, 2).toUpperCase()}
                                         </div>
+                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <ArrowRight className="w-4 h-4 text-muted-foreground" />
+                                        </div>
                                     </div>
-                                    <div className="flex-1 min-w-0">
-                                        <h3 className="font-medium truncate">{p.project_name}</h3>
-                                        <p className="text-xs text-muted-foreground truncate">
-                                            Last active: {p.update_time ? new Date(p.update_time * 1000).toLocaleDateString() : 'N/A'}
+                                    <div>
+                                        <h4 className="font-medium text-sm truncate">{p.project_name}</h4>
+                                        <p className="text-[10px] text-muted-foreground truncate mt-0.5">
+                                            {p.update_time ? new Date(p.update_time * 1000).toLocaleDateString() : 'Unknown'}
                                         </p>
                                     </div>
-                                    <ArrowRight className="w-4 h-4 text-muted-foreground/50" />
                                 </CardContent>
                             </Card>
                         ))
                     ) : (
-                        <div className="text-center text-muted-foreground py-8 text-sm">
-                            No recent projects.
+                        <div className="w-full text-center text-xs text-muted-foreground py-4 bg-muted/20 rounded-xl">
+                            No recent projects found.
                         </div>
                     )}
                 </div>
