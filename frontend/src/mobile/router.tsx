@@ -1,11 +1,13 @@
 import { createRoute, createRootRoute } from "@tanstack/react-router"
 import { Layout } from "./Layout"
+import { TabsLayout } from "./TabsLayout"
 import { IndexScreen } from "./screens/IndexScreen"
 import { LoginScreen, loginLoader } from "./screens/LoginScreen"
 import { DevicesScreen, devicesLoader } from "./screens/DevicesScreen"
+import { ProjectsScreen } from "./screens/ProjectsScreen"
+import { ProfileScreen } from "./screens/ProfileScreen"
 import { ChatScreen } from "./screens/ChatScreen"
 import { SearchScreen } from "./screens/SearchScreen"
-import { redirect } from "@tanstack/react-router"
 
 // 1. Create Route Hierarchy
 const rootRoute = createRootRoute({
@@ -24,27 +26,44 @@ const layoutRoute = createRoute({
     component: Layout,
 })
 
-const indexRoute = createRoute({
+// Tab Routes Layout
+const tabsRoute = createRoute({
     getParentRoute: () => layoutRoute,
-    path: '/',
-    component: IndexScreen,
-    beforeLoad: () => {
-        throw redirect({ to: '/devices' as any })
-    }
+    id: 'tabs',
+    component: TabsLayout,
 })
 
+const indexRoute = createRoute({
+    getParentRoute: () => tabsRoute,
+    path: '/',
+    component: IndexScreen,
+})
+
+const devicesRoute = createRoute({
+    getParentRoute: () => tabsRoute,
+    path: '/devices',
+    component: DevicesScreen,
+    beforeLoad: devicesLoader
+})
+
+const projectsRoute = createRoute({
+    getParentRoute: () => tabsRoute,
+    path: '/projects',
+    component: ProjectsScreen,
+})
+
+const profileRoute = createRoute({
+    getParentRoute: () => tabsRoute,
+    path: '/profile',
+    component: ProfileScreen,
+})
+
+// Full Screen Routes
 const loginRoute = createRoute({
     getParentRoute: () => layoutRoute,
     path: '/login',
     component: LoginScreen,
     beforeLoad: loginLoader
-})
-
-const devicesRoute = createRoute({
-    getParentRoute: () => layoutRoute,
-    path: '/devices',
-    component: DevicesScreen,
-    beforeLoad: devicesLoader
 })
 
 const chatRoute = createRoute({
@@ -62,9 +81,13 @@ const searchRoute = createRoute({
 // 2. Build the Tree
 const routeTree = rootRoute.addChildren([
     layoutRoute.addChildren([
-        indexRoute,
+        tabsRoute.addChildren([
+            indexRoute,
+            devicesRoute,
+            projectsRoute,
+            profileRoute,
+        ]),
         loginRoute,
-        devicesRoute,
         chatRoute,
         searchRoute,
     ]),

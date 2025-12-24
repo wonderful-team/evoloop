@@ -71,7 +71,7 @@ export function LoginScreen() {
                                 <FormItem>
                                     <FormLabel>Username</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="Niushop Username" {...field} />
+                                        <Input placeholder="Username" {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>

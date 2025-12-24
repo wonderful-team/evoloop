@@ -115,13 +115,14 @@ export interface Device {
 export const EvoLoopApi = {
     // Login to Niushop to get token
     login: async (username: string, password: string): Promise<{ token: string, member_id: number }> => {
-        // Note: Standard Niushop login API might differ, assume we use the plugin's or standard one.
-        // If standard: /api/login/login
-        // Let's use the one implied by the plan or standard.
-        // The plan said: "Call Niushop Login API".
-        // Assuming /api/login/login exists on Niushop.
+        // ... (lines 118-123)
         const response = await evoloopClient.post('/api/login/login', { username, password });
         return response.data;
+    },
+
+    logout: () => {
+        // Clear local storage token
+        localStorage.removeItem('evoloop_token');
     },
 
     // EvoLoop Link Plugin APIs
