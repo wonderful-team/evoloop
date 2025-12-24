@@ -112,9 +112,16 @@ async def lifespan(app: FastAPI):
             set_evoloop_client(evoloop_client)
             
             # Use shared handler
-            from app.infrastructure.evoloop_link.handler import handle_remote_command
+            from app.infrastructure.evoloop_link.handler import handle_remote_command, handle_project_switch_event
             
             evoloop_client.set_command_handler(handle_remote_command)
+            
+            # wrapper for event handling
+            async def event_router(etype, edata):
+                if etype == "project_switch":
+                    await handle_project_switch_event(edata)
+            
+            evoloop_client.set_event_handler(event_router)
 
             # Override URLs if provided in settings
             if settings.EVOLOOP_LINK_BASE_URL:

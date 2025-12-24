@@ -8,7 +8,7 @@ from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.tools.document_reader import read_document
 from app.domain.planning.tools import analyze_feasibility, create_plan, update_step_status
 from app.domain.tools.visualizer import get_annotated_tree
-from app.domain.tools.memory import save_preference, search_concepts, add_concept
+from app.domain.tools.memory import save_preference, get_user_preferences, search_concepts, add_concept
 from app.domain.tools.browser import browser_agent
 from app.domain.tools.project_tools import decompose_requirements, create_project_task_async
 # Add other tools as needed
@@ -29,8 +29,8 @@ def get_all_tools() -> List[BaseTool]:
         read_document,
         analyze_feasibility,
         save_preference,
+        get_user_preferences,
         search_concepts,
-        add_concept,
         add_concept,
         browser_agent,
         # Project Management

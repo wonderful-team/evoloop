@@ -7,6 +7,7 @@ import { Send, Cpu, Terminal, AlertTriangle, ArrowLeft, ChevronDown, ChevronRigh
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { useQuery } from "@tanstack/react-query"
+import { MobileProjectSwitcher } from "../components/MobileProjectSwitcher"
 
 
 function LogItem({ msg }: { msg: LogMessage }) {
@@ -83,32 +84,40 @@ export function ChatScreen() {
     const [sending, setSending] = useState(false)
     const [isUploading, setIsUploading] = useState(false)
 
+    const [currentProject, setCurrentProject] = useState<any>(null)
+    const [isProjectInitialized, setIsProjectInitialized] = useState(false)
+
     const { isConnected, messages, clearMessages, addMessage, setMessages } = useEvoLoopWebSocket(Number(deviceId))
     const scrollRef = useRef<HTMLDivElement>(null)
 
     // Fetch history
     useEffect(() => {
-        if (deviceId) {
-            EvoLoopApi.getRecentLogs(Number(deviceId)).then(logs => {
+        if (deviceId && isProjectInitialized) {
+            // Fetch logs only after project initialization to prevent "device logs" -> "project logs" flash
+            // Include project_id if available. 
+            // Note: If currentProject is null initially, we might fetch without project_id (all logs) or wait?
+            // User requirement: Mobile should isolate by project.
+            // If we don't have a project selected yet (loading), we probably shouldn't show wrong logs.
+            // But MobileProjectSwitcher fetches implicitly.
+            // Let's rely on currentProject updating to trigger fetch.
+
+            EvoLoopApi.getRecentLogs(Number(deviceId), 50, currentProject?.project_id).then(logs => {
                 if (Array.isArray(logs)) {
                     // Convert backend log format to frontend LogMessage
                     const formatted = logs.map(log => ({
                         type: log.type || 'info', // 'info' maps to default? check LogItem
                         content: log.content, // backend might return object or string
                         thread_id: log.thread_id,
+                        project_id: log.project_id,
                         timestamp: log.create_time ? log.create_time * 1000 : Date.now()
-                    })).reverse(); // Recent logs usually desc, chat needs asc (oldest first)? 
-                    // Log.php list() or recent()? recent() implies latest first.
-                    // Chat usually displays top-to-bottom as old-to-new.
-                    // If recent() returns "latest 50", they are likely DESC.
-                    // So we reverse them.
+                    })).reverse(); // Oldest first
                     setMessages(formatted as any);
                 }
             }).catch(err => {
                 console.error("Failed to fetch history", err)
             })
         }
-    }, [deviceId, setMessages])
+    }, [deviceId, setMessages, currentProject?.project_id, isProjectInitialized])
 
     // Fetch device status
     const { data: devices } = useQuery({
@@ -156,12 +165,13 @@ export function ChatScreen() {
         addMessage({
             type: 'user',
             content: content,
+            project_id: currentProject?.project_id,
             timestamp: Date.now()
         })
         setInput("")
 
         try {
-            await EvoLoopApi.sendCommand(Number(deviceId), content)
+            await EvoLoopApi.sendCommand(Number(deviceId), content, currentProject?.project_id)
         } catch (e: any) {
             toast.error("Failed to send command: " + e.message)
             addMessage({
@@ -213,6 +223,18 @@ export function ChatScreen() {
     // If not connected to WS, we also shouldn't send.
     const isInputDisabled = sending || !isConnected || !isDeviceOnline
 
+    const displayMessages = messages.filter(m => {
+        if (!currentProject) return true;
+        // Strict equality or allow partial? 
+        // If message has NO project_id? assume global?
+        // Safe: if message.project_id is undefined, and we are in a project, hide it?
+        // Or show it?
+        // Let's hide if project_id exists and differs. 
+        // If msg.project_id is missing, it might be system/error.
+        if (m.project_id === undefined || m.project_id === null) return true;
+        return m.project_id === currentProject.project_id;
+    });
+
     return (
         <div className="flex flex-col h-screen bg-background">
             {/* Header */}
@@ -220,13 +242,25 @@ export function ChatScreen() {
                 <Button variant="ghost" size="icon" className="-ml-2 hover:bg-muted" onClick={() => navigate({ to: '/devices' as any })}>
                     <ArrowLeft className="w-5 h-5" />
                 </Button>
-                <div className="flex-1">
-                    <h1 className="font-semibold text-sm flex items-center gap-2">
-                        {currentDevice?.device_name || `Device #${deviceId}`}
-                    </h1>
-                    <div className="flex items-center gap-1.5">
-                        <span className={`w-2 h-2 rounded-full ${statusColor} ${statusShadow} transition-colors duration-300`} />
-                        <span className="text-xs text-muted-foreground transition-all duration-300">{statusText}</span>
+                <div className="flex-1 overflow-hidden">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                        <h1 className="font-semibold text-sm truncate max-w-[120px]">
+                            {currentDevice?.device_name || `Device #${deviceId}`}
+                        </h1>
+                        <span className="text-muted-foreground/30">|</span>
+                        <div className="flex items-center gap-1.5">
+                            <span className={`w-2 h-2 rounded-full ${statusColor} ${statusShadow} transition-colors duration-300`} />
+                            <span className="text-xs text-muted-foreground transition-all duration-300 truncate">{statusText}</span>
+                        </div>
+                    </div>
+                    <div className="-ml-1">
+                        <MobileProjectSwitcher
+                            onProjectChange={setCurrentProject}
+                            onLoaded={(val) => {
+                                setCurrentProject(val)
+                                setIsProjectInitialized(true)
+                            }}
+                        />
                     </div>
                 </div>
                 <Button variant="ghost" size="sm" className="text-muted-foreground text-xs h-8" onClick={clearMessages}>
@@ -236,7 +270,12 @@ export function ChatScreen() {
 
             {/* Chat Area */}
             <div className="flex-1 overflow-y-auto p-4 scroll-smooth" ref={scrollRef}>
-                {messages.length === 0 && (
+                {!isProjectInitialized ? (
+                    <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
+                        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground">Initializing...</p>
+                    </div>
+                ) : displayMessages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
                         <div className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors ${isDeviceOnline ? 'bg-muted' : 'bg-red-50'}`}>
                             {isDeviceOnline ? (
@@ -256,10 +295,11 @@ export function ChatScreen() {
                             </p>
                         </div>
                     </div>
+                ) : (
+                    displayMessages.map((msg, i) => (
+                        <LogItem key={i} msg={msg} />
+                    ))
                 )}
-                {messages.map((msg, i) => (
-                    <LogItem key={i} msg={msg} />
-                ))}
             </div>
 
             {/* Input Area */}

@@ -25,36 +25,83 @@ class MemoryService:
             except Exception:
                 logger.warning("Fulltext index creation failed (might already exist or not supported).")
 
-    async def add_user_preference(self, user_id: str, key: str, value: str, description: str = ""):
+    async def add_user_preference(self, user_id: str, key: str, value: str, description: str = "", project_id: int = None):
+        """
+        Add a preference. If project_id is provided, it's scoped to that project.
+        Otherwise it is a global preference.
+        """
         driver = await get_graph_db()
+        
+        # We store project_id on the relationship PREFERS
+        # if project_id is None, we set it to 0 or leave property unset?
+        # Cypher: SET r.project_id = $pid
+        
+        pid_val = project_id if project_id else 0 # Use 0 for global if needed or just handle nulls
+        # Let's use 0 for "Global" to make queries simpler (no IS NULL checks mixed with values)
+        
         query = """
         MERGE (u:User {id: $user_id})
         MERGE (p:Preference {key: $key})
-        SET p.value = $value, p.description = $description
-        MERGE (u)-[:PREFERS]->(p)
+        SET p.description = $description
+        MERGE (u)-[r:PREFERS {project_id: $pid}]->(p)
+        SET r.value = $value
         RETURN p
         """
         async with driver.session() as session:
-            await session.run(query, user_id=user_id, key=key, value=value, description=description)
-            logger.info(f"Stored Preference: {key}={value}")
+            await session.run(query, user_id=user_id, key=key, value=value, description=description, pid=pid_val)
+            scope = f"Project {pid_val}" if pid_val else "Global"
+            logger.info(f"Stored Preference ({scope}): {key}={value}")
 
-    async def get_user_preferences(self, user_id: str) -> str:
-        driver = await get_graph_db()
-        query = """
-        MATCH (u:User {id: $user_id})-[:PREFERS]->(p:Preference)
-        RETURN p.key as key, p.value as value, p.description as desc
+    async def get_user_preferences(self, user_id: str, project_id: int = None) -> str:
         """
+        Get merged preferences. Project-specific overrides Global.
+        """
+        driver = await get_graph_db()
+        # Fetch ALL preferences for user, then filter/merge in app logic or Cypher
+        # Cypher approach:
+        # Match all PREFERS edges where project_id is 0 OR project_id is current
+        
+        target_pid = project_id if project_id else 0
+        
+        query = """
+        MATCH (u:User {id: $user_id})-[r:PREFERS]->(p:Preference)
+        WHERE r.project_id = 0 OR r.project_id = $pid
+        RETURN p.key as key, r.value as value, p.description as desc, r.project_id as pid
+        ORDER BY r.project_id ASC
+        """
+        # Ordering by ASC (0 first, then specific ID) helps us override easily? 
+        # Actually we just want a dictionary: map[key] = value.
+        # If we process Global (0) first, then Project (ID), the latter overwrites.
+        
         async with driver.session() as session:
-            result = await session.run(query, user_id=user_id)
+            result = await session.run(query, user_id=user_id, pid=target_pid)
             records = await result.data()
 
         if not records:
             return "No specific preferences recorded."
 
-        lines = ["**User Preferences:**"]
+        # Merge Logic
+        final_prefs = {}
         for r in records:
-            lines.append(f"- {r['key']}: {r['value']} ({r['desc']})")
-        return "\n".join(lines)
+            key = r['key']
+            val = r['value']
+            scope_pid = r['pid']
+            desc = r['desc']
+            
+            # Since we iterate, later ones overwrite earlier ones?
+            # We didn't enforce specific order in query for "same key" collisions across scopes?
+            # Actually we typically have one node per Key (unique constraint).
+            # But the user might have TWO edges to the SAME key node: one global, one project.
+            # So `records` might contain:
+            # {key: "test", value: "pytest", pid: 0}
+            # {key: "test", value: "jest", pid: 2}
+            # We want "jest".
+            # So we should sort by pid ASC (0..N). Yes.
+            
+            final_prefs[key] = f"- {key}: {val} ({desc})" + (" [Global]" if scope_pid == 0 else " [Project]")
+
+        # Sort keys for display
+        return "\n".join(["**User Preferences:**"] + sorted(final_prefs.values()))
 
     async def add_concept(self, name: str, description: str, project_id: int, related_files: list[str] = None):
         driver = await get_graph_db()

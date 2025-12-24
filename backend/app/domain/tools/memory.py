@@ -2,18 +2,32 @@ from langchain_core.tools import tool
 from app.domain.memory.service import memory_service
 
 @tool
-async def save_preference(key: str, value: str, description: str = ""):
+async def save_preference(key: str, value: str, description: str = "", is_global: bool = False, project_id: int = 1):
     """
     Save a user preference or instruction to long-term memory.
-    Use this when the user explicitly gives an instruction about how they want things done (e.g., "Always use pytest", "Don't use X library").
     
     Args:
-        key: A short, unique key for the preference (e.g., "test_framework", "logging_library").
-        value: The value or instruction (e.g., "pytest", "loguru").
-        description: Optional context or full instruction (e.g., "User prefers pytest over unittest").
+        key: A short, unique key (e.g., "test_framework").
+        value: The value (e.g., "pytest").
+        description: Optional context.
+        is_global: If True, applies to ALL projects. If False (default), applies only to current project.
+        project_id: Current project ID.
     """
-    await memory_service.add_user_preference("user_default", key, value, description)
-    return f"Preference saved: {key}={value}"
+    pid = None if is_global else project_id
+    await memory_service.add_user_preference("user_default", key, value, description, project_id=pid)
+    scope_str = "Global" if is_global else f"Project {project_id}"
+    return f"Preference saved ({scope_str}): {key}={value}"
+
+@tool
+async def get_user_preferences(project_id: int = 1):
+    """
+    Retrieve all current user preferences, merging global defaults with project-specific overrides.
+    
+    Args:
+        project_id: Current project ID.
+    """
+    prefs = await memory_service.get_user_preferences("user_default", project_id=project_id)
+    return f"Current Preferences (Project {project_id}):\n{prefs}"
 
 @tool
 async def search_concepts(query: str, project_id: int = 1):

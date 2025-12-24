@@ -6,7 +6,7 @@ TREE_SITTER_QUERIES = {
     "python": {
         "defs": """
             (function_definition name: (identifier) @name body: (block) @body) @function
-            (class_definition name: (identifier) @name body: (block) @body) @class
+            (class_definition name: (identifier) @name superclasses: (argument_list)? @superclasses body: (block) @body) @class
         """,
         "imports": """
             (import_statement name: (dotted_name) @module) @import

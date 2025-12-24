@@ -8,6 +8,7 @@ export interface LogMessage {
     type: 'thought' | 'tool' | 'output' | 'error' | 'user';
     content: string;
     thread_id?: string;
+    project_id?: number;
     timestamp: number;
 }
 
@@ -53,12 +54,14 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
                     } else if (data.type === 'new_logs') {
                         // Handle batched logs from backend "new_logs" event via Gateway
                         const logs = data.data.logs || [];
+                        const batchProjectId = data.data.project_id;
                         if (Array.isArray(logs)) {
                             setMessages(prev => {
                                 const newMsgs = logs.map((log: any) => ({
                                     type: log.type,
                                     content: log.content,
                                     thread_id: log.thread_id,
+                                    project_id: log.project_id || batchProjectId,
                                     timestamp: Date.now() // or log.create_time ?
                                 }));
                                 return [...prev, ...newMsgs];
@@ -69,6 +72,7 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
                             type: data.type,
                             content: data.content,
                             thread_id: data.thread_id,
+                            project_id: data.project_id,
                             timestamp: Date.now()
                         }]);
                     }

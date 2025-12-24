@@ -10,7 +10,7 @@ import tree_sitter_php
 import tree_sitter_ruby
 
 from tree_sitter import Language, Parser
-from app.domain.codebase.indexing.base import BaseExtractor, Document
+from app.domain.codebase.indexing.base import BaseExtractor, Document, ExtractedEntity, ExtractedRelation, ExtractionResult
 from app.logging import logger
 
 
@@ -22,7 +22,7 @@ class TreeSitterExtractor(BaseExtractor):
         # Parsers logic moved to ParserRegistry
         pass  
 
-    async def extract(self, file_path: str, content: str) -> List[Document]:
+    async def extract(self, file_path: str, content: str) -> ExtractionResult:
         extension = file_path.split(".")[-1]
 
         # Special handling for Markdown (Simple Header Splitter)
@@ -57,7 +57,6 @@ class TreeSitterExtractor(BaseExtractor):
                 else:
                     current_chunk.append(line)
             
-            # Last chunk
             if current_chunk:
                 text = "\n".join(current_chunk)
                 doc = Document(
@@ -71,12 +70,12 @@ class TreeSitterExtractor(BaseExtractor):
                     }
                 )
                 documents.append(doc)
-            return documents
+            return ExtractionResult(documents=documents, entities=[], relations=[])
         
         parser_info = parser_registry.get_parser(extension)
         if not parser_info:
             logger.debug(f"No parser for extension {extension}, skipping structured extraction.")
-            return []
+            return ExtractionResult(documents=[], entities=[], relations=[])
 
         parser, language = parser_info
         tree = parser.parse(bytes(content, "utf8"))
@@ -86,16 +85,20 @@ class TreeSitterExtractor(BaseExtractor):
         query_data = TREE_SITTER_QUERIES.get(lang_key)
         if not query_data or "defs" not in query_data:
              logger.debug(f"No queries for language {lang_key}")
-             return []
+             return ExtractionResult(documents=[], entities=[], relations=[])
         
         query_str = query_data["defs"]
         query = language.query(query_str)
         # Python tree-sitter bindings > 0.22 use QueryCursor for execution
         import tree_sitter
         cursor = tree_sitter.QueryCursor(query)
-        matches = cursor.matches(tree.root_node)
+        matches = list(cursor.matches(tree.root_node))
+        
+        # logger.debug(f"TreeSitter matches: {len(matches)}")
 
         documents = []
+        entities = []
+        relations = []
         processed_ranges = set()
 
         for pattern_index, captured_nodes in matches:
@@ -107,7 +110,16 @@ class TreeSitterExtractor(BaseExtractor):
                     nodes = [nodes]
 
                 for node in nodes:
+                    # Capture Map for this specific node context
+                    # Since captured_nodes contains all captures for the match, we need to find associated nodes?
+                    # Actually, query execution returns a match tuple (pattern_index, captured_nodes_dict).
+                    # Each key in dict maps to a list (or single) node.
+                    # For a single match, these nodes are related.
+                    
+                    # We iterate capture_name because we care about the main definition node (function/class)
+                    # "function" or "class" is the main anchor.
                     if capture_name in ["function", "class"]:
+                        # This node IS the definition node.
                         start_byte = node.start_byte
                         end_byte = node.end_byte
 
@@ -206,5 +218,59 @@ class TreeSitterExtractor(BaseExtractor):
                                  # Update FQN
                                  full_identifier = f"{recv_type}.{name}"
                                  doc.metadata["name"] = full_identifier
+                        
+                        # Add Entity
+                        entities.append(ExtractedEntity(
+                            name=name,
+                            type=capture_name,
+                            full_name=full_identifier,
+                            start_line=node.start_point[0] + 1,
+                            end_line=node.end_point[0] + 1,
+                            content=chunk_content,
+                            metadata={"lang": lang_key}
+                        ))
+                        
+                        # --- RELATION EXTRACTION ---
+                        # 1. Inheritance (Superclasses)
+                        if capture_name == "class" and "superclasses" in captured_nodes:
+                            supers = captured_nodes["superclasses"]
+                            if not isinstance(supers, list): supers = [supers]
+                            for s_node in supers:
+                                # s_node is the Argument List `(A, B)` or single identifier depending on language query
+                                # For Python `(argument_list)`: we need children
+                                s_text = s_node.text.decode("utf8")
+                                # Simple parse: remove parens and split
+                                # This is naive but works for simple cases class A(B, C)
+                                clean_text = s_text.strip("()")
+                                if clean_text:
+                                    parts = [p.strip() for p in clean_text.split(",") if p.strip()]
+                                    for parent_name in parts:
+                                        relations.append(ExtractedRelation(
+                                            source_full_name=full_identifier,
+                                            target_full_name=parent_name, # We don't know FQN of parent yet, store name
+                                            relation_type="inherits",
+                                            start_line=node.start_point[0] + 1
+                                        ))
 
-        return documents
+                    # 2. Imports (Dependencies)
+                    # This usually comes from a different pattern match where capture_name == "import"
+                    elif capture_name == "import":
+                         # The node is the import statement or module name depending on query
+                         # `(dotted_name) @module` -> node is identifier
+                         # We need to construct a relation "file imports module"
+                         # But relations are Entity -> Entity.
+                         # We can define a "File Entity" represented by file path? or just Module Entity.
+                         # For now, let's link the *File* (implicitly) to the imported *Module*.
+                         # But our `ExtractedRelation` expects `source_full_name`.
+                         # We can use the file-level pseudo-module name.
+                         
+                         module_name = node.text.decode("utf8")
+                         # For python `from . import X`, module_name might be `.`
+                         if module_name and module_name != ".":
+                             # We use a special source name for File-level imports?
+                             # Or we just skip imports in this Graph MVP if we only link Classes/Functions.
+                             # Let's link [FILE] -> [MODULE]
+                             # source_full_name = file_path or package name
+                             pass # imports require a "File Entity" which we extract separately or assume.
+
+        return ExtractionResult(documents=documents, entities=entities, relations=relations)

@@ -26,9 +26,72 @@ async def handle_remote_command(command_data: dict):
         # Construct input state
         inputs = {
             "messages": [HumanMessage(content=message)],
-            "project_id": 1, # Default project for now
+            "project_id": command_data.get("project_id") or 1,
             "command_id": command_data.get("command_id") # Pass command ID for tracking if needed
         }
         
         # Run agent in background
         await run_agent_background(thread_id, inputs)
+
+async def handle_project_switch_event(event_data: dict):
+    """
+    Handle project switch event from Cloud.
+    Payload (event_data) structure:
+    {
+        "project_id": 1,
+        "project_name": "...",
+        "external_path": "/path/to/project", // If available
+        ...
+    }
+    """
+    from app.domain.project.service import project_context_manager
+    # Circular dependency risk with agent.py depending on how it's imported.
+    # But this handler is imported by main/client. 
+    
+    project_id = event_data.get("project_id")
+    project_name = event_data.get("project_name")
+    
+    # Check if we have a path. 
+    # Cloud should send 'external_path' if it knows the local path (sync mode).
+    # Or we might need to look it up locally if we have a mapping.
+    # For now, assume cloud sends 'external_path' which corresponds to local path 
+    # OR we use project_id to find it if we have a local lookup.
+    
+    # Logic: 
+    # 1. Prefer external_path from payload.
+    # 2. If not, try to find by ID in local DB? (Not implemented fully yet)
+    
+    path = event_data.get("external_path")
+    
+    if not path:
+        # Fallback: maybe it's passed as 'path' 
+        path = event_data.get("path")
+        
+    if path:
+        logger.info(f"[EvoLoop] Received Switch Project Event: {project_id} ({project_name}) -> {path}")
+        
+        # 1. Update Context (Global / Thread agnostic)
+        # Note: set_working_directory sets it for a specific thread.
+        # But here we want to switch the "Global Active Project" or "The Device's Current Focus".
+        # If the device is single-user single-focus, we might want to update a default context.
+        # Let's update "default" thread context, and maybe "remote-default".
+        
+        project_context_manager.set_working_directory("remote-default", path)
+        project_context_manager.set_working_directory("default", path)
+        
+        # 2. Start Indexing/Watching if not already
+        from app.domain.codebase.indexing.service import IndexingService
+        from app.domain.codebase.indexing.manager import indexing_manager
+        import os
+        
+        try:
+             service = IndexingService()
+             repo_name = os.path.basename(path)
+             repo = await service.get_or_create_repo(path, repo_name)
+             await indexing_manager.start_watching(path, repo.id)
+             logger.info(f"[EvoLoop] Started watching {path}")
+        except Exception as e:
+            logger.error(f"[EvoLoop] Failed to start watching {path}: {e}")
+            
+    else:
+        logger.warning(f"[EvoLoop] Switch Project Event received but no path provided: {event_data}")

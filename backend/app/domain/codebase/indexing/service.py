@@ -10,7 +10,7 @@ from app.logging import logger
 from app.domain.codebase.indexing.base import BaseExtractor, BaseEmbedder
 from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
 from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
-from app.infrastructure.database.sql.models import Repository, SourceFile, CodeChunk
+from app.infrastructure.database.sql.models import Repository, SourceFile, CodeChunk, CodeEntity, CodeRelation
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.domain.project.service import project_context_manager
 
@@ -18,7 +18,8 @@ from app.domain.project.service import project_context_manager
 class IndexingService:
     def __init__(self, session: AsyncSession = None):
         self.session_factory = AsyncSessionLocal
-        self.extractor: BaseExtractor = TreeSitterExtractor()
+        # Note: Extractor now returns ExtractionResult
+        self.extractor = TreeSitterExtractor()
         self.embedder: BaseEmbedder = OpenAIEmbedder()
 
     async def get_or_create_repo(self, path: str, name: str) -> Repository:
@@ -96,9 +97,31 @@ class IndexingService:
                 logger.info(f"Indexing {rel_path} (Checksum mismatch or new)")
 
                 # Extract
-                docs = await self.extractor.extract(file_path, content)
-                if not docs:
-                    return  # No chunks extracted due to empty or parse error
+                extraction_result = await self.extractor.extract(file_path, content)
+                
+                # Unpack result
+                # Support both old list return (if any other extractor used) and new object
+                if isinstance(extraction_result, list):
+                     docs = extraction_result
+                     entities = []
+                     relations = []
+                else:
+                     docs = extraction_result.documents
+                     entities = extraction_result.entities
+                     relations = extraction_result.relations
+
+                if not docs and not entities:
+                    # Safe Indexing Check:
+                    # If file content is substantial (>50 chars?) but we got NOTHING,
+                    # it might be a parse error (dirty code).
+                    # We skip wiping the DB to preserve "Last Known Good".
+                    if len(content.strip()) > 50:
+                        logger.warning(f"Safe Indexing: Skipping {rel_path} - non-empty content but no extracted data.")
+                        return
+                    
+                    # If content is small (empty file), we proceed to clear DB.
+                    # Fallthrough to update SourceFile but clear chunks.
+                    pass
 
                 if not source_file:
                     source_file = SourceFile(
@@ -111,28 +134,68 @@ class IndexingService:
                 else:
                     # Update Checksum
                     source_file.checksum = new_checksum
-                    source_file.updated_at = datetime.utcnow()  # Trigger update via ORM or manual
+                    source_file.updated_at = datetime.utcnow()
                     session.add(source_file)
 
-                # 2. Clear old chunks (Full Refresh for this file)
+                # 2. Clear old chunks, entities and relations (Full Refresh for this file)
                 await session.execute(delete(CodeChunk).where(CodeChunk.file_id == source_file.id))
+                
+                # Delete relations first (using subquery on entities before they are gone)
+                subq = select(CodeEntity.id).where(CodeEntity.file_id == source_file.id)
+                await session.execute(delete(CodeRelation).where(CodeRelation.source_entity_id.in_(subq)))
+                
+                # Then delete entities
+                await session.execute(delete(CodeEntity).where(CodeEntity.file_id == source_file.id))
 
-                # 3. Embed & Insert
-                texts = [d.content for d in docs]
-                # Embed (Mock or Real based on Embedder implementation)
-                embeddings = await self.embedder.embed_documents(texts)
+                # 3. Embed & Insert Chunks
+                if docs:
+                    texts = [d.content for d in docs]
+                    embeddings = await self.embedder.embed_documents(texts)
 
-                for doc, vector in zip(docs, embeddings):
-                    chunk = CodeChunk(
+                    for doc, vector in zip(docs, embeddings):
+                        chunk = CodeChunk(
+                            file_id=source_file.id,
+                            chunk_type=doc.metadata.get("type", "unknown"),
+                            identifier=doc.metadata.get("name", "unknown"),
+                            start_line=doc.metadata.get("start_line", 0),
+                            end_line=doc.metadata.get("end_line", 0),
+                            content=doc.content,
+                            embedding=vector
+                        )
+                        session.add(chunk)
+                
+                # 4. Insert Entities and Build Map
+                name_to_id = {}
+                for ent in entities:
+                    entity_record = CodeEntity(
                         file_id=source_file.id,
-                        chunk_type=doc.metadata.get("type", "unknown"),
-                        identifier=doc.metadata.get("name", "unknown"),
-                        start_line=doc.metadata.get("start_line", 0),
-                        end_line=doc.metadata.get("end_line", 0),
-                        content=doc.content,
-                        embedding=vector
+                        name=ent.name,
+                        type=ent.type,
+                        full_name=ent.full_name,
+                        start_line=ent.start_line,
+                        end_line=ent.end_line
                     )
-                    session.add(chunk)
+                    session.add(entity_record)
+                    await session.flush() # Flush to get ID
+                    name_to_id[ent.full_name] = entity_record.id
+
+                # 5. Insert Relations
+                for rel in relations:
+                    source_id = name_to_id.get(rel.source_full_name)
+                    if not source_id:
+                        continue # Cannot link if source is missing (should not happen if logic is correct)
+                    
+                    # Try to resolve target locally (generic logic, incomplete for full project graph pass)
+                    # For now we mostly rely on target_name for cross-file links
+                    target_id = name_to_id.get(rel.target_full_name)
+                    
+                    rel_record = CodeRelation(
+                        source_entity_id=source_id,
+                        target_entity_id=target_id, # Can be None
+                        target_name=rel.target_full_name,
+                        relation_type=rel.relation_type
+                    )
+                    session.add(rel_record)
 
                 await session.commit()
                 # logger.debug(f"Indexed {rel_path}")

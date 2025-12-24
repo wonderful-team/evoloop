@@ -58,6 +58,26 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
     # Update Status to Running
     activity_monitor.start_run(thread_id)
     
+    # --- MEMORY INJECTION ---
+    # Fetch User Preferences & Concepts and inject into state
+    from app.domain.memory.service import memory_service
+    
+    # 1. User Preferences (Assumes user_id "user_default" or similar for single user mode, or extracted from somewhere)
+    # Ideally we get user_id from request but run_agent_background is decoupled. 
+    # For now we use a default or project-based key if user specific not avail.
+    user_prefs = await memory_service.get_user_preferences("user_default")
+    
+    # 2. Project Concepts (Top 5 general ones or specific to context?)
+    # We fetch general top concepts to prime the agent.
+    # Note: search_concepts requires query. Empty query might return top/all depending on impl.
+    # The current impl of search_concepts uses "CONTAINS", so empty string should match all.
+    concepts_text = await memory_service.search_concepts("", project_id)
+    
+    # Inject into inputs (State)
+    inputs["user_preferences"] = user_prefs
+    inputs["project_concepts"] = concepts_text
+    # ------------------------
+    
     try:
         callbacks = [callback, db_callback]
         

@@ -27,19 +27,32 @@ async def coder_node(state: AgentState, config: RunnableConfig):
     
     prefs = state.get("user_preferences", "None")
     project_id = state.get("project_id", 1)
+    concepts = state.get("project_concepts", "None")
     
     system_msg = f"""You are a Senior Software Engineer.
     Plan: {plan}
     Context: {context}
-    User Preferences: {prefs}
     Project ID: {project_id}
     
+    ### MEMORY & PREFERENCES
+    User Preferences:
+    {prefs}
+    
+    Project Concepts / Terminology:
+    {concepts}
+    
+    ### INSTRUCTIONS
     Your task is to IMPLEMENT the plan by writing code to files.
+    - Respect the User Preferences above (e.g. testing frameworks, naming conventions).
+    - Use the Project Concepts to understand existing architecture names.
     
     Tools:
     - get_annotated_tree(path): View project structure with indexed symbols.
     - write_file_content(path, content): Best for creating/editing files safely.
+    - search_codebase(query): Combine Graph+RAG search to find code or usage.
     - run_command(command): Use for `ls`, `mkdir`, `mv`, `rm` or running tests/scripts.
+    - save_preference(key, value): If user gives new instructions, save them.
+    - add_concept(name, desc): If you learn a new architectural concept, save it.
     
     Use `write_file_content` for writing code. Use `run_command` for file management or verification.
     """

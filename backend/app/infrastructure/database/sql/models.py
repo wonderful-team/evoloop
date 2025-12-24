@@ -36,6 +36,47 @@ class SourceFile(Base):
 
     repository: Mapped["Repository"] = relationship(back_populates="files")
     chunks: Mapped[List["CodeChunk"]] = relationship(back_populates="file", cascade="all, delete-orphan")
+    entities: Mapped[List["CodeEntity"]] = relationship(back_populates="file", cascade="all, delete-orphan")
+
+
+class CodeEntity(Base):
+    __tablename__ = "code_entities"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    file_id: Mapped[int] = mapped_column(ForeignKey("source_files.id"))
+
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    type: Mapped[str] = mapped_column(String(50))  # class, function, variable
+    full_name: Mapped[str] = mapped_column(String(512), index=True)  # FQN, e.g. module.Class.method
+    
+    start_line: Mapped[int] = mapped_column(Integer)
+    end_line: Mapped[int] = mapped_column(Integer)
+    
+    # Optional metadata (complexity, docstring summary, etc.) could go here
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    file: Mapped["SourceFile"] = relationship(back_populates="entities")
+    
+    # Self-referential or other relationships could be added here if we want explicit graph navigation in ORM
+    # For now, we use a separate table for relations to be cleaner.
+
+
+class CodeRelation(Base):
+    __tablename__ = "code_relations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    
+    # We link to entities. 
+    source_entity_id: Mapped[int] = mapped_column(ForeignKey("code_entities.id"))
+    target_entity_id: Mapped[Optional[int]] = mapped_column(ForeignKey("code_entities.id"), nullable=True)
+    target_name: Mapped[Optional[str]] = mapped_column(String(512), index=True) # Unresolved target name
+    
+    relation_type: Mapped[str] = mapped_column(String(50))  # calls, inherits, imports, defines
+    
+    # Optional: properties like confidence or count
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class CodeChunk(Base):

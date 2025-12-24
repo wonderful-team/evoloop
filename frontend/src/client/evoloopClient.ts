@@ -135,11 +135,15 @@ export const EvoLoopApi = {
         return response.data;
     },
 
-    sendCommand: async (device_id: number, content: string): Promise<any> => {
-        const response = await evoloopClient.post('/evolooplink/api/command/send', {
+    sendCommand: async (device_id: number, content: string, project_id?: number): Promise<any> => {
+        const payload: any = {
             device_id,
             content: { text: content } // Wrap in expected format
-        });
+        };
+        if (project_id) {
+            payload.project_id = project_id;
+        }
+        const response = await evoloopClient.post('/evolooplink/api/command/send', payload);
         return response.data;
     },
 
@@ -187,10 +191,30 @@ export const EvoLoopApi = {
         }
     },
 
-    getRecentLogs: async (device_id: number, limit: number = 50): Promise<any[]> => {
+    getRecentLogs: async (device_id: number, limit: number = 50, project_id?: number): Promise<any[]> => {
+        const params: any = { device_id, limit };
+        if (project_id) {
+            params.project_id = project_id;
+        }
         const response = await evoloopClient.get('/evolooplink/api/log/recent', {
-            params: { device_id, limit }
+            params
         });
+        return response.data;
+    },
+
+    // Cloud Project Management
+    getCloudProjects: async (params?: { page?: number, page_size?: number, status?: number }): Promise<any> => {
+        const response = await evoloopClient.get('/projectmanage/api/project/lists', { params });
+        return response.data;
+    },
+
+    switchCloudProject: async (project_id: number): Promise<any> => {
+        const response = await evoloopClient.post('/projectmanage/api/project/switchProject', { project_id });
+        return response.data;
+    },
+
+    getCloudCurrentProject: async (): Promise<any> => {
+        const response = await evoloopClient.get('/projectmanage/api/project/getCurrentProject');
         return response.data;
     }
 };

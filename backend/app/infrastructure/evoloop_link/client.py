@@ -38,6 +38,7 @@ class EvoLoopLinkClient:
         self.ws: Optional[websockets.WebSocketClientProtocol] = None
         self._running = False
         self._command_handler: Optional[Callable[[Dict[str, Any]], None]] = None
+        self._event_handler: Optional[Callable[[str, Dict[str, Any]], None]] = None
         self._reconnect_delay = 5  # seconds
 
     def _get_or_create_device_key(self) -> str:
@@ -55,6 +56,10 @@ class EvoLoopLinkClient:
     def set_command_handler(self, handler: Callable[[Dict[str, Any]], None]):
         """设置指令处理回调"""
         self._command_handler = handler
+
+    def set_event_handler(self, handler: Callable[[str, Dict[str, Any]], None]):
+        """Set event handler callback (type, data)"""
+        self._event_handler = handler
 
     async def _api_request(
         self,
@@ -152,6 +157,7 @@ class EvoLoopLinkClient:
         log_type: str,
         content: Any,
         command_id: Optional[int] = None,
+        project_id: Optional[int] = None,
     ):
         """上传执行日志"""
         if not self.device_id:
@@ -165,6 +171,9 @@ class EvoLoopLinkClient:
             }
             if command_id:
                 data["command_id"] = command_id
+            
+            if project_id:
+                data["project_id"] = project_id
 
             result = await self._api_request("POST", "/evolooplink/api/log/upload", data)
             if result.get("code") != 0:
@@ -172,15 +181,25 @@ class EvoLoopLinkClient:
         except Exception as e:
             logger.error(f"[EvoLoop] Log upload error: {e}")
 
-    async def upload_logs_batch(self, logs: list):
+    async def upload_logs_batch(self, logs: list, project_id: Optional[int] = None):
         """批量上传日志"""
         if not self.device_id or not logs:
             return
+        
+        # If project_id is provided, inject it into each log if not present
+        if project_id:
+            for log in logs:
+                if "project_id" not in log:
+                    log["project_id"] = project_id
+
         try:
             data = {
                 "device_id": self.device_id,
                 "logs": json.dumps(logs),
             }
+            if project_id:
+                data["project_id"] = project_id
+
             await self._api_request("POST", "/evolooplink/api/log/upload", data)
         except Exception as e:
             logger.error(f"[EvoLoop] Batch log upload error: {e}")
@@ -219,6 +238,16 @@ class EvoLoopLinkClient:
                 if self._command_handler:
                     # 异步执行指令处理
                     asyncio.create_task(self._execute_command(command_data))
+
+            elif msg_type == "project_switch":
+                # Handle Project Switch Event
+                event_data = data.get("data", {})
+                logger.info(f"[EvoLoop] Received Event: {msg_type}")
+                if self._event_handler:
+                     if asyncio.iscoroutinefunction(self._event_handler):
+                         asyncio.create_task(self._event_handler(msg_type, event_data))
+                     else:
+                         self._event_handler(msg_type, event_data)
 
         except json.JSONDecodeError:
             logger.warning(f"[EvoLoop] Invalid WS message: {message[:100]}")
