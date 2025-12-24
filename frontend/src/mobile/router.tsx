@@ -4,6 +4,7 @@ import { IndexScreen } from "./screens/IndexScreen"
 import { LoginScreen, loginLoader } from "./screens/LoginScreen"
 import { DevicesScreen, devicesLoader } from "./screens/DevicesScreen"
 import { ChatScreen } from "./screens/ChatScreen"
+import { SearchScreen } from "./screens/SearchScreen"
 import { redirect } from "@tanstack/react-router"
 
 // 1. Create Route Hierarchy
@@ -52,6 +53,12 @@ const chatRoute = createRoute({
     component: ChatScreen,
 })
 
+const searchRoute = createRoute({
+    getParentRoute: () => layoutRoute,
+    path: '/search',
+    component: SearchScreen,
+})
+
 // 2. Build the Tree
 const routeTree = rootRoute.addChildren([
     layoutRoute.addChildren([
@@ -59,6 +66,7 @@ const routeTree = rootRoute.addChildren([
         loginRoute,
         devicesRoute,
         chatRoute,
+        searchRoute,
     ]),
 ])
 

@@ -9,6 +9,7 @@ export interface LogMessage {
     content: string;
     thread_id?: string;
     project_id?: number;
+    log_id?: number;
     timestamp: number;
 }
 

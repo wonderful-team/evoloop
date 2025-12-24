@@ -1,9 +1,9 @@
-import { useParams, useNavigate } from "@tanstack/react-router"
+import { useParams, useNavigate, useSearch } from "@tanstack/react-router"
 import { useEvoLoopWebSocket, LogMessage } from "@/hooks/useEvoLoopWebSocket"
 import { useVoice } from "@/hooks/useVoice"
 import { EvoLoopApi } from "@/client/evoloopClient"
 import { useState, useRef, useEffect } from "react"
-import { Send, Cpu, Terminal, AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Mic, Paperclip, Loader2 } from "lucide-react"
+import { Send, Cpu, Terminal, AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Mic, Paperclip, Loader2, Search, ArrowDownCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { useQuery } from "@tanstack/react-query"
@@ -79,6 +79,9 @@ function LogItem({ msg }: { msg: LogMessage }) {
 export function ChatScreen() {
     // manual route param
     const { deviceId } = useParams({ strict: false }) as any
+    const searchParams = useSearch({ strict: false }) as any
+    const highlight = searchParams.highlight ? Number(searchParams.highlight) : null
+
     const navigate = useNavigate()
     const [input, setInput] = useState("")
     const [sending, setSending] = useState(false)
@@ -93,31 +96,67 @@ export function ChatScreen() {
     // Fetch history
     useEffect(() => {
         if (deviceId && isProjectInitialized) {
-            // Fetch logs only after project initialization to prevent "device logs" -> "project logs" flash
-            // Include project_id if available. 
-            // Note: If currentProject is null initially, we might fetch without project_id (all logs) or wait?
-            // User requirement: Mobile should isolate by project.
-            // If we don't have a project selected yet (loading), we probably shouldn't show wrong logs.
-            // But MobileProjectSwitcher fetches implicitly.
-            // Let's rely on currentProject updating to trigger fetch.
+            let promise;
+            if (highlight) {
+                // Context mode
+                promise = EvoLoopApi.getContextLogs(Number(deviceId), highlight);
+            } else {
+                // Normal mode
+                promise = EvoLoopApi.getRecentLogs(Number(deviceId), 50, currentProject?.project_id);
+            }
 
-            EvoLoopApi.getRecentLogs(Number(deviceId), 50, currentProject?.project_id).then(logs => {
+            promise.then(logs => {
                 if (Array.isArray(logs)) {
-                    // Convert backend log format to frontend LogMessage
                     const formatted = logs.map(log => ({
-                        type: log.type || 'info', // 'info' maps to default? check LogItem
-                        content: log.content, // backend might return object or string
+                        type: log.type || 'info',
+                        content: log.content,
                         thread_id: log.thread_id,
                         project_id: log.project_id,
+                        log_id: log.log_id, // Ensure log_id is passed
                         timestamp: log.create_time ? log.create_time * 1000 : Date.now()
-                    })).reverse(); // Oldest first
-                    setMessages(formatted as any);
+                    })).reverse();
+
+                    // If context mode, we rely on backend order. Backend returns merged [prev(desc), next(asc)] sorted by log_id ASC.
+                    // But frontend 'formatted' above reverses it?
+                    // getRecentLogs returns DESC (newest first). Frontend reverses to show oldest at top (standard chat).
+                    // getContextLogs returns ASC (oldest first). 
+                    // So if getContextLogs returns ASC, we should NOT reverse it?
+                    // Let's check backend getRecentLogs: 'create_time desc'. So it needs reverse.
+                    // Backend getContextLogs: user sorts it manually? "usort($merged... return $a['log_id'] <=> $b['log_id']);" -> ASC.
+                    // So getContextLogs returns ASC.
+                    // getRecentLogs returns DESC.
+                    // So we conditionally reverse.
+
+                    if (highlight) {
+                        setMessages(logs.map(log => ({
+                            type: log.type || 'info',
+                            content: log.content,
+                            thread_id: log.thread_id,
+                            project_id: log.project_id,
+                            log_id: log.log_id,
+                            timestamp: log.create_time ? log.create_time * 1000 : Date.now()
+                        })) as any);
+
+                        // Highlight scrolling
+                        setTimeout(() => {
+                            const element = document.getElementById(`log-${highlight}`);
+                            if (element) {
+                                element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                // Add flash effect? 
+                                element.classList.add('bg-primary/20');
+                                setTimeout(() => element.classList.remove('bg-primary/20'), 2000);
+                            }
+                        }, 500);
+
+                    } else {
+                        setMessages(formatted as any);
+                    }
                 }
             }).catch(err => {
                 console.error("Failed to fetch history", err)
             })
         }
-    }, [deviceId, setMessages, currentProject?.project_id, isProjectInitialized])
+    }, [deviceId, setMessages, currentProject?.project_id, isProjectInitialized, highlight])
 
     // Fetch device status
     const { data: devices } = useQuery({
@@ -266,6 +305,9 @@ export function ChatScreen() {
                 <Button variant="ghost" size="sm" className="text-muted-foreground text-xs h-8" onClick={clearMessages}>
                     Clear
                 </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => navigate({ to: '/search', search: { deviceId, projectId: currentProject?.project_id } } as any)}>
+                    <Search className="w-5 h-5" />
+                </Button>
             </div>
 
             {/* Chat Area */}
@@ -297,10 +339,26 @@ export function ChatScreen() {
                     </div>
                 ) : (
                     displayMessages.map((msg, i) => (
-                        <LogItem key={i} msg={msg} />
+                        <div id={msg.log_id ? `log-${msg.log_id}` : undefined} key={i}>
+                            <LogItem msg={msg} />
+                        </div>
                     ))
                 )}
             </div>
+
+            {/* Back to Live FAB */}
+            {highlight && (
+                <div className="absolute bottom-20 right-4 z-30">
+                    <Button
+                        size="sm"
+                        className="rounded-full shadow-lg gap-2 bg-primary/90 hover:bg-primary"
+                        onClick={() => navigate({ to: `/chat/${deviceId}` } as any)}
+                    >
+                        <ArrowDownCircle className="w-4 h-4" />
+                        Back to Live
+                    </Button>
+                </div>
+            )}
 
             {/* Input Area */}
             <div className="bg-background border-t p-3 shrink-0 pb-[max(env(safe-area-inset-bottom),0.75rem)] sticky bottom-0 z-20">

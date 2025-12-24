@@ -202,6 +202,21 @@ export const EvoLoopApi = {
         return response.data;
     },
 
+    searchLogs: async (keyword: string, device_id?: number, project_id?: number, limit: number = 20): Promise<any[]> => {
+        const params: any = { keyword, limit };
+        if (device_id) params.device_id = device_id;
+        if (project_id) params.project_id = project_id;
+        const response = await evoloopClient.get('/evolooplink/api/log/search', { params });
+        return response.data.data;
+    },
+
+    getContextLogs: async (device_id: number, target_log_id: number): Promise<any[]> => {
+        const response = await evoloopClient.get('/evolooplink/api/log/context', {
+            params: { device_id, target_log_id }
+        });
+        return response.data.data;
+    },
+
     // Cloud Project Management
     getCloudProjects: async (params?: { page?: number, page_size?: number, status?: number }): Promise<any> => {
         const response = await evoloopClient.get('/projectmanage/api/project/lists', { params });
