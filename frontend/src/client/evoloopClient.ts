@@ -115,14 +115,111 @@ export interface Device {
 export const EvoLoopApi = {
     // Login to Niushop to get token
     login: async (username: string, password: string): Promise<{ token: string, member_id: number }> => {
-        // ... (lines 118-123)
         const response = await evoloopClient.post('/api/login/login', { username, password });
         return response.data;
+    },
+
+    // Mobile SMS Login
+    sendMobileCode: async (mobile: string, captcha_id?: string, captcha_code?: string): Promise<{ key: string }> => {
+        const data: any = { mobile };
+        if (captcha_id && captcha_code) {
+            data.captcha_id = captcha_id;
+            data.captcha_code = captcha_code;
+        }
+        const response = await evoloopClient.post('/api/login/mobileCode', data);
+        return response.data;
+    },
+
+    loginMobile: async (mobile: string, key: string, code: string): Promise<{ token: string, member_id: number }> => {
+        const response = await evoloopClient.post('/api/login/mobile', { mobile, key, code });
+        return response.data;
+    },
+
+    // Captcha
+    getCaptcha: async (captcha_id: string = ''): Promise<{ id: string, img: string }> => {
+        const response = await evoloopClient.post('/api/captcha/captcha', { captcha_id });
+        return response.data;
+    },
+
+    getCaptchaConfig: async (): Promise<any> => {
+        const response = await evoloopClient.get('/api/config/getCaptchaConfig');
+        return response.data?.shop_reception_login; // Returns 1 or 0
     },
 
     logout: () => {
         // Clear local storage token
         localStorage.removeItem('evoloop_token');
+    },
+
+    // Password Recovery
+    checkMobile: async (mobile: string): Promise<boolean> => {
+        // Returns code: 0 if NOT exists?
+        // find.vue says: if res.code == 0 title='Phone not registered'.
+        // So code < 0 means error? code == 0 usually means success, but here maybe 'User not found' is 0?
+        // Wait. find.vue: if (res.code == 0) { showToast('Not registered'); return false; }
+        // This implies code!=0 (likely 1 or similar) means "Exists".
+        // Niushop usually: code > 0 or code == 0 is success. 
+        // Let's assume endpoint returns whether it exists.
+        // If the API returns success(data), check data?
+        // Let's implement wrapper and let UI handle logic based on response.
+        const response = await evoloopClient.post('/api/member/checkmobile', { mobile });
+        // The legacy code treats 'code == 0' as "Mobile NOT registered" (failure for recovery).
+        // So for recovery, we want code != 0? Or maybe code < 0 is error, code >= 0 is success (request worked).
+        // Inside data: exist?
+        // But legacy code checks res.code directly.
+        // Standard Niushop: success() returns code=0 usually?
+        // If checkmobile returns "User exists", maybe code=1?
+        return response as any; // Return full response for logic
+    },
+
+    sendFindPasswordCode: async (mobile: string, captcha_id: string, captcha_code: string): Promise<{ key: string }> => {
+        const response = await evoloopClient.post('/api/findpassword/mobilecode', {
+            mobile,
+            captcha_id,
+            captcha_code
+        });
+        return response.data;
+    },
+
+    resetPasswordMobile: async (mobile: string, code: string, key: string, password: string): Promise<any> => {
+        const response = await evoloopClient.post('/api/findpassword/mobile', {
+            mobile,
+            code,
+            key,
+            password
+        });
+        return response;
+    },
+
+    // Registration
+    getRegisterConfig: async (): Promise<any> => {
+        const response = await evoloopClient.get('/api/register/config');
+        return response.data?.value;
+    },
+
+    getRegisterAgreement: async (): Promise<any> => {
+        const response = await evoloopClient.get('/api/register/aggrement');
+        return response.data;
+    },
+
+    sendRegisterMobileCode: async (mobile: string, captcha_id?: string, captcha_code?: string): Promise<{ key: string }> => {
+        const data: any = { mobile };
+        if (captcha_id && captcha_code) {
+            data.captcha_id = captcha_id;
+            data.captcha_code = captcha_code;
+        }
+        const response = await evoloopClient.post('/api/register/mobileCode', data);
+        return response.data;
+    },
+
+    registerMobile: async (data: any): Promise<{ token: string, member_id: number }> => {
+        const response = await evoloopClient.post('/api/register/mobile', data);
+        return response.data;
+    },
+
+    registerUsername: async (data: any): Promise<{ token: string, member_id: number }> => {
+        const response = await evoloopClient.post('/api/register/username', data);
+        return response.data;
     },
 
     // EvoLoop Link Plugin APIs

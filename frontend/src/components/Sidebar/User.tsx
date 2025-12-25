@@ -1,5 +1,5 @@
 import { Link as RouterLink } from "@tanstack/react-router"
-import { ChevronsUpDown, LogOut, Settings } from "lucide-react"
+import { ChevronsUpDown, LogOut, Settings, Crown } from "lucide-react"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -20,21 +20,41 @@ import useAuth from "@/hooks/useAuth"
 import { getInitials } from "@/utils"
 
 interface UserInfoProps {
-  fullName?: string
-  email?: string
+  fullName?: string | null
+  email?: string | null
+  avatar?: string | null
+  levelName?: string | null
+  levelExpireTime?: number
 }
 
-function UserInfo({ fullName, email }: UserInfoProps) {
+function UserInfo({ fullName, email, avatar, levelName, levelExpireTime }: UserInfoProps) {
+  const isMember = !!levelName;
+  const expireDate = levelExpireTime ? new Date(levelExpireTime * 1000).toLocaleDateString() : '';
+
   return (
     <div className="flex items-center gap-2.5 w-full min-w-0">
       <Avatar className="size-8">
-        <AvatarFallback className="bg-zinc-600 text-white">
-          {getInitials(fullName || "User")}
-        </AvatarFallback>
+        {avatar ? <img src={avatar} alt={fullName || "User"} className="h-full w-full object-cover" /> : (
+          <AvatarFallback className="bg-zinc-600 text-white">
+            {getInitials(fullName || "User")}
+          </AvatarFallback>
+        )}
       </Avatar>
       <div className="flex flex-col items-start min-w-0">
-        <p className="text-sm font-medium truncate w-full">{fullName}</p>
+        <p className="text-sm font-medium truncate w-full flex items-center gap-1">
+          {fullName}
+          {isMember && (
+            <span className="text-[10px] bg-yellow-500/10 text-yellow-600 px-1.5 py-0.5 rounded border border-yellow-500/20 font-bold leading-none">
+              {levelName}
+            </span>
+          )}
+        </p>
         <p className="text-xs text-muted-foreground truncate w-full">{email}</p>
+        {isMember && levelExpireTime && levelExpireTime > 0 && (
+          <p className="text-[10px] text-muted-foreground/80 truncate w-full mt-0.5">
+            Exp: {expireDate}
+          </p>
+        )}
       </div>
     </div>
   )
@@ -78,7 +98,13 @@ export function User({ user }: { user: any }) {
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
               data-testid="user-menu"
             >
-              <UserInfo fullName={user?.full_name} email={user?.email} />
+              <UserInfo
+                fullName={user?.nickname || user?.full_name}
+                email={user?.email}
+                avatar={user?.headimg}
+                levelName={user?.member_level_name}
+                levelExpireTime={user?.level_expire_time}
+              />
               <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
@@ -89,8 +115,19 @@ export function User({ user }: { user: any }) {
             sideOffset={4}
           >
             <DropdownMenuLabel className="p-0 font-normal">
-              <UserInfo fullName={user?.full_name} email={user?.email} />
+              <UserInfo
+                fullName={user?.nickname || user?.full_name}
+                email={user?.email}
+                avatar={user?.headimg}
+                levelName={user?.member_level_name}
+                levelExpireTime={user?.level_expire_time}
+              />
             </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => window.open("https://mall.imagicbox.cn/h5/pages/member/index", "_blank")}>
+              <Crown className="text-yellow-500" />
+              <span>{user?.member_level_name ? "Manage Subscription" : "Upgrade to PRO"}</span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <RouterLink to="/settings" onClick={handleMenuClick}>
               <DropdownMenuItem>

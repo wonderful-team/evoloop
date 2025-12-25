@@ -1,4 +1,4 @@
-import { Users, FolderOpen, MessageSquare, Settings, Server, LayoutDashboard } from "lucide-react"
+import { FolderOpen, MessageSquare, Settings, Server, LayoutDashboard } from "lucide-react"
 
 
 import { SidebarAppearance } from "@/components/Common/Appearance"
@@ -31,9 +31,6 @@ export function AppSidebar() {
     ? [
       ...publicItems,
       ...authItems,
-      ...(currentUser.is_superuser
-        ? [{ icon: Users, title: "Admin", path: "/admin" }]
-        : []),
     ]
     : publicItems
 

@@ -127,7 +127,18 @@ export type UserPublic = {
     is_active?: boolean;
     is_superuser?: boolean;
     full_name?: (string | null);
-    id: string;
+    id: (string | number);
+    username?: (string | null);
+    mobile?: (string | null);
+    nickname?: (string | null);
+    headimg?: (string | null);
+    member_level?: number;
+    member_level_name?: (string | null);
+    level_expire_time?: number;
+    balance?: number;
+    balance_money?: number;
+    point?: number;
+    auto_renew?: number;
 };
 
 export type UserRegister = {

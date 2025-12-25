@@ -17,10 +17,17 @@ export function IndexScreen() {
     const { data: projectsData, isLoading } = useQuery({
         queryKey: ['evoloop', 'projects', 'recent'],
         queryFn: () => EvoLoopApi.getCloudProjects({ page: 1, page_size: 10 }),
+        enabled: !!localStorage.getItem('evoloop_token'),
     })
     const recentProjects = projectsData?.list || []
+    const isGuest = !localStorage.getItem('evoloop_token')
 
     const handleInputSend = async (content: string) => {
+        if (isGuest) {
+            toast.info("Please login to continue")
+            navigate({ to: '/login' as any })
+            return
+        }
         // Need to find a target device.
         // For now, let's navigate to device selection but PASS the content?
         // Or if we have a "default" device?
@@ -54,6 +61,10 @@ export function IndexScreen() {
     }
 
     const handleProjectClick = async (project: any) => {
+        if (isGuest) {
+            navigate({ to: '/login' as any })
+            return
+        }
         // Switch project context
         setCurrentProject(project)
         setProjectInitialized(true)
@@ -126,7 +137,10 @@ export function IndexScreen() {
                         <Clock className="w-3.5 h-3.5" />
                         Recent Activities
                     </h3>
-                    <Button variant="ghost" size="sm" className="h-6 text-xs hover:bg-transparent text-primary" onClick={() => navigate({ to: '/projects' as any })}>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs hover:bg-transparent text-primary" onClick={() => {
+                        if (isGuest) navigate({ to: '/login' as any })
+                        else navigate({ to: '/projects' as any })
+                    }}>
                         View All
                     </Button>
                 </div>

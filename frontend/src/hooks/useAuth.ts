@@ -62,7 +62,14 @@ const useAuth = () => {
     } catch (e) {
       console.error("Logout cleanup failed:", e)
     } finally {
+
+      // Clear PC token
       localStorage.removeItem("access_token")
+
+      // Clear Mobile tokens (EvoLoop Link)
+      localStorage.removeItem("evoloop_token")
+      localStorage.removeItem("evoloop_member_id")
+
       queryClient.resetQueries()
     }
   }

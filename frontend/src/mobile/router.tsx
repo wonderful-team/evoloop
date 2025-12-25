@@ -7,7 +7,10 @@ import { DevicesScreen, devicesLoader } from "./screens/DevicesScreen"
 import { ProjectsScreen } from "./screens/ProjectsScreen"
 import { ProfileScreen } from "./screens/ProfileScreen"
 import { ChatScreen } from "./screens/ChatScreen"
+
 import { SearchScreen } from "./screens/SearchScreen"
+import { ForgotPasswordScreen } from "./screens/ForgotPasswordScreen"
+import { RegisterScreen } from "./screens/RegisterScreen"
 
 // 1. Create Route Hierarchy
 const rootRoute = createRootRoute({
@@ -50,12 +53,14 @@ const projectsRoute = createRoute({
     getParentRoute: () => tabsRoute,
     path: '/projects',
     component: ProjectsScreen,
+    beforeLoad: devicesLoader // Reuse login check
 })
 
 const profileRoute = createRoute({
     getParentRoute: () => tabsRoute,
     path: '/profile',
     component: ProfileScreen,
+    beforeLoad: devicesLoader // Reuse login check
 })
 
 // Full Screen Routes
@@ -78,6 +83,18 @@ const searchRoute = createRoute({
     component: SearchScreen,
 })
 
+const forgotPasswordRoute = createRoute({
+    getParentRoute: () => layoutRoute,
+    path: '/forgot-password',
+    component: ForgotPasswordScreen,
+})
+
+const registerRoute = createRoute({
+    getParentRoute: () => layoutRoute,
+    path: '/register',
+    component: RegisterScreen,
+})
+
 // 2. Build the Tree
 const routeTree = rootRoute.addChildren([
     layoutRoute.addChildren([
@@ -90,6 +107,8 @@ const routeTree = rootRoute.addChildren([
         loginRoute,
         chatRoute,
         searchRoute,
+        forgotPasswordRoute,
+        registerRoute,
     ]),
 ])
 

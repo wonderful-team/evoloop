@@ -3,6 +3,7 @@ from app.api.routes import login, users, utils, agent, projects, mcp, files, his
 from app.core.config import settings
 
 api_router = APIRouter()
+# Login handled by member center (proxied)
 api_router.include_router(login.router)
 api_router.include_router(users.router)
 api_router.include_router(utils.router)

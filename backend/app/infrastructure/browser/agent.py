@@ -14,6 +14,9 @@ try:
     HAS_BROWSER_USE = True
 except ImportError:
     HAS_BROWSER_USE = False
+    BrowserContext = object # or Any
+    Browser = object
+
 
 from app.core.config import settings
 
