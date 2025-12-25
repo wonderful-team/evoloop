@@ -11,6 +11,7 @@ import asyncio
 from app.api.main import api_router
 from app.core.config import settings
 from app.logging import logger
+from fastapi.staticfiles import StaticFiles
 
 # EvoLoop Imports
 from app.core.workflows.workflow import create_graph
@@ -174,3 +175,8 @@ if settings.all_cors_origins:
     )
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Mount static files
+browser_artifacts_dir = os.path.join(os.getcwd(), "browser_artifacts")
+os.makedirs(browser_artifacts_dir, exist_ok=True)
+app.mount("/static", StaticFiles(directory=browser_artifacts_dir), name="static")

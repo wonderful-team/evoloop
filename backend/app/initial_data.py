@@ -20,19 +20,35 @@ async def init_mcp() -> None:
     logger.info("Initializing MCP configuration...")
     # Use the SQLAlchemy URI from settings
     db_url = str(settings.SQLALCHEMY_DATABASE_URI)
-
-    details = {
+    
+    # 1. Local Postgres (System Default)
+    details_pg = {
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-postgres", db_url],
         "env": {},
     }
-
     try:
-        # add_server will persist to DB and try to connect
-        await mcp_client_manager.add_server("local-postgres", details)
+        await mcp_client_manager.add_server("local-postgres", details_pg)
         logger.info("MCP 'local-postgres' configured successfully.")
     except Exception as e:
-        logger.error(f"Failed to configure MCP server: {e}")
+        logger.error(f"Failed to configure local-postgres: {e}")
+
+    # 2. Brave Search (Network Capability)
+    import os
+    brave_key = os.getenv("BRAVE_API_KEY")
+    if brave_key:
+        details_brave = {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-brave-search"],
+            "env": {"BRAVE_API_KEY": brave_key},
+        }
+        try:
+            await mcp_client_manager.add_server("brave-search", details_brave)
+            logger.info("MCP 'brave-search' configured successfully.")
+        except Exception as e:
+             logger.error(f"Failed to configure brave-search: {e}")
+    else:
+        logger.warning("BRAVE_API_KEY not found. Skipping 'brave-search' MCP auto-configuration.")
 
 
 def main() -> None:

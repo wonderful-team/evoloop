@@ -1,6 +1,7 @@
-from typing import Type
+from typing import Type, Optional
 from pydantic import BaseModel, Field
 from langchain_core.tools import BaseTool
+from langchain_core.runnables import RunnableConfig
 import logging
 
 from app.infrastructure.browser.agent import browser_service
@@ -18,9 +19,14 @@ class BrowserAgentTool(BaseTool):
     def _run(self, task: str):
         raise NotImplementedError("Use _arun for async browser tasks")
         
-    async def _arun(self, task: str):
+    async def _arun(self, task: str, config: RunnableConfig = None):
         try:
-            return await browser_service.run_task(task)
+            # Extract thread_id from config if available (LangGraph injects it)
+            thread_id = None
+            if config and 'configurable' in config:
+                thread_id = config['configurable'].get('thread_id')
+            
+            return await browser_service.run_task(task, session_id=thread_id)
         except Exception as e:
             return f"Error running browser agent: {e}"
 

@@ -1,41 +1,47 @@
+from typing import Any, List
+
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
-from typing import List, Dict
+from app.schemas.mcp import McpServerCreate, McpServerRead
 from app.infrastructure.mcp.client import mcp_client_manager
 
 router = APIRouter()
 
-class McpServerRequest(BaseModel):
-    name: str
-    command: str
-    args: List[str] = []
-    env: Dict[str, str] = {}
-
-@router.post("/server")
-async def add_mcp_server(req: McpServerRequest):
-    """Register a new MCP server."""
-    details = {
-        "command": req.command,
-        "args": req.args,
-        "env": req.env
-    }
-    try:
-        res = await mcp_client_manager.add_server(req.name, details)
-        return res
-    except Exception as e:
-        raise HTTPException(500, detail=str(e))
-
-@router.get("/servers")
+@router.get("/servers", response_model=List[Any])
 async def list_mcp_servers():
-    """List registered MCP servers."""
-    return await mcp_client_manager.list_servers()
+    """
+    List all registered MCP servers.
+    """
+    servers = await mcp_client_manager.list_servers()
+    # Ensure the response matches what frontend expects. 
+    # frontend wants: name, command, status, tools_count, args (optional)
+    # backend list_servers returns list of dicts.
+    return servers
 
-@router.delete("/server/{name}")
-async def delete_mcp_server(name: str):
-    """Remove an MCP server."""
+@router.post("/server", response_model=Any)
+async def add_mcp_server(server: McpServerCreate):
+    """
+    Register and connect a new MCP server.
+    """
     try:
-        # Note: Need to implement remove_server in McpClientManager if it doesn't exist
-        await mcp_client_manager.remove_server(name) 
-        return {"status": "removed", "name": name}
+        details = {
+            "command": server.command,
+            "args": server.args or [],
+            "env": server.env or {}
+        }
+        result = await mcp_client_manager.add_server(server.name, details)
+        return result
     except Exception as e:
-        raise HTTPException(500, str(e))
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.delete("/server/{name}", response_model=Any)
+async def delete_mcp_server(name: str):
+    """
+    Remove an MCP server.
+    """
+    try:
+        result = await mcp_client_manager.remove_server(name)
+        if not result:
+             raise HTTPException(status_code=404, detail="Server not found")
+        return {"status": "success", "message": f"Server {name} removed"}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
