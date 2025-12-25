@@ -2881,6 +2881,198 @@
           "type": "string",
           "const": "shell:deny-stdin-write",
           "markdownDescription": "Denies the stdin_write command without any pre-configured scope."
+        },
+        {
+          "description": "Default permissions for the STT plugin - allows all speech-to-text operations\n#### This default permission set includes:\n\n- `allow-is-available`\n- `allow-get-supported-languages`\n- `allow-check-permission`\n- `allow-request-permission`\n- `allow-start-listening`\n- `allow-stop-listening`\n- `allow-register-listener`\n- `allow-remove-listener`",
+          "type": "string",
+          "const": "stt:default",
+          "markdownDescription": "Default permissions for the STT plugin - allows all speech-to-text operations\n#### This default permission set includes:\n\n- `allow-is-available`\n- `allow-get-supported-languages`\n- `allow-check-permission`\n- `allow-request-permission`\n- `allow-start-listening`\n- `allow-stop-listening`\n- `allow-register-listener`\n- `allow-remove-listener`"
+        },
+        {
+          "description": "Enables the check_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:allow-check-permission",
+          "markdownDescription": "Enables the check_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the get_supported_languages command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:allow-get-supported-languages",
+          "markdownDescription": "Enables the get_supported_languages command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the is_available command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:allow-is-available",
+          "markdownDescription": "Enables the is_available command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the register_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:allow-register-listener",
+          "markdownDescription": "Enables the register_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the remove_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:allow-remove-listener",
+          "markdownDescription": "Enables the remove_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the request_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:allow-request-permission",
+          "markdownDescription": "Enables the request_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the start_listening command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:allow-start-listening",
+          "markdownDescription": "Enables the start_listening command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the stop_listening command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:allow-stop-listening",
+          "markdownDescription": "Enables the stop_listening command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the check_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:deny-check-permission",
+          "markdownDescription": "Denies the check_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_supported_languages command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:deny-get-supported-languages",
+          "markdownDescription": "Denies the get_supported_languages command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the is_available command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:deny-is-available",
+          "markdownDescription": "Denies the is_available command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the register_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:deny-register-listener",
+          "markdownDescription": "Denies the register_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the remove_listener command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:deny-remove-listener",
+          "markdownDescription": "Denies the remove_listener command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the request_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:deny-request-permission",
+          "markdownDescription": "Denies the request_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the start_listening command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:deny-start-listening",
+          "markdownDescription": "Denies the start_listening command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the stop_listening command without any pre-configured scope.",
+          "type": "string",
+          "const": "stt:deny-stop-listening",
+          "markdownDescription": "Denies the stop_listening command without any pre-configured scope."
+        },
+        {
+          "description": "Default permissions for the TTS plugin - allows all text-to-speech operations\n#### This default permission set includes:\n\n- `allow-speak`\n- `allow-stop`\n- `allow-get-voices`\n- `allow-is-speaking`\n- `allow-pause-speaking`\n- `allow-resume-speaking`\n- `allow-preview-voice`",
+          "type": "string",
+          "const": "tts:default",
+          "markdownDescription": "Default permissions for the TTS plugin - allows all text-to-speech operations\n#### This default permission set includes:\n\n- `allow-speak`\n- `allow-stop`\n- `allow-get-voices`\n- `allow-is-speaking`\n- `allow-pause-speaking`\n- `allow-resume-speaking`\n- `allow-preview-voice`"
+        },
+        {
+          "description": "Enables the get_voices command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-get-voices",
+          "markdownDescription": "Enables the get_voices command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the is_speaking command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-is-speaking",
+          "markdownDescription": "Enables the is_speaking command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the pause_speaking command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-pause-speaking",
+          "markdownDescription": "Enables the pause_speaking command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the preview_voice command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-preview-voice",
+          "markdownDescription": "Enables the preview_voice command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the resume_speaking command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-resume-speaking",
+          "markdownDescription": "Enables the resume_speaking command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the speak command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-speak",
+          "markdownDescription": "Enables the speak command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the stop command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:allow-stop",
+          "markdownDescription": "Enables the stop command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_voices command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-get-voices",
+          "markdownDescription": "Denies the get_voices command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the is_speaking command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-is-speaking",
+          "markdownDescription": "Denies the is_speaking command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the pause_speaking command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-pause-speaking",
+          "markdownDescription": "Denies the pause_speaking command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the preview_voice command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-preview-voice",
+          "markdownDescription": "Denies the preview_voice command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the resume_speaking command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-resume-speaking",
+          "markdownDescription": "Denies the resume_speaking command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the speak command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-speak",
+          "markdownDescription": "Denies the speak command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the stop command without any pre-configured scope.",
+          "type": "string",
+          "const": "tts:deny-stop",
+          "markdownDescription": "Denies the stop command without any pre-configured scope."
         }
       ]
     },

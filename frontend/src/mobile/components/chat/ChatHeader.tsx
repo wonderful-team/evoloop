@@ -26,7 +26,7 @@ export function ChatHeader({
     const { setCurrentProject, currentProject, setProjectInitialized } = useMobileStore()
 
     return (
-        <div className="bg-background/80 backdrop-blur-md border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-10 shrink-0">
+        <div className="bg-background/80 backdrop-blur-md border-b px-4 py-3 flex items-center gap-3 sticky top-0 z-10 shrink-0 pt-safe-top pt-6">
             <Button variant="ghost" size="icon" className="-ml-2 hover:bg-muted" onClick={() => window.history.back()}>
                 <ArrowLeft className="w-5 h-5" />
             </Button>

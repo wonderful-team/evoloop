@@ -1,6 +1,6 @@
 import secrets
 import warnings
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, Optional
 
 from pydantic import (
     AnyUrl,
@@ -92,11 +92,7 @@ class Settings(BaseSettings):
     def emails_enabled(self) -> bool:
         return bool(self.SMTP_HOST and self.EMAILS_FROM_EMAIL)
 
-    EMAIL_TEST_USER: EmailStr = "test@example.com"
-    FIRST_SUPERUSER: EmailStr
-    FIRST_SUPERUSER_PASSWORD: str
-
-    # --- EvoLoop Gen 3 Configuration ---
+    # --- EvoLoop Configuration ---
     APP_ENV: Literal["development", "production", "testing"] = "development"
     LOG_LEVEL: str = "INFO"
 
@@ -120,6 +116,27 @@ class Settings(BaseSettings):
 
     # Local LLM
     OLLAMA_BASE_URL: str = "http://localhost:11434"
+
+    # General Agent / Intention
+    GENERAL_AGENT_MODEL: str = "gpt-4o"
+    
+    # Browser Agent
+    BROWSER_USE_API_KEY: str = "sk-dummy-key-for-local-dev"
+    BROWSER_MODEL_NAME: Optional[str] = "gpt-4o"
+
+    # Computer Agent (Agent S)
+    OS_PROVIDER: str = "openai"
+    OS_MODEL: str = "gpt-4o"
+    OS_GROUND_PROVIDER: str = "huggingface"
+    OS_GROUND_URL: Optional[str] = "http://localhost:8080"
+    OS_GROUND_MODEL: str = "ui-tars-1.5-7b"
+    OS_GROUND_API_KEY: Optional[str] = None
+
+    # Mobile Agent (AutoGLM)
+    PHONE_AGENT_BASE_URL: str = "http://localhost:8000/v1"
+    PHONE_AGENT_MODEL: str = "autoglm-phone-9b"
+    PHONE_AGENT_DEVICE_ID: Optional[str] = None
+    PHONE_AGENT_LANG: Literal["cn", "en"] = "cn"
 
     # ImagicBox API
     IMAGICBOX_API_URL: str = Field("https://mall.imagicbox.cn", validation_alias="IMAGICBOX_API_URL")
@@ -169,9 +186,7 @@ class Settings(BaseSettings):
     def _enforce_non_default_secrets(self) -> Self:
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
-        self._check_default_secret(
-            "FIRST_SUPERUSER_PASSWORD", self.FIRST_SUPERUSER_PASSWORD
-        )
+
 
         return self
 

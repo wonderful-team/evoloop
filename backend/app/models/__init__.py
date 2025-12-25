@@ -1,6 +1,7 @@
 import uuid
 from typing import Any
 from sqlmodel import Field, SQLModel
+from .config import SystemConfig
 
 # Generic message
 class Message(SQLModel):
@@ -41,6 +42,3 @@ class UserPublic(User):
 class UsersPublic(SQLModel):
     data: list[UserPublic]
     count: int
-
-# Deprecated/Removed models (kept as placeholders if needed for import compatibility during refactor, but essentially removed)
-# class UserCreate, UserRegister, UserUpdate, UpdatePassword, NewPassword -> REMOVED

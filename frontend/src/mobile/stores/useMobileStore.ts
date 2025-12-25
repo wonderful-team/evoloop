@@ -5,6 +5,8 @@ interface MobileState {
     setCurrentProject: (project: any | null) => void
     isProjectInitialized: boolean
     setProjectInitialized: (initialized: boolean) => void
+    activeTab: 'cloud' | 'local'
+    setActiveTab: (tab: 'cloud' | 'local') => void
 }
 
 export const useMobileStore = create<MobileState>((set) => ({
@@ -12,4 +14,6 @@ export const useMobileStore = create<MobileState>((set) => ({
     setCurrentProject: (project) => set({ currentProject: project }),
     isProjectInitialized: false,
     setProjectInitialized: (initialized) => set({ isProjectInitialized: initialized }),
+    activeTab: 'cloud',
+    setActiveTab: (tab) => set({ activeTab: tab }),
 }))

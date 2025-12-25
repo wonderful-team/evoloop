@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query"
 import { EvoLoopApi } from "@/client/evoloopClient"
 import { Monitor, Smartphone, Activity, LogOut } from "lucide-react"
 import { useEffect } from "react"
-
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"

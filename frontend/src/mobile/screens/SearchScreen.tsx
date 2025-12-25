@@ -93,7 +93,7 @@ export function SearchScreen() {
     return (
         <div className="flex flex-col h-screen bg-background">
             {/* Header */}
-            <div className="bg-background border-b px-4 py-3 flex flex-col gap-3 sticky top-0 z-10">
+            <div className="bg-background border-b px-4 py-3 flex flex-col gap-3 sticky top-0 z-10 pt-safe-top pt-10">
                 <div className="flex items-center gap-2">
                     <div className="relative flex-1">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />

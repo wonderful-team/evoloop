@@ -14,6 +14,23 @@ logger = logging.getLogger(__name__)
 def init() -> None:
     with Session(engine) as session:
         init_db(session)
+        
+    # Seed System Configuration from Environment/Settings
+    # This ensures that on first run, the database is populated with valid defaults
+    from app.domain.system.service import SystemConfigService
+    
+    # 1. PROJECTS_ROOT
+    if not SystemConfigService.get_value("PROJECTS_ROOT"):
+        default_root = settings.PROJECTS_ROOT
+        logger.info(f"Seeding PROJECTS_ROOT from settings: {default_root}")
+        SystemConfigService.set_value("PROJECTS_ROOT", default_root, "Root directory for project storage")
+    
+    # 2. EVOLOOP_DEVICE_NAME
+    if not SystemConfigService.get_value("EVOLOOP_DEVICE_NAME"):
+        default_name = settings.EVOLOOP_DEVICE_NAME
+        if default_name:
+            logger.info(f"Seeding EVOLOOP_DEVICE_NAME from settings: {default_name}")
+            SystemConfigService.set_value("EVOLOOP_DEVICE_NAME", default_name, "Device identifier for EvoLoop Link")
 
 
 async def init_mcp() -> None:

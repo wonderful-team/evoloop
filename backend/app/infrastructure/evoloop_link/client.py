@@ -13,6 +13,7 @@ from typing import Optional, Callable, Dict, Any
 from datetime import datetime
 
 from app.logging import logger
+from app.domain.system.service import SystemConfigService
 
 
 class EvoLoopLinkClient:
@@ -31,7 +32,8 @@ class EvoLoopLinkClient:
         self.base_url = base_url.rstrip("/")
         self.ws_url = ws_url
         self.token = token
-        self.device_name = device_name or f"{platform.node()}"
+        db_device_name = SystemConfigService.get_value("EVOLOOP_DEVICE_NAME")
+        self.device_name = device_name or db_device_name or f"{platform.node()}"
         self.device_key = self._get_or_create_device_key()
         self.device_id: Optional[int] = None
         self.client_id: Optional[str] = None

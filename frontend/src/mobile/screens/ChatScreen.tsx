@@ -41,7 +41,7 @@ export function ChatScreen() {
         if (deviceId && isProjectInitialized) {
             let promise;
             if (highlight) {
-                promise = EvoLoopApi.getContextLogs(Number(deviceId), highlight);
+                promise = EvoLoopApi.getContextLogs(Number(deviceId), String(highlight));
             } else {
                 promise = EvoLoopApi.getRecentLogs(Number(deviceId), 50, currentProject?.project_id);
             }

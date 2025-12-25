@@ -16,6 +16,22 @@ export type ChatRequest = {
     checkpoint_id?: (string | null);
 };
 
+export type ConceptCreate = {
+    name: string;
+    description: string;
+    related_files?: (Array<(string)> | null);
+};
+
+export type ConceptResponse = {
+    name: string;
+    description: string;
+};
+
+export type CreateFileRequest = {
+    path: string;
+    content: string;
+};
+
 export type CreateProjectRequest = {
     name: string;
 };
@@ -40,56 +56,22 @@ export type IndexingRequest = {
     project_id: number;
 };
 
-export type ItemCreate = {
-    title: string;
-    description?: (string | null);
-};
-
-export type ItemPublic = {
-    title: string;
-    description?: (string | null);
-    id: string;
-    owner_id: string;
-};
-
-export type ItemsPublic = {
-    data: Array<ItemPublic>;
-    count: number;
-};
-
-export type ItemUpdate = {
-    title?: (string | null);
-    description?: (string | null);
-};
-
 export type LoginRequest = {
     username: string;
     password: string;
 };
 
-export type McpServerRequest = {
+export type McpServerCreate = {
     name: string;
     command: string;
-    args?: Array<(string)>;
-    env?: {
+    args?: (Array<(string)> | null);
+    env?: ({
         [key: string]: (string);
-    };
+    } | null);
 };
 
 export type Message = {
     message: string;
-};
-
-export type NewPassword = {
-    token: string;
-    new_password: string;
-};
-
-export type PrivateUserCreate = {
-    email: string;
-    password: string;
-    full_name: string;
-    is_verified?: boolean;
 };
 
 export type RenameRequest = {
@@ -104,31 +86,21 @@ export type SearchResult = {
     match_snippet?: (string | null);
 };
 
+export type SystemConfig = {
+    key: string;
+    value: string;
+    description?: (string | null);
+};
+
 export type Token = {
     access_token: string;
     token_type?: string;
 };
 
-export type UpdatePassword = {
-    current_password: string;
-    new_password: string;
-};
-
-export type UserCreate = {
-    email: string;
-    is_active?: boolean;
-    is_superuser?: boolean;
-    full_name?: (string | null);
-    password: string;
-};
-
 export type UserPublic = {
-    email: string;
-    is_active?: boolean;
-    is_superuser?: boolean;
-    full_name?: (string | null);
-    id: (string | number);
+    id: (number | string);
     username?: (string | null);
+    email?: (string | null);
     mobile?: (string | null);
     nickname?: (string | null);
     headimg?: (string | null);
@@ -138,31 +110,8 @@ export type UserPublic = {
     balance?: number;
     balance_money?: number;
     point?: number;
-    auto_renew?: number;
-};
-
-export type UserRegister = {
-    email: string;
-    password: string;
-    full_name?: (string | null);
-};
-
-export type UsersPublic = {
-    data: Array<UserPublic>;
-    count: number;
-};
-
-export type UserUpdate = {
-    email?: (string | null);
     is_active?: boolean;
     is_superuser?: boolean;
-    full_name?: (string | null);
-    password?: (string | null);
-};
-
-export type UserUpdateMe = {
-    full_name?: (string | null);
-    email?: (string | null);
 };
 
 export type ValidationError = {
@@ -186,23 +135,17 @@ export type AgentChatEndpointData = {
 
 export type AgentChatEndpointResponse = (unknown);
 
+export type AgentRewindChatData = {
+    requestBody: ChatRequest;
+};
+
+export type AgentRewindChatResponse = (unknown);
+
 export type AgentWebhookEndpointData = {
     requestBody: WebhookRequest;
 };
 
 export type AgentWebhookEndpointResponse = (unknown);
-
-export type AgentChatEndpoint1Data = {
-    requestBody: ChatRequest;
-};
-
-export type AgentChatEndpoint1Response = (unknown);
-
-export type AgentWebhookEndpoint1Data = {
-    requestBody: WebhookRequest;
-};
-
-export type AgentWebhookEndpoint1Response = (unknown);
 
 export type HistorySearchConversationsData = {
     projectId?: (number | null);
@@ -225,6 +168,13 @@ export type FilesListFilesData = {
 
 export type FilesListFilesResponse = (Array<FileNode>);
 
+export type FilesCreateFileData = {
+    projectId: number;
+    requestBody: CreateFileRequest;
+};
+
+export type FilesCreateFileResponse = (FileNode);
+
 export type FilesGetFileContentData = {
     path: string;
     projectId: number;
@@ -232,37 +182,14 @@ export type FilesGetFileContentData = {
 
 export type FilesGetFileContentResponse = (FileContent);
 
-export type ItemsReadItemsData = {
-    limit?: number;
-    skip?: number;
+export type FilesSearchFilesData = {
+    projectId: number;
+    q: string;
 };
 
-export type ItemsReadItemsResponse = (ItemsPublic);
-
-export type ItemsCreateItemData = {
-    requestBody: ItemCreate;
-};
-
-export type ItemsCreateItemResponse = (ItemPublic);
-
-export type ItemsReadItemData = {
-    id: string;
-};
-
-export type ItemsReadItemResponse = (ItemPublic);
-
-export type ItemsUpdateItemData = {
-    id: string;
-    requestBody: ItemUpdate;
-};
-
-export type ItemsUpdateItemResponse = (ItemPublic);
-
-export type ItemsDeleteItemData = {
-    id: string;
-};
-
-export type ItemsDeleteItemResponse = (Message);
+export type FilesSearchFilesResponse = (Array<{
+    [key: string]: unknown;
+}>);
 
 export type LoginLoginAccessTokenData = {
     formData: Body_login_login_access_token;
@@ -270,33 +197,13 @@ export type LoginLoginAccessTokenData = {
 
 export type LoginLoginAccessTokenResponse = (Token);
 
-export type LoginTestTokenResponse = (UserPublic);
-
-export type LoginRecoverPasswordData = {
-    email: string;
-};
-
-export type LoginRecoverPasswordResponse = (Message);
-
-export type LoginResetPasswordData = {
-    requestBody: NewPassword;
-};
-
-export type LoginResetPasswordResponse = (Message);
-
-export type LoginRecoverPasswordHtmlContentData = {
-    email: string;
-};
-
-export type LoginRecoverPasswordHtmlContentResponse = (string);
+export type McpListMcpServersResponse = (Array<unknown>);
 
 export type McpAddMcpServerData = {
-    requestBody: McpServerRequest;
+    requestBody: McpServerCreate;
 };
 
 export type McpAddMcpServerResponse = (unknown);
-
-export type McpListMcpServersResponse = (unknown);
 
 export type McpDeleteMcpServerData = {
     name: string;
@@ -314,11 +221,31 @@ export type MemberStatusResponse = (unknown);
 
 export type MemberLogoutResponse = (unknown);
 
-export type PrivateCreateUserData = {
-    requestBody: PrivateUserCreate;
+export type MemoryListConceptsData = {
+    projectId: number;
 };
 
-export type PrivateCreateUserResponse = (UserPublic);
+export type MemoryListConceptsResponse = (Array<ConceptResponse>);
+
+export type MemoryAddConceptData = {
+    projectId: number;
+    requestBody: ConceptCreate;
+};
+
+export type MemoryAddConceptResponse = (unknown);
+
+export type MemorySearchMemoryData = {
+    projectId: number;
+    q: string;
+};
+
+export type MemorySearchMemoryResponse = (Array<ConceptResponse>);
+
+export type PlanningGetPlanData = {
+    threadId: string;
+};
+
+export type PlanningGetPlanResponse = (unknown);
 
 export type ProjectsListProjectsResponse = (unknown);
 
@@ -359,64 +286,44 @@ export type ProjectsGetConversationActivityData = {
 export type ProjectsGetConversationActivityResponse = (unknown);
 
 export type ProjectsDeleteConversationData = {
-    threadId: string;
+    conversationId: string;
 };
 
 export type ProjectsDeleteConversationResponse = (unknown);
 
-export type UsersReadUsersData = {
+export type SymbolsSearchSymbolsData = {
     limit?: number;
-    skip?: number;
+    projectId: number;
+    /**
+     * Search query for symbol name
+     */
+    q: string;
+    /**
+     * Filter by entity type (class, function)
+     */
+    type?: (string | null);
 };
 
-export type UsersReadUsersResponse = (UsersPublic);
+export type SymbolsSearchSymbolsResponse = (Array<{
+    [key: string]: unknown;
+}>);
 
-export type UsersCreateUserData = {
-    requestBody: UserCreate;
+export type SymbolsGenerateSymbolWikiData = {
+    projectId: number;
+    symbolId: number;
 };
 
-export type UsersCreateUserResponse = (UserPublic);
+export type SymbolsGenerateSymbolWikiResponse = (unknown);
+
+export type SystemGetSystemConfigResponse = (Array<SystemConfig>);
+
+export type SystemUpdateSystemConfigData = {
+    requestBody: SystemConfig;
+};
+
+export type SystemUpdateSystemConfigResponse = (SystemConfig);
 
 export type UsersReadUserMeResponse = (UserPublic);
-
-export type UsersDeleteUserMeResponse = (Message);
-
-export type UsersUpdateUserMeData = {
-    requestBody: UserUpdateMe;
-};
-
-export type UsersUpdateUserMeResponse = (UserPublic);
-
-export type UsersUpdatePasswordMeData = {
-    requestBody: UpdatePassword;
-};
-
-export type UsersUpdatePasswordMeResponse = (Message);
-
-export type UsersRegisterUserData = {
-    requestBody: UserRegister;
-};
-
-export type UsersRegisterUserResponse = (UserPublic);
-
-export type UsersReadUserByIdData = {
-    userId: string;
-};
-
-export type UsersReadUserByIdResponse = (UserPublic);
-
-export type UsersUpdateUserData = {
-    requestBody: UserUpdate;
-    userId: string;
-};
-
-export type UsersUpdateUserResponse = (UserPublic);
-
-export type UsersDeleteUserData = {
-    userId: string;
-};
-
-export type UsersDeleteUserResponse = (Message);
 
 export type UtilsTestEmailData = {
     emailTo: string;
@@ -425,3 +332,18 @@ export type UtilsTestEmailData = {
 export type UtilsTestEmailResponse = (Message);
 
 export type UtilsHealthCheckResponse = (boolean);
+
+export type UtilsGetEvoloopStatusResponse = (unknown);
+
+export type UserRegister = {
+    email: string;
+    password: string;
+    full_name?: (string | null);
+    username?: (string | null);
+};
+
+export type UsersRegisterUserData = {
+    requestBody: UserRegister;
+};
+
+export type UsersRegisterUserResponse = (UserPublic);

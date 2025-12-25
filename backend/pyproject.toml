@@ -21,7 +21,7 @@ dependencies = [
     "pydantic-settings<3.0.0,>=2.2.1",
     "sentry-sdk[fastapi]<2.0.0,>=1.40.6",
     "pyjwt<3.0.0,>=2.8.0",
-    # EvoLoop Gen 3 Dependencies
+    # EvoLoop Dependencies
     "langgraph>=0.2.0",
     "langchain-core>=0.2.0",
     "langchain-community>=0.2.0",
@@ -60,6 +60,7 @@ dependencies = [
     "redis>=5.0.0",
     "python-socks[asyncio]>=2.8.0",
     "mammoth>=1.6.0",
+    "crawl4ai>=0.4.0", # Highly efficient crawler
 ]
 
 [tool.uv]

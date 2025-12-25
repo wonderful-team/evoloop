@@ -10,6 +10,9 @@ from app.domain.planning.tools import analyze_feasibility, create_plan, update_s
 from app.domain.tools.visualizer import get_annotated_tree
 from app.domain.tools.memory import save_preference, get_user_preferences, search_concepts, add_concept
 from app.domain.tools.browser import browser_agent
+from app.domain.tools.crawler import crawler_tool # New Tool
+from app.domain.tools.computer import computer_agent_tool
+from app.domain.tools.mobile import mobile_agent_tool
 from app.domain.tools.project_tools import decompose_requirements, create_project_task_async
 # Add other tools as needed
 
@@ -33,6 +36,9 @@ def get_all_tools() -> List[BaseTool]:
         search_concepts,
         add_concept,
         browser_agent,
+        crawler_tool,
+        computer_agent_tool,
+        mobile_agent_tool,
         # Project Management
         decompose_requirements,
         create_project_task_async

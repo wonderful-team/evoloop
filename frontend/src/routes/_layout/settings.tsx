@@ -4,10 +4,12 @@ import ChangePassword from "@/components/UserSettings/ChangePassword"
 import DeleteAccount from "@/components/UserSettings/DeleteAccount"
 import AppearanceSettings from "@/components/UserSettings/AppearanceSettings"
 import UserInformation from "@/components/UserSettings/UserInformation"
+import GeneralSettings from "@/components/Settings/GeneralSettings"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import useAuth from "@/hooks/useAuth"
 
 const tabsConfig = [
+  { value: "general", title: "General", component: GeneralSettings },
   { value: "my-profile", title: "My profile", component: UserInformation },
   { value: "password", title: "Password", component: ChangePassword },
   { value: "appearance", title: "Appearance", component: AppearanceSettings },
@@ -28,9 +30,8 @@ export const Route = createFileRoute("/_layout/settings")({
 
 function UserSettings() {
   const { user: currentUser } = useAuth()
-  const finalTabs = currentUser?.is_superuser
-    ? tabsConfig
-    : tabsConfig.filter(t => t.value !== "danger-zone") // Simple filtering
+  // All users have access to all tabs
+  const finalTabs = tabsConfig
 
   if (!currentUser) {
     return null
@@ -45,7 +46,7 @@ function UserSettings() {
         </p>
       </div>
 
-      <Tabs defaultValue="mcp">
+      <Tabs defaultValue="general">
         <TabsList>
           {finalTabs.map((tab) => (
             <TabsTrigger key={tab.value} value={tab.value}>

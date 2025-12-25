@@ -8,13 +8,40 @@ from app.core.workflows.nodes.tester import tester_node
 from app.core.workflows.nodes.deep_researcher import deep_researcher_node
 from app.core.workflows.nodes.documenter import documenter_node
 from app.core.workflows.nodes.meta_reviewer import meta_reviewer_node
+from app.core.workflows.nodes.router import router_node
+from app.domain.tools.browser import browser_agent
+from app.domain.tools.computer import computer_agent_tool
+from app.domain.tools.mobile import mobile_agent_tool
+from langchain_core.messages import ToolMessage
 
+
+# Executor Nodes
+async def browser_executor(state: AgentState):
+    instruction = state.get("refined_instruction") or state["messages"][-1].content
+    # Directly invoke tool
+    result = await browser_agent._arun(instruction)
+    return {"messages": [ToolMessage(content=str(result), tool_call_id="browser_exec", name="browser_agent")]}
+
+async def computer_executor(state: AgentState):
+    instruction = state.get("refined_instruction") or state["messages"][-1].content
+    result = await computer_agent_tool._arun(instruction)
+    return {"messages": [ToolMessage(content=str(result), tool_call_id="computer_exec", name="computer_agent")]}
+
+async def mobile_executor(state: AgentState):
+    instruction = state.get("refined_instruction") or state["messages"][-1].content
+    result = await mobile_agent_tool._arun(instruction)
+    return {"messages": [ToolMessage(content=str(result), tool_call_id="mobile_exec", name="mobile_agent")]}
 
 def create_graph(checkpointer=None):
     workflow = StateGraph(AgentState)
 
     # Add Nodes
+    workflow.add_node("router", router_node)
     workflow.add_node("supervisor", supervisor_node)
+    
+    workflow.add_node("browser_executor", browser_executor)
+    workflow.add_node("computer_executor", computer_executor)
+    workflow.add_node("mobile_executor", mobile_executor)
 
     workflow.add_node("coder", coder_node)
     workflow.add_node("tester", tester_node)
@@ -23,7 +50,25 @@ def create_graph(checkpointer=None):
     workflow.add_node("meta_reviewer", meta_reviewer_node)
 
     # Set Entry Point
-    workflow.set_entry_point("supervisor")
+    workflow.set_entry_point("router")
+    
+    # Router Logic
+    workflow.add_conditional_edges(
+        "router",
+        lambda x: x["next_node"],
+        {
+            "supervisor": "supervisor",
+            "browser_executor": "browser_executor",
+            "computer_executor": "computer_executor",
+            "mobile_executor": "mobile_executor"
+        }
+    )
+    
+    # Executor Logic - Return to Supervisor (or Finish?)
+    # For now, return to supervisor to report completion/failure
+    workflow.add_edge("browser_executor", "supervisor")
+    workflow.add_edge("computer_executor", "supervisor")
+    workflow.add_edge("mobile_executor", "supervisor")
 
     # Add Edges from Supervisor
     # Add Edges from Supervisor

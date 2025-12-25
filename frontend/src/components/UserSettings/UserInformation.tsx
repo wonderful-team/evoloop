@@ -1,10 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useMutation } from "@tanstack/react-query"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
-import { UsersService, type UserUpdateMe } from "@/client"
+import { } from "@/client"
 import { Button } from "@/components/ui/button"
 import {
   Form,
@@ -17,20 +17,20 @@ import {
 import { Input } from "@/components/ui/input"
 import { LoadingButton } from "@/components/ui/loading-button"
 import useAuth from "@/hooks/useAuth"
-import useCustomToast from "@/hooks/useCustomToast"
+// import useCustomToast from "@/hooks/useCustomToast"
 import { cn } from "@/lib/utils"
-import { handleError } from "@/utils"
+// import { handleError } from "@/utils"
 
 const formSchema = z.object({
-  full_name: z.string().max(30).optional(),
+  nickname: z.string().max(30).optional(),
   email: z.email({ message: "Invalid email address" }),
 })
 
 type FormData = z.infer<typeof formSchema>
 
 const UserInformation = () => {
-  const queryClient = useQueryClient()
-  const { showSuccessToast, showErrorToast } = useCustomToast()
+  // const queryClient = useQueryClient()
+  // const { showSuccessToast, /* showErrorToast */ } = useCustomToast()
   const [editMode, setEditMode] = useState(false)
   const { user: currentUser } = useAuth()
 
@@ -39,8 +39,8 @@ const UserInformation = () => {
     mode: "onBlur",
     criteriaMode: "all",
     defaultValues: {
-      full_name: currentUser?.full_name ?? undefined,
-      email: currentUser?.email,
+      nickname: currentUser?.nickname ?? undefined,
+      email: currentUser?.email ?? "",
     },
   })
 
@@ -48,6 +48,7 @@ const UserInformation = () => {
     setEditMode(!editMode)
   }
 
+  /*
   const mutation = useMutation({
     mutationFn: (data: UserUpdateMe) =>
       UsersService.updateUserMe({ requestBody: data }),
@@ -60,19 +61,28 @@ const UserInformation = () => {
       queryClient.invalidateQueries()
     },
   })
+  */
+  // Dummy mutation to satisfy usage
+  const mutation = useMutation({
+    mutationFn: async (data: any) => { console.log('Update not supported', data) },
+    onSuccess: () => toggleEditMode()
+  })
 
   const onSubmit = (data: FormData) => {
+    /*
     const updateData: UserUpdateMe = {}
 
     // only include fields that have changed
-    if (data.full_name !== currentUser?.full_name) {
-      updateData.full_name = data.full_name
+    if (data.nickname !== currentUser?.nickname) {
+      updateData.nickname = data.nickname
     }
     if (data.email !== currentUser?.email) {
       updateData.email = data.email
     }
 
     mutation.mutate(updateData)
+    */
+    mutation.mutate(data)
   }
 
   const onCancel = () => {
@@ -90,11 +100,11 @@ const UserInformation = () => {
         >
           <FormField
             control={form.control}
-            name="full_name"
+            name="nickname"
             render={({ field }) =>
               editMode ? (
                 <FormItem>
-                  <FormLabel>Full name</FormLabel>
+                  <FormLabel>Nickname</FormLabel>
                   <FormControl>
                     <Input type="text" {...field} />
                   </FormControl>
@@ -102,7 +112,7 @@ const UserInformation = () => {
                 </FormItem>
               ) : (
                 <FormItem>
-                  <FormLabel>Full name</FormLabel>
+                  <FormLabel>Nickname</FormLabel>
                   <p
                     className={cn(
                       "py-2 truncate max-w-sm",

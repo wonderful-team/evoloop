@@ -95,7 +95,7 @@ export function ChatInterface() {
     })
 
     const deleteMutation = useMutation({
-        mutationFn: (threadId: string) => ProjectsService.deleteConversation({ threadId }),
+        mutationFn: (threadId: string) => ProjectsService.deleteConversation({ conversationId: threadId }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
             if (threads.length > 0) {
@@ -331,7 +331,7 @@ export function ChatInterface() {
 
                         {/* Footer Credits */}
                         <div className="absolute bottom-1 left-0 right-0 text-center pointer-events-none">
-                            <span className="text-[10px] text-muted-foreground/50">EvoLoop Gen 3 + Deep Research</span>
+                            <span className="text-[10px] text-muted-foreground/50">EvoLoop + Deep Research</span>
                         </div>
                     </div>
                 </ResizablePanel>

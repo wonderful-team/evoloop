@@ -4,6 +4,7 @@ import json
 from typing import Dict, Optional, List
 from threading import Lock
 from app.core.config import settings
+from app.domain.system.service import SystemConfigService
 from app.infrastructure.external.imagicbox import imagicbox_client
 
 logger = logging.getLogger(__name__)
@@ -31,8 +32,9 @@ class ProjectContextManager:
         self._initialized = True
         # Mapping: thread_id -> working_directory path
         self._thread_contexts: Dict[str, str] = {}
-        # Default fallback directory (from Settings, but usually overridden by UI selection)
-        self._default_root = os.path.abspath(settings.PROJECTS_ROOT)
+        # Default fallback directory (from Settings/DB)
+        db_root = SystemConfigService.get_value("PROJECTS_ROOT")
+        self._default_root = os.path.abspath(db_root if db_root else settings.PROJECTS_ROOT)
         logger.info(f"ProjectContextManager initialized. Default root: {self._default_root}")
 
     def set_working_directory(self, thread_id: str, path: str):

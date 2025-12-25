@@ -30,7 +30,7 @@ export function ProfileScreen() {
                         )}
                     </div>
                     <div>
-                        <h2 className="text-lg font-semibold">{user?.nickname || user?.full_name || 'User'}</h2>
+                        <h2 className="text-lg font-semibold">{user?.nickname || 'User'}</h2>
                         <p className="text-sm text-muted-foreground">{user?.email}</p>
                     </div>
                 </div>
@@ -61,7 +61,7 @@ export function ProfileScreen() {
                             {isMember ? (
                                 <>
                                     <p className="text-sm opacity-90">Valid until: {expireDate}</p>
-                                    <p className="text-xs opacity-75">Auto-renewal: {user?.auto_renew === 1 ? 'On' : 'Off'}</p>
+                                    <p className="text-xs opacity-75">Auto-renewal: Off</p>
                                 </>
                             ) : (
                                 <p className="text-sm opacity-90">Upgrade to unlock full potential.</p>

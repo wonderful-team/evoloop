@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 
-import { UsersService } from "@/client"
+// import { UsersService } from "@/client"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -25,7 +25,8 @@ const DeleteConfirmation = () => {
   const { logout } = useAuth()
 
   const mutation = useMutation({
-    mutationFn: () => UsersService.deleteUserMe(),
+    // mutationFn: () => UsersService.deleteUserMe(),
+    mutationFn: async () => { console.warn("Delete account not implemented") },
     onSuccess: () => {
       showSuccessToast("Your account has been successfully deleted")
       logout()

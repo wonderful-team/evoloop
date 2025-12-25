@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.routes import login, users, utils, agent, projects, mcp, files, history, member, memory, planning, symbols
+from app.api.routes import login, users, utils, agent, projects, mcp, files, history, member, memory, planning, symbols, system
 from app.core.config import settings
 
 api_router = APIRouter()
@@ -18,3 +18,4 @@ api_router.include_router(member.router, prefix="/member", tags=["member"])
 api_router.include_router(memory.router, prefix="/memory", tags=["memory"])
 api_router.include_router(planning.router, prefix="/planning", tags=["planning"])
 api_router.include_router(symbols.router, tags=["symbols"])
+api_router.include_router(system.router)
