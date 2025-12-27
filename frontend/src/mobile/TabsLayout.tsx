@@ -148,12 +148,12 @@ export function TabsLayout() {
                 onDragEnd={handleDragEnd}
             >
                 {/* Cloud Context Container */}
-                <div className="w-[100vw] h-full pt-20 overflow-y-auto no-scrollbar relative">
+                <div className="w-[100vw] h-full pt-20 pb-24 overflow-y-auto no-scrollbar relative">
                     {renderCloudContent()}
                 </div>
 
                 {/* Local Context Container */}
-                <div className="w-[100vw] h-full pt-20 overflow-y-auto no-scrollbar relative">
+                <div className="w-[100vw] h-full pt-20 pb-24 overflow-y-auto no-scrollbar relative">
                     {renderLocalContent()}
                 </div>
             </motion.div>

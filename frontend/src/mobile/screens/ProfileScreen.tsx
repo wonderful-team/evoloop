@@ -70,7 +70,7 @@ export function ProfileScreen() {
     const expireDate = user?.level_expire_time ? new Date(user.level_expire_time * 1000).toLocaleDateString() : '';
 
     return (
-        <div className="p-4 flex flex-col h-full bg-background overflow-y-auto">
+        <div className="p-4 flex flex-col min-h-full bg-background">
             <h1 className="text-xl font-bold mb-6">Profile</h1>
 
             <div className="flex flex-col gap-6 flex-1">
