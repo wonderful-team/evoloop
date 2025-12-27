@@ -1,14 +1,16 @@
-import { Outlet, Link, useLocation, useNavigate } from "@tanstack/react-router"
-import { Home, Monitor, FolderOpen, User, Cloud, Search, Menu } from "lucide-react"
+import { Link, useLocation, useNavigate } from "@tanstack/react-router"
+import { Home, Monitor, FolderOpen, User, Search, Menu } from "lucide-react"
 import { useMobileStore } from "./stores/useMobileStore"
 import { motion, useMotionValue, animate } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { ConversationDrawer } from "./components/ConversationDrawer"
+import { OnboardingOverlay } from "./components/OnboardingOverlay"
 
 // Import Screens directly for pre-loading side-by-side
 import { IndexScreen } from "./screens/IndexScreen"
 import { ProfileScreen } from "./screens/ProfileScreen"
+import { HelpScreen } from "./screens/HelpScreen"
 import { DevicesScreen } from "./screens/DevicesScreen"
 import { ProjectsScreen } from "./screens/ProjectsScreen"
 
@@ -48,7 +50,7 @@ export function TabsLayout() {
         }
     }
 
-    const handleDragEnd = (event: any, info: any) => {
+    const handleDragEnd = (_event: any, info: any) => {
         const offset = info.offset.x
         const velocity = info.velocity.x
         const width = window.innerWidth
@@ -78,6 +80,7 @@ export function TabsLayout() {
 
     // Manual Routing for Cloud Container
     const renderCloudContent = () => {
+        if (path.startsWith('/profile/help')) return <HelpScreen />
         if (path.startsWith('/profile')) return <ProfileScreen />
         return <IndexScreen />
     }
@@ -90,6 +93,8 @@ export function TabsLayout() {
 
     return (
         <div className="flex flex-col h-screen bg-background text-foreground relative overflow-hidden">
+            <OnboardingOverlay />
+
             {/* Top Global Header with Safe Area Fix */}
             {/* Added extra padding (pt-6) to existing safe-top to avoid overlay overlap */}
             <div className="absolute top-0 left-0 right-0 z-30 pt-safe-top pt-8 flex justify-center items-center h-16 pointer-events-none">

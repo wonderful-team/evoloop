@@ -84,8 +84,35 @@ export function DevicesScreen() {
                 ))}
 
                 {!isLoading && devices?.length === 0 && (
-                    <div className="text-center py-10 text-muted-foreground">
-                        No devices found. Run the PC client to register one.
+                    <div className="py-4">
+                        <Card className="bg-primary/5 border-primary/20 shadow-sm">
+                            <CardHeader>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                        <Monitor className="w-5 h-5 text-primary" />
+                                    </div>
+                                    <CardTitle>连接您的第一台设备</CardTitle>
+                                </div>
+                                <CardDescription className="text-sm leading-relaxed">
+                                    要激活 EvoLoop 的远程控制能力，您需要在电脑上安装客户端。
+                                </CardDescription>
+                            </CardHeader>
+                            <div className="px-6 pb-6 space-y-4">
+                                <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
+                                    <li>在电脑访问 <span className="text-foreground font-medium select-all">develop-assistant.cn</span></li>
+                                    <li>下载并安装 Windows/Mac 客户端</li>
+                                    <li>登录当前账号</li>
+                                </ol>
+                                <Button className="w-full gap-2" variant="outline" onClick={() => {
+                                    navigator.clipboard.writeText("https://develop-assistant.cn/download")
+                                    // Assuming toast is available or just let user know
+                                    alert("下载链接已复制")
+                                }}>
+                                    复制下载链接
+                                    <Activity className="w-4 h-4" />
+                                </Button>
+                            </div>
+                        </Card>
                     </div>
                 )}
             </div>

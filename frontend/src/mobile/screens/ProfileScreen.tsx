@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "@tanstack/react-router"
-import { LogOut, User, Crown, CreditCard } from "lucide-react"
+import { LogOut, User, Crown, CreditCard, BookOpen } from "lucide-react"
 import useAuth from "@/hooks/useAuth"
 import { useServicer } from "@/hooks/useServicer"
 import { useMemberCancellation } from "@/hooks/useMemberCancellation"
@@ -148,6 +148,11 @@ export function ProfileScreen() {
                 </div>
 
             </div>
+
+            <Button variant="outline" className="w-full gap-2 mb-4" onClick={() => navigate({ to: '/profile/help' as any })}>
+                <BookOpen className="w-4 h-4" />
+                使用手册与帮助
+            </Button>
 
             <ProfileSupportButton />
             <ProfileCancellation />
