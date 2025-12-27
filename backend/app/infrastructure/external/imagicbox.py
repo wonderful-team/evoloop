@@ -176,6 +176,29 @@ class ImagicBoxClient:
         payload = {"project_id": project_id}
         return self._make_request("POST", "/projectmanage/api/ProjectOpen/deleteProject", data=payload)
 
+    # --- Member Cancellation ---
+
+    def get_cancellation_info(self) -> Dict:
+        """
+        Get member cancellation info.
+        Calls /membercancel/api/membercancel/info
+        """
+        return self._make_request("GET", "/membercancel/api/membercancel/info")
+
+    def apply_cancellation(self) -> Dict:
+        """
+        Apply for member cancellation.
+        Calls /membercancel/api/membercancel/apply
+        """
+        return self._make_request("POST", "/membercancel/api/membercancel/apply")
+
+    def cancel_cancellation_apply(self) -> Dict:
+        """
+        Cancel the application for member cancellation.
+        Calls /membercancel/api/membercancel/cancelApply
+        """
+        return self._make_request("POST", "/membercancel/api/membercancel/cancelApply")
+
 
     def _generate_signature(self, method: str, uri: str, body: str, timestamp: int) -> str:
         """Generate HMAC-SHA256 signature (Ported from chatgpt-on-wechat)"""

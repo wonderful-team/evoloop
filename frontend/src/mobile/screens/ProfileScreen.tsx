@@ -2,6 +2,60 @@ import { Button } from "@/components/ui/button"
 import { useNavigate } from "@tanstack/react-router"
 import { LogOut, User, Crown, CreditCard } from "lucide-react"
 import useAuth from "@/hooks/useAuth"
+import { useServicer } from "@/hooks/useServicer"
+import { useMemberCancellation } from "@/hooks/useMemberCancellation"
+import { LifeBuoy } from "lucide-react"
+
+function ProfileSupportButton() {
+    const { hasSupport, handleContactSupport, isLoading } = useServicer('mobile');
+
+    if (isLoading || !hasSupport) return null;
+
+    return (
+        <Button variant="outline" className="w-full gap-2 mb-4" onClick={handleContactSupport}>
+            <LifeBuoy className="w-4 h-4" />
+            Contact Support
+        </Button>
+    )
+}
+
+function ProfileCancellation() {
+    const { info, apply, cancel, isApplying, isCanceling } = useMemberCancellation('mobile');
+
+    // Status: 1=audit, 2=success, 3=refuse, -1=cancel/none? 
+    // Need to verify exact status codes from MemberCancel model. 
+    // Assuming logic: if info exists and status is "audit" (often 0 or 1), show Cancel Apply.
+    // Based on Membercancel.php logic, it returns info. 
+    // Let's assume typical: status 0/1 = pending.
+
+    const isPending = info?.status === 0 || info?.status === 1;
+
+    const handleApply = () => {
+        if (window.confirm("Are you sure you want to delete your account? This action cannot be undone immediately.")) {
+            apply();
+        }
+    }
+
+    const handleCancel = () => {
+        if (window.confirm("Withdraw account deletion request?")) {
+            cancel();
+        }
+    }
+
+    if (isPending) {
+        return (
+            <Button variant="outline" className="w-full gap-2 mb-4 border-red-200 text-red-600 hover:text-red-700 hover:bg-red-50" disabled={isCanceling} onClick={handleCancel}>
+                {isCanceling ? "Processing..." : "Withdraw Deletion Request"}
+            </Button>
+        )
+    }
+
+    return (
+        <Button variant="ghost" className="w-full gap-2 mb-4 text-muted-foreground hover:text-red-600 hover:bg-red-50" disabled={isApplying} onClick={handleApply}>
+            Delete Account
+        </Button>
+    )
+}
 
 export function ProfileScreen() {
     const navigate = useNavigate()
@@ -16,7 +70,7 @@ export function ProfileScreen() {
     const expireDate = user?.level_expire_time ? new Date(user.level_expire_time * 1000).toLocaleDateString() : '';
 
     return (
-        <div className="p-4 flex flex-col h-full bg-background">
+        <div className="p-4 flex flex-col h-full bg-background overflow-y-auto">
             <h1 className="text-xl font-bold mb-6">Profile</h1>
 
             <div className="flex flex-col gap-6 flex-1">
@@ -94,6 +148,10 @@ export function ProfileScreen() {
                 </div>
 
             </div>
+
+            <ProfileSupportButton />
+            <ProfileCancellation />
+
             <Button variant="destructive" className="w-full gap-2" onClick={handleLogout}>
                 <LogOut className="w-4 h-4" />
                 Logout

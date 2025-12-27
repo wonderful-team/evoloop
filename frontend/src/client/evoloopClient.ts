@@ -251,6 +251,42 @@ export class EvoLoopApi {
         return res.data;
     }
 
+    // --- Config ---
+
+    static async getServicerConfig(): Promise<any> {
+        const res = await requestWithAdapter<NiushopResponse>(NiushopConfig, {
+            method: 'GET',
+            url: '/api/config/servicer',
+        });
+        return res.data?.value;
+    }
+
+    // --- Member Cancellation (Mobile Direct) ---
+
+    static async getMemberCancellationInfo(): Promise<any> {
+        const res = await requestWithAdapter<NiushopResponse>(NiushopConfig, {
+            method: 'GET',
+            url: '/membercancel/api/membercancel/info',
+        });
+        return res.data;
+    }
+
+    static async applyMemberCancellation(): Promise<any> {
+        const res = await requestWithAdapter<NiushopResponse>(NiushopConfig, {
+            method: 'POST',
+            url: '/membercancel/api/membercancel/apply',
+        });
+        return res;
+    }
+
+    static async cancelMemberCancellationApply(): Promise<any> {
+        const res = await requestWithAdapter<NiushopResponse>(NiushopConfig, {
+            method: 'POST',
+            url: '/membercancel/api/membercancel/cancelApply',
+        });
+        return res;
+    }
+
     // --- Logs ---
 
     static async getRecentLogs(deviceId: number, limit: number, projectId?: number): Promise<any[]> {

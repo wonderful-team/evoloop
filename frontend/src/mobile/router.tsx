@@ -6,7 +6,7 @@ import { LoginScreen, loginLoader } from "./screens/LoginScreen"
 import { DevicesScreen, devicesLoader } from "./screens/DevicesScreen"
 import { ProjectsScreen } from "./screens/ProjectsScreen"
 import { ProfileScreen } from "./screens/ProfileScreen"
-import { ChatScreen } from "./screens/ChatScreen"
+import { LocalChatScreen } from "./screens/LocalChatScreen"
 import { CloudChatScreen } from "./screens/CloudChatScreen"
 
 import { SearchScreen } from "./screens/SearchScreen"
@@ -72,10 +72,10 @@ const loginRoute = createRoute({
     beforeLoad: loginLoader
 })
 
-const chatRoute = createRoute({
+const localChatRoute = createRoute({
     getParentRoute: () => layoutRoute,
     path: '/chat/$deviceId',
-    component: ChatScreen,
+    component: LocalChatScreen,
 })
 
 const cloudChatRoute = createRoute({
@@ -112,7 +112,7 @@ const routeTree = rootRoute.addChildren([
             profileRoute,
         ]),
         loginRoute,
-        chatRoute,
+        localChatRoute,
         cloudChatRoute,
         searchRoute,
         forgotPasswordRoute,

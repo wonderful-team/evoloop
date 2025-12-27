@@ -13,7 +13,7 @@ import { ArrowDownCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "@tanstack/react-router"
 
-export function ChatScreen() {
+export function LocalChatScreen() {
     const { deviceId } = useParams({ strict: false }) as any
     const searchParams = useSearch({ strict: false }) as any
     const highlight = searchParams.highlight ? Number(searchParams.highlight) : null

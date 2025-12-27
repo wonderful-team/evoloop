@@ -51,3 +51,18 @@ async def logout():
     # ----------------------------------
 
     return {"message": "Logged out"}
+    
+@router.get("/cancellation")
+async def get_cancellation_info():
+    """Get cancellation status and info"""
+    return imagicbox_client.get_cancellation_info()
+
+@router.post("/cancellation")
+async def apply_cancellation():
+    """Apply for cancellation"""
+    return imagicbox_client.apply_cancellation()
+
+@router.post("/cancellation/cancel")
+async def cancel_cancellation_apply():
+    """Cancel existing cancellation request"""
+    return imagicbox_client.cancel_cancellation_apply()

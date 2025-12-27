@@ -1,8 +1,10 @@
-
 import { Logo } from "@/components/Common/Logo"
 import { useNavigate } from "@tanstack/react-router"
 import { ChatInput } from "../components/chat/ChatInput"
 import { toast } from "sonner"
+// import { Menu } from "lucide-react"
+// import { Button } from "@/components/ui/button"
+// import { ConversationDrawer } from "../components/ConversationDrawer"
 
 export function IndexScreen() {
     const navigate = useNavigate()
@@ -26,6 +28,11 @@ export function IndexScreen() {
         <div className="flex flex-col h-full bg-background relative overflow-hidden">
             {/* Background Decoration */}
             <div className="absolute top-0 left-0 w-full h-[50%] bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
+
+            {/* Header (Removed Drawer, clean header) */}
+            <div className="absolute top-0 left-0 right-0 p-4 flex justify-between z-20">
+                {/* Empty header for spacing if needed, or remove completely */}
+            </div>
 
             {/* Hero Section (Center) */}
             <div className="flex-1 flex flex-col items-center justify-center p-6 -mt-20 z-10">

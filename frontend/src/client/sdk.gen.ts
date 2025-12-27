@@ -394,6 +394,42 @@ export class MemberService {
             url: '/api/v1/member/logout'
         });
     }
+
+    /**
+     * Get Cancellation Info
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getCancellationInfo(): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/member/cancellation'
+        });
+    }
+
+    /**
+     * Apply Cancellation
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static applyCancellation(): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/member/cancellation'
+        });
+    }
+
+    /**
+     * Cancel Cancellation Apply
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static cancelCancellationApply(): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/member/cancellation/cancel'
+        });
+    }
 }
 
 export class MemoryService {

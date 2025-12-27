@@ -18,6 +18,24 @@ import {
 } from "@/components/ui/sidebar"
 import useAuth from "@/hooks/useAuth"
 import { getInitials } from "@/utils"
+import { useServicer } from "@/hooks/useServicer" // Add import
+import { LifeBuoy } from "lucide-react"
+
+function ContactSupportMenuItem() {
+  const { hasSupport, handleContactSupport, isLoading } = useServicer('desktop');
+
+  if (isLoading || !hasSupport) return null;
+
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onClick={handleContactSupport}>
+        <LifeBuoy className="mr-2 h-4 w-4" />
+        <span>Contact Support</span>
+      </DropdownMenuItem>
+    </>
+  )
+}
 
 interface UserInfoProps {
   fullName?: string | null
@@ -135,6 +153,7 @@ export function User({ user }: { user: any }) {
                 User Settings
               </DropdownMenuItem>
             </RouterLink>
+            <ContactSupportMenuItem />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut />
               Log Out

@@ -1,14 +1,12 @@
-
-import { useParams, useSearch } from "@tanstack/react-router"
-import { EvoLoopApi, AIMessage } from "@/client/evoloopClient"
+import { ConversationDrawer } from "../components/ConversationDrawer"
+import { Menu, Bot, ArrowLeft } from "lucide-react"
+import { useParams, useSearch, useNavigate } from "@tanstack/react-router"
+import { EvoLoopApi } from "@/client/evoloopClient"
 import { useEffect, useState, useRef } from "react"
 import { toast } from "sonner"
 import { MessageList } from "../components/chat/MessageList"
 import { ChatInput } from "../components/chat/ChatInput"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, MoreHorizontal, Bot } from "lucide-react"
-import { useNavigate } from "@tanstack/react-router"
-
 
 export function CloudChatScreen() {
     const { conversationId } = useParams({ strict: false }) as any
@@ -17,7 +15,6 @@ export function CloudChatScreen() {
 
     // State
     const [messages, setMessages] = useState<any[]>([])
-    // Default from storage or fallback
 
     const [isLoading, setIsLoading] = useState(false)
     const [isStreaming, setIsStreaming] = useState(false)
@@ -25,8 +22,14 @@ export function CloudChatScreen() {
 
     const isNew = conversationId === 'new'
 
-    // Fetch Models on Mount
+    // Track active ID
+    const activeConversationId = useRef(conversationId === 'new' ? undefined : conversationId)
+    // ...
 
+    // Sync Ref when URL changes (e.g. clicking history item)
+    useEffect(() => {
+        activeConversationId.current = conversationId === 'new' ? undefined : conversationId
+    }, [conversationId])
 
     // 1. Fetch History if not new
     useEffect(() => {
@@ -34,13 +37,9 @@ export function CloudChatScreen() {
             setIsLoading(true)
             EvoLoopApi.AI.getMessages(Number(conversationId), 1, 50)
                 .then(res => {
-                    // Backend returns newest first (id desc), usually UI needs oldest first for chat flow?
-                    // ChatScreen reverses them. Let's see MessageList.
-                    // MessageList renders top to bottom.
-                    // If we get [Newest, ..., Oldest], we need to reverse to [Oldest, ..., Newest].
                     const list = res.list || []
-                    const formatted = list.reverse().map(msg => ({
-                        type: msg.role === 'user' ? 'user' : 'output', // Map 'assistant' to 'output' for MessageList compat
+                    const formatted = list.reverse().map((msg: any) => ({
+                        type: msg.role === 'user' ? 'user' : 'output',
                         content: msg.content,
                         timestamp: msg.create_time * 1000,
                         log_id: msg.id
@@ -56,7 +55,6 @@ export function CloudChatScreen() {
     useEffect(() => {
         if (searchParams.initialMessage && !initializedRef.current) {
             initializedRef.current = true
-            // Allow a small tick for mounting
             setTimeout(() => {
                 handleSend(searchParams.initialMessage)
             }, 100)
@@ -78,9 +76,7 @@ export function CloudChatScreen() {
         // 3.2 Prepare Stream Placeholder
         const botMsgId = Date.now()
         setMessages(prev => [...prev, {
-            type: 'thought', // Use thought as placeholder or output? 'output' is final. 'thought' usually implies processing. 
-            // Let's use 'output' but with isThinking? MessageList might not support streaming status well.
-            // Let's assume 'output' is fine.
+            type: 'output',
             content: "...",
             timestamp: Date.now(),
             id: botMsgId,
@@ -94,11 +90,16 @@ export function CloudChatScreen() {
             // 3.3 Call API
             const finalParams = {
                 message: content,
-                conversation_id: isNew ? undefined : conversationId, // 'new' or ID
+                conversation_id: activeConversationId.current, // Use Ref
                 stream: true
             }
 
-            await EvoLoopApi.AI.chat(finalParams, (chunk) => {
+            await EvoLoopApi.AI.chat(finalParams, (chunk, meta) => {
+                // Update active ID if provided (first chunk usually)
+                if (meta?.conversation_id && !activeConversationId.current) {
+                    activeConversationId.current = meta.conversation_id
+                }
+
                 // Update the last message
                 fullResponse += chunk
                 setMessages(prev => {
@@ -112,11 +113,6 @@ export function CloudChatScreen() {
                     }
                     return prev
                 })
-
-                // If meta has conversation_id and we are in 'new' mode, redirect?
-                // Actually changing URL mid-chat might unmount. 
-                // Better to just keep 'new' in URL until user leaves, or silent update?
-                // Let's stick to 'new' state for now.
             })
 
             // Stream Done
@@ -143,17 +139,24 @@ export function CloudChatScreen() {
                 <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/' as any })}>
                     <ArrowLeft className="w-5 h-5" />
                 </Button>
+
+                <ConversationDrawer
+                    activeId={conversationId === 'new' ? undefined : Number(conversationId)}
+                    trigger={
+                        <Button variant="ghost" size="icon">
+                            <Menu className="w-5 h-5" />
+                        </Button>
+                    }
+                />
+
                 <div>
                     <h1 className="font-semibold text-lg flex items-center gap-2">
                         <Bot className="w-5 h-5 text-primary" />
                         Cloud Agent
                     </h1>
-
                 </div>
             </div>
-            <Button variant="ghost" size="icon">
-                <MoreHorizontal className="w-5 h-5" />
-            </Button>
+            <div />
         </div>
     )
 

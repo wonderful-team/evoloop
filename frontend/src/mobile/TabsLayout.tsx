@@ -1,9 +1,10 @@
 import { Outlet, Link, useLocation, useNavigate } from "@tanstack/react-router"
-import { Home, Monitor, FolderOpen, User, Cloud, Search } from "lucide-react"
+import { Home, Monitor, FolderOpen, User, Cloud, Search, Menu } from "lucide-react"
 import { useMobileStore } from "./stores/useMobileStore"
 import { motion, useMotionValue, animate } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { useEffect, useRef } from "react"
+import { ConversationDrawer } from "./components/ConversationDrawer"
 
 // Import Screens directly for pre-loading side-by-side
 import { IndexScreen } from "./screens/IndexScreen"
@@ -17,6 +18,7 @@ export function TabsLayout() {
     const path = location.pathname
     const { activeTab, setActiveTab } = useMobileStore()
     const x = useMotionValue(0)
+    const isGuest = !localStorage.getItem('evoloop_token')
 
     const isActive = (p: string) => {
         if (p === '/' && path === '/') return true
@@ -91,6 +93,19 @@ export function TabsLayout() {
             {/* Top Global Header with Safe Area Fix */}
             {/* Added extra padding (pt-6) to existing safe-top to avoid overlay overlap */}
             <div className="absolute top-0 left-0 right-0 z-30 pt-safe-top pt-8 flex justify-center items-center h-16 pointer-events-none">
+                {/* Left Button (Conversation Drawer) */}
+                <div className="absolute left-4 top-1/2 -translate-y-1/2 mt-3 pointer-events-auto">
+                    {!isGuest && activeTab === 'cloud' && (
+                        <ConversationDrawer
+                            trigger={
+                                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-background/50 backdrop-blur-md border border-border/50 shadow-sm">
+                                    <Menu className="w-5 h-5 text-muted-foreground" />
+                                </Button>
+                            }
+                        />
+                    )}
+                </div>
+
                 <div className="flex bg-muted/50 rounded-full p-1 relative backdrop-blur-md pointer-events-auto shadow-sm border border-border/50">
                     <motion.div
                         className="absolute top-1 bottom-1 bg-background shadow-sm rounded-full"
