@@ -1,6 +1,5 @@
-
-import { useState, useEffect } from "react"
-import { Mic, Paperclip, Send, Loader2, Camera } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { Mic, Paperclip, Send, Loader2, Camera, X, File as FileIcon, Image as ImageIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { useVoice } from "@/hooks/useVoice"
@@ -15,10 +14,23 @@ interface ChatInputProps {
     placeholder?: string
 }
 
+interface Attachment {
+    type: 'image' | 'file'
+    url: string // Server URL (or temp local if not ready, but we handle that via previewUrl logic)
+    name?: string
+    previewUrl?: string // Local Blob URL for immediate display
+    isUploading?: boolean
+}
+
 export function ChatInput({ isConnected, isDeviceOnline, onSend, className, innerClassName, placeholder }: ChatInputProps) {
     const [input, setInput] = useState("")
     const [sending, setSending] = useState(false)
-    const [isUploading, setIsUploading] = useState(false)
+    const [isUploading, setIsUploading] = useState(false) // General loading state
+    const [attachments, setAttachments] = useState<Attachment[]>([])
+
+    // Refs for hidden inputs
+    const fileInputRef = useRef<HTMLInputElement>(null)
+    const cameraInputRef = useRef<HTMLInputElement>(null)
 
     // Native Plugin Hook
     const { isListening, transcript, startListening, stopListening } = useVoice({ language: 'zh-CN' })
@@ -39,16 +51,79 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend, className, inne
     }
 
     const handleSendAction = async () => {
-        if (!input.trim()) return
-        const content = input.trim()
+        if (!input.trim() && attachments.length === 0) return
+
+        // Block if any attachment is still uploading
+        if (attachments.some(a => a.isUploading)) {
+            toast.error("Please wait for files to upload")
+            return
+        }
+
         setSending(true)
-        setInput("") // Clear immediately
+
+        // Construct message content: Attachments first, then text
+        let finalContent = ""
+
+        if (attachments.length > 0) {
+            const attachmentStrings = attachments.map(att => {
+                if (att.type === 'image') return `[Image: ${att.url}]`
+                return `[File: ${att.url}]`
+            }).join("\n")
+            finalContent = attachmentStrings + (input.trim() ? "\n" + input.trim() : "")
+        } else {
+            finalContent = input.trim()
+        }
+
+        setInput("")
+        setAttachments([]) // Clear attachments
 
         try {
-            await onSend(content)
+            await onSend(finalContent)
         } finally {
             setSending(false)
         }
+    }
+
+    const handleUpload = async (file: File, type: 'image' | 'file') => {
+        if (!file) return
+
+        // 1. Create local preview
+        const localUrl = URL.createObjectURL(file)
+        const tempId = Date.now().toString() // Simple temp ID logic if needed, but index works mostly. 
+        // We push to state
+        setAttachments(prev => [...prev, {
+            type,
+            url: '', // Placeholder
+            name: file.name,
+            previewUrl: localUrl,
+            isUploading: true
+        }])
+
+        setIsUploading(true) // Global spinner
+
+        try {
+            // 2. Upload
+            const serverUrl = await EvoLoopApi.uploadFile(file)
+
+            // 3. Update state with server URL
+            setAttachments(prev => prev.map(att => {
+                if (att.previewUrl === localUrl) {
+                    return { ...att, url: serverUrl, isUploading: false }
+                }
+                return att
+            }))
+        } catch (error) {
+            toast.error("Upload failed")
+            console.error(error)
+            // Remove failed attachment
+            setAttachments(prev => prev.filter(att => att.previewUrl !== localUrl))
+        } finally {
+            setIsUploading(false)
+        }
+    }
+
+    const removeAttachment = (index: number) => {
+        setAttachments(prev => prev.filter((_, i) => i !== index))
     }
 
     const isInputDisabled = sending || !isConnected || !isDeviceOnline
@@ -59,6 +134,36 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend, className, inne
                 onSubmit={(e) => { e.preventDefault(); handleSendAction(); }}
                 className={innerClassName || `flex flex-col gap-2 bg-muted/50 p-3 rounded-3xl border border-transparent focus-within:border-primary/50 focus-within:bg-background transition-all ${isListening ? 'ring-2 ring-red-500/50 bg-red-50/50' : ''} ${isInputDisabled ? 'opacity-50 pointer-events-none' : ''}`}
             >
+                {/* Attachment Previews (Inside Input Box) */}
+                {attachments.length > 0 && (
+                    <div className="flex gap-2 mb-1 overflow-x-auto pb-2 px-1 scrollbar-hide">
+                        {attachments.map((att, i) => (
+                            <div key={i} className="relative group shrink-0 animate-in fade-in zoom-in duration-200">
+                                <div className="w-16 h-16 rounded-lg overflow-hidden border bg-background flex items-center justify-center relative shadow-sm">
+                                    {att.type === 'image' ? (
+                                        <img src={att.previewUrl || att.url} alt="preview" className="w-full h-full object-cover" />
+                                    ) : (
+                                        <FileIcon className="w-8 h-8 text-muted-foreground" />
+                                    )}
+                                    {/* Loading Overlay */}
+                                    {att.isUploading && (
+                                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                            <Loader2 className="w-5 h-5 text-white animate-spin" />
+                                        </div>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => removeAttachment(i)}
+                                    className="absolute -top-1.5 -right-1.5 bg-muted-foreground text-white rounded-full p-0.5 hover:bg-destructive shadow-sm z-10"
+                                >
+                                    <X className="w-3 h-3" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {/* Row 1: Text Input */}
                 <div className="w-full">
                     <textarea
@@ -68,7 +173,7 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend, className, inne
                             placeholder || (
                                 !isConnected ? "Connecting to server..." :
                                     !isDeviceOnline ? "Device is offline" :
-                                        isListening ? "Listening..." : "Message agent..."
+                                        isListening ? "Listening..." : "Message..."
                             )
                         }
                         disabled={isInputDisabled}
@@ -88,24 +193,12 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend, className, inne
                     />
                     <input
                         type="file"
-                        id="mobile-file-upload"
+                        ref={fileInputRef}
                         className="hidden"
-                        onChange={async (e) => {
+                        onChange={(e) => {
                             const file = e.target.files?.[0]
-                            if (!file) return
-
-                            setIsUploading(true)
-                            try {
-                                const url = await EvoLoopApi.uploadFile(file)
-                                setInput(prev => prev + (prev ? "\n" : "") + `[File: ${url}]`)
-                                toast.success("File uploaded")
-                            } catch (error) {
-                                toast.error("Upload failed")
-                                console.error(error)
-                            } finally {
-                                setIsUploading(false)
-                                e.target.value = ''
-                            }
+                            if (file) handleUpload(file, 'file')
+                            e.target.value = ''
                         }}
                     />
                 </div>
@@ -131,7 +224,7 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend, className, inne
                             size="icon"
                             disabled={isInputDisabled || isUploading}
                             className="rounded-full w-9 h-9 text-muted-foreground hover:bg-background hover:text-primary"
-                            onClick={() => document.getElementById('mobile-camera-upload')?.click()}
+                            onClick={() => cameraInputRef.current?.click()}
                         >
                             <Camera className="w-5 h-5" />
                         </Button>
@@ -142,7 +235,7 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend, className, inne
                             size="icon"
                             disabled={isInputDisabled || isUploading}
                             className="rounded-full w-9 h-9 text-muted-foreground hover:bg-background hover:text-primary"
-                            onClick={() => document.getElementById('mobile-file-upload')?.click()}
+                            onClick={() => fileInputRef.current?.click()}
                         >
                             {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Paperclip className="w-5 h-5" />}
                         </Button>
@@ -150,31 +243,21 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend, className, inne
 
                     <input
                         type="file"
-                        id="mobile-camera-upload"
+                        ref={cameraInputRef}
                         className="hidden"
                         accept="image/*"
                         capture="environment"
-                        onChange={async (e) => {
+                        onChange={(e) => {
                             const file = e.target.files?.[0]
-                            if (!file) return
-                            setIsUploading(true)
-                            try {
-                                const url = await EvoLoopApi.uploadFile(file)
-                                setInput(prev => prev + (prev ? "\n" : "") + `[Image: ${url}]`)
-                                toast.success("Image uploaded")
-                            } catch (error) {
-                                toast.error("Upload failed")
-                            } finally {
-                                setIsUploading(false)
-                                e.target.value = ''
-                            }
+                            if (file) handleUpload(file, 'image')
+                            e.target.value = ''
                         }}
                     />
 
                     {/* Right: Send */}
                     <Button
                         type="submit"
-                        disabled={isInputDisabled || (!input.trim() && !isListening)}
+                        disabled={isInputDisabled || (!input.trim() && attachments.length === 0)}
                         size="icon"
                         className="rounded-full w-9 h-9 shadow-sm"
                     >

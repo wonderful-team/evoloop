@@ -90,7 +90,7 @@ export function TabsLayout() {
         <div className="flex flex-col h-screen bg-background text-foreground relative overflow-hidden">
             {/* Top Global Header with Safe Area Fix */}
             {/* Added extra padding (pt-6) to existing safe-top to avoid overlay overlap */}
-            <div className="absolute top-0 left-0 right-0 z-30 pt-safe-top pt-6 flex justify-center items-center h-16 pointer-events-none">
+            <div className="absolute top-0 left-0 right-0 z-30 pt-safe-top pt-8 flex justify-center items-center h-16 pointer-events-none">
                 <div className="flex bg-muted/50 rounded-full p-1 relative backdrop-blur-md pointer-events-auto shadow-sm border border-border/50">
                     <motion.div
                         className="absolute top-1 bottom-1 bg-background shadow-sm rounded-full"

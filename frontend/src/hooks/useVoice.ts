@@ -1,14 +1,8 @@
-import { useState, useCallback, useEffect } from "react"
-import { invoke, addPluginListener } from "@tauri-apps/api/core"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { toast } from "sonner"
 
 export interface UseVoiceOptions {
     language?: string
-}
-
-interface RecognitionResult {
-    transcript: string;
-    isFinal: boolean;
 }
 
 export function useVoice(options: UseVoiceOptions = {}) {
@@ -16,159 +10,120 @@ export function useVoice(options: UseVoiceOptions = {}) {
     const [isSpeaking, setIsSpeaking] = useState(false)
     const [transcript, setTranscript] = useState("")
 
+    // Refs to hold instances
+    const recognitionRef = useRef<SpeechRecognition | null>(null)
+    const synthesisRef = useRef<SpeechSynthesis>(window.speechSynthesis)
+
     useEffect(() => {
-        // Store unlisten functions
-        let listenerRx: any = undefined;
-        let listenerErr: any = undefined;
+        // Initialize Speech Recognition
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
-        const setupListeners = async () => {
-            try {
-                // Mobile listener setup
-                listenerRx = await addPluginListener('stt', 'result', (event: any) => {
-                    const payload = event.payload as RecognitionResult;
-                    if (payload && payload.transcript) {
-                        setTranscript(payload.transcript)
+        if (SpeechRecognition) {
+            const recognition = new SpeechRecognition();
+            recognition.continuous = true; // Keep listening until stopped
+            recognition.interimResults = true; // Show partial results
+            recognition.lang = options.language || 'zh-CN';
+
+            recognition.onresult = (event: SpeechRecognitionEvent) => {
+                let finalTranscript = '';
+                let interimTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
                     }
-                });
-
-                listenerErr = await addPluginListener('stt', 'error', (event: any) => {
-                    console.error("STT Error Event Raw:", JSON.stringify(event));
-
-                    let errorMsg = "Unknown Error";
-                    // Handle Tauri v2 Event<T> structure OR direct payload
-                    const payload = event.payload || event;
-
-                    if (payload) {
-                        if (typeof payload === 'string') {
-                            errorMsg = payload;
-                        } else if (typeof payload === 'object') {
-                            // Try to extract standard error fields
-                            errorMsg = payload.message || payload.error || JSON.stringify(payload);
-                            // Add code/details if present
-                            if (payload.code) errorMsg = `[${payload.code}] ${errorMsg}`;
-                            if (payload.details) errorMsg += ` (${payload.details})`;
-                        }
-                    }
-
-                    toast.error("STT Error: " + errorMsg);
-
-                    // Ensure state is reset
-                    setIsListening(false);
-                    // Try to force stop to sync state
-                    invoke('plugin:stt|stop_listening').catch(console.error);
-                });
-
-                // Check availability
-                try {
-                    const avail: any = await invoke('plugin:stt|is_available');
-                    if (!avail?.available) {
-                        toast.error("STT Service not available: " + (avail?.reason || "Unknown reason"));
-                    }
-                } catch (e) {
-                    console.error("Failed to check availability:", e);
                 }
 
-                // Check languages (only log warning if missing)
-                try {
-                    const langs: any = await invoke('plugin:stt|get_supported_languages');
-                    if (Array.isArray(langs)) {
-                        const targetLang = options.language || 'zh-CN';
-                        const hasLang = langs.some((l: any) => l.code === targetLang || l === targetLang);
-                        if (!hasLang) {
-                            toast.warning(`STT: ${targetLang} not found in supported languages.`);
-                        }
-                    }
-                } catch (e) {
-                    console.error("Failed to get languages:", e);
+                // We mainly care about the latest result for chat input
+                // Or accumulate? The existing implementation seemed to replace.
+                // Let's set the current valid transcript.
+                const currentText = finalTranscript || interimTranscript;
+                if (currentText) {
+                    setTranscript(currentText);
                 }
+            };
 
-            } catch (err) {
-                console.error("Failed to setup STT listeners", err)
-            }
-        };
+            recognition.onerror = (event: any) => {
+                console.error("Speech Recognition Error:", event.error);
+                if (event.error === 'no-speech') {
+                    return; // Ignore
+                }
+                toast.error(`Mic Error: ${event.error}`);
+                setIsListening(false);
+            };
 
-        setupListeners();
+            recognition.onend = () => {
+                setIsListening(false);
+            };
 
-        // Check permissions
-        invoke('plugin:stt|check_permission').then((perm: any) => {
-            if (perm?.microphone !== 'granted' && perm?.speechRecognition !== 'granted') {
-                invoke('plugin:stt|request_permission').catch(console.error);
-            }
-        }).catch(console.error);
-
-        // Ensure clean start
-        invoke('plugin:stt|stop_listening').catch(() => { })
+            recognitionRef.current = recognition;
+        } else {
+            console.warn("Web Speech API not supported in this browser.");
+        }
 
         return () => {
-            if (typeof listenerRx === 'function') listenerRx();
-            if (typeof listenerErr === 'function') listenerErr();
-            invoke('plugin:stt|stop_listening').catch(() => { })
-        }
-    }, [options.language])
+            if (recognitionRef.current) {
+                try { recognitionRef.current.stop(); } catch (e) { }
+            }
+            if (synthesisRef.current) {
+                synthesisRef.current.cancel();
+            }
+        };
+    }, [options.language]);
 
     const startListening = useCallback(async () => {
-        try {
-            if (isListening) return
-
-            // Force stop first to prevent "Already listening" state desync
-            await invoke('plugin:stt|stop_listening').catch(console.warn)
-
-            // Short delay to allow OS to release mic
-            await new Promise(resolve => setTimeout(resolve, 150));
-
-            setTranscript("")
-            setIsListening(true)
-
-            await invoke('plugin:stt|start_listening', {
-                config: {
-                    language: options.language || "zh-CN",
-                    interimResults: false, // Try false to reduce load
-                    continuous: false, // Try false for stability
-                }
-            })
-
-        } catch (error) {
-            console.error("Failed to start listening:", error)
-            toast.error("STT Start Error: " + JSON.stringify(error))
-            setIsListening(false)
+        if (!recognitionRef.current) {
+            toast.error("Speech recognition not supported on this device.");
+            return;
         }
-    }, [options.language, isListening])
+
+        if (isListening) return;
+
+        try {
+            setTranscript("");
+            recognitionRef.current.start();
+            setIsListening(true);
+        } catch (error) {
+            console.error("Failed to start recognition:", error);
+            // Sometimes it throws if already started
+            setIsListening(false);
+        }
+    }, [isListening]);
 
     const stopListening = useCallback(async () => {
-        try {
-            await invoke('plugin:stt|stop_listening')
-            setIsListening(false)
-        } catch (error) {
-            console.error("Failed to stop listening:", error)
-            toast.error("STT Stop Error: " + JSON.stringify(error))
+        if (recognitionRef.current) {
+            recognitionRef.current.stop();
+            setIsListening(false);
         }
-    }, [])
+    }, []);
 
-    const speak = useCallback(async (text: string) => {
-        try {
-            setIsSpeaking(true)
-            await invoke('plugin:tts|speak', {
-                payload: {
-                    text,
-                    language: options.language || "zh-CN",
-                    queueMode: "flush",
-                }
-            })
-            setIsSpeaking(false)
-        } catch (error) {
-            console.error("Failed to speak:", error)
-            setIsSpeaking(false)
-        }
-    }, [options.language])
+    const speak = useCallback((text: string) => {
+        if (!synthesisRef.current) return;
 
-    const stopSpeaking = useCallback(async () => {
-        try {
-            await invoke('plugin:tts|stop')
-            setIsSpeaking(false)
-        } catch (error) {
-            console.error("Failed to stop speaking:", error)
+        // Cancel current speak
+        synthesisRef.current.cancel();
+
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = options.language || 'zh-CN';
+
+        utterance.onstart = () => setIsSpeaking(true);
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = (e) => {
+            console.error("TTS Error:", e);
+            setIsSpeaking(false);
+        };
+
+        synthesisRef.current.speak(utterance);
+    }, [options.language]);
+
+    const stopSpeaking = useCallback(() => {
+        if (synthesisRef.current) {
+            synthesisRef.current.cancel();
+            setIsSpeaking(false);
         }
-    }, [])
+    }, []);
 
     return {
         isListening,

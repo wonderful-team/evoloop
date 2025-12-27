@@ -1,16 +1,11 @@
 
 import { Logo } from "@/components/Common/Logo"
-// import { Button } from "@/components/ui/button"
 import { useNavigate } from "@tanstack/react-router"
 import { ChatInput } from "../components/chat/ChatInput"
-// import { useMobileStore } from "../stores/useMobileStore" // unused
 import { toast } from "sonner"
-import { EvoLoopApi } from "@/client/evoloopClient"
 
 export function IndexScreen() {
     const navigate = useNavigate()
-    // const { } = useMobileStore() // unused
-
     const isGuest = !localStorage.getItem('evoloop_token')
 
     const handleInputSend = async (content: string) => {
@@ -20,32 +15,11 @@ export function IndexScreen() {
             return
         }
 
-        try {
-            const devices = await EvoLoopApi.getDeviceList();
-            const onlineDevice = devices.find(d => d.status === 1);
-
-            if (onlineDevice) {
-                navigate({
-                    to: `/chat/${onlineDevice.device_id}`,
-                    search: { initialMessage: content } as any
-                })
-            } else {
-                if (devices.length > 0) {
-                    navigate({
-                        to: `/chat/${devices[0].device_id}`,
-                        search: { initialMessage: content } as any
-                    })
-                } else {
-                    navigate({
-                        to: '/devices',
-                        search: { initialMessage: content } as any
-                    } as any)
-                    toast.info("Please select a device to continue")
-                }
-            }
-        } catch (e) {
-            navigate({ to: '/devices' as any })
-        }
+        // Direct to Cloud Chat
+        navigate({
+            to: '/cloud-chat/new',
+            search: { initialMessage: content } as any
+        })
     }
 
     return (

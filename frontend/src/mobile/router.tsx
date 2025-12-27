@@ -7,6 +7,7 @@ import { DevicesScreen, devicesLoader } from "./screens/DevicesScreen"
 import { ProjectsScreen } from "./screens/ProjectsScreen"
 import { ProfileScreen } from "./screens/ProfileScreen"
 import { ChatScreen } from "./screens/ChatScreen"
+import { CloudChatScreen } from "./screens/CloudChatScreen"
 
 import { SearchScreen } from "./screens/SearchScreen"
 import { ForgotPasswordScreen } from "./screens/ForgotPasswordScreen"
@@ -77,6 +78,12 @@ const chatRoute = createRoute({
     component: ChatScreen,
 })
 
+const cloudChatRoute = createRoute({
+    getParentRoute: () => layoutRoute,
+    path: '/cloud-chat/$conversationId',
+    component: CloudChatScreen,
+})
+
 const searchRoute = createRoute({
     getParentRoute: () => layoutRoute,
     path: '/search',
@@ -106,6 +113,7 @@ const routeTree = rootRoute.addChildren([
         ]),
         loginRoute,
         chatRoute,
+        cloudChatRoute,
         searchRoute,
         forgotPasswordRoute,
         registerRoute,
