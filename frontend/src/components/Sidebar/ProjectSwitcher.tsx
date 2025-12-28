@@ -15,8 +15,10 @@ import { Button } from "@/components/ui/button"
 import { useNavigate } from "@tanstack/react-router"
 import { useProjectStore, type Project } from "@/stores/projectStore"
 import { cn } from "@/lib/utils"
+import { useTranslation } from "react-i18next"
 
 export function ProjectSwitcher() {
+    const { t } = useTranslation()
     const { projects, currentProject, setProject, fetchProjects } = useProjectStore()
     const [open, setOpen] = React.useState(false)
     const [searchQuery, setSearchQuery] = React.useState("")
@@ -53,7 +55,7 @@ export function ProjectSwitcher() {
                             <Folder className="size-3.5" />
                         </div>
                         <span className="truncate font-medium">
-                            {currentProject?.name || "Select Project"}
+                            {currentProject?.name || t('projectSwitcher.select')}
                         </span>
                         {currentProject?.status_text && (
                             <Badge variant="secondary" className="ml-2 h-5 text-[10px] px-1.5 font-normal text-muted-foreground hidden sm:inline-flex">
@@ -67,15 +69,15 @@ export function ProjectSwitcher() {
             <DialogContent className="sm:max-w-4xl max-h-[80vh] flex flex-col p-0 gap-0 overflow-hidden">
                 <div className="p-4 border-b">
                     <DialogHeader className="mb-4">
-                        <DialogTitle>Switch Project</DialogTitle>
+                        <DialogTitle>{t('projectSwitcher.title')}</DialogTitle>
                         <DialogDescription>
-                            Select a project to switch to or manage your projects.
+                            {t('projectSwitcher.description')}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="relative">
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
-                            placeholder="Search projects by name or description..."
+                            placeholder={t('projectSwitcher.desktopSearchPlaceholder')}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-9"
@@ -87,7 +89,7 @@ export function ProjectSwitcher() {
                     {filteredProjects.length === 0 ? (
                         <div className="flex h-[300px] flex-col items-center justify-center text-center text-muted-foreground">
                             <Folder className="h-12 w-12 mb-2 opacity-20" />
-                            <p>No projects found.</p>
+                            <p>{t('projectSwitcher.noProjects')}</p>
                         </div>
                     ) : (
                         <div className="flex flex-col gap-2">
@@ -115,7 +117,8 @@ export function ProjectSwitcher() {
                                                             project.status === 1 ? "bg-green-500/15 text-green-700 hover:bg-green-500/25 dark:text-green-400" : ""
                                                         )}
                                                     >
-                                                        {project.status_text || 'Unknown'}
+
+                                                        {project.status_text || t('projectSwitcher.unknown')}
                                                     </Badge>
                                                 </div>
                                                 <p className="text-xs text-muted-foreground truncate font-mono" title={project.path}>
@@ -127,12 +130,12 @@ export function ProjectSwitcher() {
                                                 <div className="flex items-center gap-1.5 w-24" title="Tasks">
                                                     <ListTodo className="h-3.5 w-3.5" />
                                                     <span>
-                                                        {project.task_stats?.pending || 0} / {project.task_stats?.total || 0} tasks
+                                                        {project.task_stats?.pending || 0} / {project.task_stats?.total || 0} {t('projectSwitcher.tasks')}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center gap-1.5 w-24 justify-end" title="Last Sync">
+                                                <div className="flex items-center gap-1.5 w-24 justify-end" title={t('projectSwitcher.lastSync')}>
                                                     <Clock className="h-3.5 w-3.5" />
-                                                    <span>{project.last_sync_time_format?.split(' ')[0] || 'Never'}</span>
+                                                    <span>{project.last_sync_time_format?.split(' ')[0] || t('projectSwitcher.never')}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -148,9 +151,9 @@ export function ProjectSwitcher() {
                 </div>
 
                 <div className="p-4 border-t bg-muted/50 flex justify-between items-center text-xs text-muted-foreground">
-                    <span>Showing {filteredProjects.length} projects</span>
+                    <span>{t('projectSwitcher.showing', { count: filteredProjects.length })}</span>
                     <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => { setOpen(false); navigate({ to: '/projects' }) }}>
-                        Manage Projects
+                        {t('projectSwitcher.manage')}
                     </Button>
                 </div>
             </DialogContent>

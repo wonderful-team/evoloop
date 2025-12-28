@@ -1,11 +1,13 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 
 export interface UseVoiceOptions {
     language?: string
 }
 
 export function useVoice(options: UseVoiceOptions = {}) {
+    const { t } = useTranslation()
     const [isListening, setIsListening] = useState(false)
     const [isSpeaking, setIsSpeaking] = useState(false)
     const [transcript, setTranscript] = useState("")
@@ -50,7 +52,7 @@ export function useVoice(options: UseVoiceOptions = {}) {
                 if (event.error === 'no-speech') {
                     return; // Ignore
                 }
-                toast.error(`Mic Error: ${event.error}`);
+                toast.error(`${t('voice.micError')}${event.error}`);
                 setIsListening(false);
             };
 
@@ -60,7 +62,7 @@ export function useVoice(options: UseVoiceOptions = {}) {
 
             recognitionRef.current = recognition;
         } else {
-            console.warn("Web Speech API not supported in this browser.");
+            console.warn(t('voice.webSpeechNotSupported'));
         }
 
         return () => {
@@ -75,7 +77,7 @@ export function useVoice(options: UseVoiceOptions = {}) {
 
     const startListening = useCallback(async () => {
         if (!recognitionRef.current) {
-            toast.error("Speech recognition not supported on this device.");
+            toast.error(t('voice.notSupported'));
             return;
         }
 

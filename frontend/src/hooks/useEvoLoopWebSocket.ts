@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { EvoLoopApi } from '@/client/evoloopClient';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 const WS_URL = import.meta.env.VITE_EVOLOOP_WS_URL || "wss://mall.imagicbox.cn/wss/";
 
@@ -14,6 +15,7 @@ export interface LogMessage {
 }
 
 export function useEvoLoopWebSocket(deviceId: number | null) {
+    const { t } = useTranslation()
     const [isConnected, setIsConnected] = useState(false);
     const [messages, setMessages] = useState<LogMessage[]>([]);
     const wsRef = useRef<WebSocket | null>(null);
@@ -48,7 +50,7 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
                             console.log('[EvoLoop] Mobile Bound');
                         } catch (e) {
                             console.error('[EvoLoop] Bind failed', e);
-                            toast.error("Failed to bind to server notifications");
+                            toast.error(t('toast.bindFailed'));
                         }
                     } else if (data.type === 'ping') {
                         // ignore or pong

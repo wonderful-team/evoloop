@@ -6,6 +6,7 @@ import { useEffect } from "react"
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { useTranslation, Trans } from "react-i18next"
 
 export async function devicesLoader() {
     const token = localStorage.getItem('evoloop_token')
@@ -15,13 +16,16 @@ export async function devicesLoader() {
 }
 
 export function DevicesScreen() {
+    const { t } = useTranslation()
     const navigate = useNavigate()
+    const token = localStorage.getItem('evoloop_token')
 
     const { data: devices, isLoading, error } = useQuery({
         queryKey: ['evoloop', 'devices'],
         queryFn: EvoLoopApi.getDeviceList,
         refetchInterval: 5000,
         retry: false,
+        enabled: !!token
     })
 
     // Handle error side effect
@@ -39,9 +43,9 @@ export function DevicesScreen() {
         <div className="p-4 space-y-4">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Devices</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">{t('devices.title')}</h1>
                     <p className="text-sm text-muted-foreground">
-                        {isLoading ? "Loading..." : `${onlineCount} Online / ${devices?.length || 0} Total`}
+                        {isLoading ? t('devices.loading') : t('devices.statusFormat', { online: onlineCount, total: devices?.length || 0 })}
                     </p>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => { localStorage.removeItem('evoloop_token'); navigate({ to: '/login' as any }) }}>
@@ -51,7 +55,7 @@ export function DevicesScreen() {
 
             {error ? (
                 <div className="p-4 bg-destructive/15 text-destructive rounded-md">
-                    Error loading devices: {(error as any).message}
+                    {t('devices.errorLoading')} {(error as any).message}
                 </div>
             ) : null}
 
@@ -72,12 +76,12 @@ export function DevicesScreen() {
                                     <CardTitle className="text-base">{device.device_name}</CardTitle>
                                 </div>
                                 <Badge variant={device.status === 1 ? "default" : "secondary"}>
-                                    {device.status === 1 ? "Online" : "Offline"}
+                                    {device.status === 1 ? t('devices.online') : t('devices.offline')}
                                 </Badge>
                             </div>
                             <CardDescription className="text-xs">
-                                {device.os_info || "Unknown OS"}
-                                {device.status === 1 && <span className="ml-2 text-green-600 dark:text-green-400 text-xs flex items-center inline-flex gap-1"><Activity className="h-3 w-3" /> Active</span>}
+                                {device.os_info || t('devices.unknownOS')}
+                                {device.status === 1 && <span className="ml-2 text-green-600 dark:text-green-400 text-xs flex items-center inline-flex gap-1"><Activity className="h-3 w-3" /> {t('devices.active')}</span>}
                             </CardDescription>
                         </CardHeader>
                     </Card>
@@ -91,24 +95,28 @@ export function DevicesScreen() {
                                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                                         <Monitor className="w-5 h-5 text-primary" />
                                     </div>
-                                    <CardTitle>连接您的第一台设备</CardTitle>
+                                    <CardTitle>{t('devices.connectFirst')}</CardTitle>
                                 </div>
                                 <CardDescription className="text-sm leading-relaxed">
-                                    要激活 EvoLoop 的远程控制能力，您需要在电脑上安装客户端。
+                                    {t('devices.connectDesc')}
                                 </CardDescription>
                             </CardHeader>
                             <div className="px-6 pb-6 space-y-4">
                                 <ol className="list-decimal list-inside text-sm text-muted-foreground space-y-1">
-                                    <li>在电脑访问 <span className="text-foreground font-medium select-all">develop-assistant.cn</span></li>
-                                    <li>下载并安装 Windows/Mac 客户端</li>
-                                    <li>登录当前账号</li>
+                                    <li>
+                                        <Trans i18nKey="devices.step1">
+                                            Visit <span className="text-foreground font-medium select-all">develop-assistant.cn</span> on your computer
+                                        </Trans>
+                                    </li>
+                                    <li>{t('devices.step2')}</li>
+                                    <li>{t('devices.step3')}</li>
                                 </ol>
                                 <Button className="w-full gap-2" variant="outline" onClick={() => {
                                     navigator.clipboard.writeText("https://develop-assistant.cn/download")
                                     // Assuming toast is available or just let user know
-                                    alert("下载链接已复制")
+                                    alert(t('devices.linkCopied'))
                                 }}>
-                                    复制下载链接
+                                    {t('devices.copyLink')}
                                     <Activity className="w-4 h-4" />
                                 </Button>
                             </div>

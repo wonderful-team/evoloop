@@ -21,7 +21,7 @@ export const useMemberCancellation = (platform: Platform = 'desktop') => {
         cancel: MemberService.cancelCancellationApply
     };
 
-    const { data: info, isLoading, refetch } = useQuery({
+    const { data: info, isLoading } = useQuery({
         queryKey: ['memberCancellation', platform],
         queryFn: api.getInfo,
         // Don't refetch too often, maybe on mount

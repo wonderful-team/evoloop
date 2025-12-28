@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { useNavigate } from "@tanstack/react-router"
 import { MobileProjectSwitcher } from "../../components/MobileProjectSwitcher"
 import { useMobileStore } from "../../stores/useMobileStore"
+import { useTranslation } from "react-i18next"
 
 interface ChatHeaderProps {
     device: any
@@ -22,6 +23,7 @@ export function ChatHeader({
     deviceId,
     onClear
 }: ChatHeaderProps) {
+    const { t } = useTranslation()
     const navigate = useNavigate()
     const { setCurrentProject, currentProject, setProjectInitialized } = useMobileStore()
 
@@ -33,7 +35,7 @@ export function ChatHeader({
             <div className="flex-1 overflow-hidden">
                 <div className="flex items-center gap-1.5 mb-0.5">
                     <h1 className="font-semibold text-sm truncate max-w-[120px]">
-                        {device?.device_name || `Device #${deviceId}`}
+                        {device?.device_name || t('chat.header.deviceFallback', { id: deviceId })}
                     </h1>
                     <span className="text-muted-foreground/30">|</span>
                     <div className="flex items-center gap-1.5">
@@ -53,7 +55,7 @@ export function ChatHeader({
                 </div>
             </div>
             <Button variant="ghost" size="sm" className="text-muted-foreground text-xs h-8" onClick={onClear}>
-                Clear
+                {t('chat.header.clear')}
             </Button>
             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => navigate({ to: '/search', search: { deviceId, projectId: currentProject?.project_id } } as any)}>
                 <Search className="w-5 h-5" />

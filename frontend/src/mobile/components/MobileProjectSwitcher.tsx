@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react"
+import { useTranslation } from "react-i18next"
 import { Check, ChevronsUpDown, FolderOpen, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,7 @@ interface MobileProjectSwitcherProps {
 }
 
 export function MobileProjectSwitcher({ project, onProjectChange, onLoaded }: MobileProjectSwitcherProps) {
+    const { t } = useTranslation()
     const [open, setOpen] = useState(false)
     const [projects, setProjects] = useState<any[]>([])
     const [internalProject, setInternalProject] = useState<any>(null)
@@ -76,15 +78,15 @@ export function MobileProjectSwitcher({ project, onProjectChange, onLoaded }: Mo
         onProjectChange?.(selected) // Notify parent
         setOpen(false)
 
-        toast.info(`Switching to ${selected.project_name}...`)
+        toast.info(t('projectSwitcher.switching', { name: selected.project_name }))
 
         try {
             await EvoLoopApi.switchCloudProject(selected.project_id)
-            toast.success(`Switched to ${selected.project_name}`)
+            toast.success(t('projectSwitcher.switched', { name: selected.project_name }))
         } catch (e: any) {
             setInternalProject(old)
             onProjectChange?.(old)
-            toast.error("Failed to switch: " + e.message)
+            toast.error(t('projectSwitcher.failed') + e.message)
         }
     }
 
@@ -100,10 +102,10 @@ export function MobileProjectSwitcher({ project, onProjectChange, onLoaded }: Mo
                     className="h-auto p-1 hover:bg-transparent gap-2"
                 >
                     <div className="flex flex-col items-start">
-                        <span className="text-[10px] text-muted-foreground leading-none mb-0.5">Project</span>
+                        <span className="text-[10px] text-muted-foreground leading-none mb-0.5">{t('projectSwitcher.label')}</span>
                         <div className="flex items-center gap-1">
                             <span className="font-semibold text-sm truncate max-w-[140px]">
-                                {displayProject?.project_name || "Select"}
+                                {displayProject?.project_name || t('projectSwitcher.select')}
                             </span>
                             <ChevronsUpDown className="h-3 w-3 opacity-50" />
                         </div>
@@ -112,13 +114,13 @@ export function MobileProjectSwitcher({ project, onProjectChange, onLoaded }: Mo
             </SheetTrigger>
             <SheetContent side="bottom" className="h-[80vh] flex flex-col p-4 rounded-t-[10px]">
                 <SheetHeader className="mb-4">
-                    <SheetTitle>Switch Project</SheetTitle>
+                    <SheetTitle>{t('projectSwitcher.title')}</SheetTitle>
                 </SheetHeader>
 
                 <div className="relative mb-4">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Search project..."
+                        placeholder={t('projectSwitcher.searchPlaceholder')}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                         className="pl-8"
@@ -129,7 +131,7 @@ export function MobileProjectSwitcher({ project, onProjectChange, onLoaded }: Mo
                     <div className="space-y-1 pb-6">
                         {filteredProjects.length === 0 ? (
                             <div className="text-center py-8 text-sm text-muted-foreground">
-                                No projects found.
+                                {t('projectSwitcher.noProjects')}
                             </div>
                         ) : (
                             filteredProjects.map((p) => (
@@ -149,7 +151,7 @@ export function MobileProjectSwitcher({ project, onProjectChange, onLoaded }: Mo
                                         </div>
                                         <div className="flex flex-col overflow-hidden">
                                             <span className="font-medium text-sm truncate">{p.project_name}</span>
-                                            <span className="text-xs text-muted-foreground truncate">{p.project_desc || "No description"}</span>
+                                            <span className="text-xs text-muted-foreground truncate">{p.project_desc || t('projectSwitcher.noDesc')}</span>
                                         </div>
                                     </div>
                                     {displayProject?.project_id === p.project_id && (

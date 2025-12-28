@@ -1,5 +1,7 @@
 import { Link as RouterLink } from "@tanstack/react-router"
 import { ChevronsUpDown, LogOut, Settings, Crown } from "lucide-react"
+import { useTranslation } from "react-i18next"
+
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
@@ -23,6 +25,7 @@ import { LifeBuoy } from "lucide-react"
 
 function ContactSupportMenuItem() {
   const { hasSupport, handleContactSupport, isLoading } = useServicer('desktop');
+  const { t } = useTranslation()
 
   if (isLoading || !hasSupport) return null;
 
@@ -31,7 +34,7 @@ function ContactSupportMenuItem() {
       <DropdownMenuSeparator />
       <DropdownMenuItem onClick={handleContactSupport}>
         <LifeBuoy className="mr-2 h-4 w-4" />
-        <span>Contact Support</span>
+        <span>{t('user.contactSupport')}</span>
       </DropdownMenuItem>
     </>
   )
@@ -46,15 +49,16 @@ interface UserInfoProps {
 }
 
 function UserInfo({ fullName, email, avatar, levelName, levelExpireTime }: UserInfoProps) {
+  const { t } = useTranslation()
   const isMember = !!levelName;
   const expireDate = levelExpireTime ? new Date(levelExpireTime * 1000).toLocaleDateString() : '';
 
   return (
     <div className="flex items-center gap-2.5 w-full min-w-0">
       <Avatar className="size-8">
-        {avatar ? <img src={avatar} alt={fullName || "User"} className="h-full w-full object-cover" /> : (
+        {avatar ? <img src={avatar} alt={fullName || t('user.defaultName')} className="h-full w-full object-cover" /> : (
           <AvatarFallback className="bg-zinc-600 text-white">
-            {getInitials(fullName || "User")}
+            {getInitials(fullName || t('user.defaultName'))}
           </AvatarFallback>
         )}
       </Avatar>
@@ -70,7 +74,7 @@ function UserInfo({ fullName, email, avatar, levelName, levelExpireTime }: UserI
         <p className="text-xs text-muted-foreground truncate w-full">{email}</p>
         {isMember && levelExpireTime && levelExpireTime > 0 && (
           <p className="text-[10px] text-muted-foreground/80 truncate w-full mt-0.5">
-            Exp: {expireDate}
+            {t('user.expireTime')}{expireDate}
           </p>
         )}
       </div>
@@ -81,6 +85,7 @@ function UserInfo({ fullName, email, avatar, levelName, levelExpireTime }: UserI
 export function User({ user }: { user: any }) {
   const { logout } = useAuth()
   const { isMobile, setOpenMobile } = useSidebar()
+  const { t } = useTranslation()
 
   if (!user) {
     return (
@@ -89,7 +94,7 @@ export function User({ user }: { user: any }) {
           <SidebarMenuButton asChild>
             <RouterLink to="/login">
               <LogOut className="rotate-180" /> {/* Reuse LogOut icon rotated or use LogIn if available */}
-              <span>Log In</span>
+              <span>{t('user.login')}</span>
             </RouterLink>
           </SidebarMenuButton>
         </SidebarMenuItem>
@@ -144,19 +149,19 @@ export function User({ user }: { user: any }) {
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => window.open("https://mall.imagicbox.cn/h5/pages/member/index", "_blank")}>
               <Crown className="text-yellow-500" />
-              <span>{user?.member_level_name ? "Manage Subscription" : "Upgrade to PRO"}</span>
+              <span>{user?.member_level_name ? t('user.manageSubscription') : t('user.upgradeToPro')}</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <RouterLink to="/settings" onClick={handleMenuClick}>
               <DropdownMenuItem>
                 <Settings />
-                User Settings
+                {t('user.settings')}
               </DropdownMenuItem>
             </RouterLink>
             <ContactSupportMenuItem />
             <DropdownMenuItem onClick={handleLogout}>
               <LogOut />
-              Log Out
+              {t('user.logout')}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

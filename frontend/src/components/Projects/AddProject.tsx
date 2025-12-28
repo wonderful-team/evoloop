@@ -1,4 +1,5 @@
 import { useMutation } from "@tanstack/react-query"
+import { useTranslation } from "react-i18next"
 import { useForm } from "react-hook-form"
 import { Plus } from "lucide-react"
 import { useState } from "react"
@@ -33,22 +34,24 @@ import { useProjectStore } from "@/stores/projectStore"
 // Regex for valid directory name (alphanumeric, underscores, hyphens)
 const dirNameRegex = /^[a-zA-Z0-9_-]+$/
 
-const createProjectSchema = z.object({
+const createSchema = (t: any) => z.object({
     name: z.string()
-        .min(1, { message: "Project name is required" })
-        .regex(dirNameRegex, { message: "Project name must contain only letters, numbers, underscores, or hyphens" }),
+        .min(1, { message: t('projects.create.errorNameRequired') })
+        .regex(dirNameRegex, { message: t('projects.create.errorNameFormat') }),
 })
 
-type CreateProjectForm = z.infer<typeof createProjectSchema>
+type CreateProjectForm = z.infer<ReturnType<typeof createSchema>>
 
 export default function AddProject() {
     const [open, setOpen] = useState(false)
     // const queryClient = useQueryClient() // We use store instead
     const { fetchProjects } = useProjectStore()
     const { showSuccessToast, showErrorToast } = useCustomToast()
+    const { t } = useTranslation()
+    const schema = createSchema(t)
 
     const form = useForm<CreateProjectForm>({
-        resolver: zodResolver(createProjectSchema),
+        resolver: zodResolver(schema),
         defaultValues: {
             name: "",
         },
@@ -63,7 +66,7 @@ export default function AddProject() {
             })
         },
         onSuccess: () => {
-            showSuccessToast("Project created successfully")
+            showSuccessToast(t('projects.create.success'))
             setOpen(false)
             form.reset()
             // Refresh the store
@@ -80,14 +83,14 @@ export default function AddProject() {
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
                 <Button>
-                    <Plus className="mr-2 h-4 w-4" /> New Project
+                    <Plus className="mr-2 h-4 w-4" /> {t('projects.new')}
                 </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>Create New Project</DialogTitle>
+                    <DialogTitle>{t('projects.create.title')}</DialogTitle>
                     <DialogDescription>
-                        Create a new project directory. This will also sync with the Member Center.
+                        {t('projects.create.description')}
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -100,7 +103,7 @@ export default function AddProject() {
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Project Name</FormLabel>
+                                    <FormLabel>{t('projects.create.nameLabel')}</FormLabel>
                                     <FormControl>
                                         <Input placeholder="my-awesome-project" {...field} />
                                     </FormControl>
@@ -112,11 +115,11 @@ export default function AddProject() {
                         <DialogFooter className="gap-2 pt-2 sm:space-x-0">
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">
-                                    Cancel
+                                    {t('common.cancel')}
                                 </Button>
                             </DialogClose>
                             <Button type="submit" disabled={mutation.isPending}>
-                                Create Project
+                                {t('projects.create.submit')}
                             </Button>
                         </DialogFooter>
                     </form>

@@ -50,12 +50,13 @@ function DeleteServer({ name }: { name: string }) {
 
 interface ColumnProps {
     onEdit: (server: McpServerPublic) => void
+    t: any // Using any for simplicity with i18next TFunction
 }
 
-export const getColumns = ({ onEdit }: ColumnProps): ColumnDef<McpServerPublic>[] => [
+export const getColumns = ({ onEdit, t }: ColumnProps): ColumnDef<McpServerPublic>[] => [
     {
         accessorKey: "name",
-        header: "Name",
+        header: t('mcp.table.name'),
         cell: ({ row }) => (
             <div className="flex items-center gap-2 font-medium">
                 <Globe size={14} className="text-muted-foreground" />
@@ -65,7 +66,7 @@ export const getColumns = ({ onEdit }: ColumnProps): ColumnDef<McpServerPublic>[
     },
     {
         accessorKey: "status",
-        header: "Status",
+        header: t('mcp.table.status'),
         cell: ({ row }) => (
             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${row.original.status === 'connected'
                 ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
@@ -77,14 +78,14 @@ export const getColumns = ({ onEdit }: ColumnProps): ColumnDef<McpServerPublic>[
     },
     {
         accessorKey: "tools_count",
-        header: "Tools",
+        header: t('mcp.table.tools'),
         cell: ({ row }) => (
             <span className="text-xs text-muted-foreground">{row.original.tools_count || 0} tools</span>
         ),
     },
     {
         accessorKey: "command",
-        header: "Command",
+        header: t('mcp.table.command'),
         cell: ({ row }) => (
             <span className="font-mono text-xs max-w-[200px] truncate block" title={row.original.command}>
                 {row.original.command}
@@ -101,14 +102,14 @@ export const getColumns = ({ onEdit }: ColumnProps): ColumnDef<McpServerPublic>[
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
-                                <span className="sr-only">Open menu</span>
+                                <span className="sr-only">{t('common.actions')}</span>
                                 <MoreHorizontal className="h-4 w-4" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuLabel>{t('common.actions')}</DropdownMenuLabel>
                             <DropdownMenuItem onClick={() => onEdit(server)}>
-                                <Edit className="mr-2 h-4 w-4" /> Edit
+                                <Edit className="mr-2 h-4 w-4" /> {t('common.edit') || "Edit"}
                             </DropdownMenuItem>
                             <DeleteServer name={server.name} />
                         </DropdownMenuContent>

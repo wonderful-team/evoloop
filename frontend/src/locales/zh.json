@@ -1,0 +1,558 @@
+{
+    "common": {
+        "loading": "加载中...",
+        "save": "保存",
+        "cancel": "取消",
+        "delete": "删除",
+        "confirm": "确认",
+        "actions": "操作",
+        "search": "搜索",
+        "themes": {
+            "light": "浅色",
+            "dark": "深色",
+            "system": "跟随系统",
+            "appearance": "外观",
+            "toggle": "切换主题"
+        },
+        "error": {
+            "title": "错误",
+            "oops": "哎呀!",
+            "message": "出错了。请重试。",
+            "goHome": "返回首页"
+        },
+        "notFound": {
+            "title": "404",
+            "oops": "哎呀!",
+            "message": "未找到您寻找的页面。",
+            "goBack": "返回"
+        }
+    },
+    "sidebar": {
+        "dashboard": "仪表盘",
+        "chat": "对话",
+        "projects": "项目",
+        "mcpServers": "MCP 服务器",
+        "settings": "设置"
+    },
+    "footer": {
+        "copyright": "Full Stack FastAPI Template"
+    },
+    "user": {
+        "contactSupport": "联系客服",
+        "manageSubscription": "管理订阅",
+        "upgradeToPro": "升级到专业版",
+        "settings": "用户设置",
+        "logout": "退出登录",
+        "login": "登录",
+        "expireTime": "有效期至：",
+        "defaultName": "用户"
+    },
+    "onboarding": {
+        "skip": "跳过",
+        "start": "开始体验",
+        "next": "下一步",
+        "slide1": {
+            "title": "EvoLoop AI",
+            "subtitle": "您的随身智能助手。<br />无论是编写代码、解答疑惑，<br />还是头脑风暴，在这里随时开始。"
+        },
+        "slide2": {
+            "device": "设备 (Local)",
+            "cloud": "云端 (Cloud)",
+            "title": "双重世界",
+            "subtitle": "EvoLoop 拥有两面。<br /><bold>左右滑动</bold> 试试看？<br />在云端智能与设备管理间无缝切换。"
+        },
+        "slide3": {
+            "online": "Online",
+            "title": "连接您的工作站",
+            "subtitle": "在电脑安装客户端，解锁远程控制能力。<br />远程执行命令、管理文件，尽在掌握。"
+        },
+        "slide4": {
+            "voice": "语音输入",
+            "vision": "视觉分析",
+            "title": "高效技巧",
+            "subtitle": "点击输入框旁的图标，体验更多能力。<br />现在，开始您的 EvoLoop 之旅吧！"
+        }
+    },
+    "help": {
+        "title": "用户手册",
+        "intro": {
+            "title": "快速入门",
+            "desc": "EvoLoop 是您的双模智能助手。通过简单的左右滑动，您可以在 <bold>云端智能</bold> 和 <bold>本地设备</bold> 之间无缝切换。"
+        },
+        "capabilities": {
+            "title": "核心能力",
+            "cloud": {
+                "title": "云端助手",
+                "desc": "问答、编码、创意"
+            },
+            "device": {
+                "title": "设备控制",
+                "desc": "远程命令、文件访问"
+            }
+        },
+        "faq": {
+            "title": "常见问题",
+            "q1": "如何连接我的电脑？",
+            "a1": "需要在您的 Mac/Windows 电脑上下载并安装 EvoLoop 客户端，并登录相同的账号。连接成功后，它会自动出现在“Devices”列表中。",
+            "q2": "云端与本地模式的区别？",
+            "a2": "<bold>云端模式 (Cloud)</bold>：与运行在服务器上的 AI 交互，不依赖您的电脑。<br /><bold>本地模式 (Local)</bold>：通过 AI 直接操作您的电脑。可以读取本地文件、运行终端命令。",
+            "q3": "支持语音输入吗？",
+            "a3": "支持。在聊天输入框左侧点击麦克风图标即可开始说话。支持中文和英文指令。"
+        },
+        "tips": {
+            "title": "高级技巧",
+            "gesture": {
+                "title": "全局手势",
+                "desc": "在任意界面左右滑动，快速切换 Cloud / Local。"
+            },
+            "slash": {
+                "title": "Slash 命令",
+                "desc": "输入 <code>/</code> 呼出命令菜单，快速切换模型或工具 (如 /search, /draw)。"
+            }
+        },
+        "replayParams": "重播新手引导"
+    },
+    "conversation": {
+        "list": "对话列表",
+        "new": "新建",
+        "deleteConfirm": "确定要删除此对话吗？",
+        "untitled": "未命名",
+        "empty": "暂无对话"
+    },
+    "auth": {
+        "login": {
+            "title": "EvoLoop AI",
+            "subtitle": "移动端访问",
+            "desktopTitle": "登录您的账户",
+            "emailOrUsername": "邮箱或用户名",
+            "tabMobile": "手机号",
+            "tabAccount": "账号密码",
+            "mobilePlaceholder": "手机号",
+            "usernamePlaceholder": "用户名",
+            "passwordPlaceholder": "密码",
+            "captchaPlaceholder": "图形验证码",
+            "smsCodePlaceholder": "短信验证码",
+            "getCode": "获取验证码",
+            "submit": "登录",
+            "forgotPassword": "忘记密码？",
+            "noAccount": "还没有账号？",
+            "signUp": "立即注册",
+            "back": "返回",
+            "captchaNote": "注意：密码登录验证码尚未集成。"
+        },
+        "register": {
+            "title": "注册",
+            "desktopTitle": "创建新账户",
+            "fullName": "全名",
+            "mobilePlaceholder": "手机号",
+            "navBack": "返回",
+            "tabMobile": "手机注册",
+            "tabAccount": "用户名注册",
+            "smsCodePlaceholder": "短信验证码",
+            "usernamePlaceholder": "用户名 (字母/数字)",
+            "passwordPlaceholder": "密码 (至少6位)",
+            "confirmPasswordPlaceholder": "确认密码",
+            "captchaPlaceholder": "图形验证码",
+            "getCode": "获取验证码",
+            "agree": "我已阅读并同意",
+            "policy": "《服务协议 & 隐私政策》",
+            "submit": "注册",
+            "hasAccount": "已有账号？",
+            "login": "登录"
+        },
+        "forgotPassword": {
+            "title": "找回密码",
+            "step0": "验证手机号",
+            "step1": "输入验证码",
+            "step2": "设置新密码",
+            "mobilePlaceholder": "手机号",
+            "captchaPlaceholder": "图形验证码",
+            "next": "下一步",
+            "sentTo": "验证码已发送至",
+            "code4DigitPlaceholder": "4位验证码",
+            "resend": "重新发送",
+            "resendIn": "重新发送",
+            "newPasswordPlaceholder": "新密码",
+            "confirmPasswordPlaceholder": "确认密码",
+            "submit": "重置密码",
+            "back": "返回",
+            "restart": "重新获取"
+        },
+        "errors": {
+            "invalidMobile": "请输入有效的手机号",
+            "codeRequired": "请输入验证码",
+            "passwordRequired": "请输入密码",
+            "passwordTooShort": "密码长度不足",
+            "passwordMismatch": "两次输入的密码不一致",
+            "captchaRequired": "请输入图形验证码",
+            "sendCodeFirst": "请先获取验证码",
+            "mustAgree": "请先同意服务协议",
+            "loginFailed": "登录失败",
+            "registerFailed": "注册失败",
+            "resetFailed": "重置失败",
+            "errorSendingCode": "发送验证码失败",
+            "usernameRequired": "用户名或邮箱不能为空",
+            "fullNameRequired": "全名不能为空",
+            "passwordMin8": "密码长度至少为 8 位",
+            "confirmPasswordRequired": "请确认密码",
+            "passwordsNoMatch": "两次输入的密码不一致"
+        },
+        "success": {
+            "codeSent": "验证码已发送",
+            "login": "登录成功",
+            "register": "注册成功",
+            "reset": "重置密码成功"
+        }
+    },
+    "profile": {
+        "title": "个人中心",
+        "contactSupport": "联系客服",
+        "manageSubscription": "管理订阅",
+        "upgradeNow": "立即升级",
+        "deleteAccount": "注销账号",
+        "withdrawDeletion": "撤销注销申请",
+        "processing": "处理中...",
+        "currentPlan": "当前方案",
+        "freePlan": "免费版",
+        "pro": "PRO",
+        "validUntil": "有效期至：",
+        "autoRenewalOff": "自动续费：已关闭",
+        "upgradeHint": "升级以解锁全部功能。",
+        "balance": "余额",
+        "points": "积分",
+        "manual": "使用手册与帮助",
+        "logout": "退出登录",
+        "confirmDelete": "确定要注销账号吗？此操作无法立即撤销。",
+        "confirmWithdraw": "撤销注销申请？",
+        "language": "语言",
+        "english": "English",
+        "chinese": "中文"
+    },
+    "devices": {
+        "title": "设备列表",
+        "loading": "加载中...",
+        "statusFormat": "{{online}} 在线 / {{total}} 总计",
+        "online": "在线",
+        "offline": "离线",
+        "active": "活跃",
+        "unknownOS": "未知系统",
+        "connectFirst": "连接您的第一台设备",
+        "connectDesc": "要激活 EvoLoop 的远程控制能力，您需要在电脑上安装客户端。",
+        "step1": "在电脑访问 <1>develop-assistant.cn</1>",
+        "step2": "下载并安装 Windows/Mac 客户端",
+        "step3": "登录当前账号",
+        "copyLink": "复制下载链接",
+        "linkCopied": "下载链接已复制",
+        "errorLoading": "加载设备失败："
+    },
+    "projects": {
+        "title": "项目",
+        "subtitle": "管理和分析您的代码库项目。",
+        "noProjects": "未找到项目。",
+        "id": "ID：",
+        "loading": "加载项目中...",
+        "refresh": "刷新",
+        "new": "新建项目",
+        "noDescription": "暂无描述。",
+        "active": "活跃",
+        "filesCount": "个文件",
+        "emptyState": "未找到项目。请尝试扫描或创建一个新项目。",
+        "create": {
+            "title": "创建新项目",
+            "description": "创建一个新的项目目录。这也将与会员中心同步。",
+            "nameLabel": "项目名称",
+            "submit": "创建项目",
+            "success": "项目创建成功",
+            "errorNameRequired": "项目名称为必填项",
+            "errorNameFormat": "项目名称只能包含字母、数字、下划线或连字符"
+        },
+        "actions": {
+            "label": "操作",
+            "delete": "删除项目",
+            "deleteSuccess": "项目删除成功",
+            "confirmTitle": "确认删除？",
+            "confirmDesc": "这将永久删除项目 <bold>{{name}}</bold>。此操作无法撤销。",
+            "deleting": "删除中...",
+            "deleteConfirm": "删除"
+        }
+    },
+    "files": {
+        "title": "文件",
+        "loading": "加载中...",
+        "error": "加载文件失败",
+        "empty": "空",
+        "selectPrompt": "选择文件以查看内容"
+    },
+    "voice": {
+        "micError": "麦克风错误：",
+        "notSupported": "此设备不支持语音识别。",
+        "webSpeechNotSupported": "此浏览器不支持 Web Speech API。"
+    },
+    "deleteAccount": {
+        "loading": "加载中...",
+        "pendingReview": "注销申请正在审核中。",
+        "withdrawRequest": "撤回申请",
+        "withdrawTitle": "撤回注销申请？",
+        "withdrawDescription": "您可以撤回您的账户注销申请并继续使用服务。",
+        "cancel": "取消",
+        "confirmWithdraw": "确认撤回",
+        "deleteButton": "删除账户",
+        "deleteTitle": "删除账户？",
+        "deleteDescription": "这将提交一个请求以<strong>永久删除您的账户</strong>。<br /><br />此过程可能需要管理员批准。一旦批准，您的所有数据将被移除。",
+        "confirmDelete": "申请注销"
+    },
+    "search": {
+        "placeholder": "搜索日志...",
+        "cancel": "取消",
+        "deviceLabel": "设备 #{{id}}",
+        "allDevices": "搜索所有设备",
+        "projectLabel": "项目 #{{id}}",
+        "allProjects": "所有项目",
+        "recent": "最近搜索",
+        "clear": "清除",
+        "noResults": "未找到结果。",
+        "searching": "搜索中...",
+        "logLabel": "日志 #{{id}}"
+    },
+    "cloudChat": {
+        "title": "云端智能体",
+        "loadingHistory": "加载历史记录...",
+        "typing": "AI正在思考...",
+        "placeholder": "询问云端AI...",
+        "historyFailed": "加载历史记录失败",
+        "sendFailed": "发送失败："
+    },
+    "projectSwitcher": {
+        "label": "项目",
+        "select": "选择",
+        "title": "切换项目",
+        "description": "选择要切换的项目或管理您的项目。",
+        "searchPlaceholder": "搜索项目...",
+        "desktopSearchPlaceholder": "按名称或描述搜索项目...",
+        "noProjects": "暂无项目。",
+        "noDesc": "暂无描述",
+        "switching": "正在切换至 {{name}}...",
+        "switched": "已切换至 {{name}}",
+        "failed": "切换失败：",
+        "manage": "管理项目",
+        "showing": "显示 {{count}} 个项目",
+        "unknown": "未知",
+        "tasks": "任务",
+        "lastSync": "上次同步",
+        "never": "从未"
+    },
+    "tabs": {
+        "cloud": "云端",
+        "local": "本地",
+        "home": "首页",
+        "me": "我的",
+        "devices": "设备",
+        "projects": "项目"
+    },
+    "index": {
+        "loginRequired": "请先登录",
+        "subtitle": "您的智能移动助手",
+        "placeholder": "输入指令或问题..."
+    },
+    "settings": {
+        "title": "设置",
+        "intro": "管理您的账户和 EvoLoop 配置。",
+        "tabs": {
+            "general": "常规",
+            "profile": "个人资料",
+            "password": "密码",
+            "appearance": "外观",
+            "danger": "危险区域"
+        },
+        "general": {
+            "title": "常规设置",
+            "description": "配置全局系统偏好设置和路径。",
+            "language": "语言",
+            "selectLanguage": "选择语言",
+            "selectLanguageDesc": "选择您偏好的界面语言。",
+            "deviceName": "设备名称",
+            "deviceNamePlaceholder": "我的设备",
+            "deviceNameDesc": "此名称用于在 EvoLoop 网络中标识此设备。",
+            "projectsRoot": "项目根目录",
+            "browse": "浏览",
+            "projectsRootDesc": "由于实现需要，需要此目录的读写权限。",
+            "save": "保存更改",
+            "success": "设置保存成功",
+            "error": "保存设置失败",
+            "loadError": "加载系统设置失败",
+            "browseError": "打开目录选择器失败"
+        },
+        "mcp": {
+            "title": "MCP 服务器",
+            "description": "管理用于外部工具集成的 Model Context Protocol 服务器。",
+            "name": "名称",
+            "command": "命令",
+            "args": "参数 (空格分隔)",
+            "add": "添加",
+            "table": {
+                "name": "名称",
+                "status": "状态",
+                "tools": "工具",
+                "command": "命令"
+            },
+            "loading": "加载服务器...",
+            "noServers": "未配置 MCP 服务器。",
+            "toolsCount": "工具",
+            "unknown": "未知"
+        },
+        "profile": {
+            "title": "用户信息",
+            "nickname": "昵称",
+            "email": "邮件",
+            "edit": "编辑",
+            "save": "保存",
+            "cancel": "取消",
+            "na": "暂无"
+        },
+        "password": {
+            "title": "修改密码",
+            "current": "当前密码",
+            "new": "新密码",
+            "confirm": "确认密码",
+            "update": "更新密码",
+            "success": "密码更新成功",
+            "notImplemented": "密码更新未实现"
+        },
+        "appearance": {
+            "title": "主题偏好",
+            "description": "自定义应用程序的外观和感觉。",
+            "light": "浅色",
+            "dark": "深色",
+            "system": "跟随系统"
+        },
+        "danger": {
+            "title": "删除账户",
+            "description": "永久删除账户及所有关联数据。"
+        }
+    },
+    "mcp": {
+        "title": "MCP 服务器",
+        "description": "管理用于外部工具集成的 Model Context Protocol 服务器。",
+        "addTitle": "添加 MCP 服务器",
+        "editTitle": "编辑 MCP 服务器",
+        "addDesc": "连接一个新的 Model Context Protocol 服务器。",
+        "editDesc": "更新此 Model Context Protocol 服务器的配置。",
+        "nameLabel": "名称",
+        "commandLabel": "命令",
+        "argsLabel": "参数 (空格分隔)",
+        "namePlaceholder": "例如 git",
+        "commandPlaceholder": "例如 uvx",
+        "argsPlaceholder": "例如 mcp-server-git .",
+        "save": "保存更改",
+        "add": "添加服务器",
+        "successAdd": "MCP 服务器添加成功",
+        "successEdit": "MCP 服务器更新成功",
+        "successDelete": "MCP 服务器移除成功",
+        "nameRequired": "名称为必填项",
+        "commandRequired": "命令为必填项",
+        "table": {
+            "name": "名称",
+            "status": "状态",
+            "tools": "工具",
+            "command": "命令"
+        },
+        "serverTitle": "EvoLoop MCP 服务器",
+        "serverInstruction": "要在其他工具（如 Claude Desktop）中使用 EvoLoop 作为 MCP 服务器，请使用以下命令进行配置："
+    },
+    "chat": {
+        "sidebar": {
+            "tabChats": "对话",
+            "tabFiles": "文件",
+            "untitled": "未命名对话",
+            "deleteConfirm": "确认删除此对话？",
+            "noHistory": "暂无对话历史。",
+            "newChat": "新对话"
+        },
+        "local": {
+            "connecting": "连接中...",
+            "agentOnline": "Agent 在线",
+            "deviceOffline": "设备离线",
+            "connectingServer": "连接服务器中...",
+            "backToLive": "回到实时",
+            "sendFailed": "发送指令失败：",
+            "deliveryFailed": "消息投递失败："
+        },
+        "interface": {
+            "errorSend": "发送消息失败",
+            "learnedFromChat": "从对话中学习",
+            "exportSuccess": "对话导出成功",
+            "startPrompt": "开始一个新的对话...",
+            "thinking": "思考中...",
+            "deepResearching": "深度研究中...",
+            "copy": "复制",
+            "memorize": "记忆",
+            "export": "导出",
+            "rewind": "回溯",
+            "askProject": "询问 {{project}}...",
+            "selectProject": "选择一个项目开始对话",
+            "footer": "EvoLoop AI 助手",
+            "uploadSuccess": "文件上传成功",
+            "uploadError": "文件上传失败",
+            "exportPrompt": "输入文件路径 (例如 docs/notes.md):"
+        },
+        "input": {
+            "waitUpload": "请等待文件上传完成",
+            "uploadFailed": "上传失败",
+            "placeholder": {
+                "connecting": "连接服务器中...",
+                "offline": "设备离线",
+                "listening": "正在听...",
+                "default": "发送消息..."
+            }
+        },
+        "header": {
+            "clear": "清空",
+            "deviceFallback": "设备 #{{id}}"
+        },
+        "messageList": {
+            "imageViewer": "图片查看器",
+            "clickToOpen": "点击打开",
+            "copy": "复制",
+            "agentThought": "Agent 思考过程",
+            "toolExecution": "工具执行",
+            "initializing": "初始化中...",
+            "ready": "准备连接",
+            "offline": "设备离线",
+            "readyDesc": "发送指令以控制远程 Agent。",
+            "offlineDesc": "远程设备当前未连接。"
+        },
+        "context": {
+            "title": "上下文",
+            "selectProject": "选择一个项目查看上下文",
+            "tabMemory": "记忆",
+            "tabPlan": "计划",
+            "tabKnowledge": "知识",
+            "tabResources": "资源",
+            "memoryTitle": "记忆概念",
+            "noConcepts": "未找到记忆概念。",
+            "planTitle": "活跃计划",
+            "statusOffline": "离线",
+            "statusIdle": "空闲",
+            "statusActive": "活跃",
+            "noPlan": "此会话没有活跃计划。",
+            "searchPlaceholder": "搜索项目文件...",
+            "noMatches": "由于某些原因，未能找到匹配项。",
+            "searchPrompt": "搜索以查找代码片段。",
+            "resourcesTitle": "外部资源",
+            "openImagicBox": "打开 IMagicBox"
+        }
+    },
+    "table": {
+        "noResults": "未找到结果。",
+        "rowsPerPage": "每页行数",
+        "page": "第",
+        "of": "页，共",
+        "showing": "显示第 {{start}} 到 {{end}} 条，共 {{total}} 条",
+        "sr": {
+            "first": "跳转到第一页",
+            "previous": "上一页",
+            "next": "下一页",
+            "last": "跳转到最后一页"
+        }
+    }
+}

@@ -1,4 +1,5 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router"
+import { useTranslation } from "react-i18next"
 import { Home, Monitor, FolderOpen, User, Search, Menu } from "lucide-react"
 import { useMobileStore } from "./stores/useMobileStore"
 import { motion, useMotionValue, animate } from "framer-motion"
@@ -15,6 +16,7 @@ import { DevicesScreen } from "./screens/DevicesScreen"
 import { ProjectsScreen } from "./screens/ProjectsScreen"
 
 export function TabsLayout() {
+    const { t } = useTranslation()
     const location = useLocation()
     const navigate = useNavigate()
     const path = location.pathname
@@ -125,13 +127,13 @@ export function TabsLayout() {
                         onClick={() => handleTabSwitch('cloud')}
                         className={`relative z-10 px-6 py-1 text-sm font-medium transition-colors ${activeTab === 'cloud' ? 'text-primary' : 'text-muted-foreground'}`}
                     >
-                        Cloud
+                        {t('tabs.cloud')}
                     </button>
                     <button
                         onClick={() => handleTabSwitch('local')}
                         className={`relative z-10 px-6 py-1 text-sm font-medium transition-colors ${activeTab === 'local' ? 'text-primary' : 'text-muted-foreground'}`}
                     >
-                        Local
+                        {t('tabs.local')}
                     </button>
                 </div>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 mt-3 pointer-events-auto">
@@ -163,7 +165,6 @@ export function TabsLayout() {
                 </div>
             </motion.div>
 
-
             {/* Bottom Tab Bar */}
             <div className="border-t bg-background/80 backdrop-blur-md pb-safe absolute bottom-0 w-full z-40">
                 <div className="flex justify-around items-center h-14 px-2">
@@ -171,11 +172,11 @@ export function TabsLayout() {
                     <div className={`flex justify-around w-full ${showLocalTabs ? 'hidden' : 'flex'}`}>
                         <Link to={"/" as any} className={`flex flex-col items-center gap-1 w-16 transition-colors ${isActive('/') ? 'text-primary' : 'text-muted-foreground'}`}>
                             <Home className="w-5 h-5" />
-                            <span className="text-[10px] font-medium">Home</span>
+                            <span className="text-[10px] font-medium">{t('tabs.home')}</span>
                         </Link>
                         <Link to={"/profile" as any} className={`flex flex-col items-center gap-1 w-16 transition-colors ${isActive('/profile') ? 'text-primary' : 'text-muted-foreground'}`}>
                             <User className="w-5 h-5" />
-                            <span className="text-[10px] font-medium">Me</span>
+                            <span className="text-[10px] font-medium">{t('tabs.me')}</span>
                         </Link>
                     </div>
 
@@ -183,11 +184,11 @@ export function TabsLayout() {
                     <div className={`flex justify-around w-full ${!showLocalTabs ? 'hidden' : 'flex'}`}>
                         <Link to={"/devices" as any} className={`flex flex-col items-center gap-1 w-16 transition-colors ${isActive('/devices') ? 'text-primary' : 'text-muted-foreground'}`}>
                             <Monitor className="w-5 h-5" />
-                            <span className="text-[10px] font-medium">Devices</span>
+                            <span className="text-[10px] font-medium">{t('tabs.devices')}</span>
                         </Link>
                         <Link to={"/projects" as any} className={`flex flex-col items-center gap-1 w-16 transition-colors ${isActive('/projects') ? 'text-primary' : 'text-muted-foreground'}`}>
                             <FolderOpen className="w-5 h-5" />
-                            <span className="text-[10px] font-medium">Projects</span>
+                            <span className="text-[10px] font-medium">{t('tabs.projects')}</span>
                         </Link>
                     </div>
                 </div>

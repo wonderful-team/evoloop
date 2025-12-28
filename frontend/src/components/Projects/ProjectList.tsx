@@ -13,8 +13,10 @@ import { Badge } from "../ui/badge"
 import { FolderOpen, RefreshCw, Layers } from "lucide-react"
 import AddProject from "./AddProject"
 import { ProjectActions } from "./ProjectActions"
+import { useTranslation } from "react-i18next"
 
 export function ProjectList() {
+    const { t } = useTranslation()
     const navigate = useNavigate()
     const { projects, fetchProjects, setProject, currentProject, isLoading } = useProjectStore()
 
@@ -32,20 +34,20 @@ export function ProjectList() {
     }
 
     if (isLoading) {
-        return <div className="p-8">Loading projects...</div>
+        return <div className="p-8">{t('projects.loading')}</div>
     }
 
     return (
         <div className="">
             <div className="flex items-center justify-between mb-8">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-                    <p className="text-muted-foreground">Manage and analyze your codebase projects.</p>
+                    <h1 className="text-2xl font-bold tracking-tight">{t('projects.title')}</h1>
+                    <p className="text-muted-foreground">{t('projects.subtitle')}</p>
                 </div>
                 <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={handleRefresh}>
                         <RefreshCw className="mr-2 h-4 w-4" />
-                        Refresh
+                        {t('projects.refresh')}
                     </Button>
                     <AddProject />
                 </div>
@@ -63,7 +65,7 @@ export function ProjectList() {
                                 <FolderOpen className="h-5 w-5" />
                             </div>
                             <div className="flex items-center gap-2">
-                                <Badge variant="outline">{proj.status_text || 'Active'}</Badge>
+                                <Badge variant="outline">{proj.status_text || t('projects.active')}</Badge>
                                 <div onClick={(e) => e.stopPropagation()}>
                                     <ProjectActions project={proj} />
                                 </div>
@@ -72,12 +74,12 @@ export function ProjectList() {
                         <CardContent>
                             <CardTitle className="text-lg mb-2 truncate pr-2" title={proj.name}>{proj.name}</CardTitle>
                             <CardDescription className="line-clamp-2 min-h-[40px]">
-                                {proj.description || 'No description available.'}
+                                {proj.description || t('projects.noDescription')}
                             </CardDescription>
                         </CardContent>
                         <CardFooter className="text-xs text-muted-foreground flex justify-between">
                             <span className="flex items-center gap-1">
-                                <Layers className="h-3 w-3" /> {proj.files_count || 0} Files
+                                <Layers className="h-3 w-3" /> {proj.files_count || 0} {t('projects.filesCount')}
                             </span>
                             <span>{new Date(proj.created_at || Date.now()).toLocaleDateString()}</span>
                         </CardFooter>
@@ -88,7 +90,7 @@ export function ProjectList() {
                 {
                     projects.length === 0 && (
                         <div className="col-span-full text-center py-12 text-muted-foreground">
-                            No projects found. Try scanning or creating one.
+                            {t('projects.emptyState')}
                         </div>
                     )
                 }

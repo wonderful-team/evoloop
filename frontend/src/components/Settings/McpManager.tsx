@@ -6,8 +6,10 @@ import { Input } from "../ui/input"
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "../ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table"
 import { Plus, Trash2, Server, Globe } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 export function McpManager() {
+    const { t } = useTranslation()
     const queryClient = useQueryClient()
     const [name, setName] = useState("")
     const [command, setCommand] = useState("")
@@ -56,32 +58,32 @@ export function McpManager() {
             <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                     <Server className="h-5 w-5" />
-                    MCP Servers
+                    {t('settings.mcp.title')}
                 </CardTitle>
                 <CardDescription>
-                    Manage Model Context Protocol servers for external tool integration.
+                    {t('settings.mcp.description')}
                 </CardDescription>
             </CardHeader>
             <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 items-end">
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Name</label>
+                        <label className="text-sm font-medium">{t('settings.mcp.name')}</label>
                         <Input
-                            placeholder="e.g. git"
+                            placeholder={t('settings.mcp.table.name')}
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                         />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Command</label>
+                        <label className="text-sm font-medium">{t('settings.mcp.command')}</label>
                         <Input
-                            placeholder="e.g. uvx"
+                            placeholder={t('settings.mcp.table.command')}
                             value={command}
                             onChange={(e) => setCommand(e.target.value)}
                         />
                     </div>
                     <div className="space-y-2">
-                        <label className="text-sm font-medium">Args (Space separated)</label>
+                        <label className="text-sm font-medium">{t('settings.mcp.args')}</label>
                         <Input
                             placeholder="e.g. mcp-server-git ."
                             value={args}
@@ -89,7 +91,7 @@ export function McpManager() {
                         />
                     </div>
                     <Button onClick={handleAdd} disabled={!name || !command || addMutation.isPending}>
-                        <Plus className="mr-2 h-4 w-4" /> Add
+                        <Plus className="mr-2 h-4 w-4" /> {t('settings.mcp.add')}
                     </Button>
                 </div>
 
@@ -97,22 +99,22 @@ export function McpManager() {
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Tools</TableHead>
-                                <TableHead>Command</TableHead>
+                                <TableHead>{t('settings.mcp.table.name')}</TableHead>
+                                <TableHead>{t('settings.mcp.table.status')}</TableHead>
+                                <TableHead>{t('settings.mcp.table.tools')}</TableHead>
+                                <TableHead>{t('settings.mcp.table.command')}</TableHead>
                                 <TableHead className="w-[80px]"></TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {isLoading ? (
                                 <TableRow>
-                                    <TableCell colSpan={5} className="text-center py-4">Loading servers...</TableCell>
+                                    <TableCell colSpan={5} className="text-center py-4">{t('settings.mcp.loading')}</TableCell>
                                 </TableRow>
                             ) : serverList.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                                        No MCP servers configured.
+                                        {t('settings.mcp.noServers')}
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -123,14 +125,14 @@ export function McpManager() {
                                         </TableCell>
                                         <TableCell>
                                             <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${server.status === 'connected'
-                                                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                                    : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400"
+                                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                                                : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400"
                                                 }`}>
-                                                {server.status || 'unknown'}
+                                                {server.status || t('settings.mcp.unknown')}
                                             </span>
                                         </TableCell>
                                         <TableCell>
-                                            <span className="text-xs text-muted-foreground">{server.tools_count || 0} tools</span>
+                                            <span className="text-xs text-muted-foreground">{server.tools_count || 0} {t('settings.mcp.toolsCount')}</span>
                                         </TableCell>
                                         <TableCell className="font-mono text-xs max-w-[200px] truncate" title={server.command}>
                                             {server.command}

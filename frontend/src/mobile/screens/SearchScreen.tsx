@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useNavigate, useSearch } from "@tanstack/react-router"
 import { Search, X, Monitor, FolderOpen, Terminal, Cpu, AlertTriangle, User } from "lucide-react"
 import { Input } from "@/components/ui/input"
@@ -9,6 +10,7 @@ import { useQuery } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 export function SearchScreen() {
+    const { t } = useTranslation()
     const navigate = useNavigate()
     const searchParams = useSearch({ strict: false }) as any
     // Initial filters from URL or default
@@ -99,7 +101,7 @@ export function SearchScreen() {
                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                         <Input
                             autoFocus
-                            placeholder="Search logs..."
+                            placeholder={t('search.placeholder')}
                             value={keyword}
                             onChange={(e) => setKeyword(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
@@ -115,7 +117,7 @@ export function SearchScreen() {
                         )}
                     </div>
                     <Button variant="ghost" onClick={() => navigate({ to: '..' })}>
-                        Cancel
+                        {t('search.cancel')}
                     </Button>
                 </div>
 
@@ -125,7 +127,7 @@ export function SearchScreen() {
                     {selectedDeviceId ? (
                         <Badge variant="secondary" className="gap-1 flex items-center pr-1 h-7 shrink-0">
                             <Monitor className="w-3 h-3" />
-                            <span className="truncate max-w-[100px]">{currentDeviceName || `Device #${selectedDeviceId}`}</span>
+                            <span className="truncate max-w-[100px]">{currentDeviceName || t('search.deviceLabel', { id: selectedDeviceId })}</span>
                             <button
                                 onClick={() => setSelectedDeviceId(null)}
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
@@ -135,7 +137,7 @@ export function SearchScreen() {
                         </Badge>
                     ) : (
                         <div className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-full shrink-0">
-                            Searching all devices
+                            {t('search.allDevices')}
                         </div>
                     )}
 
@@ -143,7 +145,7 @@ export function SearchScreen() {
                     {selectedProjectId ? (
                         <Badge variant="secondary" className="gap-1 flex items-center pr-1 h-7 shrink-0">
                             <FolderOpen className="w-3 h-3" />
-                            <span className="truncate max-w-[100px]">{currentProjectName || `Project #${selectedProjectId}`}</span>
+                            <span className="truncate max-w-[100px]">{currentProjectName || t('search.projectLabel', { id: selectedProjectId })}</span>
                             <button
                                 onClick={() => setSelectedProjectId(null)}
                                 className="ml-1 hover:bg-muted-foreground/20 rounded-full p-0.5"
@@ -153,7 +155,7 @@ export function SearchScreen() {
                         </Badge>
                     ) : (
                         <div className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-full shrink-0">
-                            All projects
+                            {t('search.allProjects')}
                         </div>
                     )}
                 </div>
@@ -165,9 +167,9 @@ export function SearchScreen() {
                 {!keyword && !isSearching && results.length === 0 && history.length > 0 && (
                     <div className="mt-4">
                         <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-sm font-medium text-muted-foreground">Recent Searches</h3>
+                            <h3 className="text-sm font-medium text-muted-foreground">{t('search.recent')}</h3>
                             <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={clearHistory}>
-                                Clear
+                                {t('search.clear')}
                             </Button>
                         </div>
                         <div className="flex flex-wrap gap-2">
@@ -190,12 +192,12 @@ export function SearchScreen() {
 
                 {results.length === 0 && !isSearching && keyword && (
                     <div className="text-center text-muted-foreground mt-8 text-sm">
-                        No results found.
+                        {t('search.noResults')}
                     </div>
                 )}
                 {isSearching && (
                     <div className="text-center text-muted-foreground mt-8 text-sm">
-                        Searching...
+                        {t('search.searching')}
                     </div>
                 )}
 
@@ -217,7 +219,7 @@ export function SearchScreen() {
                                     <span>{new Date(log.create_time * 1000).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</span>
                                 </div>
                                 <span className="px-1.5 py-0.5 bg-muted rounded text-[10px]">
-                                    Log #{log.log_id}
+                                    {t('search.logLabel', { id: log.log_id })}
                                 </span>
                             </div>
                             <div className="text-sm line-clamp-3 break-all font-mono">
@@ -228,12 +230,12 @@ export function SearchScreen() {
                                 <div className="flex gap-2 mt-1">
                                     {!selectedDeviceId && (
                                         <Badge variant="outline" className="text-[10px] h-5 px-1 font-normal text-muted-foreground">
-                                            {devices?.find(d => d.device_id === log.device_id)?.device_name || `Dev #${log.device_id}`}
+                                            {devices?.find(d => d.device_id === log.device_id)?.device_name || t('search.deviceLabel', { id: log.device_id })}
                                         </Badge>
                                     )}
                                     {!selectedProjectId && log.project_id > 0 && (
                                         <Badge variant="outline" className="text-[10px] h-5 px-1 font-normal text-muted-foreground">
-                                            {projects?.find((p: any) => p.project_id === log.project_id)?.project_name || `Proj #${log.project_id}`}
+                                            {projects?.find((p: any) => p.project_id === log.project_id)?.project_name || t('search.projectLabel', { id: log.project_id })}
                                         </Badge>
                                     )}
                                 </div>

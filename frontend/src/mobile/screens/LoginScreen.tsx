@@ -3,6 +3,8 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { EvoLoopApi } from "@/client/evoloopClient"
+import { useTranslation } from "react-i18next"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form"
@@ -13,17 +15,7 @@ import { toast } from "sonner"
 import { Logo } from "@/components/Common/Logo"
 import { X } from "lucide-react"
 
-const accountSchema = z.object({
-    username: z.string().min(1, "Username is required"),
-    password: z.string().min(1, "Password is required"),
-    vercode: z.string().optional(),
-})
-
-const mobileSchema = z.object({
-    mobile: z.string().min(11, "Invalid mobile number").max(11, "Invalid mobile number"),
-    dynacode: z.string().min(1, "Code is required"),
-    vercode: z.string().optional(),
-})
+// Schemas moved into component for i18n
 
 export async function loginLoader() {
     if (localStorage.getItem('evoloop_token')) {
@@ -32,11 +24,24 @@ export async function loginLoader() {
 }
 
 export function LoginScreen() {
+    const { t } = useTranslation()
     const navigate = useNavigate()
     const [isLoading, setIsLoading] = useState(false)
     const [loginMode, setLoginMode] = useState<"account" | "mobile">("mobile")
     const [captchaConfig, setCaptchaConfig] = useState(0)
     const [captcha, setCaptcha] = useState({ id: "", img: "" })
+
+    const accountSchema = z.object({
+        username: z.string().min(1, t('auth.errors.usernameRequired') || "Username is required"), // Fallback if key missing? Actually t returns key if missing unless configured.
+        password: z.string().min(1, t('auth.errors.passwordRequired')),
+        vercode: z.string().optional(),
+    })
+
+    const mobileSchema = z.object({
+        mobile: z.string().min(11, t('auth.errors.invalidMobile')).max(11, t('auth.errors.invalidMobile')),
+        dynacode: z.string().min(1, t('auth.errors.codeRequired')),
+        vercode: z.string().optional(),
+    })
 
     // Mobile Code Logic
     const [key, setKey] = useState("") // Key from sendMobileCode
@@ -83,12 +88,6 @@ export function LoginScreen() {
         const vercode = mobileForm.getValues("vercode")
 
         if (!mobile || mobile.length !== 11) {
-            mobileForm.setError("mobile", { message: "Enter valid mobile number first" })
-            return
-        }
-        if (captchaConfig === 1 && !vercode) {
-            mobileForm.setError("vercode", { message: "Enter captcha code" })
-            return
         }
 
         try {
@@ -97,13 +96,13 @@ export function LoginScreen() {
             if (res.key) {
                 setKey(res.key)
                 setCountdown(60)
-                toast.success("Code sent!")
+                toast.success(t('auth.success.codeSent'))
             } else {
-                toast.error("Failed to send code")
+                toast.error(t('auth.errors.errorSendingCode'))
                 refreshCaptcha()
             }
         } catch (e: any) {
-            toast.error(e.message || "Error sending code")
+            toast.error(e.message || t('auth.errors.errorSendingCode'))
             refreshCaptcha()
         } finally {
             setIsLoading(false)
@@ -131,7 +130,7 @@ export function LoginScreen() {
 
     const onMobileSubmit = async (values: z.infer<typeof mobileSchema>) => {
         if (!key) {
-            toast.error("Please send code first")
+            toast.error(t('auth.errors.sendCodeFirst'))
             return
         }
         handleLogin(async () => {
@@ -147,12 +146,13 @@ export function LoginScreen() {
                 localStorage.setItem("evoloop_token", res.token)
                 if (res.member_id) localStorage.setItem("evoloop_member_id", res.member_id.toString())
                 navigate({ to: "/devices" as any })
+                toast.success(t('auth.success.login'))
             } else {
-                toast.error("Login failed")
+                toast.error(t('auth.errors.loginFailed'))
                 refreshCaptcha()
             }
         } catch (e: any) {
-            toast.error(e.message || "Login failed")
+            toast.error(e.message || t('auth.errors.loginFailed'))
             refreshCaptcha()
         } finally {
             setIsLoading(false)
@@ -174,27 +174,27 @@ export function LoginScreen() {
                     <div className="mb-4 scale-125">
                         <Logo variant="icon" asLink={false} />
                     </div>
-                    <h1 className="text-3xl font-bold text-foreground tracking-tight">EvoLoop AI</h1>
-                    <p className="text-muted-foreground">Mobile Access</p>
+                    <h1 className="text-3xl font-bold text-foreground tracking-tight">{t('auth.login.title')}</h1>
+                    {/*<p className="text-muted-foreground">{t('auth.login.subtitle')}</p>*/}
                 </div>
 
                 <Tabs value={loginMode} onValueChange={(v) => setLoginMode(v as any)} className="w-full">
                     <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="mobile">Mobile</TabsTrigger>
-                        <TabsTrigger value="account">Account</TabsTrigger>
+                        <TabsTrigger value="mobile">{t('auth.login.tabMobile')}</TabsTrigger>
+                        <TabsTrigger value="account">{t('auth.login.tabAccount')}</TabsTrigger>
                     </TabsList>
 
                     <TabsContent value="mobile">
                         <Form {...mobileForm}>
                             <form onSubmit={mobileForm.handleSubmit(onMobileSubmit)} className="space-y-4 pt-4">
                                 <FormField control={mobileForm.control} name="mobile" render={({ field }) => (
-                                    <FormItem><FormControl><Input placeholder="Mobile Number" {...field} /></FormControl><FormMessage /></FormItem>
+                                    <FormItem><FormControl><Input className="placeholder:text-xs" placeholder={t('auth.login.mobilePlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                                 )} />
 
                                 {captchaConfig === 1 && (
                                     <FormField control={mobileForm.control} name="vercode" render={({ field }) => (
                                         <FormItem className="relative">
-                                            <FormControl><Input placeholder="Captcha" {...field} /></FormControl>
+                                            <FormControl><Input className="placeholder:text-xs" placeholder={t('auth.login.captchaPlaceholder')} {...field} /></FormControl>
                                             {captcha.img && (
                                                 <img
                                                     src={captcha.img}
@@ -211,7 +211,7 @@ export function LoginScreen() {
                                 <div className="flex gap-2">
                                     <FormField control={mobileForm.control} name="dynacode" render={({ field }) => (
                                         <FormItem className="flex-1">
-                                            <FormControl><Input placeholder="SMS Code" {...field} /></FormControl><FormMessage />
+                                            <FormControl><Input className="placeholder:text-xs" placeholder={t('auth.login.smsCodePlaceholder')} {...field} /></FormControl><FormMessage />
                                         </FormItem>
                                     )} />
                                     <Button
@@ -221,12 +221,12 @@ export function LoginScreen() {
                                         onClick={handleSendCode}
                                         className="w-32"
                                     >
-                                        {countdown > 0 ? `${countdown}s` : "Get Code"}
+                                        {countdown > 0 ? `${countdown}s` : t('auth.login.getCode')}
                                     </Button>
                                 </div>
 
                                 <Button type="submit" className="w-full" disabled={isLoading}>
-                                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Login
+                                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {t('auth.login.submit')}
                                 </Button>
                             </form>
                         </Form>
@@ -236,24 +236,24 @@ export function LoginScreen() {
                         <Form {...accountForm}>
                             <form onSubmit={accountForm.handleSubmit(onAccountSubmit)} className="space-y-4 pt-4">
                                 <FormField control={accountForm.control} name="username" render={({ field }) => (
-                                    <FormItem><FormControl><Input placeholder="Username" {...field} /></FormControl><FormMessage /></FormItem>
+                                    <FormItem><FormControl><Input className="placeholder:text-xs" placeholder={t('auth.login.usernamePlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                                 )} />
                                 <FormField control={accountForm.control} name="password" render={({ field }) => (
-                                    <FormItem><FormControl><Input type="password" placeholder="Password" {...field} /></FormControl><FormMessage /></FormItem>
+                                    <FormItem><FormControl><Input className="placeholder:text-xs" type="password" placeholder={t('auth.login.passwordPlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                                 )} />
 
                                 {captchaConfig === 1 && ( // Account login captcha TODO: Update API if needed
-                                    <div className="text-xs text-yellow-600">Note: Captcha for password login not fully integrated yet.</div>
+                                    <div className="text-xs text-yellow-600">{t('auth.login.captchaNote')}</div>
                                 )}
 
                                 <div className="flex justify-end">
                                     <Button variant="link" size="sm" type="button" className="p-0 h-auto text-muted-foreground" onClick={() => navigate({ to: '/forgot-password' as any })}>
-                                        Forgot Password?
+                                        {t('auth.login.forgotPassword')}
                                     </Button>
                                 </div>
 
                                 <Button type="submit" className="w-full" disabled={isLoading}>
-                                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Login
+                                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {t('auth.login.submit')}
                                 </Button>
                             </form>
                         </Form>
@@ -261,9 +261,9 @@ export function LoginScreen() {
                 </Tabs>
 
                 <div className="mt-6 text-center text-sm">
-                    <span className="text-muted-foreground">Don't have an account? </span>
+                    <span className="text-muted-foreground">{t('auth.login.noAccount')} </span>
                     <Button variant="link" className="p-0 h-auto" onClick={() => navigate({ to: '/register' as any })}>
-                        Sign Up
+                        {t('auth.login.signUp')}
                     </Button>
                 </div>
             </div>

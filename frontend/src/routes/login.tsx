@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useTranslation } from "react-i18next"
 import {
   createFileRoute,
   Link as RouterLink,
@@ -22,15 +23,17 @@ import { LoadingButton } from "@/components/ui/loading-button"
 import { PasswordInput } from "@/components/ui/password-input"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 
-const formSchema = z.object({
-  username: z.string().min(1, "Username or Email is required"),
+// Schema needs to be inside or passed t function, but for simplicity we can move it inside component or use a function creator.
+// Moving schema inside component is safer for i18n
+const createSchema = (t: any) => z.object({
+  username: z.string().min(1, t('auth.errors.usernameRequired')),
   password: z
     .string()
-    .min(1, { message: "Password is required" })
-    .min(8, { message: "Password must be at least 8 characters" }),
+    .min(1, { message: t('auth.errors.passwordRequired') })
+    .min(8, { message: t('auth.errors.passwordMin8') }),
 }) satisfies z.ZodType<AccessToken>
 
-type FormData = z.infer<typeof formSchema>
+type FormData = z.infer<ReturnType<typeof createSchema>>
 
 export const Route = createFileRoute("/login")({
   component: Login,
@@ -51,7 +54,9 @@ export const Route = createFileRoute("/login")({
 })
 
 function Login() {
+  const { t } = useTranslation()
   const { loginMutation } = useAuth()
+  const formSchema = createSchema(t)
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     mode: "onBlur",
@@ -76,7 +81,7 @@ function Login() {
           className="flex flex-col gap-6"
         >
           <div className="flex flex-col items-center gap-2 text-center">
-            <h1 className="text-2xl font-bold">Login to your account</h1>
+            <h1 className="text-2xl font-bold">{t('auth.login.desktopTitle')}</h1>
           </div>
 
           <div className="grid gap-4">
@@ -85,11 +90,11 @@ function Login() {
               name="username"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email or Username</FormLabel>
+                  <FormLabel>{t('auth.login.emailOrUsername')}</FormLabel>
                   <FormControl>
                     <Input
                       data-testid="email-input"
-                      placeholder="Email or Username"
+                      placeholder={t('auth.login.emailOrUsername')}
                       type="text"
                       {...field}
                     />
@@ -105,18 +110,18 @@ function Login() {
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center">
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>{t('auth.login.passwordPlaceholder')}</FormLabel>
                     <RouterLink
                       to="/recover-password"
                       className="ml-auto text-sm underline-offset-4 hover:underline"
                     >
-                      Forgot your password?
+                      {t('auth.login.forgotPassword')}
                     </RouterLink>
                   </div>
                   <FormControl>
                     <PasswordInput
                       data-testid="password-input"
-                      placeholder="Password"
+                      placeholder={t('auth.login.passwordPlaceholder')}
                       {...field}
                     />
                   </FormControl>
@@ -126,14 +131,14 @@ function Login() {
             />
 
             <LoadingButton type="submit" loading={loginMutation.isPending}>
-              Log In
+              {t('auth.login.submit')}
             </LoadingButton>
           </div>
 
           <div className="text-center text-sm">
-            Don't have an account yet?{" "}
+            {t('auth.login.noAccount')}{" "}
             <RouterLink to="/signup" className="underline underline-offset-4">
-              Sign up
+              {t('auth.login.signUp')}
             </RouterLink>
           </div>
         </form>

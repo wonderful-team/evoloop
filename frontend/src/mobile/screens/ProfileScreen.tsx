@@ -1,12 +1,21 @@
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "@tanstack/react-router"
-import { LogOut, User, Crown, CreditCard, BookOpen } from "lucide-react"
+import { LogOut, User, Crown, CreditCard, BookOpen, Globe } from "lucide-react"
 import useAuth from "@/hooks/useAuth"
 import { useServicer } from "@/hooks/useServicer"
 import { useMemberCancellation } from "@/hooks/useMemberCancellation"
 import { LifeBuoy } from "lucide-react"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
+import { useTranslation } from "react-i18next"
 
 function ProfileSupportButton() {
+    const { t } = useTranslation()
     const { hasSupport, handleContactSupport, isLoading } = useServicer('mobile');
 
     if (isLoading || !hasSupport) return null;
@@ -14,12 +23,13 @@ function ProfileSupportButton() {
     return (
         <Button variant="outline" className="w-full gap-2 mb-4" onClick={handleContactSupport}>
             <LifeBuoy className="w-4 h-4" />
-            Contact Support
+            {t('profile.contactSupport')}
         </Button>
     )
 }
 
 function ProfileCancellation() {
+    const { t } = useTranslation()
     const { info, apply, cancel, isApplying, isCanceling } = useMemberCancellation('mobile');
 
     // Status: 1=audit, 2=success, 3=refuse, -1=cancel/none? 
@@ -31,13 +41,13 @@ function ProfileCancellation() {
     const isPending = info?.status === 0 || info?.status === 1;
 
     const handleApply = () => {
-        if (window.confirm("Are you sure you want to delete your account? This action cannot be undone immediately.")) {
+        if (window.confirm(t('profile.confirmDelete'))) {
             apply();
         }
     }
 
     const handleCancel = () => {
-        if (window.confirm("Withdraw account deletion request?")) {
+        if (window.confirm(t('profile.confirmWithdraw'))) {
             cancel();
         }
     }
@@ -45,19 +55,46 @@ function ProfileCancellation() {
     if (isPending) {
         return (
             <Button variant="outline" className="w-full gap-2 mb-4 border-red-200 text-red-600 hover:text-red-700 hover:bg-red-50" disabled={isCanceling} onClick={handleCancel}>
-                {isCanceling ? "Processing..." : "Withdraw Deletion Request"}
+                {isCanceling ? t('profile.processing') : t('profile.withdrawDeletion')}
             </Button>
         )
     }
 
     return (
         <Button variant="ghost" className="w-full gap-2 mb-4 text-muted-foreground hover:text-red-600 hover:bg-red-50" disabled={isApplying} onClick={handleApply}>
-            Delete Account
+            {t('profile.deleteAccount')}
         </Button>
     )
 }
 
+function ProfileLanguageSwitcher() {
+    const { t, i18n } = useTranslation()
+
+    return (
+        <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="w-full gap-2 mb-4 justify-start">
+                    <Globe className="w-4 h-4 ml-0.5" />
+                    <span className="flex-1 text-left">{t('profile.language')}</span>
+                    <span className="text-xs text-muted-foreground mr-1">
+                        {i18n.language === 'zh' ? t('profile.chinese') : t('profile.english')}
+                    </span>
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-[200px]">
+                <DropdownMenuItem onClick={() => i18n.changeLanguage('en')}>
+                    {t('profile.english')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => i18n.changeLanguage('zh')}>
+                    {t('profile.chinese')}
+                </DropdownMenuItem>
+            </DropdownMenuContent>
+        </DropdownMenu>
+    )
+}
+
 export function ProfileScreen() {
+    const { t } = useTranslation()
     const navigate = useNavigate()
     const { user, logout } = useAuth()
 
@@ -71,7 +108,7 @@ export function ProfileScreen() {
 
     return (
         <div className="p-4 flex flex-col min-h-full bg-background">
-            <h1 className="text-xl font-bold mb-6">Profile</h1>
+            <h1 className="text-xl font-bold mb-6">{t('profile.title')}</h1>
 
             <div className="flex flex-col gap-6 flex-1">
                 {/* User Info Header */}
@@ -98,15 +135,15 @@ export function ProfileScreen() {
                     <div className="relative z-10">
                         <div className="flex justify-between items-start mb-4">
                             <div>
-                                <p className="text-xs opacity-80 uppercase tracking-wider mb-1">Current Plan</p>
+                                <p className="text-xs opacity-80 uppercase tracking-wider mb-1">{t('profile.currentPlan')}</p>
                                 <h3 className="text-2xl font-bold flex items-center gap-2">
                                     {isMember ? <Crown className="w-5 h-5 text-yellow-300" /> : <CreditCard className="w-5 h-5 text-zinc-300" />}
-                                    {user?.member_level_name || 'Free Plan'}
+                                    {user?.member_level_name || t('profile.freePlan')}
                                 </h3>
                             </div>
                             {isMember && (
                                 <div className="bg-white/20 backdrop-blur-sm px-2 py-1 rounded text-xs font-medium border border-white/10">
-                                    PRO
+                                    {t('profile.pro')}
                                 </div>
                             )}
                         </div>
@@ -114,11 +151,11 @@ export function ProfileScreen() {
                         <div className="space-y-1">
                             {isMember ? (
                                 <>
-                                    <p className="text-sm opacity-90">Valid until: {expireDate}</p>
-                                    <p className="text-xs opacity-75">Auto-renewal: Off</p>
+                                    <p className="text-sm opacity-90">{t('profile.validUntil')} {expireDate}</p>
+                                    <p className="text-xs opacity-75">{t('profile.autoRenewalOff')}</p>
                                 </>
                             ) : (
-                                <p className="text-sm opacity-90">Upgrade to unlock full potential.</p>
+                                <p className="text-sm opacity-90">{t('profile.upgradeHint')}</p>
                             )}
                         </div>
 
@@ -129,7 +166,7 @@ export function ProfileScreen() {
                                 className="h-8 bg-white/90 text-black hover:bg-white border-0 shadow-none font-medium"
                                 onClick={() => window.open("https://mall.imagicbox.cn/h5/pages/member/index", "_blank")}
                             >
-                                {isMember ? 'Manage Subscription' : 'Upgrade Now'}
+                                {isMember ? t('profile.manageSubscription') : t('profile.upgradeNow')}
                             </Button>
                         </div>
                     </div>
@@ -138,20 +175,22 @@ export function ProfileScreen() {
                 {/* Stats Row (Optional, if we have data) */}
                 <div className="grid grid-cols-2 gap-4">
                     <div className="bg-muted/50 p-4 rounded-lg">
-                        <p className="text-xs text-muted-foreground">Balance</p>
+                        <p className="text-xs text-muted-foreground">{t('profile.balance')}</p>
                         <p className="text-xl font-bold">¥{user?.balance || '0.00'}</p>
                     </div>
                     <div className="bg-muted/50 p-4 rounded-lg">
-                        <p className="text-xs text-muted-foreground">Points</p>
+                        <p className="text-xs text-muted-foreground">{t('profile.points')}</p>
                         <p className="text-xl font-bold">{user?.point || 0}</p>
                     </div>
                 </div>
 
             </div>
 
+            <ProfileLanguageSwitcher />
+
             <Button variant="outline" className="w-full gap-2 mb-4" onClick={() => navigate({ to: '/profile/help' as any })}>
                 <BookOpen className="w-4 h-4" />
-                使用手册与帮助
+                {t('profile.manual')}
             </Button>
 
             <ProfileSupportButton />
@@ -159,7 +198,7 @@ export function ProfileScreen() {
 
             <Button variant="destructive" className="w-full gap-2" onClick={handleLogout}>
                 <LogOut className="w-4 h-4" />
-                Logout
+                {t('profile.logout')}
             </Button>
         </div>
     )

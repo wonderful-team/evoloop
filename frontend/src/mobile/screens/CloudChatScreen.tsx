@@ -1,4 +1,5 @@
 import { ConversationDrawer } from "../components/ConversationDrawer"
+import { useTranslation } from "react-i18next"
 import { Menu, Bot, ArrowLeft } from "lucide-react"
 import { useParams, useSearch, useNavigate } from "@tanstack/react-router"
 import { EvoLoopApi } from "@/client/evoloopClient"
@@ -9,6 +10,7 @@ import { ChatInput } from "../components/chat/ChatInput"
 import { Button } from "@/components/ui/button"
 
 export function CloudChatScreen() {
+    const { t } = useTranslation()
     const { conversationId } = useParams({ strict: false }) as any
     const searchParams = useSearch({ strict: false }) as any
     const navigate = useNavigate()
@@ -46,7 +48,7 @@ export function CloudChatScreen() {
                     }))
                     setMessages(formatted)
                 })
-                .catch(() => toast.error("Failed to load history"))
+                .catch(() => toast.error(t('cloudChat.historyFailed')))
                 .finally(() => setIsLoading(false))
         }
     }, [conversationId, isNew])
@@ -126,7 +128,7 @@ export function CloudChatScreen() {
             })
 
         } catch (e: any) {
-            toast.error("Failed to send: " + e.message)
+            toast.error(t('cloudChat.sendFailed') + e.message)
             setIsStreaming(false)
             setMessages(prev => [...prev, { type: 'error', content: e.message, timestamp: Date.now() }])
         }
@@ -152,7 +154,7 @@ export function CloudChatScreen() {
                 <div>
                     <h1 className="font-semibold text-lg flex items-center gap-2">
                         <Bot className="w-5 h-5 text-primary" />
-                        Cloud Agent
+                        {t('cloudChat.title')}
                     </h1>
                 </div>
             </div>
@@ -170,13 +172,13 @@ export function CloudChatScreen() {
                 isDeviceOnline={true} // Always true for Cloud
                 highlight={null}
             />
-            {isLoading && <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-background/80 px-3 py-1 rounded-full text-xs shadow-sm">Loading history...</div>}
+            {isLoading && <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-background/80 px-3 py-1 rounded-full text-xs shadow-sm">{t('cloudChat.loadingHistory')}</div>}
 
             <ChatInput
                 isConnected={true}
                 isDeviceOnline={true}
                 onSend={handleSend}
-                placeholder={isStreaming ? "AI is typing..." : "Ask Cloud AI..."}
+                placeholder={isStreaming ? t('cloudChat.typing') : t('cloudChat.placeholder')}
             />
         </div>
     )

@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { useTranslation } from "react-i18next"
 import { AuthLayout } from "@/components/Common/AuthLayout"
 import {
   Form,
@@ -20,24 +21,24 @@ import { LoadingButton } from "@/components/ui/loading-button"
 import { PasswordInput } from "@/components/ui/password-input"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 
-const formSchema = z
+const createSchema = (t: any) => z
   .object({
     email: z.email(),
-    full_name: z.string().min(1, { message: "Full Name is required" }),
+    full_name: z.string().min(1, { message: t('auth.errors.fullNameRequired') }),
     password: z
       .string()
-      .min(1, { message: "Password is required" })
-      .min(8, { message: "Password must be at least 8 characters" }),
+      .min(1, { message: t('auth.errors.passwordRequired') })
+      .min(8, { message: t('auth.errors.passwordMin8') }),
     confirm_password: z
       .string()
-      .min(1, { message: "Password confirmation is required" }),
+      .min(1, { message: t('auth.errors.confirmPasswordRequired') }),
   })
   .refine((data) => data.password === data.confirm_password, {
-    message: "The passwords don't match",
+    message: t('auth.errors.passwordsNoMatch'),
     path: ["confirm_password"],
   })
 
-type FormData = z.infer<typeof formSchema>
+type FormData = z.infer<ReturnType<typeof createSchema>>
 
 export const Route = createFileRoute("/signup")({
   component: SignUp,
@@ -58,7 +59,9 @@ export const Route = createFileRoute("/signup")({
 })
 
 function SignUp() {
+  const { t } = useTranslation()
   const { signUpMutation } = useAuth()
+  const formSchema = createSchema(t)
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     mode: "onBlur",
@@ -87,7 +90,9 @@ function SignUp() {
           className="flex flex-col gap-6"
         >
           <div className="flex flex-col items-center gap-2 text-center">
-            <h1 className="text-2xl font-bold">Create an account</h1>
+            <div className="flex flex-col items-center gap-2 text-center">
+              <h1 className="text-2xl font-bold">{t('auth.register.desktopTitle')}</h1>
+            </div>
           </div>
 
           <div className="grid gap-4">
@@ -96,7 +101,7 @@ function SignUp() {
               name="full_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Full Name</FormLabel>
+                  <FormLabel>{t('auth.register.fullName')}</FormLabel>
                   <FormControl>
                     <Input
                       data-testid="full-name-input"
@@ -134,11 +139,11 @@ function SignUp() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>{t('auth.login.passwordPlaceholder')}</FormLabel>
                   <FormControl>
                     <PasswordInput
                       data-testid="password-input"
-                      placeholder="Password"
+                      placeholder={t('auth.login.passwordPlaceholder')}
                       {...field}
                     />
                   </FormControl>
@@ -152,11 +157,11 @@ function SignUp() {
               name="confirm_password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Confirm Password</FormLabel>
+                  <FormLabel>{t('auth.register.confirmPasswordPlaceholder')}</FormLabel>
                   <FormControl>
                     <PasswordInput
                       data-testid="confirm-password-input"
-                      placeholder="Confirm Password"
+                      placeholder={t('auth.register.confirmPasswordPlaceholder')}
                       {...field}
                     />
                   </FormControl>
@@ -170,14 +175,14 @@ function SignUp() {
               className="w-full"
               loading={signUpMutation.isPending}
             >
-              Sign Up
+              {t('auth.register.submit')}
             </LoadingButton>
           </div>
 
           <div className="text-center text-sm">
-            Already have an account?{" "}
+            {t('auth.register.hasAccount')}{" "}
             <RouterLink to="/login" className="underline underline-offset-4">
-              Log in
+              {t('auth.register.login')}
             </RouterLink>
           </div>
         </form>

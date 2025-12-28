@@ -1,5 +1,6 @@
 import { Folder, FileCode, ChevronRight, ChevronDown, Loader2 } from "lucide-react"
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { useQuery } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
 import { FilesService } from "@/client"
@@ -18,6 +19,7 @@ interface FileTreeProps {
 }
 
 export function FileTree({ projectId, path = "", level = 0, onSelectFile }: FileTreeProps) {
+    const { t } = useTranslation()
     const { data: files, isLoading, error } = useQuery({
         queryKey: ["files", projectId, path],
         queryFn: () => FilesService.listFiles({ projectId, path }),
@@ -25,15 +27,15 @@ export function FileTree({ projectId, path = "", level = 0, onSelectFile }: File
     })
 
     if (isLoading) {
-        return <div className="pl-4 py-1 text-xs text-muted-foreground flex items-center"><Loader2 className="h-3 w-3 animate-spin mr-1" /> Loading...</div>
+        return <div className="pl-4 py-1 text-xs text-muted-foreground flex items-center"><Loader2 className="h-3 w-3 animate-spin mr-1" /> {t('files.loading')}</div>
     }
 
     if (error) {
-        return <div className="pl-4 py-1 text-xs text-destructive">Error loading</div>
+        return <div className="pl-4 py-1 text-xs text-destructive">{t('files.error')}</div>
     }
 
     if (!files || (files as any).length === 0) {
-        return <div className="pl-4 py-1 text-xs text-muted-foreground italic">Empty</div>
+        return <div className="pl-4 py-1 text-xs text-muted-foreground italic">{t('files.empty')}</div>
     }
 
     // Backend returns FileNode[] directly

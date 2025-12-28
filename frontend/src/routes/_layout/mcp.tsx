@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react"
+import * as React from "react"
+// import { useState, useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { useQuery } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
 import { Server, Plus } from "lucide-react"
@@ -14,9 +16,11 @@ export const Route = createFileRoute("/_layout/mcp")({
 })
 
 function McpPage() {
-    const [modalOpen, setModalOpen] = useState(false)
-    const [modalMode, setModalMode] = useState<"add" | "edit">("add")
-    const [selectedServer, setSelectedServer] = useState<McpServerPublic | null>(null)
+    const [modalOpen, setModalOpen] = React.useState(false)
+    const [modalMode, setModalMode] = React.useState<"add" | "edit">("add")
+    const [selectedServer, setSelectedServer] = React.useState<McpServerPublic | null>(null)
+
+    const { t } = useTranslation()
 
     const { data: servers, isLoading } = useQuery({
         queryKey: ["mcpServers"],
@@ -38,24 +42,24 @@ function McpPage() {
         setModalOpen(true)
     }
 
-    const columns = useMemo(() => getColumns({ onEdit: handleEdit }), [])
+    const columns = React.useMemo(() => getColumns({ onEdit: handleEdit, t }), [t])
 
     return (
         <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">MCP Servers</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">{t('mcp.title')}</h1>
                     <p className="text-muted-foreground">
-                        Connect and manage external Model Context Protocol servers.
+                        {t('mcp.description')}
                     </p>
                 </div>
                 <Button onClick={handleAdd}>
-                    <Plus className="mr-2 h-4 w-4" /> Add Server
+                    <Plus className="mr-2 h-4 w-4" /> {t('mcp.add')}
                 </Button>
             </div>
 
             {isLoading ? (
-                <div>Loading...</div>
+                <div>{t('common.loading')}</div>
             ) : (
                 <DataTable columns={columns} data={serverList} />
             )}
@@ -70,10 +74,10 @@ function McpPage() {
             <div className="mt-8 border-t pt-6">
                 <h2 className="text-lg font-semibold mb-2 flex items-center gap-2">
                     <Server className="h-5 w-5" />
-                    EvoLoop MCP Server
+                    {t('mcp.serverTitle')}
                 </h2>
                 <p className="text-sm text-muted-foreground mb-4">
-                    To use EvoLoop as an MCP Server in other tools (like Claude Desktop), configure it with the following command:
+                    {t('mcp.serverInstruction')}
                 </p>
                 <div className="bg-muted p-4 rounded-md font-mono text-xs overflow-x-auto">
                     uv run python -m app.mcp_server

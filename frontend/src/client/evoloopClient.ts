@@ -378,7 +378,7 @@ export class EvoLoopApi {
             return res.data;
         }
 
-        static async createConversation(message: string, model: string): Promise<number> {
+        static async createConversation(_message: string, _model: string): Promise<number> {
             // Implicitly created via chat usually, but if we have explicit endpoint
             // AI.chat handles creation if conversation_id is new/empty.
             return 0;

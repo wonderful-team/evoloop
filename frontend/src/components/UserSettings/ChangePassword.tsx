@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { useTranslation } from "react-i18next"
 
 // import { type UpdatePassword, UsersService } from "@/client"
 import {
@@ -17,29 +18,31 @@ import { PasswordInput } from "@/components/ui/password-input"
 import useCustomToast from "@/hooks/useCustomToast"
 import { handleError } from "@/utils"
 
-const formSchema = z
+const createSchema = (t: any) => z
   .object({
     current_password: z
       .string()
-      .min(1, { message: "Password is required" })
-      .min(8, { message: "Password must be at least 8 characters" }),
+      .min(1, { message: t('auth.errors.passwordRequired') })
+      .min(8, { message: t('auth.errors.passwordMin8') }),
     new_password: z
       .string()
-      .min(1, { message: "Password is required" })
-      .min(8, { message: "Password must be at least 8 characters" }),
+      .min(1, { message: t('auth.errors.passwordRequired') })
+      .min(8, { message: t('auth.errors.passwordMin8') }),
     confirm_password: z
       .string()
-      .min(1, { message: "Password confirmation is required" }),
+      .min(1, { message: t('auth.errors.confirmPasswordRequired') }),
   })
   .refine((data) => data.new_password === data.confirm_password, {
-    message: "The passwords don't match",
+    message: t('auth.errors.passwordsNoMatch'),
     path: ["confirm_password"],
   })
 
-type FormData = z.infer<typeof formSchema>
+type FormData = z.infer<ReturnType<typeof createSchema>>
 
 const ChangePassword = () => {
+  const { t } = useTranslation()
   const { showSuccessToast, showErrorToast } = useCustomToast()
+  const formSchema = createSchema(t)
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     mode: "onSubmit",
@@ -56,9 +59,11 @@ const ChangePassword = () => {
     //   UsersService.updatePasswordMe({ requestBody: data }),
     mutationFn: async (_data: any) => {
       console.warn("Password update not implemented");
+      // Simulate not implemented or success based on logic? 
+      // But user wanted translation, so let's translate the warn/toast
     },
     onSuccess: () => {
-      showSuccessToast("Password updated successfully")
+      showSuccessToast(t('settings.password.success'))
       form.reset()
     },
     onError: handleError.bind(showErrorToast),
@@ -70,7 +75,7 @@ const ChangePassword = () => {
 
   return (
     <div className="max-w-md">
-      <h3 className="text-lg font-semibold py-4">Change Password</h3>
+      <h3 className="text-lg font-semibold py-4">{t('settings.password.title')}</h3>
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
@@ -81,7 +86,7 @@ const ChangePassword = () => {
             name="current_password"
             render={({ field, fieldState }) => (
               <FormItem>
-                <FormLabel>Current Password</FormLabel>
+                <FormLabel>{t('settings.password.current')}</FormLabel>
                 <FormControl>
                   <PasswordInput
                     data-testid="current-password-input"
@@ -100,7 +105,7 @@ const ChangePassword = () => {
             name="new_password"
             render={({ field, fieldState }) => (
               <FormItem>
-                <FormLabel>New Password</FormLabel>
+                <FormLabel>{t('settings.password.new')}</FormLabel>
                 <FormControl>
                   <PasswordInput
                     data-testid="new-password-input"
@@ -119,7 +124,7 @@ const ChangePassword = () => {
             name="confirm_password"
             render={({ field, fieldState }) => (
               <FormItem>
-                <FormLabel>Confirm Password</FormLabel>
+                <FormLabel>{t('settings.password.confirm')}</FormLabel>
                 <FormControl>
                   <PasswordInput
                     data-testid="confirm-password-input"
@@ -138,7 +143,7 @@ const ChangePassword = () => {
             loading={mutation.isPending}
             className="self-start"
           >
-            Update Password
+            {t('settings.password.update')}
           </LoadingButton>
         </form>
       </Form>

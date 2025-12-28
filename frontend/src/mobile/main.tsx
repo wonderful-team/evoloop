@@ -9,6 +9,7 @@ import { StrictMode } from "react"
 import ReactDOM from "react-dom/client"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
+import "@/i18n"
 import "@/index.css"
 
 // Use the isolated route tree

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react"
-import { Mic, Paperclip, Send, Loader2, Camera, X, File as FileIcon, Image as ImageIcon } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { Mic, Paperclip, Send, Loader2, Camera, X, File as FileIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 import { useVoice } from "@/hooks/useVoice"
@@ -23,6 +24,7 @@ interface Attachment {
 }
 
 export function ChatInput({ isConnected, isDeviceOnline, onSend, className, innerClassName, placeholder }: ChatInputProps) {
+    const { t } = useTranslation()
     const [input, setInput] = useState("")
     const [sending, setSending] = useState(false)
     const [isUploading, setIsUploading] = useState(false) // General loading state
@@ -55,7 +57,7 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend, className, inne
 
         // Block if any attachment is still uploading
         if (attachments.some(a => a.isUploading)) {
-            toast.error("Please wait for files to upload")
+            toast.error(t('chat.input.waitUpload'))
             return
         }
 
@@ -89,7 +91,7 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend, className, inne
 
         // 1. Create local preview
         const localUrl = URL.createObjectURL(file)
-        const tempId = Date.now().toString() // Simple temp ID logic if needed, but index works mostly. 
+
         // We push to state
         setAttachments(prev => [...prev, {
             type,
@@ -113,7 +115,7 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend, className, inne
                 return att
             }))
         } catch (error) {
-            toast.error("Upload failed")
+            toast.error(t('chat.input.uploadFailed'))
             console.error(error)
             // Remove failed attachment
             setAttachments(prev => prev.filter(att => att.previewUrl !== localUrl))
@@ -171,9 +173,11 @@ export function ChatInput({ isConnected, isDeviceOnline, onSend, className, inne
                         onChange={e => setInput(e.target.value)}
                         placeholder={
                             placeholder || (
-                                !isConnected ? "Connecting to server..." :
-                                    !isDeviceOnline ? "Device is offline" :
-                                        isListening ? "Listening..." : "Message..."
+                                placeholder || (
+                                    !isConnected ? t('chat.input.placeholder.connecting') :
+                                        !isDeviceOnline ? t('chat.input.placeholder.offline') :
+                                            isListening ? t('chat.input.placeholder.listening') : t('chat.input.placeholder.default')
+                                )
                             )
                         }
                         disabled={isInputDisabled}

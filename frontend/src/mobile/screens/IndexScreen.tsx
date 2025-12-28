@@ -2,24 +2,26 @@ import { Logo } from "@/components/Common/Logo"
 import { useNavigate } from "@tanstack/react-router"
 import { ChatInput } from "../components/chat/ChatInput"
 import { toast } from "sonner"
+import { useTranslation } from "react-i18next"
 // import { Menu } from "lucide-react"
 // import { Button } from "@/components/ui/button"
 // import { ConversationDrawer } from "../components/ConversationDrawer"
 
 export function IndexScreen() {
+    const { t } = useTranslation()
     const navigate = useNavigate()
     const isGuest = !localStorage.getItem('evoloop_token')
 
     const handleInputSend = async (content: string) => {
         if (isGuest) {
-            toast.info("Please login to continue")
+            toast.info(t('index.loginRequired'))
             navigate({ to: '/login' as any })
             return
         }
 
         // Direct to Cloud Chat
         navigate({
-            to: '/cloud-chat/new',
+            to: '/cloud-chat/new' as any,
             search: { initialMessage: content } as any
         })
     }
@@ -44,7 +46,7 @@ export function IndexScreen() {
                         EvoLoop AI
                     </h1>
                     <p className="text-sm text-muted-foreground mt-2 font-medium">
-                        Your Intelligent Mobile Agent
+                        {t('index.subtitle')}
                     </p>
                 </div>
 
@@ -54,7 +56,7 @@ export function IndexScreen() {
                         isConnected={true}
                         isDeviceOnline={true}
                         onSend={handleInputSend}
-                        placeholder="Ask anything or command..."
+                        placeholder={t('index.placeholder')}
                         className="w-full"
                         innerClassName="flex flex-col gap-3 bg-card/80 backdrop-blur-xl p-4 rounded-xl shadow-xl border border-primary/10 transition-all hover:shadow-2xl hover:border-primary/20"
                     />

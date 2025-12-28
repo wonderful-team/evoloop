@@ -14,29 +14,33 @@ import { Logo } from "@/components/Common/Logo"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
-// Minimal schema initially, will refine with config
-const mobileRegSchema = z.object({
-    mobile: z.string().min(11).max(11),
-    dynacode: z.string().min(4),
-    vercode: z.string().optional(),
-    agreement: z.boolean().refine(val => val === true, "Must agree to terms")
-})
+import { useTranslation } from "react-i18next"
 
-const accountRegSchema = z.object({
-    username: z.string().min(3).regex(/^[A-Za-z0-9]+$/, "Alphanumeric only"),
-    password: z.string().min(6), // length dynamic in real impl
-    rePassword: z.string(),
-    vercode: z.string().optional(),
-    agreement: z.boolean().refine(val => val === true, "Must agree to terms")
-}).refine(data => data.password === data.rePassword, {
-    message: "Passwords do not match",
-    path: ["rePassword"]
-})
+// Schemas moved into component
 
 export function RegisterScreen() {
+    const { t } = useTranslation()
     const navigate = useNavigate()
     const [isLoading, setIsLoading] = useState(false)
     const [regMode, setRegMode] = useState<"mobile" | "account">("mobile")
+
+    const mobileRegSchema = z.object({
+        mobile: z.string().min(11, t('auth.errors.invalidMobile')).max(11, t('auth.errors.invalidMobile')),
+        dynacode: z.string().min(4, t('auth.errors.codeRequired')),
+        vercode: z.string().optional(),
+        agreement: z.boolean().refine(val => val === true, t('auth.errors.mustAgree'))
+    })
+
+    const accountRegSchema = z.object({
+        username: z.string().min(3, t('auth.errors.usernameRequired')).regex(/^[A-Za-z0-9]+$/, t('auth.register.usernamePlaceholder')),
+        password: z.string().min(6, t('auth.errors.passwordTooShort')),
+        rePassword: z.string(),
+        vercode: z.string().optional(),
+        agreement: z.boolean().refine(val => val === true, t('auth.errors.mustAgree'))
+    }).refine(data => data.password === data.rePassword, {
+        message: t('auth.errors.passwordMismatch'),
+        path: ["rePassword"]
+    })
 
     // Configs
     const [config, setConfig] = useState<any>(null)
@@ -110,11 +114,11 @@ export function RegisterScreen() {
         const vercode = mobileForm.getValues("vercode")
 
         if (!mobile || mobile.length !== 11) {
-            mobileForm.setError("mobile", { message: "Enter valid mobile number first" })
+            mobileForm.setError("mobile", { message: t('auth.errors.invalidMobile') })
             return
         }
         if (captchaConfig === 1 && !vercode) {
-            mobileForm.setError("vercode", { message: "Captcha required" })
+            mobileForm.setError("vercode", { message: t('auth.errors.captchaRequired') })
             return
         }
 
@@ -138,7 +142,7 @@ export function RegisterScreen() {
     }
 
     const onMobileSubmit = async (values: z.infer<typeof mobileRegSchema>) => {
-        if (!key) { toast.error("Send code first"); return; }
+        if (!key) { toast.error(t('auth.errors.sendCodeFirst')); return; }
 
         handleRegister(async () => {
             const data: any = {
@@ -177,15 +181,16 @@ export function RegisterScreen() {
             if (res.token) {
                 localStorage.setItem("evoloop_token", res.token)
                 if (res.member_id) localStorage.setItem("evoloop_member_id", res.member_id.toString())
-                toast.success("Registration successful!")
+                if (res.member_id) localStorage.setItem("evoloop_member_id", res.member_id.toString())
+                toast.success(t('auth.success.register'))
                 // Check for rewards logic later?
                 navigate({ to: "/devices" as any })
             } else {
-                toast.error("Registration failed")
+                toast.error(t('auth.errors.registerFailed'))
                 refreshCaptcha()
             }
         } catch (e: any) {
-            toast.error(e.message || "Registration failed")
+            toast.error(e.message || t('auth.errors.registerFailed'))
             refreshCaptcha()
         } finally {
             setIsLoading(false)
@@ -220,15 +225,15 @@ export function RegisterScreen() {
             <div className="w-full max-w-sm pt-8">
                 <div className="flex flex-col items-center space-y-2 mb-6">
                     <div className="mb-2 scale-110"><Logo variant="icon" asLink={false} /></div>
-                    <h1 className="text-2xl font-bold">Sign Up</h1>
+                    <h1 className="text-2xl font-bold">{t('auth.register.title')}</h1>
                 </div>
 
                 {config && (
                     <Tabs value={regMode} onValueChange={(v) => setRegMode(v as any)} className="w-full">
                         {(allowMobile && allowAccount) && (
                             <TabsList className="grid w-full grid-cols-2 mb-4">
-                                <TabsTrigger value="mobile">Mobile</TabsTrigger>
-                                <TabsTrigger value="account">Username</TabsTrigger>
+                                <TabsTrigger value="mobile">{t('auth.register.tabMobile')}</TabsTrigger>
+                                <TabsTrigger value="account">{t('auth.register.tabAccount')}</TabsTrigger>
                             </TabsList>
                         )}
 
@@ -236,13 +241,13 @@ export function RegisterScreen() {
                             <Form {...mobileForm}>
                                 <form onSubmit={mobileForm.handleSubmit(onMobileSubmit)} className="space-y-4">
                                     <FormField control={mobileForm.control} name="mobile" render={({ field }) => (
-                                        <FormItem><FormControl><Input placeholder="Mobile Number" {...field} /></FormControl><FormMessage /></FormItem>
+                                        <FormItem><FormControl><Input className="placeholder:text-xs" placeholder={t('auth.register.mobilePlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                                     )} />
 
                                     {captchaConfig === 1 && (
                                         <FormField control={mobileForm.control} name="vercode" render={({ field }) => (
                                             <FormItem className="relative">
-                                                <FormControl><Input placeholder="Captcha" {...field} /></FormControl>
+                                                <FormControl><Input className="placeholder:text-xs" placeholder={t('auth.register.captchaPlaceholder')} {...field} /></FormControl>
                                                 {captcha.img && <img src={captcha.img} onClick={refreshCaptcha} className="absolute right-1 top-1 h-8 cursor-pointer" />}
                                                 <FormMessage />
                                             </FormItem>
@@ -251,10 +256,10 @@ export function RegisterScreen() {
 
                                     <div className="flex gap-2">
                                         <FormField control={mobileForm.control} name="dynacode" render={({ field }) => (
-                                            <FormItem className="flex-1"><FormControl><Input placeholder="SMS Code" {...field} /></FormControl><FormMessage /></FormItem>
+                                            <FormItem className="flex-1"><FormControl><Input className="placeholder:text-xs" placeholder={t('auth.register.smsCodePlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                                         )} />
                                         <Button type="button" variant="outline" disabled={countdown > 0} onClick={handleSendCode} className="w-32">
-                                            {countdown > 0 ? `${countdown}s` : "Get Code"}
+                                            {countdown > 0 ? `${countdown}s` : t('auth.register.getCode')}
                                         </Button>
                                     </div>
 
@@ -266,7 +271,7 @@ export function RegisterScreen() {
                                                 </FormControl>
                                                 <div className="space-y-1 leading-none">
                                                     <span className="text-xs text-muted-foreground">
-                                                        I agree to the <span className="text-primary underline cursor-pointer" onClick={openAgreement}>Service & Privacy Policy</span>
+                                                        {t('auth.register.agree')} <span className="text-primary underline cursor-pointer" onClick={openAgreement}>{t('auth.register.policy')}</span>
                                                     </span>
                                                     <FormMessage />
                                                 </div>
@@ -275,7 +280,7 @@ export function RegisterScreen() {
                                     )}
 
                                     <Button type="submit" className="w-full" disabled={isLoading}>
-                                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sign Up
+                                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {t('auth.register.submit')}
                                     </Button>
                                 </form>
                             </Form>
@@ -285,19 +290,19 @@ export function RegisterScreen() {
                             <Form {...accountForm}>
                                 <form onSubmit={accountForm.handleSubmit(onAccountSubmit)} className="space-y-4">
                                     <FormField control={accountForm.control} name="username" render={({ field }) => (
-                                        <FormItem><FormControl><Input placeholder="Username (Alphanumeric)" {...field} /></FormControl><FormMessage /></FormItem>
+                                        <FormItem><FormControl><Input className="placeholder:text-xs" placeholder={t('auth.register.usernamePlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                                     )} />
                                     <FormField control={accountForm.control} name="password" render={({ field }) => (
-                                        <FormItem><FormControl><Input type="password" placeholder="Password" {...field} /></FormControl><FormMessage /></FormItem>
+                                        <FormItem><FormControl><Input className="placeholder:text-xs" type="password" placeholder={t('auth.register.passwordPlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                                     )} />
                                     <FormField control={accountForm.control} name="rePassword" render={({ field }) => (
-                                        <FormItem><FormControl><Input type="password" placeholder="Confirm Password" {...field} /></FormControl><FormMessage /></FormItem>
+                                        <FormItem><FormControl><Input className="placeholder:text-xs" type="password" placeholder={t('auth.register.confirmPasswordPlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                                     )} />
 
                                     {captchaConfig === 1 && (
                                         <FormField control={accountForm.control} name="vercode" render={({ field }) => (
                                             <FormItem className="relative">
-                                                <FormControl><Input placeholder="Captcha" {...field} /></FormControl>
+                                                <FormControl><Input className="placeholder:text-xs" placeholder={t('auth.register.captchaPlaceholder')} {...field} /></FormControl>
                                                 {captcha.img && <img src={captcha.img} onClick={refreshCaptcha} className="absolute right-1 top-1 h-8 cursor-pointer" />}
                                                 <FormMessage />
                                             </FormItem>
@@ -312,7 +317,7 @@ export function RegisterScreen() {
                                                 </FormControl>
                                                 <div className="space-y-1 leading-none">
                                                     <span className="text-xs text-muted-foreground">
-                                                        I agree to the <span className="text-primary underline cursor-pointer" onClick={openAgreement}>Service & Privacy Policy</span>
+                                                        {t('auth.register.agree')} <span className="text-primary underline cursor-pointer" onClick={openAgreement}>{t('auth.register.policy')}</span>
                                                     </span>
                                                     <FormMessage />
                                                 </div>
@@ -321,7 +326,7 @@ export function RegisterScreen() {
                                     )}
 
                                     <Button type="submit" className="w-full" disabled={isLoading}>
-                                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Sign Up
+                                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {t('auth.register.submit')}
                                     </Button>
                                 </form>
                             </Form>
@@ -341,8 +346,8 @@ export function RegisterScreen() {
             </Dialog>
 
             <div className="mt-6 text-sm">
-                <span className="text-muted-foreground">Already have an account? </span>
-                <Button variant="link" className="p-0 h-auto" onClick={() => navigate({ to: '/login' as any })}>Login</Button>
+                <span className="text-muted-foreground">{t('auth.register.hasAccount')} </span>
+                <Button variant="link" className="p-0 h-auto" onClick={() => navigate({ to: '/login' as any })}>{t('auth.register.login')}</Button>
             </div>
         </div>
     )

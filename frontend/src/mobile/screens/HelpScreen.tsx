@@ -1,4 +1,6 @@
 import { useState } from "react"
+import { useTranslation, Trans } from "react-i18next"
+
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, HelpCircle, Command, MessageSquare, Monitor, Zap, ChevronDown, ChevronUp } from "lucide-react"
 import { useNavigate } from "@tanstack/react-router"
@@ -25,6 +27,7 @@ function QAItem({ question, answer }: { question: string, answer: React.ReactNod
 }
 
 export function HelpScreen() {
+    const { t } = useTranslation()
     const navigate = useNavigate()
 
     return (
@@ -34,7 +37,7 @@ export function HelpScreen() {
                 <Button variant="ghost" size="icon" onClick={() => navigate({ to: '/profile' as any })}>
                     <ChevronLeft className="w-5 h-5" />
                 </Button>
-                <h1 className="text-lg font-bold ml-2">用户手册</h1>
+                <h1 className="text-lg font-bold ml-2">{t('help.title')}</h1>
             </div>
 
             <div className="p-4 overflow-y-auto pb-20">
@@ -43,71 +46,68 @@ export function HelpScreen() {
                 <div className="bg-primary/5 rounded-xl p-5 mb-6 border border-primary/10">
                     <div className="flex items-center gap-3 mb-3">
                         <HelpCircle className="w-6 h-6 text-primary" />
-                        <h2 className="text-lg font-semibold">快速入门</h2>
+                        <h2 className="text-lg font-semibold">{t('help.intro.title')}</h2>
                     </div>
                     <p className="text-sm text-muted-foreground leading-relaxed">
-                        EvoLoop 是您的双模智能助手。通过简单的左右滑动，您可以在 <b>云端智能</b> 和 <b>本地设备</b> 之间无缝切换。
+                        <Trans i18nKey="help.intro.desc" components={{ bold: <b /> }} />
                     </p>
                 </div>
 
                 <div className="space-y-6">
                     {/* Section 1: Capabilities */}
                     <section>
-                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 pl-1">核心能力</h3>
+                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 pl-1">{t('help.capabilities.title')}</h3>
                         <div className="grid grid-cols-2 gap-3">
                             <div className="bg-card border rounded-lg p-4 flex flex-col gap-2">
                                 <MessageSquare className="w-5 h-5 text-blue-500" />
-                                <h4 className="font-medium text-sm">云端助手</h4>
-                                <p className="text-xs text-muted-foreground">问答、编码、创意</p>
+                                <h4 className="font-medium text-sm">{t('help.capabilities.cloud.title')}</h4>
+                                <p className="text-xs text-muted-foreground">{t('help.capabilities.cloud.desc')}</p>
                             </div>
                             <div className="bg-card border rounded-lg p-4 flex flex-col gap-2">
                                 <Monitor className="w-5 h-5 text-green-500" />
-                                <h4 className="font-medium text-sm">设备控制</h4>
-                                <p className="text-xs text-muted-foreground">远程命令、文件访问</p>
+                                <h4 className="font-medium text-sm">{t('help.capabilities.device.title')}</h4>
+                                <p className="text-xs text-muted-foreground">{t('help.capabilities.device.desc')}</p>
                             </div>
                         </div>
                     </section>
 
                     {/* Section 2: FAQ */}
                     <section>
-                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 pl-1">常见问题</h3>
+                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 pl-1">{t('help.faq.title')}</h3>
                         <div className="bg-card border rounded-lg px-4">
                             <QAItem
-                                question="如何连接我的电脑？"
-                                answer="需要在您的 Mac/Windows 电脑上下载并安装 EvoLoop 客户端，并登录相同的账号。连接成功后，它会自动出现在“Devices”列表中。"
+                                question={t('help.faq.q1')}
+                                answer={t('help.faq.a1')}
                             />
                             <QAItem
-                                question="云端与本地模式的区别？"
+                                question={t('help.faq.q2')}
                                 answer={
-                                    <>
-                                        <b>云端模式 (Cloud)</b>：与运行在服务器上的 AI 交互，不依赖您的电脑。<br />
-                                        <b>本地模式 (Local)</b>：通过 AI 直接操作您的电脑。可以读取本地文件、运行终端命令。
-                                    </>
+                                    <Trans i18nKey="help.faq.a2" components={{ bold: <b />, br: <br /> }} />
                                 }
                             />
                             <QAItem
-                                question="支持语音输入吗？"
-                                answer="支持。在聊天输入框左侧点击麦克风图标即可开始说话。支持中文和英文指令。"
+                                question={t('help.faq.q3')}
+                                answer={t('help.faq.a3')}
                             />
                         </div>
                     </section>
 
                     {/* Section 3: Tips */}
                     <section>
-                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 pl-1">高级技巧</h3>
+                        <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3 pl-1">{t('help.tips.title')}</h3>
                         <div className="bg-muted/30 rounded-lg p-4 space-y-3">
                             <div className="flex gap-3">
                                 <Zap className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
                                 <p className="text-sm">
-                                    <span className="font-medium">全局手势</span><br />
-                                    在任意界面左右滑动，快速切换 Cloud / Local。
+                                    <span className="font-medium">{t('help.tips.gesture.title')}</span><br />
+                                    {t('help.tips.gesture.desc')}
                                 </p>
                             </div>
                             <div className="flex gap-3">
                                 <Command className="w-4 h-4 text-purple-500 shrink-0 mt-0.5" />
                                 <p className="text-sm">
-                                    <span className="font-medium">Slash 命令</span><br />
-                                    输入 <code>/</code> 呼出命令菜单，快速切换模型或工具 (如 /search, /draw)。
+                                    <span className="font-medium">{t('help.tips.slash.title')}</span><br />
+                                    <Trans i18nKey="help.tips.slash.desc" components={{ code: <code /> }} />
                                 </p>
                             </div>
                         </div>
@@ -118,7 +118,7 @@ export function HelpScreen() {
                             localStorage.removeItem('evoloop_onboarding_seen')
                             window.location.reload()
                         }}>
-                            重播新手引导
+                            {t('help.replayParams')}
                         </Button>
                     </div>
 

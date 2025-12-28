@@ -12,24 +12,30 @@ import { toast } from "sonner"
 import { Logo } from "@/components/Common/Logo"
 
 // Step schemas
-const step0Schema = z.object({
-    mobile: z.string().min(11, "Invalid mobile number").max(11, "Invalid mobile number"),
-    vercode: z.string().min(1, "Captcha is required"), // Assuming captcha always required for step 0 security
-})
-const step1Schema = z.object({
-    dynacode: z.string().min(4, "Enter valid code"),
-})
-const step2Schema = z.object({
-    password: z.string().min(6, "Password too short"),
-    rePassword: z.string()
-}).refine(data => data.password === data.rePassword, {
-    message: "Passwords do not match",
-    path: ["rePassword"]
-})
+import { useTranslation } from "react-i18next"
+
+// Step schemas moved to component
 
 export function ForgotPasswordScreen() {
+    const { t } = useTranslation()
     const navigate = useNavigate()
     const [step, setStep] = useState(0)
+
+    // Schemas
+    const step0Schema = z.object({
+        mobile: z.string().min(11, t('auth.errors.invalidMobile')).max(11, t('auth.errors.invalidMobile')),
+        vercode: z.string().min(1, t('auth.errors.captchaRequired')),
+    })
+    const step1Schema = z.object({
+        dynacode: z.string().min(4, t('auth.errors.codeRequired')),
+    })
+    const step2Schema = z.object({
+        password: z.string().min(6, t('auth.errors.passwordTooShort')),
+        rePassword: z.string()
+    }).refine(data => data.password === data.rePassword, {
+        message: t('auth.errors.passwordMismatch'),
+        path: ["rePassword"]
+    })
     const [isLoading, setIsLoading] = useState(false)
     const [captcha, setCaptcha] = useState({ id: "", img: "" })
 
@@ -88,7 +94,7 @@ export function ForgotPasswordScreen() {
             // Legacy find.vue checks: if (res.code == 0) toast('Not registered')
             // So we want res.code != 0
             if (checkRes.code === 0) {
-                toast.error("Mobile number not registered")
+                toast.error(t('auth.errors.invalidMobile')) // Not registered
                 return
             }
 
@@ -99,14 +105,15 @@ export function ForgotPasswordScreen() {
                 setMobile(values.mobile)
                 setCountdown(60)
                 setStep(1)
-                toast.success("Code sent!")
+                setStep(1)
+                toast.success(t('auth.success.codeSent'))
             } else {
-                toast.error("Failed to send code")
+                toast.error(t('auth.errors.errorSendingCode'))
                 refreshCaptcha()
             }
 
         } catch (e: any) {
-            toast.error(e.message || "Error")
+            toast.error(e.message || t('auth.errors.errorSendingCode'))
             refreshCaptcha()
         } finally {
             setIsLoading(false)
@@ -124,17 +131,17 @@ export function ForgotPasswordScreen() {
         try {
             const res = await EvoLoopApi.resetPasswordMobile(mobile, smsCode, key, values.password)
             if (res.code >= 0) {
-                toast.success("Password reset successful!")
+                toast.success(t('auth.success.reset'))
                 navigate({ to: '/login' as any })
             } else {
-                toast.error(res.message || "Reset failed")
+                toast.error(res.message || t('auth.errors.resetFailed'))
                 // If failed, maybe code expired? go back to step 1?
                 // Or step 0?
                 // Legacy: stepShow -= 1 if failed.
                 setStep(1)
             }
         } catch (e: any) {
-            toast.error(e.message || "Reset failed")
+            toast.error(e.message || t('auth.errors.resetFailed'))
         } finally {
             setIsLoading(false)
         }
@@ -146,7 +153,7 @@ export function ForgotPasswordScreen() {
         // Legacy `sendDynaCode` re-check captcha.
         // If captcha is consumed, user must re-enter.
         // Effectively going back to Step 0 is safest if session expired.
-        toast.info("Please restart process to resend")
+        toast.info(t('auth.forgotPassword.restart'))
         setStep(0)
         refreshCaptcha()
     }
@@ -159,18 +166,18 @@ export function ForgotPasswordScreen() {
                 onClick={() => navigate({ to: '/login' as any })}
             >
                 <ArrowLeft className="mr-2 h-6 w-6" />
-                <span className="sr-only">Back</span>
+                <span className="sr-only">{t('auth.forgotPassword.back')}</span>
             </Button>
 
             <div className="w-full max-w-sm pt-12">
 
                 <div className="flex flex-col items-center space-y-2 mb-8">
                     <Logo variant="icon" asLink={false} />
-                    <h1 className="text-2xl font-bold">Forgot Password</h1>
+                    <h1 className="text-2xl font-bold">{t('auth.forgotPassword.title')}</h1>
                     <p className="text-muted-foreground text-sm">
-                        {step === 0 && "Verify your mobile number"}
-                        {step === 1 && "Enter verification code"}
-                        {step === 2 && "Set new password"}
+                        {step === 0 && t('auth.forgotPassword.step0')}
+                        {step === 1 && t('auth.forgotPassword.step1')}
+                        {step === 2 && t('auth.forgotPassword.step2')}
                     </p>
                 </div>
 
@@ -178,11 +185,11 @@ export function ForgotPasswordScreen() {
                     <Form {...form0}>
                         <form onSubmit={form0.handleSubmit(onStep0Submit)} className="space-y-4">
                             <FormField control={form0.control} name="mobile" render={({ field }) => (
-                                <FormItem><FormControl><Input placeholder="Mobile Number" {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormControl><Input className="placeholder:text-xs" placeholder={t('auth.forgotPassword.mobilePlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                             )} />
                             <FormField control={form0.control} name="vercode" render={({ field }) => (
                                 <FormItem className="relative">
-                                    <FormControl><Input placeholder="Captcha" {...field} /></FormControl>
+                                    <FormControl><Input className="placeholder:text-xs" placeholder={t('auth.forgotPassword.captchaPlaceholder')} {...field} /></FormControl>
                                     {captcha.img && (
                                         <img
                                             src={captcha.img}
@@ -195,7 +202,7 @@ export function ForgotPasswordScreen() {
                                 </FormItem>
                             )} />
                             <Button type="submit" className="w-full" disabled={isLoading}>
-                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Next
+                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {t('auth.forgotPassword.next')}
                             </Button>
                         </form>
                     </Form>
@@ -205,16 +212,16 @@ export function ForgotPasswordScreen() {
                     <Form {...form1}>
                         <form onSubmit={form1.handleSubmit(onStep1Submit)} className="space-y-4">
                             <div className="text-center mb-4">
-                                <p className="text-sm text-foreground">Sent to {mobile}</p>
+                                <p className="text-sm text-foreground">{t('auth.forgotPassword.sentTo')} {mobile}</p>
                             </div>
                             <FormField control={form1.control} name="dynacode" render={({ field }) => (
-                                <FormItem><FormControl><Input placeholder="4-digit Code" maxLength={4} className="text-center tracking-widest text-lg" {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormControl><Input placeholder={t('auth.forgotPassword.code4DigitPlaceholder')} maxLength={4} className="text-center tracking-widest text-lg placeholder:text-xs" {...field} /></FormControl><FormMessage /></FormItem>
                             )} />
                             <div className="flex justify-between items-center text-sm">
-                                <span className="text-muted-foreground">{countdown > 0 ? `Resend in ${countdown}s` : ""}</span>
-                                {countdown === 0 && <Button variant="link" size="sm" onClick={handleResend} className="p-0">Resend Code</Button>}
+                                <span className="text-muted-foreground">{countdown > 0 ? `${t('auth.forgotPassword.resendIn')} ${countdown}s` : ""}</span>
+                                {countdown === 0 && <Button variant="link" size="sm" onClick={handleResend} className="p-0">{t('auth.forgotPassword.resend')}</Button>}
                             </div>
-                            <Button type="submit" className="w-full">Next</Button>
+                            <Button type="submit" className="w-full">{t('auth.forgotPassword.next')}</Button>
                         </form>
                     </Form>
                 )}
@@ -223,13 +230,13 @@ export function ForgotPasswordScreen() {
                     <Form {...form2}>
                         <form onSubmit={form2.handleSubmit(onStep2Submit)} className="space-y-4">
                             <FormField control={form2.control} name="password" render={({ field }) => (
-                                <FormItem><FormControl><Input type="password" placeholder="New Password" {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormControl><Input className="placeholder:text-xs" type="password" placeholder={t('auth.forgotPassword.newPasswordPlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                             )} />
                             <FormField control={form2.control} name="rePassword" render={({ field }) => (
-                                <FormItem><FormControl><Input type="password" placeholder="Confirm Password" {...field} /></FormControl><FormMessage /></FormItem>
+                                <FormItem><FormControl><Input className="placeholder:text-xs" type="password" placeholder={t('auth.forgotPassword.confirmPasswordPlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                             )} />
                             <Button type="submit" className="w-full" disabled={isLoading}>
-                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Reset Password
+                                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {t('auth.forgotPassword.submit')}
                             </Button>
                         </form>
                     </Form>

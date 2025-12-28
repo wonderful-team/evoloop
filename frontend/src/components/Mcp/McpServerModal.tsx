@@ -3,6 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { useTranslation } from "react-i18next"
 
 import { McpService } from "@/client"
 import { Button } from "@/components/ui/button"
@@ -42,13 +43,7 @@ export type McpServerPublic = {
     args?: string[]
 }
 
-const mcpServerSchema = z.object({
-    name: z.string().min(1, { message: "Name is required" }),
-    command: z.string().min(1, { message: "Command is required" }),
-    args: z.string().optional(),
-})
 
-type McpServerForm = z.infer<typeof mcpServerSchema>
 
 interface McpServerModalProps {
     open: boolean
@@ -63,8 +58,17 @@ export default function McpServerModal({
     initialData,
     mode = "add"
 }: McpServerModalProps) {
+    const { t } = useTranslation()
     const queryClient = useQueryClient()
     const { showSuccessToast, showErrorToast } = useCustomToast()
+
+    const mcpServerSchema = z.object({
+        name: z.string().min(1, { message: t('mcp.nameRequired') }),
+        command: z.string().min(1, { message: t('mcp.commandRequired') }),
+        args: z.string().optional(),
+    })
+
+    type McpServerForm = z.infer<typeof mcpServerSchema>
 
     const form = useForm<McpServerForm>({
         resolver: zodResolver(mcpServerSchema),
@@ -135,7 +139,7 @@ export default function McpServerModal({
             })
         },
         onSuccess: () => {
-            showSuccessToast(`MCP Server ${mode === "edit" ? "updated" : "added"} successfully`)
+            showSuccessToast(t(mode === "edit" ? 'mcp.successEdit' : 'mcp.successAdd'))
             onOpenChange(false)
             form.reset()
         },
@@ -153,11 +157,9 @@ export default function McpServerModal({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
-                    <DialogTitle>{mode === "edit" ? "Edit" : "Add"} MCP Server</DialogTitle>
+                    <DialogTitle>{t(mode === "edit" ? 'mcp.editTitle' : 'mcp.addTitle')}</DialogTitle>
                     <DialogDescription>
-                        {mode === "edit"
-                            ? "Update the configuration for this Model Context Protocol server."
-                            : "Connect a new Model Context Protocol server."}
+                        {t(mode === "edit" ? 'mcp.editDesc' : 'mcp.addDesc')}
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -170,10 +172,10 @@ export default function McpServerModal({
                             name="name"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Name</FormLabel>
+                                    <FormLabel>{t('mcp.nameLabel')}</FormLabel>
                                     <FormControl>
                                         <Input
-                                            placeholder="e.g. git"
+                                            placeholder={t('mcp.namePlaceholder')}
                                             {...field}
                                             disabled={mode === "edit"} // Name is ID, usually immutable for edit in this simple implementation
                                         />
@@ -187,9 +189,9 @@ export default function McpServerModal({
                             name="command"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Command</FormLabel>
+                                    <FormLabel>{t('mcp.commandLabel')}</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g. uvx" {...field} />
+                                        <Input placeholder={t('mcp.commandPlaceholder')} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -200,9 +202,9 @@ export default function McpServerModal({
                             name="args"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Args (Space separated)</FormLabel>
+                                    <FormLabel>{t('mcp.argsLabel')}</FormLabel>
                                     <FormControl>
-                                        <Input placeholder="e.g. mcp-server-git ." {...field} />
+                                        <Input placeholder={t('mcp.argsPlaceholder')} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -212,11 +214,11 @@ export default function McpServerModal({
                         <DialogFooter className="gap-2 pt-2 sm:space-x-0">
                             <DialogClose asChild>
                                 <Button type="button" variant="outline">
-                                    Cancel
+                                    {t('common.cancel')}
                                 </Button>
                             </DialogClose>
                             <Button type="submit" disabled={mutation.isPending}>
-                                {mode === "edit" ? "Save Changes" : "Add Server"}
+                                {t(mode === "edit" ? 'mcp.save' : 'mcp.add')}
                             </Button>
                         </DialogFooter>
                     </form>

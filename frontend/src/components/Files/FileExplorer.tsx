@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query"
 import { FilesService } from "../../client"
 // import { ScrollArea } from "../ui/scroll-area" 
 import { FileCode, Folder, FolderOpen, Loader2 } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 // Types matching backend
 interface FileNode {
@@ -17,13 +18,14 @@ interface FileExplorerProps {
 }
 
 export function FileExplorer({ projectId }: FileExplorerProps) {
+    const { t } = useTranslation()
     const [selectedPath, setSelectedPath] = useState<string | null>(null)
 
     return (
         <div className="flex h-full border rounded-lg bg-background overflow-hidden">
             <div className="w-1/4 min-w-[250px] border-r bg-muted/30 flex flex-col">
                 <div className="p-3 border-b font-medium text-sm text-muted-foreground">
-                    Files
+                    {t('files.title')}
                 </div>
                 <div className="flex-1 overflow-auto p-2">
                     <FileTree projectId={projectId} onSelect={setSelectedPath} selectedPath={selectedPath} />
@@ -34,7 +36,7 @@ export function FileExplorer({ projectId }: FileExplorerProps) {
                     <FileContentV projectId={projectId} path={selectedPath} />
                 ) : (
                     <div className="flex-1 flex items-center justify-center text-muted-foreground">
-                        Select a file to view content
+                        {t('files.selectPrompt')}
                     </div>
                 )}
             </div>

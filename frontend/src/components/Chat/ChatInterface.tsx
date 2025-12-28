@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react"
+import { useTranslation } from "react-i18next"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AgentService, ProjectsService } from "@/client"
 import { EvoLoopApi } from "@/client/evoloopClient"
@@ -29,6 +30,7 @@ import { useProjectStore } from "@/stores/projectStore"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 
 export function ChatInterface() {
+    const { t } = useTranslation()
     const { currentProject } = useProjectStore()
     const projectId = currentProject?.id
     const queryClient = useQueryClient()
@@ -90,7 +92,7 @@ export function ChatInterface() {
             queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
         },
         onError: () => {
-            setMessages(prev => [...prev, { id: Date.now(), role: "ai", content: "Error: Failed to send message." }])
+            setMessages(prev => [...prev, { id: Date.now(), role: "ai", content: t('chat.interface.errorSend') }])
         }
     })
 
@@ -115,7 +117,7 @@ export function ChatInterface() {
 
     const addToMemoryMutation = useMutation({
         mutationFn: (text: string) => axios.post(`${API_BASE}/memory/concepts?project_id=${projectId}`, {
-            name: "Learned from Chat",
+            name: t('chat.interface.learnedFromChat'),
             description: text,
             related_files: []
         }, { headers: getAuthHeaders() }),
@@ -128,14 +130,14 @@ export function ChatInterface() {
 
     const exportFileMutation = useMutation({
         mutationFn: (text: string) => {
-            const path = prompt("Enter file path (e.g. docs/notes.md):", "docs/chat-export.md")
+            const path = prompt(t('chat.interface.exportPrompt'), "docs/chat-export.md")
             if (!path) return Promise.reject("Cancelled")
             return axios.post(`${API_BASE}/files?project_id=${projectId}`, {
                 path,
                 content: text
             }, { headers: getAuthHeaders() })
         },
-        onSuccess: () => console.log("File exported successfully!")
+        onSuccess: () => console.log(t('chat.interface.exportSuccess'))
     })
 
     const rewindMutation = useMutation({
@@ -200,7 +202,7 @@ export function ChatInterface() {
                                 {messages.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground mt-20">
                                         <Bot size={48} className="mb-4 opacity-20" />
-                                        <p>Start a new conversation...</p>
+                                        <p>{t('chat.interface.startPrompt')}</p>
                                     </div>
                                 ) : messages.map((msg) => (
                                     <div key={msg.id} className={`group flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} items-start`}>
@@ -219,7 +221,7 @@ export function ChatInterface() {
                                                 {msg.content}
                                                 {msg.thinking && (
                                                     <div className="flex items-center gap-2 text-muted-foreground italic mt-2">
-                                                        <Loader2 size={12} className="animate-spin" /> Thinking...
+                                                        <Loader2 size={12} className="animate-spin" /> {t('chat.interface.thinking')}
                                                     </div>
                                                 )}
                                             </div>
@@ -234,18 +236,18 @@ export function ChatInterface() {
                                                     </DropdownMenuTrigger>
                                                     <DropdownMenuContent>
                                                         <DropdownMenuItem onClick={() => navigator.clipboard.writeText(msg.content)}>
-                                                            <Copy className="mr-2 h-4 w-4" /> Copy
+                                                            <Copy className="mr-2 h-4 w-4" /> {t('chat.interface.copy')}
                                                         </DropdownMenuItem>
                                                         {msg.role === 'ai' && (
                                                             <>
                                                                 <DropdownMenuItem onClick={() => addToMemoryMutation.mutate(msg.content)}>
-                                                                    <Brain className="mr-2 h-4 w-4" /> Memorize
+                                                                    <Brain className="mr-2 h-4 w-4" /> {t('chat.interface.memorize')}
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuItem onClick={() => exportFileMutation.mutate(msg.content)}>
-                                                                    <Save className="mr-2 h-4 w-4" /> Export
+                                                                    <Save className="mr-2 h-4 w-4" /> {t('chat.interface.export')}
                                                                 </DropdownMenuItem>
                                                                 <DropdownMenuItem onClick={() => rewindMutation.mutate()}>
-                                                                    <RotateCcw className="mr-2 h-4 w-4" /> Rewind
+                                                                    <RotateCcw className="mr-2 h-4 w-4" /> {t('chat.interface.rewind')}
                                                                 </DropdownMenuItem>
                                                             </>
                                                         )}
@@ -268,7 +270,7 @@ export function ChatInterface() {
                                             <AvatarFallback><Bot size={16} /></AvatarFallback>
                                         </Avatar>
                                         <div className="rounded-lg px-4 py-3 bg-muted text-muted-foreground text-sm flex items-center gap-2">
-                                            <Loader2 size={14} className="animate-spin" /> Deep Researching...
+                                            <Loader2 size={14} className="animate-spin" /> {t('chat.interface.deepResearching')}
                                         </div>
                                     </div>
                                 )}
@@ -293,9 +295,9 @@ export function ChatInterface() {
                                         try {
                                             const url = await EvoLoopApi.uploadFile(file)
                                             setInputValue(prev => prev + (prev ? "\n" : "") + `[File: ${url}]`)
-                                            toast.success("File uploaded successfully")
+                                            toast.success(t('chat.interface.uploadSuccess'))
                                         } catch (error) {
-                                            toast.error("Failed to upload file")
+                                            toast.error(t('chat.interface.uploadError'))
                                             console.error(error)
                                         } finally {
                                             setIsUploading(false)
@@ -313,7 +315,7 @@ export function ChatInterface() {
                                             handleSend()
                                         }
                                     }}
-                                    placeholder={currentProject ? `Ask about ${currentProject.name}...` : "Select a project to start chatting..."}
+                                    placeholder={currentProject ? t('chat.interface.askProject', { project: currentProject.name }) : t('chat.interface.selectProject')}
                                     disabled={!currentProject}
                                     className="flex min-h-[44px] w-full bg-transparent border-none focus:ring-0 px-2 py-2.5 text-sm placeholder:text-muted-foreground resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 max-h-[200px]"
                                     rows={1}
@@ -331,7 +333,7 @@ export function ChatInterface() {
 
                         {/* Footer Credits */}
                         <div className="absolute bottom-1 left-0 right-0 text-center pointer-events-none">
-                            <span className="text-[10px] text-muted-foreground/50">EvoLoop + Deep Research</span>
+                            <span className="text-[10px] text-muted-foreground/50">{t('chat.interface.footer')}</span>
                         </div>
                     </div>
                 </ResizablePanel>

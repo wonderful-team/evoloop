@@ -18,17 +18,15 @@ export const useServicer = (platform: Platform = 'desktop') => {
         if (!config) return;
 
         let url = '';
-        let type = 'none';
+
 
         if (platform === 'mobile') {
             // Priority: H5 config
             const h5 = config.h5;
             if (h5?.type === 'wxwork') {
                 url = h5.wxwork_url;
-                type = 'wxwork';
             } else if (h5?.type === 'third') {
                 url = h5.third_url;
-                type = 'third';
             }
         } else {
             // Desktop
@@ -38,16 +36,13 @@ export const useServicer = (platform: Platform = 'desktop') => {
 
             if (pc?.type === 'third') {
                 url = pc.third_url;
-                type = 'third';
             } else if (h5?.type === 'wxwork') {
                 // Fallback to H5 Enterprise WeChat if PC is not configured or User prefers WxWork availablity
                 // Check if user explicitly wants this behavior. Usually safe to fallback.
                 url = h5.wxwork_url;
-                type = 'wxwork';
             } else if (h5?.type === 'third' && pc?.type === 'none') {
                 // Fallback to H5 Third Party if PC is none
                 url = h5.third_url;
-                type = 'third';
             }
         }
 

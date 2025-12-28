@@ -3,17 +3,19 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Monitor, Moon, Sun } from "lucide-react"
+import { useTranslation } from "react-i18next"
 
 export default function AppearanceSettings() {
+    const { t } = useTranslation()
     const { theme, setTheme } = useTheme()
 
     return (
         <div className="space-y-6">
             <Card>
                 <CardHeader>
-                    <CardTitle>Theme Preferences</CardTitle>
+                    <CardTitle>{t('settings.appearance.title')}</CardTitle>
                     <CardDescription>
-                        Customize the look and feel of the application.
+                        {t('settings.appearance.description')}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -39,7 +41,7 @@ export default function AppearanceSettings() {
                                 </div>
                                 <div className="flex items-center justify-center gap-2 pt-2">
                                     <Sun className="h-4 w-4" />
-                                    <span className="block text-sm font-medium">Light</span>
+                                    <span className="block text-sm font-medium">{t('settings.appearance.light')}</span>
                                 </div>
                             </Label>
                         </div>
@@ -61,7 +63,7 @@ export default function AppearanceSettings() {
                                 </div>
                                 <div className="flex items-center justify-center gap-2 pt-2">
                                     <Moon className="h-4 w-4" />
-                                    <span className="block text-sm font-medium">Dark</span>
+                                    <span className="block text-sm font-medium">{t('settings.appearance.dark')}</span>
                                 </div>
                             </Label>
                         </div>
@@ -83,7 +85,7 @@ export default function AppearanceSettings() {
                                 </div>
                                 <div className="flex items-center justify-center gap-2 pt-2">
                                     <Monitor className="h-4 w-4" />
-                                    <span className="block text-sm font-medium">System</span>
+                                    <span className="block text-sm font-medium">{t('settings.appearance.system')}</span>
                                 </div>
                             </Label>
                         </div>

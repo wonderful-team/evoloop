@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { EvoLoopApi } from "@/client/evoloopClient"
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "@tanstack/react-router"
+import { useTranslation } from "react-i18next"
+
 
 interface ConversationDrawerProps {
     activeId?: number
@@ -12,6 +14,7 @@ interface ConversationDrawerProps {
 
 export function ConversationDrawer({ activeId, trigger }: ConversationDrawerProps) {
     const navigate = useNavigate()
+    const { t } = useTranslation()
     const [conversations, setConversations] = useState<any[]>([])
     const [isOpen, setIsOpen] = useState(false)
 
@@ -30,7 +33,7 @@ export function ConversationDrawer({ activeId, trigger }: ConversationDrawerProp
 
     const handleDeleteConversation = async (e: any, id: number) => {
         e.stopPropagation()
-        if (confirm('Are you sure you want to delete this conversation?')) {
+        if (confirm(t('conversation.deleteConfirm'))) {
             await EvoLoopApi.AI.deleteConversation(id)
             fetchConversations()
             if (Number(activeId) === id) {
@@ -57,9 +60,9 @@ export function ConversationDrawer({ activeId, trigger }: ConversationDrawerProp
             <SheetContent side="left" className="w-[80vw] sm:w-[350px] p-0">
                 <SheetHeader className="p-4 border-b">
                     <SheetTitle className="text-left flex items-center justify-between">
-                        Conversations
+                        {t('conversation.list')}
                         <Button variant="ghost" size="sm" onClick={handleNewChat}>
-                            <Plus className="w-4 h-4 mr-1" /> New
+                            <Plus className="w-4 h-4 mr-1" /> {t('conversation.new')}
                         </Button>
                     </SheetTitle>
                 </SheetHeader>
@@ -67,11 +70,11 @@ export function ConversationDrawer({ activeId, trigger }: ConversationDrawerProp
                     {conversations.map(c => (
                         <div
                             key={c.id}
-                            className={`p-3 border-b cursor-pointer hover:bg-muted/50 flex items-center justify-between ${Number(activeId) === c.id ? 'bg-muted' : ''}`}
+                            className={`p-3 border-b cursor-pointer hover:bg-muted/50 flex items-center justify-center ${Number(activeId) === c.id ? 'bg-muted' : ''} justify-between`}
                             onClick={() => handleSelectConversation(c.id)}
                         >
                             <div className="truncate flex-1 pr-2">
-                                <div className="font-medium text-sm truncate">{c.title || 'Untitled'}</div>
+                                <div className="font-medium text-sm truncate">{c.title || t('conversation.untitled')}</div>
                                 <div className="text-xs text-muted-foreground">{new Date(c.update_time * 1000).toLocaleString()}</div>
                             </div>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={(e) => handleDeleteConversation(e, c.id)}>
@@ -80,7 +83,7 @@ export function ConversationDrawer({ activeId, trigger }: ConversationDrawerProp
                         </div>
                     ))}
                     {conversations.length === 0 && (
-                        <div className="p-4 text-center text-muted-foreground text-sm">No conversations</div>
+                        <div className="p-4 text-center text-muted-foreground text-sm">{t('conversation.empty')}</div>
                     )}
                 </div>
             </SheetContent>

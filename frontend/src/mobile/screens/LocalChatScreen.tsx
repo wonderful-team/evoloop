@@ -12,8 +12,10 @@ import { ChatInput } from "../components/chat/ChatInput"
 import { ArrowDownCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useNavigate } from "@tanstack/react-router"
+import { useTranslation } from "react-i18next"
 
 export function LocalChatScreen() {
+    const { t } = useTranslation()
     const { deviceId } = useParams({ strict: false }) as any
     const searchParams = useSearch({ strict: false }) as any
     const highlight = searchParams.highlight ? Number(searchParams.highlight) : null
@@ -81,21 +83,21 @@ export function LocalChatScreen() {
     const currentDevice = devices?.find(d => d.device_id === Number(deviceId))
     const isDeviceOnline = currentDevice?.status === 1
 
-    let statusText = 'Connecting...'
+    let statusText = t('chat.local.connecting')
     let statusColor = 'bg-yellow-500'
     let statusShadow = ''
 
     if (isConnected) {
         if (isDeviceOnline) {
-            statusText = 'Agent Online'
+            statusText = t('chat.local.agentOnline')
             statusColor = 'bg-green-500'
             statusShadow = 'shadow-[0_0_8px_rgba(34,197,94,0.5)]'
         } else {
-            statusText = 'Device Offline'
+            statusText = t('chat.local.deviceOffline')
             statusColor = 'bg-gray-400'
         }
     } else {
-        statusText = 'Connecting to Server...'
+        statusText = t('chat.local.connectingServer')
         statusColor = 'bg-red-500'
     }
 
@@ -111,10 +113,10 @@ export function LocalChatScreen() {
         try {
             await EvoLoopApi.sendCommand(Number(deviceId), content, currentProject?.project_id)
         } catch (e: any) {
-            toast.error("Failed to send command: " + e.message)
+            toast.error(t('chat.local.sendFailed') + e.message)
             addMessage({
                 type: 'error',
-                content: "Failed to deliver message: " + e.message,
+                content: t('chat.local.deliveryFailed') + e.message,
                 timestamp: Date.now()
             })
         }
@@ -153,7 +155,7 @@ export function LocalChatScreen() {
                         onClick={() => navigate({ to: `/chat/${deviceId}` } as any)}
                     >
                         <ArrowDownCircle className="w-4 h-4" />
-                        Back to Live
+                        {t('chat.local.backToLive')}
                     </Button>
                 </div>
             )}

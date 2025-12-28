@@ -1,4 +1,5 @@
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -45,6 +46,7 @@ interface FileSearchResult {
 }
 
 export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPanelProps) {
+    const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState("memory")
     const [searchQuery, setSearchQuery] = useState("")
 
@@ -106,7 +108,7 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
         return (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4 text-center">
                 <Brain className="h-10 w-10 mb-2 opacity-20" />
-                <p>Select a project to view context.</p>
+                <p>{t('chat.context.selectProject')}</p>
             </div>
         )
     }
@@ -123,7 +125,7 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
             <div className="flex items-center justify-between p-3 border-b h-14 shrink-0">
                 <span className="font-semibold text-sm flex items-center gap-2">
                     <Brain className="h-4 w-4 text-primary" />
-                    Context Panel
+                    {t('chat.context.title')}
                 </span>
                 {onClose && (
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={onClose}>
@@ -135,10 +137,10 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
                 <div className="px-3 pt-2 shrink-0">
                     <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="memory" title="Memory"><Brain className="h-4 w-4" /></TabsTrigger>
-                        <TabsTrigger value="plan" title="Plan"><Map className="h-4 w-4" /></TabsTrigger>
-                        <TabsTrigger value="knowledge" title="Knowledge"><Database className="h-4 w-4" /></TabsTrigger>
-                        <TabsTrigger value="resources" title="Resources"><Layers className="h-4 w-4" /></TabsTrigger>
+                        <TabsTrigger value="memory" title={t('chat.context.tabMemory')}><Brain className="h-4 w-4" /></TabsTrigger>
+                        <TabsTrigger value="plan" title={t('chat.context.tabPlan')}><Map className="h-4 w-4" /></TabsTrigger>
+                        <TabsTrigger value="knowledge" title={t('chat.context.tabKnowledge')}><Database className="h-4 w-4" /></TabsTrigger>
+                        <TabsTrigger value="resources" title={t('chat.context.tabResources')}><Layers className="h-4 w-4" /></TabsTrigger>
                     </TabsList>
                 </div>
 
@@ -146,7 +148,7 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
                     {/* Memory Tab */}
                     <TabsContent value="memory" className="h-full m-0 flex flex-col">
                         <div className="p-2 border-b flex justify-between items-center bg-muted/20">
-                            <span className="text-xs font-medium text-muted-foreground">Long-term Memory</span>
+                            <span className="text-xs font-medium text-muted-foreground">{t('chat.context.memoryTitle')}</span>
                             <div className="flex gap-1">
                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => refetchMemory()}>
                                     <RefreshCw className={`h-3 w-3 ${isLoadingMemory ? 'animate-spin' : ''}`} />
@@ -162,7 +164,7 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
                                     <div className="flex justify-center p-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                                 ) : concepts?.length === 0 ? (
                                     <div className="text-center text-xs text-muted-foreground py-8">
-                                        No concepts recorded yet.
+                                        {t('chat.context.noConcepts')}
                                     </div>
                                 ) : (
                                     concepts?.map((c, i) => (
@@ -183,9 +185,9 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
                     {/* Plan Tab */}
                     <TabsContent value="plan" className="h-full m-0 flex flex-col">
                         <div className="p-2 border-b bg-muted/20 flex justify-between items-center">
-                            <span className="text-xs font-medium text-muted-foreground">Active Plan</span>
+                            <span className="text-xs font-medium text-muted-foreground">{t('chat.context.planTitle')}</span>
                             <span className="text-[10px] uppercase font-bold text-muted-foreground/50">
-                                {planStatus === 'no_graph' ? 'Offline' : planStatus === 'no_state' ? 'Idle' : 'Active'}
+                                {planStatus === 'no_graph' ? t('chat.context.statusOffline') : planStatus === 'no_state' ? t('chat.context.statusIdle') : t('chat.context.statusActive')}
                             </span>
                         </div>
                         <ScrollArea className="flex-1 p-3">
@@ -193,7 +195,7 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
                                 <div className="flex justify-center p-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
                             ) : !plan ? (
                                 <div className="text-center text-xs text-muted-foreground py-8 border-2 border-dashed rounded-md">
-                                    No active plan found for this thread.
+                                    {t('chat.context.noPlan')}
                                 </div>
                             ) : (
                                 <div className="space-y-4">
@@ -232,7 +234,7 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
                             <form onSubmit={handleSearch} className="flex gap-2">
                                 <Input
                                     className="h-8 text-xs"
-                                    placeholder="Search project files..."
+                                    placeholder={t('chat.context.searchPlaceholder')}
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
@@ -260,7 +262,7 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
                                 </div>
                             ) : (
                                 <div className="text-center text-xs text-muted-foreground py-8">
-                                    {searchResults ? "No matches found." : "Search to find code snippets."}
+                                    {searchResults ? t('chat.context.noMatches') : t('chat.context.searchPrompt')}
                                 </div>
                             )}
                         </ScrollArea>
@@ -270,10 +272,10 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
                     <TabsContent value="resources" className="h-full m-0 flex flex-col">
                         <ScrollArea className="flex-1 p-3">
                             <div className="space-y-4">
-                                <h4 className="text-sm font-medium leading-none">External Resources</h4>
+                                <h4 className="text-sm font-medium leading-none">{t('chat.context.resourcesTitle')}</h4>
                                 <Button variant="outline" className="w-full justify-start gap-2 h-9" onClick={() => window.open("about:blank", "_blank")}>
                                     <ExternalLink className="h-4 w-4" />
-                                    Open IMagicBox
+                                    {t('chat.context.openImagicBox')}
                                 </Button>
                             </div>
                         </ScrollArea>

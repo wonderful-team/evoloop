@@ -3,6 +3,7 @@ import { useMutation } from "@tanstack/react-query"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
+import { useTranslation } from "react-i18next"
 
 import { } from "@/client"
 import { Button } from "@/components/ui/button"
@@ -21,18 +22,20 @@ import useAuth from "@/hooks/useAuth"
 import { cn } from "@/lib/utils"
 // import { handleError } from "@/utils"
 
-const formSchema = z.object({
+const createSchema = (t: any) => z.object({
   nickname: z.string().max(30).optional(),
-  email: z.email({ message: "Invalid email address" }),
+  email: z.email({ message: t('auth.errors.invalidEmail') || "Invalid email address" }),
 })
 
-type FormData = z.infer<typeof formSchema>
+type FormData = z.infer<ReturnType<typeof createSchema>>
 
 const UserInformation = () => {
+  const { t } = useTranslation()
   // const queryClient = useQueryClient()
   // const { showSuccessToast, /* showErrorToast */ } = useCustomToast()
   const [editMode, setEditMode] = useState(false)
   const { user: currentUser } = useAuth()
+  const formSchema = createSchema(t)
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -92,7 +95,7 @@ const UserInformation = () => {
 
   return (
     <div className="max-w-md">
-      <h3 className="text-lg font-semibold py-4">User Information</h3>
+      <h3 className="text-lg font-semibold py-4">{t('settings.profile.title')}</h3>
       <Form {...form}>
         <form
           onSubmit={form.handleSubmit(onSubmit)}
@@ -104,7 +107,7 @@ const UserInformation = () => {
             render={({ field }) =>
               editMode ? (
                 <FormItem>
-                  <FormLabel>Nickname</FormLabel>
+                  <FormLabel>{t('settings.profile.nickname')}</FormLabel>
                   <FormControl>
                     <Input type="text" {...field} />
                   </FormControl>
@@ -112,14 +115,14 @@ const UserInformation = () => {
                 </FormItem>
               ) : (
                 <FormItem>
-                  <FormLabel>Nickname</FormLabel>
+                  <FormLabel>{t('settings.profile.nickname')}</FormLabel>
                   <p
                     className={cn(
                       "py-2 truncate max-w-sm",
                       !field.value && "text-muted-foreground",
                     )}
                   >
-                    {field.value || "N/A"}
+                    {field.value || t('settings.profile.na')}
                   </p>
                 </FormItem>
               )
@@ -132,7 +135,7 @@ const UserInformation = () => {
             render={({ field }) =>
               editMode ? (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>{t('settings.profile.email')}</FormLabel>
                   <FormControl>
                     <Input type="email" {...field} />
                   </FormControl>
@@ -140,7 +143,7 @@ const UserInformation = () => {
                 </FormItem>
               ) : (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>{t('settings.profile.email')}</FormLabel>
                   <p className="py-2 truncate max-w-sm">{field.value}</p>
                 </FormItem>
               )
@@ -155,7 +158,7 @@ const UserInformation = () => {
                   loading={mutation.isPending}
                   disabled={!form.formState.isDirty}
                 >
-                  Save
+                  {t('settings.profile.save')}
                 </LoadingButton>
                 <Button
                   type="button"
@@ -163,12 +166,12 @@ const UserInformation = () => {
                   onClick={onCancel}
                   disabled={mutation.isPending}
                 >
-                  Cancel
+                  {t('settings.profile.cancel')}
                 </Button>
               </>
             ) : (
               <Button type="button" onClick={toggleEditMode}>
-                Edit
+                {t('settings.profile.edit')}
               </Button>
             )}
           </div>

@@ -11,8 +11,11 @@ import {
 } from "@/components/ui/dialog"
 import { LoadingButton } from "@/components/ui/loading-button"
 import { useMemberCancellation } from "@/hooks/useMemberCancellation"
+import { useTranslation } from "react-i18next"
+import { Trans } from "react-i18next"
 
 const DeleteConfirmation = () => {
+  const { t } = useTranslation()
   const { info, apply, cancel, isApplying, isCanceling, isLoading } = useMemberCancellation('desktop');
 
   // Status check: 0 or 1 usually implies pending/audit in Niushop logic
@@ -30,37 +33,37 @@ const DeleteConfirmation = () => {
     }
   }
 
-  if (isLoading) return <Button disabled variant="outline">Loading...</Button>;
+  if (isLoading) return <Button disabled variant="outline">{t('deleteAccount.loading')}</Button>;
 
   if (isPending) {
     return (
       <div className="mt-3">
         <p className="text-sm text-yellow-600 mb-2">
-          Cancellation request is pending review.
+          {t('deleteAccount.pendingReview')}
         </p>
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="outline" className="border-red-200 text-red-600 hover:bg-red-50">
-              Withdraw Request
+              {t('deleteAccount.withdrawRequest')}
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Withdraw Cancellation?</DialogTitle>
+              <DialogTitle>{t('deleteAccount.withdrawTitle')}</DialogTitle>
               <DialogDescription>
-                You can withdraw your account deletion request and continue using the service.
+                {t('deleteAccount.withdrawDescription')}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="mt-4">
               <DialogClose asChild>
-                <Button variant="outline">Cancel</Button>
+                <Button variant="outline">{t('deleteAccount.cancel')}</Button>
               </DialogClose>
               <LoadingButton
                 variant="default"
                 onClick={handleAction}
                 loading={isCanceling}
               >
-                Confirm Withdraw
+                {t('deleteAccount.confirmWithdraw')}
               </LoadingButton>
             </DialogFooter>
           </DialogContent>
@@ -73,23 +76,21 @@ const DeleteConfirmation = () => {
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="destructive" className="mt-3">
-          Delete Account
+          {t('deleteAccount.deleteButton')}
         </Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete Account?</DialogTitle>
+          <DialogTitle>{t('deleteAccount.deleteTitle')}</DialogTitle>
           <DialogDescription>
-            This will submit a request to <strong>permanently delete your account</strong>.
-            <br /><br />
-            This process may require administrator approval. Once approved, all your data will be removed.
+            <Trans i18nKey="deleteAccount.deleteDescription" components={{ bold: <strong />, br: <br /> }} />
           </DialogDescription>
         </DialogHeader>
 
         <DialogFooter className="mt-4">
           <DialogClose asChild>
             <Button variant="outline">
-              Cancel
+              {t('deleteAccount.cancel')}
             </Button>
           </DialogClose>
           <LoadingButton
@@ -97,7 +98,7 @@ const DeleteConfirmation = () => {
             onClick={handleAction}
             loading={isApplying}
           >
-            Apply for Deletion
+            {t('deleteAccount.confirmDelete')}
           </LoadingButton>
         </DialogFooter>
       </DialogContent>

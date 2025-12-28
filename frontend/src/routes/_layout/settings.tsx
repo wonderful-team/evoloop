@@ -8,14 +8,18 @@ import GeneralSettings from "@/components/Settings/GeneralSettings"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import useAuth from "@/hooks/useAuth"
 
-const tabsConfig = [
-  { value: "general", title: "General", component: GeneralSettings },
-  { value: "my-profile", title: "My profile", component: UserInformation },
-  { value: "password", title: "Password", component: ChangePassword },
-  { value: "appearance", title: "Appearance", component: AppearanceSettings },
+import { useTranslation } from "react-i18next"
 
-  { value: "danger-zone", title: "Danger zone", component: DeleteAccount },
-]
+const TabsConfig = () => {
+  const { t } = useTranslation()
+  return [
+    { value: "general", title: t('settings.tabs.general'), component: GeneralSettings },
+    { value: "my-profile", title: t('settings.tabs.profile'), component: UserInformation },
+    { value: "password", title: t('settings.tabs.password'), component: ChangePassword },
+    { value: "appearance", title: t('settings.tabs.appearance'), component: AppearanceSettings },
+    { value: "danger-zone", title: t('settings.tabs.danger'), component: DeleteAccount },
+  ]
+}
 
 export const Route = createFileRoute("/_layout/settings")({
   component: UserSettings,
@@ -29,9 +33,10 @@ export const Route = createFileRoute("/_layout/settings")({
 })
 
 function UserSettings() {
+  const { t } = useTranslation()
   const { user: currentUser } = useAuth()
   // All users have access to all tabs
-  const finalTabs = tabsConfig
+  const finalTabs = TabsConfig()
 
   if (!currentUser) {
     return null
@@ -40,9 +45,9 @@ function UserSettings() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t('settings.title')}</h1>
         <p className="text-muted-foreground">
-          Manage your account and EvoLoop configurations.
+          {t('settings.intro')}
         </p>
       </div>
 

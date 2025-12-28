@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from "react"
-import { ChevronDown, ChevronRight, Cpu, Terminal, AlertTriangle, Loader2, FileText, Image as ImageIcon, X } from "lucide-react"
+import { useTranslation } from "react-i18next"
+import { ChevronDown, ChevronRight, Cpu, Terminal, AlertTriangle, Loader2, FileText, X } from "lucide-react"
 import { LogMessage } from "@/hooks/useEvoLoopWebSocket"
-import { Dialog, DialogContent, DialogClose, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
 interface MessageListProps {
@@ -12,11 +13,12 @@ interface MessageListProps {
 }
 
 function ImageViewer({ src, isOpen, onClose }: { src: string, isOpen: boolean, onClose: () => void }) {
+    const { t } = useTranslation()
     if (!isOpen) return null;
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-full h-full p-0 bg-black/90 border-none sm:rounded-none flex flex-col justify-center items-center">
-                <DialogTitle className="sr-only">Image Viewer</DialogTitle>
+                <DialogTitle className="sr-only">{t('chat.messageList.imageViewer')}</DialogTitle>
                 <div className="relative w-full h-full flex items-center justify-center p-2">
                     <img
                         src={src}
@@ -43,6 +45,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 function RichContent({ content }: { content: any }) {
+    const { t } = useTranslation()
     const [viewerImage, setViewerImage] = useState<string | null>(null)
 
     if (typeof content !== 'string') {
@@ -89,7 +92,7 @@ function RichContent({ content }: { content: any }) {
                             </div>
                             <div className="flex flex-col overflow-hidden">
                                 <span className="text-sm font-medium truncate">{decodeURIComponent(filename)}</span>
-                                <span className="text-xs text-muted-foreground uppercase">Click to open</span>
+                                <span className="text-xs text-muted-foreground uppercase">{t('chat.messageList.clickToOpen')}</span>
                             </div>
                         </div>
                     )
@@ -114,7 +117,7 @@ function RichContent({ content }: { content: any }) {
                                                 onClick={() => navigator.clipboard.writeText(String(children))}
                                                 className="hover:text-white transition-colors"
                                             >
-                                                Copy
+                                                {t('chat.messageList.copy')}
                                             </button>
                                         </div>
                                         <SyntaxHighlighter
@@ -160,6 +163,7 @@ function RichContent({ content }: { content: any }) {
 }
 
 function LogItem({ msg }: { msg: LogMessage }) {
+    const { t } = useTranslation()
     const [isOpen, setIsOpen] = useState(false);
 
     if (msg.type === 'user') {
@@ -181,7 +185,7 @@ function LogItem({ msg }: { msg: LogMessage }) {
                 >
                     {isOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
                     <Cpu className="w-3 h-3" />
-                    Agent Thought Process
+                    {t('chat.messageList.agentThought')}
                 </button>
                 {isOpen && (
                     <div className="ml-2 pl-3 border-l-2 border-primary/20 text-xs font-mono text-muted-foreground bg-muted/30 p-2 rounded-r-md">
@@ -197,7 +201,7 @@ function LogItem({ msg }: { msg: LogMessage }) {
             <div className="mb-3 ml-2 pl-3 border-l-2 border-muted-foreground/30 animate-in fade-in duration-300">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
                     <Terminal className="w-3 h-3" />
-                    <span>Tool Execution</span>
+                    <span>{t('chat.messageList.toolExecution')}</span>
                 </div>
                 <div className="bg-muted rounded-md p-2 text-xs font-mono text-muted-foreground overflow-x-auto">
                     <RichContent content={msg.content} />
@@ -226,6 +230,7 @@ function LogItem({ msg }: { msg: LogMessage }) {
 }
 
 export function MessageList({ messages, isProjectInitialized, isDeviceOnline, highlight }: MessageListProps) {
+    const { t } = useTranslation()
     const scrollRef = useRef<HTMLDivElement>(null)
 
     // Auto-scroll
@@ -253,7 +258,7 @@ export function MessageList({ messages, isProjectInitialized, isDeviceOnline, hi
             {!isProjectInitialized ? (
                 <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
                     <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">Initializing...</p>
+                    <p className="text-sm text-muted-foreground">{t('chat.messageList.initializing')}</p>
                 </div>
             ) : messages.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center p-8 text-center space-y-4">
@@ -266,12 +271,12 @@ export function MessageList({ messages, isProjectInitialized, isDeviceOnline, hi
                     </div>
                     <div className="space-y-2">
                         <h3 className="font-semibold text-foreground">
-                            {isDeviceOnline ? 'Ready to Connect' : 'Device Offline'}
+                            {isDeviceOnline ? t('chat.messageList.ready') : t('chat.messageList.offline')}
                         </h3>
                         <p className="text-sm text-muted-foreground max-w-[200px]">
                             {isDeviceOnline
-                                ? 'Send instructions to control the remote agent.'
-                                : 'The remote device is currently not connected.'}
+                                ? t('chat.messageList.readyDesc')
+                                : t('chat.messageList.offlineDesc')}
                         </p>
                     </div>
                 </div>
