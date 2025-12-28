@@ -7,22 +7,13 @@ import { Brain, Map, Layers, Database, ExternalLink, X, Plus, RefreshCw, Loader2
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useQuery } from "@tanstack/react-query"
-import axios from "axios"
-
-// Helper to get base URL (Assuming Vite proxy or env)
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000"
-const cleanUrl = API_URL.replace(/\/$/, "")
-const API_BASE = cleanUrl.endsWith("/api/v1") ? cleanUrl : `${cleanUrl}/api/v1`
+import { MemoryService, PlanningService, FilesService } from "@/client"
+import { ConceptResponse } from "@/client/types.gen"
 
 interface ContextPanelProps {
     projectId?: number
     activeThreadId?: string
     onClose?: () => void
-}
-
-interface Concept {
-    name: string
-    description: string
 }
 
 interface PlanStep {
@@ -50,12 +41,6 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
     const [activeTab, setActiveTab] = useState("memory")
     const [searchQuery, setSearchQuery] = useState("")
 
-    // Helper for auth headers
-    const getAuthHeaders = () => {
-        const token = localStorage.getItem("access_token")
-        return token ? { Authorization: `Bearer ${token}` } : {}
-    }
-
     // --- Queries ---
 
     // 1. Memory Concepts
@@ -64,10 +49,8 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
         queryFn: async () => {
             if (!projectId) return []
             // Using search with empty string to get all (as per backend impl)
-            const res = await axios.get(`${API_BASE}/memory/concepts?project_id=${projectId}`, {
-                headers: getAuthHeaders()
-            })
-            return res.data as Concept[]
+            const res = await MemoryService.listConcepts({ projectId })
+            return res as ConceptResponse[]
         },
         enabled: !!projectId && activeTab === 'memory'
     })
@@ -77,29 +60,25 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
         queryKey: ["threadPlan", activeThreadId],
         queryFn: async () => {
             if (!activeThreadId) return null
-            const res = await axios.get(`${API_BASE}/planning/conversations/${activeThreadId}/plan`, {
-                headers: getAuthHeaders()
-            })
-            return res.data
+            return PlanningService.getPlan({ threadId: activeThreadId })
         },
         enabled: !!activeThreadId && activeTab === 'plan',
         refetchInterval: activeTab === 'plan' ? 3000 : false // Poll when plan tab is open
     })
 
     // Safety check for plan structure
-    const plan = planData?.plan as Plan | null
-    const planStatus = planData?.status
+    // The SDK returns 'unknown' for this endpoint, so we cast it relative to our known backend response structure
+    const typedPlanData = planData as any
+    const plan = typedPlanData?.plan as Plan | null
+    const planStatus = typedPlanData?.status
 
     // 3. Knowledge Search
     const { data: searchResults, isLoading: isLoadingSearch, refetch: searchFiles } = useQuery({
         queryKey: ["fileSearch", projectId, searchQuery],
         queryFn: async () => {
             if (!projectId || !searchQuery) return []
-            const res = await axios.get(`${API_BASE}/files/projects/${projectId}/files/search`, {
-                params: { q: searchQuery },
-                headers: getAuthHeaders()
-            })
-            return res.data as FileSearchResult[]
+            const res = await FilesService.searchFiles({ projectId, q: searchQuery })
+            return res as any as FileSearchResult[] // Cast strict unknown from SDK to known search result shape
         },
         enabled: false // Trigger manually
     })

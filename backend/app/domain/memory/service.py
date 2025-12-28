@@ -17,8 +17,26 @@ class MemoryService:
             await session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE")
             # Preference Constraints
             await session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (p:Preference) REQUIRE p.key IS UNIQUE")
-            # Concept Constraints
-            await session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (c:Concept) REQUIRE c.name IS UNIQUE")
+            
+            # Concept Constraints - Migration to Composite Key
+            # 1. Drop old single-property unique constraint if it exists
+            # Note: The syntax for dropping constraints varies by Neo4j version.
+            try:
+                # Syntax for Neo4j 4.x/5.x
+                await session.run("DROP CONSTRAINT ON (c:Concept) ASSERT c.name IS UNIQUE")
+                logger.info("Dropped legacy Concept name constraint.")
+            except Exception:
+                # Might not exist or different syntax, ignore
+                pass
+
+            # 2. Create new Composite Constraint (Name + ProjectID)
+            try:
+                # Syntax: CREATE CONSTRAINT [name] FOR (n:Label) REQUIRE (n.prop1, n.prop2) IS UNIQUE
+                # We use IF NOT EXISTS to be safe.
+                await session.run("CREATE CONSTRAINT concept_unique IF NOT EXISTS FOR (c:Concept) REQUIRE (c.name, c.project_id) IS UNIQUE")
+            except Exception as e:
+                logger.warning(f"Failed to create composite constraint: {e}")
+
             # Fulltext Index for Concepts (if supported, else simple lookup)
             try:
                 await session.run("CREATE FULLTEXT INDEX concept_search IF NOT EXISTS FOR (c:Concept) ON EACH [c.name, c.description]")
@@ -105,12 +123,15 @@ class MemoryService:
 
     async def add_concept(self, name: str, description: str, project_id: int, related_files: list[str] = None):
         driver = await get_graph_db()
+        # Ensure project_id is set
+        pid_val = project_id if project_id is not None else 0
+        
         query = """
         MERGE (c:Concept {name: $name, project_id: $pid})
         SET c.description = $description, c.updated_at = timestamp()
         """
         async with driver.session() as session:
-            await session.run(query, name=name, pid=project_id, description=description)
+            await session.run(query, name=name, pid=pid_val, description=description)
 
             if related_files:
                 for file_path in related_files:
@@ -120,26 +141,27 @@ class MemoryService:
                     MERGE (f:File {path: $path})
                     MERGE (c)-[:REFERENCES]->(f)
                     """
-                    await session.run(file_query, name=name, pid=project_id, path=file_path)
-        logger.info(f"Stored Concept: {name} (Project {project_id})")
+                    await session.run(file_query, name=name, pid=pid_val, path=file_path)
+        logger.info(f"Stored Concept: {name} (Project {pid_val})")
 
     async def search_concepts(self, query_text: str, project_id: int) -> str:
         driver = await get_graph_db()
+        # Search Global (0) and Project (N)
         # Use fulltext index if available, else regex search
-        # Note: Fulltext index is global. We filter AFTER matching or use WHERE clause if index supports it.
-        # Simple approach: MATCH ... WHERE ...
         
         fallback_cypher = """
         MATCH (c:Concept)
-        WHERE c.project_id = $pid AND (c.name CONTAINS $query OR c.description CONTAINS $query)
-        RETURN c.name as name, c.description as desc
+        WHERE (c.project_id = $pid OR c.project_id = 0) 
+          AND (c.name CONTAINS $search_term OR c.description CONTAINS $search_term)
+        RETURN c.name as name, c.description as desc, c.project_id as pid
+        ORDER BY c.project_id ASC
         LIMIT $limit
         """
 
         async with driver.session() as session:
             # For simplicity in this fix, we use the fallback logic which supports property filtering easily.
             # Fulltext index with property filter requires Neo4j 4.3+ or trickier query structure.
-            result = await session.run(fallback_cypher, query=query_text, pid=project_id, limit=settings.MEMORY_SEARCH_LIMIT)
+            result = await session.run(fallback_cypher, search_term=query_text, pid=project_id, limit=settings.MEMORY_SEARCH_LIMIT)
             records = await result.data()
 
         if not records:
@@ -147,7 +169,8 @@ class MemoryService:
 
         lines = []
         for r in records:
-            lines.append(f"- **{r['name']}**: {r['desc']}")
+            scope = "[Global]" if r['pid'] == 0 else ""
+            lines.append(f"- **{r['name']}** {scope}: {r['desc']}")
         return "\n".join(lines)
 
 
@@ -155,12 +178,14 @@ class MemoryService:
         driver = await get_graph_db()
         fallback_cypher = """
         MATCH (c:Concept)
-        WHERE c.project_id = $pid AND (c.name CONTAINS $query OR c.description CONTAINS $query)
-        RETURN c.name as name, c.description as description
+        WHERE (c.project_id = $pid OR c.project_id = 0) 
+          AND (c.name CONTAINS $search_term OR c.description CONTAINS $search_term)
+        RETURN c.name as name, c.description as description, c.project_id as project_id
+        ORDER BY c.project_id ASC
         LIMIT $limit
         """
         async with driver.session() as session:
-            result = await session.run(fallback_cypher, query=query_text, pid=project_id, limit=settings.MEMORY_SEARCH_LIMIT)
+            result = await session.run(fallback_cypher, search_term=query_text, pid=project_id, limit=settings.MEMORY_SEARCH_LIMIT)
             records = await result.data()
         return records
 
