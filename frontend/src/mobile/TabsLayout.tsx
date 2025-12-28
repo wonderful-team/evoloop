@@ -4,7 +4,7 @@ import { Home, Monitor, FolderOpen, User, Search, Menu } from "lucide-react"
 import { useMobileStore } from "./stores/useMobileStore"
 import { motion, useMotionValue, animate } from "framer-motion"
 import { Button } from "@/components/ui/button"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { ConversationDrawer } from "./components/ConversationDrawer"
 import { OnboardingOverlay } from "./components/OnboardingOverlay"
 
@@ -21,8 +21,8 @@ export function TabsLayout() {
     const navigate = useNavigate()
     const path = location.pathname
     const { activeTab, setActiveTab } = useMobileStore()
-    const x = useMotionValue(0)
     const isGuest = !localStorage.getItem('evoloop_token')
+    const scrollContainerRef = useRef<HTMLDivElement>(null)
 
     const isActive = (p: string) => {
         if (p === '/' && path === '/') return true
@@ -32,14 +32,22 @@ export function TabsLayout() {
 
     const showLocalTabs = activeTab === 'local'
 
-    // Sync State with URL (Bidirectional Sync)
+    // Sync State with URL & Scroll Position
     useEffect(() => {
+        if (!scrollContainerRef.current) return
+
         if (path === '/' || path.startsWith('/profile')) {
-            if (activeTab !== 'cloud') setActiveTab('cloud')
-            animate(x, 0, { type: "spring", stiffness: 300, damping: 30 })
+            if (activeTab !== 'cloud') {
+                setActiveTab('cloud')
+            }
+            // Programmatically scroll to Cloud (0)
+            scrollContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' })
         } else if (path.startsWith('/devices') || path.startsWith('/projects')) {
-            if (activeTab !== 'local') setActiveTab('local')
-            animate(x, -window.innerWidth, { type: "spring", stiffness: 300, damping: 30 })
+            if (activeTab !== 'local') {
+                setActiveTab('local')
+            }
+            // Programmatically scroll to Local (width)
+            scrollContainerRef.current.scrollTo({ left: window.innerWidth, behavior: 'smooth' })
         }
     }, [path])
 
@@ -52,32 +60,80 @@ export function TabsLayout() {
         }
     }
 
-    const handleDragEnd = (_event: any, info: any) => {
-        const offset = info.offset.x
-        const velocity = info.velocity.x
+    // Handle Native Scroll Snap updates
+    const handleScroll = () => {
+        if (!scrollContainerRef.current) return
+        const scrollLeft = scrollContainerRef.current.scrollLeft
         const width = window.innerWidth
 
-        let targetTab = activeTab
-
-        if (activeTab === 'cloud') {
-            if (offset < -50 || velocity < -500) targetTab = 'local'
-        } else {
-            if (offset > 50 || velocity > 500) targetTab = 'cloud'
-        }
-
-        if (targetTab === 'cloud') {
+        // Simple threshold check
+        if (scrollLeft < width / 2) {
             if (activeTab !== 'cloud') {
-                navigate({ to: '/' as any })
-            } else {
-                animate(x, 0, { type: "spring", stiffness: 300, damping: 30 })
+                setActiveTab('cloud')
+                // Optional: Update URL without navigation if checking passively? 
+                // But typically user expects URL to match.
+                // Since this fires rapidly, we might debounce or only nav on settling.
+                // However, navigation triggers re-render and effect loop. 
+                // Better strategy: Only change UI state here? 
+                // Actually, if user physically scrolls, we SHOULD change route when they land.
+                // But changing route programs scroll.
+
+                // Optimized approach:
+                // Use scroll END or debounce to trigger route change.
+                // For now, let's update activeTab locally (visuals) but route change on snap end?
+                // The provided requirements imply simpler gesture handling. 
+                // Let's assume URL sync is primary.
+
+                // If we navigate here, it might fight with scroll.
+                // Let's rely on scroll endings or just use visual cues until snap settles?
+                // A common pattern is `onScrollEnd`. native `onScroll` doesn't have "end".
+                // Let's assume bidirectional sync is handled by `handleTabSwitch` clicks mainly,
+                // and scroll updates URL *if* it settles.
+
+                // For simplicity/stability in this refactor:
+                // If user swipes, we detect the intent and navigate ONLY if it changed significantly and settled.
+                // But React router navigation might cause full re-render.
+
+                // Let's keep it simple: The scroll container IS the state of truth for position.
+                // We update activeTab visual only on significant threshold.
             }
         } else {
             if (activeTab !== 'local') {
-                navigate({ to: '/devices' as any })
-            } else {
-                animate(x, -width, { type: "spring", stiffness: 300, damping: 30 })
+                setActiveTab('local')
             }
         }
+    }
+
+    // Using onMomentumScrollEnd logic equivalent for Web:
+    // We can use a timeout debounce to detect scroll stop, then navigate.
+    const scrollTimeoutRef = useRef<NodeJS.Timeout>()
+    const onScroll = () => {
+        if (!scrollContainerRef.current) return
+
+        // Visual Tab update (instant)
+        const scrollLeft = scrollContainerRef.current.scrollLeft
+        const width = scrollContainerRef.current.clientWidth // Use clientWidth for accuracy
+
+        if (scrollLeft < width / 2 && activeTab !== 'cloud') {
+            // setActiveTab('cloud') // Don't set yet, let Sync handle it? 
+            // Problem: UI needs to update instant.
+        }
+
+        clearTimeout(scrollTimeoutRef.current)
+        scrollTimeoutRef.current = setTimeout(() => {
+            // Scroll ended
+            const finalScrollLeft = scrollContainerRef.current?.scrollLeft || 0
+
+            if (finalScrollLeft < width / 2) {
+                if (path.startsWith('/devices') || path.startsWith('/projects')) {
+                    navigate({ to: '/' as any })
+                }
+            } else {
+                if (path === '/' || path.startsWith('/profile')) {
+                    navigate({ to: '/devices' as any })
+                }
+            }
+        }, 150) // 150ms debounce for scroll end
     }
 
     // Manual Routing for Cloud Container
@@ -121,7 +177,7 @@ export function TabsLayout() {
                             left: activeTab === 'cloud' ? 4 : '50%',
                             width: 'calc(50% - 4px)'
                         }}
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                        transition={{ type: "spring", stiffness: 400, damping: 30 }}
                     />
                     <button
                         onClick={() => handleTabSwitch('cloud')}
@@ -145,25 +201,22 @@ export function TabsLayout() {
                 </div>
             </div>
 
-            {/* Gesture Container (Real-time Swipe) */}
-            <motion.div
-                className="flex-1 flex w-[200vw] h-full"
-                style={{ x, touchAction: "pan-y" }}
-                drag="x"
-                dragConstraints={{ left: -window.innerWidth, right: 0 }}
-                dragElastic={0.1}
-                onDragEnd={handleDragEnd}
+            {/* Native Scroll Snap Container */}
+            <div
+                ref={scrollContainerRef}
+                className="flex-1 flex overflow-x-auto snap-x snap-mandatory no-scrollbar"
+                onScroll={onScroll}
             >
                 {/* Cloud Context Container */}
-                <div className="w-[100vw] h-full pt-20 pb-24 overflow-y-auto no-scrollbar relative">
+                <div className="w-full min-w-full h-full pt-20 pb-24 overflow-y-auto no-scrollbar relative snap-center">
                     {renderCloudContent()}
                 </div>
 
                 {/* Local Context Container */}
-                <div className="w-[100vw] h-full pt-20 pb-24 overflow-y-auto no-scrollbar relative">
+                <div className="w-full min-w-full h-full pt-20 pb-24 overflow-y-auto no-scrollbar relative snap-center">
                     {renderLocalContent()}
                 </div>
-            </motion.div>
+            </div>
 
             {/* Bottom Tab Bar */}
             <div className="border-t bg-background/80 backdrop-blur-md pb-safe absolute bottom-0 w-full z-40">
