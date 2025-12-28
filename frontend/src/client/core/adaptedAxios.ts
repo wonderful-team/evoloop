@@ -73,6 +73,15 @@ adaptedAxios.interceptors.request.use(
             // Niushop backend checks Input('token'), so passed as query param
             if (!config.params) config.params = {};
             config.params['token'] = token;
+        } else {
+            // Guest Mode
+            let guestId = localStorage.getItem('evoloop_guest_id');
+            if (!guestId) {
+                guestId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+                localStorage.setItem('evoloop_guest_id', guestId);
+            }
+            if (!config.headers) config.headers = {} as any;
+            config.headers['X-Guest-ID'] = guestId;
         }
         return config;
     },

@@ -1,8 +1,7 @@
 import { useNavigate, redirect } from "@tanstack/react-router"
 import { useQuery } from "@tanstack/react-query"
 import { EvoLoopApi } from "@/client/evoloopClient"
-import { Monitor, Smartphone, Activity, LogOut } from "lucide-react"
-import { useEffect } from "react"
+import { Monitor, Smartphone, Activity } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -19,6 +18,7 @@ export function DevicesScreen() {
     const { t } = useTranslation()
     const navigate = useNavigate()
     const token = localStorage.getItem('evoloop_token')
+    const isGuest = !token
 
     const { data: devices, isLoading, error } = useQuery({
         queryKey: ['evoloop', 'devices'],
@@ -28,16 +28,40 @@ export function DevicesScreen() {
         enabled: !!token
     })
 
-    // Handle error side effect
-    useEffect(() => {
-        if (error) {
-            localStorage.removeItem('evoloop_token');
-            navigate({ to: '/login' as any });
-        }
-    }, [error, navigate]);
+    // Remove auto-logout effect to allow guest view
+    // useEffect(() => { ... }) 
 
-    // Group devices if needed, for now just list
     const onlineCount = devices?.filter(d => d.status === 1).length || 0
+
+    if (isGuest) {
+        return (
+            <div className="p-4 space-y-4 h-full flex flex-col">
+                <div className="flex items-center justify-between">
+                    <h1 className="text-2xl font-bold tracking-tight">{t('devices.title')}</h1>
+                </div>
+
+                <div className="flex-1 flex flex-col items-center justify-center space-y-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center">
+                        <Monitor className="w-10 h-10 text-muted-foreground/50" />
+                    </div>
+                    <div className="max-w-xs space-y-2">
+                        <h3 className="text-lg font-semibold">{t('devices.guestTitle') || 'Login to View Devices'}</h3>
+                        <p className="text-sm text-muted-foreground">
+                            {t('devices.guestDesc') || 'Access your remote devices and control them from anywhere.'}
+                        </p>
+                    </div>
+                    <div className="flex gap-3 w-full max-w-xs">
+                        <Button className="flex-1" onClick={() => navigate({ to: '/login' as any })}>
+                            {t('auth.login.submit')}
+                        </Button>
+                        <Button variant="outline" className="flex-1" onClick={() => navigate({ to: '/register' as any })}>
+                            {t('auth.login.signUp')}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="p-4 space-y-4">
@@ -48,9 +72,6 @@ export function DevicesScreen() {
                         {isLoading ? t('devices.loading') : t('devices.statusFormat', { online: onlineCount, total: devices?.length || 0 })}
                     </p>
                 </div>
-                <Button variant="ghost" size="icon" onClick={() => { localStorage.removeItem('evoloop_token'); navigate({ to: '/login' as any }) }}>
-                    <LogOut className="h-5 w-5 text-muted-foreground" />
-                </Button>
             </div>
 
             {error ? (

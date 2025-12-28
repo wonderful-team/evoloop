@@ -199,6 +199,14 @@ class ImagicBoxClient:
         """
         return self._make_request("POST", "/membercancel/api/membercancel/cancelApply")
 
+    # --- AI Config ---
+    def get_ai_global_config(self) -> Dict:
+        """
+        Get global AI configuration (including guest limits).
+        Calls /api/AI/globalConfig
+        """
+        return self._make_request("GET", "/api/AI/globalConfig")
+
 
     def _generate_signature(self, method: str, uri: str, body: str, timestamp: int) -> str:
         """Generate HMAC-SHA256 signature (Ported from chatgpt-on-wechat)"""

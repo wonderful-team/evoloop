@@ -1,7 +1,6 @@
 import { Logo } from "@/components/Common/Logo"
 import { useNavigate } from "@tanstack/react-router"
 import { ChatInput } from "../components/chat/ChatInput"
-import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 // import { Menu } from "lucide-react"
 // import { Button } from "@/components/ui/button"
@@ -10,16 +9,9 @@ import { useTranslation } from "react-i18next"
 export function IndexScreen() {
     const { t } = useTranslation()
     const navigate = useNavigate()
-    const isGuest = !localStorage.getItem('evoloop_token')
 
     const handleInputSend = async (content: string) => {
-        if (isGuest) {
-            toast.info(t('index.loginRequired'))
-            navigate({ to: '/login' as any })
-            return
-        }
-
-        // Direct to Cloud Chat
+        // Direct to Cloud Chat (Guests allowed)
         navigate({
             to: '/cloud-chat/new' as any,
             search: { initialMessage: content } as any

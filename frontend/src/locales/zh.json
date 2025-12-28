@@ -243,12 +243,16 @@
         "step3": "登录当前账号",
         "copyLink": "复制下载链接",
         "linkCopied": "下载链接已复制",
-        "errorLoading": "加载设备失败："
+        "errorLoading": "加载设备失败：",
+        "guestTitle": "登录查看设备",
+        "guestDesc": "随时随地访问和控制您的远程设备。"
     },
     "projects": {
         "title": "项目",
         "subtitle": "管理和分析您的代码库项目。",
         "noProjects": "未找到项目。",
+        "guestTitle": "登录查看项目",
+        "guestDesc": "管理您的云端项目并跨设备同步。",
         "id": "ID：",
         "loading": "加载项目中...",
         "refresh": "刷新",
@@ -460,6 +464,8 @@
         "serverInstruction": "要在其他工具（如 Claude Desktop）中使用 EvoLoop 作为 MCP 服务器，请使用以下命令进行配置："
     },
     "chat": {
+        "limitReached": "今日对话次数已耗尽",
+        "limitReachedDescription": "您已达到今日免费对话上限。请升级以继续使用。",
         "sidebar": {
             "tabChats": "对话",
             "tabFiles": "文件",

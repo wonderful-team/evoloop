@@ -97,10 +97,47 @@ export function ProfileScreen() {
     const { t } = useTranslation()
     const navigate = useNavigate()
     const { user, logout } = useAuth()
+    const token = localStorage.getItem('evoloop_token')
 
     const handleLogout = async () => {
         await logout()
         navigate({ to: '/' as any })
+    }
+
+    // Guest View
+    if (!token) {
+        return (
+            <div className="p-4 flex flex-col min-h-full bg-background animate-in fade-in duration-500">
+                <h1 className="text-xl font-bold mb-6">{t('profile.title')}</h1>
+
+                <div className="flex flex-col gap-6 flex-1 items-center justify-center text-center">
+                    <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
+                        <User className="w-12 h-12 text-muted-foreground" />
+                    </div>
+                    <div className="max-w-xs space-y-2">
+                        <h2 className="text-xl font-semibold">{t('profile.guestTitle') || 'Welcome Guest'}</h2>
+                        <p className="text-sm text-muted-foreground">
+                            {t('profile.guestDesc') || 'Log in to sync your devices and access cloud features.'}
+                        </p>
+                    </div>
+                    <div className="grid gap-3 w-full max-w-xs mt-4">
+                        <Button onClick={() => navigate({ to: '/login' as any })}>
+                            {t('auth.login.submit')}
+                        </Button>
+                        <Button variant="outline" onClick={() => navigate({ to: '/register' as any })}>
+                            {t('auth.login.signUp')}
+                        </Button>
+                    </div>
+                </div>
+
+                <ProfileLanguageSwitcher />
+
+                <Button variant="outline" className="w-full gap-2 mt-4" onClick={() => navigate({ to: '/profile/help' as any })}>
+                    <BookOpen className="w-4 h-4" />
+                    {t('profile.manual')}
+                </Button>
+            </div>
+        )
     }
 
     const isMember = !!user?.member_level_name;

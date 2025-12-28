@@ -248,12 +248,16 @@
         "step3": "Log in with current account",
         "copyLink": "Copy Download Link",
         "linkCopied": "Download link copied",
-        "errorLoading": "Error loading devices: "
+        "errorLoading": "Error loading devices: ",
+        "guestTitle": "Login to View Devices",
+        "guestDesc": "Access your remote devices and control them from anywhere."
     },
     "projects": {
         "title": "Projects",
         "subtitle": "Manage and analyze your codebase projects.",
         "noProjects": "No projects found.",
+        "guestTitle": "Login to View Projects",
+        "guestDesc": "Manage your cloud projects and sync them across devices.",
         "id": "ID: ",
         "loading": "Loading projects...",
         "refresh": "Refresh",
@@ -465,6 +469,8 @@
         "serverInstruction": "To use EvoLoop as an MCP Server in other tools (like Claude Desktop), configure it with the following command:"
     },
     "chat": {
+        "limitReached": "Daily Limit Reached",
+        "limitReachedDescription": "You have reached your daily free message limit. Please upgrade to continue.",
         "sidebar": {
             "tabChats": "Chats",
             "tabFiles": "Files",

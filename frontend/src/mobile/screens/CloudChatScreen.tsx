@@ -128,9 +128,32 @@ export function CloudChatScreen() {
             })
 
         } catch (e: any) {
-            toast.error(t('cloudChat.sendFailed') + e.message)
-            setIsStreaming(false)
-            setMessages(prev => [...prev, { type: 'error', content: e.message, timestamp: Date.now() }])
+            console.error("Chat Error:", e)
+            if (e.status === 402) {
+                toast.error(t('chat.limitReached'), {
+                    action: {
+                        label: t('profile.upgradeNow'),
+                        onClick: () => window.open("https://mall.imagicbox.cn/h5/pages/member/index", "_blank")
+                    },
+                    duration: 5000
+                })
+                setIsStreaming(false)
+                // Remove the "..." placeholder if it exists? 
+                // Currently we append error message.
+                // Let's replace the last loading message with an error message in UI if possible or just append
+                setMessages(prev => {
+                    // If last message is the loading one, replace it or remove it
+                    const last = prev[prev.length - 1]
+                    if (last.id === botMsgId || last.isStreaming) {
+                        return [...prev.slice(0, -1), { type: 'error', content: t('chat.limitReachedDescription'), timestamp: Date.now() }]
+                    }
+                    return [...prev, { type: 'error', content: t('chat.limitReachedDescription'), timestamp: Date.now() }]
+                })
+            } else {
+                toast.error(t('cloudChat.sendFailed') + (e.message || ""))
+                setIsStreaming(false)
+                setMessages(prev => [...prev, { type: 'error', content: e.message || "Error", timestamp: Date.now() }])
+            }
         }
     }
 

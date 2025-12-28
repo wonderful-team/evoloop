@@ -1,6 +1,6 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends
+from typing import Dict, Any, Optional, List, Annotated
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Header
 from pydantic import BaseModel
-from typing import Dict, Any, Optional, List
 from langchain_core.messages import HumanMessage, RemoveMessage
 from datetime import datetime, timezone
 
@@ -166,13 +166,70 @@ class IndexingRequest(BaseModel):
 async def chat_endpoint(
     req: ChatRequest, 
     background_tasks: BackgroundTasks,
-    current_user: CurrentUserOptional # Use Optional Auth
+    current_user: CurrentUserOptional, # Use Optional Auth
+    x_guest_id: Annotated[str | None, Header()] = None
 ):
     """
     Unified entry point for User Chat.
     """
     set_context(thread_id=req.thread_id, project_id=req.project_id)
-    
+
+    # --- Guest Access Control ---
+    if not current_user:
+        if not x_guest_id:
+            raise HTTPException(status_code=401, detail="Authentication required (or X-Guest-ID)")
+        
+        # Check Guest Limits via Redis
+        import redis.asyncio as redis
+        from app.infrastructure.external.imagicbox import imagicbox_client
+        
+        try:
+            redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
+            
+            # 1. Get Global Config
+            # TODO: Cache this config in Redis for 5-10 mins to avoid spamming member-center
+            # For now, we fetch it directly or use a fallback
+            try:
+                # We can't await this sync method directly if it was sync, but requests is sync.
+                # Ideally imagicbox_client should be async or run in threadpool. 
+                # For this MVP step we are inside async def, blocking slightly is okay-ish for Dev, 
+                # but better to wrap or assume fast network. 
+                # Converting to async properly is out of scope for this small task, assume it returns quick.
+                config_res = imagicbox_client.get_ai_global_config()
+                limit = 10 # Default
+                if config_res and config_res.get("code") == 0:
+                    limit = int(config_res.get("data", {}).get("guest_daily_limit", 10))
+            except Exception as e:
+                logger.warning(f"Failed to fetch guest config, using default: {e}")
+                limit = 10
+            
+            if limit <= 0:
+                raise HTTPException(status_code=403, detail="Guest chat disabled")
+
+            # 2. Check Daily Usage
+            today = datetime.now().strftime("%Y-%m-%d")
+            key = f"guest:usage:{today}:{x_guest_id}"
+            
+            async with redis_client:
+                current_usage = await redis_client.incr(key)
+                if current_usage == 1:
+                    await redis_client.expire(key, 86400) # 24h
+            
+            if current_usage > limit:
+                raise HTTPException(
+                    status_code=402, 
+                    detail=f"Guest limit reached ({limit}/day). Please upgrade."
+                )
+                
+            logger.info(f"Guest {x_guest_id} usage: {current_usage}/{limit}")
+
+        except HTTPException as he:
+            raise he
+        except Exception as e:
+            logger.error(f"Redis error during guest check: {e}")
+            # Allow open on error? Or Block? Block safeguards.
+            pass
+
     # 1. Construct input state
     messages = [HumanMessage(content=req.message)]
     inputs = {

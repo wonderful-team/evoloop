@@ -23,11 +23,47 @@ export function OnboardingOverlay() {
         setIsVisible(false)
     }
 
+    const [direction, setDirection] = useState(0)
+
+    const variants = {
+        enter: (direction: number) => {
+            return {
+                x: direction > 0 ? 100 : -100,
+                opacity: 0
+            };
+        },
+        center: {
+            zIndex: 1,
+            x: 0,
+            opacity: 1
+        },
+        exit: (direction: number) => {
+            return {
+                zIndex: 0,
+                x: direction < 0 ? 100 : -100,
+                opacity: 0
+            };
+        }
+    };
+
+    const swipeConfidenceThreshold = 10000;
+    const swipePower = (offset: number, velocity: number) => {
+        return Math.abs(offset) * velocity;
+    };
+
     const handleNext = () => {
         if (currentSlide < slides.length - 1) {
+            setDirection(1)
             setCurrentSlide(prev => prev + 1)
         } else {
             handleComplete()
+        }
+    }
+
+    const handlePrev = () => {
+        if (currentSlide > 0) {
+            setDirection(-1)
+            setCurrentSlide(prev => prev - 1)
         }
     }
 
@@ -153,14 +189,31 @@ export function OnboardingOverlay() {
                 {/* Content Area */}
                 <div className="flex-1 flex flex-col items-center justify-center p-8 relative overflow-hidden">
                     <div className="max-w-md w-full relative h-[400px] flex items-center justify-center">
-                        <AnimatePresence mode="wait">
+                        <AnimatePresence initial={false} custom={direction} mode="wait">
                             <motion.div
                                 key={currentSlide}
-                                initial={{ opacity: 0, x: 50 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -50 }}
-                                transition={{ duration: 0.3 }}
-                                className="absolute inset-0 flex items-center justify-center"
+                                custom={direction}
+                                variants={variants}
+                                initial="enter"
+                                animate="center"
+                                exit="exit"
+                                transition={{
+                                    x: { type: "spring", stiffness: 300, damping: 30 },
+                                    opacity: { duration: 0.2 }
+                                }}
+                                drag="x"
+                                dragConstraints={{ left: 0, right: 0 }}
+                                dragElastic={1}
+                                onDragEnd={(_, { offset, velocity }) => {
+                                    const swipe = swipePower(offset.x, velocity.x);
+
+                                    if (swipe < -swipeConfidenceThreshold) {
+                                        handleNext();
+                                    } else if (swipe > swipeConfidenceThreshold) {
+                                        handlePrev();
+                                    }
+                                }}
+                                className="absolute inset-0 flex items-center justify-center cursor-grab active:cursor-grabbing"
                             >
                                 {slides[currentSlide].content}
                             </motion.div>

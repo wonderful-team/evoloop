@@ -258,7 +258,7 @@ export class EvoLoopApi {
             method: 'GET',
             url: '/api/config/servicer',
         });
-        return res.data?.value;
+        return res.data?.value ?? null;
     }
 
     // --- Member Cancellation (Mobile Direct) ---
@@ -441,17 +441,38 @@ export class EvoLoopApi {
             // AdaptedAxios imports fetch from plugin-http. We should allow access.
             const { fetch } = await import('@tauri-apps/plugin-http');
 
+            const headers: Record<string, string> = {
+                'Content-Type': 'application/json'
+            };
+
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`; // Use bearer for streaming too if passed
+                // Note: The URL logic above appended token to query params as fallback/standard, 
+                // but header is better if supported.
+            } else {
+                // Guest ID
+                let guestId = localStorage.getItem('evoloop_guest_id');
+                if (!guestId) {
+                    guestId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+                    localStorage.setItem('evoloop_guest_id', guestId);
+                }
+                headers['X-Guest-ID'] = guestId;
+            }
+
             try {
                 const response = await fetch(url.toString(), {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: headers,
                     body: JSON.stringify(params)
                 });
 
                 if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                    if (response.status === 402) {
+                        const error = new Error("Payment Required")
+                            ; (error as any).status = 402
+                        throw error
+                    }
+                    throw new Error(`API Error: ${response.statusText}`)
                 }
 
                 if (!response.body) return;

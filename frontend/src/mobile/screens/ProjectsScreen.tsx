@@ -8,16 +8,50 @@ import { useNavigate } from "@tanstack/react-router"
 import { useMobileStore } from "../stores/useMobileStore"
 import { toast } from "sonner"
 
+import { Button } from "@/components/ui/button"
+
 export function ProjectsScreen() {
     const { t } = useTranslation()
     const navigate = useNavigate()
     const { setCurrentProject } = useMobileStore()
     const token = localStorage.getItem('evoloop_token')
+    const isGuest = !token
+
     const { data, isLoading } = useQuery({
         queryKey: ['evoloop', 'projects'],
         queryFn: () => EvoLoopApi.getCloudProjects({ page: 1, page_size: 100 }),
         enabled: !!token
     })
+
+    if (isGuest) {
+        return (
+            <div className="p-4 space-y-4 h-full flex flex-col">
+                <div className="flex items-center justify-between">
+                    <h1 className="text-xl font-bold">{t('projects.title')}</h1>
+                </div>
+
+                <div className="flex-1 flex flex-col items-center justify-center space-y-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+                    <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center">
+                        <FolderOpen className="w-10 h-10 text-muted-foreground/50" />
+                    </div>
+                    <div className="max-w-xs space-y-2">
+                        <h3 className="text-lg font-semibold">{t('projects.guestTitle') || 'Login to View Projects'}</h3>
+                        <p className="text-sm text-muted-foreground">
+                            {t('projects.guestDesc') || 'Manage your cloud projects and sync them across devices.'}
+                        </p>
+                    </div>
+                    <div className="flex gap-3 w-full max-w-xs">
+                        <Button className="flex-1" onClick={() => navigate({ to: '/login' as any })}>
+                            {t('auth.login.submit')}
+                        </Button>
+                        <Button variant="outline" className="flex-1" onClick={() => navigate({ to: '/register' as any })}>
+                            {t('auth.login.signUp')}
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     const projects = data?.list || []
 

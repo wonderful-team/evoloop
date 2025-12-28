@@ -2,7 +2,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 import { Home, Monitor, FolderOpen, User, Search, Menu } from "lucide-react"
 import { useMobileStore } from "./stores/useMobileStore"
-import { motion, useMotionValue, animate } from "framer-motion"
+import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { useEffect, useRef } from "react"
 import { ConversationDrawer } from "./components/ConversationDrawer"
@@ -60,53 +60,9 @@ export function TabsLayout() {
         }
     }
 
-    // Handle Native Scroll Snap updates
-    const handleScroll = () => {
-        if (!scrollContainerRef.current) return
-        const scrollLeft = scrollContainerRef.current.scrollLeft
-        const width = window.innerWidth
-
-        // Simple threshold check
-        if (scrollLeft < width / 2) {
-            if (activeTab !== 'cloud') {
-                setActiveTab('cloud')
-                // Optional: Update URL without navigation if checking passively? 
-                // But typically user expects URL to match.
-                // Since this fires rapidly, we might debounce or only nav on settling.
-                // However, navigation triggers re-render and effect loop. 
-                // Better strategy: Only change UI state here? 
-                // Actually, if user physically scrolls, we SHOULD change route when they land.
-                // But changing route programs scroll.
-
-                // Optimized approach:
-                // Use scroll END or debounce to trigger route change.
-                // For now, let's update activeTab locally (visuals) but route change on snap end?
-                // The provided requirements imply simpler gesture handling. 
-                // Let's assume URL sync is primary.
-
-                // If we navigate here, it might fight with scroll.
-                // Let's rely on scroll endings or just use visual cues until snap settles?
-                // A common pattern is `onScrollEnd`. native `onScroll` doesn't have "end".
-                // Let's assume bidirectional sync is handled by `handleTabSwitch` clicks mainly,
-                // and scroll updates URL *if* it settles.
-
-                // For simplicity/stability in this refactor:
-                // If user swipes, we detect the intent and navigate ONLY if it changed significantly and settled.
-                // But React router navigation might cause full re-render.
-
-                // Let's keep it simple: The scroll container IS the state of truth for position.
-                // We update activeTab visual only on significant threshold.
-            }
-        } else {
-            if (activeTab !== 'local') {
-                setActiveTab('local')
-            }
-        }
-    }
-
     // Using onMomentumScrollEnd logic equivalent for Web:
     // We can use a timeout debounce to detect scroll stop, then navigate.
-    const scrollTimeoutRef = useRef<NodeJS.Timeout>()
+    const scrollTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
     const onScroll = () => {
         if (!scrollContainerRef.current) return
 

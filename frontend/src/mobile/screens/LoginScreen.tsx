@@ -168,7 +168,7 @@ export function LoginScreen() {
 
         if (offset > 100 || velocity > 300) {
             await controls.start({ y: window.innerHeight, transition: { duration: 0.2 } })
-            navigate({ to: '/' as any })
+            navigate({ to: '..' as any })
         } else {
             controls.start({ y: 0, transition: { type: "spring", stiffness: 300, damping: 30 } })
         }
@@ -191,7 +191,7 @@ export function LoginScreen() {
             <Button
                 variant="ghost"
                 className="absolute top-4 right-4 rounded-full w-10 h-10 p-0 hover:bg-muted"
-                onClick={() => navigate({ to: '/' as any })}
+                onClick={() => navigate({ to: '..' as any })}
             >
                 <X className="w-6 h-6 text-muted-foreground" />
             </Button>
