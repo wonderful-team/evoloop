@@ -23,9 +23,12 @@ export async function loginLoader() {
     }
 }
 
+import { motion, useAnimation } from "framer-motion"
+
 export function LoginScreen() {
     const { t } = useTranslation()
     const navigate = useNavigate()
+    const controls = useAnimation()
     const [isLoading, setIsLoading] = useState(false)
     const [loginMode, setLoginMode] = useState<"account" | "mobile">("mobile")
     const [captchaConfig, setCaptchaConfig] = useState(0)
@@ -159,8 +162,32 @@ export function LoginScreen() {
         }
     }
 
+    const handleDragEnd = async (_event: any, info: any) => {
+        const offset = info.offset.y
+        const velocity = info.velocity.y
+
+        if (offset > 100 || velocity > 300) {
+            await controls.start({ y: window.innerHeight, transition: { duration: 0.2 } })
+            navigate({ to: '/' as any })
+        } else {
+            controls.start({ y: 0, transition: { type: "spring", stiffness: 300, damping: 30 } })
+        }
+    }
+
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background animate-in slide-in-from-bottom-[100%] duration-500 ease-out">
+        <motion.div
+            className="flex flex-col items-center justify-center min-h-screen p-6 bg-background"
+            initial={{ y: "100%" }}
+            animate={{ y: 0 }}
+            exit={{ y: "100%" }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={{ top: 0, bottom: 0.5 }}
+            onDragEnd={handleDragEnd}
+            style={{ touchAction: "none" }} // Prevent scroll interference
+        >
+            <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-muted rounded-full opacity-50 mb-6" />
             <Button
                 variant="ghost"
                 className="absolute top-4 right-4 rounded-full w-10 h-10 p-0 hover:bg-muted"
@@ -267,6 +294,6 @@ export function LoginScreen() {
                     </Button>
                 </div>
             </div>
-        </div>
+        </motion.div>
     )
 }
