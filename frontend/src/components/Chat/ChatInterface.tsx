@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AgentService, ProjectsService } from "@/client"
+import { AgentService, ProjectsService, MemoryService, FilesService } from "@/client"
 import { EvoLoopApi } from "@/client/evoloopClient"
 import { toast } from "sonner"
 import { Button } from "../ui/button"
@@ -11,11 +11,6 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { ContextPanel } from "./ContextPanel"
 import { Send, Loader2, Bot, User, Paperclip, Brain, MoreHorizontal, Save, RotateCcw, Copy } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import axios from "axios"
-
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000"
-const cleanUrl = API_URL.replace(/\/$/, "")
-const API_BASE = cleanUrl.endsWith("/api/v1") ? cleanUrl : `${cleanUrl}/api/v1`
 
 // Simple type for message
 interface Message {
@@ -72,11 +67,9 @@ export function ChatInterface() {
             }))
             setMessages(formatted)
         } else if (threads.find((t: Thread) => t.thread_id === activeThreadId) === undefined) {
-            // If new thread (not in list), empty messages
-            // But don't empty if we have optimistic updates pending?
-            // Actually, if data.messages is empty/undefined, it means no history.
+            // It's a new local thread, only clear if we really intend to reset
+            // If we have local messages pending, we might not want to clear
             if (!messages.length) setMessages([])
-            // We keep local state for "new" thread until server syncs
         }
     }, [historyData, activeThreadId])
 
@@ -109,41 +102,65 @@ export function ChatInterface() {
         }
     })
 
-    // Helper for auth headers
-    const getAuthHeaders = () => {
-        const token = localStorage.getItem("access_token")
-        return token ? { Authorization: `Bearer ${token}` } : {}
-    }
-
     const addToMemoryMutation = useMutation({
-        mutationFn: (text: string) => axios.post(`${API_BASE}/memory/concepts?project_id=${projectId}`, {
-            name: t('chat.interface.learnedFromChat'),
-            description: text,
-            related_files: []
-        }, { headers: getAuthHeaders() }),
+        mutationFn: async (text: string) => {
+            if (!projectId) throw new Error("No project selected")
+            return MemoryService.addConcept({
+                projectId,
+                requestBody: {
+                    name: t('chat.interface.learnedFromChat'),
+                    description: text,
+                    related_files: []
+                }
+            })
+        },
         onSuccess: () => {
-            // Ideally show toast
-            console.log("Added to Project Memory")
+            toast.success("Added to Project Memory")
             queryClient.invalidateQueries({ queryKey: ["projectMemory"] })
+        },
+        onError: (err) => {
+            console.error(err)
+            toast.error("Failed to add memory")
         }
     })
 
     const exportFileMutation = useMutation({
-        mutationFn: (text: string) => {
+        mutationFn: async (text: string) => {
+            if (!projectId) throw new Error("No project selected")
             const path = prompt(t('chat.interface.exportPrompt'), "docs/chat-export.md")
             if (!path) return Promise.reject("Cancelled")
-            return axios.post(`${API_BASE}/files?project_id=${projectId}`, {
-                path,
-                content: text
-            }, { headers: getAuthHeaders() })
+
+            return FilesService.createFile({
+                projectId,
+                requestBody: {
+                    path,
+                    content: text
+                }
+            })
         },
-        onSuccess: () => console.log(t('chat.interface.exportSuccess'))
+        onSuccess: () => toast.success(t('chat.interface.exportSuccess')),
+        onError: (err) => {
+            if ((err as any) !== "Cancelled") {
+                console.error(err)
+                toast.error("Failed to export file")
+            }
+        }
     })
 
     const rewindMutation = useMutation({
-        mutationFn: () => axios.post(`${API_BASE}/agent/chat/rewind`, { thread_id: activeThreadId }, { headers: getAuthHeaders() }),
+        mutationFn: () => AgentService.rewindChat({
+            requestBody: {
+                thread_id: activeThreadId,
+                message: "" // Required by type but unused for rewind logic typically, or simplistic stub
+            }
+        }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
+            toast.success(t('chat.interface.rewindSuccess', "Rewinded conversation"))
+        },
+        onError: (err) => {
+            console.error(err)
+            toast.error("Failed to rewind")
         }
     })
 
@@ -214,10 +231,7 @@ export function ChatInterface() {
                                         )}
 
                                         <div className={`relative max-w-[85%]`}>
-                                            <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user'
-                                                ? 'bg-primary text-primary-foreground'
-                                                : 'bg-muted text-foreground'
-                                                }`}>
+                                            <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
                                                 {msg.content}
                                                 {msg.thinking && (
                                                     <div className="flex items-center gap-2 text-muted-foreground italic mt-2">
