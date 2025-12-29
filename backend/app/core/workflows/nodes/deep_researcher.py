@@ -19,7 +19,7 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
     Deep Research Node.
     Delegates to the DeepResearchEngine.
     """
-    messages = state["messages"]
+    messages = state.get("messages", [])
 
     # Initialize state variables if missing
     topic = state.get("research_topic", "")

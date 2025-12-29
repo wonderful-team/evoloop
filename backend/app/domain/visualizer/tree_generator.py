@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from app.core.config import settings
-from app.infrastructure.database.sql.database import get_db
+from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import SourceFile, CodeChunk
 
 
@@ -52,7 +52,7 @@ class AnnotatedTreeGenerator:
 
     async def generate(self) -> str:
         # 1. Fetch DB Data
-        async with get_db() as session:
+        async with session_scope() as session:
             self.db_files_map = await self._fetch_source_files_map(session)
 
         # 2. Build Tree Structure

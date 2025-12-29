@@ -119,7 +119,7 @@ def update_step_status(plan_id: str, step_id: str, status: str, result: str = No
     })
 
 @tool
-def analyze_feasibility(proposed_plan: str) -> str:
+async def analyze_feasibility(proposed_plan: str) -> str:
     """
     Analyze the technical feasibility of a proposed development plan.
     It retrieves relevant code context and checks for potential issues like hallucinations or breaking changes.
@@ -129,16 +129,16 @@ def analyze_feasibility(proposed_plan: str) -> str:
     try:
         # Retrieval
         retrieval_service = RetrievalService()
-        search_results = retrieval_service.search(proposed_plan, limit=5)
+        search_results = await retrieval_service.search(proposed_plan, limit=5)
         
         context_str = "\n".join([f"File: {r['file_path']}\nSnippet: {r['content'][:500]}..." for r in search_results])
         
         # Get Project Structure
-        tree = get_annotated_tree(".", max_depth=2)
+        tree = await get_annotated_tree.ainvoke({"path": "."})
         
         # LLM Analysis
         chain = FEASIBILITY_ANALYSIS_PROMPT | llm | StrOutputParser()
-        report = chain.invoke({
+        report = await chain.ainvoke({
             "plan": proposed_plan,
             "context": context_str,
             "tree": tree

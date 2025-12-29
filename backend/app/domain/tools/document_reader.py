@@ -131,6 +131,9 @@ def query_excel_sql(file_path: str, sql_query: str) -> str:
     except Exception as e:
         return f"SQL Execution Error: {str(e)}"
 
+from langchain_core.tools import tool
+
+@tool
 def read_document(file_path: str, start_page: Optional[int] = None, end_page: Optional[int] = None) -> str:
     """
     Read and parse content from various document formats (PDF, DOCX, XLSX, MD, TXT, HTML).

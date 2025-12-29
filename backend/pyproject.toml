@@ -61,6 +61,8 @@ dependencies = [
     "python-socks[asyncio]>=2.8.0",
     "mammoth>=1.6.0",
     "crawl4ai>=0.4.0", # Highly efficient crawler
+    "pytesseract>=0.3.13",
+    "pyautogui>=0.9.54",
 ]
 
 [tool.uv]

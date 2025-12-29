@@ -33,7 +33,7 @@ class AgentState(TypedDict):
     # Loop Control
     iteration_count: int
     error: Optional[str]
-    next_node: Optional[str]
+    next_node: Annotated[Optional[str], lambda a, b: b]
 
     # Deep Research State
     research_loop_count: Optional[int]

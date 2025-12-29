@@ -123,15 +123,19 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         system_info=sys_info
     ) | llm_with_tools
     
-    # Allow up to 5 turns for planning & analysis
+    # Allow up to 10 turns for planning & analysis
     has_replied_directly = False
     
-    for i in range(5):
+    for i in range(10):
         # Pass config for streaming callbacks
         result = await tool_chain.ainvoke(state, config=config)
         
         # Check for tool calls
         if hasattr(result, "tool_calls") and result.tool_calls:
+            # Append the AI message (Assistant) first - ONCE
+            messages.append(result)
+            new_messages.append(result)
+
             # Execute tools
             for tool_call in result.tool_calls:
                 tool_name = tool_call["name"]
@@ -139,9 +143,9 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
                 
                 content = ""
                 if tool_name == "read_document":
-                    content = read_document(**tool_args)
+                    content = read_document.invoke(tool_args)
                 elif tool_name == "analyze_feasibility":
-                    content = analyze_feasibility(**tool_args)
+                    content = await analyze_feasibility.ainvoke(tool_args)
                 elif tool_name == "save_preference":
                     content = await save_preference.ainvoke(tool_args, config=config)
                 elif tool_name == "search_concepts":
@@ -162,19 +166,16 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
                 elif tool_name == "update_step_status":
                     content = update_step_status.invoke(tool_args)
 
-                # Create messages
-                ai_msg = result
+                # Create tool message
                 tool_msg = ToolMessage(content=str(content), tool_call_id=tool_call["id"], name=tool_name)
                 
                 # Update state messages
-                messages.append(ai_msg)
                 messages.append(tool_msg)
-                new_messages.append(ai_msg)
                 new_messages.append(tool_msg)
                 
-                # Update local state for next iteration
-                state["messages"] = messages
-                
+            # Update local state for next iteration (after all tools processed)
+            state["messages"] = messages
+            
             # Continue loop
             continue
         
