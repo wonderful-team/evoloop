@@ -84,88 +84,90 @@ export const TaskList: React.FC = () => {
     }
 
     return (
-        <div className="space-y-4">
-            <div className="flex justify-between items-center">
-                <h2 className="text-xl font-semibold tracking-tight">Tasks</h2>
-                <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={fetchTasks} disabled={isLoading}>
-                        <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                        Refresh
-                    </Button>
-                    <Button size="sm">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Create Task
-                    </Button>
+        <div className="h-full w-full overflow-auto p-6 space-y-6">
+            <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                    <h2 className="text-xl font-semibold tracking-tight">Tasks</h2>
+                    <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={fetchTasks} disabled={isLoading}>
+                            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                            Refresh
+                        </Button>
+                        <Button size="sm">
+                            <Plus className="w-4 h-4 mr-2" />
+                            Create Task
+                        </Button>
+                    </div>
                 </div>
-            </div>
 
-            <Card>
-                <CardContent className="p-0">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead className="w-[100px]">ID</TableHead>
-                                <TableHead>Title</TableHead>
-                                <TableHead>AI Score</TableHead>
-                                <TableHead>Priority</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Progress</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoading && tasks.length === 0 ? (
+                <Card>
+                    <CardContent className="p-0">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center">
-                                        <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
-                                    </TableCell>
+                                    <TableHead className="w-[100px]">ID</TableHead>
+                                    <TableHead>Title</TableHead>
+                                    <TableHead>AI Score</TableHead>
+                                    <TableHead>Priority</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Progress</TableHead>
                                 </TableRow>
-                            ) : tasks.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                                        No tasks found.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                tasks.map((task) => (
-                                    <TableRow key={task.task_id} className="cursor-pointer hover:bg-muted/50">
-                                        <TableCell className="font-medium">#{task.task_id}</TableCell>
-                                        <TableCell>
-                                            <div className="font-medium">{task.task_title}</div>
-                                            {task.task_desc && (
-                                                <div className="text-xs text-muted-foreground line-clamp-1">{task.task_desc}</div>
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {task.match_score !== undefined && (
-                                                <Badge variant={task.match_score > 80 ? 'default' : 'secondary'}>
-                                                    {task.match_score}%
-                                                </Badge>
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            <span className="text-sm text-muted-foreground">{getPriorityLabel(task.priority)}</span>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge className={getStatusColor(task.status)} variant="outline">
-                                                {getStatusLabel(task.status)}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="w-[60px] bg-secondary h-2 rounded-full overflow-hidden">
-                                                <div
-                                                    className="bg-primary h-full transition-all"
-                                                    style={{ width: `${task.progress || 0}%` }}
-                                                />
-                                            </div>
-                                            <div className="text-xs text-muted-foreground mt-1">{task.progress || 0}%</div>
+                            </TableHeader>
+                            <TableBody>
+                                {isLoading && tasks.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-24 text-center">
+                                            <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+                                ) : tasks.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                                            No tasks found.
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    tasks.map((task) => (
+                                        <TableRow key={task.task_id} className="cursor-pointer hover:bg-muted/50">
+                                            <TableCell className="font-medium">#{task.task_id}</TableCell>
+                                            <TableCell>
+                                                <div className="font-medium">{task.task_title}</div>
+                                                {task.task_desc && (
+                                                    <div className="text-xs text-muted-foreground line-clamp-1">{task.task_desc}</div>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {task.match_score !== undefined && (
+                                                    <Badge variant={task.match_score > 80 ? 'default' : 'secondary'}>
+                                                        {task.match_score}%
+                                                    </Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <span className="text-sm text-muted-foreground">{getPriorityLabel(task.priority)}</span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge className={getStatusColor(task.status)} variant="outline">
+                                                    {getStatusLabel(task.status)}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="w-[60px] bg-secondary h-2 rounded-full overflow-hidden">
+                                                    <div
+                                                        className="bg-primary h-full transition-all"
+                                                        style={{ width: `${task.progress || 0}%` }}
+                                                    />
+                                                </div>
+                                                <div className="text-xs text-muted-foreground mt-1">{task.progress || 0}%</div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </div>
         </div>
     )
 }

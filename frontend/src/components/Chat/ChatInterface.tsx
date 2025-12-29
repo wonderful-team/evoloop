@@ -200,7 +200,7 @@ export function ChatInterface() {
                     />
                 </ResizablePanel>
 
-                <ResizableHandle />
+                <ResizableHandle withHandle />
 
                 {/* Center Chat Panel */}
                 <ResizablePanel defaultSize={showContextPanel ? 60 : 80} minSize={40}>
@@ -355,7 +355,7 @@ export function ChatInterface() {
                 {/* Right Context Panel (Conditional) */}
                 {showContextPanel && (
                     <>
-                        <ResizableHandle />
+                        <ResizableHandle withHandle />
                         <ResizablePanel defaultSize={20} minSize={15} maxSize={30} className="min-w-[300px]">
                             <ContextPanel
                                 projectId={currentProject?.id}
