@@ -199,6 +199,115 @@ class ImagicBoxClient:
         """
         return self._make_request("POST", "/membercancel/api/membercancel/cancelApply")
 
+    # --- Project Task Management ---
+
+    def get_project_tasks(self, project_id: int, page: int = 1, page_size: int = 50, status: Optional[int] = None, token: Optional[str] = None) -> Dict:
+        """
+        Get tasks for a project.
+        Calls /projectmanage/api/task/projectTasks
+        """
+        params = {
+            "project_id": project_id,
+            "page": page,
+            "page_size": page_size
+        }
+        if status is not None:
+            params["status"] = status
+        return self._make_request("GET", "/projectmanage/api/task/projectTasks", params=params, token=token)
+
+    def get_task_detail(self, task_id: int, token: Optional[str] = None) -> Dict:
+        """
+        Get task details.
+        Calls /projectmanage/api/task/detail
+        """
+        # Note: The API might be /projectmanage/api/task/detail/{id} or query param
+        # Based on analysis, it seemed to be detail/{id} or query. 
+        # Let's assume path param based on Vue code: `/projectmanage/api/task/detail/${this.taskId}` ??
+        # Wait, Vue code says: hybridApiCall('GET', `/projectmanage/api/task/detail/${this.taskId}`, {}) (Step 70, Line 471)
+        # But wait, looking at python code or php controller...
+        # Task.php usually maps `detail` action. 
+        # Let's try path param style first as per Vue code usage observation.
+        return self._make_request("GET", f"/projectmanage/api/task/detail/{task_id}", token=token)
+
+    def create_task(self, data: Dict, token: Optional[str] = None) -> Dict:
+        """
+        Create a task.
+        Calls /projectmanage/api/task/create
+        """
+        return self._make_request("POST", "/projectmanage/api/task/create", data=data, token=token)
+
+    def update_task(self, task_id: int, data: Dict, token: Optional[str] = None) -> Dict:
+        """
+        Update a task.
+        Calls /projectmanage/api/task/update/{id}
+        """
+        return self._make_request("PUT", f"/projectmanage/api/task/update/{task_id}", data=data, token=token)
+
+    def delete_task(self, task_id: int, token: Optional[str] = None) -> Dict:
+        """
+        Delete a task.
+        Calls /projectmanage/api/task/delete
+        """
+        return self._make_request("DELETE", "/projectmanage/api/task/delete", data={"task_id": task_id}, token=token)
+    
+    def update_task_status(self, task_id: int, status: int, progress: int = 0, token: Optional[str] = None) -> Dict:
+         """
+         Update task status.
+         Calls /projectmanage/api/task/updateStatus
+         """
+         data = {
+             "task_id": task_id,
+             "status": status,
+             "progress": progress
+         }
+         return self._make_request("POST", "/projectmanage/api/task/updateStatus", data=data, token=token)
+
+    # --- Project Budget Management ---
+
+    def get_budget_list(self, project_id: int, page: int = 1, page_size: int = 50, token: Optional[str] = None) -> Dict:
+        """
+        Get budget list.
+        Calls /projectmanage/api/budget/lists
+        """
+        params = {"project_id": project_id, "page": page, "page_size": page_size}
+        return self._make_request("GET", "/projectmanage/api/budget/lists", params=params, token=token)
+
+    def get_budget_overview(self, project_id: int, token: Optional[str] = None) -> Dict:
+        """
+        Get budget overview stats.
+        Calls /projectmanage/api/budget/overview
+        """
+        return self._make_request("GET", "/projectmanage/api/budget/overview", params={"project_id": project_id}, token=token)
+
+    # --- Project Timesheet Management ---
+
+    def get_timesheet_list(self, project_id: int, page: int = 1, page_size: int = 50, token: Optional[str] = None) -> Dict:
+        """
+        Get timesheet list.
+        Calls /projectmanage/api/timesheet/lists
+        """
+        params = {"project_id": project_id, "page": page, "page_size": page_size}
+        return self._make_request("GET", "/projectmanage/api/timesheet/lists", params=params, token=token)
+
+    def add_timesheet_quick(self, data: Dict, token: Optional[str] = None) -> Dict:
+        """
+        Quick add timesheet.
+        Calls /projectmanage/api/timesheet/quickAdd
+        """
+        return self._make_request("POST", "/projectmanage/api/timesheet/quickAdd", data=data, token=token)
+
+    # --- Project Statistics ---
+
+    def get_project_statistics(self, project_id: int = 0, token: Optional[str] = None) -> Dict:
+        """
+        Get project statistics.
+        Calls /projectmanage/api/project/statistics
+        """
+        params = {}
+        if project_id:
+            params['project_id'] = project_id
+        return self._make_request("GET", "/projectmanage/api/project/statistics", params=params, token=token)
+
     # --- AI Config ---
     def get_ai_global_config(self) -> Dict:
         """
@@ -221,11 +330,14 @@ class ImagicBoxClient:
         ).hexdigest()
         return signature
 
-    def _make_request(self, method: str, endpoint: str, params: Optional[Dict] = None, data: Optional[Dict] = None) -> Dict:
+    def _make_request(self, method: str, endpoint: str, params: Optional[Dict] = None, data: Optional[Dict] = None, token: Optional[str] = None) -> Dict:
         """
         Generic request wrapper with Token injection.
         """
-        if not self._user_token:
+        # Prioritize explicit token, then stored token
+        active_token = token or self._user_token
+
+        if not active_token:
              # Fail fast if no token
              # But maybe we want generic public access? 
              # For GetProjects, token is required usually for context.
@@ -250,8 +362,8 @@ class ImagicBoxClient:
         if params is None:
             params = {}
         
-        if self._user_token:
-            params['token'] = self._user_token
+        if active_token:
+            params['token'] = active_token
             
         try:
             logger.info(f"ImagicBox Request: {method} {url} Params={params} Data={data}")

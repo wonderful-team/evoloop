@@ -94,6 +94,30 @@ export const ChatRequestSchema = {
     title: 'ChatRequest'
 } as const;
 
+export const CommandRequestSchema = {
+    properties: {
+        content: {
+            type: 'string',
+            title: 'Content'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id',
+            default: 1
+        }
+    },
+    type: 'object',
+    required: ['content'],
+    title: 'CommandRequest'
+} as const;
+
 export const ConceptCreateSchema = {
     properties: {
         name: {
@@ -166,6 +190,26 @@ export const CreateProjectRequestSchema = {
     type: 'object',
     required: ['name'],
     title: 'CreateProjectRequest'
+} as const;
+
+export const DeviceInfoSchema = {
+    properties: {
+        device_id: {
+            type: 'integer',
+            title: 'Device Id'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        status: {
+            type: 'integer',
+            title: 'Status'
+        }
+    },
+    type: 'object',
+    required: ['device_id', 'name', 'status'],
+    title: 'DeviceInfo'
 } as const;
 
 export const FileContentSchema = {
@@ -244,6 +288,43 @@ export const IndexingRequestSchema = {
     title: 'IndexingRequest'
 } as const;
 
+export const LogItemSchema = {
+    properties: {
+        log_id: {
+            type: 'integer',
+            title: 'Log Id'
+        },
+        thread_id: {
+            type: 'string',
+            title: 'Thread Id'
+        },
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        role: {
+            type: 'string',
+            title: 'Role'
+        },
+        type: {
+            type: 'string',
+            title: 'Type',
+            default: 'info'
+        },
+        content: {
+            type: 'string',
+            title: 'Content'
+        },
+        create_time: {
+            type: 'integer',
+            title: 'Create Time'
+        }
+    },
+    type: 'object',
+    required: ['log_id', 'thread_id', 'project_id', 'role', 'content', 'create_time'],
+    title: 'LogItem'
+} as const;
+
 export const LoginRequestSchema = {
     properties: {
         username: {
@@ -306,16 +387,24 @@ export const McpServerCreateSchema = {
     title: 'McpServerCreate'
 } as const;
 
-export const MessageSchema = {
+export const MobileLoginRequestSchema = {
     properties: {
-        message: {
+        mobile: {
             type: 'string',
-            title: 'Message'
+            title: 'Mobile'
+        },
+        key: {
+            type: 'string',
+            title: 'Key'
+        },
+        code: {
+            type: 'string',
+            title: 'Code'
         }
     },
     type: 'object',
-    required: ['message'],
-    title: 'Message'
+    required: ['mobile', 'key', 'code'],
+    title: 'MobileLoginRequest'
 } as const;
 
 export const RenameRequestSchema = {
@@ -365,6 +454,28 @@ export const SearchResultSchema = {
     title: 'SearchResult'
 } as const;
 
+export const SendMobileCodeRequestSchema = {
+    properties: {
+        mobile: {
+            type: 'string',
+            title: 'Mobile'
+        },
+        captcha_id: {
+            type: 'string',
+            title: 'Captcha Id',
+            default: ''
+        },
+        captcha_code: {
+            type: 'string',
+            title: 'Captcha Code',
+            default: ''
+        }
+    },
+    type: 'object',
+    required: ['mobile'],
+    title: 'SendMobileCodeRequest'
+} as const;
+
 export const SystemConfigSchema = {
     properties: {
         key: {
@@ -390,6 +501,277 @@ export const SystemConfigSchema = {
     type: 'object',
     required: ['key', 'value'],
     title: 'SystemConfig'
+} as const;
+
+export const TaskCreateRequestSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        task_title: {
+            type: 'string',
+            title: 'Task Title'
+        },
+        task_desc: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Task Desc',
+            default: ''
+        },
+        priority: {
+            type: 'integer',
+            title: 'Priority',
+            default: 2
+        },
+        match_score: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Match Score'
+        },
+        relevance_analysis: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Relevance Analysis'
+        },
+        key_modules: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Key Modules'
+        },
+        technical_challenges: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Technical Challenges'
+        },
+        implementation_complexity: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Implementation Complexity'
+        },
+        deliverables: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Deliverables'
+        }
+    },
+    type: 'object',
+    required: ['project_id', 'task_title'],
+    title: 'TaskCreateRequest'
+} as const;
+
+export const TaskStatusUpdateSchema = {
+    properties: {
+        status: {
+            type: 'integer',
+            title: 'Status'
+        },
+        progress: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Progress',
+            default: 0
+        }
+    },
+    type: 'object',
+    required: ['status'],
+    title: 'TaskStatusUpdate'
+} as const;
+
+export const TaskUpdateRequestSchema = {
+    properties: {
+        task_title: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Task Title'
+        },
+        task_desc: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Task Desc'
+        },
+        priority: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Priority'
+        },
+        status: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Status'
+        },
+        progress: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Progress'
+        },
+        match_score: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Match Score'
+        },
+        relevance_analysis: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Relevance Analysis'
+        },
+        key_modules: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Key Modules'
+        },
+        technical_challenges: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Technical Challenges'
+        },
+        implementation_complexity: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Implementation Complexity'
+        },
+        deliverables: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Deliverables'
+        }
+    },
+    type: 'object',
+    title: 'TaskUpdateRequest'
+} as const;
+
+export const TimesheetQuickAddRequestSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        hours: {
+            type: 'number',
+            title: 'Hours'
+        },
+        description: {
+            type: 'string',
+            title: 'Description'
+        },
+        work_type: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Work Type',
+            default: 'development'
+        }
+    },
+    type: 'object',
+    required: ['project_id', 'hours', 'description'],
+    title: 'TimesheetQuickAddRequest'
 } as const;
 
 export const TokenSchema = {

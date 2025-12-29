@@ -3,7 +3,10 @@ import asyncio
 import logging
 from typing import List, Dict, Optional, Any
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+import subprocess
+import sys
 from app.domain.project.service import project_context_manager
 
 logger = logging.getLogger(__name__)
@@ -123,6 +126,66 @@ async def get_file_content(project_id: int, path: str = Query(..., min_length=1)
     except Exception as e:
         logger.error(f"Error reading file {target_file}: {e}")
         raise HTTPException(500, "Error reading file")
+
+@router.get("/raw")
+async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
+    """
+    Get raw file content (for previewing images, PDFs, etc).
+    """
+    project = await project_context_manager.get_project_by_id(project_id)
+    if not project:
+         raise HTTPException(status_code=404, detail="Project not found")
+         
+    root_path = project.get("path")
+    if not root_path or not os.path.exists(root_path):
+        raise HTTPException(status_code=404, detail=f"Project path not found locally: {root_path}")
+        
+    target_file = os.path.join(root_path, path.lstrip('/'))
+    
+    if not os.path.commonpath([root_path, target_file]) == root_path:
+        raise HTTPException(403, "Access denied")
+        
+    if not os.path.exists(target_file) or not os.path.isfile(target_file):
+        raise HTTPException(404, "File not found")
+
+    return FileResponse(target_file)
+
+class OpenFileRequest(BaseModel):
+    path: str
+
+@router.post("/open")
+async def open_file(project_id: int, req: OpenFileRequest):
+    """
+    Open file in system default application.
+    """
+    project = await project_context_manager.get_project_by_id(project_id)
+    if not project:
+         raise HTTPException(status_code=404, detail="Project not found")
+         
+    root_path = project.get("path")
+    if not root_path or not os.path.exists(root_path):
+        raise HTTPException(status_code=404, detail="Project path invalid")
+    
+    target_file = os.path.join(root_path, req.path.lstrip('/'))
+    
+    # Security check
+    if not os.path.commonpath([root_path, target_file]) == root_path:
+        raise HTTPException(403, "Access denied")
+        
+    if not os.path.exists(target_file):
+        raise HTTPException(404, "File not found")
+
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(["open", target_file], check=True)
+        elif sys.platform == "win32":
+            os.startfile(target_file)
+        else:
+            subprocess.run(["xdg-open", target_file], check=True)
+        return {"status": "success", "message": "File opened"}
+    except Exception as e:
+        logger.error(f"Failed to open file {target_file}: {e}")
+        raise HTTPException(500, f"Failed to open file: {str(e)}")
 
 class CreateFileRequest(BaseModel):
     path: str

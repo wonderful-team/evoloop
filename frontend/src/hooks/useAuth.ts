@@ -5,7 +5,6 @@ import {
   type Body_login_login_access_token as AccessToken,
   LoginService,
   type UserPublic,
-  type UserRegister,
   UsersService,
   MemberService,
 } from "@/client"
@@ -16,6 +15,16 @@ const isLoggedIn = () => {
   return localStorage.getItem("access_token") !== null
 }
 
+// Define local UserRegister type or import MemberRegisterUsernameData
+export interface UserRegister {
+  [key: string]: unknown // Required by generated MemberService type
+  username?: string
+  password?: string
+  email?: string
+  nickname?: string
+  mobile?: string
+}
+
 const useAuth = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -23,13 +32,13 @@ const useAuth = () => {
 
   const { data: user } = useQuery<UserPublic | null, Error>({
     queryKey: ["currentUser"],
-    queryFn: UsersService.readUserMe,
+    queryFn: () => UsersService.readUserMe(), // Fix: Wrapping in arrow function
     enabled: isLoggedIn(),
   })
 
   const signUpMutation = useMutation({
     mutationFn: (data: UserRegister) =>
-      UsersService.registerUser({ requestBody: data }),
+      MemberService.registerUsername({ requestBody: data }), // Fix: Use MemberService
     onSuccess: () => {
       navigate({ to: "/login" })
     },
@@ -44,6 +53,8 @@ const useAuth = () => {
       formData: data,
     })
     localStorage.setItem("access_token", response.access_token)
+    // Set evoloop_token for consistency with EvoLoopApi/Mobile logic
+    localStorage.setItem("evoloop_token", response.access_token)
   }
 
   const loginMutation = useMutation({

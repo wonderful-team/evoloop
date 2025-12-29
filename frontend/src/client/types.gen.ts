@@ -16,6 +16,11 @@ export type ChatRequest = {
     checkpoint_id?: (string | null);
 };
 
+export type CommandRequest = {
+    content: string;
+    project_id?: (number | null);
+};
+
 export type ConceptCreate = {
     name: string;
     description: string;
@@ -34,6 +39,12 @@ export type CreateFileRequest = {
 
 export type CreateProjectRequest = {
     name: string;
+};
+
+export type DeviceInfo = {
+    device_id: number;
+    name: string;
+    status: number;
 };
 
 export type FileContent = {
@@ -61,6 +72,16 @@ export type LoginRequest = {
     password: string;
 };
 
+export type LogItem = {
+    log_id: number;
+    thread_id: string;
+    project_id: number;
+    role: string;
+    type?: string;
+    content: string;
+    create_time: number;
+};
+
 export type McpServerCreate = {
     name: string;
     command: string;
@@ -70,8 +91,10 @@ export type McpServerCreate = {
     } | null);
 };
 
-export type Message = {
-    message: string;
+export type MobileLoginRequest = {
+    mobile: string;
+    key: string;
+    code: string;
 };
 
 export type RenameRequest = {
@@ -86,10 +109,55 @@ export type SearchResult = {
     match_snippet?: (string | null);
 };
 
+export type SendMobileCodeRequest = {
+    mobile: string;
+    captcha_id?: string;
+    captcha_code?: string;
+};
+
 export type SystemConfig = {
     key: string;
     value: string;
     description?: (string | null);
+};
+
+export type TaskCreateRequest = {
+    project_id: number;
+    task_title: string;
+    task_desc?: (string | null);
+    priority?: number;
+    match_score?: (number | null);
+    relevance_analysis?: (string | null);
+    key_modules?: (unknown | null);
+    technical_challenges?: (unknown | null);
+    implementation_complexity?: (string | null);
+    deliverables?: (unknown | null);
+};
+
+export type TaskStatusUpdate = {
+    status: number;
+    progress?: (number | null);
+};
+
+export type TaskUpdateRequest = {
+    task_title?: (string | null);
+    task_desc?: (string | null);
+    priority?: (number | null);
+    status?: (number | null);
+    progress?: (number | null);
+    match_score?: (number | null);
+    relevance_analysis?: (string | null);
+    key_modules?: (unknown | null);
+    technical_challenges?: (unknown | null);
+    implementation_complexity?: (string | null);
+    deliverables?: (unknown | null);
+};
+
+export type TimesheetQuickAddRequest = {
+    project_id: number;
+    hours: number;
+    description: string;
+    work_type?: (string | null);
 };
 
 export type Token = {
@@ -130,7 +198,9 @@ export type WebhookRequest = {
 };
 
 export type AgentChatEndpointData = {
+    authorization?: (string | null);
     requestBody: ChatRequest;
+    xGuestId?: (string | null);
 };
 
 export type AgentChatEndpointResponse = (unknown);
@@ -160,6 +230,32 @@ export type HistoryRenameConversationData = {
 };
 
 export type HistoryRenameConversationResponse = (unknown);
+
+export type DevicesGetDevicesResponse = (Array<DeviceInfo>);
+
+export type DevicesSendCommandData = {
+    deviceId: number;
+    requestBody: CommandRequest;
+};
+
+export type DevicesSendCommandResponse = (unknown);
+
+export type DevicesGetRecentLogsData = {
+    deviceId: number;
+    limit?: number;
+    projectId?: (number | null);
+};
+
+export type DevicesGetRecentLogsResponse = (Array<LogItem>);
+
+export type DevicesSearchLogsData = {
+    deviceId: number;
+    limit?: number;
+    projectId?: (number | null);
+    query: string;
+};
+
+export type DevicesSearchLogsResponse = (Array<LogItem>);
 
 export type FilesListFilesData = {
     path?: (string | null);
@@ -217,9 +313,65 @@ export type MemberLoginData = {
 
 export type MemberLoginResponse = (unknown);
 
+export type MemberLoginMobileData = {
+    requestBody: MobileLoginRequest;
+};
+
+export type MemberLoginMobileResponse = (unknown);
+
+export type MemberSendMobileCodeData = {
+    requestBody: SendMobileCodeRequest;
+};
+
+export type MemberSendMobileCodeResponse = (unknown);
+
+export type MemberGetCaptchaConfigResponse = (unknown);
+
+export type MemberGetCaptchaData = {
+    id?: string;
+};
+
+export type MemberGetCaptchaResponse = (unknown);
+
+export type MemberGetRegisterConfigResponse = (unknown);
+
+export type MemberGetRegisterAgreementData = {
+    type?: string;
+};
+
+export type MemberGetRegisterAgreementResponse = (unknown);
+
+export type MemberRegisterUsernameData = {
+    requestBody: {
+        [key: string]: unknown;
+    };
+};
+
+export type MemberRegisterUsernameResponse = (unknown);
+
+export type MemberRegisterMobileData = {
+    requestBody: {
+        [key: string]: unknown;
+    };
+};
+
+export type MemberRegisterMobileResponse = (unknown);
+
+export type MemberSendRegisterCodeData = {
+    requestBody: SendMobileCodeRequest;
+};
+
+export type MemberSendRegisterCodeResponse = (unknown);
+
 export type MemberStatusResponse = (unknown);
 
 export type MemberLogoutResponse = (unknown);
+
+export type MemberGetCancellationInfoResponse = (unknown);
+
+export type MemberApplyCancellationResponse = (unknown);
+
+export type MemberCancelCancellationApplyResponse = (unknown);
 
 export type MemoryListConceptsData = {
     projectId: number;
@@ -246,6 +398,45 @@ export type PlanningGetPlanData = {
 };
 
 export type PlanningGetPlanResponse = (unknown);
+
+export type ProjectModulesGetBudgetListData = {
+    page?: number;
+    pageSize?: number;
+    projectId: number;
+    authorization?: (string | null);
+};
+
+export type ProjectModulesGetBudgetListResponse = (unknown);
+
+export type ProjectModulesGetBudgetOverviewData = {
+    projectId: number;
+    authorization?: (string | null);
+};
+
+export type ProjectModulesGetBudgetOverviewResponse = (unknown);
+
+export type ProjectModulesGetTimesheetListData = {
+    page?: number;
+    pageSize?: number;
+    projectId: number;
+    authorization?: (string | null);
+};
+
+export type ProjectModulesGetTimesheetListResponse = (unknown);
+
+export type ProjectModulesQuickAddTimesheetData = {
+    requestBody: TimesheetQuickAddRequest;
+    authorization?: (string | null);
+};
+
+export type ProjectModulesQuickAddTimesheetResponse = (unknown);
+
+export type ProjectModulesGetProjectStatisticsData = {
+    projectId?: (number | null);
+    authorization?: (string | null);
+};
+
+export type ProjectModulesGetProjectStatisticsResponse = (unknown);
 
 export type ProjectsListProjectsResponse = (unknown);
 
@@ -315,35 +506,72 @@ export type SymbolsGenerateSymbolWikiData = {
 
 export type SymbolsGenerateSymbolWikiResponse = (unknown);
 
+export type SystemGetSystemConfigData = {
+    authorization?: (string | null);
+};
+
 export type SystemGetSystemConfigResponse = (Array<SystemConfig>);
 
 export type SystemUpdateSystemConfigData = {
+    authorization?: (string | null);
     requestBody: SystemConfig;
 };
 
 export type SystemUpdateSystemConfigResponse = (SystemConfig);
 
-export type UsersReadUserMeResponse = (UserPublic);
-
-export type UtilsTestEmailData = {
-    emailTo: string;
+export type TasksGetProjectTasksData = {
+    page?: number;
+    pageSize?: number;
+    projectId: number;
+    status?: (number | null);
+    authorization?: (string | null);
 };
 
-export type UtilsTestEmailResponse = (Message);
+export type TasksGetProjectTasksResponse = (unknown);
+
+export type TasksCreateTaskData = {
+    requestBody: TaskCreateRequest;
+    authorization?: (string | null);
+};
+
+export type TasksCreateTaskResponse = (unknown);
+
+export type TasksGetTaskDetailData = {
+    taskId: number;
+    authorization?: (string | null);
+};
+
+export type TasksGetTaskDetailResponse = (unknown);
+
+export type TasksUpdateTaskData = {
+    requestBody: TaskUpdateRequest;
+    taskId: number;
+    authorization?: (string | null);
+};
+
+export type TasksUpdateTaskResponse = (unknown);
+
+export type TasksDeleteTaskData = {
+    taskId: number;
+    authorization?: (string | null);
+};
+
+export type TasksDeleteTaskResponse = (unknown);
+
+export type TasksUpdateTaskStatusEndpointData = {
+    requestBody: TaskStatusUpdate;
+    taskId: number;
+    authorization?: (string | null);
+};
+
+export type TasksUpdateTaskStatusEndpointResponse = (unknown);
+
+export type UsersReadUserMeData = {
+    authorization?: (string | null);
+};
+
+export type UsersReadUserMeResponse = (UserPublic);
 
 export type UtilsHealthCheckResponse = (boolean);
 
 export type UtilsGetEvoloopStatusResponse = (unknown);
-
-export type UserRegister = {
-    email: string;
-    password: string;
-    full_name?: (string | null);
-    username?: (string | null);
-};
-
-export type UsersRegisterUserData = {
-    requestBody: UserRegister;
-};
-
-export type UsersRegisterUserResponse = (UserPublic);

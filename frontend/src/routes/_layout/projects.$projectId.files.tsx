@@ -1,10 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useProjectStore } from "@/stores/projectStore"
-import { Folder, AlertCircle, FileCode, Loader2 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { FileCode, Loader2, ExternalLink, FileText, FileSpreadsheet } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { FilesService } from "@/client"
+import { FilesService, OpenAPI } from "@/client"
 import { FileTree } from "@/components/Files/FileTree"
+import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
+import { renderAsync } from 'docx-preview'
+import * as XLSX from 'xlsx'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism'
 
 export const Route = createFileRoute('/_layout/projects/$projectId/files')({
     component: FilesPage,
@@ -12,55 +19,113 @@ export const Route = createFileRoute('/_layout/projects/$projectId/files')({
 
 function FilesPage() {
     const { projectId } = Route.useParams()
-    const { currentProject, projects, fetchProjects, setProject } = useProjectStore()
     const [selectedFile, setSelectedFile] = useState<{ path: string, name: string } | null>(null)
+    const containerRef = useRef<HTMLDivElement>(null)
 
-    // Sync params with store on mount or update
-    useEffect(() => {
-        if (!projectId) return
+    // Determine file type
+    const getFileType = (name: string) => {
+        const ext = name.split('.').pop()?.toLowerCase()
+        if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext || '')) return 'image'
+        if (ext === 'pdf') return 'pdf'
+        if (['docx'].includes(ext || '')) return 'docx'
+        if (['xlsx'].includes(ext || '')) return 'xlsx'
+        if (['csv'].includes(ext || '')) return 'csv'
+        if (['md', 'markdown'].includes(ext || '')) return 'markdown'
+        // Assume text/code for others or fallback
+        return 'text'
+    }
 
-        // If we have projects but current doesn't match, find and set
-        if (projects.length > 0) {
-            const p = projects.find(p => p.id === Number(projectId))
-            if (p && p.id !== currentProject?.id) {
-                setProject(p)
-            }
-        } else {
-            // If no projects loaded (e.g. refresh), fetch them
-            fetchProjects()
-        }
-    }, [projectId, projects, currentProject, fetchProjects, setProject])
+    const fileType = selectedFile ? getFileType(selectedFile.name) : 'text'
+    const isText = fileType === 'text' || fileType === 'markdown' || fileType === 'csv'
 
-    // Load file content
+    // Load text content
     const { data: fileContent, isLoading: isContentLoading } = useQuery({
         queryKey: ["fileContent", projectId, selectedFile?.path],
         queryFn: () => FilesService.getFileContent({ projectId: Number(projectId), path: selectedFile!.path }),
-        enabled: !!selectedFile && !!projectId
+        enabled: !!selectedFile && !!projectId && isText,
+        retry: false
     })
 
-    // Loading state or lookup
-    const displayProject = currentProject?.id === Number(projectId) ? currentProject : projects.find(p => p.id === Number(projectId))
+    // Construct Raw URL
+    const rawUrl = selectedFile ? `${OpenAPI.BASE}/api/v1/files/projects/${projectId}/files/raw?path=${encodeURIComponent(selectedFile.path)}` : ''
 
-    if (!displayProject) {
-        return (
-            <div className="flex flex-col items-center justify-center h-[calc(100vh-8rem)] text-muted-foreground">
-                <AlertCircle className="h-12 w-12 mb-4 opacity-20" />
-                <h3 className="text-lg font-medium">Project Not Found</h3>
-                <p>Could not find project with ID: {projectId}</p>
-            </div>
-        )
+    // Handle Office / Binary rendering manually
+    useEffect(() => {
+        if (!selectedFile) return
+        if (!containerRef.current) return
+
+        const render = async () => {
+            // Clear container
+            containerRef.current!.innerHTML = ''
+
+            if (fileType === 'docx') {
+                try {
+                    const token = localStorage.getItem('access_token')
+                    const res = await fetch(rawUrl, { headers: { Authorization: `Bearer ${token}` } })
+                    if (!res.ok) throw new Error("Failed to load file")
+                    const blob = await res.blob()
+                    await renderAsync(blob, containerRef.current!)
+                } catch (e) {
+                    console.error(e)
+                    containerRef.current!.innerHTML = `<div class="p-4 text-red-500">Failed to render DOCX preview.</div>`
+                }
+            } else if (fileType === 'xlsx') {
+                try {
+                    const token = localStorage.getItem('access_token')
+                    const res = await fetch(rawUrl, { headers: { Authorization: `Bearer ${token}` } })
+                    if (!res.ok) throw new Error("Failed to load file")
+                    const blob = await res.blob()
+                    const buffer = await blob.arrayBuffer()
+                    const wb = XLSX.read(buffer, { type: 'array' })
+                    const wsName = wb.SheetNames[0]
+                    const ws = wb.Sheets[wsName]
+                    const html = XLSX.utils.sheet_to_html(ws)
+                    containerRef.current!.innerHTML = `<div class="p-4 overflow-auto">${html}</div>`
+                } catch (e) {
+                    console.error(e)
+                    containerRef.current!.innerHTML = `<div class="p-4 text-red-500">Failed to render Excel preview.</div>`
+                }
+            } else if (fileType === 'csv' && fileContent) {
+                try {
+                    // Parse CSV string content
+                    const wb = XLSX.read((fileContent as any).content, { type: 'string' })
+                    const wsName = wb.SheetNames[0]
+                    const ws = wb.Sheets[wsName]
+                    const html = XLSX.utils.sheet_to_html(ws) // Generates simple HTML table
+
+                    // Wrap in prose to style it nicely if using typography plugin, or default table styles
+                    containerRef.current!.innerHTML = `<div class="p-4 overflow-auto prose prose-slate max-w-none">
+                        ${html}
+                     </div>`
+                } catch (e) {
+                    console.error(e)
+                    // Fallback will supply text view if this fails, or we can show error
+                    containerRef.current!.innerHTML = `<div class="p-4 text-red-500">Failed to render CSV table.</div>`
+                }
+            }
+        }
+        render()
+    }, [selectedFile, fileType, rawUrl, projectId, isText, fileContent])
+
+
+    const handleOpenInApp = async () => {
+        if (!selectedFile) return
+        try {
+            await FilesService.openFile({
+                projectId: Number(projectId),
+                requestBody: { path: selectedFile.path }
+            })
+            toast.success("Opening file in external app...")
+        } catch (error) {
+            console.error(error)
+            toast.error("Failed to open file")
+        }
     }
 
     return (
-        <div className="flex flex-1 h-[calc(100vh-4rem)] overflow-hidden">
-            {/* Sidebar with FileTree */}
-            <div className="w-72 border-r bg-muted/5 flex flex-col">
-                <div className="p-3 border-b flex items-center gap-2 bg-muted/10">
-                    <Folder className="h-4 w-4 text-primary" />
-                    <span className="font-semibold text-sm truncate" title={displayProject.name}>
-                        {displayProject.name}
-                    </span>
-                </div>
+        <div className="flex h-full overflow-hidden">
+            {/* Sidebar with FileTree - Inner Sidebar */}
+            <div className="w-64 border-r bg-muted/5 flex flex-col">
                 <div className="flex-1 overflow-auto py-2">
                     <FileTree
                         projectId={Number(projectId)}
@@ -74,29 +139,90 @@ function FilesPage() {
                 {selectedFile ? (
                     <>
                         <div className="h-10 border-b px-4 flex items-center gap-2 bg-muted/5 text-sm">
-                            <FileCode className="h-4 w-4 text-muted-foreground" />
+                            {fileType === 'image' && <FileCode className="h-4 w-4 text-muted-foreground" />}
+                            {fileType === 'pdf' && <FileText className="h-4 w-4 text-muted-foreground" />}
+                            {fileType === 'xlsx' && <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />}
+                            {fileType === 'csv' && <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />}
+                            {fileType === 'docx' && <FileText className="h-4 w-4 text-muted-foreground" />}
+                            {fileType === 'markdown' && <FileCode className="h-4 w-4 text-muted-foreground" />}
+                            {fileType === 'text' && <FileCode className="h-4 w-4 text-muted-foreground" />}
+
                             <span className="font-medium">{selectedFile.name}</span>
                             <span className="text-xs text-muted-foreground ml-auto opacity-50 font-mono truncate max-w-[300px]" title={selectedFile.path}>
                                 {selectedFile.path}
                             </span>
+
+                            <div className="ml-2 border-l pl-2 shrink-0">
+                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={handleOpenInApp} title="Open in System App">
+                                    <ExternalLink className="h-4 w-4" />
+                                </Button>
+                            </div>
                         </div>
-                        <div className="flex-1 overflow-auto p-0">
-                            {isContentLoading ? (
-                                <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
-                                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                                    Loading content...
+                        <div className="flex-1 overflow-auto p-0 relative bg-white/50">
+                            {fileType === 'image' ? (
+                                <div className="flex items-center justify-center p-4 min-h-full">
+                                    <img src={rawUrl} alt={selectedFile.name} className="max-w-full max-h-full object-contain shadow-sm border rounded" />
                                 </div>
+                            ) : fileType === 'pdf' ? (
+                                <iframe key="pdf" src={rawUrl} className="w-full h-full" title="PDF Preview" />
+                            ) : fileType === 'docx' || fileType === 'xlsx' || fileType === 'csv' ? (
+                                <div key="manual-render" ref={containerRef} className="w-full h-full overflow-auto bg-white p-4" />
                             ) : (
-                                <pre className="p-4 font-mono text-sm text-foreground/90 overflow-auto whitespace-pre-wrap break-all">
-                                    {(fileContent as any)?.content || ""}
-                                </pre>
+                                isContentLoading ? (
+                                    <div key="loading" className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                        Loading content...
+                                    </div>
+                                ) : (
+                                    fileType === 'markdown' ? (
+                                        <div key="markdown" className="p-8 prose prose-slate dark:prose-invert max-w-none overflow-auto h-full">
+                                            <ReactMarkdown
+                                                remarkPlugins={[remarkGfm]}
+                                                components={{
+                                                    code({ node, className, children, ...props }) {
+                                                        const match = /language-(\w+)/.exec(className || '')
+                                                        return match ? (
+                                                            // @ts-ignore
+                                                            <SyntaxHighlighter
+                                                                // @ts-ignore
+                                                                style={vscDarkPlus}
+                                                                language={match[1]}
+                                                                PreTag="div"
+                                                                {...props}
+                                                            >
+                                                                {String(children).replace(/\n$/, '')}
+                                                            </SyntaxHighlighter>
+                                                        ) : (
+                                                            <code className={className} {...props}>
+                                                                {children}
+                                                            </code>
+                                                        )
+                                                    }
+                                                }}
+                                            >
+                                                {(fileContent as any)?.content || ""}
+                                            </ReactMarkdown>
+                                        </div>
+                                    ) : (
+                                        <pre key="text" className="p-4 font-mono text-sm text-foreground/90 overflow-auto whitespace-pre-wrap break-all">
+                                            {(fileContent as any)?.content || ""}
+                                            {!(fileContent as any)?.content && !isContentLoading && (
+                                                <div className="text-center text-muted-foreground mt-10">
+                                                    Preview not available for this file type.
+                                                    <br />
+                                                    <a href={rawUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline mt-2 inline-block">Download File</a>
+                                                </div>
+                                            )}
+                                        </pre>
+                                    )
+                                )
                             )}
                         </div>
                     </>
                 ) : (
                     <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/50 bg-muted/5">
                         <FileCode className="h-16 w-16 mb-4 opacity-10" />
-                        <p>Select a file to view code</p>
+                        <p>Select a file to view</p>
                     </div>
                 )}
             </div>

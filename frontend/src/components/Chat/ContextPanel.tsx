@@ -6,9 +6,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Brain, Map, Layers, Database, ExternalLink, X, Plus, RefreshCw, Loader2, Search, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { MemoryService, PlanningService, FilesService } from "@/client"
 import { ConceptResponse } from "@/client/types.gen"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { toast } from "sonner"
 
 interface ContextPanelProps {
     projectId?: number
@@ -38,8 +49,14 @@ interface FileSearchResult {
 
 export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPanelProps) {
     const { t } = useTranslation()
+    const queryClient = useQueryClient()
     const [activeTab, setActiveTab] = useState("memory")
     const [searchQuery, setSearchQuery] = useState("")
+
+    // Add Memory State
+    const [isAddMemoryOpen, setIsAddMemoryOpen] = useState(false)
+    const [newMemoryName, setNewMemoryName] = useState("")
+    const [newMemoryDesc, setNewMemoryDesc] = useState("")
 
     // --- Queries ---
 
@@ -54,6 +71,37 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
         },
         enabled: !!projectId && activeTab === 'memory'
     })
+
+    // Add Memory Mutation
+    const addMemoryMutation = useMutation({
+        mutationFn: async () => {
+            if (!projectId) throw new Error("No project selected")
+            return MemoryService.addConcept({
+                projectId,
+                requestBody: {
+                    name: newMemoryName,
+                    description: newMemoryDesc,
+                    related_files: []
+                }
+            })
+        },
+        onSuccess: () => {
+            toast.success(t('chat.context.addMemory.success'))
+            setIsAddMemoryOpen(false)
+            setNewMemoryName("")
+            setNewMemoryDesc("")
+            queryClient.invalidateQueries({ queryKey: ["projectMemory", projectId] })
+        },
+        onError: (err) => {
+            console.error(err)
+            toast.error(t('common.error.message'))
+        }
+    })
+
+    const handleAddMemory = () => {
+        if (!newMemoryName.trim()) return
+        addMemoryMutation.mutate()
+    }
 
     // 2. Active Plan
     const { data: planData, isLoading: isLoadingPlan } = useQuery({
@@ -132,9 +180,47 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
                                 <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => refetchMemory()}>
                                     <RefreshCw className={`h-3 w-3 ${isLoadingMemory ? 'animate-spin' : ''}`} />
                                 </Button>
-                                <Button variant="ghost" size="icon" className="h-6 w-6">
-                                    <Plus className="h-3 w-3" />
-                                </Button>
+
+                                <Dialog open={isAddMemoryOpen} onOpenChange={setIsAddMemoryOpen}>
+                                    <DialogTrigger asChild>
+                                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                                            <Plus className="h-3 w-3" />
+                                        </Button>
+                                    </DialogTrigger>
+                                    <DialogContent>
+                                        <DialogHeader>
+                                            <DialogTitle>{t('chat.context.addMemory.title')}</DialogTitle>
+                                            <DialogDescription>
+                                            </DialogDescription>
+                                        </DialogHeader>
+                                        <div className="grid gap-4 py-4">
+                                            <div className="grid gap-2">
+                                                <Label htmlFor="name">{t('chat.context.addMemory.name')}</Label>
+                                                <Input
+                                                    id="name"
+                                                    value={newMemoryName}
+                                                    onChange={(e) => setNewMemoryName(e.target.value)}
+                                                />
+                                            </div>
+                                            <div className="grid gap-2">
+                                                <Label htmlFor="desc">{t('chat.context.addMemory.desc')}</Label>
+                                                <textarea
+                                                    id="desc"
+                                                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                                    value={newMemoryDesc}
+                                                    onChange={(e) => setNewMemoryDesc(e.target.value)}
+                                                />
+                                            </div>
+                                        </div>
+                                        <DialogFooter>
+                                            <Button variant="outline" onClick={() => setIsAddMemoryOpen(false)}>{t('common.cancel')}</Button>
+                                            <Button onClick={handleAddMemory} disabled={addMemoryMutation.isPending || !newMemoryName.trim()}>
+                                                {addMemoryMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                                {t('common.save')}
+                                            </Button>
+                                        </DialogFooter>
+                                    </DialogContent>
+                                </Dialog>
                             </div>
                         </div>
                         <ScrollArea className="flex-1 p-3">

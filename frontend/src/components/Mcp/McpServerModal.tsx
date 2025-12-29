@@ -43,8 +43,6 @@ export type McpServerPublic = {
     args?: string[]
 }
 
-
-
 interface McpServerModalProps {
     open: boolean
     onOpenChange: (open: boolean) => void

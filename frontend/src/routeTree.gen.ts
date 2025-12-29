@@ -19,6 +19,11 @@ import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
 import { Route as LayoutMcpRouteImport } from './routes/_layout/mcp'
 import { Route as LayoutChatRouteImport } from './routes/_layout/chat'
 import { Route as LayoutProjectsIndexRouteImport } from './routes/_layout/projects.index'
+import { Route as LayoutProjectsProjectIdRouteImport } from './routes/_layout/projects.$projectId'
+import { Route as LayoutProjectsProjectIdTimesheetRouteImport } from './routes/_layout/projects.$projectId.timesheet'
+import { Route as LayoutProjectsProjectIdTasksRouteImport } from './routes/_layout/projects.$projectId.tasks'
+import { Route as LayoutProjectsProjectIdReportsRouteImport } from './routes/_layout/projects.$projectId.reports'
+import { Route as LayoutProjectsProjectIdGanttRouteImport } from './routes/_layout/projects.$projectId.gantt'
 import { Route as LayoutProjectsProjectIdFilesRouteImport } from './routes/_layout/projects.$projectId.files'
 
 const SignupRoute = SignupRouteImport.update({
@@ -70,11 +75,40 @@ const LayoutProjectsIndexRoute = LayoutProjectsIndexRouteImport.update({
   path: '/projects/',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutProjectsProjectIdRoute = LayoutProjectsProjectIdRouteImport.update({
+  id: '/projects/$projectId',
+  path: '/projects/$projectId',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutProjectsProjectIdTimesheetRoute =
+  LayoutProjectsProjectIdTimesheetRouteImport.update({
+    id: '/timesheet',
+    path: '/timesheet',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
+const LayoutProjectsProjectIdTasksRoute =
+  LayoutProjectsProjectIdTasksRouteImport.update({
+    id: '/tasks',
+    path: '/tasks',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
+const LayoutProjectsProjectIdReportsRoute =
+  LayoutProjectsProjectIdReportsRouteImport.update({
+    id: '/reports',
+    path: '/reports',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
+const LayoutProjectsProjectIdGanttRoute =
+  LayoutProjectsProjectIdGanttRouteImport.update({
+    id: '/gantt',
+    path: '/gantt',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
 const LayoutProjectsProjectIdFilesRoute =
   LayoutProjectsProjectIdFilesRouteImport.update({
-    id: '/projects/$projectId/files',
-    path: '/projects/$projectId/files',
-    getParentRoute: () => LayoutRoute,
+    id: '/files',
+    path: '/files',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -86,8 +120,13 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof LayoutMcpRoute
   '/settings': typeof LayoutSettingsRoute
   '/': typeof LayoutIndexRoute
+  '/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/projects': typeof LayoutProjectsIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
+  '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
+  '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
+  '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
+  '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -98,8 +137,13 @@ export interface FileRoutesByTo {
   '/mcp': typeof LayoutMcpRoute
   '/settings': typeof LayoutSettingsRoute
   '/': typeof LayoutIndexRoute
+  '/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/projects': typeof LayoutProjectsIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
+  '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
+  '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
+  '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
+  '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -112,8 +156,13 @@ export interface FileRoutesById {
   '/_layout/mcp': typeof LayoutMcpRoute
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/': typeof LayoutIndexRoute
+  '/_layout/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/_layout/projects/': typeof LayoutProjectsIndexRoute
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
+  '/_layout/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
+  '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
+  '/_layout/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
+  '/_layout/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -126,8 +175,13 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/settings'
     | '/'
+    | '/projects/$projectId'
     | '/projects'
     | '/projects/$projectId/files'
+    | '/projects/$projectId/gantt'
+    | '/projects/$projectId/reports'
+    | '/projects/$projectId/tasks'
+    | '/projects/$projectId/timesheet'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -138,8 +192,13 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/settings'
     | '/'
+    | '/projects/$projectId'
     | '/projects'
     | '/projects/$projectId/files'
+    | '/projects/$projectId/gantt'
+    | '/projects/$projectId/reports'
+    | '/projects/$projectId/tasks'
+    | '/projects/$projectId/timesheet'
   id:
     | '__root__'
     | '/_layout'
@@ -151,8 +210,13 @@ export interface FileRouteTypes {
     | '/_layout/mcp'
     | '/_layout/settings'
     | '/_layout/'
+    | '/_layout/projects/$projectId'
     | '/_layout/projects/'
     | '/_layout/projects/$projectId/files'
+    | '/_layout/projects/$projectId/gantt'
+    | '/_layout/projects/$projectId/reports'
+    | '/_layout/projects/$projectId/tasks'
+    | '/_layout/projects/$projectId/timesheet'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -235,23 +299,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/projects/$projectId': {
+      id: '/_layout/projects/$projectId'
+      path: '/projects/$projectId'
+      fullPath: '/projects/$projectId'
+      preLoaderRoute: typeof LayoutProjectsProjectIdRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/projects/$projectId/timesheet': {
+      id: '/_layout/projects/$projectId/timesheet'
+      path: '/timesheet'
+      fullPath: '/projects/$projectId/timesheet'
+      preLoaderRoute: typeof LayoutProjectsProjectIdTimesheetRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
+    '/_layout/projects/$projectId/tasks': {
+      id: '/_layout/projects/$projectId/tasks'
+      path: '/tasks'
+      fullPath: '/projects/$projectId/tasks'
+      preLoaderRoute: typeof LayoutProjectsProjectIdTasksRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
+    '/_layout/projects/$projectId/reports': {
+      id: '/_layout/projects/$projectId/reports'
+      path: '/reports'
+      fullPath: '/projects/$projectId/reports'
+      preLoaderRoute: typeof LayoutProjectsProjectIdReportsRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
+    '/_layout/projects/$projectId/gantt': {
+      id: '/_layout/projects/$projectId/gantt'
+      path: '/gantt'
+      fullPath: '/projects/$projectId/gantt'
+      preLoaderRoute: typeof LayoutProjectsProjectIdGanttRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
     '/_layout/projects/$projectId/files': {
       id: '/_layout/projects/$projectId/files'
-      path: '/projects/$projectId/files'
+      path: '/files'
       fullPath: '/projects/$projectId/files'
       preLoaderRoute: typeof LayoutProjectsProjectIdFilesRouteImport
-      parentRoute: typeof LayoutRoute
+      parentRoute: typeof LayoutProjectsProjectIdRoute
     }
   }
 }
+
+interface LayoutProjectsProjectIdRouteChildren {
+  LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
+  LayoutProjectsProjectIdGanttRoute: typeof LayoutProjectsProjectIdGanttRoute
+  LayoutProjectsProjectIdReportsRoute: typeof LayoutProjectsProjectIdReportsRoute
+  LayoutProjectsProjectIdTasksRoute: typeof LayoutProjectsProjectIdTasksRoute
+  LayoutProjectsProjectIdTimesheetRoute: typeof LayoutProjectsProjectIdTimesheetRoute
+}
+
+const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren =
+  {
+    LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
+    LayoutProjectsProjectIdGanttRoute: LayoutProjectsProjectIdGanttRoute,
+    LayoutProjectsProjectIdReportsRoute: LayoutProjectsProjectIdReportsRoute,
+    LayoutProjectsProjectIdTasksRoute: LayoutProjectsProjectIdTasksRoute,
+    LayoutProjectsProjectIdTimesheetRoute:
+      LayoutProjectsProjectIdTimesheetRoute,
+  }
+
+const LayoutProjectsProjectIdRouteWithChildren =
+  LayoutProjectsProjectIdRoute._addFileChildren(
+    LayoutProjectsProjectIdRouteChildren,
+  )
 
 interface LayoutRouteChildren {
   LayoutChatRoute: typeof LayoutChatRoute
   LayoutMcpRoute: typeof LayoutMcpRoute
   LayoutSettingsRoute: typeof LayoutSettingsRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
+  LayoutProjectsProjectIdRoute: typeof LayoutProjectsProjectIdRouteWithChildren
   LayoutProjectsIndexRoute: typeof LayoutProjectsIndexRoute
-  LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
 }
 
 const LayoutRouteChildren: LayoutRouteChildren = {
@@ -259,8 +381,8 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutMcpRoute: LayoutMcpRoute,
   LayoutSettingsRoute: LayoutSettingsRoute,
   LayoutIndexRoute: LayoutIndexRoute,
+  LayoutProjectsProjectIdRoute: LayoutProjectsProjectIdRouteWithChildren,
   LayoutProjectsIndexRoute: LayoutProjectsIndexRoute,
-  LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
 }
 
 const LayoutRouteWithChildren =

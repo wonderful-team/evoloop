@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { useProjectStore } from "@/stores/projectStore"
 import { useNavigate } from "@tanstack/react-router"
 import {
@@ -20,9 +21,11 @@ export function ProjectList() {
     const navigate = useNavigate()
     const { projects, fetchProjects, setProject, currentProject, isLoading } = useProjectStore()
 
-    // Trigger fetch on mount if empty
-    // But since ProjectSwitcher is in Sidebar, likely already fetched.
-    // We can provide a manual refresh.
+    // Trigger fetch on mount
+    useEffect(() => {
+        fetchProjects()
+    }, [])
+
 
     const handleRefresh = () => {
         fetchProjects()
@@ -87,14 +90,12 @@ export function ProjectList() {
                 ))}
 
                 {/* Empty State */}
-                {
-                    projects.length === 0 && (
-                        <div className="col-span-full text-center py-12 text-muted-foreground">
-                            {t('projects.emptyState')}
-                        </div>
-                    )
-                }
-            </div >
-        </div >
+                {projects.length === 0 && (
+                    <div className="col-span-full text-center py-12 text-muted-foreground">
+                        {t('projects.emptyState')}
+                    </div>
+                )}
+            </div>
+        </div>
     )
 }

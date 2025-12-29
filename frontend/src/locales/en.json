@@ -2,6 +2,7 @@
     "common": {
         "loading": "Loading...",
         "save": "Save",
+        "edit": "Edit",
         "cancel": "Cancel",
         "delete": "Delete",
         "confirm": "Confirm",
@@ -266,6 +267,39 @@
         "active": "Active",
         "filesCount": "Files",
         "emptyState": "No projects found. Try scanning or creating one.",
+        "tabs": {
+            "overview": "Overview",
+            "files": "Files",
+            "tasks": "Tasks",
+            "gantt": "Gantt",
+            "timesheet": "Timesheet",
+            "budget": "Budget",
+            "reports": "Reports"
+        },
+        "tasks": {
+            "title": "Tasks",
+            "new": "New Task",
+            "filter": "Filter",
+            "status": "Status",
+            "priority": "Priority",
+            "assignee": "Assignee",
+            "aiAnalysis": "AI Analysis",
+            "matchScore": "Match Score",
+            "techDifficulty": "Tech Difficulty",
+            "keyModules": "Key Modules",
+            "implementation": "Implementation",
+            "empty": "No tasks found",
+            "createSuccess": "Task created successfully"
+        },
+        "timesheet": {
+            "title": "Timesheets",
+            "new": "Log Time",
+            "hours": "Hours",
+            "desc": "Description",
+            "date": "Date",
+            "submit": "Submit",
+            "history": "History"
+        },
         "create": {
             "title": "Create New Project",
             "description": "Create a new project directory. This will also sync with the Member Center.",
@@ -550,6 +584,12 @@
             "noMatches": "No matches found for some reason.",
             "searchPrompt": "Search to find code snippets.",
             "resourcesTitle": "External Resources",
+            "addMemory": {
+                "title": "Add Memory",
+                "name": "Name",
+                "desc": "Description",
+                "success": "Memory added successfully"
+            },
             "openImagicBox": "Open IMagicBox"
         }
     },
@@ -564,6 +604,45 @@
             "previous": "Go to previous page",
             "next": "Go to next page",
             "last": "Go to last page"
+        }
+    },
+    "dashboard": {
+        "greeting": {
+            "morning": "Good morning",
+            "afternoon": "Good afternoon",
+            "evening": "Good evening",
+            "welcome": "Welcome to your EvoLoop command center. Here is your system overview."
+        },
+        "stats": {
+            "activeProjects": "Active Projects",
+            "activeProjectsDesc": "Locally available projects",
+            "totalTasks": "Total Tasks",
+            "totalTasksDesc": "Across all projects",
+            "pendingTasks": "Pending Tasks",
+            "pendingTasksDesc": "Tasks awaiting action",
+            "systemServices": "System Services",
+            "systemServicesDesc": "Connected MCP Servers"
+        },
+        "projects": {
+            "recent": "Recent Projects",
+            "viewAll": "View All",
+            "noProjects": "No projects found",
+            "noProjectsDesc": "Get started by creating your first project workspace.",
+            "create": "Create Project",
+            "local": "Local",
+            "remote": "Remote",
+            "openWorkspace": "Open Workspace"
+        },
+        "ecosystem": {
+            "title": "System Ecosystem",
+            "subtitle": "Connected Tools & Resources",
+            "noServers": "No MCP servers connected.",
+            "toolsAvailable": "{{count}} tools available",
+            "coreAgent": "Core Agent",
+            "evaluationLoop": "Evaluation Loop",
+            "online": "Online",
+            "active": "Active",
+            "manage": "Manage Integrations"
         }
     }
 }

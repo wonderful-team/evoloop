@@ -1,0 +1,237 @@
+import React, { useEffect, useState } from 'react'
+import { useParams } from '@tanstack/react-router'
+import { ProjectModulesService } from '@/client'
+import { TimesheetEntry } from '@/types/timesheet'
+
+import { toast } from 'sonner'
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table'
+import { Button } from '@/components/ui/button'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2, Plus, Clock, RefreshCw } from 'lucide-react'
+
+export const TimesheetList: React.FC = () => {
+    const { projectId } = useParams({ from: '/_layout/projects/$projectId' })
+
+    const [entries, setEntries] = useState<TimesheetEntry[]>([])
+    const [isLoading, setIsLoading] = useState(false)
+    const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+
+    // Form State
+    const [hours, setHours] = useState('')
+    const [description, setDescription] = useState('')
+    const [workType, setWorkType] = useState('development')
+
+    const fetchTimesheets = async () => {
+        if (!projectId) return
+        setIsLoading(true)
+        try {
+            const token = localStorage.getItem('access_token')
+            const res: any = await ProjectModulesService.getTimesheetList({
+                projectId: parseInt(projectId),
+                page: 1,
+                pageSize: 50,
+                authorization: token
+            })
+            if (res && res.list) {
+                setEntries(res.list)
+            } else if (Array.isArray(res)) {
+                setEntries(res)
+            } else {
+                setEntries([])
+            }
+        } catch (error) {
+            console.error(error)
+            toast.error("Failed to load timesheets")
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        fetchTimesheets()
+    }, [projectId])
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!projectId) return
+
+        if (!hours || !description) {
+            toast.error("Please fill in all required fields")
+            return
+        }
+
+        setIsSubmitting(true)
+        try {
+            const token = localStorage.getItem('access_token')
+            await ProjectModulesService.quickAddTimesheet({
+                requestBody: {
+                    project_id: parseInt(projectId),
+                    hours: parseFloat(hours),
+                    description: description,
+                    work_type: workType
+                },
+                authorization: token
+            })
+            toast.success("Time log added successfully")
+            setIsDialogOpen(false)
+            // Reset form
+            setHours('')
+            setDescription('')
+            fetchTimesheets()
+        } catch (error) {
+            console.error(error)
+            toast.error("Failed to add time log")
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    return (
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <h2 className="text-xl font-semibold tracking-tight">Timesheet</h2>
+                <div className="flex gap-2">
+                    <Button variant="outline" size="sm" onClick={fetchTimesheets} disabled={isLoading}>
+                        <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                        Refresh
+                    </Button>
+
+                    <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button size="sm">
+                                <Plus className="w-4 h-4 mr-2" />
+                                Log Time
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                            <form onSubmit={handleSubmit}>
+                                <DialogHeader>
+                                    <DialogTitle>Log Work Time</DialogTitle>
+                                    <DialogDescription>
+                                        Record your hours for this project log.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="grid gap-4 py-4">
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="type" className="text-right">Type</Label>
+                                        <Select value={workType} onValueChange={setWorkType}>
+                                            <SelectTrigger className="col-span-3">
+                                                <SelectValue placeholder="Select type" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="development">Development</SelectItem>
+                                                <SelectItem value="design">Design</SelectItem>
+                                                <SelectItem value="testing">Testing</SelectItem>
+                                                <SelectItem value="meeting">Meeting</SelectItem>
+                                                <SelectItem value="other">Other</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="hours" className="text-right">Hours</Label>
+                                        <div className="col-span-3 relative">
+                                            <Input
+                                                id="hours"
+                                                type="number"
+                                                step="0.1"
+                                                value={hours}
+                                                onChange={(e) => setHours(e.target.value)}
+                                                placeholder="e.g. 2.5"
+                                                className="pl-9"
+                                            />
+                                            <Clock className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                        <Label htmlFor="desc" className="text-right">Description</Label>
+                                        <Textarea
+                                            id="desc"
+                                            value={description}
+                                            onChange={(e) => setDescription(e.target.value)}
+                                            placeholder="What did you work on?"
+                                            className="col-span-3"
+                                        />
+                                    </div>
+                                </div>
+                                <DialogFooter>
+                                    <Button type="submit" disabled={isSubmitting}>
+                                        {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Save Log
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </DialogContent>
+                    </Dialog>
+                </div>
+            </div>
+
+            <div className="rounded-md border">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead className="w-[100px]">Date</TableHead>
+                            <TableHead>Member</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead className="text-right">Hours</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {isLoading && entries.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={5} className="h-24 text-center">
+                                    <Loader2 className="w-6 h-6 animate-spin mx-auto text-muted-foreground" />
+                                </TableCell>
+                            </TableRow>
+                        ) : entries.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                                    No time logs found.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            entries.map((entry) => (
+                                <TableRow key={entry.id}>
+                                    <TableCell className="font-medium text-nowrap">
+                                        {entry.work_date}
+                                        {entry.created_at && (
+                                            <div className="text-xs text-muted-foreground">
+                                                {new Date(entry.created_at).toLocaleDateString()}
+                                            </div>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>{entry.member_name || entry.member_id}</TableCell>
+                                    <TableCell className="capitalize">{entry.work_type}</TableCell>
+                                    <TableCell className="max-w-[400px] truncate" title={entry.description}>
+                                        {entry.description}
+                                    </TableCell>
+                                    <TableCell className="text-right font-medium">{entry.hours}h</TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </div>
+        </div>
+    )
+}

@@ -48,7 +48,7 @@ export function ProjectSwitcher() {
                     variant="outline"
                     role="combobox"
                     aria-expanded={open}
-                    className="w-[400px] justify-between h-10 px-3 bg-background"
+                    className="w-full justify-between h-10 px-3 bg-background"
                 >
                     <div className="flex items-center gap-2 overflow-hidden">
                         <div className="flex aspect-square size-5 items-center justify-center rounded bg-primary/10 text-primary">

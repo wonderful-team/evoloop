@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { EvoLoopApi } from '@/client/evoloopClient'
 import { ProjectsService } from '@/client'
 
 export interface TaskStats {
@@ -62,21 +63,29 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     fetchProjects: async () => {
         set({ isLoading: true })
         try {
-            const resp: any = await ProjectsService.listProjects()
-
-            // Handle the new response structure
-            // expected: { code: 0, message: "...", data: { list: [...] } }
-            // fallback to older check if needed, but primarily support new one
-
+            const token = localStorage.getItem('access_token')
             let rawList: any[] = []
-            if (resp.data && Array.isArray(resp.data.list)) {
-                rawList = resp.data.list
-            } else if (resp.projects) {
-                // Fallback for old API if it still exists locally in some form
-                rawList = resp.projects
-            } else if (Array.isArray(resp)) {
-                // Another fallback
-                rawList = resp
+
+            if (token) {
+                // Logged In: Fetch from Cloud (synced list)
+                const resp: any = await EvoLoopApi.getCloudProjects({ page: 1, page_size: 100 })
+                // Normalize Cloud Response
+                if (resp && Array.isArray(resp.list)) {
+                    rawList = resp.list
+                } else if (resp && Array.isArray(resp.data?.list)) {
+                    rawList = resp.data.list
+                } else if (Array.isArray(resp)) {
+                    rawList = resp
+                }
+            } else {
+                // Guest / Not Logged In: Scan Local Folders
+                const resp: any = await ProjectsService.listProjects()
+                // Normalize Local Response ({ projects: [...] })
+                if (resp.projects && Array.isArray(resp.projects)) {
+                    rawList = resp.projects
+                } else if (Array.isArray(resp)) {
+                    rawList = resp
+                }
             }
 
             const list: Project[] = rawList.map((item: any) => ({
@@ -90,16 +99,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
             set({ projects: list, isLoading: false })
 
-            // Auto-select first project if none selected
-            // Try to match by ID if we have a current one (to keep selection on refresh)
+            // Auto-select logic
             const current = get().currentProject
             if (current) {
                 const found = list.find(p => p.id === current.id)
                 if (found) {
                     set({ currentProject: found })
                 } else if (list.length > 0) {
-                    // If current project disappeared, maybe select first? 
-                    // Or keep it null? Let's select first to be safe
                     set({ currentProject: list[0] })
                 }
             } else if (list.length > 0) {
@@ -107,7 +113,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
             }
         } catch (error) {
             console.error('Failed to fetch projects', error)
-            set({ isLoading: false })
+            set({ projects: [], isLoading: false })
         }
     },
 
