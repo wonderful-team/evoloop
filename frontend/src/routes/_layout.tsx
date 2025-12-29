@@ -1,10 +1,10 @@
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
-
 import { Footer } from "@/components/Common/Footer"
 import AppSidebar from "@/components/Sidebar/AppSidebar"
 import {
   SidebarInset,
   SidebarProvider,
+  SidebarTrigger,
 } from "@/components/ui/sidebar"
 import InitializationCheck from "@/components/System/InitializationCheck"
 

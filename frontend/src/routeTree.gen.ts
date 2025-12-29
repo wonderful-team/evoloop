@@ -20,6 +20,7 @@ import { Route as LayoutMcpRouteImport } from './routes/_layout/mcp'
 import { Route as LayoutChatRouteImport } from './routes/_layout/chat'
 import { Route as LayoutProjectsIndexRouteImport } from './routes/_layout/projects.index'
 import { Route as LayoutProjectsProjectIdRouteImport } from './routes/_layout/projects.$projectId'
+import { Route as LayoutProjectsProjectIdIndexRouteImport } from './routes/_layout/projects.$projectId.index'
 import { Route as LayoutProjectsProjectIdTimesheetRouteImport } from './routes/_layout/projects.$projectId.timesheet'
 import { Route as LayoutProjectsProjectIdTasksRouteImport } from './routes/_layout/projects.$projectId.tasks'
 import { Route as LayoutProjectsProjectIdReportsRouteImport } from './routes/_layout/projects.$projectId.reports'
@@ -80,6 +81,12 @@ const LayoutProjectsProjectIdRoute = LayoutProjectsProjectIdRouteImport.update({
   path: '/projects/$projectId',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutProjectsProjectIdIndexRoute =
+  LayoutProjectsProjectIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
 const LayoutProjectsProjectIdTimesheetRoute =
   LayoutProjectsProjectIdTimesheetRouteImport.update({
     id: '/timesheet',
@@ -122,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute
   '/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/projects': typeof LayoutProjectsIndexRoute
+  '/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
@@ -137,7 +145,7 @@ export interface FileRoutesByTo {
   '/mcp': typeof LayoutMcpRoute
   '/settings': typeof LayoutSettingsRoute
   '/': typeof LayoutIndexRoute
-  '/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
+  '/projects/$projectId': typeof LayoutProjectsProjectIdIndexRoute
   '/projects': typeof LayoutProjectsIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
@@ -156,8 +164,8 @@ export interface FileRoutesById {
   '/_layout/mcp': typeof LayoutMcpRoute
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/': typeof LayoutIndexRoute
-  '/_layout/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/_layout/projects/': typeof LayoutProjectsIndexRoute
+  '/_layout/projects/$projectId': typeof LayoutProjectsProjectIdIndexRoute
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/_layout/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
@@ -175,8 +183,8 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/settings'
     | '/'
-    | '/projects/$projectId'
     | '/projects'
+    | '/projects/$projectId'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
     | '/projects/$projectId/reports'
@@ -192,8 +200,8 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/settings'
     | '/'
-    | '/projects/$projectId'
     | '/projects'
+    | '/projects/$projectId'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
     | '/projects/$projectId/reports'
@@ -210,8 +218,8 @@ export interface FileRouteTypes {
     | '/_layout/mcp'
     | '/_layout/settings'
     | '/_layout/'
-    | '/_layout/projects/$projectId'
     | '/_layout/projects/'
+    | '/_layout/projects/$projectId'
     | '/_layout/projects/$projectId/files'
     | '/_layout/projects/$projectId/gantt'
     | '/_layout/projects/$projectId/reports'
@@ -306,6 +314,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/projects/$projectId/': {
+      id: '/_layout/projects/$projectId/'
+      path: '/'
+      fullPath: '/projects/$projectId/'
+      preLoaderRoute: typeof LayoutProjectsProjectIdIndexRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
     '/_layout/projects/$projectId/timesheet': {
       id: '/_layout/projects/$projectId/timesheet'
       path: '/timesheet'
@@ -345,6 +360,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface LayoutProjectsProjectIdRouteChildren {
+  LayoutProjectsProjectIdIndexRoute: typeof LayoutProjectsProjectIdIndexRoute
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
   LayoutProjectsProjectIdGanttRoute: typeof LayoutProjectsProjectIdGanttRoute
   LayoutProjectsProjectIdReportsRoute: typeof LayoutProjectsProjectIdReportsRoute
@@ -354,12 +370,12 @@ interface LayoutProjectsProjectIdRouteChildren {
 
 const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren =
   {
+    LayoutProjectsProjectIdIndexRoute: LayoutProjectsProjectIdIndexRoute,
     LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
     LayoutProjectsProjectIdGanttRoute: LayoutProjectsProjectIdGanttRoute,
     LayoutProjectsProjectIdReportsRoute: LayoutProjectsProjectIdReportsRoute,
     LayoutProjectsProjectIdTasksRoute: LayoutProjectsProjectIdTasksRoute,
-    LayoutProjectsProjectIdTimesheetRoute:
-      LayoutProjectsProjectIdTimesheetRoute,
+    LayoutProjectsProjectIdTimesheetRoute: LayoutProjectsProjectIdTimesheetRoute,
   }
 
 const LayoutProjectsProjectIdRouteWithChildren =

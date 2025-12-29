@@ -8,12 +8,30 @@ import { DataTable } from '@/components/Common/DataTable'
 import { getColumns } from './columns'
 import { Plus, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { TaskDetail } from './TaskDetail'
 
 export const TaskList: React.FC = () => {
     const { projectId } = useParams({ from: '/_layout/projects/$projectId' })
     const { t } = useTranslation()
     const [tasks, setTasks] = useState<Task[]>([])
     const [isLoading, setIsLoading] = useState(false)
+    const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null)
+    const [isDetailOpen, setIsDetailOpen] = useState(false)
+
+    const handleRowClick = (task: Task) => {
+        // Assuming task has an id or task_id property. 
+        // Need to check Task type definition. Usually 'id' or 'task_id'.
+        // Based on other files, it might be 'task_id' from backend but 'id' in frontend model?
+        // Let's check sdk types. TasksService returns 'unknown' usually but let's assume 'task_id' based on ProjectOverview usage.
+        // Actually Task type import suggests we have a frontend type.
+        // Let's assume 'task_id' for safety or check the type file if needed.
+        // But for now casting to any to read task_id is safe enough if we are unsure.
+        const id = (task as any).task_id || (task as any).id
+        if (id) {
+            setSelectedTaskId(id)
+            setIsDetailOpen(true)
+        }
+    }
 
     // Memoize columns to prevent re-renders, pass t
     const columns = React.useMemo(() => getColumns(t), [t])
@@ -67,9 +85,16 @@ export const TaskList: React.FC = () => {
                 </div>
 
                 <div className="bg-background rounded-md">
-                    <DataTable columns={columns} data={tasks} />
+                    <DataTable columns={columns} data={tasks} onRowClick={handleRowClick} />
                 </div>
             </div>
+
+            <TaskDetail
+                taskId={selectedTaskId}
+                open={isDetailOpen}
+                onOpenChange={setIsDetailOpen}
+                onUpdate={fetchTasks}
+            />
         </div>
     )
 }

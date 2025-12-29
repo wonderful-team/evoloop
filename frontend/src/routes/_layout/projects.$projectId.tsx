@@ -3,7 +3,7 @@ import { useProjectStore } from "@/stores/projectStore"
 import { useEffect } from "react"
 import {
     FileCode, CheckSquare, BarChart2,
-    PieChart, Clock, AlertCircle, ChevronLeft
+    PieChart, Clock, AlertCircle, ChevronLeft, LayoutDashboard
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -52,14 +52,12 @@ function ProjectLayout() {
     }
 
     const tabs = [
-        // Overview Dashboard (Future)
-        // { id: 'overview', label: t('projects.tabs.overview'), icon: LayoutDashboard, path: '' }, 
-
+        // { id: 'overview', label: t('projects.tabs.overview'), icon: LayoutDashboard, path: '/' },
         { id: 'tasks', label: t('projects.tabs.tasks'), icon: CheckSquare, path: '/tasks' },
         { id: 'gantt', label: t('projects.tabs.gantt'), icon: BarChart2, path: '/gantt' },
         { id: 'files', label: t('projects.tabs.files'), icon: FileCode, path: '/files' },
         { id: 'timesheet', label: t('projects.tabs.timesheet'), icon: Clock, path: '/timesheet' },
-        { id: 'reports', label: t('projects.tabs.reports'), icon: PieChart, path: '/reports' },
+        // { id: 'reports', label: t('projects.tabs.reports'), icon: PieChart, path: '/reports' },
     ]
 
     return (
