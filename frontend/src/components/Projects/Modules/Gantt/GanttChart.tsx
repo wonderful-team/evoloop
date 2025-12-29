@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useParams } from '@tanstack/react-router'
+import { useTranslation } from 'react-i18next'
 import { TasksService } from '@/client'
 import { Task, TaskStatus } from '@/types/task'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -7,7 +8,9 @@ import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react'
 import { format, addDays, startOfWeek, differenceInDays, isSameDay } from 'date-fns'
 
+
 export const GanttChart: React.FC = () => {
+    const { t } = useTranslation()
     const { projectId } = useParams({ from: '/_layout/projects/$projectId' })
     const [tasks, setTasks] = useState<Task[]>([])
     const [isLoading, setIsLoading] = useState(false)
@@ -85,7 +88,7 @@ export const GanttChart: React.FC = () => {
         <div className="h-full w-full overflow-auto p-6 space-y-6">
             <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-semibold tracking-tight">Timeline & Gantt</h2>
+                    <h2 className="text-xl font-semibold tracking-tight">{t('projects.gantt.title')}</h2>
                     <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={handlePrev}><ChevronLeft className="w-4 h-4" /></Button>
                         <span className="flex items-center text-sm font-medium px-2">
@@ -94,7 +97,7 @@ export const GanttChart: React.FC = () => {
                         <Button variant="outline" size="sm" onClick={handleNext}><ChevronRight className="w-4 h-4" /></Button>
                         <Button variant="outline" size="sm" onClick={fetchTasks} disabled={isLoading}>
                             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                            Refresh
+                            {t('projects.gantt.refresh')}
                         </Button>
                     </div>
                 </div>
@@ -102,7 +105,7 @@ export const GanttChart: React.FC = () => {
                 <Card className="overflow-hidden">
                     <CardHeader className="border-b py-3 px-4 bg-muted/20">
                         <div className="flex">
-                            <div className="w-1/4 min-w-[200px] font-medium text-sm text-muted-foreground uppercase">Task</div>
+                            <div className="w-1/4 min-w-[200px] font-medium text-sm text-muted-foreground uppercase">{t('projects.gantt.taskColumn')}</div>
                             <div className="w-3/4 flex">
                                 {calendarDays.map((day) => (
                                     <div key={day.toISOString()} className={`flex-1 text-center text-xs font-medium ${isSameDay(day, new Date()) ? 'text-primary' : 'text-muted-foreground'}`}>
@@ -120,7 +123,7 @@ export const GanttChart: React.FC = () => {
                             </div>
                         ) : tasks.length === 0 ? (
                             <div className="h-40 flex items-center justify-center text-muted-foreground">
-                                No tasks found.
+                                {t('projects.gantt.noTasks')}
                             </div>
                         ) : (
                             <div className="divide-y relative">

@@ -16,7 +16,7 @@ export const Route = createFileRoute("/_layout")({
 function Layout() {
   const router = useRouterState()
   const pathname = router.location.pathname
-  const isFullWidth = pathname.includes('/chat') || pathname.includes('/files')
+  const isFullWidth = pathname.includes('/chat') || pathname.includes('/files') || pathname.includes('/projects')
 
   return (
     <InitializationCheck>

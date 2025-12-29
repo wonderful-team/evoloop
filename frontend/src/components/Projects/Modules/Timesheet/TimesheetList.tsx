@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useParams } from '@tanstack/react-router'
 import { ProjectModulesService } from '@/client'
 import { TimesheetEntry } from '@/types/timesheet'
+import { useTranslation } from 'react-i18next'
 
 import { toast } from 'sonner'
 import {
@@ -29,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Plus, Clock, RefreshCw } from 'lucide-react'
 
 export const TimesheetList: React.FC = () => {
+    const { t } = useTranslation()
     const { projectId } = useParams({ from: '/_layout/projects/$projectId' })
 
     const [entries, setEntries] = useState<TimesheetEntry[]>([])
@@ -110,46 +112,46 @@ export const TimesheetList: React.FC = () => {
         <div className="h-full w-full overflow-auto p-6 space-y-6">
             <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                    <h2 className="text-xl font-semibold tracking-tight">Timesheet</h2>
+                    <h2 className="text-xl font-semibold tracking-tight">{t('projects.timesheet.title')}</h2>
                     <div className="flex gap-2">
                         <Button variant="outline" size="sm" onClick={fetchTimesheets} disabled={isLoading}>
                             <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-                            Refresh
+                            {t('projects.timesheet.refresh')}
                         </Button>
 
                         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button size="sm">
                                     <Plus className="w-4 h-4 mr-2" />
-                                    Log Time
+                                    {t('projects.timesheet.logTime')}
                                 </Button>
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[425px]">
                                 <form onSubmit={handleSubmit}>
                                     <DialogHeader>
-                                        <DialogTitle>Log Work Time</DialogTitle>
+                                        <DialogTitle>{t('projects.timesheet.dialog.title')}</DialogTitle>
                                         <DialogDescription>
-                                            Record your hours for this project log.
+                                            {t('projects.timesheet.dialog.desc')}
                                         </DialogDescription>
                                     </DialogHeader>
                                     <div className="grid gap-4 py-4">
                                         <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="type" className="text-right">Type</Label>
+                                            <Label htmlFor="type" className="text-right">{t('projects.timesheet.dialog.type')}</Label>
                                             <Select value={workType} onValueChange={setWorkType}>
                                                 <SelectTrigger className="col-span-3">
-                                                    <SelectValue placeholder="Select type" />
+                                                    <SelectValue placeholder={t('projects.timesheet.dialog.selectType')} />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="development">Development</SelectItem>
-                                                    <SelectItem value="design">Design</SelectItem>
-                                                    <SelectItem value="testing">Testing</SelectItem>
-                                                    <SelectItem value="meeting">Meeting</SelectItem>
-                                                    <SelectItem value="other">Other</SelectItem>
+                                                    <SelectItem value="development">{t('projects.timesheet.types.development')}</SelectItem>
+                                                    <SelectItem value="design">{t('projects.timesheet.types.design')}</SelectItem>
+                                                    <SelectItem value="testing">{t('projects.timesheet.types.testing')}</SelectItem>
+                                                    <SelectItem value="meeting">{t('projects.timesheet.types.meeting')}</SelectItem>
+                                                    <SelectItem value="other">{t('projects.timesheet.types.other')}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
                                         <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="hours" className="text-right">Hours</Label>
+                                            <Label htmlFor="hours" className="text-right">{t('projects.timesheet.dialog.hours')}</Label>
                                             <div className="col-span-3 relative">
                                                 <Input
                                                     id="hours"
@@ -157,19 +159,19 @@ export const TimesheetList: React.FC = () => {
                                                     step="0.1"
                                                     value={hours}
                                                     onChange={(e) => setHours(e.target.value)}
-                                                    placeholder="e.g. 2.5"
+                                                    placeholder={t('projects.timesheet.dialog.hoursPlaceholder')}
                                                     className="pl-9"
                                                 />
                                                 <Clock className="w-4 h-4 absolute left-3 top-3 text-muted-foreground" />
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-4 items-center gap-4">
-                                            <Label htmlFor="desc" className="text-right">Description</Label>
+                                            <Label htmlFor="desc" className="text-right">{t('projects.timesheet.dialog.description')}</Label>
                                             <Textarea
                                                 id="desc"
                                                 value={description}
                                                 onChange={(e) => setDescription(e.target.value)}
-                                                placeholder="What did you work on?"
+                                                placeholder={t('projects.timesheet.dialog.descPlaceholder')}
                                                 className="col-span-3"
                                             />
                                         </div>
@@ -177,7 +179,7 @@ export const TimesheetList: React.FC = () => {
                                     <DialogFooter>
                                         <Button type="submit" disabled={isSubmitting}>
                                             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                            Save Log
+                                            {t('projects.timesheet.dialog.save')}
                                         </Button>
                                     </DialogFooter>
                                 </form>
@@ -186,15 +188,15 @@ export const TimesheetList: React.FC = () => {
                     </div>
                 </div>
 
-                <div className="rounded-md border">
+                <div className="rounded-md">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead className="w-[100px]">Date</TableHead>
-                                <TableHead>Member</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Description</TableHead>
-                                <TableHead className="text-right">Hours</TableHead>
+                                <TableHead className="w-[100px]">{t('projects.timesheet.table.date')}</TableHead>
+                                <TableHead>{t('projects.timesheet.table.member')}</TableHead>
+                                <TableHead>{t('projects.timesheet.table.type')}</TableHead>
+                                <TableHead>{t('projects.timesheet.table.desc')}</TableHead>
+                                <TableHead className="text-right">{t('projects.timesheet.table.hours')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -207,7 +209,7 @@ export const TimesheetList: React.FC = () => {
                             ) : entries.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                                        No time logs found.
+                                        {t('projects.timesheet.table.noLogs')}
                                     </TableCell>
                                 </TableRow>
                             ) : (

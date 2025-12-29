@@ -284,16 +284,76 @@
             "keyModules": "核心模块",
             "implementation": "实现思路",
             "empty": "暂无任务",
-            "createSuccess": "任务创建成功"
+            "refresh": "刷新",
+            "create": "新建任务",
+            "failedToLoad": "加载任务失败",
+            "createSuccess": "任务创建成功",
+            "columns": {
+                "id": "ID",
+                "title": "标题",
+                "aiScore": "AI 评分",
+                "priority": "优先级",
+                "status": "状态",
+                "progress": "进度"
+            },
+            "statusLabel": {
+                "pending": "待处理",
+                "inProgress": "进行中",
+                "completed": "已完成",
+                "unknown": "未知"
+            },
+            "priorityLabel": {
+                "urgent": "紧急",
+                "high": "高",
+                "normal": "普通",
+                "low": "低"
+            }
+        },
+        "gantt": {
+            "title": "时间轴 & 甘特图",
+            "taskColumn": "任务",
+            "refresh": "刷新",
+            "noTasks": "未找到任务。"
         },
         "timesheet": {
             "title": "工时记录",
-            "new": "记工时",
-            "hours": "时长(小时)",
-            "desc": "工作内容",
-            "date": "日期",
-            "submit": "提交",
-            "history": "历史记录"
+            "logTime": "记录工时",
+            "refresh": "刷新",
+            "dialog": {
+                "title": "记录工作时间",
+                "desc": "记录您在此项目上的工作时长。",
+                "type": "类型",
+                "selectType": "选择类型",
+                "hours": "时长 (小时)",
+                "hoursPlaceholder": "例如 2.5",
+                "serverity": "严重程度",
+                "description": "描述",
+                "descPlaceholder": "您完成了什么工作？",
+                "save": "保存记录",
+                "success": "工时记录添加成功",
+                "error": "添加工时记录失败",
+                "fillRequired": "请填写所有必填项"
+            },
+            "types": {
+                "development": "开发",
+                "design": "设计",
+                "testing": "测试",
+                "meeting": "会议",
+                "other": "其他"
+            },
+            "table": {
+                "date": "日期",
+                "member": "成员",
+                "type": "类型",
+                "desc": "描述",
+                "hours": "时长",
+                "noLogs": "未找到工时记录。"
+            }
+        },
+        "reports": {
+            "title": "报表",
+            "comingSoon": "敬请期待",
+            "description": "项目 #{{id}} 的报表和分析功能正在开发中。"
         },
         "create": {
             "title": "创建新项目",

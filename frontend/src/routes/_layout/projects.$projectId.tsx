@@ -2,7 +2,7 @@ import { createFileRoute, Outlet, Link } from '@tanstack/react-router'
 import { useProjectStore } from "@/stores/projectStore"
 import { useEffect } from "react"
 import {
-    Folder, FileCode, CheckSquare, BarChart2,
+    FileCode, CheckSquare, BarChart2,
     PieChart, Clock, AlertCircle, ChevronLeft
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
@@ -55,55 +55,54 @@ function ProjectLayout() {
         // Overview Dashboard (Future)
         // { id: 'overview', label: t('projects.tabs.overview'), icon: LayoutDashboard, path: '' }, 
 
-        { id: 'files', label: t('projects.tabs.files'), icon: FileCode, path: '/files' },
         { id: 'tasks', label: t('projects.tabs.tasks'), icon: CheckSquare, path: '/tasks' },
         { id: 'gantt', label: t('projects.tabs.gantt'), icon: BarChart2, path: '/gantt' },
+        { id: 'files', label: t('projects.tabs.files'), icon: FileCode, path: '/files' },
         { id: 'timesheet', label: t('projects.tabs.timesheet'), icon: Clock, path: '/timesheet' },
         { id: 'reports', label: t('projects.tabs.reports'), icon: PieChart, path: '/reports' },
     ]
 
     return (
-        <div className="flex flex-col h-[calc(100vh-4rem)]">
-            {/* Header / Tabs */}
-            <div className="border-b bg-background px-4">
-                <div className="flex items-center h-12 gap-4">
-                    <div className="flex items-center gap-2 font-semibold text-sm min-w-[200px]">
-                        <Link to="/projects" className="p-1 -ml-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors" title={t('projects.backToList')}>
-                            <Folder className="h-4 w-4 hidden" /> {/* Original icon hidden or removed if replaced by back arrow, let's keep it clean */}
-                            <ChevronLeft className="h-5 w-5" />
-                        </Link>
-                        <span className="truncate max-w-[150px]">{displayProject?.name || `Project #${projectId}`}</span>
-                    </div>
-
-                    <div className="h-6 w-px bg-border mx-2" />
-
-                    <nav className="flex items-center gap-1">
-                        {tabs.map((tab) => {
-                            const fullPath = `/projects/${projectId}${tab.path}`
-                            // Check active. Exact match for empty path, startsWith for others
-                            // Actually tanstack router link handles active state well
-                            return (
-                                <Link
-                                    key={tab.id}
-                                    to={fullPath}
-                                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-muted/50 data-[status=active]:bg-primary/10 data-[status=active]:text-primary"
-                                    activeProps={{
-                                        'data-status': 'active',
-                                    }}
-                                >
-                                    <tab.icon className="h-4 w-4" />
-                                    {tab.label}
-                                </Link>
-                            )
-                        })}
-                    </nav>
+        <div className="flex h-[calc(100vh-4rem)] w-full">
+            {/* Project Sidebar */}
+            <aside className="w-60 border-r bg-muted/10 flex flex-col shrink-0">
+                <div className="h-14 flex items-center gap-2 px-4 border-b">
+                    <Link
+                        to="/projects"
+                        className="p-1.5 -ml-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                        title={t('projects.backToList')}
+                    >
+                        <ChevronLeft className="h-4 w-4" />
+                    </Link>
+                    <span className="font-semibold text-sm truncate" title={displayProject?.name}>
+                        {displayProject?.name || `Project #${projectId}`}
+                    </span>
                 </div>
-            </div>
+
+                <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+                    {tabs.map((tab) => {
+                        const fullPath = `/projects/${projectId}${tab.path}`
+                        return (
+                            <Link
+                                key={tab.id}
+                                to={fullPath}
+                                className="flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-muted data-[status=active]:bg-primary/10 data-[status=active]:text-primary"
+                                activeProps={{
+                                    'data-status': 'active',
+                                }}
+                            >
+                                <tab.icon className="h-4 w-4" />
+                                {tab.label}
+                            </Link>
+                        )
+                    })}
+                </nav>
+            </aside>
 
             {/* Content Outlet */}
-            <div className="flex-1 overflow-hidden relative">
+            <main className="flex-1 overflow-hidden relative bg-background">
                 <Outlet />
-            </div>
+            </main>
         </div>
     )
 }

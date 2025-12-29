@@ -33,30 +33,30 @@ export function ProjectList() {
 
     const handleSelect = (proj: any) => {
         setProject(proj)
-        navigate({ to: `/projects/${proj.id}/files` })
+        navigate({ to: `/projects/${proj.id}/tasks` })
     }
 
-    if (isLoading) {
+    if (isLoading && projects.length === 0) {
         return <div className="p-8">{t('projects.loading')}</div>
     }
 
     return (
-        <div className="">
+        <div className="flex-1 p-6 md:p-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">{t('projects.title')}</h1>
                     <p className="text-muted-foreground">{t('projects.subtitle')}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={handleRefresh}>
-                        <RefreshCw className="mr-2 h-4 w-4" />
+                    <Button variant="outline" onClick={handleRefresh} disabled={isLoading}>
+                        <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                         {t('projects.refresh')}
                     </Button>
                     <AddProject />
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {projects.map((proj: any) => (
                     <Card
                         key={proj.id}

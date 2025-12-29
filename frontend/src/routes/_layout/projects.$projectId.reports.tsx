@@ -34,9 +34,9 @@ function ReportsPage() {
                             <path d="M22 12A10 10 0 0 0 12 2v10z" />
                         </svg>
                     </div>
-                    <h3 className="text-lg font-medium mb-1">Coming Soon</h3>
+                    <h3 className="text-lg font-medium mb-1">{t('projects.reports.comingSoon')}</h3>
                     <p className="max-w-md text-center">
-                        Project reports and analytics for Project #{projectId} are under development.
+                        {t('projects.reports.description', { id: projectId })}
                     </p>
                 </div>
             </div>

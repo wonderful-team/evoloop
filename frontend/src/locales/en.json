@@ -289,16 +289,75 @@
             "keyModules": "Key Modules",
             "implementation": "Implementation",
             "empty": "No tasks found",
-            "createSuccess": "Task created successfully"
+            "refresh": "Refresh",
+            "create": "Create Task",
+            "failedToLoad": "Failed to load tasks",
+            "createSuccess": "Task created successfully",
+            "columns": {
+                "id": "ID",
+                "title": "Title",
+                "aiScore": "AI Score",
+                "priority": "Priority",
+                "status": "Status",
+                "progress": "Progress"
+            },
+            "statusLabel": {
+                "pending": "Pending",
+                "inProgress": "In Progress",
+                "completed": "Done",
+                "unknown": "Unknown"
+            },
+            "priorityLabel": {
+                "urgent": "Urgent",
+                "high": "High",
+                "normal": "Normal",
+                "low": "Low"
+            }
+        },
+        "gantt": {
+            "title": "Timeline & Gantt",
+            "taskColumn": "Task",
+            "refresh": "Refresh",
+            "noTasks": "No tasks found."
         },
         "timesheet": {
             "title": "Timesheets",
-            "new": "Log Time",
-            "hours": "Hours",
-            "desc": "Description",
-            "date": "Date",
-            "submit": "Submit",
-            "history": "History"
+            "logTime": "Log Time",
+            "refresh": "Refresh",
+            "dialog": {
+                "title": "Log Work Time",
+                "desc": "Record your hours for this project log.",
+                "type": "Type",
+                "selectType": "Select type",
+                "hours": "Hours",
+                "hoursPlaceholder": "e.g. 2.5",
+                "description": "Description",
+                "descPlaceholder": "What did you work on?",
+                "save": "Save Log",
+                "success": "Time log added successfully",
+                "error": "Failed to add time log",
+                "fillRequired": "Please fill in all required fields"
+            },
+            "types": {
+                "development": "Development",
+                "design": "Design",
+                "testing": "Testing",
+                "meeting": "Meeting",
+                "other": "Other"
+            },
+            "table": {
+                "date": "Date",
+                "member": "Member",
+                "type": "Type",
+                "desc": "Description",
+                "hours": "Hours",
+                "noLogs": "No time logs found."
+            }
+        },
+        "reports": {
+            "title": "Reports",
+            "comingSoon": "Coming Soon",
+            "description": "Project reports and analytics for Project #{{id}} are under development."
         },
         "create": {
             "title": "Create New Project",
