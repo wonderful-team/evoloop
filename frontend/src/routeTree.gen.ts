@@ -129,12 +129,12 @@ export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute
   '/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/projects': typeof LayoutProjectsIndexRoute
-  '/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
+  '/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -145,13 +145,13 @@ export interface FileRoutesByTo {
   '/mcp': typeof LayoutMcpRoute
   '/settings': typeof LayoutSettingsRoute
   '/': typeof LayoutIndexRoute
-  '/projects/$projectId': typeof LayoutProjectsProjectIdIndexRoute
   '/projects': typeof LayoutProjectsIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
+  '/projects/$projectId': typeof LayoutProjectsProjectIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -164,13 +164,14 @@ export interface FileRoutesById {
   '/_layout/mcp': typeof LayoutMcpRoute
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/': typeof LayoutIndexRoute
+  '/_layout/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/_layout/projects/': typeof LayoutProjectsIndexRoute
-  '/_layout/projects/$projectId': typeof LayoutProjectsProjectIdIndexRoute
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/_layout/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/_layout/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/_layout/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
+  '/_layout/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -183,13 +184,14 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/settings'
     | '/'
-    | '/projects'
     | '/projects/$projectId'
+    | '/projects'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
     | '/projects/$projectId/reports'
     | '/projects/$projectId/tasks'
     | '/projects/$projectId/timesheet'
+    | '/projects/$projectId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -201,12 +203,12 @@ export interface FileRouteTypes {
     | '/settings'
     | '/'
     | '/projects'
-    | '/projects/$projectId'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
     | '/projects/$projectId/reports'
     | '/projects/$projectId/tasks'
     | '/projects/$projectId/timesheet'
+    | '/projects/$projectId'
   id:
     | '__root__'
     | '/_layout'
@@ -218,13 +220,14 @@ export interface FileRouteTypes {
     | '/_layout/mcp'
     | '/_layout/settings'
     | '/_layout/'
-    | '/_layout/projects/'
     | '/_layout/projects/$projectId'
+    | '/_layout/projects/'
     | '/_layout/projects/$projectId/files'
     | '/_layout/projects/$projectId/gantt'
     | '/_layout/projects/$projectId/reports'
     | '/_layout/projects/$projectId/tasks'
     | '/_layout/projects/$projectId/timesheet'
+    | '/_layout/projects/$projectId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -360,22 +363,23 @@ declare module '@tanstack/react-router' {
 }
 
 interface LayoutProjectsProjectIdRouteChildren {
-  LayoutProjectsProjectIdIndexRoute: typeof LayoutProjectsProjectIdIndexRoute
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
   LayoutProjectsProjectIdGanttRoute: typeof LayoutProjectsProjectIdGanttRoute
   LayoutProjectsProjectIdReportsRoute: typeof LayoutProjectsProjectIdReportsRoute
   LayoutProjectsProjectIdTasksRoute: typeof LayoutProjectsProjectIdTasksRoute
   LayoutProjectsProjectIdTimesheetRoute: typeof LayoutProjectsProjectIdTimesheetRoute
+  LayoutProjectsProjectIdIndexRoute: typeof LayoutProjectsProjectIdIndexRoute
 }
 
 const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren =
   {
-    LayoutProjectsProjectIdIndexRoute: LayoutProjectsProjectIdIndexRoute,
     LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
     LayoutProjectsProjectIdGanttRoute: LayoutProjectsProjectIdGanttRoute,
     LayoutProjectsProjectIdReportsRoute: LayoutProjectsProjectIdReportsRoute,
     LayoutProjectsProjectIdTasksRoute: LayoutProjectsProjectIdTasksRoute,
-    LayoutProjectsProjectIdTimesheetRoute: LayoutProjectsProjectIdTimesheetRoute,
+    LayoutProjectsProjectIdTimesheetRoute:
+      LayoutProjectsProjectIdTimesheetRoute,
+    LayoutProjectsProjectIdIndexRoute: LayoutProjectsProjectIdIndexRoute,
   }
 
 const LayoutProjectsProjectIdRouteWithChildren =
