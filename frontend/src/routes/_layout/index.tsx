@@ -235,7 +235,7 @@ function Dashboard() {
               </ScrollArea>
             </CardContent>
             <CardFooter className="bg-muted/20 border-t px-6 py-3">
-              <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground h-8" onClick={() => navigate({ to: "/settings" })}>
+              <Button variant="ghost" size="sm" className="w-full text-xs text-muted-foreground h-8" onClick={() => navigate({ to: "/mcp" })}>
                 {t("dashboard.ecosystem.manage")}
               </Button>
             </CardFooter>
