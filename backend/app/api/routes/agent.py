@@ -10,7 +10,7 @@ from app.api.deps import get_db, SessionDep, CurrentUserOptional
 from app.core.callbacks.transparent import console
 from app.core.monitoring.activity import activity_monitor
 from app.domain.project.service import project_context_manager
-from app.infrastructure.database.sql.models import Conversation
+from app.infrastructure.database.sql.models import Conversation, Message
 from app.adapters import EventAdapter
 from app.core.globals import get_graph
 from app.infrastructure.database.sql.database import session_scope
@@ -290,6 +290,15 @@ async def chat_endpoint(
                 session.add(conversation)
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
+            
+            # Log User Message (for search/analytics)
+            user_msg = Message(
+                thread_id=req.thread_id,
+                project_id=req.project_id,
+                role="human",
+                content=req.message
+            )
+            session.add(user_msg)
     except Exception as e:
         logger.error(f"Failed to upsert conversation {req.thread_id}: {e}")
         # Continue to background task even if DB fails here (Background task has safety net now)

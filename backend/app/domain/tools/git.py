@@ -1,0 +1,68 @@
+
+import subprocess
+import os
+from langchain_core.tools import tool
+from app.logging import get_context
+
+def _run_git(args: list[str]) -> str:
+    ctx = get_context()
+    cwd = ctx.get("working_directory") or os.getcwd()
+    
+    try:
+        # Check if .git exists? Or let git fail if not a repo.
+        result = subprocess.run(
+            ["git"] + args, 
+            cwd=cwd, 
+            capture_output=True, 
+            text=True
+        )
+        if result.returncode != 0:
+             return f"Git Error: {result.stderr.strip()}"
+        return result.stdout.strip()
+    except Exception as e:
+        return f"Execution Error: {str(e)}"
+
+@tool
+def git_status() -> str:
+    """
+    Get the current git status (branch, modified files).
+    """
+    return _run_git(["status"])
+
+@tool
+def git_diff() -> str:
+    """
+    Show changes between working tree and index (or last commit).
+    Useful to verify what you have edited before committing.
+    """
+    return _run_git(["diff"])
+
+@tool
+def git_commit(message: str, add_all: bool = True) -> str:
+    """
+    Commit changes to the repository.
+    
+    Args:
+        message: Commit message.
+        add_all: If True (default), runs 'git add .' before committing.
+    """
+    if add_all:
+        add_res = _run_git(["add", "."])
+        if "Error" in add_res:
+             return f"Failed to add files: {add_res}"
+             
+    return _run_git(["commit", "-m", message])
+
+@tool
+def git_history(limit: int = 5) -> str:
+    """
+    Show the commit log.
+    """
+    return _run_git(["log", f"-n {limit}", "--pretty=format:'%h - %an, %ar : %s'"])
+
+@tool
+def git_create_branch(branch_name: str) -> str:
+    """
+    Create and checkout a new branch.
+    """
+    return _run_git(["checkout", "-b", branch_name])
