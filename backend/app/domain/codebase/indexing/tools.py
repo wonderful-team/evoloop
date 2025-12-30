@@ -1,6 +1,8 @@
+import os
 from langchain_core.tools import tool
+
+from app.logging import get_context
 from app.domain.codebase.indexing.service import IndexingService
-import asyncio
 
 
 @tool
@@ -11,11 +13,18 @@ async def index_path(path: str) -> str:
     """
     service = IndexingService()
     try:
-        # Infer repo details
-        repo_name = "current_repo"
-        repo = await service.get_or_create_repo(".", repo_name)
+        ctx = get_context()
+        root = ctx.get("working_directory") or os.getcwd()
         
-        await service.index_repository(path, repo.id)
-        return f"Successfully indexed {path}."
+        # Ensure path is absolute relative to project root
+        target_path = os.path.abspath(os.path.join(root, path))
+        
+        # Get/Create Repo for the PROJECT ROOT, not the target subdir
+        # This ensures all chunks belong to the same project info
+        repo_name = os.path.basename(root)
+        repo = await service.get_or_create_repo(root, repo_name)
+        
+        await service.index_repository(target_path, repo.id)
+        return f"Successfully indexed {target_path} into repo '{repo_name}'."
     except Exception as e:
         return f"Error indexing {path}: {str(e)}"

@@ -1,18 +1,17 @@
-import os
 import glob
-from typing import List
+import os
 from datetime import datetime
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
-from sqlalchemy.orm import selectinload
 
-from app.logging import logger
-from app.domain.codebase.indexing.base import BaseExtractor, BaseEmbedder
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.domain.codebase.indexing.base import BaseEmbedder
 from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
 from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
-from app.infrastructure.database.sql.models import Repository, SourceFile, CodeChunk, CodeEntity, CodeRelation
-from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.domain.project.service import project_context_manager
+from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.models import Repository, SourceFile, CodeChunk, CodeEntity, CodeRelation
+from app.logging import logger
 
 
 class IndexingService:
@@ -58,18 +57,31 @@ class IndexingService:
         """
         Index a single file. (Incremental update)
         """
+        # FileFilter check
+        from app.domain.codebase.filter import FileFilter
+        file_filter = FileFilter()
+        if not file_filter.should_include(file_path):
+            return
+
         async with self.session_factory() as session:
             try:
                 repo = await session.get(Repository, repo_id)
                 if not repo:
                     logger.error(f"Repository {repo_id} not found")
                     return
-
+                # ... rest of the function logic ...
+                # Wait, I should better not indent everything inside session if not needed, 
+                # or just copy-paste the existing logic but keep the check outside.
+                
                 rel_path = os.path.relpath(file_path, repo.local_path)
 
-                # Check extension
+                # Check extension - FileFilter handled generic text check, but specific languages?
                 valid_extensions = (".py", ".js", ".ts", ".go", ".java", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".rs", ".php", ".rb", ".md")
                 if not file_path.endswith(valid_extensions):
+                    # FileFilter might pass a .txt or .json, but indexing service might strictly want code.
+                    # Let's keep this check for now to be safe, or expand it using constants.
+                    # Or rely on Extractor capability. TreeSitterExtractor supports specific languages.
+                    # Let's keep it to avoid regression but rely on FileFilter for "Bad Files"
                     return
 
                 # Read content
@@ -198,32 +210,154 @@ class IndexingService:
                     session.add(rel_record)
 
                 await session.commit()
+                
+                # 6. Sync to Neo4j
+                try:
+                    from app.infrastructure.database.graph.driver import get_graph_db
+                    driver = await get_graph_db()
+                    async with driver.session() as n4j:
+                        # Ensure we use project_id context
+                        await n4j.run("""
+                            MERGE (f:File {path: $path, project_id: $pid}) 
+                            SET f.last_indexed = timestamp(), f.pg_id = $pg_id
+                        """, path=rel_path, pid=repo.project_id, pg_id=source_file.id)
+                except Exception as e:
+                    logger.warning(f"Neo4j Sync Failed for {rel_path}: {e}")
+
                 # logger.debug(f"Indexed {rel_path}")
 
             except Exception as e:
                 logger.error(f"Error indexing file {file_path}: {e}")
                 await session.rollback()
 
+    async def remove_file(self, file_path: str, repo_id: int):
+        """
+        Handle file deletion.
+        """
+        async with self.session_factory() as session:
+            repo = await session.get(Repository, repo_id)
+            if not repo: return
+            
+            rel_path = os.path.relpath(file_path, repo.local_path)
+            
+            # 1. Postgres Delete
+            stmt = select(SourceFile).where(SourceFile.repository_id == repo_id, SourceFile.path == rel_path)
+            result = await session.execute(stmt)
+            source_file = result.scalars().first()
+            
+            if source_file:
+                # CodeChunk/Entity cascades usually configured in DB? 
+                # If not, manual delete required. Models usually have cascade='all, delete'.
+                # Assuming cascade works or manual delete needed. 
+                # Let's do manual delete to be safe as previously done in index_file
+                await session.execute(delete(CodeChunk).where(CodeChunk.file_id == source_file.id))
+                subq = select(CodeEntity.id).where(CodeEntity.file_id == source_file.id)
+                await session.execute(delete(CodeRelation).where(CodeRelation.source_entity_id.in_(subq)))
+                await session.execute(delete(CodeEntity).where(CodeEntity.file_id == source_file.id))
+                
+                await session.delete(source_file)
+                await session.commit()
+                logger.info(f"Removed {rel_path} from Index")
+
+            # 2. Neo4j Delete
+            try:
+                from app.infrastructure.database.graph.driver import get_graph_db
+                driver = await get_graph_db()
+                async with driver.session() as n4j:
+                    await n4j.run("""
+                        MATCH (f:File {path: $path, project_id: $pid})
+                        DETACH DELETE f
+                    """, path=rel_path, pid=repo.project_id)
+            except Exception as e:
+                logger.warning(f"Neo4j Delete Failed for {rel_path}: {e}")
+
+    async def move_file(self, src_path: str, dest_path: str, repo_id: int):
+        """
+        Handle file move/rename.
+        """
+        async with self.session_factory() as session:
+            repo = await session.get(Repository, repo_id)
+            if not repo: return
+            
+            old_rel = os.path.relpath(src_path, repo.local_path)
+            new_rel = os.path.relpath(dest_path, repo.local_path)
+            
+            # 1. Postgres Update
+            stmt = select(SourceFile).where(SourceFile.repository_id == repo_id, SourceFile.path == old_rel)
+            result = await session.execute(stmt)
+            source_file = result.scalars().first()
+            
+            if source_file:
+                source_file.path = new_rel
+                source_file.updated_at = datetime.utcnow()
+                session.add(source_file)
+                await session.commit()
+                logger.info(f"Moved {old_rel} -> {new_rel} in Index")
+                
+                # Trigger re-indexing of content?
+                # If content didn't change (just move), re-indexing chunks might be needed if they store metadata?
+                # Chunks usually store content. If generic, it's fine.
+                # But we might want to re-verify content.
+                # For now, just link update is sufficient for "Stable ID".
+            
+            # 2. Neo4j Update (CRITICAL)
+            try:
+                from app.infrastructure.database.graph.driver import get_graph_db
+                driver = await get_graph_db()
+                async with driver.session() as n4j:
+                    await n4j.run("""
+                        MATCH (f:File {path: $old_path, project_id: $pid})
+                        SET f.path = $new_path
+                    """, old_path=old_rel, new_path=new_rel, pid=repo.project_id)
+            except Exception as e:
+                logger.warning(f"Neo4j Move Failed: {e}")
+
     async def index_repository(self, repo_path: str, repo_id: int):
         """
         Main entry point to index a repository on disk.
         """
         logger.info(f"Starting full indexing for repo {repo_id} at {repo_path}")
+        
+        from app.domain.codebase.filter import FileFilter
+        file_filter = FileFilter()
 
-        files = glob.glob(os.path.join(repo_path, "**", "*"), recursive=True)
-
-        valid_exts = (".py", ".js", ".ts", ".go", ".java", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".rs", ".php", ".rb", ".md")
-
+        # Build inclusions/exclusions from config if needed.
+        # For now, we rely on FileFilter defaults which include basic blacklists.
+        # Ideally we should read .gitignore here, but FileFilter doesn't do that yet automatically?
+        # FileFilter.should_include handles standard exclusions + compression checks.
+        
+        # Walk directory manually to avoid loading EVERYTHING into memory if repo is huge?
+        # But `glob` or `os.walk` are generators. `glob` returns a list.
+        # Let's use os.walk for better control and efficiency.
+        
         filtered_files = []
-        for f in files:
-            if not os.path.isfile(f): continue
-            if not f.endswith(valid_exts): continue
+        for root, dirs, files in os.walk(repo_path):
+            # 1. Directory Filtering (Prune traversal)
+            # We must modify 'dirs' in-place to prune logic.
+            # But FileFilter.should_include works on file paths.
+            # We can use constants.BLACKLIST_DIRS
+            from app.domain.codebase.constants import BLACKLIST_DIRS
+            d_to_remove = []
+            for d in dirs:
+                if d in BLACKLIST_DIRS or d.startswith('.'):
+                     d_to_remove.append(d)
+            for d in d_to_remove:
+                dirs.remove(d)
 
-            # Exclude directories
-            if any(part in f.split(os.sep) for part in [".venv", "venv", "node_modules", ".git", "__pycache__"]):
-                continue
+            for f in files:
+                full_path = os.path.join(root, f)
+                
+                # Use the robust FileFilter
+                if file_filter.should_include(full_path):
+                    # Additional check for supported language extensions
+                    # (Unless FileFilter is configured with inclusions)
+                    # For now, we keep the strict extension check for the indexer
+                    # because the *Extractor* only supports these.
+                    valid_exts = (".py", ".js", ".ts", ".go", ".java", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".rs", ".php", ".rb", ".md")
+                    if full_path.endswith(valid_exts):
+                        filtered_files.append(full_path)
 
-            filtered_files.append(f)
+        logger.info(f"Found {len(filtered_files)} valid files to index.")
 
         # Sequentially index files (could be parallelized)
         for f in filtered_files:

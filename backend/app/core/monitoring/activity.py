@@ -27,12 +27,30 @@ class ActivityMonitor:
     
     def end_run(self, thread_id: str, status="done"):
         if thread_id in self._runs:
+            # If we were stopping, ensure final status is cancelled
+            current_status = self._runs[thread_id]["status"]
+            if current_status == "stopping":
+                status = "cancelled"
+                
             self._runs[thread_id]["status"] = status
             self._runs[thread_id]["updated_at"] = time.time()
             # Mark all running tasks as done or cancelled
             for task in self._runs[thread_id]["tasks"]:
                 if task["status"] == "running":
-                    task["status"] = "done" # or derive from run status
+                    task["status"] = "cancelled" if status == "cancelled" else "done"
+
+    def stop_run(self, thread_id: str):
+        """Signal a run to stop."""
+        if thread_id in self._runs:
+            self._runs[thread_id]["status"] = "stopping"
+            self._runs[thread_id]["updated_at"] = time.time()
+
+    def check_cancellation(self, thread_id: str):
+        """Check if run is marked for stopping and raise exception if so."""
+        if thread_id in self._runs:
+            if self._runs[thread_id]["status"] == "stopping":
+                raise InterruptedError("Cancelled by user")
+
     
     def add_task(self, thread_id: str, name: str, task_type="node"):
         if thread_id not in self._runs:

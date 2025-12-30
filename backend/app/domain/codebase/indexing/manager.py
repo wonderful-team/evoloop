@@ -1,16 +1,14 @@
 
 import asyncio
 import logging
-from typing import Dict, Optional
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Dict
 
-from app.infrastructure.database.sql.database import AsyncSessionLocal
-from app.infrastructure.database.sql.database import AsyncSessionLocal
-from app.infrastructure.database.sql.models import Repository
+from sqlalchemy import select
+
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.watchers import RepoWatcher
-
+from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.database.sql.models import Repository
 
 logger = logging.getLogger(__name__)
 

@@ -38,7 +38,9 @@ async def list_files(project_id: int, path: Optional[str] = None):
         raise HTTPException(status_code=404, detail=f"Project path not found locally: {root_path}")
     
     # Simple recursive walker ignoring heavy dirs
-    IGNORE_DIRS = {'.git', 'node_modules', '__pycache__', 'dist', 'build', '.idea', '.vscode', '.DS_Store'}
+    from app.domain.codebase.constants import BLACKLIST_DIRS
+    # Combine with local ignores if needed, or just use global
+    IGNORE_DIRS = set(BLACKLIST_DIRS).union({'.idea', '.vscode', '.DS_Store', 'dist', 'build'})
     
     def build_tree(current_path: str, rel_path: str = "") -> List[FileNode]:
         nodes = []

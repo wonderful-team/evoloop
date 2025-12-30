@@ -1,9 +1,12 @@
+from typing import Optional
 from langchain_core.tools import tool
+
+from app.logging import get_context
 from app.domain.codebase.retrieval.service import RetrievalService
 
 
 @tool
-async def search_codebase(query: str, project_id: int = 1) -> str:
+async def search_codebase(query: str, project_id: Optional[int] = None) -> str:
     """
     Search the codebase using a combination of Graph (symbol) search and Vector (semantic) search.
     
@@ -15,17 +18,20 @@ async def search_codebase(query: str, project_id: int = 1) -> str:
     
     Args:
         query: Search query (e.g. "auth middleware" or "BaseExtractor").
-        project_id: Project context.
+        project_id: Project context. Optional. Auto-detected if omitted.
     """
     retriever = RetrievalService()
     output_parts = []
+    
+    # Resolve implicit context
+    pid = project_id or get_context().get("project_id", 1)
     
     # 1. Graph / Structure Search (Exact/Fuzzy Symbol Match)
     try:
         # We assume query might be a symbol name.
         # Don't try graph search if query is clearly a natural language sentence
         if len(query.split()) < 3: 
-            graph_result = await retriever.get_entity_relations(query, project_id=project_id)
+            graph_result = await retriever.get_entity_relations(query, project_id=pid)
             if "error" not in graph_result:
                 relations = graph_result.get("relations", {})
                 outgoing = relations.get("outgoing", [])
@@ -47,7 +53,7 @@ async def search_codebase(query: str, project_id: int = 1) -> str:
 
     # 2. Semantic Search (RAG)
     try:
-        results = await retriever.search(query, project_id=project_id, limit=5)
+        results = await retriever.search(query, project_id=pid, limit=5)
         if results:
             rag_text = ["### 📄 Semantic Matches:"]
             for r in results:

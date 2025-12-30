@@ -3,13 +3,12 @@ from uuid import UUID
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 import asyncio
-from app.infrastructure.evoloop_link.client import EvoLoopLinkClient
 
 class EvoLoopCallbackHandler(AsyncCallbackHandler):
     """
     Callback Handler that pushes logs to EvoLoop Link (Server-side Plugin).
     """
-    def __init__(self, client: EvoLoopLinkClient, thread_id: str, command_id: Optional[int] = None):
+    def __init__(self, client: Any, thread_id: str, command_id: Optional[int] = None):
         self.client = client
         self.thread_id = thread_id
         self.command_id = command_id

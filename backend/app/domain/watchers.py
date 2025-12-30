@@ -8,11 +8,9 @@ from typing import Dict, Any
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from app.infrastructure.database.sql.database import AsyncSessionLocal
-
+from app.domain.codebase.indexing.service import IndexingService
 # Services
 from app.domain.project.summarizer import project_summarizer
-from app.domain.codebase.indexing.service import IndexingService
 
 logger = logging.getLogger(__name__)
 
@@ -118,13 +116,49 @@ class IndexingEventHandler(FileSystemEventHandler):
         if event.is_directory: return
         self._process(event.src_path)
 
+    def on_deleted(self, event):
+        if event.is_directory: return
+        self._process_delete(event.src_path)
+
+    def on_moved(self, event):
+        if event.is_directory: return
+        self._process_move(event.src_path, event.dest_path)
+
+    def _is_valid_code_file(self, path: str) -> bool:
+        return path.endswith((".py", ".js", ".ts", ".go", ".java", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".rs", ".php", ".rb", ".md"))
+
     def _process(self, path: str):
-        if path.endswith((".py", ".js", ".ts", ".go", ".java", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".rs", ".php", ".rb", ".md")):
-            logger.info(f"File modified: {path}")
+        if self._is_valid_code_file(path):
+            logger.info(f"File modified/created: {path}")
             asyncio.run_coroutine_threadsafe(
                 self.service.index_file(path, self.repo_id),
                 self.loop
             )
+
+    def _process_delete(self, path: str):
+        if self._is_valid_code_file(path):
+            logger.info(f"File deleted: {path}")
+            asyncio.run_coroutine_threadsafe(
+                self.service.remove_file(path, self.repo_id),
+                self.loop
+            )
+
+    def _process_move(self, src: str, dest: str):
+        src_valid = self._is_valid_code_file(src)
+        dest_valid = self._is_valid_code_file(dest)
+
+        if src_valid and dest_valid:
+            logger.info(f"File moved: {src} -> {dest}")
+            asyncio.run_coroutine_threadsafe(
+                self.service.move_file(src, dest, self.repo_id),
+                self.loop
+            )
+        elif src_valid and not dest_valid:
+            # Moved out of valid scope -> Treat as delete
+            self._process_delete(src)
+        elif not src_valid and dest_valid:
+            # Moved into valid scope -> Treat as create
+            self._process(dest)
 
 class RepoWatcher:
     """

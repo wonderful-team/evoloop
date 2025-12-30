@@ -1,9 +1,11 @@
 import logging
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from app.infrastructure.database.sql.models import CodeEntity, SourceFile
-from app.core.llm.factory import LLMFactory
+
 from langchain_core.messages import HumanMessage, SystemMessage
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.llm.factory import LLMFactory
+from app.infrastructure.database.sql.models import CodeEntity, SourceFile
 
 logger = logging.getLogger(__name__)
 

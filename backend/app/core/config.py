@@ -140,9 +140,13 @@ class Settings(BaseSettings):
 
     # ImagicBox API
     IMAGICBOX_API_URL: str = Field("https://mall.imagicbox.cn", validation_alias="IMAGICBOX_API_URL")
+    IMAGICBOX_WS_URL: str = Field("wss://mall.imagicbox.cn/wss/", validation_alias="IMAGICBOX_WS_URL")
     IMAGICBOX_API_KEY: str | None = Field(None, validation_alias="IMAGICBOX_API_KEY")
     IMAGICBOX_API_SECRET: str | None = Field(None, validation_alias="IMAGICBOX_API_SECRET")
-
+    
+    # Client / Device Info
+    IMAGICBOX_ACCESS_TOKEN: str | None = Field(None, validation_alias="IMAGICBOX_ACCESS_TOKEN")
+    IMAGICBOX_DEVICE_NAME: Optional[str] = Field("EvoLoop-Desktop", validation_alias="IMAGICBOX_DEVICE_NAME")
     # Project Management
     # Default to user's home/projects if not set
     PROJECTS_ROOT: str = Field("/Users/huangjinhuan/项目", validation_alias="PROJECTS_ROOT")
@@ -164,12 +168,6 @@ class Settings(BaseSettings):
             port=self.POSTGRES_PORT,
             path=self.POSTGRES_DB,
         ))
-
-    # EvoLoop Link Client Configuration
-    EVOLOOP_LINK_TOKEN: str | None = None
-    EVOLOOP_LINK_BASE_URL: str = "https://mall.imagicbox.cn"
-    EVOLOOP_LINK_WS_URL: str = "wss://mall.imagicbox.cn/wss/"
-    EVOLOOP_DEVICE_NAME: str | None = None
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":

@@ -10,13 +10,11 @@ async def health_check() -> bool:
 
 @router.get("/evoloop-status")
 async def get_evoloop_status():
-    from app.infrastructure.evoloop_link.client import get_evoloop_client
-    client = get_evoloop_client()
-    if not client:
-        return {"connected": False, "reason": "No client modules initialized"}
+    from app.infrastructure.external.imagicbox import imagicbox_client
+    status = imagicbox_client.get_status()
     
     return {
-        "connected": client._running and (client.ws is not None),
-        "device_id": client.device_id,
-        "device_name": client.device_name
+        "connected": status.get("device_connected", False),
+        "device_id": status.get("device_id"),
+        "device_name": imagicbox_client.device_name # Access prop directly
     }

@@ -32,7 +32,7 @@ async def get_budget_list(
     authorization: Optional[str] = Header(None)
 ):
     token = get_token(authorization)
-    res = imagicbox_client.get_budget_list(project_id, page, page_size, token=token)
+    res = await imagicbox_client.get_budget_list(project_id, page, page_size, token=token)
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to get budget list"))
     return res.get("data", {})
@@ -40,7 +40,7 @@ async def get_budget_list(
 @router.get("/budget/overview")
 async def get_budget_overview(project_id: int, authorization: Optional[str] = Header(None)):
     token = get_token(authorization)
-    res = imagicbox_client.get_budget_overview(project_id, token=token)
+    res = await imagicbox_client.get_budget_overview(project_id, token=token)
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to get budget overview"))
     return res.get("data", {})
@@ -55,7 +55,7 @@ async def get_timesheet_list(
     authorization: Optional[str] = Header(None)
 ):
     token = get_token(authorization)
-    res = imagicbox_client.get_timesheet_list(project_id, page, page_size, token=token)
+    res = await imagicbox_client.get_timesheet_list(project_id, page, page_size, token=token)
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to get timesheet list"))
     return res.get("data", {})
@@ -64,7 +64,7 @@ async def get_timesheet_list(
 async def quick_add_timesheet(req: TimesheetQuickAddRequest, authorization: Optional[str] = Header(None)):
     token = get_token(authorization)
     data = req.model_dump()
-    res = imagicbox_client.add_timesheet_quick(data, token=token)
+    res = await imagicbox_client.add_timesheet_quick(data, token=token)
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to add timesheet"))
     return res
@@ -74,7 +74,7 @@ async def quick_add_timesheet(req: TimesheetQuickAddRequest, authorization: Opti
 @router.get("/statistics/project")
 async def get_project_statistics(project_id: Optional[int] = None, authorization: Optional[str] = Header(None)):
     token = get_token(authorization)
-    res = imagicbox_client.get_project_statistics(project_id, token=token)
+    res = await imagicbox_client.get_project_statistics(project_id, token=token)
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to get project statistics"))
     return res.get("data", {})

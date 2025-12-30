@@ -1,8 +1,11 @@
-from typing import Literal, Optional
-from pydantic import BaseModel, Field
+from typing import Literal
+
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from pydantic import BaseModel, Field
+
 from app.core.config import settings
+
 
 class IntentionOutput(BaseModel):
     intent: Literal["browser", "computer", "mobile", "general"] = Field(

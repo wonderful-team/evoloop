@@ -1,19 +1,18 @@
 import logging
 from typing import Dict, Tuple, Optional
-from tree_sitter import Language, Parser
 
 # Language bindings
-import tree_sitter_python
+import tree_sitter_c_sharp
+import tree_sitter_cpp
 import tree_sitter_go
 import tree_sitter_java
-import tree_sitter_cpp
-import tree_sitter_rust
-import tree_sitter_php
-import tree_sitter_ruby
-
-import tree_sitter_c_sharp
 import tree_sitter_javascript
+import tree_sitter_php
+import tree_sitter_python
+import tree_sitter_ruby
+import tree_sitter_rust
 import tree_sitter_typescript
+from tree_sitter import Language, Parser
 
 logger = logging.getLogger(__name__)
 

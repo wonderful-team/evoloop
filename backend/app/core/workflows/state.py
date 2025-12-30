@@ -36,7 +36,7 @@ class AgentState(TypedDict):
     next_node: Annotated[Optional[str], lambda a, b: b]
 
     # Deep Research State
-    research_loop_count: Optional[int]
+    research_loop_count: Annotated[Optional[int], lambda a, b: b]
     research_logs: Annotated[Optional[List[str]], operator.add]
     research_topic: Optional[str]
     parallel_research_tasks: Optional[List[str]]

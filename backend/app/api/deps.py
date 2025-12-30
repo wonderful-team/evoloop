@@ -6,7 +6,7 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import engine
-from app.core.member_center import member_center
+
 from app.models import User
 
 
@@ -42,14 +42,27 @@ TokenDepOptional = Annotated[str | None, Depends(get_token_header_optional)]
 
 async def get_current_user(token: TokenDep) -> User:
     try:
-        # Pass the token directly to Member Center API
-        user_data = await member_center.get_user_info(token)
+        from app.infrastructure.external.imagicbox import imagicbox_client
+        
+        # Pass the token directly to Member Center API via unified client
+        result = await imagicbox_client.get_user_info(token)
+        
+        if result.get("code") != 0:
+             # Map error
+             error_msg = result.get("message", "Validation failed")
+             if "token" in error_msg.lower() or result.get("code") in [-1, 401]:
+                 raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid token or expired session",
+                )
+             raise HTTPException(status_code=400, detail=error_msg)
+             
+        user_data = result.get("data", {})
         
         if user_data:
             user_data["id"] = user_data.get("member_id")
         
         # Map Member Center data to User model
-        # Assuming user_data has keys compatible with User model or we map them here
         user = User.model_validate(user_data)
         
         if not user.is_active:
@@ -72,7 +85,16 @@ async def get_current_user_optional(token: TokenDepOptional) -> User | None:
     if not token:
         return None
     try:
-        user_data = await member_center.get_user_info(token)
+        from app.infrastructure.external.imagicbox import imagicbox_client
+        result = await imagicbox_client.get_user_info(token)
+        
+        if result.get("code") != 0:
+            return None
+            
+        user_data = result.get("data", {})
+        if user_data:
+            user_data["id"] = user_data.get("member_id")
+            
         user = User.model_validate(user_data)
         if not user.is_active:
             return None

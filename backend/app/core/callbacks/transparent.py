@@ -34,12 +34,18 @@ class TransparentCallbackHandler(BaseCallbackHandler):
     ) -> None:
         """Run when LLM starts running. Create a literal 'Thinking' task to visualize progress."""
         if self.thread_id and self.monitor:
+            # Check for cancellation
+            self.monitor.check_cancellation(self.thread_id)
+            
             # Create a task for the AI generation
             self.current_task_id = self.monitor.add_task(self.thread_id, "Typing...", "ai")
             
     def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
-        """Run on new LLM token. Stream into current task details."""
         console.print(token, end="", style="cyan")
+        
+        # Check cancellation during streaming
+        if self.thread_id and self.monitor:
+             self.monitor.check_cancellation(self.thread_id)
         
         # Update monitor task details with streamed content
         if self.thread_id and self.current_task_id and self.monitor:
@@ -75,6 +81,10 @@ class TransparentCallbackHandler(BaseCallbackHandler):
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
     ) -> None:
         """Run when tool starts running."""
+        # Check cancellation
+        if self.thread_id and self.monitor:
+            self.monitor.check_cancellation(self.thread_id)
+
         tool_name = serialized.get("name")
         console.print(Panel(
             Text(f"Tool Call: {tool_name}\nInput: {input_str}", style="yellow"),

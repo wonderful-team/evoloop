@@ -1,12 +1,14 @@
-from typing import Optional, Type
+from typing import Type
 
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from app.infrastructure.computer.agent import computer_service
 
+
 class ComputerAgentInput(BaseModel):
     instruction: str = Field(description="The natural language instruction for the computer to execute (e.g., 'Open Safari and search for Python').")
+
 
 class ComputerAgentTool(BaseTool):
     name: str = "computer_agent"
@@ -25,5 +27,6 @@ class ComputerAgentTool(BaseTool):
             return await computer_service.run_task(instruction)
         except Exception as e:
             return f"Error executing computer task: {e}"
+
 
 computer_agent_tool = ComputerAgentTool()

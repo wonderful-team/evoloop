@@ -11,7 +11,8 @@ from app.core.config import settings
 from app.core.workflows.state import AgentState
 
 from app.core.llm.factory import LLMFactory
-from app.domain.tools.registry import read_document, analyze_feasibility, save_preference, search_concepts
+from app.domain.tools.memory import save_preference, search_concepts
+from app.domain.tools.registry import read_document, analyze_feasibility
 from app.domain.planning.tools import create_plan, update_step_status
 import json
 
@@ -83,6 +84,10 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     # Context
     project_id = state.get("project_id", 1) # Default to 1 if missing
 
+    # Initialize messages early
+    messages = list(state.get("messages", []))
+    new_messages = []
+
     # Memory Injection
     if not state.get("user_preferences"):
         try:
@@ -93,19 +98,39 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         except Exception as e:
             state["user_preferences"] = f"Error fetching preferences: {e}"
             
-    # Tool Binding for Reading & Planning
-    tools = [read_document, analyze_feasibility, save_preference, search_concepts, create_plan, update_step_status]
+    # Tool Binding with Semantic Retrieval
+    from app.infrastructure.mcp.client import mcp_client_manager
+    from app.domain.tools.retrieval import tool_retriever
+    
+    # 1. Core Tools (Always Active)
+    core_tools = [read_document, analyze_feasibility, save_preference, search_concepts, create_plan, update_step_status]
+    
+    # 2. Candidate Tools (MCP)
+    mcp_tools = mcp_client_manager.get_tools()
+    
+    # 3. Retrieve Relevant Tools
+    # Ensure candidates are indexed (idempotent)
+    await tool_retriever.index_tools(mcp_tools)
+    
+    # Context for retrieval
+    query_context = state.get("task_status", "General task")
+    if messages and isinstance(messages[-1].content, str):
+         query_context += f" {messages[-1].content}"
+    
+    # Fetch top relevant tools
+    retrieved_tools = await tool_retriever.retrieve(query_context, k=15)
+    
+    # Combine (Core + Retrieved)
+    # Use a dict by name to deduplicate in case of overlap
+    tool_dict = {t.name: t for t in core_tools + retrieved_tools}
+    tools = list(tool_dict.values())
+    
     llm_with_tools = llm.bind_tools(tools)
     
     # 1. Tool Loop (Read -> Plan -> Analyze -> Think/Response)
     # Increased loop count to allow: Read Doc -> Analyze Plan -> (maybe Analyze again) -> Decide
     
-    # messages = state.get("messages", [])
-    # CRITICAL: Copy the list to avoid mutating the state in place!
-    # LangGraph state is often a reference. If we mutate it AND return changes, we get duplicates.
-    messages = list(state.get("messages", []))
-    # We must collect NEW messages to return them as updates
-    new_messages = []
+    # messages list is already initialized above
     
     current_plan = state.get("current_plan", "No plan yet.")
     iteration_count = state.get("iteration_count", 0)
@@ -136,35 +161,36 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
             messages.append(result)
             new_messages.append(result)
 
+            # Create tool map for easy lookup
+            tool_map = {t.name: t for t in tools}
+
             # Execute tools
             for tool_call in result.tool_calls:
                 tool_name = tool_call["name"]
                 tool_args = tool_call["args"]
                 
                 content = ""
-                if tool_name == "read_document":
-                    content = read_document.invoke(tool_args)
-                elif tool_name == "analyze_feasibility":
-                    content = await analyze_feasibility.ainvoke(tool_args)
-                elif tool_name == "save_preference":
-                    content = await save_preference.ainvoke(tool_args, config=config)
-                elif tool_name == "search_concepts":
-                    content = await search_concepts.ainvoke(tool_args, config=config)
-                elif tool_name == "create_plan":
-                    # Directly invoke the tool function
-                    content = create_plan.invoke(tool_args)
-                    # Update state based on the plan
+                
+                if tool_name in tool_map:
+                    selected_tool = tool_map[tool_name]
                     try:
-                        plan_data = json.loads(content)
-                        # Create a human readable summary for the prompt
-                        steps_text = "\n".join([f"- {s['title']} ({s['status']})" for s in plan_data.get('steps', [])])
-                        current_plan = f"Plan: {plan_data.get('title')}\n{steps_text}"
-                        state["structured_plan"] = content
-                        state["current_plan"] = current_plan
-                    except:
-                        pass
-                elif tool_name == "update_step_status":
-                    content = update_step_status.invoke(tool_args)
+                         # Universal async invocation
+                         content = await selected_tool.ainvoke(tool_args, config=config)
+                    except Exception as e:
+                         content = f"Error executing {tool_name}: {e}"
+                         
+                    # Special Handling for State Updates (create_plan)
+                    if tool_name == "create_plan":
+                        try:
+                            plan_data = json.loads(str(content))
+                            steps_text = "\n".join([f"- {s['title']} ({s['status']})" for s in plan_data.get('steps', [])])
+                            current_plan = f"Plan: {plan_data.get('title')}\n{steps_text}"
+                            state["structured_plan"] = str(content)
+                            state["current_plan"] = current_plan
+                        except:
+                            pass
+                else:
+                    content = f"Error: Tool {tool_name} not found."
 
                 # Create tool message
                 tool_msg = ToolMessage(content=str(content), tool_call_id=tool_call["id"], name=tool_name)

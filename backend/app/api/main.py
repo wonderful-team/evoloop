@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.routes import login, users, utils, agent, projects, mcp, files, history, member, memory, planning, symbols, system
+from app.api.routes import login, users, utils, agent, projects, mcp, files, history, member, memory, planning, symbols, system, devices
 from app.core.config import settings
 from app.api.routes import tasks, project_modules
 
@@ -12,6 +12,7 @@ api_router.include_router(utils.router)
 
 api_router.include_router(agent.router, tags=["agent"]) # agent.py defines /chat, /webhook
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
+api_router.include_router(devices.router, prefix="/devices", tags=["devices"])
 api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
 api_router.include_router(files.router, prefix="/files", tags=["files"])
 api_router.include_router(history.router, prefix="/history", tags=["history"])

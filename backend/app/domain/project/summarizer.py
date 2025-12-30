@@ -1,16 +1,19 @@
-import os
+import asyncio
 import json
 import logging
-import asyncio
-from langchain_core.prompts import ChatPromptTemplate
+import os
+
 from langchain_core.output_parsers import JsonOutputParser
-from app.core.llm.factory import LLMFactory
-from app.domain.project.service import project_context_manager
-from app.domain.memory.service import memory_service
-from app.infrastructure.external.imagicbox import imagicbox_client
+from langchain_core.prompts import ChatPromptTemplate
+
 from app.celery_app import celery_app
+from app.core.llm.factory import LLMFactory
+from app.domain.memory.service import memory_service
+from app.domain.project.service import project_context_manager
+from app.infrastructure.external.imagicbox import imagicbox_client
 
 logger = logging.getLogger(__name__)
+
 
 # --- Helper Logic for Summarization (Async) ---
 async def _summarize_project_logic(name: str, path: str):
@@ -43,9 +46,18 @@ async def _summarize_project_logic(name: str, path: str):
 
     try:
         # 1. Gather Context
+        from app.domain.codebase.filter import FileFilter
+        f_filter = FileFilter()
+        
         files = []
         try:
-            files = [f for f in os.listdir(path) if not f.startswith(".")]
+            # files = [f for f in os.listdir(path) if not f.startswith(".")]
+            for f in os.listdir(path):
+                if f.startswith("."): 
+                    continue
+                full_p = os.path.join(path, f)
+                if f_filter.should_include(full_p):
+                    files.append(f)
         except:
             pass
         
@@ -102,8 +114,8 @@ async def _summarize_project_logic(name: str, path: str):
                 # Upload Summary
                 if description:
                     try:
-                        # This is a sync call, but acceptable in worker
-                        imagicbox_client.update_project(project_id, description)
+                        # This is an async call call now
+                        await imagicbox_client.update_project(project_id, description)
                         logger.info(f"[ProjectSummarizer] Uploaded summary for {name}")
                     except Exception as up_e:
                         logger.error(f"Failed to upload summary: {up_e}")

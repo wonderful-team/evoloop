@@ -8,14 +8,20 @@ from app.core.config import settings
 # ContextVars for Request/Task Scope
 _request_context = contextvars.ContextVar("request_context", default={})
 
-def set_context(thread_id: str = None, project_id: int = None):
+def set_context(thread_id: str = None, project_id: int = None, working_directory: str = None):
     """Set the logging context for the current task."""
     ctx = _request_context.get()
     if thread_id:
         ctx["thread_id"] = thread_id
     if project_id:
         ctx["project_id"] = project_id
+    if working_directory:
+        ctx["working_directory"] = working_directory
     _request_context.set(ctx)
+
+def get_context() -> dict:
+    """Get the current context."""
+    return _request_context.get()
 
 class ContextFilter(logging.Filter):
     """

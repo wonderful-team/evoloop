@@ -22,7 +22,7 @@ from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.project.service import project_context_manager
 from app.domain.watchers import ProjectDiscoveryWatcher
 from app.infrastructure.mcp.client import mcp_client_manager
-from app.infrastructure.evoloop_link.client import init_evoloop_client
+
 from app.infrastructure.database.sql.database import engine, Base
 from sqlalchemy import text
 
@@ -35,8 +35,16 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
-
-    # 2. Persistence (Checkpointer)
+        
+    # 2. Graph/Memory Init
+    try:
+        from app.domain.memory.service import memory_service
+        await memory_service.initialize_schema()
+        logger.info("Memory Service schema initialized.")
+    except Exception as e:
+        logger.warning(f"Failed to initialize Memory Service schema: {e}")
+        
+    # 3. Persistence (Checkpointer)
     db_uri = settings.CHECKPOINTER_DATABASE_URI
     # kwargs={"autocommit": True} is required for CREATE INDEX CONCURRENTLY in setup()
     db_pool = AsyncConnectionPool(conninfo=db_uri, max_size=20, kwargs={"autocommit": True}, open=False)
@@ -80,17 +88,25 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Failed to start startup watcher: {e}")
 
-    # 7. EvoLoop Link Client (PC Client)
-    evoloop_client = None
+    # 7. EvoLoop Link Client (Unified)
+    # Restore session if token exists
     
-    # Try to load token from settings OR local storage via infrastructure/external/imagicbox.py style
-    # Actually, evoloop_link/client.py is separate.
-    # Let's see if we can unify.
+    # Imports
+    from app.infrastructure.external.imagicbox import imagicbox_client
+    from app.infrastructure.evoloop_link.handler import handle_remote_command, handle_project_switch_event
     
-    evoloop_token = settings.EVOLOOP_LINK_TOKEN
+    # Config Handlers
+    imagicbox_client.set_command_handler(handle_remote_command)
+    
+    async def event_router(etype, edata):
+        if etype == "project_switch":
+            await handle_project_switch_event(edata)
+    imagicbox_client.set_event_handler(event_router)
+
+    # Try to load token from Redis to auto-connect
+    evoloop_token = settings.IMAGICBOX_ACCESS_TOKEN # Check config first
     
     if not evoloop_token:
-        # Check if we have a saved persisted token in Redis
         try:
             import redis.asyncio as redis
             redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
@@ -103,36 +119,9 @@ async def lifespan(app: FastAPI):
 
     if evoloop_token:
         try:
-            evoloop_client = init_evoloop_client(
-                token=evoloop_token,
-                device_name=settings.EVOLOOP_DEVICE_NAME
-            )
-            
-            # USE GLOBALS TO SET CLIENT
-            from app.infrastructure.evoloop_link.client import set_evoloop_client
-            set_evoloop_client(evoloop_client)
-            
-            # Use shared handler
-            from app.infrastructure.evoloop_link.handler import handle_remote_command, handle_project_switch_event
-            
-            evoloop_client.set_command_handler(handle_remote_command)
-            
-            # wrapper for event handling
-            async def event_router(etype, edata):
-                if etype == "project_switch":
-                    await handle_project_switch_event(edata)
-            
-            evoloop_client.set_event_handler(event_router)
-
-            # Override URLs if provided in settings
-            if settings.EVOLOOP_LINK_BASE_URL:
-                evoloop_client.base_url = settings.EVOLOOP_LINK_BASE_URL.rstrip("/")
-            if settings.EVOLOOP_LINK_WS_URL:
-                evoloop_client.ws_url = settings.EVOLOOP_LINK_WS_URL
-            
-            # Start client in background
-            asyncio.create_task(evoloop_client.start())
-            logger.info("EvoLoop Link Client started in background.")
+             # This will set the token on client and start the loop
+             await imagicbox_client.start_device_link(token=evoloop_token)
+             logger.info("EvoLoop Link Client started in background.")
         except Exception as e:
             logger.error(f"Failed to start EvoLoop Link Client: {e}")
 
@@ -144,8 +133,14 @@ async def lifespan(app: FastAPI):
         discovery_watcher.stop()
     await indexing_manager.stop_all()
     await mcp_client_manager.cleanup()
-    if evoloop_client:
-        evoloop_client.stop()
+    
+    # Stop EvoLoop Link
+    try:
+        from app.infrastructure.external.imagicbox import imagicbox_client
+        await imagicbox_client.stop_device_link()
+    except Exception as e:
+        logger.warning(f"Failed to stop EvoLoop Link: {e}")
+        
     if db_pool:
         await db_pool.close()
 

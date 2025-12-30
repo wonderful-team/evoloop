@@ -41,7 +41,7 @@ export function ProjectList() {
     }
 
     return (
-        <div className="flex-1 p-6 md:p-8">
+        <div className="flex-1 h-full overflow-y-auto p-6 md:p-8">
             <div className="flex items-center justify-between mb-8">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">{t('projects.title')}</h1>

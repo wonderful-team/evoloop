@@ -1,21 +1,8 @@
-from typing import List, Dict, Any, Optional
-import tree_sitter_python
-import tree_sitter_javascript
-import tree_sitter_typescript 
-import tree_sitter_go
-import tree_sitter_java
-import tree_sitter_cpp
-import tree_sitter_rust
-import tree_sitter_php
-import tree_sitter_ruby
-
-from tree_sitter import Language, Parser
 from app.domain.codebase.indexing.base import BaseExtractor, Document, ExtractedEntity, ExtractedRelation, ExtractionResult
-from app.logging import logger
-
-
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
+from app.logging import logger
+
 
 class TreeSitterExtractor(BaseExtractor):
     def __init__(self):

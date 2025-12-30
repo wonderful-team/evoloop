@@ -21,7 +21,39 @@ async def coder_node(state: AgentState, config: RunnableConfig):
     plan = state.get("current_plan", "")
     
     # Get tools
-    tools = get_all_tools()
+    # Core Tools Imports
+    from app.infrastructure.filesystem.tool import list_files, read_file, grep_files, write_file_content, edit_file
+    from app.domain.tools.execution import run_shell_command
+    from app.domain.codebase.retrieval.tools import search_codebase
+    from app.domain.tools.visualizer import get_annotated_tree
+    from app.domain.tools.memory import save_preference, add_concept
+    from app.infrastructure.mcp.client import mcp_client_manager
+    from app.domain.tools.retrieval import tool_retriever
+    from app.domain.tools.git import git_status, git_diff, git_commit, git_history, git_create_branch
+
+    # 1. Define Core (Standard Dev Tools)
+    core_tools = [
+        # File Ops
+        list_files, read_file, grep_files, write_file_content, edit_file,
+        # Git Ops
+        git_status, git_diff, git_commit, git_history, git_create_branch,
+        # Analysis
+        run_shell_command, search_codebase, get_annotated_tree, 
+        # Memory
+        save_preference, add_concept
+    ]
+    
+    # 2. Retrieve Candidate Tools (MCP)
+    mcp_tools = mcp_client_manager.get_tools()
+    await tool_retriever.index_tools(mcp_tools)
+    
+    query = f"{plan} {context}"
+    retrieved_tools = await tool_retriever.retrieve(query, k=10)
+    
+    # 3. Combine
+    tool_dict = {t.name: t for t in core_tools + retrieved_tools}
+    tools = list(tool_dict.values())
+    
     llm_with_tools = llm.bind_tools(tools)
     tool_map = {t.name: t for t in tools}
     

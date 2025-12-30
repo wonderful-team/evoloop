@@ -1,7 +1,8 @@
-from typing import Any
 from sqlmodel import Session, select
+
 from app.core.db import engine
 from app.models.config import SystemConfig
+
 
 class SystemConfigService:
     @staticmethod

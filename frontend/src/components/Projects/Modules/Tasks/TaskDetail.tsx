@@ -12,15 +12,14 @@ import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 // import { Slider } from "@/components/ui/slider"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 // import { Textarea } from "@/components/ui/textarea"
 import {
     Calendar, User,
-    MessageSquare, Activity, Zap, Layers
+    MessageSquare, Activity, Zap, Layers, Play
 } from "lucide-react"
-
 import { TasksService } from "@/client/sdk.gen"
-// import { Task } from '@/client/types.gen' // If available, otherwise use any
+import { useNavigate } from '@tanstack/react-router'
 
 interface TaskDetailProps {
     taskId: number | null
@@ -31,9 +30,10 @@ interface TaskDetailProps {
 
 export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, open, onOpenChange }) => {
     const { t } = useTranslation()
+    const navigate = useNavigate()
     const [task, setTask] = useState<any>(null)
     const [loading, setLoading] = useState(false)
-    // const [activeTab, setActiveTab] = useState('general')
+    const [executing, setExecuting] = useState(false)
 
     useEffect(() => {
         if (taskId && open) {
@@ -72,6 +72,36 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, open, onOpenChan
             console.error("Failed to load task detail", error)
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleExecuteTask = async () => {
+        if (!taskId) return
+
+        if (!confirm(t('projects.tasks.confirmExecute', 'Are you sure you want to AI Agent to execute this task? This will start a new chat session.'))) {
+            return
+        }
+
+        setExecuting(true)
+        try {
+            const token = localStorage.getItem('access_token')
+            const res = await TasksService.executeTask({
+                taskId: taskId,
+                authorization: token
+            }) as any
+
+            if (res.status === 'queued' && res.thread_id) {
+                // Navigate to chat
+                navigate({ to: '/chat', search: { thread_id: res.thread_id } })
+                onOpenChange(false)
+            } else {
+                alert('Failed to start execution: ' + (res.message || 'Unknown error'))
+            }
+        } catch (error) {
+            console.error('Execute task failed:', error)
+            alert('Execute task failed')
+        } finally {
+            setExecuting(false)
         }
     }
 
@@ -226,9 +256,23 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({ taskId, open, onOpenChan
                 </ScrollArea>
 
                 {/* Footer / Actions */}
-                <div className="p-6 border-t bg-muted/10">
-                    <Button className="w-full" disabled={loading}>
+                <div className="p-6 border-t bg-muted/10 flex gap-4">
+                    <Button className="flex-1" variant="outline" disabled={loading}>
                         {t('common.edit', 'Edit Task')}
+                    </Button>
+                    <Button
+                        className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md transition-all hover:scale-[1.02]"
+                        disabled={loading || executing}
+                        onClick={handleExecuteTask}
+                    >
+                        {executing ? (
+                            <>Processing...</>
+                        ) : (
+                            <>
+                                <Play className="w-4 h-4 mr-2 fill-current" />
+                                {t('projects.tasks.execute', 'Confirm & Execute')}
+                            </>
+                        )}
                     </Button>
                 </div>
             </SheetContent>

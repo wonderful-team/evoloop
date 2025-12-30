@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AgentChatEndpointData, AgentChatEndpointResponse, AgentRewindChatData, AgentRewindChatResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, HistorySearchConversationsData, HistorySearchConversationsResponse, HistoryRenameConversationData, HistoryRenameConversationResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesSearchFilesData, FilesSearchFilesResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, MemberLoginData, MemberLoginResponse, MemberLoginMobileData, MemberLoginMobileResponse, MemberSendMobileCodeData, MemberSendMobileCodeResponse, MemberGetCaptchaConfigResponse, MemberGetCaptchaData, MemberGetCaptchaResponse, MemberGetRegisterConfigResponse, MemberGetRegisterAgreementData, MemberGetRegisterAgreementResponse, MemberRegisterUsernameData, MemberRegisterUsernameResponse, MemberRegisterMobileData, MemberRegisterMobileResponse, MemberSendRegisterCodeData, MemberSendRegisterCodeResponse, MemberStatusResponse, MemberLogoutResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationApplyResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectsListProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ProjectsListProjectConversationsData, ProjectsListProjectConversationsResponse, ProjectsGetConversationHistoryData, ProjectsGetConversationHistoryResponse, ProjectsGetConversationActivityData, ProjectsGetConversationActivityResponse, ProjectsDeleteConversationData, ProjectsDeleteConversationResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemConfigData, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, UsersReadUserMeData, UsersReadUserMeResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse } from './types.gen';
+import type { AgentChatEndpointData, AgentChatEndpointResponse, AgentRewindChatData, AgentRewindChatResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, HistorySearchConversationsData, HistorySearchConversationsResponse, HistoryRenameConversationData, HistoryRenameConversationResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesSearchFilesData, FilesSearchFilesResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, MemberLoginData, MemberLoginResponse, MemberLoginMobileData, MemberLoginMobileResponse, MemberSendMobileCodeData, MemberSendMobileCodeResponse, MemberGetCaptchaConfigResponse, MemberGetCaptchaData, MemberGetCaptchaResponse, MemberGetRegisterConfigResponse, MemberGetRegisterAgreementData, MemberGetRegisterAgreementResponse, MemberRegisterUsernameData, MemberRegisterUsernameResponse, MemberRegisterMobileData, MemberRegisterMobileResponse, MemberSendRegisterCodeData, MemberSendRegisterCodeResponse, MemberStatusResponse, MemberLogoutResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationApplyResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectsListProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ProjectsListProjectConversationsData, ProjectsListProjectConversationsResponse, ProjectsGetConversationHistoryData, ProjectsGetConversationHistoryResponse, ProjectsGetConversationActivityData, ProjectsGetConversationActivityResponse, ProjectsDeleteConversationData, ProjectsDeleteConversationResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemConfigData, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, UsersReadUserMeData, UsersReadUserMeResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse } from './types.gen';
 
 export class AgentService {
     /**
@@ -65,6 +65,26 @@ export class AgentService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/webhook',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+
+    /**
+     * Stop Chat Endpoint
+     * Stop the current generation for a thread.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static stopChat(data: any): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/chat/stop',
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -1332,6 +1352,30 @@ export class TasksService {
             },
             body: data.requestBody,
             mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+
+    /**
+     * Execute Task
+     * Trigger Autonomous Agent to execute the task.
+     * @param data The data for the request.
+     * @param data.taskId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static executeTask(data: TasksExecuteTaskData): CancelablePromise<TasksExecuteTaskResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/tasks/{task_id}/execute',
+            headers: {
+                authorization: data.authorization
+            },
+            path: {
+                task_id: data.taskId
+            },
             errors: {
                 422: 'Validation Error'
             }

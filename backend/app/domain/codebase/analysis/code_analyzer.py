@@ -4,24 +4,13 @@ Ported from Legacy `CodeSymbolExtractor`.
 Provides deep analysis of code files using Tree-sitter.
 """
 import logging
-import os
-from typing import Dict, List, Any, Optional
-
-import tree_sitter_python
-import tree_sitter_go
-import tree_sitter_java
-import tree_sitter_cpp
-import tree_sitter_rust
-import tree_sitter_php
-import tree_sitter_ruby
-
-from tree_sitter import Language, Parser, Node
-
-logger = logging.getLogger(__name__)
-
+from typing import Dict, Any
 
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
+
+logger = logging.getLogger(__name__)
+
 
 class CodeAnalyzer:
     """

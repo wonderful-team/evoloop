@@ -19,20 +19,23 @@ from app.infrastructure.database.sql.database import session_scope
 from app.core.callbacks.transparent import TransparentCallbackHandler
 from app.core.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
-from app.infrastructure.evoloop_link.client import get_evoloop_client
 
 router = APIRouter()
+
 
 async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
     """
     Run the agent graph in the background.
     """
-    # 0. Set Logging Context
     project_id = inputs.get("project_id", 1)
-    set_context(thread_id=thread_id, project_id=project_id)
+    project = await project_context_manager.get_project_by_id(project_id)
+    if project and project.get("path"):
+        project_context_manager.set_working_directory(thread_id, project["path"])
     
-    # 1. Retrieve current working directory for this thread
     working_dir = project_context_manager.get_working_directory(thread_id)
+    
+    # 0. Set Logging Context (including CWD)
+    set_context(thread_id=thread_id, project_id=project_id, working_directory=working_dir)
     
     # 2. Inject into config
     config = {
@@ -57,6 +60,41 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
     
     # Update Status to Running
     activity_monitor.start_run(thread_id)
+
+    # --- ENSURE CONVERSATION EXISTS ---
+    # This guarantees that Webhook triggered or Remote triggered conversations 
+    # are visible in the history list.
+    try:
+        async with session_scope() as session:
+            conversation = await session.get(Conversation, thread_id)
+            if not conversation:
+                # Derive title logic:
+                # 1. Use explicit task_title if provided (from Task Execution)
+                # 2. Else use first message content
+                if inputs.get("task_title"):
+                     conversation_title = inputs["task_title"]
+                else:
+                    conversation_title = "New Conversation"
+                    if inputs.get("messages") and isinstance(inputs["messages"][0], HumanMessage):
+                        conversation_title = inputs["messages"][0].content[:50]
+                    elif inputs.get("messages") and isinstance(inputs["messages"][0], dict):
+                        # Handle dict format if passed
+                        conversation_title = inputs["messages"][0].get("content", "")[:50]
+                
+                logger.info(f"Background: Creating missing conversation: {thread_id}, project_id: {project_id}")
+                conversation = Conversation(
+                    id=thread_id,
+                    project_id=project_id,
+                    title=conversation_title
+                )
+                session.add(conversation)
+            else:
+                # Optional: Update timestamp
+                # conversation.updated_at = datetime.now(timezone.utc)
+                pass
+    except Exception as e:
+        logger.error(f"Background: Failed to ensure conversation {thread_id}: {e}")
+    # ----------------------------------
     
     # --- MEMORY INJECTION ---
     # Fetch User Preferences & Concepts and inject into state
@@ -82,10 +120,11 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
         callbacks = [callback, db_callback]
         
         # Add EvoLoop Link Callback if available
-        evoloop_client = get_evoloop_client()
-        if evoloop_client:
-            # Pass command_id to handler
-            callbacks.append(EvoLoopCallbackHandler(evoloop_client, thread_id, command_id=evoloop_command_id))
+        # Unified Client
+        from app.infrastructure.external.imagicbox import imagicbox_client
+        
+        # Pass command_id to handler
+        callbacks.append(EvoLoopCallbackHandler(imagicbox_client, thread_id, command_id=evoloop_command_id))
             
         config["callbacks"] = callbacks
         config["recursion_limit"] = 50
@@ -105,37 +144,37 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
             
         activity_monitor.end_run(thread_id, "done")
         
-        if evoloop_client:
-            try:
-                final_state = await graph_instance.aget_state(config)
-                logger.info(f"Final State Keys: {final_state.values.keys()}")
-                if final_state.values and "messages" in final_state.values:
-                    messages = final_state.values["messages"]
-                    logger.info(f"Total messages: {len(messages)}")
-                    if messages:
-                        last_msg = messages[-1]
-                        logger.info(f"Last message type: {type(last_msg)}, content: {last_msg.content}")
+        # Upload Final Log
+        try:
+            final_state = await graph_instance.aget_state(config)
+            logger.info(f"Final State Keys: {final_state.values.keys()}")
+            if final_state.values and "messages" in final_state.values:
+                messages = final_state.values["messages"]
+                logger.info(f"Total messages: {len(messages)}")
+                if messages:
+                    last_msg = messages[-1]
+                    logger.info(f"Last message type: {type(last_msg)}, content: {last_msg.content}")
+                    
+                    # Check if it's an AI message with content
+                    if hasattr(last_msg, "content") and last_msg.content:
+                        content_str = last_msg.content
                         
-                        # Check if it's an AI message with content
-                        if hasattr(last_msg, "content") and last_msg.content:
-                            content_str = last_msg.content
-                            
-                            # CLEAN <think> tags for mobile display
-                            import re
-                            # Remove <think>...</think> including newlines
-                            content_clean = re.sub(r'<think>.*?</think>', '', content_str, flags=re.DOTALL).strip()
-                            
-                            logger.info(f"Uploading final output (cleaned len: {len(content_clean)})...")
-                            
-                            await evoloop_client.upload_log(
-                                thread_id=thread_id,
-                                log_type="output", 
-                                content=content_clean,
-                                command_id=evoloop_command_id
-                            )
-                            logger.info("Upload task awaited.")
-            except Exception as e:
-                logger.warning(f"Failed to send final output to EvoLoop: {e}")
+                        # CLEAN <think> tags for mobile display
+                        import re
+                        # Remove <think>...</think> including newlines
+                        content_clean = re.sub(r'<think>.*?</think>', '', content_str, flags=re.DOTALL).strip()
+                        
+                        logger.info(f"Uploading final output (cleaned len: {len(content_clean)})...")
+                        
+                        await imagicbox_client.upload_log(
+                            thread_id=thread_id,
+                            log_type="output", 
+                            content=content_clean,
+                            command_id=evoloop_command_id
+                        )
+                        logger.info("Upload task awaited.")
+        except Exception as e:
+            logger.warning(f"Failed to send final output to EvoLoop: {e}")
         
     except Exception as e:
         logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
@@ -190,12 +229,8 @@ async def chat_endpoint(
             # TODO: Cache this config in Redis for 5-10 mins to avoid spamming member-center
             # For now, we fetch it directly or use a fallback
             try:
-                # We can't await this sync method directly if it was sync, but requests is sync.
-                # Ideally imagicbox_client should be async or run in threadpool. 
-                # For this MVP step we are inside async def, blocking slightly is okay-ish for Dev, 
-                # but better to wrap or assume fast network. 
-                # Converting to async properly is out of scope for this small task, assume it returns quick.
-                config_res = imagicbox_client.get_ai_global_config()
+                # Async call to global config
+                config_res = await imagicbox_client.get_ai_global_config()
                 limit = 10 # Default
                 if config_res and config_res.get("code") == 0:
                     limit = int(config_res.get("data", {}).get("guest_daily_limit", 10))
@@ -243,23 +278,34 @@ async def chat_endpoint(
     activity_monitor.start_run(req.thread_id, goal)
     
     # 3. Upsert Conversation Record
-    async with session_scope() as session:
-        conversation = await session.get(Conversation, req.thread_id)
-        if not conversation:
-            conversation = Conversation(
-                id=req.thread_id,
-                project_id=req.project_id,
-                title=req.message[:50],
-                # owner_id=current_user.id if current_user else None 
-            )
-            session.add(conversation)
-        else:
-            conversation.updated_at = datetime.now(timezone.utc)
+    try:
+        async with session_scope() as session:
+            conversation = await session.get(Conversation, req.thread_id)
+            if not conversation:
+                conversation = Conversation(
+                    id=req.thread_id,
+                    project_id=req.project_id,
+                    title=req.message[:50],
+                )
+                session.add(conversation)
+            else:
+                conversation.updated_at = datetime.now(timezone.utc)
+    except Exception as e:
+        logger.error(f"Failed to upsert conversation {req.thread_id}: {e}")
+        # Continue to background task even if DB fails here (Background task has safety net now)
             
     # 2. Add to background task
     background_tasks.add_task(run_agent_background, req.thread_id, inputs)
             
     return {"status": "queued", "thread_id": req.thread_id}
+
+@router.post("/chat/stop")
+async def stop_chat(req: ChatRequest):
+    """
+    Stop the current generation for a thread.
+    """
+    activity_monitor.stop_run(req.thread_id)
+    return {"status": "stopping", "thread_id": req.thread_id}
 
 @router.post("/chat/rewind")
 async def rewind_chat(req: ChatRequest):

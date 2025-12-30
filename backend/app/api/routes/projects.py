@@ -47,8 +47,8 @@ async def create_project(req: CreateProjectRequest):
             f.write(f'{{"name": "{req.name}", "description": "Created via EvoLoop V3"}}')
             
         # Sync with Member Center
-        from infrastructure.external.imagicbox import imagicbox_client
-        res = imagicbox_client.create_project(req.name, "Created via EvoLoop V3", project_path)
+        from app.infrastructure.external.imagicbox import imagicbox_client
+        res = await imagicbox_client.create_project(req.name, "Created via EvoLoop V3", project_path)
         if res.get("code") != 0:
              logger.warning(f"Failed to sync project creation to Member Center: {res}")
              
@@ -64,8 +64,8 @@ async def create_project(req: CreateProjectRequest):
 async def delete_project(project_id: int):
     """Delete a project (Unlink from Member Center)."""
     try:
-        from infrastructure.external.imagicbox import imagicbox_client
-        res = imagicbox_client.delete_project(project_id)
+        from app.infrastructure.external.imagicbox import imagicbox_client
+        res = await imagicbox_client.delete_project(project_id)
         if res.get("code") == 0:
              return {"status": "success", "id": project_id}
         else:

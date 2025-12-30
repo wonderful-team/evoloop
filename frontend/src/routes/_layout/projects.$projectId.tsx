@@ -3,7 +3,7 @@ import { useProjectStore } from "@/stores/projectStore"
 import { useEffect } from "react"
 import {
     FileCode, CheckSquare, BarChart2,
-    PieChart, Clock, AlertCircle, ChevronLeft, LayoutDashboard
+    Clock, AlertCircle, ChevronLeft
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 

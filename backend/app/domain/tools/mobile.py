@@ -1,12 +1,14 @@
-from typing import Optional, Type
+from typing import Type
 
 from langchain.tools import BaseTool
 from pydantic import BaseModel, Field
 
 from app.infrastructure.mobile.agent import mobile_service
 
+
 class MobileAgentInput(BaseModel):
     instruction: str = Field(description="The natural language instruction for the mobile phone to execute (e.g., 'Open WeChat and send a message').")
+
 
 class MobileAgentTool(BaseTool):
     name: str = "mobile_agent"
@@ -25,5 +27,6 @@ class MobileAgentTool(BaseTool):
             return await mobile_service.run_task(instruction)
         except Exception as e:
             return f"Error executing mobile task: {e}"
+
 
 mobile_agent_tool = MobileAgentTool()

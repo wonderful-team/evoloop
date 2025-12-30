@@ -1,13 +1,16 @@
-
-import os
-import logging
 import json
-import sqlite3
-import urllib.request
-import tempfile
+import logging
+import os
 import shutil
+import sqlite3
+import tempfile
+import urllib.request
+from typing import Dict, Any, Optional
 from urllib.parse import urlparse
-from typing import Dict, Any, Optional, List, Union
+
+from langchain_core.tools import tool
+
+from app.logging import get_context
 
 # Lazy imports
 try:
@@ -20,6 +23,7 @@ except ImportError:
     pass
 
 logger = logging.getLogger(__name__)
+
 
 def _ensure_local_path(file_path: str) -> str:
     """
@@ -49,6 +53,21 @@ def _ensure_local_path(file_path: str) -> str:
             
     return file_path
 
+
+
+def _resolve_project_path(file_path: str) -> str:
+    """
+    Resolve a file path relative to the project working directory 
+    if it is not an absolute path or a URL.
+    """
+    if file_path.startswith(('http://', 'https://')) or os.path.isabs(file_path):
+        return file_path
+    
+    ctx = get_context()
+    root = ctx.get("working_directory") or os.getcwd()
+    return os.path.join(root, file_path)
+
+
 def inspect_document(file_path: str) -> str:
     """
     Inspect a document to get its metadata and structure without reading the full content.
@@ -61,7 +80,8 @@ def inspect_document(file_path: str) -> str:
         str: JSON formatted metadata.
     """
     try:
-        real_path = _ensure_local_path(file_path)
+        resolved_path = _resolve_project_path(file_path)
+        real_path = _ensure_local_path(resolved_path)
     except Exception as e:
         return json.dumps({"error": str(e)})
 
@@ -86,6 +106,7 @@ def inspect_document(file_path: str) -> str:
         logger.error(f"Inspection failed: {e}")
         return json.dumps({"error": str(e)})
 
+
 def query_excel_sql(file_path: str, sql_query: str) -> str:
     """
     Execute a SQL query on an Excel file.
@@ -101,7 +122,8 @@ def query_excel_sql(file_path: str, sql_query: str) -> str:
         JSON string of the result.
     """
     try:
-        real_path = _ensure_local_path(file_path)
+        resolved_path = _resolve_project_path(file_path)
+        real_path = _ensure_local_path(resolved_path)
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -131,7 +153,6 @@ def query_excel_sql(file_path: str, sql_query: str) -> str:
     except Exception as e:
         return f"SQL Execution Error: {str(e)}"
 
-from langchain_core.tools import tool
 
 @tool
 def read_document(file_path: str, start_page: Optional[int] = None, end_page: Optional[int] = None) -> str:
@@ -140,17 +161,74 @@ def read_document(file_path: str, start_page: Optional[int] = None, end_page: Op
     Returns the content converted to Markdown format.
 
     Args:
-        file_path (str): Absolute path to the file or URL.
+        file_path (str): Path to the file or URL.
         start_page (int, optional): Start page for PDF (1-based).
         end_page (int, optional): End page for PDF (1-based).
     """
     try:
-        real_path = _ensure_local_path(file_path)
+        # Resolve path
+        resolved_path = _resolve_project_path(file_path)
+        real_path = _ensure_local_path(resolved_path)
     except Exception as e:
         return f"Error: {str(e)}"
 
     if not os.path.exists(real_path):
-        return f"Error: File not found: {real_path}"
+        # IMPROVEMENT 2: Smart Fuzzy Check for Typo/Case sensitivity
+        dir_name = os.path.dirname(real_path)
+        base_name = os.path.basename(real_path)
+        suggestion = ""
+        parent_listing_info = ""
+        
+        if os.path.exists(dir_name) and os.path.isdir(dir_name):
+            try:
+                candidates = sorted(os.listdir(dir_name))
+                visible_candidates = [c for c in candidates if not c.startswith('.')]
+                
+                # 1. Exact case-insensitive match
+                for c in candidates:
+                    if c.lower() == base_name.lower():
+                        suggestion = f" (Did you mean '{c}'?)"
+                        break
+                
+                # 2. Provide context (Parent Listing) to help Agent self-correct
+                # Limit to 20 items to avoid token explosion
+                list_str = ", ".join(visible_candidates[:20])
+                if len(visible_candidates) > 20:
+                    list_str += ", ..."
+                
+                parent_listing_info = (
+                    f"\n\nCONTEXT HELP: The directory '{os.path.basename(dir_name)}/' exists and contains these files:\n"
+                    f"[{list_str}]\n"
+                    f"Please check the spelling or choose an existing file from the list."
+                )
+            except: 
+                pass
+        
+        return f"Error: File not found: {real_path}{suggestion} (Resolved from {file_path}){parent_listing_info}"
+
+    # IMPROVEMENT 1: Handle Directories Gracefully
+    if os.path.isdir(real_path):
+        try:
+            items = sorted(os.listdir(real_path))
+            # Filter hidden unless strictly requested?
+            visible_items = [i for i in items if not i.startswith('.')]
+            # Mark directories
+            formatted_items = []
+            for item in visible_items:
+                if os.path.isdir(os.path.join(real_path, item)):
+                    formatted_items.append(f"{item}/")
+                else:
+                    formatted_items.append(item)
+            
+            listing_str = "\n".join(formatted_items[:50]) + ("\n... (truncated)" if len(formatted_items) > 50 else "")
+            return (
+                f"### SYSTEM NOTICE: Target is a directory ###\n"
+                f"Path: {os.path.basename(real_path)}/\n"
+                f"The path you requested is a directory, not a file. I have listed its contents below for your convenience:\n\n"
+                f"{listing_str}"
+            )
+        except Exception as e:
+            return f"Error listing directory: {e}"
 
     _ext = os.path.splitext(real_path)[1].lower()
     
@@ -175,6 +253,7 @@ def read_document(file_path: str, start_page: Optional[int] = None, end_page: Op
         logger.error(f"Read failed: {e}")
         return f"Error reading file: {str(e)}"
 
+
 # --- Internal Helpers ---
 
 def _inspect_excel(path: str) -> Dict[str, Any]:
@@ -187,6 +266,7 @@ def _inspect_excel(path: str) -> Dict[str, Any]:
             "preview": df.head(2).to_dict(orient='records')
         }
     return {"sheets": list(xl.sheet_names), "details": sheets_info}
+
 
 def _inspect_docx(path: str) -> Dict[str, Any]:
     # Mammoth helps with HTML, but python-docx is better for structural inspection?
@@ -203,12 +283,14 @@ def _inspect_docx(path: str) -> Dict[str, Any]:
         "headings": headings[:20] if len(headings) > 20 else headings # Limit output
     }
 
+
 def _inspect_pdf(path: str) -> Dict[str, Any]:
     reader = PdfReader(path)
     return {
         "pages": len(reader.pages),
         "metadata": reader.metadata
     }
+
 
 def _read_pdf(path: str, start: Optional[int], end: Optional[int]) -> str:
     reader = PdfReader(path)
@@ -233,10 +315,12 @@ def _read_pdf(path: str, start: Optional[int], end: Optional[int]) -> str:
         
     return "\n\n".join(text)
 
+
 def _read_docx(path: str) -> str:
     with open(path, "rb") as docx_file:
         result = mammoth.convert_to_markdown(docx_file)
         return f"# Document: {os.path.basename(path)}\n\n" + result.value
+
 
 def _read_excel(path: str) -> str:
     xl = pd.ExcelFile(path)
@@ -254,10 +338,12 @@ def _read_excel(path: str) -> str:
         
     return "\n".join(text)
 
+
 def _read_html(path: str) -> str:
     with open(path, 'r', encoding='utf-8') as f:
         html_content = f.read()
     return f"# Document: {os.path.basename(path)}\n\n" + md(html_content)
+
 
 def _read_text(path: str) -> str:
     with open(path, 'r', encoding='utf-8', errors='replace') as f:

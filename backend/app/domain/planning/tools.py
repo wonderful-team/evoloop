@@ -1,12 +1,16 @@
+import json
 import logging
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import StrOutputParser
 from typing import List, Optional
-from langchain_core.tools import tool, BaseTool
+
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
+
+from app.core.llm.factory import LLMFactory
 from app.domain.codebase.retrieval.service import RetrievalService
 from app.domain.tools.visualizer import get_annotated_tree
-from app.core.llm.factory import LLMFactory
+from app.logging import get_context
 from .models import Plan, Step
 
 logger = logging.getLogger(__name__)
@@ -40,9 +44,11 @@ Return a strict analysis report in Markdown:
 - **Recommendations**: (Specific actions to fix the plan)
 """)
 
+
 class CreatePlanInput(BaseModel):
     title: str = Field(..., description="High level goal of the plan")
     steps: List[str] = Field(..., description="List of step titles")
+
 
 class UpdatePlanInput(BaseModel):
     plan_id: str = Field(..., description="ID of the plan to update")
@@ -50,10 +56,11 @@ class UpdatePlanInput(BaseModel):
     status: str = Field(..., description="New status: pending, in_progress, completed, failed")
     result: Optional[str] = Field(None, description="Result of the step")
 
+
 class PlanningTool(BaseTool):
     name: str = "planning_tool"
     description: str = "Create or update a plan. Use this tool BEFORE starting any complex task to outline your steps."
-    
+
     def _run(self, action: str, **kwargs) -> str:
         """
         Action can be 'create' or 'update'.
@@ -68,26 +75,22 @@ class PlanningTool(BaseTool):
             if steps:
                 plan.current_step_id = steps[0].id
                 steps[0].status = "in_progress"
-            
+
             # scalable: meaningful return so LLM knows what it did
             return json.dumps(plan.model_dump(), ensure_ascii=False)
-            
+
         elif action == "update":
             # In a real implementation with LangGraph, the 'tool' might not persist state directly 
             # if it's stateless. But here we simulate the logic.
             # The actual persistence happens when Supervisor invokes this and we save to checkingpointer or return plain dict
             # that Supervisor uses to patch state.
             pass
-            
+
         return "Invalid action"
-        
+
     def _arun(self, action: str, **kwargs):
         raise NotImplementedError("Async not implemented")
 
-# For LangGraph integration, we might prefer using structured tools or simply functions.
-# Let's define a function-based tool for easier binding with LangChain.
-
-from langchain_core.tools import tool
 
 @tool
 def create_plan(title: str, steps: List[str]):
@@ -104,6 +107,7 @@ def create_plan(title: str, steps: List[str]):
         plan_steps[0].status = "in_progress"
     return plan.model_dump_json()
 
+
 @tool
 def update_step_status(plan_id: str, step_id: str, status: str, result: str = None):
     """
@@ -118,6 +122,7 @@ def update_step_status(plan_id: str, step_id: str, status: str, result: str = No
         "result": result
     })
 
+
 @tool
 async def analyze_feasibility(proposed_plan: str) -> str:
     """
@@ -126,16 +131,20 @@ async def analyze_feasibility(proposed_plan: str) -> str:
     Args:
         proposed_plan: The detailed plan step-by-step.
     """
+    ctx = get_context()
+    project_id = ctx.get("project_id", 1)
+    root = ctx.get("working_directory", ".")
+
     try:
         # Retrieval
         retrieval_service = RetrievalService()
-        search_results = await retrieval_service.search(proposed_plan, limit=5)
-        
+        search_results = await retrieval_service.search(proposed_plan, project_id=project_id, limit=5)
+
         context_str = "\n".join([f"File: {r['file_path']}\nSnippet: {r['content'][:500]}..." for r in search_results])
-        
+
         # Get Project Structure
-        tree = await get_annotated_tree.ainvoke({"path": "."})
-        
+        tree = await get_annotated_tree.ainvoke({"path": root, "max_depth": 2})
+
         # LLM Analysis
         chain = FEASIBILITY_ANALYSIS_PROMPT | llm | StrOutputParser()
         report = await chain.ainvoke({
@@ -143,9 +152,9 @@ async def analyze_feasibility(proposed_plan: str) -> str:
             "context": context_str,
             "tree": tree
         })
-        
+
         return report
-        
+
     except Exception as e:
         logger.error(f"Feasibility analysis failed: {e}")
         return f"Analysis Failed: {str(e)}"

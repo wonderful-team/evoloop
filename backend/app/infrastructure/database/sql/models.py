@@ -129,7 +129,7 @@ class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    thread_id: Mapped[str] = mapped_column(String(255), index=True)
+    thread_id: Mapped[str] = mapped_column(String(255), ForeignKey("conversations.id"), index=True)
     project_id: Mapped[int] = mapped_column(Integer, index=True)
     role: Mapped[str] = mapped_column(String(50)) # "human", "ai"
     content: Mapped[str] = mapped_column(Text)
@@ -137,6 +137,8 @@ class Message(Base):
 
     # Optional: reference to checkpoint ID if we want to linked back to graph state
     checkpoint_id: Mapped[Optional[str]] = mapped_column(String(255))
+    
+    conversation: Mapped["Conversation"] = relationship(back_populates="messages")
 
 
 class Conversation(Base):
@@ -150,6 +152,8 @@ class Conversation(Base):
     title: Mapped[Optional[str]] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    messages: Mapped[List["Message"]] = relationship(back_populates="conversation", cascade="all, delete-orphan")
 
 class McpServer(Base):
     """

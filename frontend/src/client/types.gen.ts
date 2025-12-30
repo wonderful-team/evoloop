@@ -575,3 +575,10 @@ export type UsersReadUserMeResponse = (UserPublic);
 export type UtilsHealthCheckResponse = (boolean);
 
 export type UtilsGetEvoloopStatusResponse = (unknown);
+
+export type TasksExecuteTaskData = {
+    taskId: number;
+    authorization?: (string | null);
+};
+
+export type TasksExecuteTaskResponse = (unknown);

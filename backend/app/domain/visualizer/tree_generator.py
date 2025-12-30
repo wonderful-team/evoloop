@@ -1,8 +1,10 @@
 import os
-from typing import List, Dict, Optional, Set
 from dataclasses import dataclass, field
+from typing import List, Dict
+
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
+
 from app.core.config import settings
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import SourceFile, CodeChunk
@@ -45,9 +47,12 @@ class AnnotatedTreeGenerator:
     - ASCII formatting
     """
 
-    def __init__(self, root_path: str, max_lines: int = None):
+    def __init__(self, root_path: str, max_lines: int = None, max_depth: int = 3, include_root: bool = False, pattern: str = None):
         self.root_path = os.path.abspath(root_path)
         self.max_lines = max_lines or settings.TREE_VIEW_MAX_LINES
+        self.max_depth = max_depth
+        self.include_root = include_root
+        self.pattern = pattern
         self.db_files_map = {}
 
     async def generate(self) -> str:
@@ -90,24 +95,70 @@ class AnnotatedTreeGenerator:
         return text
 
     def _build_tree_structure(self) -> TreeNode:
+        
+        from app.domain.codebase.filter import FileFilter
+        from app.domain.codebase.constants import BLACKLIST_DIRS
+        
+        self.file_filter = FileFilter()
+        
         root_node = TreeNode(os.path.basename(self.root_path), 'dir')
+        nodes_map = {self.root_path: root_node}
 
-        # os.walk yields (dirpath, dirnames, filenames)
-        # We need to map paths to nodes to build hierarchy
-        # Since os.walk is top-down, parent should exist (mostly)
+    def __init__(self, root_path: str, max_lines: int = None, max_depth: int = 3, include_root: bool = False, pattern: str = None):
+        self.root_path = os.path.abspath(root_path)
+        self.max_lines = max_lines or settings.TREE_VIEW_MAX_LINES
+        self.max_depth = max_depth
+        self.include_root = include_root
+        self.pattern = pattern
+        self.db_files_map = {}
 
-        # Actually, building a tree from os.walk is tricky if we want a single root object.
-        # Let's use a path map.
+    def _build_tree_structure(self) -> TreeNode:
+        
+        from app.domain.codebase.filter import FileFilter
+        from app.domain.codebase.constants import BLACKLIST_DIRS
+        import fnmatch
+        
+        self.file_filter = FileFilter()
+        
+        root_node = TreeNode(os.path.basename(self.root_path), 'dir')
         nodes_map = {self.root_path: root_node}
 
         for root, dirs, files in os.walk(self.root_path):
-            # Exclude filters
-            dirs[:] = [d for d in dirs if
-                       d not in {'.git', '__pycache__', '.venv', 'venv', 'node_modules', '.idea', '.vscode'}]
+            # Calculate current depth relative to self.root_path
+            # Root path itself is depth 0.
+            # rel_path will be empty at root, "subdir" at depth 1.
+            rel_root = os.path.relpath(root, self.root_path)
+            if rel_root == ".":
+                current_depth = 0
+            else:
+                current_depth = len(rel_root.split(os.sep))
+            
+            # Prune if too deep
+            # If we are AT max_depth, we process files, but prune dirs so we don't go deeper.
+            # If we are ABOVE max_depth (shouldn't happen with prune), continue.
+            if current_depth >= self.max_depth:
+                dirs[:] = []
+                # continue # If we continue, we skip files at this level too.
+                # Decision: Show files at max depth, but no subdirs.
+                # So we let execution proceed to process 'files', but cleared 'dirs' stops recursion.
+            
+            # Exclude filters - Prune directories in-place (moved after depth check to save cycles)
+            # 1. Basic Blacklist (Constants)
+            # 2. Startswith .
+            d_to_remove = []
+            for d in dirs:
+                if d in BLACKLIST_DIRS or d.startswith('.'):
+                    d_to_remove.append(d)
+                else:
+                    # Check if file filter excludes this directory explicitly
+                    full_d_path = os.path.join(root, d)
+                    pass
+            
+            for d in d_to_remove:
+                dirs.remove(d)
 
             current_node = nodes_map.get(root)
             if not current_node:
-                # Should not happen if we traverse top-down and initialize root
                 continue
 
             # Add Directories
@@ -120,6 +171,15 @@ class AnnotatedTreeGenerator:
             # Add Files
             for f in files:
                 f_abs = os.path.join(root, f)
+                
+                # USE FILE FILTER
+                if not self.file_filter.should_include(f_abs):
+                    continue
+
+                # PATTERN FILTER
+                if self.pattern and not fnmatch.fnmatch(f, self.pattern):
+                    continue
+                    
                 f_node = TreeNode(f, 'file')
                 current_node.add_child(f_node)
 
@@ -128,6 +188,10 @@ class AnnotatedTreeGenerator:
                 chunks = self.db_files_map.get(rel_path, [])
                 self._add_symbols_to_file_node(f_node, chunks)
 
+        # Post-process: Prune empty directories if pattern is active
+        if self.pattern:
+            self._prune_empty_dirs(root_node)
+            
         root_node.sort_children()
         return root_node
 
@@ -193,8 +257,9 @@ class AnnotatedTreeGenerator:
             connector = "└── " if is_last else "├── "
 
         icon = ""
+        suffix = ""
         if node.type == 'dir':
-            icon = "/"
+            suffix = "/"
         elif node.type == 'class':
             icon = "[C] "
         elif node.type == 'function':
@@ -202,7 +267,7 @@ class AnnotatedTreeGenerator:
         elif node.type == 'method':
             icon = "[m] "
 
-        display_name = f"{prefix}{connector}{icon}{node.name}"
+        display_name = f"{prefix}{connector}{icon}{node.name}{suffix}"
 
         # Filter Logic
         if node.type == 'class' and not include_classes:
@@ -212,10 +277,11 @@ class AnnotatedTreeGenerator:
         if node.type == 'function' and not include_methods:  # Treat top-level functions like methods for simplicity of "details"
             return ""
 
-        if not is_root:  # Root name is usually handled by caller or just printed
+        if not is_root:
             lines.append(display_name)
         else:
-            lines.append(f"{node.name}/")
+            if self.include_root:
+                lines.append(f"{node.name}/")
 
         # Children Sort & Filter
         visible_children = [c for c in node.children]
@@ -246,3 +312,19 @@ class AnnotatedTreeGenerator:
         for sf in files:
             mapping[sf.path] = sf.chunks
         return mapping
+
+    def _prune_empty_dirs(self, node: TreeNode) -> bool:
+        """
+        Recursively prune directories that contain no files (or only empty directories).
+        Returns True if node should be kept, False if it should be removed.
+        """
+        if node.type != 'dir':
+            return True
+
+        # Prune children first
+        node.children = [c for c in node.children if self._prune_empty_dirs(c)]
+
+        # Keep if it has children, OR if it's the root (we usually keep root)
+        # But if root is strictly empty after filter, maybe we keep it to show "No results"?
+        # Let's say we remove it if empty, but caller handles root.
+        return len(node.children) > 0

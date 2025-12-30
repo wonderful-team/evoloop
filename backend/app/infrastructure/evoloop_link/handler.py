@@ -23,10 +23,21 @@ async def handle_remote_command(command_data: dict):
         thread_id = command_data.get("thread_id") or "remote-default"
         logger.info(f"[EvoLoop] Executing remote command on thread {thread_id}: {message}")
         
+        # Resolve Project ID:
+        # 1. From payload
+        # 2. From 'remote-default' context (active focus)
+        # 3. Default to 1
+        from app.domain.project.service import project_context_manager
+        
+        pid_from_payload = command_data.get("project_id")
+        pid_from_context = project_context_manager.get_active_project("remote-default")
+        
+        project_id = pid_from_payload or pid_from_context or 1
+        
         # Construct input state
         inputs = {
             "messages": [HumanMessage(content=message)],
-            "project_id": command_data.get("project_id") or 1,
+            "project_id": project_id,
             "command_id": command_data.get("command_id") # Pass command ID for tracking if needed
         }
         
@@ -78,6 +89,10 @@ async def handle_project_switch_event(event_data: dict):
         
         project_context_manager.set_working_directory("remote-default", path)
         project_context_manager.set_working_directory("default", path)
+        
+        if project_id:
+             project_context_manager.set_active_project("remote-default", project_id)
+             project_context_manager.set_active_project("default", project_id)
         
         # 2. Start Indexing/Watching if not already
         from app.domain.codebase.indexing.service import IndexingService

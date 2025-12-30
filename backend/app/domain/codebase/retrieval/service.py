@@ -1,11 +1,13 @@
 from typing import List, Dict, Any
-from sqlalchemy import select, text
+
+from sqlalchemy import select
+
+from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.infrastructure.database.sql.models import CodeChunk, SourceFile, Repository, CodeEntity, CodeRelation
-from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
-from sqlalchemy.orm import selectinload, aliased
-from app.logging import logger
 
+
+from app.logging import get_context
 
 class RetrievalService:
     def __init__(self, embedder=None):
@@ -16,6 +18,9 @@ class RetrievalService:
         """
         Search for code chunks semantically similar to the query.
         """
+        # Resolve project_id from context if not provided
+        pid = project_id or get_context().get("project_id")
+
         # 1. Embed Query
         query_embedding = await self.embedder.embed_query(query)
 
@@ -29,8 +34,8 @@ class RetrievalService:
                 .join(SourceFile) \
                 .join(Repository, SourceFile.repository_id == Repository.id)
 
-            if project_id:
-                stmt = stmt.where(Repository.project_id == project_id)
+            if pid:
+                stmt = stmt.where(Repository.project_id == pid)
 
             stmt = stmt.order_by(distance_col).limit(limit)
 
@@ -52,14 +57,16 @@ class RetrievalService:
         """
         Get relations (inheritance, calls) for a specific symbol.
         """
+        pid = project_id or get_context().get("project_id")
+        
         async with self.session_factory() as session:
             # 1. Find the entity
             # Try exact match first, then ilike
             stmt = select(CodeEntity).where(CodeEntity.name == symbol_name)
             
             # Filter by project if provided (requires join)
-            if project_id:
-                stmt = stmt.join(SourceFile).join(Repository).where(Repository.project_id == project_id)
+            if pid:
+                stmt = stmt.join(SourceFile).join(Repository).where(Repository.project_id == pid)
             
             stmt = stmt.limit(1)
             result = await session.execute(stmt)
@@ -68,8 +75,8 @@ class RetrievalService:
             if not entity:
                 # Try fuzzy
                 stmt = select(CodeEntity).where(CodeEntity.name.ilike(f"%{symbol_name}%"))
-                if project_id:
-                     stmt = stmt.join(SourceFile).join(Repository).where(Repository.project_id == project_id)
+                if pid:
+                     stmt = stmt.join(SourceFile).join(Repository).where(Repository.project_id == pid)
                 stmt = stmt.limit(1)
                 result = await session.execute(stmt)
                 entity = result.scalar_one_or_none()

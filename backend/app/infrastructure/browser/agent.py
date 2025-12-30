@@ -104,7 +104,7 @@ class BrowserService:
                 shutil.move(latest_gif, dest_path)
                 
                 # Construct URL
-                base_url = settings.EVOLOOP_LINK_BASE_URL or "http://localhost:8000"
+                base_url = settings.IMAGICBOX_API_URL or "http://localhost:8000"
                 if not base_url.startswith("http"):
                      base_url = "http://localhost:8000"
                      

@@ -3,17 +3,21 @@ from typing import Any
 from sqlmodel import Field, SQLModel
 from .config import SystemConfig
 
+
 # Generic message
 class Message(SQLModel):
     message: str
+
 
 # JSON payload containing access token
 class Token(SQLModel):
     access_token: str
     token_type: str = "bearer"
 
+
 class TokenPayload(SQLModel):
     sub: str | None = None
+
 
 # User model reflecting Member Center data structure
 # No longer a table=True model
@@ -23,8 +27,8 @@ class User(SQLModel):
     email: str | None = None
     mobile: str | None = None
     nickname: str | None = None
-    headimg: str | None = None # Avatar URL
-    
+    headimg: str | None = None  # Avatar URL
+
     # Member Center specific fields
     member_level: int = 0
     member_level_name: str | None = None
@@ -32,12 +36,14 @@ class User(SQLModel):
     balance: float = 0.0
     balance_money: float = 0.0
     point: int = 0
-    
+
     is_active: bool = True
-    is_superuser: bool = False # This might need special handling based on Member Center roles or config
+    is_superuser: bool = False  # This might need special handling based on Member Center roles or config
+
 
 class UserPublic(User):
     pass
+
 
 class UsersPublic(SQLModel):
     data: list[UserPublic]
