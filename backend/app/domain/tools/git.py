@@ -4,23 +4,17 @@ import os
 from langchain_core.tools import tool
 from app.logging import get_context
 
+from app.utils.git import git_command
+
 def _run_git(args: list[str]) -> str:
     ctx = get_context()
     cwd = ctx.get("working_directory") or os.getcwd()
     
-    try:
-        # Check if .git exists? Or let git fail if not a repo.
-        result = subprocess.run(
-            ["git"] + args, 
-            cwd=cwd, 
-            capture_output=True, 
-            text=True
-        )
-        if result.returncode != 0:
-             return f"Git Error: {result.stderr.strip()}"
-        return result.stdout.strip()
-    except Exception as e:
-        return f"Execution Error: {str(e)}"
+    # Use util wrapper
+    res = git_command(args, cwd=cwd)
+    if res.success:
+        return res.stdout
+    return f"Git Error: {res.stderr}"
 
 @tool
 def git_status() -> str:

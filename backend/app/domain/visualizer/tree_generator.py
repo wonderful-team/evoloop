@@ -97,7 +97,7 @@ class AnnotatedTreeGenerator:
     def _build_tree_structure(self) -> TreeNode:
         
         from app.domain.codebase.filter import FileFilter
-        from app.domain.codebase.constants import BLACKLIST_DIRS
+        from app.constants import BLACKLIST_DIRS
         
         self.file_filter = FileFilter()
         
@@ -115,7 +115,7 @@ class AnnotatedTreeGenerator:
     def _build_tree_structure(self) -> TreeNode:
         
         from app.domain.codebase.filter import FileFilter
-        from app.domain.codebase.constants import BLACKLIST_DIRS
+        from app.constants import BLACKLIST_DIRS
         import fnmatch
         
         self.file_filter = FileFilter()

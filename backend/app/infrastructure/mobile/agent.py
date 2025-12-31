@@ -3,6 +3,7 @@ import sys
 import os
 import asyncio
 from typing import Optional
+from app.utils.async_utils import run_in_thread
 
 from app.core.config import settings
 
@@ -81,8 +82,7 @@ class MobileService:
         
         try:
             # Run blocking agent in executor
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, self.agent.run, instruction)
+            result = await run_in_thread(self.agent.run, instruction)
             return str(result)
         except Exception as e:
             logger.error(f"Mobile Agent failed: {e}")

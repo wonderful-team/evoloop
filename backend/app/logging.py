@@ -1,34 +1,24 @@
 import logging
 import sys
-import json
 import contextvars
 from datetime import datetime, timezone
+from app.utils import json as json_utils
+from app.utils.context import get_context, set_context
 from app.core.config import settings
 
-# ContextVars for Request/Task Scope
-_request_context = contextvars.ContextVar("request_context", default={})
+# Re-export set_context/get_context for backwards compatibility if needed, 
+# or consumers should import from utils.context directly.
+# For now, we keep them here but implementation delegates to utils.
 
-def set_context(thread_id: str = None, project_id: int = None, working_directory: str = None):
-    """Set the logging context for the current task."""
-    ctx = _request_context.get()
-    if thread_id:
-        ctx["thread_id"] = thread_id
-    if project_id:
-        ctx["project_id"] = project_id
-    if working_directory:
-        ctx["working_directory"] = working_directory
-    _request_context.set(ctx)
 
-def get_context() -> dict:
-    """Get the current context."""
-    return _request_context.get()
+# set_context and get_context are imported from app.utils.context
 
 class ContextFilter(logging.Filter):
     """
     Inject context variables into the log record.
     """
     def filter(self, record):
-        ctx = _request_context.get()
+        ctx = get_context()
         record.thread_id = ctx.get("thread_id", "-")
         record.project_id = ctx.get("project_id", "-")
         return True
@@ -51,7 +41,7 @@ class JSONFormatter(logging.Formatter):
         if record.exc_info:
             log_obj["exception"] = self.formatException(record.exc_info)
             
-        return json.dumps(log_obj, ensure_ascii=False)
+        return json_utils.dumps(log_obj)
 
 def setup_logging():
     """

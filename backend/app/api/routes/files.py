@@ -38,7 +38,7 @@ async def list_files(project_id: int, path: Optional[str] = None):
         raise HTTPException(status_code=404, detail=f"Project path not found locally: {root_path}")
     
     # Simple recursive walker ignoring heavy dirs
-    from app.domain.codebase.constants import BLACKLIST_DIRS
+    from app.constants import BLACKLIST_DIRS
     # Combine with local ignores if needed, or just use global
     IGNORE_DIRS = set(BLACKLIST_DIRS).union({'.idea', '.vscode', '.DS_Store', 'dist', 'build'})
     
@@ -250,6 +250,8 @@ async def search_files(project_id: int, q: str):
         # -n: show line number
         # -I: ignore binary files
         # --exclude-dir: ignore common junk
+        from app.utils.process import run_async_command
+        
         cmd = [
             "grep", "-r", "-i", "-n", "-I", 
             "--exclude-dir={.git,.venv,node_modules,__pycache__,dist,build,.evoloop}", 
@@ -257,15 +259,12 @@ async def search_files(project_id: int, q: str):
             root_path
         ]
         
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await proc.communicate()
+        # run_async_command
+        result = await run_async_command(cmd)
+        stdout, stderr = result.stdout, result.stderr
         
         if stdout:
-            lines = stdout.decode("utf-8", errors="ignore").splitlines()
+            lines = stdout.splitlines()
             for line in lines[:50]: # Limit to 50 hits
                 try:
                     # Grep output format: filename:line:content

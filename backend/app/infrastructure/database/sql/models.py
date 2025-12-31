@@ -4,6 +4,7 @@ from sqlalchemy import String, Integer, ForeignKey, DateTime, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from pgvector.sqlalchemy import Vector
 from app.infrastructure.database.sql.database import Base
+from app.utils.time import utcnow
 
 
 # Project table removed. Projects are now managed externally via ImagicBox.
@@ -18,9 +19,8 @@ class Repository(Base):
     name: Mapped[str] = mapped_column(String(255))
     url: Mapped[str] = mapped_column(String(1024))
     local_path: Mapped[Optional[str]] = mapped_column(String(1024))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    # project: Mapped["Project"] = relationship(back_populates="repositories")
     files: Mapped[List["SourceFile"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
 
 
@@ -31,8 +31,7 @@ class SourceFile(Base):
     repository_id: Mapped[int] = mapped_column(ForeignKey("repositories.id"))
     path: Mapped[str] = mapped_column(String(1024), index=True)  # Relative path in repo
     checksum: Mapped[str] = mapped_column(String(64))  # SHA256 or similar
-    last_indexed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True),
-                                                      default=lambda: datetime.now(timezone.utc))
+    last_indexed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     repository: Mapped["Repository"] = relationship(back_populates="files")
     chunks: Mapped[List["CodeChunk"]] = relationship(back_populates="file", cascade="all, delete-orphan")
@@ -54,12 +53,9 @@ class CodeEntity(Base):
     
     # Optional metadata (complexity, docstring summary, etc.) could go here
     
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     file: Mapped["SourceFile"] = relationship(back_populates="entities")
-    
-    # Self-referential or other relationships could be added here if we want explicit graph navigation in ORM
-    # For now, we use a separate table for relations to be cleaner.
 
 
 class CodeRelation(Base):
@@ -67,7 +63,6 @@ class CodeRelation(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     
-    # We link to entities. 
     source_entity_id: Mapped[int] = mapped_column(ForeignKey("code_entities.id"))
     target_entity_id: Mapped[Optional[int]] = mapped_column(ForeignKey("code_entities.id"), nullable=True)
     target_name: Mapped[Optional[str]] = mapped_column(String(512), index=True) # Unresolved target name
@@ -76,7 +71,7 @@ class CodeRelation(Base):
     
     # Optional: properties like confidence or count
     
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class CodeChunk(Base):
@@ -114,8 +109,8 @@ class Job(Base):
     payload: Mapped[dict] = mapped_column(Text) # JSON string or use JSONB if supported/configured, Text is safer for generic
     status: Mapped[str] = mapped_column(String(20), default="queued", index=True) # queued, processing, failed, completed
     
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
     # Optional: Error message if failed
     error: Mapped[Optional[str]] = mapped_column(Text)
@@ -133,7 +128,7 @@ class Message(Base):
     project_id: Mapped[int] = mapped_column(Integer, index=True)
     role: Mapped[str] = mapped_column(String(50)) # "human", "ai"
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # Optional: reference to checkpoint ID if we want to linked back to graph state
     checkpoint_id: Mapped[Optional[str]] = mapped_column(String(255))
@@ -150,8 +145,8 @@ class Conversation(Base):
     id: Mapped[str] = mapped_column(String(255), primary_key=True) # thread_id (uuid)
     project_id: Mapped[int] = mapped_column(Integer, index=True)
     title: Mapped[Optional[str]] = mapped_column(String(255))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     messages: Mapped[List["Message"]] = relationship(back_populates="conversation", cascade="all, delete-orphan")
 
@@ -168,5 +163,5 @@ class McpServer(Base):
     env: Mapped[dict] = mapped_column(Text) # Stored as JSON string dict
     
     enabled: Mapped[bool] = mapped_column(default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

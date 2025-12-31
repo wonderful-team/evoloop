@@ -8,8 +8,11 @@ from app.core.config import settings
 from app.models import Token
 import asyncio
 import redis.asyncio as redis
+import logging
 
 from app.infrastructure.evoloop_link.handler import handle_remote_command, handle_project_switch_event
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["login"])
 
@@ -63,7 +66,7 @@ async def login_access_token(
         # Re-raise HTTP exceptions
         if isinstance(e, HTTPException):
             raise e
-        print(f"ERROR: Login failed: {e}")
+        logger.error(f"Login failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Login failed: {e}",

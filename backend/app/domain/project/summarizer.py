@@ -1,7 +1,8 @@
 import asyncio
-import json
 import logging
 import os
+from app.utils import json as json_utils
+from app.utils import file as file_utils
 
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -77,8 +78,7 @@ async def _summarize_project_logic(name: str, path: str):
         os.makedirs(meta_dir, exist_ok=True)
         
         meta_file = os.path.join(meta_dir, "project.json")
-        with open(meta_file, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2, ensure_ascii=False)
+        file_utils.write_file(meta_file, json_utils.dumps(result, indent=2))
             
         logger.info(f"[ProjectSummarizer] Saved metadata for {name}: {result}")
 

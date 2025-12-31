@@ -1,5 +1,7 @@
+import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Union
 
 import jwt
 from passlib.context import CryptContext
@@ -23,5 +25,18 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
+
+
+def generate_hmac_signature(secret: str, message: str, hash_alg=hashlib.sha256) -> str:
+    """
+    Generate HMAC signature for a message.
+    Used for API request signing (e.g. ImagicBox).
+    """
+    if not secret:
+        return ""
+    return hmac.new(
+        secret.encode('utf-8'),
+        message.encode('utf-8'),
+        hash_alg
+    ).hexdigest()

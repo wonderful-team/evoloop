@@ -10,13 +10,16 @@ import re
 from collections import Counter
 from typing import Dict, Optional, List, Union
 
-from app.domain.codebase.constants import (
+from app.constants import (
     CODE_QUALITY_THRESHOLDS,
     LIKELY_COMPRESSED_CODE_DIRS,
     COMPRESSED_FILE_PATTERNS,
-    SOURCE_MAP_EXTENSIONS
+    LIKELY_COMPRESSED_CODE_DIRS,
+    COMPRESSED_FILE_PATTERNS,
+    SOURCE_MAP_EXTENSIONS,
+    SUSPICIOUS_JS_PATTERNS
 )
-from app.domain.codebase.file_utils import is_text_file, is_encrypted_path, get_file_ext
+from app.utils.file import is_text_file, is_encrypted_path, get_file_ext
 
 
 class FileFilter:
@@ -245,14 +248,7 @@ class FileFilter:
                     return True
 
             # 7. Pattern Matching
-            suspicious_patterns = [
-                r'\(function\([a-z],[a-z],[a-z]\)',
-                r'new Function\(["\'](.*?)["\']',
-                r'eval\(.*?\)',
-                r'\\x[0-9a-f]{2}',
-                r'\\u[0-9a-f]{4}'
-            ]
-            for pattern in suspicious_patterns:
+            for pattern in SUSPICIOUS_JS_PATTERNS:
                 if re.search(pattern, content):
                     return True
 

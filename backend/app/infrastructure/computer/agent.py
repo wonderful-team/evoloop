@@ -4,6 +4,7 @@ import os
 import platform
 import asyncio
 from typing import Optional, Dict, Any
+from app.utils.async_utils import run_in_thread
 
 from app.core.config import settings
 
@@ -115,8 +116,7 @@ class ComputerService:
         
         try:
             # Running synchronous agent code in a thread to avoid blocking loop
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, self._run_agent_sync, instruction)
+            result = await run_in_thread(self._run_agent_sync, instruction)
             return result
         except Exception as e:
             logger.error(f"Computer Agent failed: {e}")

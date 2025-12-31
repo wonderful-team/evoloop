@@ -1,12 +1,13 @@
 import logging
 import asyncio
 import os
-import uuid
 import glob
 import shutil
 from typing import Optional, Dict
 
+from app.utils.id import gen_uuid
 from app.core.config import settings
+from app.constants import MODEL_GPT4O, MODEL_CLAUDE_SONNET
 
 logger = logging.getLogger(__name__)
 
@@ -53,15 +54,15 @@ class BrowserService:
         logger.info(f"Starting Browser Agent task: {task} (Session: {session_id})")
         
         # Configure Model
-        model_name = os.getenv("BROWSER_MODEL_NAME")
+        model_name = settings.BROWSER_MODEL_NAME
         if not model_name:
             # Fallback to global setting or default
             global_model = settings.OPENAI_MODEL_NAME
             # browser-use optimal models
-            if global_model in ["gpt-4o", "claude-3-5-sonnet-20240620"]:
+            if global_model in [MODEL_GPT4O, MODEL_CLAUDE_SONNET]:
                 model_name = global_model
             else:
-                model_name = "gpt-4o"
+                model_name = MODEL_GPT4O
         
         api_key = settings.OPENAI_API_KEY
         if not api_key:
@@ -99,7 +100,7 @@ class BrowserService:
             if gifs:
                 latest_gif = gifs[-1]
                 # Move to static dir
-                filename = f"browser_session_{uuid.uuid4()}.gif"
+                filename = f"browser_session_{gen_uuid()}.gif"
                 dest_path = os.path.join(BROWSER_ARTIFACTS_DIR, filename)
                 shutil.move(latest_gif, dest_path)
                 

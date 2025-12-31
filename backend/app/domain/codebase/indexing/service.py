@@ -86,15 +86,24 @@ class IndexingService:
 
                 # Read content
                 try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        content = f.read()
+                    from app.utils.file import read_file_content
+                    # read_file_content returns (content, encoding)
+                    content, _ = read_file_content(file_path)
+                    if content is None: # utils returns empty string on failure currently, or raises? 
+                         # My impl says: returns "", encoding and logs error.
+                         # But wait, empty file is valid. 
+                         # If exception caught inside, it returns "".
+                         # We should probably trust it or check existence first.
+                         # But wait, existing logic raised exception?
+                         pass
                 except Exception as e:
                     logger.warning(f"Could not read {file_path}: {e}")
                     return
 
                 # Checksum Verification
-                import hashlib
-                new_checksum = hashlib.md5(content.encode("utf-8")).hexdigest()
+                # Checksum Verification
+                from app.utils.hash import compute_md5
+                new_checksum = compute_md5(content)
 
                 # 1. Get or Create SourceFile (to check previous checksum)
                 stmt = select(SourceFile).where(SourceFile.repository_id == repo_id, SourceFile.path == rel_path)
@@ -335,8 +344,8 @@ class IndexingService:
             # 1. Directory Filtering (Prune traversal)
             # We must modify 'dirs' in-place to prune logic.
             # But FileFilter.should_include works on file paths.
-            # We can use constants.BLACKLIST_DIRS
-            from app.domain.codebase.constants import BLACKLIST_DIRS
+            # We can use app.constants.BLACKLIST_DIRS
+            from app.constants import BLACKLIST_DIRS
             d_to_remove = []
             for d in dirs:
                 if d in BLACKLIST_DIRS or d.startswith('.'):

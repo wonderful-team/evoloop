@@ -12,7 +12,7 @@ def list_files(path: str = ".", recursive: bool = False, config: RunnableConfig 
     """
     List files in a directory.
     By default is non-recursive. Set recursive=True for deep listing (careful with large projects).
-    For structural understanding, prefer `get_annotated_tree`.
+    for structural understanding, prefer `get_annotated_tree`.
     """
     try:
         # Get working directory from context or config
@@ -21,21 +21,26 @@ def list_files(path: str = ".", recursive: bool = False, config: RunnableConfig 
         if not ctx.get("working_directory") and config and "configurable" in config:
             root = config["configurable"].get("working_directory", root)
 
-        # Resolve path relative to root
+        # Use utils for resolution (optional, or stick to simple logic here since it's just 'ls')
+        # But consistent resolution is better.
+        # target_path = resolve_path(path, base_path=root)
+        # However, list_files usually takes relative path.
         target_path = os.path.abspath(os.path.join(root, path))
         
         if not os.path.exists(target_path):
              return f"Error: Directory does not exist: {target_path}"
 
+        from app.utils.process import run_command
         cmd = ["ls"]
         if recursive:
             cmd.append("-R")
         cmd.append(target_path)
 
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.returncode != 0:
-            return f"Error: {result.stderr}"
-        return result.stdout[:2000]  # Truncate long outputs
+        # run_command supports list args (safe)
+        res = run_command(cmd)
+        if not res.success:
+            return f"Error: {res.stderr}"
+        return res.stdout[:2000]  # Truncate long outputs
     except Exception as e:
         return f"Exception: {str(e)}"
 
@@ -47,33 +52,19 @@ def read_file(path: str, start_line: Optional[int] = None, end_line: Optional[in
     Line numbers are 1-based.
     """
     try:
-        # Get working directory from context or config
+        from app.utils.file import resolve_path, read_file_content as utils_read_file
+        
         ctx = get_context()
         root = ctx.get("working_directory") or os.getcwd()
-        if not ctx.get("working_directory") and config and "configurable" in config:
-            root = config["configurable"].get("working_directory", root)
-            
-        # Resolve full path
-        target_path = os.path.abspath(os.path.join(root, path))
         
-        if not os.path.exists(target_path):
-            return f"Error: File not found: {target_path}"
-
-        with open(target_path, "r", encoding="utf-8") as f:
-            if start_line is None and end_line is None:
-                return f.read()
-            
-            lines = f.readlines()
-            total_lines = len(lines)
-            
-            start = max(0, start_line - 1) if start_line else 0
-            end = min(total_lines, end_line) if end_line else total_lines
-            
-            if start >= total_lines:
-                return ""
-            
-            # Return raw content of chunks
-            return "".join(lines[start:end])
+        # Use new resolve_path logic
+        target_path = resolve_path(path, base_path=root)
+        
+        if not target_path or not os.path.exists(target_path):
+             return f"Error: File not found: {path} (Resolved: {target_path})"
+             
+        content, _ = utils_read_file(target_path, start_line, end_line)
+        return content
 
     except Exception as e:
         return f"Error reading file: {str(e)}"
@@ -174,19 +165,24 @@ def write_file_content(path: str, content: str, config: RunnableConfig = None) -
     Write content to a file.
     """
     try:
-        # Get working directory from context or config
+        from app.utils.file import resolve_path, write_file_contents as utils_write_file
+        
         ctx = get_context()
         root = ctx.get("working_directory") or os.getcwd()
-        if not ctx.get("working_directory") and config and "configurable" in config:
-            root = config["configurable"].get("working_directory", root)
-
-        target_path = os.path.abspath(os.path.join(root, path))
         
-        # Ensure parent directory exists
-        os.makedirs(os.path.dirname(target_path), exist_ok=True)
+        # Standardize path logic, though write usually takes relative or absolute
+        # creating a new file does not require existence check for 'resolve_path' usually 
+        # but our new resolve_path returns absolute path if it thinks it should.
+        # However, for writing to a NEW file, resolve_path might return None if it checks existence?
+        # Let's see... implementation of resolve_path checks existence for relative paths to confirm match.
+        # But returns full_path as logic for simple join if base_path is provided.
+        # Wait, my resolve_path implementation:
+        # if base_path: full_path = ...; if exists return full_path; else fuzzy search... return full_path (best guess).
+        # So it returns full_path even if not exists. Good.
 
-        with open(target_path, "w", encoding="utf-8") as f:
-            f.write(content)
+        target_path = resolve_path(path, base_path=root) or os.path.abspath(os.path.join(root, path))
+        
+        utils_write_file(content, target_path)
         return f"Successfully wrote to {target_path}"
     except Exception as e:
         return f"Error writing file: {str(e)}"

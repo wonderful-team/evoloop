@@ -12,6 +12,13 @@ import websockets
 import logging
 from typing import Optional, Dict, Any, Callable
 
+from app.utils import json as json_utils
+from app.utils import file as file_utils
+from app.utils import http as http_utils
+from app.utils.security import generate_hmac_signature
+from app.utils.id import gen_uuid
+from app.utils.async_utils import run_in_thread
+
 from app.core.config import settings
 from app.domain.system.service import SystemConfigService
 
@@ -80,7 +87,7 @@ class ImagicBoxClient:
             # Creating client without loop context will bind to whatever loop runs it next?
             # Httpx binds on first use.
             # But here we need a key.
-            return httpx.AsyncClient(timeout=self.timeout)
+            return http_utils.create_client(timeout=self.timeout)
 
         if loop in self._clients:
             client = self._clients[loop]
@@ -88,7 +95,7 @@ class ImagicBoxClient:
                 return client
         
         # Create new
-        client = httpx.AsyncClient(timeout=self.timeout)
+        client = http_utils.create_client(timeout=self.timeout)
         self._clients[loop] = client
         return client
 
@@ -111,10 +118,10 @@ class ImagicBoxClient:
 
             auth_file = os.path.join(os.getcwd(), ".evoloop", "auth.json")
             if os.path.exists(auth_file):
-                with open(auth_file, "r") as f:
-                    data = json.load(f)
-                    self._user_token = data.get("token")
-                    self._member_id = data.get("member_id")
+                content = file_utils.read_file(auth_file)
+                data = json_utils.loads(content)
+                self._user_token = data.get("token")
+                self._member_id = data.get("member_id")
         except Exception as e:
             logger.warning(f"Failed to load auth token: {e}")
 
@@ -159,14 +166,8 @@ class ImagicBoxClient:
     # --- Core Request Wrapper (Async) ---
 
     def _generate_signature(self, method: str, uri: str, body: str, timestamp: int) -> str:
-        if not self.api_secret:
-            return ""
         string_to_sign = f"{method}\\n{uri}\\n{body}\\n{timestamp}"
-        return hmac.new(
-            self.api_secret.encode('utf-8'),
-            string_to_sign.encode('utf-8'),
-            hashlib.sha256
-        ).hexdigest()
+        return generate_hmac_signature(self.api_secret, string_to_sign)
 
     async def _request(self, method: str, endpoint: str, params: Optional[Dict] = None, data: Optional[Dict] = None, token: Optional[str] = None) -> Dict:
         """
@@ -178,7 +179,7 @@ class ImagicBoxClient:
         
         url = f"{self.base_url}{endpoint}"
         timestamp = int(time.time())
-        body_str = json.dumps(data) if data else ""
+        body_str = json_utils.dumps(data) if data else ""
         
         headers = {
             'Content-Type': 'application/json',
@@ -304,12 +305,10 @@ class ImagicBoxClient:
     def _get_or_create_device_key(self) -> str:
         key_file = os.path.expanduser("~/.evoloop_device_key")
         if os.path.exists(key_file):
-            with open(key_file, "r") as f:
-                return f.read().strip()
+                return file_utils.read_file(key_file).strip()
         else:
-            dk = str(uuid.uuid4())
-            with open(key_file, "w") as f:
-                f.write(dk)
+            dk = gen_uuid()
+            file_utils.write_file(key_file, dk)
             return dk
 
     def set_command_handler(self, handler: Callable):
@@ -453,7 +452,7 @@ class ImagicBoxClient:
             if asyncio.iscoroutinefunction(self._command_handler):
                 await self._command_handler(cmd_data)
             else:
-                await asyncio.to_thread(self._command_handler, cmd_data)
+                await run_in_thread(self._command_handler, cmd_data)
             await self.update_command_status(cmd_id, 3) # Completed
         except Exception as e:
             logger.error(f"Command execution error: {e}")
@@ -470,7 +469,7 @@ class ImagicBoxClient:
             "device_id": self.device_id, 
             "thread_id": thread_id, 
             "type": log_type, 
-            "content": json.dumps(content) if isinstance(content, (dict, list)) else str(content)
+            "content": json_utils.dumps(content) if isinstance(content, (dict, list)) else str(content)
         }
         if command_id: data["command_id"] = command_id
         if project_id: data["project_id"] = project_id

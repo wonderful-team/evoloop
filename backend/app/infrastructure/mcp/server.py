@@ -1,9 +1,10 @@
 import asyncio
-import json
 import os
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from app.utils import json as json_utils
+from app.utils import http as http_utils
 
 
 from app.core.config import settings
@@ -120,7 +121,7 @@ async def search_web(query: str) -> str:
     # Settings might not have BRAVE_API_KEY directly if it's not defined in Config?
     # Checking if settings object has it.
     # Assuming it's in os.environ via .env if not in settings model
-    api_key = getattr(settings, "BRAVE_API_KEY", os.getenv("BRAVE_API_KEY"))
+    api_key = settings.BRAVE_API_KEY
     
     if not api_key:
         return "Error: BRAVE_API_KEY not configured."
@@ -129,7 +130,7 @@ async def search_web(query: str) -> str:
     headers = {"X-Subscription-Token": api_key, "Accept": "application/json"}
     params = {"q": query}
     
-    async with httpx.AsyncClient() as client:
+    async with http_utils.create_client() as client:
         resp = await client.get(url, headers=headers, params=params)
         if resp.status_code != 200:
             return f"Error: Brave API returned {resp.status_code} {resp.text}"
@@ -147,33 +148,9 @@ async def search_web(query: str) -> str:
 @mcp.tool()
 def read_document(path: str) -> str:
     """Read content from PDF or DOCX file."""
-    if not os.path.exists(path):
-        return f"Error: File {path} not found."
-    
-    ext = os.path.splitext(path)[1].lower()
-    
     try:
-        if ext == ".pdf":
-            from pypdf import PdfReader
-            reader = PdfReader(path)
-            text = []
-            for page in reader.pages:
-                text.append(page.extract_text())
-            return "\n".join(text)
-            
-        elif ext == ".docx":
-            import docx
-            doc = docx.Document(path)
-            text = []
-            for para in doc.paragraphs:
-                text.append(para.text)
-            return "\n".join(text)
-            
-        else:
-            # Fallback to plain text read
-            with open(path, "r", errors="ignore") as f:
-                return _truncate(f.read())
-                
+        from app.domain.tools.document_reader import read_document as read_doc_tool
+        return _truncate(read_doc_tool.invoke({"file_path": path}))
     except Exception as e:
         return f"Error reading document: {e}"
 
@@ -209,7 +186,7 @@ async def analyze_code_file(path: str) -> str:
         from app.domain.codebase.analysis.code_analyzer import code_analyzer
 
         result = code_analyzer.analyze_file(path)
-        return json.dumps(result, indent=2)
+        return json_utils.dumps(result, indent=2)
     except Exception as e:
         return f"Error analyzing file: {e}"
 

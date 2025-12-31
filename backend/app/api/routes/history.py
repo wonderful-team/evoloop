@@ -4,8 +4,9 @@ from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from sqlalchemy import select, update, text
 from app.infrastructure.database.sql.database import get_db_session
-from app.infrastructure.database.sql.models import Message
-from uuid import uuid4
+from app.infrastructure.database.sql.database import get_db_session
+from app.infrastructure.database.sql.models import Message, Conversation
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/conversations", tags=["conversations"])

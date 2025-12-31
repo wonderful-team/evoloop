@@ -12,6 +12,7 @@ from pydantic import (
     model_validator,
     Field,
 )
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import Self
 
@@ -148,8 +149,26 @@ class Settings(BaseSettings):
     IMAGICBOX_ACCESS_TOKEN: str | None = Field(None, validation_alias="IMAGICBOX_ACCESS_TOKEN")
     IMAGICBOX_DEVICE_NAME: Optional[str] = Field("EvoLoop-Desktop", validation_alias="IMAGICBOX_DEVICE_NAME")
     # Project Management
-    # Default to user's home/projects if not set
-    PROJECTS_ROOT: str = Field("/Users/huangjinhuan/项目", validation_alias="PROJECTS_ROOT")
+    IMAGICBOX_DEVICE_NAME: Optional[str] = Field("EvoLoop-Desktop", validation_alias="IMAGICBOX_DEVICE_NAME")
+    # Project Management
+    # Logic to find default projects root:
+    # 1. ~/项目 (Chinese optimized)
+    # 2. ~/Projects (Standard)
+    # 3. ~/projects (Standard lower)
+    # 4. ~ (Home)
+    def _default_projects_root():
+        home = os.path.expanduser("~")
+        candidates = [
+            os.path.join(home, "项目"),
+            os.path.join(home, "Projects"), 
+            os.path.join(home, "projects")
+        ]
+        for c in candidates:
+            if os.path.exists(c):
+                return c
+        return home
+
+    PROJECTS_ROOT: str = Field(default_factory=_default_projects_root, validation_alias="PROJECTS_ROOT")
 
     # Logic Limits
     MEMORY_SEARCH_LIMIT: int = 5
