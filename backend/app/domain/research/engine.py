@@ -44,10 +44,14 @@ class DeepResearchEngine:
             The final conclusion content (Markdown).
         """
         logs = []
-        logger.info(f"Starting Deep Research Engine for topic: {topic}")
+        # Create a short topic identifier for logs (e.g. "Community Plugin...")
+        topic_short = (topic[:30] + '..') if len(topic) > 30 else topic
+        log_prefix = f"[{topic_short}]"
+        
+        logger.info(f"{log_prefix} Starting Deep Research Engine.")
 
         # 1. Plan Phase
-        logger.info("Phase 1: Planning")
+        logger.info(f"{log_prefix} Phase 1: Planning")
 
         # Construct the planning prompt
         # We inject the topic directly. If prompts have placeholders, use format.
@@ -61,6 +65,9 @@ class DeepResearchEngine:
 
         response = await self.llm.ainvoke(messages, config=config)
         logs.append(f"### Iteration 1: Plan\n{response.content}")
+        
+        # Log plan summary
+        logger.info(f"{log_prefix} Plan Generated: {response.content[:200].replace(chr(10), ' ')}...")
 
         # 2. Iteration Phase
         current_iteration = 1
@@ -72,7 +79,7 @@ class DeepResearchEngine:
 
         while current_iteration < max_iterations:
             current_iteration += 1
-            logger.info(f"Phase 2: Iteration {current_iteration}")
+            logger.info(f"{log_prefix} Phase 2: Iteration {current_iteration}")
 
             # Prepare Update Prompt
             current_logs_str = "\n\n".join(logs)
@@ -108,7 +115,10 @@ class DeepResearchEngine:
                     args = tool_call["args"]
                     tool_id = tool_call["id"]
 
-                    logger.debug(f"Tool Call: {tool_name}")
+                    # Promote tool usage to INFO for visibility
+                    # Compact args for logging
+                    args_str = str(args)[:100] + "..." if len(str(args)) > 100 else str(args)
+                    logger.info(f"{log_prefix} Tool Call: {tool_name}({args_str})")
 
                     tool = tool_map.get(tool_name)
                     result = "Tool not found"
@@ -120,6 +130,11 @@ class DeepResearchEngine:
 
                     # Truncate result for context window
                     result_str = str(result)
+                    
+                    # Log result summary
+                    res_log = result_str[:100].replace('\n', ' ') + "..." if len(result_str) > 100 else result_str.replace('\n', ' ')
+                    logger.info(f"{log_prefix} Tool Output: {res_log}")
+
                     if len(result_str) > 5000:
                         result_str = result_str[:5000] + "...(truncated)"
 
@@ -129,14 +144,15 @@ class DeepResearchEngine:
                 step_content = "(No summary provided by agent)"
 
             logs.append(f"### Iteration {current_iteration}: Update\n{step_content}")
+            logger.info(f"{log_prefix} Iteration Summary: {step_content[:200].replace(chr(10), ' ')}...")
 
             # Heuristic check for completion
             if "Final Conclusion" in step_content or "ready to conclude" in step_content.lower():
-                logger.info("Agent indicated readiness to conclude.")
+                logger.info(f"{log_prefix} Agent indicated readiness to conclude.")
                 break
 
         # 3. Conclusion Phase
-        logger.info("Phase 3: Conclusion")
+        logger.info(f"{log_prefix} Phase 3: Conclusion")
         current_logs_str = "\n\n".join(logs)
 
         conclusion_user_content = f"Topic: {topic}\n\nAll Findings:\n{current_logs_str}\n\nPlease provide the detailed Final Conclusion."
@@ -147,5 +163,6 @@ class DeepResearchEngine:
         ]
 
         final_response = await self.llm.ainvoke(final_messages, config=config)
+        logger.info(f"{log_prefix} Research Completed.")
 
         return final_response.content

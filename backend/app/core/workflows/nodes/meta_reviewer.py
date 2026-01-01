@@ -54,7 +54,7 @@ async def meta_reviewer_node(state: AgentState, config: RunnableConfig):
     
     try:
         # Depth 2 is usually enough for high-level architecture
-        tree_context = await get_annotated_tree.ainvoke({"path": root, "max_depth": 2}, config=config)
+        tree_context = await get_annotated_tree.ainvoke({"path": root, "max_depth": 3}, config=config)
     except Exception as e:
         tree_context = f"Error fetching architecture: {e}"
 

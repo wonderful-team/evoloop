@@ -144,7 +144,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         context_str = "\n".join([f"File: {r['file_path']}\nSnippet: {r['content'][:500]}..." for r in search_results])
 
         # Get Project Structure
-        tree = await get_annotated_tree.ainvoke({"path": root, "max_depth": 2}, config=config)
+        tree = await get_annotated_tree.ainvoke({"path": root, "max_depth": 3}, config=config)
 
         # LLM Analysis
         chain = FEASIBILITY_ANALYSIS_PROMPT | llm | StrOutputParser()

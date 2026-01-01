@@ -95,6 +95,7 @@ def create_graph(checkpointer=None):
             "coder": "coder",
             "deep_researcher": "deep_researcher",
             "documenter": "documenter",
+            "supervisor": "supervisor",
             "finish": END
         }
     )

@@ -38,13 +38,24 @@ def evoloop_tool(func):
     @evoloop_tool
     def my_tool(args, config: RunnableConfig): ...
     """
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            # Log the error here if needed
-            return f"Error: {str(e)}"
+    import inspect
+    
+    if inspect.iscoroutinefunction(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                # Log error
+                return f"Error: {str(e)}"
+    else:
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                # Log error
+                return f"Error: {str(e)}"
     
     # Apply LangChain's @tool
     return langchain_tool(wrapper)

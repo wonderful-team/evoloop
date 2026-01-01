@@ -11,11 +11,11 @@ from app.core.config import settings
 # from app.logging import logger # Uses structlog or logging conf. app.core.config might have settings.
 
 # Import existing domain tools
-from app.infrastructure.filesystem.tool import list_files, read_file, grep_files, write_file_content
-from app.domain.tools.execution import run_shell_command
-from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.codebase.indexing.tools import index_path
 from app.domain.memory.service import memory_service
+
+# Expose Facades via MCP
+from app.domain.tools.facades import manage_file, explore_codebase, manage_git, manage_memory, manage_file
 
 # Initialize FastMCP Server
 mcp = FastMCP("EvoLoop MCP Server")
@@ -31,118 +31,76 @@ def _truncate(text: str, max_chars: int = 20000) -> str:
 
 
 @mcp.tool()
-def list_directory(path: str = ".") -> str:
-    """List files in a directory."""
-    try:
-        # Invoke the existing langchain tool
-        res = list_files.invoke({"path": path})
-        return _truncate(res)
-    except Exception as e:
-        return f"Error: {e}"
-
-
-@mcp.tool()
-def read_file_content(path: str) -> str:
-    """Read content of a file."""
-    try:
-        return _truncate(read_file.invoke({"path": path}))
-    except Exception as e:
-        return f"Error: {e}"
-
-
-@mcp.tool()
-def get_file_stats(path: str) -> str:
+def manage_file_ops(
+    action: str, 
+    path: str, 
+    content: str = None, 
+    target: str = None, 
+    start_line: int = None, 
+    end_line: int = None
+) -> str:
     """
-    Get file statistics (size, lines) BEFORE reading it.
-    Use this to decide a reading strategy for large files.
+    Unified File Management. 
+    Actions: 'read', 'create', 'update_block', 'overwrite', 'list'.
     """
-    if not os.path.exists(path):
-        return f"Error: File {path} not found."
+    try:
+        # Map args. invoke expects dict.
+        return _truncate(manage_file.invoke({
+            "action": action,
+            "path": path,
+            "content": content,
+            "target": target,
+            "start_line": start_line,
+            "end_line": end_line
+        }))
+    except Exception as e:
+        return f"Error: {e}"
+
+@mcp.tool()
+async def explore_codebase_ops(
+    action: str, 
+    query: str, 
+    scope_path: str = None
+) -> str:
+    """
+    Unified Codebase Exploration.
+    Actions: 'search_symbol', 'search_text', 'search_concept'.
+    """
+    try:
+        return _truncate(await explore_codebase.ainvoke({
+            "action": action,
+            "query": query,
+            "scope_path": scope_path
+        }))
+    except Exception as e:
+        return f"Error: {e}"
+
+@mcp.tool()
+async def manage_git_ops(action: str, argument: str = None) -> str:
+    """Unified Git Operations."""
+    try:
+        return _truncate(manage_git.invoke({"action": action, "argument": argument}))
+    except Exception as e:
+        return f"Error: {e}"
         
-    try:
-        file_size = os.path.getsize(path)
-        with open(path, "r", encoding="utf-8", errors="ignore") as f:
-            lines = f.readlines()
-            line_count = len(lines)
-            content_preview = "".join(lines[:5])
-            
-        # Strategy Logic
-        strategy = "✅ Safe to read completely."
-        if file_size > 50_000: # 50KB
-            strategy = "⚠️ Large file. Suggest reading with `read_file_content` using line ranges if supported, or just read cautiously."
-        if file_size > 500_000: # 500KB
-             strategy = "⛔ Very large file (0.5MB+). Do NOT read fully. Use `grep_search` or specific line ranges."
-             
-        return (
-            f"File: {path}\n"
-            f"Size: {file_size} bytes\n"
-            f"Lines: {line_count}\n"
-            f"Strategy: {strategy}\n"
-            f"Preview:\n{content_preview}"
-        )
-    except Exception as e:
-        return f"Error getting stats: {e}"
-
-
 @mcp.tool()
-def grep_search(pattern: str, path: str = ".") -> str:
-    """Search for a pattern in files."""
+async def manage_memory_ops(action: str, key: str = None, value: str = None) -> str:
+    """Unified Memory Operations."""
     try:
-        return _truncate(grep_files.invoke({"pattern": pattern, "path": path}))
+        return await manage_memory.ainvoke({"action": action, "key": key, "value": value})
     except Exception as e:
         return f"Error: {e}"
 
-
+# Kept independent
 @mcp.tool()
-async def run_command(command: str) -> str:
-    """Run a shell command."""
+async def run_command_ops(command: str) -> str:
+    """Run shell command."""
     try:
-        # run_shell_command is async
-        return _truncate(await run_shell_command.ainvoke({"command": command}))
+        from app.domain.tools.execution import run_command
+        return _truncate(await run_command.ainvoke({"command": command}))
     except Exception as e:
         return f"Error: {e}"
 
-
-@mcp.tool()
-def save_file(path: str, content: str) -> str:
-    """Write content to a file."""
-    try:
-        # write_file_content tool expects dict? langchain tool with one arg usually takes it directly if using invoke with primitives? 
-        # But here we invoke the underlying func? No, `invoke`.
-        # let's try direct invoke with dict
-        return write_file_content.invoke({"path": path, "content": content})
-    except Exception as e:
-        return f"Error: {e}"
-
-
-@mcp.tool()
-async def search_web(query: str) -> str:
-    """Search the web using Brave Search."""
-    # Settings might not have BRAVE_API_KEY directly if it's not defined in Config?
-    # Checking if settings object has it.
-    # Assuming it's in os.environ via .env if not in settings model
-    api_key = settings.BRAVE_API_KEY
-    
-    if not api_key:
-        return "Error: BRAVE_API_KEY not configured."
-    
-    url = "https://api.search.brave.com/res/v1/web/search"
-    headers = {"X-Subscription-Token": api_key, "Accept": "application/json"}
-    params = {"q": query}
-    
-    async with http_utils.create_client() as client:
-        resp = await client.get(url, headers=headers, params=params)
-        if resp.status_code != 200:
-            return f"Error: Brave API returned {resp.status_code} {resp.text}"
-        data = resp.json()
-        
-    # Simplify output
-    results = []
-    if "web" in data and "results" in data["web"]:
-        for item in data["web"]["results"][:5]:
-            results.append(f"- [{item.get('title')}]({item.get('url')}): {item.get('description')}")
-            
-    return _truncate("\n".join(results) if results else "No results found.")
 
 
 @mcp.tool()

@@ -92,7 +92,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
         }
     
     # 3. Generate Pages (Iterative Deep Research)
-    from domain.research.engine import DeepResearchEngine
+    from app.domain.research.engine import DeepResearchEngine
     
     # Initialize Engine
     engine = DeepResearchEngine(llm)

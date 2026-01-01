@@ -1,3 +1,4 @@
+import json
 from typing import List, Literal, Optional, Annotated
 from pydantic import BaseModel, Field
 from langchain_core.messages import AIMessage, ToolMessage, SystemMessage, HumanMessage
@@ -13,9 +14,8 @@ from app.core.workflows.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
 from app.domain.tools.memory import save_preference, search_concepts
-from app.domain.tools.registry import read_document
+from app.domain.tools.facades import manage_file
 from app.domain.planning.tools import create_plan, update_step_status, analyze_feasibility
-import json
 
 llm = LLMFactory.create_llm()
 
@@ -26,7 +26,9 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
     ("system", """You are the Supervisor of an elite coding team.
     
     CRITICAL PROTOCOL:
-    1. **Context First**: If user mentions a file/doc, call `read_document` IMMEDIATELY.
+    1. **Context First**: 
+       - If you are unsure about the file structure, call `get_annotated_tree` FIRST.
+       - If user mentions a file/doc, call `manage_file(action='read')` IMMEDIATELY.
     2. **Measure Twice, Cut Once**: Before delegating to `Coder`, you MUST validate your plan.
        - Use `create_plan` tool to draft your approach.
        - Verify that your plan covers all requirements and is technically sound.
@@ -88,6 +90,23 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     # Context
     project_id = state.get("project_id", 1) # Default to 1 if missing
 
+    # 0. Context Compression Check
+    try:
+        from app.core.workflows.nodes.compressor import compress_history_delta
+        # Check current messages length
+        current_msgs = state.get("messages", [])
+        delta = await compress_history_delta(current_msgs)
+        if delta:
+            # Return delta to compress history and restart supervisor
+            return {
+                "messages": delta,
+                "next_node": "supervisor"
+            }
+    except Exception as e:
+        # Fallback to normal execution if compression fails
+        # Log error? 
+        pass
+
     # Initialize messages early
     messages = list(state.get("messages", []))
     new_messages = []
@@ -105,9 +124,10 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     # Tool Binding with Semantic Retrieval
     from app.infrastructure.mcp.client import mcp_client_manager
     from app.domain.tools.retrieval import tool_retriever
+    from app.domain.tools.registry import get_supervisor_tools
     
     # 1. Core Tools (Always Active)
-    core_tools = [read_document, save_preference, search_concepts, create_plan, update_step_status, analyze_feasibility]
+    core_tools = get_supervisor_tools()
     
     # 2. Candidate Tools (MCP)
     mcp_tools = mcp_client_manager.get_tools()
@@ -143,7 +163,18 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     # Gather System Info
     import os, platform
     cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
-    sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}"
+    
+    # Context Injection Phase
+    # 1. Project Structure (Tree)
+    project_structure = "Tree not available"
+    try:
+        from app.domain.tools.visualizer import get_annotated_tree
+        # Lightweight tree (level 2)
+        project_structure = str(get_annotated_tree.invoke({"max_lines": 100}, config=config))
+    except Exception as e:
+        project_structure = f"Tree error: {e}"
+        
+    sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\n\nProject Structure:\n{project_structure[:1000]}" # Limit size
     
     tool_chain = supervisor_prompt.partial(
         project_id=project_id, 

@@ -36,9 +36,16 @@ async def tester_node(state: AgentState, config: RunnableConfig):
     3. **PROTOCOL**: When running pytest, ALWAYS use `pytest --junitxml=report.xml` to generate a structured report. The system will automatically parse this file for you.
     4. Analyze the output (and any parsed report).
     5. If tests pass, report PASS.
-    6. If tests fail, report FAIL and summarize the specific errors.
+    6. If tests fail, report FAIL and provide a Root Cause Analysis (RCA).
     
-    Always output a summary starting with "PASS" or "FAIL".
+    ### OUTPUT FORMAT (MANDATORY)
+    If PASS:
+    PASS: <Brief confirmation>
+    
+    If FAIL:
+    FAIL: <Summary of failure>
+    RCA: <Hypothesis on WHY it failed. Be specific about lines or logic.>
+    Suggestion: <Code snippet or step to fix it.>
     """
 
     tools = get_all_tools()

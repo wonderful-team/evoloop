@@ -8,14 +8,14 @@ from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
 from app.logging import get_context
 
 @tool
-async def get_annotated_tree(path: str = ".", max_depth: int = 2, pattern: str = None) -> str:
+async def get_annotated_tree(path: str = ".", max_depth: int = 3, pattern: str = None) -> str:
     """
     Get a directory tree annotated with indexed classes and functions.
     Shows structure + key symbols.
     
     Args:
         path: Relative or absolute path to the directory (default: root).
-        max_depth: Maximum depth to traverse (default: 2). Increase if you need to see deeper structure, but be mindful of context size.
+        max_depth: Maximum depth to traverse (default: 3). Increase if you need to see deeper structure, but be mindful of context size.
         pattern: Optional Glob pattern to filter files (e.g. "*.py", "*Controller*"). If set, only matching files and their parent directories will be shown.
     """
     try:

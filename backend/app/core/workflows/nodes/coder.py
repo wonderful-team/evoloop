@@ -23,28 +23,16 @@ async def coder_node(state: AgentState, config: RunnableConfig):
     
     # Get tools
     # Core Tools Imports
-    from app.infrastructure.filesystem.tool import list_files, read_file, grep_files, write_file_content, edit_file
-    from app.infrastructure.filesystem.tool import list_files, read_file, grep_files, write_file_content, edit_file
+    from app.domain.tools.registry import get_coder_tools
+    from app.domain.tools.facades import manage_file, explore_codebase, manage_git, manage_memory
     from app.domain.tools.execution import run_command
-    from app.domain.codebase.retrieval.tools import search_codebase
-    from app.domain.codebase.analysis.tools import find_definition
     from app.domain.tools.visualizer import get_annotated_tree
-    from app.domain.tools.memory import save_preference, add_concept
+    
     from app.infrastructure.mcp.client import mcp_client_manager
     from app.domain.tools.retrieval import tool_retriever
-    from app.domain.tools.git import git_status, git_diff, git_commit, git_history, git_create_branch
-
-    # 1. Define Core (Standard Dev Tools)
-    core_tools = [
-        # File Ops
-        list_files, read_file, grep_files, write_file_content, edit_file,
-        # Git Ops
-        git_status, git_diff, git_commit, git_history, git_create_branch,
-        # Analysis
-        run_command, search_codebase, get_annotated_tree, find_definition, 
-        # Memory
-        save_preference, add_concept
-    ]
+    
+    # 1. Get Base Tools from Registry
+    core_tools = get_coder_tools()
     
     # 2. Retrieve Candidate Tools (MCP)
     mcp_tools = mcp_client_manager.get_tools()
@@ -78,26 +66,39 @@ async def coder_node(state: AgentState, config: RunnableConfig):
     
     ### INSTRUCTIONS
     Your task is to IMPLEMENT the plan by writing code to files.
+    - **PROTOCOL**: Do NOT guess file paths. If a path is ambiguous, use `get_annotated_tree` or `explore_codebase` BEFORE reading/editing.
     - Respect the User Preferences above (e.g. testing frameworks, naming conventions).
     - Use the Project Concepts to understand existing architecture names.
     
     Tools:
-    - get_annotated_tree(path): **PRIMARY** tool to see project structure. Prefer this over `list_files`.
-    - find_definition(symbol): Use this to find where a Class or Function is defined.
-    - search_codebase(query): Use this for "How does X work?" (Concept/Semantic Search).
-    - grep_files(pattern): Use this for exact text search (error msg, references).
-    - edit_file(path, target, replacement): Use for **SMALL** edits (< 50 lines). Requires exact match.
-    - write_file_content(path, content): Use for NEW files or **LARGE** refactors.
-    - run_command(command): Run tests/scripts.
+    1. get_annotated_tree(path): **PRIMARY** Dashboard. Use to see project structure.
     
-    ### DECISION TREE (Follow Strict)
-    1. Need to understand structure? -> `get_annotated_tree`.
-    2. Need to find a class definition? -> `find_definition`.
-    3. Need to fix a bug?
-       - Locate file with `grep_files` or `find_definition`.
-       - Read context with `read_file`.
-       - If small fix -> `edit_file`.
-       - If huge refactor -> `write_file_content`.
+    2. manage_file(action, path, content?, target?): Unified File I/O.
+       - action='read': Read code or docs.
+       - action='create': New file (content required).
+       - action='update_block': Patch file (replace `target` block with `content`).
+       - action='overwrite': Rewrite file completely.
+       - action='create_directory': Create new directory (content ignored).
+       - action='delete': Delete file or directory (recursively).
+       - action='move': Move/Rename path (content = destination path).
+       
+    3. explore_codebase(action, query): Unified Search.
+       - action='search_symbol': Find Class/Function definition.
+       - action='search_text': Grep for text/error messages.
+       - action='search_concept': Ask "How does X work?".
+       
+    4. manage_git(action, argument?): Git Ops.
+       - action='status', 'diff', 'commit' (arg=msg).
+       
+    5. manage_memory(action, key, value): Project Memory.
+       
+    6. run_command(command): Run shell scripts/tests.
+    
+    ### DECISION TREE
+    - Need to see map? -> `get_annotated_tree`.
+    - Need to find code? -> `explore_codebase`.
+    - Need to read/edit code? -> `manage_file`.
+    - Need to run tests? -> `run_command`.
     """
     
     loop_messages = [AIMessage(content=system_msg)] + messages[-5:]
