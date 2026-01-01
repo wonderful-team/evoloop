@@ -77,7 +77,13 @@ def create_graph(checkpointer=None):
         next_node = state["next_node"]
         if next_node == "map_research":
             tasks = state.get("parallel_research_tasks", [])
-            return [Send("deep_researcher", {"research_topic": topic}) for topic in tasks]
+            project_id = state.get("project_id", 1)
+            # Pass full context needed for research
+            return [Send("deep_researcher", {
+                "research_topic": topic,
+                "project_id": project_id,
+                # We don't pass full messages to save tokens/bandwidth, assuming research is self-contained
+            }) for topic in tasks]
         if next_node == "finish":
             return "finish"
         return next_node

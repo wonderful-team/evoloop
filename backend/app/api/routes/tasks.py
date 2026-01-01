@@ -197,6 +197,41 @@ Remember to follow the project structure and coding standards.
         "task_title": task.get("task_title")
     }
     
+    # --- PERSIST AUTOMATED USER MESSAGE ---
+    # We must manually save the prompt as a user message so it appears in history.
+    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database.sql.models import Conversation, Message
+    from datetime import datetime, timezone
+
+    try:
+        async with session_scope() as session:
+            # Upsert Conversation
+            conversation = await session.get(Conversation, thread_id)
+            if not conversation:
+                conversation = Conversation(
+                    id=thread_id,
+                    project_id=task.get("project_id", 1),
+                    title=task.get("task_title")
+                )
+                session.add(conversation)
+            else:
+                conversation.updated_at = datetime.now(timezone.utc)
+            
+            # Log User Message (The constructed prompt)
+            user_msg = Message(
+                thread_id=thread_id,
+                project_id=task.get("project_id", 1),
+                role="human",
+                content=prompt,
+                thinking=None
+            )
+            session.add(user_msg)
+            await session.flush() # Ensure it lands
+            logger.info(f"Persisted task trigger message for thread {thread_id}")
+    except Exception as e:
+        logger.error(f"Failed to persist task message {thread_id}: {e}")
+    # --------------------------------------
+    
     background_tasks.add_task(run_agent_background, thread_id, inputs)
     
     return {

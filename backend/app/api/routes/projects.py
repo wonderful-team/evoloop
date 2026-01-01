@@ -110,26 +110,26 @@ async def list_project_conversations(project_id: int):
 @router.get("/conversations/{thread_id}/history")
 async def get_conversation_history(thread_id: str):
     """
-    Get message history for a thread.
+    Get message history for a thread from the persistent SQL log.
+    The SQL log is sanitized by DatabaseCallbackHandler for user display.
     """
-    graph = get_graph()
-    if not graph:
-        raise HTTPException(503, "Graph not initialized")
-        
-    config = {"configurable": {"thread_id": thread_id}}
-    state = await graph.aget_state(config)
-    
-    if not state.values:
+    try:
+        async with get_db_session() as session:
+            stmt = select(Message).where(Message.thread_id == thread_id).order_by(Message.id.asc())
+            result = await session.execute(stmt)
+            db_messages = result.scalars().all()
+            
+            # Simple list of role/content, no complex graph parsing needed anymore!
+            messages = [{"type": m.role, "content": m.content, "thinking": m.thinking} for m in db_messages]
+            
+            return {"messages": messages}
+            
+    except Exception as e:
+        logger.error(f"Failed to fetch history for {thread_id}: {e}")
+        # Fallback to Graph if DB fails? 
+        # For now, just return empty or error. 
+        # If DB is down, Graph access likely fails too since checkpointer uses DB (in theory).
         return {"messages": []}
-        
-    # Convert messages to dicts
-    messages = []
-    for m in state.values.get("messages", []):
-         msg_type = m.type
-         content = m.content
-         messages.append({"type": msg_type, "content": content})
-         
-    return {"messages": messages}
 
 @router.get("/conversations/{thread_id}/activity")
 async def get_conversation_activity(thread_id: str):

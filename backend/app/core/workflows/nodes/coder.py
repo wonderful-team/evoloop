@@ -6,6 +6,7 @@ from app.domain.tools.registry import get_all_tools
 import json
 from langchain_core.runnables import RunnableConfig
 from app.core.llm.factory import LLMFactory
+from app.core.tools.executor import ToolExecutor
 
 llm = LLMFactory.create_llm()
 
@@ -23,8 +24,10 @@ async def coder_node(state: AgentState, config: RunnableConfig):
     # Get tools
     # Core Tools Imports
     from app.infrastructure.filesystem.tool import list_files, read_file, grep_files, write_file_content, edit_file
-    from app.domain.tools.execution import run_shell_command
+    from app.infrastructure.filesystem.tool import list_files, read_file, grep_files, write_file_content, edit_file
+    from app.domain.tools.execution import run_command
     from app.domain.codebase.retrieval.tools import search_codebase
+    from app.domain.codebase.analysis.tools import find_definition
     from app.domain.tools.visualizer import get_annotated_tree
     from app.domain.tools.memory import save_preference, add_concept
     from app.infrastructure.mcp.client import mcp_client_manager
@@ -38,7 +41,7 @@ async def coder_node(state: AgentState, config: RunnableConfig):
         # Git Ops
         git_status, git_diff, git_commit, git_history, git_create_branch,
         # Analysis
-        run_shell_command, search_codebase, get_annotated_tree, 
+        run_command, search_codebase, get_annotated_tree, find_definition, 
         # Memory
         save_preference, add_concept
     ]
@@ -79,14 +82,22 @@ async def coder_node(state: AgentState, config: RunnableConfig):
     - Use the Project Concepts to understand existing architecture names.
     
     Tools:
-    - get_annotated_tree(path): View project structure with indexed symbols.
-    - write_file_content(path, content): Best for creating/editing files safely.
-    - search_codebase(query): Combine Graph+RAG search to find code or usage.
-    - run_command(command): Use for `ls`, `mkdir`, `mv`, `rm` or running tests/scripts.
-    - save_preference(key, value): If user gives new instructions, save them.
-    - add_concept(name, desc): If you learn a new architectural concept, save it.
+    - get_annotated_tree(path): **PRIMARY** tool to see project structure. Prefer this over `list_files`.
+    - find_definition(symbol): Use this to find where a Class or Function is defined.
+    - search_codebase(query): Use this for "How does X work?" (Concept/Semantic Search).
+    - grep_files(pattern): Use this for exact text search (error msg, references).
+    - edit_file(path, target, replacement): Use for **SMALL** edits (< 50 lines). Requires exact match.
+    - write_file_content(path, content): Use for NEW files or **LARGE** refactors.
+    - run_command(command): Run tests/scripts.
     
-    Use `write_file_content` for writing code. Use `run_command` for file management or verification.
+    ### DECISION TREE (Follow Strict)
+    1. Need to understand structure? -> `get_annotated_tree`.
+    2. Need to find a class definition? -> `find_definition`.
+    3. Need to fix a bug?
+       - Locate file with `grep_files` or `find_definition`.
+       - Read context with `read_file`.
+       - If small fix -> `edit_file`.
+       - If huge refactor -> `write_file_content`.
     """
     
     loop_messages = [AIMessage(content=system_msg)] + messages[-5:]
@@ -110,12 +121,13 @@ async def coder_node(state: AgentState, config: RunnableConfig):
             # print(f"Coder [MCP Tool]: {tool_name} args={tool_args}")
             
             tool = tool_map.get(tool_name)
-            result = f"Error: Tool {tool_name} not found"
+            executor = ToolExecutor()
+            
             if tool:
-                try:
-                    result = await tool.ainvoke(tool_args, config=config)
-                except Exception as e:
-                    result = str(e)
+                # Use executor for logging and error handling standardization
+                result = await executor.execute(tool, tool_args, config=config)
+            else:
+                result = f"Error: Tool {tool_name} not found"
             
             loop_messages.append(ToolMessage(content=str(result), tool_call_id=tool_id))
 

@@ -128,6 +128,7 @@ class Message(Base):
     project_id: Mapped[int] = mapped_column(Integer, index=True)
     role: Mapped[str] = mapped_column(String(50)) # "human", "ai"
     content: Mapped[str] = mapped_column(Text)
+    thinking: Mapped[Optional[str]] = mapped_column(Text) # Separate reasoning content
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # Optional: reference to checkpoint ID if we want to linked back to graph state

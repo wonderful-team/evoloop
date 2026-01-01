@@ -4,6 +4,7 @@ from typing import List, Optional
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
@@ -124,7 +125,7 @@ def update_step_status(plan_id: str, step_id: str, status: str, result: str = No
 
 
 @tool
-async def analyze_feasibility(proposed_plan: str) -> str:
+async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str:
     """
     Analyze the technical feasibility of a proposed development plan.
     It retrieves relevant code context and checks for potential issues like hallucinations or breaking changes.
@@ -143,7 +144,7 @@ async def analyze_feasibility(proposed_plan: str) -> str:
         context_str = "\n".join([f"File: {r['file_path']}\nSnippet: {r['content'][:500]}..." for r in search_results])
 
         # Get Project Structure
-        tree = await get_annotated_tree.ainvoke({"path": root, "max_depth": 2})
+        tree = await get_annotated_tree.ainvoke({"path": root, "max_depth": 2}, config=config)
 
         # LLM Analysis
         chain = FEASIBILITY_ANALYSIS_PROMPT | llm | StrOutputParser()
@@ -151,7 +152,7 @@ async def analyze_feasibility(proposed_plan: str) -> str:
             "plan": proposed_plan,
             "context": context_str,
             "tree": tree
-        })
+        }, config=config)
 
         return report
 

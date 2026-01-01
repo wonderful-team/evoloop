@@ -25,6 +25,7 @@ import { useProjectStore } from "@/stores/projectStore"
 
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { MessageContent } from "./MessageContent"
+import { TaskSteps } from "./TaskSteps"
 
 export function ChatInterface() {
     const { t } = useTranslation()
@@ -101,7 +102,7 @@ export function ChatInterface() {
         if (data && Array.isArray(data.messages)) {
             const formatted: Message[] = data.messages.map((m: any, idx: number) => {
                 let content = m.content
-                let thinking = undefined
+                let thinking = m.thinking
 
                 // Parse <think>...</think>
                 // Case 1: <think>...</think> Content
@@ -119,7 +120,7 @@ export function ChatInterface() {
                     content: content,
                     thinking: thinking
                 }
-            })
+            }).filter(m => (m.content && m.content.trim().length > 0) || (m.thinking && m.thinking.trim().length > 0))
 
             // --- FLUSH PREVENTION & MERGE ---
             // If backend has new messages, render them.
@@ -420,13 +421,19 @@ export function ChatInterface() {
                                 ))}
 
                                 {isAgentWorking && (
-                                    <div className="flex gap-3 justify-start max-w-3xl mx-auto animate-pulse">
-                                        <Avatar className="h-8 w-8 mt-1">
-                                            <AvatarFallback><Bot size={16} /></AvatarFallback>
-                                        </Avatar>
-                                        <div className="rounded-lg px-4 py-3 bg-muted text-muted-foreground text-sm flex items-center gap-2">
-                                            <Loader2 size={14} className="animate-spin" /> {t('chat.interface.deepResearching', "Agent working...")}
-                                        </div>
+                                    <div className="flex gap-3 justify-start max-w-3xl mx-auto animate-in fade-in duration-300 pl-11">
+                                        {(activityData as any)?.tasks?.length > 0 ? (
+                                            <TaskSteps tasks={(activityData as any).tasks} />
+                                        ) : (
+                                            <div className="flex items-center gap-3">
+                                                <Avatar className="h-8 w-8 mt-1">
+                                                    <AvatarFallback><Bot size={16} /></AvatarFallback>
+                                                </Avatar>
+                                                <div className="rounded-lg px-4 py-3 bg-muted text-muted-foreground text-sm flex items-center gap-2">
+                                                    <Loader2 size={14} className="animate-spin" /> {t('chat.interface.deepResearching', "Agent working...")}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 

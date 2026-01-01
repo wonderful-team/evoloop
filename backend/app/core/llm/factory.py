@@ -18,7 +18,8 @@ class LLMFactory:
             api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL,
             model=model_name or settings.OPENAI_MODEL_NAME,
-            temperature=temperature
+            temperature=temperature,
+            streaming=False
         )
 
 

@@ -11,9 +11,10 @@ from app.core.config import settings
 from app.core.workflows.state import AgentState
 
 from app.core.llm.factory import LLMFactory
+from app.core.tools.executor import ToolExecutor
 from app.domain.tools.memory import save_preference, search_concepts
-from app.domain.tools.registry import read_document, analyze_feasibility
-from app.domain.planning.tools import create_plan, update_step_status
+from app.domain.tools.registry import read_document
+from app.domain.planning.tools import create_plan, update_step_status, analyze_feasibility
 import json
 
 llm = LLMFactory.create_llm()
@@ -28,9 +29,8 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
     1. **Context First**: If user mentions a file/doc, call `read_document` IMMEDIATELY.
     2. **Measure Twice, Cut Once**: Before delegating to `Coder`, you MUST validate your plan.
        - Use `create_plan` tool to draft your approach.
-       - Call `analyze_feasibility` with your drafted plan.
-       - If the analysis returns "RISKY" or "BLOCKER", refine your plan and analyze again.
-       - ONLY when the analysis is "FEASIBLE" (or you have addressed risks) should you route to `Coder`.
+       - Verify that your plan covers all requirements and is technically sound.
+       - ONLY when you are confident in your plan should you route to `Coder`.
     3. **Active Learning**:
        - If the user explicitly states a preference (e.g. "Use pytest", "Don't use X"), call `save_preference` IMMEDIATELY.
        - If you encounter unknown terms, call `search_concepts`.
@@ -47,8 +47,12 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
       - Just **reply directly** to the user in the final output.
       - Then route to `finish`.
 
+    5. **Think Before Action**:
+       - Before calling ANY tool, you MUST output a brief sentence explaining WHY you are taking this action.
+       - Example: "I will read the file `main.py` to check the import statements."
+    
     Your routing options:
-    1. Researcher: For questions, info gathering, or if `analyze_feasibility` reveals missing knowledge.
+    1. Researcher: For questions, info gathering, or if you need to investigate the codebase.
     2. Coder: ONLY when you have a feasible, verified plan and all context.
     3. Deep Research: For complex investigations.
     4. Documenter: For documentation tasks.
@@ -62,7 +66,7 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
     System Info: {system_info}
     """),
     ("placeholder", "{messages}"),
-    ("system", "Follow the protocol: Read docs, Analyze feasibility, Then decide.")
+    ("system", "Follow the protocol: Read docs, Create Plan, Then decide.")
 ])
 
 # Define Structured Output for Supervisor
@@ -103,7 +107,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     from app.domain.tools.retrieval import tool_retriever
     
     # 1. Core Tools (Always Active)
-    core_tools = [read_document, analyze_feasibility, save_preference, search_concepts, create_plan, update_step_status]
+    core_tools = [read_document, save_preference, search_concepts, create_plan, update_step_status, analyze_feasibility]
     
     # 2. Candidate Tools (MCP)
     mcp_tools = mcp_client_manager.get_tools()
@@ -173,18 +177,17 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
                 
                 if tool_name in tool_map:
                     selected_tool = tool_map[tool_name]
-                    try:
-                         # Universal async invocation
-                         content = await selected_tool.ainvoke(tool_args, config=config)
-                    except Exception as e:
-                         content = f"Error executing {tool_name}: {e}"
+                    executor = ToolExecutor()
+                    
+                    # Universal async invocation with observability
+                    content = await executor.execute(selected_tool, tool_args, config=config)
                          
                     # Special Handling for State Updates (create_plan)
                     if tool_name == "create_plan":
                         try:
                             plan_data = json.loads(str(content))
-                            steps_text = "\n".join([f"- {s['title']} ({s['status']})" for s in plan_data.get('steps', [])])
-                            current_plan = f"Plan: {plan_data.get('title')}\n{steps_text}"
+                            steps_text = "\\n".join([f"- {s['title']} ({s['status']})" for s in plan_data.get('steps', [])])
+                            current_plan = f"Plan: {plan_data.get('title')}\\n{steps_text}"
                             state["structured_plan"] = str(content)
                             state["current_plan"] = current_plan
                         except:

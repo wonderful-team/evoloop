@@ -159,12 +159,11 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
                     if hasattr(last_msg, "content") and last_msg.content:
                         content_str = last_msg.content
                         
-                        # CLEAN <think> tags for mobile display
-                        import re
-                        # Remove <think>...</think> including newlines
-                        content_clean = re.sub(r'<think>.*?</think>', '', content_str, flags=re.DOTALL).strip()
+                        # CLEAN <think> tags for mobile display - DISABLED
+                        # We now support rendering thinking process on mobile, so we send raw content.
+                        content_clean = content_str
                         
-                        logger.info(f"Uploading final output (cleaned len: {len(content_clean)})...")
+                        logger.info(f"Uploading final output (len: {len(content_clean)})...")
                         
                         await imagicbox_client.upload_log(
                             thread_id=thread_id,
@@ -296,12 +295,19 @@ async def chat_endpoint(
                 thread_id=req.thread_id,
                 project_id=req.project_id,
                 role="human",
-                content=req.message
+                content=req.message,
+                thinking=None
             )
             session.add(user_msg)
+            await session.flush() # Ensure FK consistency
+            logger.info(f"Persisted user message for thread {req.thread_id}")
+            
     except Exception as e:
-        logger.error(f"Failed to upsert conversation {req.thread_id}: {e}")
-        # Continue to background task even if DB fails here (Background task has safety net now)
+        logger.error(f"Failed to upsert conversation/message {req.thread_id}: {e}")
+        # If persistence fails, the message won't be in history, but we proceed to run.
+        # This explains why user sees "agent working" but no user message in history.
+        # We should NOT propagate error to block chat, but log strictly.
+        pass
             
     # 2. Add to background task
     background_tasks.add_task(run_agent_background, req.thread_id, inputs)

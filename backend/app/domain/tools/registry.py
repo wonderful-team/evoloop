@@ -14,8 +14,9 @@ from app.domain.tools.visualizer import get_annotated_tree
 from app.infrastructure.filesystem.tool import list_files, read_file, grep_files, write_file_content, edit_file
 from app.infrastructure.mcp.client import mcp_client_manager
 from app.domain.tools.git import git_status, git_diff, git_commit, git_history, git_create_branch
-from app.domain.tools.execution import run_shell_command
+from app.domain.tools.execution import run_shell_command, run_command
 from app.domain.tools.memory import save_preference, get_user_preferences, search_concepts, add_concept
+from app.domain.codebase.analysis.tools import find_definition
 
 
 # Add other tools as needed
@@ -31,7 +32,10 @@ def get_all_tools() -> List[BaseTool]:
         grep_files,
         write_file_content,
         edit_file,
-        run_shell_command,
+        write_file_content,
+        edit_file,
+        run_command,
+        # run_shell_command, # Aliased to run_command above for clarity
         search_codebase,
         get_annotated_tree,
         read_document,
@@ -40,6 +44,7 @@ def get_all_tools() -> List[BaseTool]:
         get_user_preferences,
         search_concepts,
         add_concept,
+        find_definition,
         # Git Tools
         git_status,
         git_diff,

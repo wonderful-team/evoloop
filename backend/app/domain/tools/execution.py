@@ -48,3 +48,6 @@ async def run_shell_command(command: str) -> str:
             
     except Exception as e:
         return f"Execution Error: {str(e)}"
+
+# Alias for consistent naming in prompts
+run_command = run_shell_command

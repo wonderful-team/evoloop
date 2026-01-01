@@ -219,11 +219,31 @@ function LogItem({ msg }: { msg: LogMessage }) {
         )
     }
 
-    // Default Output
+    // Default Output (Agent Response or General Info)
+    let content = msg.content;
+    let thinking = null;
+
+    // Parse Thinking from content string
+    if (typeof content === 'string') {
+        const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/);
+        if (thinkMatch) {
+            thinking = thinkMatch[1].trim();
+            content = content.replace(thinkMatch[0], "").trim();
+        }
+    }
+
     return (
-        <div className="flex justify-start mb-4 animate-in slide-in-from-left-2 fade-in duration-300">
-            <div className="bg-card border border-border text-card-foreground px-4 py-3 rounded-2xl rounded-tl-sm max-w-[85%] text-sm shadow-sm">
-                <RichContent content={msg.content} />
+        <div className="flex flex-col mb-4 animate-in slide-in-from-left-2 fade-in duration-300 max-w-[85%]">
+            {/* Thinking Block (Extracted) */}
+            {thinking && (
+                <div className="mb-2">
+                    <LogItem msg={{ ...msg, type: 'thought', content: thinking }} />
+                </div>
+            )}
+
+            {/* Main Content */}
+            <div className="bg-card border border-border text-card-foreground px-4 py-3 rounded-2xl rounded-tl-sm text-sm shadow-sm">
+                <RichContent content={content} />
             </div>
         </div>
     )

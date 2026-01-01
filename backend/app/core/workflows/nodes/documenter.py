@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.core.workflows.state import AgentState
 from app.domain.tools.registry import get_all_tools
 from app.core.llm.factory import LLMFactory
+from app.core.tools.executor import ToolExecutor
 
 import logging
 import os
@@ -61,10 +62,10 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     
     tree_output = ""
     if annotated_tree_tool:
-        try:
-            tree_output = await annotated_tree_tool.ainvoke({"max_lines": 500}, config=config)
-        except Exception as e:
-            tree_output = f"(Tree generation failed: {e})"
+        executor = ToolExecutor()
+        tree_output = await executor.execute(annotated_tree_tool, {"max_lines": 500}, config=config)
+        if str(tree_output).startswith("Error"):
+             tree_output = f"(Tree generation failed: {tree_output})"
     
     # 2. Plan Structure (Using LLM directly)
     from pydantic import BaseModel, Field
