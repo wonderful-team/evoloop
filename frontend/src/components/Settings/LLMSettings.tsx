@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { toast } from "sonner"
-import { Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react"
+import { Loader2, CheckCircle2, XCircle } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { SystemService, type SystemConfig } from "@/client"
 
@@ -32,26 +32,24 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-// ... (schema and type definition omitted for brevity, keeping existing)
-const embeddingSchema = z.object({
+const llmSchema = z.object({
     provider: z.string(),
     base_url: z.string().min(1, "Base URL is required"),
     model: z.string().min(1, "Model name is required"),
     api_key: z.string().optional(),
 })
 
-type EmbeddingValues = z.infer<typeof embeddingSchema>
+type LLMValues = z.infer<typeof llmSchema>
 
-export function EmbeddingSettings() {
+export function LLMSettings() {
     const { t } = useTranslation()
     const [loading, setLoading] = useState(false)
     const [testing, setTesting] = useState(false)
     const [testResult, setTestResult] = useState<{ success: boolean; msg: string } | null>(null)
 
-    const form = useForm<EmbeddingValues>({
-        resolver: zodResolver(embeddingSchema),
+    const form = useForm<LLMValues>({
+        resolver: zodResolver(llmSchema),
         defaultValues: {
             provider: "openai",
             base_url: "",
@@ -60,7 +58,6 @@ export function EmbeddingSettings() {
         },
     })
 
-    // ... (useEffect and helper functions kept same)
     // Load initial config
     useEffect(() => {
         const fetchConfig = async () => {
@@ -72,13 +69,13 @@ export function EmbeddingSettings() {
                     })
 
                 form.reset({
-                    provider: configMap.EMBEDDING_PROVIDER || "openai",
-                    base_url: configMap.EMBEDDING_BASE_URL || "https://api.openai.com/v1",
-                    model: configMap.EMBEDDING_MODEL || "text-embedding-ada-002",
-                    api_key: configMap.EMBEDDING_API_KEY || "",
+                    provider: configMap.LLM_PROVIDER || "openai",
+                    base_url: configMap.LLM_BASE_URL || "",
+                    model: configMap.LLM_MODEL || "",
+                    api_key: configMap.LLM_API_KEY || "",
                 })
             } catch (error) {
-                console.error("Failed to load embedding config", error)
+                console.error("Failed to load LLM config", error)
             }
         }
         fetchConfig()
@@ -88,17 +85,20 @@ export function EmbeddingSettings() {
     const onProviderChange = (val: string) => {
         form.setValue("provider", val)
         if (val === "ollama") {
-            form.setValue("base_url", "http://localhost:11434")
-            form.setValue("model", "nomic-embed-text")
+            form.setValue("base_url", "http://localhost:11434/v1") // LangChain OpenAI uses /v1 usually for Ollama too? Or base. Ollama matches OpenAI format at /v1
+            form.setValue("model", "llama3")
         } else if (val === "generic") {
             form.setValue("base_url", "http://localhost:1234/v1")
-            form.setValue("model", "text-embedding-nomic-embed-text-v1.5")
+            form.setValue("model", "local-model")
         } else if (val === "openai") {
             form.setValue("base_url", "https://api.openai.com/v1")
-            form.setValue("model", "text-embedding-3-small")
+            form.setValue("model", "gpt-4o")
         } else if (val === "qwen") {
             form.setValue("base_url", "https://dashscope.aliyuncs.com/compatible-mode/v1")
-            form.setValue("model", "text-embedding-v3")
+            form.setValue("model", "qwen-max")
+        } else if (val === "deepseek") {
+            form.setValue("base_url", "https://api.deepseek.com/v1")
+            form.setValue("model", "deepseek-chat")
         }
     }
 
@@ -107,7 +107,7 @@ export function EmbeddingSettings() {
         setTesting(true)
         setTestResult(null)
         try {
-            const res = await SystemService.testEmbeddingConnection({
+            const res = await SystemService.testLLMConnection({
                 requestBody: {
                     provider: values.provider,
                     base_url: values.base_url,
@@ -116,40 +116,35 @@ export function EmbeddingSettings() {
                 }
             })
             if (res.success) {
-                setTestResult({ success: true, msg: t('settings.embedding.success_connected', { dim: res.dimensions }) })
-                toast.success(t('settings.embedding.success_connected', { dim: res.dimensions }))
+                setTestResult({ success: true, msg: `${t("settings.llm.connected")} Reply: ${res.reply || "OK"}` })
+                toast.success(t("settings.llm.connected"))
             } else {
-                setTestResult({ success: false, msg: t('settings.embedding.error_connection') })
-                toast.error(t('settings.embedding.error_connection'))
+                setTestResult({ success: false, msg: t("settings.llm.connection_failed") })
+                toast.error(t("settings.llm.connection_failed"))
             }
         } catch (error) {
-            setTestResult({ success: false, msg: t('settings.embedding.error_connection') })
-            toast.error(t('settings.embedding.error_connection') + ": " + (error as any).message)
+            setTestResult({ success: false, msg: t("settings.llm.connection_error") })
+            toast.error(t("settings.llm.connection_error") + ": " + (error as any).message)
         } finally {
             setTesting(false)
         }
     }
 
-    const onSubmit = async (data: EmbeddingValues) => {
-        if (!confirm(t('settings.embedding.confirm_switch'))) {
-            return
-        }
-
+    const onSubmit = async (data: LLMValues) => {
         setLoading(true)
         try {
-            await SystemService.applyEmbeddingConfig({
+            await SystemService.applyLLMConfig({
                 requestBody: {
                     provider: data.provider,
                     base_url: data.base_url,
                     model: data.model,
-                    api_key: data.api_key,
-                    project_id: undefined
+                    api_key: data.api_key
                 }
             })
-            toast.success(t('settings.embedding.success_updated'))
+            toast.success(t("settings.llm.saved"))
             setTestResult(null)
         } catch (error) {
-            toast.error(t('settings.embedding.error_update'))
+            toast.error(t("settings.llm.save_failed"))
         } finally {
             setLoading(false)
         }
@@ -161,20 +156,13 @@ export function EmbeddingSettings() {
                 <div className="flex items-center justify-between">
                     <div>
                         <CardTitle className="flex items-center gap-2">
-                            {t('settings.embedding.title')}
+                            {t("settings.llm.title")}
                         </CardTitle>
                         <CardDescription className="mt-1.5">
-                            {t('settings.embedding.description')}
+                            {t("settings.llm.description")}
                         </CardDescription>
                     </div>
                 </div>
-                <Alert variant="destructive" className="mt-4">
-                    <AlertTriangle className="h-4 w-4" />
-                    <AlertTitle>{t('settings.embedding.warning')}</AlertTitle>
-                    <AlertDescription>
-                        {t('settings.embedding.warning_desc')}
-                    </AlertDescription>
-                </Alert>
             </CardHeader>
             <CardContent>
                 <Form {...form}>
@@ -184,16 +172,17 @@ export function EmbeddingSettings() {
                             name="provider"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>{t('settings.embedding.provider')}</FormLabel>
+                                    <FormLabel>{t("settings.llm.provider")}</FormLabel>
                                     <Select onValueChange={onProviderChange} defaultValue={field.value} value={field.value}>
                                         <FormControl>
                                             <SelectTrigger>
-                                                <SelectValue placeholder="Select a provider" />
+                                                <SelectValue placeholder={t("settings.llm.provider_placeholder")} />
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
                                             <SelectItem value="openai">OpenAI</SelectItem>
-                                            <SelectItem value="qwen">Qwen / DashScope (Aliyun)</SelectItem> # Added
+                                            <SelectItem value="qwen">Qwen / DashScope (Aliyun)</SelectItem>
+                                            <SelectItem value="deepseek">DeepSeek</SelectItem>
                                             <SelectItem value="ollama">Ollama (Local)</SelectItem>
                                             <SelectItem value="generic">LMStudio / Generic (OpenAI Compatible)</SelectItem>
                                         </SelectContent>
@@ -209,7 +198,7 @@ export function EmbeddingSettings() {
                                 name="base_url"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>{t('settings.embedding.base_url')}</FormLabel>
+                                        <FormLabel>{t("settings.llm.base_url")}</FormLabel>
                                         <FormControl>
                                             <Input placeholder="https://api.openai.com/v1" {...field} />
                                         </FormControl>
@@ -222,9 +211,9 @@ export function EmbeddingSettings() {
                                 name="model"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>{t('settings.embedding.model_name')}</FormLabel>
+                                        <FormLabel>{t("settings.llm.model_name")}</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="text-embedding-3-small" {...field} />
+                                            <Input placeholder="gpt-4o" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -237,11 +226,11 @@ export function EmbeddingSettings() {
                             name="api_key"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>{t('settings.embedding.api_key')}</FormLabel>
+                                    <FormLabel>{t("settings.llm.api_key")}</FormLabel>
                                     <FormControl>
                                         <Input type="password" placeholder="sk-..." {...field} />
                                     </FormControl>
-                                    <FormDescription>{t('settings.embedding.api_key_desc')}</FormDescription>
+                                    <FormDescription>{t("settings.llm.api_key_desc")}</FormDescription>
                                     <FormMessage />
                                 </FormItem>
                             )}
@@ -255,16 +244,15 @@ export function EmbeddingSettings() {
                                 disabled={testing || loading}
                             >
                                 {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {t('settings.embedding.test_connection')}
+                                {t("settings.llm.test_connection")}
                             </Button>
 
                             <Button
                                 type="submit"
                                 disabled={loading || testing}
-                                className="bg-red-600 hover:bg-red-700 text-white"
                             >
                                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                {t('settings.embedding.apply_btn')}
+                                {t("settings.llm.apply_btn")}
                             </Button>
                         </div>
 

@@ -109,7 +109,7 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = "sk-dummy-key-for-local-dev"
     OPENAI_BASE_URL: str = "http://localhost:1234/v1"
     OPENAI_MODEL_NAME: str = "gpt-4o"
-    EMBEDDING_MODEL_NAME: str = "text-embedding-nomic-embed-text-v1.5"
+    EMBEDDING_MODEL_NAME: str = "text-embedding-v3" # Qwen / Aliyun Compatible
 
     ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None

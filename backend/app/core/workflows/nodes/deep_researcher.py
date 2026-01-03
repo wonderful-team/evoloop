@@ -7,18 +7,15 @@ from app.core.config import settings
 from app.logging import logger
 from app.core.llm.factory import LLMFactory
 
-# Initialize LLM
-llm = LLMFactory.create_llm()
-
-# Initialize Engine
-engine = DeepResearchEngine(llm)
-
 
 async def deep_researcher_node(state: AgentState, config: RunnableConfig):
     """
     Deep Research Node.
     Delegates to the DeepResearchEngine.
     """
+    llm = LLMFactory.create_llm()
+    engine = DeepResearchEngine(llm)
+
     messages = state.get("messages", [])
 
     # Initialize state variables if missing

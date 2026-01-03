@@ -457,6 +457,7 @@
         "intro": "管理您的账户和 EvoLoop 配置。",
         "tabs": {
             "general": "常规",
+            "models": "AI 模型",
             "profile": "个人资料",
             "password": "密码",
             "appearance": "外观",
@@ -533,6 +534,23 @@
             "kb_reset_confirm_desc": "这将永久删除所有已生成的向量索引和记忆。系统需要重新索引所有项目，这可能需要一些时间。",
             "kb_reset_success": "知识库已重置成功。",
             "kb_reset_error": "重置失败，请查看控制台日志。"
+        },
+        "llm": {
+            "title": "LLM 模型设置",
+            "description": "配置智能体使用的大语言模型。",
+            "provider": "提供商",
+            "provider_placeholder": "选择提供商",
+            "base_url": "API 地址",
+            "model_name": "模型名称",
+            "api_key": "API 密钥",
+            "api_key_desc": "密钥将安全存储。如不修改请留空。",
+            "test_connection": "测试连接",
+            "apply_btn": "应用更改",
+            "connected": "连接成功",
+            "connection_failed": "连接失败",
+            "connection_error": "连接错误",
+            "saved": "LLM 配置已保存",
+            "save_failed": "保存配置失败"
         },
         "embedding": {
             "title": "模型设置",

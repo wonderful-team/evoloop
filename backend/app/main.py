@@ -36,6 +36,11 @@ async def lifespan(app: FastAPI):
         await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
         await conn.run_sync(Base.metadata.create_all)
         
+    # 1.5 Seed Initial Data (System Config)
+    # This runs sychronously, so we offload to thread
+    from app.initial_data import init as init_data
+    await asyncio.to_thread(init_data)
+        
     # 2. Graph/Memory Init
     try:
         from app.domain.memory.service import memory_service
@@ -97,9 +102,19 @@ async def lifespan(app: FastAPI):
             
             # Start full indexing for the default/startup project
             # This ensures we catch up if the server was down.
-            indexing_manager.run_indexing_background(repo.id)
+            await indexing_manager.run_indexing_background(repo.id)
 
     except Exception as e:
+        logger.error(f"Failed to start startup watcher: {e}")
+
+    # 7. EvoLoop Link Client (Unified)
+    # ...
+    
+    # (Checking for the second occurrence logic block lines 164-169)
+    # Logic: I will use MultiReplace to target specific blocks or replace the file content carefully.
+    # Actually, replace_file_content tool supports chunks but I selected "single contiguous block" tool (replace_file_content).
+    # Wait, replace_file_content does NOT support multiple chunks. The tool usage says "Use this tool ONLY when you are making a SINGLE CONTIGUOUS block... If you are making multiple edits... use multi_replace...".
+    # I should use `multi_replace_file_content` for `main.py` since the calls are far apart (Line 105 and 169).
         logger.error(f"Failed to start startup watcher: {e}")
 
     # 7. EvoLoop Link Client (Unified)
@@ -161,7 +176,7 @@ async def lifespan(app: FastAPI):
                          repo_name = os.path.basename(cloud_path)
                          repo = await service.get_or_create_repo(cloud_path, repo_name)
                          await indexing_manager.start_watching(cloud_path, repo.id)
-                         indexing_manager.run_indexing_background(repo.id)
+                         await indexing_manager.run_indexing_background(repo.id)
                          
                      else:
                          logger.info(f"[Startup] Cloud active project path invalid or local missing: {cloud_path}")

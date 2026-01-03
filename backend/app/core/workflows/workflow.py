@@ -120,13 +120,14 @@ def create_graph(checkpointer=None):
     workflow.add_edge("coder", "tester")
 
     # Tester Logic
+    # Tester Logic
     def route_tester(state: AgentState):
         if state.get("test_results") == "PASS":
             return "supervisor"  # Let supervisor decide if we are done
         else:
             # Simple retry logic: if fail, go back to coder
             # In V3 advanced, we might go back to researcher or supervisor
-            if state["iteration_count"] > 3:
+            if state.get("iteration_count", 0) > 3:
                 return "meta_reviewer"  # Intervention!
             return "coder"
 

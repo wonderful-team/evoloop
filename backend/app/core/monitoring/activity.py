@@ -2,6 +2,7 @@ from typing import Dict, List, Any, Optional
 import time
 import json
 import redis.asyncio as redis
+import asyncio
 from app.core.config import settings
 
 class ActivityMonitor:
@@ -11,15 +12,50 @@ class ActivityMonitor:
         # We use a managed pool from settings? 
         # Or just create a client. Recommendation is one client per app usually.
         self.redis_url = settings.REDIS_URL
-        # Note: We don't initialize client here to avoiding async in __init__.
-        # We'll create it on demand or use a property.
-        self._client = None
+        # Map: EventLoop -> RedisClient
+        self._clients = {} 
+        self._global_client = None
         
+    async def get_client(self) -> redis.Redis:
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            # Fallback if called outside loop (unlikely for async methods)
+            return redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+
+        if loop in self._clients:
+             client = self._clients[loop]
+             # Check if closed? Redis client doesn't expose is_closed easily, but we trust it.
+             return client
+             
+        # New Client for this loop
+        client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+        self._clients[loop] = client
+        return client
+      
     @property
     def client(self) -> redis.Redis:
-        if self._client is None:
-             self._client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
-        return self._client
+         # Deprecated property access, but kept for backward compat if synchronous? 
+         # But all usages are `await self.client...` which is wrong if client is property returning object.
+         # Actually usages are `await self.client.hset(...)`. 
+         # We need to change usages to `client = await self.get_client(); await client.hset(...)` 
+         # OR make `client` property return a proxy? 
+         # Simpler: The usages are `self.client.hset`. `self.client` returns the Redis object.
+         # If I change `client` to a method, I break all calls.
+         # BUT `client` property cannot be async.
+         # AND `asyncio.get_running_loop()` works inside property if called from async function? Yes.
+         
+         # Let's try to keep property but make it smart.
+         try:
+            loop = asyncio.get_running_loop()
+            if loop not in self._clients:
+                self._clients[loop] = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+            return self._clients[loop]
+         except RuntimeError:
+             # If no loop running, return a default/global one?
+             if self._global_client is None:
+                 self._global_client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+             return self._global_client
         
     @classmethod
     def get_instance(cls):

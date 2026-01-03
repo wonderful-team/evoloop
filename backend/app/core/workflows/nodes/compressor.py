@@ -5,7 +5,6 @@ from app.core.config import settings
 import uuid
 
 # Initialize LLM for summarization
-llm = LLMFactory.create_llm()
 
 async def compress_history_delta(messages: list[BaseMessage], keep_last: int = 15) -> list[BaseMessage | RemoveMessage]:
     """
@@ -15,6 +14,8 @@ async def compress_history_delta(messages: list[BaseMessage], keep_last: int = 1
       - RemoveMessage objects for messages to be deleted.
       - A SystemMessage containing the summary.
     """
+    llm = LLMFactory.create_llm()
+
     if len(messages) <= keep_last + 5: # Buffer
         return []
         

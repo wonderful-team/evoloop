@@ -9,7 +9,9 @@ from app.core.llm.factory import LLMFactory
 from app.domain.testing.parser import TestParser
 
 from pydantic import BaseModel, Field
+
 from typing import Optional, List
+from langchain_core.runnables import RunnableConfig
 
 # Define Structured Output
 class TestAnalysis(BaseModel):
@@ -18,12 +20,9 @@ class TestAnalysis(BaseModel):
     root_cause: Optional[str] = Field(description="Hypothesis for failure (if FAIL)")
     fix_suggestion: Optional[str] = Field(description="Concrete code snippet or steps to fix the issue (if FAIL). Be extremely specific.")
     
-llm = LLMFactory.create_llm()
-
-from langchain_core.runnables import RunnableConfig
-
 
 async def tester_node(state: AgentState, config: RunnableConfig):
+    llm = LLMFactory.create_llm()
     """
     Intelligent Tester:
     1. Looks at what Coder did.

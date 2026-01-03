@@ -53,25 +53,15 @@ class BrowserService:
             
         logger.info(f"Starting Browser Agent task: {task} (Session: {session_id})")
         
-        # Configure Model
-        model_name = settings.BROWSER_MODEL_NAME
-        if not model_name:
-            # Fallback to global setting or default
-            global_model = settings.OPENAI_MODEL_NAME
-            # browser-use optimal models
-            if global_model in [MODEL_GPT4O, MODEL_CLAUDE_SONNET]:
-                model_name = global_model
-            else:
-                model_name = MODEL_GPT4O
-        
-        api_key = settings.OPENAI_API_KEY
         if not api_key:
-            return "Error: OPENAI_API_KEY not configured."
-            
-        logger.info(f"Using model {model_name} for Browser Agent")
+             # Try factory to get system config api key
+             pass
+
+        logger.info(f"Using dynamic LLM for Browser Agent")
         
-        # Initialize LLM using browser-use's wrapper
-        llm = ChatOpenAI(model=model_name, api_key=api_key)
+        # Initialize LLM using Factory (Dynamic)
+        from app.core.llm.factory import LLMFactory
+        llm = LLMFactory.create_llm()
         
         try:
             # Instantiate Agent

@@ -91,6 +91,7 @@ class RoutingDecision(BaseModel):
 from langchain_core.runnables import RunnableConfig
 
 async def supervisor_node(state: AgentState, config: RunnableConfig):
+    llm = LLMFactory.create_llm()
     # Context
     project_id = state.get("project_id", 1) # Default to 1 if missing
 

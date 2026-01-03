@@ -6,15 +6,13 @@ async def handle_remote_command(command_data: dict):
     Common handler for remote commands from EvoLoop Cloud.
     Can be used by both login.py (auto-connect) and main.py (startup recovery).
     """
-    # Import inside function to avoid circular dependency
     # agent.py imports get_evoloop_client which is in client.py
     # client.py imports nothing, but main.py sets up everything.
     # If handler is imported at top level in main, it's fine.
     # But if handler depends on agent, and agent depends on client (which might use handler type hint), it can be tricky.
     # The error "No module named 'core'" suggests a deeper issue or misconfiguration in execution context,
     # but based on the code structure, agent.py <-> infrastructure/evoloop_link is a likely cycle.
-    # Let's lazy import run_agent_background.
-    from app.api.routes.agent import run_agent_background
+    # from app.api.routes.agent import run_agent_background
 
     content = command_data.get("content", {})
     message = content.get("text") or content.get("message")
@@ -34,15 +32,20 @@ async def handle_remote_command(command_data: dict):
         
         project_id = pid_from_payload or pid_from_context or 1
         
+        
         # Construct input state
+        # Serialize messages
+        messages = [{"type": "human", "content": message}]
+        
         inputs = {
-            "messages": [HumanMessage(content=message)],
+            "messages": messages,
             "project_id": project_id,
-            "command_id": command_data.get("command_id") # Pass command ID for tracking if needed
+            "command_id": command_data.get("command_id") 
         }
         
-        # Run agent in background
-        await run_agent_background(thread_id, inputs)
+        # Run agent in background (Celery)
+        from app.core.workflows.tasks import run_agent_task
+        run_agent_task.delay(thread_id, inputs)
 
 async def handle_project_switch_event(event_data: dict):
     """

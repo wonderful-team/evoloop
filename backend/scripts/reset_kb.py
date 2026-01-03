@@ -32,6 +32,15 @@ async def wipe_knowledge_base():
         
         print("✅ Neo4j: Wiped [File, Directory, CodeEntity, Concept, CodeChunk].")
 
+        # 1.1 Drop Vector Indexes (To handle dimension changes)
+        try:
+             await session.run("DROP INDEX concept_embeddings IF EXISTS")
+             await session.run("DROP INDEX code_embeddings IF EXISTS") 
+             print("✅ Neo4j: Dropped Vector Indexes (will be recreated on startup).")
+        except Exception as e:
+             print(f"⚠️ Neo4j: Failed to drop indexes: {e}")
+
+
     # 2. Postgres Cleanup
     print("--> Connecting to Postgres...")
     async with get_db_session() as session:

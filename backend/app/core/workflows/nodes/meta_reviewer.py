@@ -7,9 +7,14 @@ from app.logging import logger
 
 logger = logger.getChild("meta_reviewer")
 
-llm = LLMFactory.create_llm(temperature=0.5)
 
-reviewer_prompt = ChatPromptTemplate.from_template("""
+async def meta_reviewer_node(state: AgentState, config: RunnableConfig):
+    """
+    Meta-Reviewer Node: Analyzes repeated failures and advises the Supervisor.
+    """
+    llm = LLMFactory.create_llm(temperature=0.5)
+
+    reviewer_prompt = ChatPromptTemplate.from_template("""
 You are the Meta-Reviewer, a Senior Technical Lead.
 The engineering team (Coder & Tester) is stuck in a loop of failures.
 
@@ -34,10 +39,6 @@ Be specific about what they should STOP doing and what they SHOULD do instead.
 Suggest a new angle or a step back to research if needed.
 """)
 
-async def meta_reviewer_node(state: AgentState, config: RunnableConfig):
-    """
-    Meta-Reviewer Node: Analyzes repeated failures and advises the Supervisor.
-    """
     logger.info("Meta-Reviewer triggered.")
     
     project_id = state.get("project_id", 1)

@@ -32,6 +32,16 @@ def init() -> None:
             logger.info(f"Seeding IMAGICBOX_DEVICE_NAME from settings: {default_name}")
             SystemConfigService.set_value("IMAGICBOX_DEVICE_NAME", default_name, "Device identifier for EvoLoop Link")
 
+    # 3. Embedding Configuration
+    if not SystemConfigService.get_value("EMBEDDING_PROVIDER"):
+        # Default to 'openai' or infer from settings?
+        # We'll use values from settings as initial defaults
+        logger.info("Seeding Embedding Configuration from settings...")
+        SystemConfigService.set_value("EMBEDDING_PROVIDER", "openai", "Embedding Provider")
+        SystemConfigService.set_value("EMBEDDING_BASE_URL", settings.OPENAI_BASE_URL, "Embedding Base URL")
+        SystemConfigService.set_value("EMBEDDING_MODEL", settings.EMBEDDING_MODEL_NAME, "Embedding Model Name")
+        SystemConfigService.set_value("EMBEDDING_API_KEY", settings.OPENAI_API_KEY, "Embedding API Key")
+
 
 async def init_mcp() -> None:
     logger.info("Initializing MCP configuration...")
@@ -49,6 +59,20 @@ async def init_mcp() -> None:
         logger.info("MCP 'local-postgres' configured successfully.")
     except Exception as e:
         logger.error(f"Failed to configure local-postgres: {e}")
+
+    # 2. Filesystem (Critical for Coder)
+    # Allow access to PROJECTS_ROOT
+    fs_args = [settings.PROJECTS_ROOT]
+    details_fs = {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", *fs_args],
+        "env": {},
+    }
+    try:
+        await mcp_client_manager.add_server("filesystem", details_fs)
+        logger.info(f"MCP 'filesystem' configured successfully for {settings.PROJECTS_ROOT}.")
+    except Exception as e:
+        logger.error(f"Failed to configure filesystem: {e}")
 
     # 2. Brave Search (Network Capability)
     import os

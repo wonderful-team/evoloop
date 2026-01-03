@@ -1,11 +1,13 @@
 
 from typing import List, Optional
 from sqlalchemy import select, delete
-from app.infrastructure.database.sql.database import get_db_session_context
+from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import Tool
 from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
 from app.logging import logger
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
 
 class PGToolRetriever:
     """
@@ -14,7 +16,11 @@ class PGToolRetriever:
     """
     
     def __init__(self):
-        self.embedder = OpenAIEmbedder()
+        self.embedder = OpenAIEmbedder(
+            api_key=settings.OPENAI_API_KEY,
+            base_url=settings.OPENAI_BASE_URL,
+            model=settings.EMBEDDING_MODEL_NAME
+        )
 
     async def index_tool(self, tool_name: str, description: str, signature: str, category: str = None):
         """
@@ -27,7 +33,7 @@ class PGToolRetriever:
             logger.error(f"Failed to embed tool {tool_name}: {e}")
             return
 
-        async with get_db_session_context() as session:
+        async with session_scope() as session:
             # Check if exists
             stmt = select(Tool).where(Tool.name == tool_name)
             result = await session.execute(stmt)
@@ -62,7 +68,7 @@ class PGToolRetriever:
             logger.error(f"Failed to embed query: {e}")
             return []
 
-        async with get_db_session_context() as session:
+        async with session_scope() as session:
             # pgvector KNN search
             # Order by embedding <-> query_vector
             stmt = select(Tool).order_by(Tool.embedding.cosine_distance(query_vector)).limit(k)
@@ -79,7 +85,7 @@ class PGToolRetriever:
             ]
             
     async def clear_all(self):
-        async with get_db_session_context() as session:
+        async with session_scope() as session:
             await session.execute(delete(Tool))
             await session.commit()
 

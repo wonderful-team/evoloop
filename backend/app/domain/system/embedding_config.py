@@ -23,7 +23,7 @@ class EmbeddingConfigService:
             from app.domain.codebase.indexing.vectors.ollama_embedder import OllamaEmbedder
             
             embedder = None
-            if provider == "openai" or provider == "generic":
+            if provider in ["openai", "generic", "qwen"]:
                 embedder = GenericOpenAIEmbedder(api_key=api_key or "dummy", base_url=base_url, model=model)
             elif provider == "ollama":
                 embedder = OllamaEmbedder(base_url=base_url, model=model)
@@ -123,14 +123,7 @@ class EmbeddingConfigService:
             if repo:
                 logger.info(f"Triggering re-index for active project {current_project_id} (Repo {repo.id})")
                 # Run in background via manager
-                # indexing_manager.trigger_full_index is async? No, it schedules.
-                # But we acturally want to run it.
-                # manager.trigger_full_index returns a background task usually?
-                # Actually manager uses background_tasks object passed to it? 
-                # Or we can just call the service directly if we are in an async context?
-                # Best to use the manager's method if it handles queueing.
-                # Assuming index_manager has a way to run.
-                pass 
+                await indexing_manager.run_indexing_background(repo.id)
                 # Note: The route handler should handle the background task dispatch. 
                 # This service method prepares the state.
 

@@ -145,6 +145,19 @@ class IndexingManager:
             logger.error(f"Full Index Failed for Project {project_id}: {e}")
             self._active_jobs[project_id] = "error"
 
+    def dispatch_full_index(self, project_id: int, rebuild: bool = False):
+        """
+        Dispatch the indexing task to Celery worker.
+        """
+        try:
+            from app.domain.codebase.indexing.tasks import run_full_indexing_task
+            self._active_jobs[project_id] = "queued"
+            run_full_indexing_task.delay(project_id, rebuild)
+            logger.info(f"Dispatched full index task for Project {project_id}")
+        except Exception as e:
+            logger.error(f"Failed to dispatch indexing task: {e}")
+            self._active_jobs[project_id] = "error_dispatch"
+
     async def _run_tier4_indexing(self, repo_path: str, project_id: int):
         """
         Run specialized extractors for Software Projects (API, DB, Tech Debt).
@@ -156,24 +169,26 @@ class IndexingManager:
         scanners = [api_extractor, db_extractor]
         
         # Walk once
-        for root, dirs, files in os.walk(repo_path):
-            if ".git" in dirs: dirs.remove(".git")
-            if "__pycache__" in dirs: dirs.remove("__pycache__")
-            
-            for f in files:
-                full_path = os.path.join(root, f)
+        # Walk once
+        try:
+            for root, dirs, files in os.walk(repo_path):
+                if ".git" in dirs: dirs.remove(".git")
+                if "__pycache__" in dirs: dirs.remove("__pycache__")
                 
-                # API Extraction
-                if f.endswith(".py"): # Only Python supported currently
-                    # API
-                    endpoints = await api_extractor.extract(full_path)
-                    if endpoints:
-                        await api_extractor.sync_to_graph(project_id, endpoints)
+                for f in files:
+                    full_path = os.path.join(root, f)
                     
-                    # DB
-                    tables = await db_extractor.extract(full_path)
-                    if tables:
-                        await db_extractor.sync_to_graph(project_id, tables)
+                    # API Extraction
+                    if f.endswith(".py"): # Only Python supported currently
+                        # API
+                        endpoints = await api_extractor.extract(full_path)
+                        if endpoints:
+                            await api_extractor.sync_to_graph(project_id, endpoints)
+                        
+                        # DB
+                        tables = await db_extractor.extract(full_path)
+                        if tables:
+                            await db_extractor.sync_to_graph(project_id, tables)
                 
         except Exception as e:
             logger.error(f"Full Index Failed for Project {project_id}: {e}")
@@ -207,12 +222,30 @@ class IndexingManager:
                  if project_id:
                      self._active_jobs[project_id] = "error_repo"
             
-    def run_indexing_background(self, repo_id: int):
+    async def run_indexing_background(self, repo_id: int):
         """
         Helper to run indexing in a fire-and-forget background task.
-        Safe to call from sync or async contexts where we don't await the result.
+        Switching to Celery dispatch.
         """
-        asyncio.create_task(self.trigger_full_index_for_repo(repo_id))
+        # We need project_id. 
+        # Since this is async/sync mismatch (run_indexing_background is traditionally sync called from main),
+        # but here we made it async in previous tools?
+        # Original sig was: def run_indexing_background(self, repo_id: int)
+        # It used asyncio.create_task.
+        # Now we want to call dispatch_full_index (sync).
+        # We need to fetch Repo to get Project ID first. This requires DB.
+        # DB access is async.
+        # So we wraps it.
+        
+        asyncio.create_task(self._resolve_and_dispatch(repo_id))
+
+    async def _resolve_and_dispatch(self, repo_id: int):
+        async with AsyncSessionLocal() as session:
+            repo = await session.get(Repository, repo_id)
+            if repo and repo.project_id:
+                self.dispatch_full_index(repo.project_id)
+            else:
+                logger.warning(f"Could not resolve project for repo {repo_id}, skipping dispatch")
 
 
 # Global Instance

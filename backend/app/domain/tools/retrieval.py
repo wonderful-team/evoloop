@@ -20,7 +20,7 @@ class ToolRetriever:
             cls._instance._init()
         return cls._instance
 
-    async def _init(self):
+    def _init(self):
         # self.embedder = OpenAIEmbedder() # Moved to PGToolRetriever
         # self.tools: List[BaseTool] = [] # Deprecated
         # self.embeddings: List[List[float]] = [] # Deprecated

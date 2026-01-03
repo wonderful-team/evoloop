@@ -461,6 +461,7 @@
         "intro": "Manage your account and EvoLoop configurations.",
         "tabs": {
             "general": "General",
+            "models": "AI Models",
             "profile": "My profile",
             "password": "Password",
             "appearance": "Appearance",
@@ -537,6 +538,23 @@
             "kb_reset_confirm_desc": "This will delete all indexed code, file summaries, and memory concepts. The system will need to re-index everything from scratch.",
             "kb_reset_success": "Knowledge Base wiped successfully.",
             "kb_reset_error": "Failed to wipe Knowledge Base."
+        },
+        "llm": {
+            "title": "LLM Model Settings",
+            "description": "Configure the Language Model used by the Agent.",
+            "provider": "Provider",
+            "provider_placeholder": "Select a provider",
+            "base_url": "Base URL",
+            "model_name": "Model Name",
+            "api_key": "API Key",
+            "api_key_desc": "Key is stored securely. Leave blank if not changing.",
+            "test_connection": "Test Connection",
+            "apply_btn": "Apply Changes",
+            "connected": "Connected successfully",
+            "connection_failed": "Connection Failed",
+            "connection_error": "Connection Error",
+            "saved": "LLM Configuration Saved",
+            "save_failed": "Failed to save configuration"
         },
         "embedding": {
             "title": "Model Settings",

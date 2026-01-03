@@ -8,14 +8,11 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
-from app.core.llm.factory import LLMFactory
-from app.domain.codebase.retrieval.service import RetrievalService
-from app.domain.tools.visualizer import get_annotated_tree
+
 from app.logging import get_context
 from .models import Plan, Step
 
 logger = logging.getLogger(__name__)
-llm = LLMFactory.create_llm()
 
 FEASIBILITY_ANALYSIS_PROMPT = ChatPromptTemplate.from_template("""
 You are a Technical Architect ensuring the feasibility of a development plan.
@@ -147,6 +144,8 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         tree = await get_annotated_tree.ainvoke({"path": root, "max_depth": 3}, config=config)
 
         # LLM Analysis
+        from app.core.llm.factory import LLMFactory
+        llm = LLMFactory.create_llm()
         chain = FEASIBILITY_ANALYSIS_PROMPT | llm | StrOutputParser()
         report = await chain.ainvoke({
             "plan": proposed_plan,

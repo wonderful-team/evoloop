@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 class WikiService:
     def __init__(self, session: AsyncSession):
         self.session = session
-        self.llm = LLMFactory.create_llm()
 
     async def generate_doc_for_entity(self, entity_id: int) -> str:
         """
@@ -81,5 +80,6 @@ Format:
             HumanMessage(content=prompt)
         ]
         
-        response = await self.llm.ainvoke(messages)
+        llm = LLMFactory.create_llm()
+        response = await llm.ainvoke(messages)
         return response.content

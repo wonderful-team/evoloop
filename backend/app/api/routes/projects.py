@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Any
 import os
@@ -109,11 +109,12 @@ async def delete_project(project_id: int):
         raise HTTPException(500, str(e))
 
 @router.post("/indexing/run")
-async def run_indexing_endpoint(req: IndexingRequest, background_tasks: BackgroundTasks):
+async def run_indexing_endpoint(req: IndexingRequest):
     """
-    Trigger full indexing for a project.
+    Trigger full indexing for a project (Celery Dispatch).
     """
-    background_tasks.add_task(indexing_manager.trigger_full_index, req.project_id)
+    # background_tasks.add_task(indexing_manager.trigger_full_index, req.project_id)
+    indexing_manager.dispatch_full_index(req.project_id)
     return {"status": "queued", "project_id": req.project_id}
 
 # --- Conversation / Thread API ---

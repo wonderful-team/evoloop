@@ -13,11 +13,25 @@ class LLMFactory:
     def create_llm(model_name: Optional[str] = None, temperature: float = 0.7) -> BaseChatModel:
         """
         Create a standard ChatOpenAI instance.
+        Prioritizes SystemConfig (Dynamic) > Settings (Env Checks).
         """
+        from app.domain.system.service import SystemConfigService
+        
+        # 1. Fetch Config
+        db_provider = SystemConfigService.get_value("LLM_PROVIDER")
+        db_base_url = SystemConfigService.get_value("LLM_BASE_URL")
+        db_model = SystemConfigService.get_value("LLM_MODEL")
+        db_api_key = SystemConfigService.get_value("LLM_API_KEY")
+        
+        # 2. Resolve
+        base_url = db_base_url or settings.OPENAI_BASE_URL
+        api_key = db_api_key or settings.OPENAI_API_KEY
+        final_model = model_name or db_model or settings.OPENAI_MODEL_NAME
+        
         return ChatOpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            base_url=settings.OPENAI_BASE_URL,
-            model=model_name or settings.OPENAI_MODEL_NAME,
+            api_key=api_key,
+            base_url=base_url,
+            model=final_model,
             temperature=temperature,
             streaming=False
         )

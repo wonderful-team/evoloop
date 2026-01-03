@@ -34,7 +34,6 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { SystemService, type SystemConfig } from "@/client"
-import { EmbeddingSettings } from "./EmbeddingSettings"
 
 const generalSettingsSchema = z.object({
     PROJECTS_ROOT: z.string().min(1, "Paths cannot be empty"),
@@ -186,7 +185,6 @@ export default function GeneralSettings() {
                 </CardContent>
             </Card>
 
-            <EmbeddingSettings />
         </div >
     )
 }

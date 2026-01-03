@@ -51,6 +51,41 @@ async def apply_embedding_config(req: EmbeddingConfigRequest):
     )
     return {"status": "applied", "message": "Embedding model switched. Re-indexing triggered."}
 
+# --- LLM Config ---
+class LLMConfigRequest(BaseModel):
+    provider: str = Field(..., description="openai, anthropic, ollama, qwen_dashscope, generic")
+    base_url: str = Field(..., description="API Base URL")
+    model: str = Field(..., description="Model Name")
+    api_key: Optional[str] = None
+
+@router.post("/llm/test", dependencies=[Depends(get_current_user)])
+async def test_llm_connection(req: LLMConfigRequest):
+    """
+    Validate connection to LLM provider.
+    """
+    from app.domain.system.llm_config import LLMConfigService
+    success, reply = await LLMConfigService.validate_connection(
+        provider=req.provider,
+        base_url=req.base_url,
+        model=req.model,
+        api_key=req.api_key
+    )
+    return {"success": success, "reply": reply}
+
+@router.post("/llm/apply", dependencies=[Depends(get_current_user)])
+async def apply_llm_config(req: LLMConfigRequest):
+    """
+    Apply new LLM config.
+    """
+    from app.domain.system.llm_config import LLMConfigService
+    await LLMConfigService.applied_llm_config(
+        provider=req.provider,
+        base_url=req.base_url,
+        model=req.model,
+        api_key=req.api_key
+    )
+    return {"status": "applied", "message": "LLM Configuration applied successfully."}
+
 @router.post("/reset-knowledge", dependencies=[Depends(get_current_user)])
 async def reset_knowledge_base():
     """

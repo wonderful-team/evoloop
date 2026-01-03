@@ -1,6 +1,6 @@
 import time
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Header, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, Header
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
 
@@ -145,7 +145,6 @@ async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, autho
 @router.post("/{task_id}/execute")
 async def execute_task(
     task_id: int, 
-    background_tasks: BackgroundTasks,
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -183,17 +182,16 @@ Remember to follow the project structure and coding standards.
     # Use task ID in thread ID to allow resuming/tracking specific to this task
     thread_id = f"task-{task_id}-{int(time.time())}"
     
-    # 4. Trigger Background Agent
-    # We need to import run_agent_background. 
-    # To avoid circular imports if agent.py imports from tasks.py (unlikely but possible), 
-    # we might need to import inside function or ensure agent.py is clean.
-    # checked agent.py, it imports from many places but not tasks.py.
-    from app.api.routes.agent import run_agent_background
+    # 4. Trigger Celery Task
+    from app.core.workflows.tasks import run_agent_task
     
-    # Construct Inputs
+    # Construct Inputs (Serialized)
+    # prompt is string.
+    messages = [{"type": "human", "content": prompt}]
+    
     inputs = {
-        "messages": [HumanMessage(content=prompt)],
-        "project_id": task.get("project_id", 1), # Default to 1 if missing
+        "messages": messages,
+        "project_id": task.get("project_id", 1), 
         "task_title": task.get("task_title")
     }
     
@@ -232,10 +230,10 @@ Remember to follow the project structure and coding standards.
         logger.error(f"Failed to persist task message {thread_id}: {e}")
     # --------------------------------------
     
-    background_tasks.add_task(run_agent_background, thread_id, inputs)
+    run_agent_task.delay(thread_id, inputs)
     
     return {
         "status": "queued",
         "thread_id": thread_id,
-        "message": "Agent execution started"
+        "message": "Agent execution started (Celery)"
     }

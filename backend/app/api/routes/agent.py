@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional, List, Annotated
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, RemoveMessage
 from datetime import datetime, timezone
@@ -21,163 +21,6 @@ from app.core.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
 
 router = APIRouter()
-
-
-async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
-    """
-    Run the agent graph in the background.
-    """
-    project_id = inputs.get("project_id", 1)
-    project = await project_context_manager.get_project_by_id(project_id)
-    if project and project.get("path"):
-        project_context_manager.set_working_directory(thread_id, project["path"])
-    
-    working_dir = project_context_manager.get_working_directory(thread_id)
-    
-    # 0. Set Logging Context (including CWD)
-    set_context(thread_id=thread_id, project_id=project_id, working_directory=working_dir)
-    
-    # 2. Inject into config
-    config = {
-        "configurable": {
-            "thread_id": thread_id,
-            "working_directory": working_dir
-        },
-        "metadata": {
-            "project_id": project_id
-        }
-    }
-    
-    # Inject Checkpoint ID if present
-    if inputs.get("checkpoint_id"):
-        config["configurable"]["checkpoint_id"] = inputs["checkpoint_id"]
-        
-    evoloop_command_id = inputs.get("command_id")
-    
-    # Use our transparent callback with thread tracking
-    callback = TransparentCallbackHandler(thread_id=thread_id)
-    db_callback = DatabaseCallbackHandler(thread_id=thread_id, project_id=project_id)
-    
-    # Update Status to Running
-    await activity_monitor.start_run(thread_id)
-
-    # --- ENSURE CONVERSATION EXISTS ---
-    # This guarantees that Webhook triggered or Remote triggered conversations 
-    # are visible in the history list.
-    try:
-        async with session_scope() as session:
-            conversation = await session.get(Conversation, thread_id)
-            if not conversation:
-                # Derive title logic:
-                # 1. Use explicit task_title if provided (from Task Execution)
-                # 2. Else use first message content
-                if inputs.get("task_title"):
-                     conversation_title = inputs["task_title"]
-                else:
-                    conversation_title = "New Conversation"
-                    if inputs.get("messages") and isinstance(inputs["messages"][0], HumanMessage):
-                        conversation_title = inputs["messages"][0].content[:50]
-                    elif inputs.get("messages") and isinstance(inputs["messages"][0], dict):
-                        # Handle dict format if passed
-                        conversation_title = inputs["messages"][0].get("content", "")[:50]
-                
-                logger.info(f"Background: Creating missing conversation: {thread_id}, project_id: {project_id}")
-                conversation = Conversation(
-                    id=thread_id,
-                    project_id=project_id,
-                    title=conversation_title
-                )
-                session.add(conversation)
-            else:
-                # Optional: Update timestamp
-                # conversation.updated_at = datetime.now(timezone.utc)
-                pass
-    except Exception as e:
-        logger.error(f"Background: Failed to ensure conversation {thread_id}: {e}")
-    # ----------------------------------
-    
-    # --- MEMORY INJECTION ---
-    # Fetch User Preferences & Concepts and inject into state
-    from app.domain.memory.service import memory_service
-    
-    # 1. User Preferences (Assumes user_id "user_default" or similar for single user mode, or extracted from somewhere)
-    # Ideally we get user_id from request but run_agent_background is decoupled. 
-    # For now we use a default or project-based key if user specific not avail.
-    user_prefs = await memory_service.get_user_preferences("user_default")
-    
-    # 2. Project Concepts (Top 5 general ones or specific to context?)
-    # We fetch general top concepts to prime the agent.
-    # Note: search_concepts requires query. Empty query might return top/all depending on impl.
-    # The current impl of search_concepts uses "CONTAINS", so empty string should match all.
-    concepts_text = await memory_service.search_concepts("", project_id)
-    
-    # Inject into inputs (State)
-    inputs["user_preferences"] = user_prefs
-    inputs["project_concepts"] = concepts_text
-    # ------------------------
-    
-    try:
-        callbacks = [callback, db_callback]
-        
-        # Add EvoLoop Link Callback if available
-        # Unified Client
-        from app.infrastructure.external.imagicbox import imagicbox_client
-        
-        # Pass command_id to handler
-        callbacks.append(EvoLoopCallbackHandler(imagicbox_client, thread_id, command_id=evoloop_command_id))
-            
-        config["callbacks"] = callbacks
-        config["recursion_limit"] = 50
-        
-        # Run!
-        # Access graph safely
-        # FIX: Ensure graph is available. 
-        from app.core.globals import get_graph
-        graph_instance = get_graph()
-        
-        if not graph_instance:
-             logger.error("Graph not initialized!")
-             return
-
-        async for event in graph_instance.astream(inputs, config=config):
-            pass
-            
-        await activity_monitor.end_run(thread_id, "done")
-        
-        # Upload Final Log
-        try:
-            final_state = await graph_instance.aget_state(config)
-            logger.info(f"Final State Keys: {final_state.values.keys()}")
-            if final_state.values and "messages" in final_state.values:
-                messages = final_state.values["messages"]
-                logger.info(f"Total messages: {len(messages)}")
-                if messages:
-                    last_msg = messages[-1]
-                    logger.info(f"Last message type: {type(last_msg)}, content: {last_msg.content}")
-                    
-                    # Check if it's an AI message with content
-                    if hasattr(last_msg, "content") and last_msg.content:
-                        content_str = last_msg.content
-                        
-                        # CLEAN <think> tags for mobile display - DISABLED
-                        # We now support rendering thinking process on mobile, so we send raw content.
-                        content_clean = content_str
-                        
-                        logger.info(f"Uploading final output (len: {len(content_clean)})...")
-                        
-                        await imagicbox_client.upload_log(
-                            thread_id=thread_id,
-                            log_type="output", 
-                            content=content_clean,
-                            command_id=evoloop_command_id
-                        )
-                        logger.info("Upload task awaited.")
-        except Exception as e:
-            logger.warning(f"Failed to send final output to EvoLoop: {e}")
-        
-    except Exception as e:
-        logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
-        await activity_monitor.end_run(thread_id, "failed")
 
 
 # --- Models ---
@@ -203,12 +46,11 @@ class IndexingRequest(BaseModel):
 @router.post("/chat")
 async def chat_endpoint(
     req: ChatRequest, 
-    background_tasks: BackgroundTasks,
     current_user: CurrentUserOptional, # Use Optional Auth
     x_guest_id: Annotated[str | None, Header()] = None
 ):
     """
-    Unified entry point for User Chat.
+    Unified entry point for User Chat (Celery).
     """
     set_context(thread_id=req.thread_id, project_id=req.project_id)
 
@@ -265,7 +107,9 @@ async def chat_endpoint(
             raise HTTPException(status_code=503, detail="Guest validation service temporary unavailable.")
 
     # 1. Construct input state
-    messages = [HumanMessage(content=req.message)]
+    # SERIALIZATION: Convert HumanMessage/BaseModel to dicts for Celery
+    messages = [{"type": "human", "content": req.message}] # Simple serialization
+    
     inputs = {
         "messages": messages, 
         "project_id": req.project_id,
@@ -292,7 +136,7 @@ async def chat_endpoint(
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
             
-            # Log User Message (for search/analytics)
+            # Log User Message
             user_msg = Message(
                 thread_id=req.thread_id,
                 project_id=req.project_id,
@@ -305,14 +149,15 @@ async def chat_endpoint(
             logger.info(f"Persisted user message for thread {req.thread_id}")
             
     except Exception as e:
-        logger.error(f"Failed to upsert conversation/message {req.thread_id}: {e}")
+        logger.error(f"Failed to upsert logic: {e}")
         # If persistence fails, the message won't be in history, but we proceed to run.
         # This explains why user sees "agent working" but no user message in history.
         # We should NOT propagate error to block chat, but log strictly.
         pass
             
-    # 2. Add to background task
-    background_tasks.add_task(run_agent_background, req.thread_id, inputs)
+    # 2. Add to Celery Task
+    from app.core.workflows.tasks import run_agent_task
+    run_agent_task.delay(req.thread_id, inputs)
             
     return {"status": "queued", "thread_id": req.thread_id}
 
@@ -395,9 +240,9 @@ async def rewind_chat(req: ChatRequest):
         return {"status": "failed_no_ids", "thread_id": thread_id}
 
 @router.post("/webhook")
-async def webhook_endpoint(req: WebhookRequest, background_tasks: BackgroundTasks):
+async def webhook_endpoint(req: WebhookRequest):
     """
-    Entry point for External Events.
+    Entry point for External Events (Celery).
     """
     messages = EventAdapter.adapt(req.source, req.event_type, req.payload)
     if not messages:
@@ -407,22 +252,36 @@ async def webhook_endpoint(req: WebhookRequest, background_tasks: BackgroundTask
     set_context(thread_id=tid)
     
     if req.event_type == "project_switched":
-        # ... (Same logic as server.py) ...
-        # Simplified for brevity in this step, but assumption implies full copy
+        # Keep inline for speed/simplicity or move to task?
+        # File/Repo logic is async.
         new_project = req.payload.get("new_project", {})
         new_path = new_project.get("path")
         if new_path:
             project_context_manager.set_working_directory(tid, new_path)
-            from app.domain.codebase.indexing.service import IndexingService
+            # Dispatch Indexing Task directly from here if needed
             from app.domain.codebase.indexing.manager import indexing_manager
             import os
-            service = IndexingService()
             repo_name = os.path.basename(new_path)
+            # get_or_create_repo is async, need service
+            from app.domain.codebase.indexing.service import IndexingService
+            service = IndexingService()
             repo = await service.get_or_create_repo(new_path, repo_name)
+            # indexing_manager.start_watching is async.
             await indexing_manager.start_watching(new_path, repo.id)
             return {"status": "switched", "thread_id": tid, "path": new_path}
 
-    inputs = {"messages": messages}
-    background_tasks.add_task(run_agent_background, tid, inputs)
+    # Serialization for Webhook messages (LangChain objects)
+    serialized_msgs = []
+    for m in messages:
+         if isinstance(m, HumanMessage):
+             serialized_msgs.append({"type": "human", "content": m.content})
+         # Add support for other types if EventAdapter produces them
+         else:
+             serialized_msgs.append({"type": "human", "content": str(m.content)})
+
+    inputs = {"messages": serialized_msgs}
+    
+    from app.core.workflows.tasks import run_agent_task
+    run_agent_task.delay(tid, inputs)
     
     return {"status": "accepted", "thread_id": tid}

@@ -8,8 +8,6 @@ from langchain_core.runnables import RunnableConfig
 from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
 
-llm = LLMFactory.create_llm()
-
 
 async def coder_node(state: AgentState, config: RunnableConfig):
     """
@@ -17,6 +15,7 @@ async def coder_node(state: AgentState, config: RunnableConfig):
     1. Reads plan.
     2. Writes code using MCP tools.
     """
+    llm = LLMFactory.create_llm()
     messages = state["messages"]
     context = state.get("context", "")
     plan = state.get("current_plan", "")

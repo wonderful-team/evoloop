@@ -5,6 +5,7 @@ import DeleteAccount from "@/components/UserSettings/DeleteAccount"
 import AppearanceSettings from "@/components/UserSettings/AppearanceSettings"
 import UserInformation from "@/components/UserSettings/UserInformation"
 import GeneralSettings from "@/components/Settings/GeneralSettings"
+import { ModelSettings } from "@/components/Settings/ModelSettings"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import useAuth from "@/hooks/useAuth"
 
@@ -14,6 +15,7 @@ const TabsConfig = () => {
   const { t } = useTranslation()
   return [
     { value: "general", title: t('settings.tabs.general'), component: GeneralSettings },
+    { value: "models", title: t('settings.tabs.models'), component: ModelSettings },
     { value: "my-profile", title: t('settings.tabs.profile'), component: UserInformation },
     { value: "password", title: t('settings.tabs.password'), component: ChangePassword },
     { value: "appearance", title: t('settings.tabs.appearance'), component: AppearanceSettings },

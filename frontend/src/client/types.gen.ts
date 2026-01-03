@@ -614,3 +614,30 @@ export type SystemApplyEmbeddingConfigData = {
 };
 
 export type SystemApplyEmbeddingConfigResponse = (EmbeddingApplyResponse);
+
+export type LLMConfigRequest = {
+    provider: string;
+    base_url: string;
+    model: string;
+    api_key?: (string | null);
+};
+
+export type SystemTestLLMConnectionResponse = {
+    success: boolean;
+    reply: (string | null);
+};
+
+export type SystemTestLLMConnectionData = {
+    requestBody: LLMConfigRequest;
+    authorization?: (string | null);
+};
+
+export type SystemApplyLLMConfigData = {
+    requestBody: LLMConfigRequest;
+    authorization?: (string | null);
+};
+
+export type SystemApplyLLMConfigResponse = {
+    status: string;
+    message: string;
+};

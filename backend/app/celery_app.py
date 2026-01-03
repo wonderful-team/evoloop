@@ -4,7 +4,11 @@ from app.core.config import settings
 celery_app = Celery(
     "evoloop_worker",
     broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL
+    backend=settings.REDIS_URL,
+    include=[
+        "app.core.workflows.tasks",
+        "app.domain.codebase.indexing.tasks"
+    ]
 )
 
 celery_app.conf.update(

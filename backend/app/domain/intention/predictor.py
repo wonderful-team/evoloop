@@ -16,12 +16,6 @@ class IntentionOutput(BaseModel):
 
 class IntentionPredictor:
     def __init__(self):
-        self.llm = ChatOpenAI(
-            model=settings.OPENAI_MODEL_NAME,
-            api_key=settings.OPENAI_API_KEY,
-            base_url=settings.OPENAI_BASE_URL,
-            temperature=0
-        )
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", """You are an expert intent classifier for a multi-modal agent system.
             Your goal is to route the user's request to the most appropriate specialist agent.
@@ -36,9 +30,12 @@ class IntentionPredictor:
             """),
             ("human", "{instruction}")
         ])
-        self.chain = self.prompt | self.llm.with_structured_output(IntentionOutput)
 
     async def predict(self, instruction: str) -> IntentionOutput:
-        return await self.chain.ainvoke({"instruction": instruction})
+        from app.core.llm.factory import LLMFactory
+        # Dynamic LLM creation
+        llm = LLMFactory.create_llm(temperature=0)
+        chain = self.prompt | llm.with_structured_output(IntentionOutput)
+        return await chain.ainvoke({"instruction": instruction})
 
 intention_predictor = IntentionPredictor()
