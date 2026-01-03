@@ -525,7 +525,32 @@
         },
         "danger": {
             "title": "删除账户",
-            "description": "永久删除账户及所有关联数据。"
+            "description": "永久删除账户及所有关联数据。",
+            "kb_reset_title": "重置知识库 & 索引",
+            "kb_reset_desc": "清空所有已索引的代码、文件摘要和记忆概念。如果 Agent 出现幻觉或对代码理解混乱，请使用此功能。",
+            "kb_reset_btn": "重置知识库",
+            "kb_reset_confirm_title": "您确定要执行此操作吗？",
+            "kb_reset_confirm_desc": "这将永久删除所有已生成的向量索引和记忆。系统需要重新索引所有项目，这可能需要一些时间。",
+            "kb_reset_success": "知识库已重置成功。",
+            "kb_reset_error": "重置失败，请查看控制台日志。"
+        },
+        "embedding": {
+            "title": "模型设置",
+            "description": "配置用于代码搜索和记忆的 Embedding 模型。",
+            "warning": "警告",
+            "warning_desc": "更改此设置将需要对代码库进行全面重新索引。",
+            "provider": "提供商",
+            "base_url": "Base URL",
+            "model_name": "模型名称",
+            "api_key": "API Key",
+            "api_key_desc": "本地模型可选",
+            "test_connection": "测试连接",
+            "apply_btn": "应用配置 & 重建索引",
+            "confirm_switch": "警告：切换 Embedding 模型将删除所有现有的知识索引 (向量)，并触发全面重新索引。此过程不可撤销。确定要继续吗？",
+            "success_connected": "连接成功！维度：{{dim}}",
+            "success_updated": "Embedding 模型已更新并触发重建索引",
+            "error_connection": "连接错误",
+            "error_update": "更新模型配置失败"
         }
     },
     "mcp": {

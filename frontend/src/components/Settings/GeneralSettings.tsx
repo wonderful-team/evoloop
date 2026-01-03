@@ -9,6 +9,14 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardFooter,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card"
+import {
     Select,
     SelectContent,
     SelectItem,
@@ -26,6 +34,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { SystemService, type SystemConfig } from "@/client"
+import { EmbeddingSettings } from "./EmbeddingSettings"
 
 const generalSettingsSchema = z.object({
     PROJECTS_ROOT: z.string().min(1, "Paths cannot be empty"),
@@ -101,73 +110,83 @@ export default function GeneralSettings() {
 
     return (
         <div className="space-y-6">
-            <div>
-                <h3 className="text-lg font-medium">{t('settings.general.title')}</h3>
-                <p className="text-sm text-muted-foreground">
-                    {t('settings.general.description')}
-                </p>
-            </div>
-            <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">{t('settings.general.language')}</label>
-                        <Select
-                            value={i18n.language}
-                            onValueChange={(value) => i18n.changeLanguage(value)}
-                        >
-                            <SelectTrigger className="w-[240px]">
-                                <SelectValue placeholder={t('settings.general.selectLanguage')} />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="en">English</SelectItem>
-                                <SelectItem value="zh">中文 (Chinese)</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <p className="text-[10px] text-muted-foreground">{t('settings.general.selectLanguageDesc')}</p>
-                    </div>
+            <Card>
+                <CardHeader>
+                    <CardTitle>{t('settings.general.title')}</CardTitle>
+                    <CardDescription>{t('settings.general.description')}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Form {...form}>
+                        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                            <div className="grid gap-6 md:grid-cols-2">
+                                <FormItem>
+                                    <FormLabel>{t('settings.general.language')}</FormLabel>
+                                    <Select
+                                        value={i18n.language}
+                                        onValueChange={(value) => i18n.changeLanguage(value)}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder={t('settings.general.selectLanguage')} />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="en">English</SelectItem>
+                                            <SelectItem value="zh">中文 (Chinese)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormDescription>{t('settings.general.selectLanguageDesc')}</FormDescription>
+                                </FormItem>
 
-                    <FormField
-                        control={form.control}
-                        name="EVOLOOP_DEVICE_NAME"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>{t('settings.general.deviceName')}</FormLabel>
-                                <FormControl>
-                                    <Input placeholder={t('settings.general.deviceNamePlaceholder')} {...field} />
-                                </FormControl>
-                                <FormDescription>
-                                    {t('settings.general.deviceNameDesc')}
-                                </FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="PROJECTS_ROOT"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>{t('settings.general.projectsRoot')}</FormLabel>
-                                <div className="flex gap-2">
-                                    <FormControl>
-                                        <Input placeholder="/path/to/projects" {...field} />
-                                    </FormControl>
-                                    <Button type="button" variant="outline" onClick={handleBrowse}>
-                                        {t('settings.general.browse')}
-                                    </Button>
-                                </div>
-                                <FormDescription>
-                                    {t('settings.general.projectsRootDesc')}
-                                </FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <Button type="submit" disabled={loading}>
-                        {t('settings.general.save')}
-                    </Button>
-                </form>
-            </Form>
+                                <FormField
+                                    control={form.control}
+                                    name="EVOLOOP_DEVICE_NAME"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>{t('settings.general.deviceName')}</FormLabel>
+                                            <FormControl>
+                                                <Input placeholder={t('settings.general.deviceNamePlaceholder')} {...field} />
+                                            </FormControl>
+                                            <FormDescription>
+                                                {t('settings.general.deviceNameDesc')}
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </div>
+
+                            <FormField
+                                control={form.control}
+                                name="PROJECTS_ROOT"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>{t('settings.general.projectsRoot')}</FormLabel>
+                                        <div className="flex gap-2">
+                                            <FormControl>
+                                                <Input placeholder="/path/to/projects" {...field} />
+                                            </FormControl>
+                                            <Button type="button" variant="outline" onClick={handleBrowse}>
+                                                {t('settings.general.browse')}
+                                            </Button>
+                                        </div>
+                                        <FormDescription>
+                                            {t('settings.general.projectsRootDesc')}
+                                        </FormDescription>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <div className="flex justify-end">
+                                <Button type="submit" disabled={loading}>
+                                    {t('settings.general.save')}
+                                </Button>
+                            </div>
+                        </form>
+                    </Form>
+                </CardContent>
+            </Card>
+
+            <EmbeddingSettings />
         </div >
     )
 }

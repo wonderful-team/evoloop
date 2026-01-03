@@ -43,6 +43,7 @@ export interface Project {
     last_sync_time_format: string
     status_text: string
     priority_text: string
+    indexing_status?: string
 }
 
 interface ProjectState {
@@ -95,6 +96,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
                 name: item.project_name || item.title || item.name,
                 description: item.project_desc || item.description || '',
                 path: item.external_path || item.path || '',
+                indexing_status: item.indexing_status || 'unknown'
             }))
 
             set({ projects: list, isLoading: false })

@@ -74,17 +74,31 @@ async def lifespan(app: FastAPI):
     try:
         default_path = project_context_manager.get_working_directory("default")
         
+        # Validate default_path: It should NOT be the PROJECTS_ROOT itself.
+        # If get_working_directory returns the root dir, it means no specific project is selected.
+        # We should skip indexing in that case to avoid indexing ALL projects as one big repo.
         root_projects_dir = settings.PROJECTS_ROOT
+        
+        is_root_dir = False
+        if default_path and root_projects_dir:
+             if os.path.abspath(default_path) == os.path.abspath(root_projects_dir):
+                 is_root_dir = True
+
         if os.path.exists(root_projects_dir):
             discovery_watcher = ProjectDiscoveryWatcher(root_projects_dir)
             discovery_watcher.start()
         
-        if default_path and os.path.exists(default_path):
+        if default_path and os.path.exists(default_path) and not is_root_dir:
             from app.domain.codebase.indexing.service import IndexingService
             service = IndexingService()
             repo_name = os.path.basename(default_path)
             repo = await service.get_or_create_repo(default_path, repo_name)
             await indexing_manager.start_watching(default_path, repo.id)
+            
+            # Start full indexing for the default/startup project
+            # This ensures we catch up if the server was down.
+            indexing_manager.run_indexing_background(repo.id)
+
     except Exception as e:
         logger.error(f"Failed to start startup watcher: {e}")
 
@@ -122,6 +136,40 @@ async def lifespan(app: FastAPI):
              # This will set the token on client and start the loop
              await imagicbox_client.start_device_link(token=evoloop_token)
              logger.info("EvoLoop Link Client started in background.")
+
+             # Fetch Current Project from Member Center
+             try:
+                 # Give it a small delay? No, http request is independent of WS.
+                 res = await imagicbox_client.get_current_project()
+                 if res.get("code") == 0:
+                     project_data = res.get("data", {})
+                     cloud_path = project_data.get("external_path")
+                     if cloud_path and os.path.exists(cloud_path):
+                         logger.info(f"[Startup] Synced active project from Cloud: {cloud_path}")
+                         # Update context immediately for default thread
+                         project_context_manager.set_working_directory("default", cloud_path)
+                         
+                         # Trigger indexing for this scoped project immediately?
+                         # The watcher block above (step 6) might have already run with default?
+                         # Actually, step 6 runs BEFORE step 7 in current file structure?
+                         # Wait, I see step 6 is before step 7 in line 72 vs 105.
+                         # This means watchers start with potentially STALE default, then we fetch cloud.
+                         # We should RE-TRIGGER watcher if cloud differs.
+                         
+                         from app.domain.codebase.indexing.service import IndexingService
+                         service = IndexingService()
+                         repo_name = os.path.basename(cloud_path)
+                         repo = await service.get_or_create_repo(cloud_path, repo_name)
+                         await indexing_manager.start_watching(cloud_path, repo.id)
+                         indexing_manager.run_indexing_background(repo.id)
+                         
+                     else:
+                         logger.info(f"[Startup] Cloud active project path invalid or local missing: {cloud_path}")
+                 else:
+                     logger.warning(f"[Startup] Failed to fetch current project: {res.get('message')}")
+             except Exception as proj_e:
+                 logger.warning(f"[Startup] Error syncing project: {proj_e}")
+
         except Exception as e:
             logger.error(f"Failed to start EvoLoop Link Client: {e}")
 

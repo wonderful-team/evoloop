@@ -1,12 +1,25 @@
 from typing import Dict, List, Any, Optional
 import time
+import json
+import redis.asyncio as redis
+from app.core.config import settings
 
 class ActivityMonitor:
     _instance = None
     
     def __init__(self):
-        # Structure: { thread_id: { status: str, tasks: List[Dict], artifacts: List[Dict], updated_at: float } }
-        self._runs: Dict[str, Dict[str, Any]] = {}
+        # We use a managed pool from settings? 
+        # Or just create a client. Recommendation is one client per app usually.
+        self.redis_url = settings.REDIS_URL
+        # Note: We don't initialize client here to avoiding async in __init__.
+        # We'll create it on demand or use a property.
+        self._client = None
+        
+    @property
+    def client(self) -> redis.Redis:
+        if self._client is None:
+             self._client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+        return self._client
         
     @classmethod
     def get_instance(cls):
@@ -14,49 +27,79 @@ class ActivityMonitor:
             cls._instance = cls()
         return cls._instance
         
-    def start_run(self, thread_id: str, main_goal: str = "处理用户请求"):
-        self._runs[thread_id] = {
+    async def start_run(self, thread_id: str, main_goal: str = "处理用户请求"):
+        key = f"activity:{thread_id}"
+        now = time.time()
+        data = {
             "status": "running",
             "main_goal": main_goal,
-            "agent_state": {}, # { mode, task_name, task_status }
-            "verification": {}, # { status: 'passed'|'failed', summary: str }
-            "tasks": [],     # { id, name, status, time, details }
-            "artifacts": [], # { id, name, type, status, path }
-            "updated_at": time.time()
+            "agent_state": json.dumps({}), 
+            "verification": json.dumps({}), 
+            "tasks": json.dumps([]),     
+            "artifacts": json.dumps([]), 
+            "updated_at": now
         }
+        # Use HSET
+        await self.client.hset(key, mapping=data)
+        # Expiry 24h
+        await self.client.expire(key, 86400)
     
-    def end_run(self, thread_id: str, status="done"):
-        if thread_id in self._runs:
-            # If we were stopping, ensure final status is cancelled
-            current_status = self._runs[thread_id]["status"]
-            if current_status == "stopping":
-                status = "cancelled"
-                
-            self._runs[thread_id]["status"] = status
-            self._runs[thread_id]["updated_at"] = time.time()
-            # Mark all running tasks as done or cancelled
-            for task in self._runs[thread_id]["tasks"]:
-                if task["status"] == "running":
-                    task["status"] = "cancelled" if status == "cancelled" else "done"
+    async def end_run(self, thread_id: str, status="done"):
+        key = f"activity:{thread_id}"
+        # Check current status first to handle stopping->cancelled
+        current_status = await self.client.hget(key, "status")
+        
+        final_status = status
+        if current_status == "stopping":
+            final_status = "cancelled"
+            
+        await self.client.hset(key, mapping={
+            "status": final_status,
+            "updated_at": time.time()
+        })
+        
+        # Mark running tasks as done/cancelled
+        tasks_json = await self.client.hget(key, "tasks")
+        if tasks_json:
+            tasks = json.loads(tasks_json)
+            modified = False
+            for t in tasks:
+                if t["status"] == "running":
+                    t["status"] = "cancelled" if final_status == "cancelled" else "done"
+                    modified = True
+            if modified:
+                 await self.client.hset(key, "tasks", json.dumps(tasks))
 
-    def stop_run(self, thread_id: str):
+    async def stop_run(self, thread_id: str):
         """Signal a run to stop."""
-        if thread_id in self._runs:
-            self._runs[thread_id]["status"] = "stopping"
-            self._runs[thread_id]["updated_at"] = time.time()
+        key = f"activity:{thread_id}"
+        if await self.client.exists(key):
+            await self.client.hset(key, mapping={
+                "status": "stopping",
+                "updated_at": time.time()
+            })
 
-    def check_cancellation(self, thread_id: str):
+    async def check_cancellation(self, thread_id: str):
         """Check if run is marked for stopping and raise exception if so."""
-        if thread_id in self._runs:
-            if self._runs[thread_id]["status"] == "stopping":
-                raise InterruptedError("Cancelled by user")
+        key = f"activity:{thread_id}"
+        status = await self.client.hget(key, "status")
+        if status == "stopping":
+            raise InterruptedError("Cancelled by user")
 
     
-    def add_task(self, thread_id: str, name: str, task_type="node"):
-        if thread_id not in self._runs:
+    async def add_task(self, thread_id: str, name: str, task_type="node"):
+        key = f"activity:{thread_id}"
+        if not await self.client.exists(key):
             return None
         
-        task_id = len(self._runs[thread_id]["tasks"]) + 1
+        # Optimistic locking using WATCH? Or just generic race acceptance since single writer per thread generally?
+        # Agent execution is sequential mostly. User interaction is out of band.
+        # We'll use simple get/set.
+        
+        tasks_json = await self.client.hget(key, "tasks")
+        tasks = json.loads(tasks_json) if tasks_json else []
+        
+        task_id = len(tasks) + 1
         new_task = {
             "id": task_id,
             "name": name,
@@ -65,15 +108,24 @@ class ActivityMonitor:
             "start_time": time.time(),
             "time": "0s"
         }
-        self._runs[thread_id]["tasks"].append(new_task)
-        self._runs[thread_id]["updated_at"] = time.time()
+        tasks.append(new_task)
+        
+        await self.client.hset(key, mapping={
+            "tasks": json.dumps(tasks),
+            "updated_at": time.time()
+        })
         return task_id
 
-    def update_task(self, thread_id: str, task_id: int, status: str, details: str = None):
-        if thread_id not in self._runs:
-            return
+    async def update_task(self, thread_id: str, task_id: int, status: str, details: str = None):
+        key = f"activity:{thread_id}"
+        # We need to fetch, modify, save.
+        tasks_json = await self.client.hget(key, "tasks")
+        if not tasks_json: return
         
-        for task in self._runs[thread_id]["tasks"]:
+        tasks = json.loads(tasks_json)
+        modified = False
+        
+        for task in tasks:
             if task["id"] == task_id:
                 task["status"] = status
                 if details:
@@ -81,35 +133,82 @@ class ActivityMonitor:
                 if status in ["done", "failed"]:
                     duration = time.time() - task["start_time"]
                     task["time"] = f"{duration:.2f}s"
+                modified = True
                 break
-        self._runs[thread_id]["updated_at"] = time.time()
+        
+        if modified:
+            await self.client.hset(key, mapping={
+                "tasks": json.dumps(tasks),
+                "updated_at": time.time()
+            })
 
-    def add_artifact(self, thread_id: str, name: str, artifact_type: str, status="created", path: str = None):
-        if thread_id not in self._runs:
-            return
+    async def update_agent_state(self, thread_id: str, mode: str, task_name: str, task_status: str):
+        # New method to sync Agent State (Sidebar info)
+        key = f"activity:{thread_id}"
+        state = {
+            "mode": mode,
+            "task_name": task_name,
+            "task_status": task_status
+        }
+        await self.client.hset(key, "agent_state", json.dumps(state))
+
+    async def add_artifact(self, thread_id: str, name: str, artifact_type: str, status="created", path: str = None):
+        key = f"activity:{thread_id}"
+        arts_json = await self.client.hget(key, "artifacts")
+        artifacts = json.loads(arts_json) if arts_json else []
             
         # Check uniqueness
-        for art in self._runs[thread_id]["artifacts"]:
+        for art in artifacts:
             if art["name"] == name:
                 art["status"] = "modified"
+                await self.client.hset(key, "artifacts", json.dumps(artifacts))
                 return
         
-        self._runs[thread_id]["artifacts"].append({
-            "id": len(self._runs[thread_id]["artifacts"]) + 1,
+        artifacts.append({
+            "id": len(artifacts) + 1,
             "name": name,
             "type": artifact_type,
             "status": status,
             "path": path,
-            "icon": "FileCode" # Default for now
+            "icon": "FileCode" 
         })
-        self._runs[thread_id]["updated_at"] = time.time()
+        
+        await self.client.hset(key, mapping={
+            "artifacts": json.dumps(artifacts),
+            "updated_at": time.time()
+        })
 
-    def get_activity(self, thread_id: str):
-        return self._runs.get(thread_id, {
-            "status": "idle",
-            "tasks": [],
-            "artifacts": []
-        })
+    async def get_activity(self, thread_id: str):
+        key = f"activity:{thread_id}"
+        data = await self.client.hgetall(key)
+        if not data:
+            return {
+                "status": "idle",
+                "tasks": [],
+                "artifacts": []
+            }
+            
+        # Parse JSON fields
+        try:
+            tasks = json.loads(data.get("tasks", "[]"))
+            artifacts = json.loads(data.get("artifacts", "[]"))
+            agent_state = json.loads(data.get("agent_state", "{}"))
+            verification = json.loads(data.get("verification", "{}"))
+        except:
+            tasks = []
+            artifacts = []
+            agent_state = {}
+            verification = {}
+            
+        return {
+            "status": data.get("status", "unknown"),
+            "main_goal": data.get("main_goal", ""),
+            "updated_at": float(data.get("updated_at", 0)),
+            "tasks": tasks,
+            "artifacts": artifacts,
+            "agent_state": agent_state,
+            "verification": verification
+        }
 
 # Global Instance
 activity_monitor = ActivityMonitor.get_instance()

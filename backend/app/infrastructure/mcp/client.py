@@ -111,6 +111,12 @@ class McpClientManager:
                 except Exception as e:
                     logger.error(f"Failed to connect to MCP server '{server.name}': {e}")
 
+        # Post-Connect Health Check
+        if "filesystem" not in self.sessions:
+             logger.critical("CRITICAL: 'filesystem' MCP server failed to connect! Agent will be unable to edit files.")
+             # Optionally raise system exit or set a global health flag?
+             # For now, distinct log is enough for monitoring.
+
     async def connect_server(self, name: str, details: Dict[str, Any]):
         """Connect to a single MCP server (Stdio only for now)."""
         logger.info(f"Connecting to MCP server: {name}")

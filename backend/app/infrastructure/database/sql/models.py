@@ -93,7 +93,7 @@ class CodeChunk(Base):
     # Vector Embedding (1536 dims for OpenAI, 768 for others - make it generic or config dependent?)
     # Using 1536 as default for generic OpenAI ada-002 compatibility, but pgvector allows any size.
     # Note: User should ensure embedding dimension matches this column.
-    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(768))
+    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector())
 
     file: Mapped["SourceFile"] = relationship(back_populates="chunks")
 
@@ -150,6 +150,29 @@ class Conversation(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     messages: Mapped[List["Message"]] = relationship(back_populates="conversation", cascade="all, delete-orphan")
+
+
+class Tool(Base):
+    """
+    Represents a tool available to the agent, vectorized for semantic retrieval.
+    """
+    __tablename__ = "tools"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    description: Mapped[str] = mapped_column(Text)
+    
+    # Semantic Signature (Name + Desc + Keywords + Args)
+    signature: Mapped[str] = mapped_column(Text) 
+    
+    # Optional metadata
+    category: Mapped[Optional[str]] = mapped_column(String(100), index=True)
+    
+    # Vector Embedding
+    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector())
+    
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
 
 class McpServer(Base):
     """

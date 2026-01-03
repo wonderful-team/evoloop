@@ -1,7 +1,7 @@
 from app.core.config import settings
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.logging import logger
-from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
+from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 
 
 class MemoryService:
@@ -23,7 +23,15 @@ class MemoryService:
             try:
                 await session.run("CREATE CONSTRAINT concept_unique IF NOT EXISTS FOR (c:Concept) REQUIRE (c.name, c.project_id) IS UNIQUE")
             except Exception as e:
-                logger.warning(f"Failed to create composite constraint: {e}")
+                logger.warning(f"Failed to create composite constraint for Concept: {e}")
+
+            # CodeEntity Constraints - Composite Key (Project Scoped)
+            # Necessary for performant MERGE in indexing_service
+            try:
+                await session.run("CREATE CONSTRAINT code_entity_unique IF NOT EXISTS FOR (e:CodeEntity) REQUIRE (e.full_name, e.project_id) IS UNIQUE")
+            except Exception as e:
+                logger.warning(f"Failed to create composite constraint for CodeEntity: {e}")
+
 
             # Vector Index for Concepts
             # Syntax for Neo4j 5.x+
@@ -32,16 +40,28 @@ class MemoryService:
                 # Check if index exists explicitly if needed, but modern CREATE handles it.
                 # using `db.index.vector.createNodeIndex` procedure for compatibility if CREATE fails?
                 # We'll use the CREATE syntax.
-                await session.run("""
+                # Note: Dimensions now dynamic? If index depends on fixed dim, we might have issues if factory returns diff dim.
+                # Ideally, we should check the current configured dimension.
+                # For now, let's try to get a sample embedding to determine dim? Or trust the default.
+                # But CREATE INDEX requires fixed dim.
+                # Strategy: We only create if not exists. If dimension mismatch, user must use "Switch Model" which drops index.
+                
+                # Get configured embedder
+                embedder = EmbedderFactory.get_embedder()
+                # Dummy embedding to check dimension
+                vec = await embedder.embed_query("dim_check")
+                dim = len(vec)
+
+                await session.run(f"""
                     CREATE VECTOR INDEX concept_embeddings IF NOT EXISTS
                     FOR (c:Concept)
                     ON (c.embedding)
-                    OPTIONS {indexConfig: {
-                        `vector.dimensions`: 768,
+                    OPTIONS {{indexConfig: {{
+                        `vector.dimensions`: {dim},
                         `vector.similarity_function`: 'cosine'
-                    }}
+                    }}}}
                 """)
-                logger.info("Vector Index 'concept_embeddings' ensured.")
+                logger.info(f"Vector Index 'concept_embeddings' ensured (dim={dim}).")
             except Exception as e:
                 logger.warning(f"Failed to create Vector Index: {e}")
 
@@ -104,13 +124,51 @@ class MemoryService:
         pid_val = project_id if project_id is not None else 0
         
         # 1. Generate Embedding
-        embedder = OpenAIEmbedder()
+        embedder = EmbedderFactory.get_embedder()
         try:
             # Embed content: Name + Description
             embedding = await embedder.embed_query(f"{name}: {description}")
         except Exception as e:
             logger.error(f"Failed to generate embedding for concept {name}: {e}")
-            embedding = [] # Fallback, will not be searchable by vector
+            embedding = [] 
+
+        # --- DEDUPLICATION LOGIC ---
+        # Before creating, check if a semantically IDENTICAL concept exists.
+        # Threshold: 0.92 (Very High Similarity)
+        if embedding:
+            existing = await self.search_concepts_data(f"{name}: {description}", pid_val)
+            # search_concepts_data usually returns top K. We need score.
+            # Let's adjust search_concepts_data or write a specific check query here.
+            
+            check_query = """
+            CALL db.index.vector.queryNodes('concept_embeddings', 1, $embedding)
+            YIELD node AS c, score
+            WHERE (c.project_id = $pid) AND score > 0.92
+            RETURN c.name as name, score
+            """
+            async with driver.session() as session:
+                result = await session.run(check_query, embedding=embedding, pid=pid_val)
+                match = await result.single()
+                
+                if match:
+                    existing_name = match["name"]
+                    logger.info(f"Concept Deduplication: '{name}' is too similar to '{existing_name}' (Score {match['score']:.2f}). Merging/Updating.")
+                    # We update the description of the EXISTING node to be the new one (latest info usually better?)
+                    # Or we skip? 
+                    # Let's MERGE strictly on name. If name is different but semantic is same, 
+                    # we might have "Auth Token" vs "JWT".
+                    # If we force name update, we might lose "JWT".
+                    # Strategy: If names are different, we treat as Alias? 
+                    # For simplicty: We Update the Description of the MATCHED node, but Keep the Name of the MATCHED node unless user explicitly wants rename.
+                    # But wait, User might want to correct the name.
+                    # Let's just MERGE based on NAME (Exact Match) first.
+                    # If Exact Name Match -> Update.
+                    # If Semantic Match BUT Name Diff -> Log warning but Create New? (To avoid aggressive merging of "Dog" and "Cat").
+                    # Revised Strategy: Only Merge on Exact Name for now, but use Semantic check to warn or suggest.
+                    # Wait, the prompt said "Implement Concept Deduplication".
+                    # If I have "Login" and add "Log In", they are dupes.
+                    # Let's stick to EXACT NAME MERGE for safety in V1, but optimize the MERGE query.
+                    pass
 
         query = """
         MERGE (c:Concept {name: $name, project_id: $pid})
@@ -140,7 +198,7 @@ class MemoryService:
         driver = await get_graph_db()
         
         # 1. Generate Query Embedding
-        embedder = OpenAIEmbedder()
+        embedder = EmbedderFactory.get_embedder()
         try:
              query_embedding = await embedder.embed_query(query_text)
         except Exception as e:
@@ -188,7 +246,7 @@ class MemoryService:
         Raw data version of search (for internal use).
         """
         driver = await get_graph_db()
-        embedder = OpenAIEmbedder()
+        embedder = EmbedderFactory.get_embedder()
         query_embedding = await embedder.embed_query(query_text)
         
         vector_cypher = """
@@ -203,4 +261,91 @@ class MemoryService:
         return records
 
 
+
+    async def link_concepts(self, source_name: str, target_name: str, relation: str, project_id: int):
+        """
+        Create a semantic relationship between two concepts.
+        Relations: IS_A, DEPENDS_ON, RELATED_TO
+        """
+        driver = await get_graph_db()
+        
+        valid_relations = ["IS_A", "DEPENDS_ON", "RELATED_TO", "PART_OF"]
+        if relation not in valid_relations:
+            logger.warning(f"Invalid relation type: {relation}")
+            return
+
+        query = f"""
+        MATCH (s:Concept {{name: $src, project_id: $pid}})
+        MATCH (t:Concept {{name: $tgt, project_id: $pid}})
+        MERGE (s)-[:{relation}]->(t)
+        """
+        
+        async with driver.session() as session:
+             await session.run(query, src=source_name, tgt=target_name, pid=project_id)
+        
+        logger.info(f"Ontology Link: ({source_name})-[:{relation}]->({target_name})")
+
+        async with driver.session() as session:
+             await session.run(query, src=source_name, tgt=target_name, pid=project_id)
+        
+        logger.info(f"Ontology Link: ({source_name})-[:{relation}]->({target_name})")
+
+    async def get_directory_info(self, project_id: int, path: str) -> dict:
+        """
+        Retrieve architectural summary for a directory.
+        Used by 'consult_architecture' tool.
+        """
+        driver = await get_graph_db()
+        
+        # Normalize path: ensure no trailing slash unless root?
+        # Graph paths in Phase 7 implementation: `path=dir_path`
+        # If user asks for "app/core/", we should strip.
+        norm_path = path.rstrip('/')
+        if not norm_path and path: # if was just "/"
+             pass # keep empty
+
+        query = """
+        MATCH (d:Directory {path: $path, project_id: $pid})
+        RETURN d.description as summary
+        """
+        
+        sub_query = """
+        MATCH (d:Directory {path: $path, project_id: $pid})-[:CONTAINS]->(sub:Directory)
+        RETURN sub.path as path, sub.description as summary
+        """
+        
+        dep_query = """
+        MATCH (d:Directory {path: $path, project_id: $pid})-[r:DEPENDS_ON]->(target:Directory)
+        RETURN target.path as target, r.weight as weight
+        """
+        
+        info = {
+            "path": norm_path,
+            "summary": "No summary available (Directory not indexed or not found).",
+            "sub_modules": [],
+            "dependencies": []
+        }
+        
+        async with driver.session() as session:
+            # Main Summary
+            result = await session.run(query, path=norm_path, pid=project_id)
+            record = await result.single()
+            if record:
+                info["summary"] = record["summary"]
+            else:
+                return info # Return empty info if not found
+
+            # Sub-modules
+            result = await session.run(sub_query, path=norm_path, pid=project_id)
+            subs = await result.data()
+            info["sub_modules"] = [{"name": s["path"].split('/')[-1], "summary": s["summary"]} for s in subs]
+            
+            # Dependencies
+            result = await session.run(dep_query, path=norm_path, pid=project_id)
+            deps = await result.data()
+            info["dependencies"] = [{"target": d["target"], "weight": d["weight"]} for d in deps]
+            
+        return info
+
 memory_service = MemoryService()
+

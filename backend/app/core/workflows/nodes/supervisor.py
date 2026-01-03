@@ -41,6 +41,10 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
        - You MUST call `create_plan` before delegating complex tasks to Coder or Deep Researcher.
        - If the user's request is a single-step question, you can skip planning.
        - But for any "implement", "refactor", or "create" task, a Plan is REQUIRED.
+       
+    5. **Continuous Learning**:
+       - When you have successfully completed a coding task (before finishing), call `harvest_knowledge` to record new concepts.
+
     
     **Direct Response Protocol (Thinking Mode)**:
     - For simple greetings ("Hello"), questions ("What can you do?"), or clarifications:
@@ -138,8 +142,22 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     
     # Context for retrieval
     query_context = state.get("task_status", "General task")
+    last_msg = ""
     if messages and isinstance(messages[-1].content, str):
-         query_context += f" {messages[-1].content}"
+         last_msg = messages[-1].content
+         query_context += f" {last_msg}"
+
+    # Semantic Concept Injection (Active Knowledge)
+    project_concepts = ""
+    try:
+        from app.domain.memory.service import memory_service
+        # Search using the last message as query
+        if last_msg:
+            found_concepts = await memory_service.search_concepts(last_msg, project_id)
+            if found_concepts and "No relevant concepts" not in found_concepts:
+                 project_concepts = f"\nRelevant Project Concepts:\n{found_concepts}"
+    except Exception as e:
+        project_concepts = f"\n(Concept Search Failed: {e})"
     
     # Fetch top relevant tools
     retrieved_tools = await tool_retriever.retrieve(query_context, k=15)
@@ -174,7 +192,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     except Exception as e:
         project_structure = f"Tree error: {e}"
         
-    sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\n\nProject Structure:\n{project_structure[:1000]}" # Limit size
+    sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\n\nProject Structure:\n{project_structure[:1000]}{project_concepts}" # Limit size
     
     tool_chain = supervisor_prompt.partial(
         project_id=project_id, 

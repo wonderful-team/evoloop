@@ -8,6 +8,12 @@ import { useTranslation } from "react-i18next"
 import { } from "@/client"
 import { Button } from "@/components/ui/button"
 import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import {
   Form,
   FormControl,
   FormField,
@@ -94,90 +100,94 @@ const UserInformation = () => {
   }
 
   return (
-    <div className="max-w-md">
-      <h3 className="text-lg font-semibold py-4">{t('settings.profile.title')}</h3>
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-4"
-        >
-          <FormField
-            control={form.control}
-            name="nickname"
-            render={({ field }) =>
-              editMode ? (
-                <FormItem>
-                  <FormLabel>{t('settings.profile.nickname')}</FormLabel>
-                  <FormControl>
-                    <Input type="text" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              ) : (
-                <FormItem>
-                  <FormLabel>{t('settings.profile.nickname')}</FormLabel>
-                  <p
-                    className={cn(
-                      "py-2 truncate max-w-sm",
-                      !field.value && "text-muted-foreground",
-                    )}
+    <Card className="max-w-md">
+      <CardHeader>
+        <CardTitle>{t('settings.profile.title')}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="flex flex-col gap-4"
+          >
+            <FormField
+              control={form.control}
+              name="nickname"
+              render={({ field }) =>
+                editMode ? (
+                  <FormItem>
+                    <FormLabel>{t('settings.profile.nickname')}</FormLabel>
+                    <FormControl>
+                      <Input type="text" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                ) : (
+                  <FormItem>
+                    <FormLabel>{t('settings.profile.nickname')}</FormLabel>
+                    <p
+                      className={cn(
+                        "py-2 truncate max-w-sm",
+                        !field.value && "text-muted-foreground",
+                      )}
+                    >
+                      {field.value || t('settings.profile.na')}
+                    </p>
+                  </FormItem>
+                )
+              }
+            />
+
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) =>
+                editMode ? (
+                  <FormItem>
+                    <FormLabel>{t('settings.profile.email')}</FormLabel>
+                    <FormControl>
+                      <Input type="email" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                ) : (
+                  <FormItem>
+                    <FormLabel>{t('settings.profile.email')}</FormLabel>
+                    <p className="py-2 truncate max-w-sm">{field.value}</p>
+                  </FormItem>
+                )
+              }
+            />
+
+            <div className="flex gap-3 pt-2">
+              {editMode ? (
+                <>
+                  <LoadingButton
+                    type="submit"
+                    loading={mutation.isPending}
+                    disabled={!form.formState.isDirty}
                   >
-                    {field.value || t('settings.profile.na')}
-                  </p>
-                </FormItem>
-              )
-            }
-          />
-
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) =>
-              editMode ? (
-                <FormItem>
-                  <FormLabel>{t('settings.profile.email')}</FormLabel>
-                  <FormControl>
-                    <Input type="email" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+                    {t('settings.profile.save')}
+                  </LoadingButton>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onCancel}
+                    disabled={mutation.isPending}
+                  >
+                    {t('settings.profile.cancel')}
+                  </Button>
+                </>
               ) : (
-                <FormItem>
-                  <FormLabel>{t('settings.profile.email')}</FormLabel>
-                  <p className="py-2 truncate max-w-sm">{field.value}</p>
-                </FormItem>
-              )
-            }
-          />
-
-          <div className="flex gap-3">
-            {editMode ? (
-              <>
-                <LoadingButton
-                  type="submit"
-                  loading={mutation.isPending}
-                  disabled={!form.formState.isDirty}
-                >
-                  {t('settings.profile.save')}
-                </LoadingButton>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={onCancel}
-                  disabled={mutation.isPending}
-                >
-                  {t('settings.profile.cancel')}
+                <Button type="button" onClick={toggleEditMode}>
+                  {t('settings.profile.edit')}
                 </Button>
-              </>
-            ) : (
-              <Button type="button" onClick={toggleEditMode}>
-                {t('settings.profile.edit')}
-              </Button>
-            )}
-          </div>
-        </form>
-      </Form>
-    </div>
+              )}
+            </div>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   )
 }
 

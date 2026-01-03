@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.codebase.indexing.base import BaseEmbedder
 from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
-from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
+from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.infrastructure.database.sql.models import Repository, SourceFile, CodeChunk, CodeEntity, CodeRelation
@@ -19,7 +19,7 @@ class IndexingService:
         self.session_factory = AsyncSessionLocal
         # Note: Extractor now returns ExtractionResult
         self.extractor = TreeSitterExtractor()
-        self.embedder: BaseEmbedder = OpenAIEmbedder()
+        self.embedder: BaseEmbedder = EmbedderFactory.get_embedder()
 
     async def get_or_create_repo(self, path: str, name: str) -> Repository:
         async with self.session_factory() as session:
@@ -27,9 +27,6 @@ class IndexingService:
             stmt = select(Repository).where(Repository.local_path == path)
             result = await session.execute(stmt)
             repo = result.scalars().first()
-
-            if repo:
-                return repo
 
             if repo:
                 return repo
@@ -53,9 +50,11 @@ class IndexingService:
             await session.refresh(repo)
             return repo
 
-    async def index_file(self, file_path: str, repo_id: int):
+    async def index_file(self, file_path: str, repo_id: int, force: bool = False):
         """
         Index a single file. (Incremental update)
+        Args:
+           force: If True, ignore checksum and re-index.
         """
         # FileFilter check
         from app.domain.codebase.filter import FileFilter
@@ -110,15 +109,15 @@ class IndexingService:
                 result = await session.execute(stmt)
                 source_file = result.scalars().first()
 
-                if source_file and source_file.checksum == new_checksum:
+                if not force and source_file and source_file.checksum == new_checksum:
                     # logger.debug(f"Skipping {rel_path} (Unchanged)")
                     return
 
-                # If we are here, it's new or modified
-                logger.info(f"Indexing {rel_path} (Checksum mismatch or new)")
+                # If we are here, it's new, modified, or forced
+                logger.info(f"Indexing {rel_path} (Force={force}, Checksum mismatch or new)")
 
                 # Extract
-                extraction_result = await self.extractor.extract(file_path, content)
+                extraction_result = await self.extractor.extract(file_path, content, module_path=rel_path)
                 
                 # Unpack result
                 # Support both old list return (if any other extractor used) and new object
@@ -169,6 +168,33 @@ class IndexingService:
                 await session.execute(delete(CodeEntity).where(CodeEntity.file_id == source_file.id))
 
                 # 3. Embed & Insert Chunks
+                # COVERAGE FIX: Add a "whole_file" or "top_level" chunk to catch global variables/scripts
+                # If file is reasonable size, add whole content. If huge, maybe just first 200 lines?
+                # Let's target files < 30KB or just limit lines.
+                
+                # Logic: Always add a 'file' chunk, but cap the size to avoid token overflow in Embedder.
+                # OpenAI Embedder limit is usually 8k tokens. 
+                # Let's take first 300 lines or 15k chars as a safe "Context Summary" chunk.
+                
+                file_summary_content = content
+                if len(content) > 15000:
+                    file_summary_content = content[:15000] + "\n...(truncated)"
+                
+                # We create a pseudo-Document for this
+                from app.domain.codebase.indexing.extractors.treesitter_extractor import Document
+                summary_doc = Document(
+                    content=file_summary_content,
+                    metadata={
+                       "type": "file",
+                       "name": f"{rel_path}::whole_file",
+                       "start_line": 1,
+                       "end_line": getattr(source_file, 'lines', content.count('\n') + 1) # simple count if not tracked
+                    }
+                )
+                
+                # Prepend to docs so it's indexed
+                docs.insert(0, summary_doc)
+                
                 if docs:
                     texts = [d.content for d in docs]
                     embeddings = await self.embedder.embed_documents(texts)
@@ -225,13 +251,73 @@ class IndexingService:
                     from app.infrastructure.database.graph.driver import get_graph_db
                     driver = await get_graph_db()
                     async with driver.session() as n4j:
-                        # Ensure we use project_id context
+                        # 6.1 Sync File Node
+                        # We store pg_id to link back to SQL if needed
                         await n4j.run("""
                             MERGE (f:File {path: $path, project_id: $pid}) 
                             SET f.last_indexed = timestamp(), f.pg_id = $pg_id
                         """, path=rel_path, pid=repo.project_id, pg_id=source_file.id)
+
+                        # 6.2 Sync Code Entities and Relations
+                        # This is a bit heavier, but necessary for Graph RAG/Analysis
+                        
+                        # First, we need to clear old entities/relations for this file?
+                        # Since we use MERGE/DETACH logic, we might need a strategy.
+                        # Strategy: Delete all CHILD nodes of this File first (to clear old functions/classes)
+                        # Then recreate.
+                        
+                        await n4j.run("""
+                            MATCH (f:File {path: $path, project_id: $pid})-[r:CONTAINS]->(e)
+                            DETACH DELETE e
+                        """, path=rel_path, pid=repo.project_id)
+                        
+                        # Now create new entities and link to File
+                        for ent_name, ent_id in name_to_id.items():
+                            # We need type info. Logic: we iterate entities list again to get type.
+                            pass # loop below handles it
+
+                        for ent in entities:
+                            # Create Concept/Entity Node
+                            # Label could be :CodeEntity, or specific like :Class, :Function
+                            # Let's use generic :CodeEntity with type property for flexibility, 
+                            # or multiple labels if Neo4j supports dynamic labels easily (Cypher specific).
+                            # Let's stick to :CodeEntity.
+                            await n4j.run("""
+                                MATCH (f:File {path: $path, project_id: $pid})
+                                MERGE (e:CodeEntity {full_name: $full_name, project_id: $pid})
+                                ON CREATE SET e.name = $name, e.type = $type, e.pg_id = $ent_pg_id
+                                ON MATCH SET e.name = $name, e.type = $type, e.pg_id = $ent_pg_id
+                                MERGE (f)-[:CONTAINS]->(e)
+                            """, path=rel_path, pid=repo.project_id, 
+                                 name=ent.name, full_name=ent.full_name, type=ent.type,
+                                 ent_pg_id=name_to_id.get(ent.full_name))
+
+                        # 6.3 Sync Relations
+                        # We need to link entities. Target might be in another file (not created yet).
+                        # Graph Best Practice: create "Ghost Nodes" or just link by full_name if possible?
+                        # Creating ghost nodes can pollute graph with duplicates if not managed carefully.
+                        # Safer approach: Only link if target exists? No, that breaks order dependency.
+                        # Better approach: MERGE on full_name constraint.
+                        
+                        # Note: We need a constraint on CodeEntity(full_name, project_id).
+                        # Assuming schema setup handles constraints. If not, MERGE might be slow or duplicate.
+                        # For now, we only link INTRA-FILE relations reliably, and Cross-File via MERGE (optimistic).
+                        
+                        for rel in relations:
+                            if not rel.target_full_name: continue
+                            
+                            # Cypher to link Source -> Target
+                            # We use MERGE for target to ensure it exists (even if ghost for now)
+                            await n4j.run("""
+                                MATCH (s:CodeEntity {full_name: $src_name, project_id: $pid})
+                                MERGE (t:CodeEntity {full_name: $tgt_name, project_id: $pid})
+                                MERGE (s)-[:RELATION {type: $rel_type}]->(t)
+                            """, src_name=rel.source_full_name, tgt_name=rel.target_full_name, 
+                                 pid=repo.project_id, rel_type=rel.relation_type)
+
                 except Exception as e:
                     logger.warning(f"Neo4j Sync Failed for {rel_path}: {e}")
+
 
                 # logger.debug(f"Indexed {rel_path}")
 
@@ -273,8 +359,11 @@ class IndexingService:
                 from app.infrastructure.database.graph.driver import get_graph_db
                 driver = await get_graph_db()
                 async with driver.session() as n4j:
+                    # Cascade delete: File -> Entities
                     await n4j.run("""
                         MATCH (f:File {path: $path, project_id: $pid})
+                        OPTIONAL MATCH (f)-[:CONTAINS]->(e)
+                        DETACH DELETE e
                         DETACH DELETE f
                     """, path=rel_path, pid=repo.project_id)
             except Exception as e:
@@ -283,93 +372,74 @@ class IndexingService:
     async def move_file(self, src_path: str, dest_path: str, repo_id: int):
         """
         Handle file move/rename.
+        Treat as Remove + Index to ensure full graph identity regeneration.
         """
-        async with self.session_factory() as session:
-            repo = await session.get(Repository, repo_id)
-            if not repo: return
-            
-            old_rel = os.path.relpath(src_path, repo.local_path)
-            new_rel = os.path.relpath(dest_path, repo.local_path)
-            
-            # 1. Postgres Update
-            stmt = select(SourceFile).where(SourceFile.repository_id == repo_id, SourceFile.path == old_rel)
-            result = await session.execute(stmt)
-            source_file = result.scalars().first()
-            
-            if source_file:
-                source_file.path = new_rel
-                source_file.updated_at = datetime.utcnow()
-                session.add(source_file)
-                await session.commit()
-                logger.info(f"Moved {old_rel} -> {new_rel} in Index")
-                
-                # Trigger re-indexing of content?
-                # If content didn't change (just move), re-indexing chunks might be needed if they store metadata?
-                # Chunks usually store content. If generic, it's fine.
-                # But we might want to re-verify content.
-                # For now, just link update is sufficient for "Stable ID".
-            
-            # 2. Neo4j Update (CRITICAL)
-            try:
-                from app.infrastructure.database.graph.driver import get_graph_db
-                driver = await get_graph_db()
-                async with driver.session() as n4j:
-                    await n4j.run("""
-                        MATCH (f:File {path: $old_path, project_id: $pid})
-                        SET f.path = $new_path
-                    """, old_path=old_rel, new_path=new_rel, pid=repo.project_id)
-            except Exception as e:
-                logger.warning(f"Neo4j Move Failed: {e}")
+        # 1. Remove Old
+        await self.remove_file(src_path, repo_id)
+        
+        # 2. Index New
+        # Ensure new path exists logic is handled by caller or index_file just reads it.
+        # If this is triggered by Watcher, file already exists at dest_path.
+        if os.path.exists(dest_path):
+            await self.index_file(dest_path, repo_id)
+            logger.info(f"Moved (Re-indexed) {src_path} -> {dest_path}")
+        else:
+            logger.warning(f"Move Error: Dest {dest_path} not found.")
 
-    async def index_repository(self, repo_path: str, repo_id: int):
+    async def index_repository(self, repo_path: str, repo_id: int, force: bool = False):
         """
         Main entry point to index a repository on disk.
         """
-        logger.info(f"Starting full indexing for repo {repo_id} at {repo_path}")
+        logger.info(f"Starting full indexing for repo {repo_id} at {repo_path} (Force={force})")
         
         from app.domain.codebase.filter import FileFilter
-        file_filter = FileFilter()
+        from app.domain.codebase.ignore import GitignoreMatcher
+        from app.constants import BLACKLIST_DIRS, DEFAULT_EXCLUDED_DIRS
 
-        # Build inclusions/exclusions from config if needed.
-        # For now, we rely on FileFilter defaults which include basic blacklists.
-        # Ideally we should read .gitignore here, but FileFilter doesn't do that yet automatically?
-        # FileFilter.should_include handles standard exclusions + compression checks.
-        
-        # Walk directory manually to avoid loading EVERYTHING into memory if repo is huge?
-        # But `glob` or `os.walk` are generators. `glob` returns a list.
-        # Let's use os.walk for better control and efficiency.
-        
+        file_filter = FileFilter()
+        ignore_matcher = GitignoreMatcher.from_file(repo_path, ".gitignore")
+
+        # Walk directory
         filtered_files = []
         for root, dirs, files in os.walk(repo_path):
             # 1. Directory Filtering (Prune traversal)
-            # We must modify 'dirs' in-place to prune logic.
-            # But FileFilter.should_include works on file paths.
-            # We can use app.constants.BLACKLIST_DIRS
-            from app.constants import BLACKLIST_DIRS
+            # We filter 'dirs' in-place.
+            
             d_to_remove = []
             for d in dirs:
+                full_d_path = os.path.join(root, d)
+                
+                # Check 1: Hardcoded Blacklist (Fastest)
                 if d in BLACKLIST_DIRS or d.startswith('.'):
                      d_to_remove.append(d)
+                     continue
+                
+                # Check 2: Gitignore (Flexible)
+                if ignore_matcher.should_ignore(full_d_path, is_dir=True):
+                    d_to_remove.append(d)
+                    continue
+
             for d in d_to_remove:
                 dirs.remove(d)
 
             for f in files:
                 full_path = os.path.join(root, f)
                 
-                # Use the robust FileFilter
+                # Check 1: Gitignore
+                if ignore_matcher.should_ignore(full_path, is_dir=False):
+                    continue
+
+                # Check 2: FileFilter (Binary, size, etc.)
                 if file_filter.should_include(full_path):
-                    # Additional check for supported language extensions
-                    # (Unless FileFilter is configured with inclusions)
-                    # For now, we keep the strict extension check for the indexer
-                    # because the *Extractor* only supports these.
+                    # Check 3: Supported Extension for Indexing
                     valid_exts = (".py", ".js", ".ts", ".go", ".java", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".rs", ".php", ".rb", ".md")
                     if full_path.endswith(valid_exts):
                         filtered_files.append(full_path)
 
-        logger.info(f"Found {len(filtered_files)} valid files to index.")
+        logger.info(f"Found {len(filtered_files)} valid files to index (Applied .gitignore).")
 
         # Sequentially index files (could be parallelized)
         for f in filtered_files:
-            await self.index_file(f, repo_id)
+            await self.index_file(f, repo_id, force=force)
 
         logger.info("Full indexing complete.")

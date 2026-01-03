@@ -1,34 +1,52 @@
 from typing import List
-
 from openai import AsyncOpenAI
-
-from app.core.config import settings
 from app.domain.codebase.indexing.base import BaseEmbedder
 
-
-class OpenAIEmbedder(BaseEmbedder):
-    def __init__(self):
+class GenericOpenAIEmbedder(BaseEmbedder):
+    """
+    Generic Embedder for any OpenAI-compatible API (OpenAI, LMStudio, vLLM, DeepSeek).
+    """
+    def __init__(self, api_key: str, base_url: str, model: str, dimensions: int = None):
         self.client = AsyncOpenAI(
-            api_key=settings.OPENAI_API_KEY,
-            base_url=settings.OPENAI_BASE_URL
+            api_key=api_key,
+            base_url=base_url
         )
-        self.model = settings.EMBEDDING_MODEL_NAME
+        self.model = model
+        # Default dims usually kept None to let API decide, or specified if model requires
+        self.dimensions = dimensions
 
     async def embed_documents(self, documents: List[str]) -> List[List[float]]:
         if not documents:
             return []
-        # OpenAI batch size limit applies, should handle batching in production
-        response = await self.client.embeddings.create(
-            input=documents,
-            model=self.model,
-            dimensions=768
-        )
-        return [data.embedding for data in response.data]
+        
+        # Prepare kwargs
+        kwargs = {
+            "input": documents,
+            "model": self.model
+        }
+        if self.dimensions:
+            kwargs["dimensions"] = self.dimensions
+            
+        try:
+            response = await self.client.embeddings.create(**kwargs)
+            return [data.embedding for data in response.data]
+        except Exception as e:
+            print(f"Embedding Error (Docs): {e}")
+            raise e
 
     async def embed_query(self, query: str) -> List[float]:
-        response = await self.client.embeddings.create(
-            input=query,
-            model=self.model,
-            dimensions=768
-        )
-        return response.data[0].embedding
+        kwargs = {
+            "input": query,
+            "model": self.model
+        }
+        if self.dimensions:
+            kwargs["dimensions"] = self.dimensions
+
+        try:
+            response = await self.client.embeddings.create(**kwargs)
+            return response.data[0].embedding
+        except Exception as e:
+             print(f"Embedding Error (Query): {e}")
+             raise e
+
+OpenAIEmbedder = GenericOpenAIEmbedder

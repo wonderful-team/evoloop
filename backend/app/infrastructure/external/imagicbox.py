@@ -389,6 +389,21 @@ class ImagicBoxClient:
         logger.error(f"[ImagicBox] Register Failed: {res.get('message')}")
         return False
 
+    async def get_current_project(self, token: Optional[str] = None) -> Dict:
+        """
+        Fetch the current project for the user from Member Center.
+        Returns detailed project info including 'external_path'.
+        """
+        return await self._request("GET", "/projectmanage/api/projectOpen/getCurrentProject", token=token)
+
+    async def get_device_state(self) -> Dict:
+        """
+        Fetch the current state of the device from the server.
+        DEPRECATED: Use get_current_project instead.
+        """
+        # Fallback or keep as alias if needed, but get_current_project is more precise based on API findings.
+        return await self.get_current_project()
+
     async def _heartbeat_loop(self):
         while self._running:
             if self.device_id:

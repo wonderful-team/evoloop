@@ -2,7 +2,7 @@ from typing import List, Dict, Any
 
 from sqlalchemy import select
 
-from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
+from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.infrastructure.database.sql.models import CodeChunk, SourceFile, Repository, CodeEntity, CodeRelation
 
@@ -12,7 +12,7 @@ from app.logging import get_context
 class RetrievalService:
     def __init__(self, embedder=None):
         self.session_factory = AsyncSessionLocal
-        self.embedder = embedder or OpenAIEmbedder()
+        self.embedder = embedder or EmbedderFactory.get_embedder()
 
     async def search(self, query: str, project_id: int = None, limit: int = 5) -> List[Dict[str, Any]]:
         """

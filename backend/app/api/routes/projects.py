@@ -25,7 +25,41 @@ class IndexingRequest(BaseModel):
 async def list_projects():
     """List all available projects in the configured root directory."""
     projects = await project_context_manager.scan_projects()
-    return {"count": len(projects), "projects": projects, "root": project_context_manager.get_working_directory("default")}
+    
+    # Inject Indexing Status
+    for p in projects:
+        # Assuming project dict has 'id' (it might be numeric or just name)
+        # scan_projects returns dicts. Let's assume there is logic to get ID or resolve it.
+        # Actually scan_projects returns Name/Path. If it doesn't return ID, we can't map status easily unless we map name -> ID or use Name as key.
+        # IndexingManager uses ID (int). 
+        # But wait, scan_projects fetches from FileSystem/ImagicBox. 
+        # Let's see if we can get IDs.
+        # For now, let's skip if no ID. 
+        # Ideally, we should fetch from DB if we want accurate ID mapping.
+        pass
+        
+    # Better approach: We need to augment the project list with DB info anyway for IDs.
+    # Currently scan_projects reads FS.
+    # Let's map Project Name -> ID using DB or ImagicBox?
+    # Quick hack: If we have ID in the project dict, use it.
+    
+    # Re-reading projects.py: create_project returns `new_proj`.
+    # Let's check `project_context_manager.scan_projects()` return value.
+    # It likely returns what ImagicBox returns + Local checks.
+    
+    # Let's modify the response to include a 'status_map' or augment individually.
+    # To be safe, let's expose specific endpoint status or map by ID if available.
+    
+    # Actually, let's just create a new endpoint for mapped status or inject if possible.
+    # Assuming `p` has `id`.
+    
+    final_projects = []
+    for p in projects:
+        if "id" in p:
+             p["indexing_status"] = indexing_manager.get_project_status(p["id"])
+        final_projects.append(p)
+    
+    return {"count": len(final_projects), "projects": final_projects, "root": project_context_manager.get_working_directory("default")}
 
 @router.post("/")
 async def create_project(req: CreateProjectRequest):
@@ -135,7 +169,7 @@ async def get_conversation_history(thread_id: str):
 async def get_conversation_activity(thread_id: str):
     """Get real-time activity/status for a thread run."""
     from app.core.monitoring.activity import activity_monitor
-    return activity_monitor.get_activity(thread_id)
+    return await activity_monitor.get_activity(thread_id)
 
 @router.delete("/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str):

@@ -59,7 +59,7 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
     db_callback = DatabaseCallbackHandler(thread_id=thread_id, project_id=project_id)
     
     # Update Status to Running
-    activity_monitor.start_run(thread_id)
+    await activity_monitor.start_run(thread_id)
 
     # --- ENSURE CONVERSATION EXISTS ---
     # This guarantees that Webhook triggered or Remote triggered conversations 
@@ -142,7 +142,7 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
         async for event in graph_instance.astream(inputs, config=config):
             pass
             
-        activity_monitor.end_run(thread_id, "done")
+        await activity_monitor.end_run(thread_id, "done")
         
         # Upload Final Log
         try:
@@ -177,7 +177,7 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
         
     except Exception as e:
         logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
-        activity_monitor.end_run(thread_id, "failed")
+        await activity_monitor.end_run(thread_id, "failed")
 
 
 # --- Models ---
@@ -261,8 +261,8 @@ async def chat_endpoint(
             raise he
         except Exception as e:
             logger.error(f"Redis error during guest check: {e}")
-            # Allow open on error? Or Block? Block safeguards.
-            pass
+            # Fail-Close: If Redis is down, we cannot verify quota, so we must deny to prevent abuse.
+            raise HTTPException(status_code=503, detail="Guest validation service temporary unavailable.")
 
     # 1. Construct input state
     messages = [HumanMessage(content=req.message)]
@@ -274,7 +274,9 @@ async def chat_endpoint(
     
     # Enable monitor
     goal = req.message[:50] + "..." if len(req.message) > 50 else req.message
-    activity_monitor.start_run(req.thread_id, goal)
+    # Note: run_agent_background calls start_run again, but chat_endpoint does it for immediate UI feedback.
+    # We should await it.
+    await activity_monitor.start_run(req.thread_id, goal)
     
     # 3. Upsert Conversation Record
     try:
@@ -319,7 +321,7 @@ async def stop_chat(req: ChatRequest):
     """
     Stop the current generation for a thread.
     """
-    activity_monitor.stop_run(req.thread_id)
+    await activity_monitor.stop_run(req.thread_id)
     return {"status": "stopping", "thread_id": req.thread_id}
 
 @router.post("/chat/rewind")
@@ -368,8 +370,24 @@ async def rewind_chat(req: ChatRequest):
             updates.append(RemoveMessage(id=m.id))
             
     if updates:
-        # Push the update with the deletions
+        # 1. Update Graph State
         await graph.aupdate_state(config, {"messages": updates})
+        
+        # 2. Sync DB (Delete from Message table)
+        # We need the IDs. 'updates' contains RemoveMessage(id=...)
+        msg_ids = [u.id for u in updates]
+        if msg_ids:
+            try:
+                from sqlalchemy import delete
+                from app.infrastructure.database.sql.models import Message
+                async with session_scope() as session:
+                    # Execute delete
+                    await session.execute(delete(Message).where(Message.id.in_(msg_ids)))
+                    # Commit handled by scope
+                logger.info(f"DB Sync: Deleted {len(msg_ids)} messages from history.")
+            except Exception as e:
+                logger.error(f"DB Sync Failed during rewind: {e}")
+                
         logger.info(f"Rewound {len(updates)} messages for {thread_id}")
         return {"status": "rewound", "removed_count": len(updates)}
     else:

@@ -582,3 +582,35 @@ export type TasksExecuteTaskData = {
 };
 
 export type TasksExecuteTaskResponse = (unknown);
+
+export type EmbeddingConfigRequest = {
+    provider: string;
+    base_url: string;
+    model: string;
+    api_key?: (string | null);
+    project_id?: (number | null);
+};
+
+export type EmbeddingTestResponse = {
+    success: boolean;
+    dimensions: number;
+};
+
+export type EmbeddingApplyResponse = {
+    status: string;
+    message: string;
+};
+
+export type SystemTestEmbeddingConnectionData = {
+    requestBody: EmbeddingConfigRequest;
+    authorization?: (string | null);
+};
+
+export type SystemTestEmbeddingConnectionResponse = (EmbeddingTestResponse);
+
+export type SystemApplyEmbeddingConfigData = {
+    requestBody: EmbeddingConfigRequest;
+    authorization?: (string | null);
+};
+
+export type SystemApplyEmbeddingConfigResponse = (EmbeddingApplyResponse);

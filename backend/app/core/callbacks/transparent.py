@@ -2,24 +2,25 @@
 import logging
 from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
+import json
 
-from langchain_core.callbacks import BaseCallbackHandler
+from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.syntax import Syntax
 from rich.text import Text
 from rich.markdown import Markdown
 
 # Initialize a global console
 console = Console()
 
-class TransparentCallbackHandler(BaseCallbackHandler):
+class TransparentCallbackHandler(AsyncCallbackHandler):
     """
     A CallbackHandler that uses 'rich' to render LLM thoughts, tool calls, 
     and code generation in real-time on the console.
+    Async compliant for Redis Monitor integration.
     """
 
     def __init__(self, thread_id: str = None):
@@ -29,61 +30,55 @@ class TransparentCallbackHandler(BaseCallbackHandler):
         self.monitor = activity_monitor
         self.current_task_id = None
 
-    def on_llm_start(
+    async def on_llm_start(
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> None:
         """Run when LLM starts running. Create a literal 'Thinking' task to visualize progress."""
         if self.thread_id and self.monitor:
             # Check for cancellation
-            self.monitor.check_cancellation(self.thread_id)
+            await self.monitor.check_cancellation(self.thread_id)
             
             # Create a task for the AI generation
-            self.current_task_id = self.monitor.add_task(self.thread_id, "Typing...", "ai")
+            self.current_task_id = await self.monitor.add_task(self.thread_id, "Typing...", "ai")
             
-    def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
+    async def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
         console.print(token, end="", style="cyan")
         
         # Check cancellation during streaming
         if self.thread_id and self.monitor:
-             self.monitor.check_cancellation(self.thread_id)
+             await self.monitor.check_cancellation(self.thread_id)
         
         # Update monitor task details with streamed content
         if self.thread_id and self.current_task_id and self.monitor:
-            # We need to append. But update_task replaces details.
-            # Strategy: We rely on monitor state (or check if we need to cache it here).
-            # ActivityMonitor doesn't expose 'append'.
-            # Efficiently, we should accumulate locally.
             if not hasattr(self, '_current_stream_buffer'):
                 self._current_stream_buffer = ""
             
             self._current_stream_buffer += token
             
-            # Throttle updates? Every 5 tokens or so to save performance? 
-            # For now, let's update every token for maximum responsiveness (polling is slow anyway).
-            self.monitor.update_task(
+            await self.monitor.update_task(
                 self.thread_id, 
                 self.current_task_id, 
                 "running", 
                 details=self._current_stream_buffer
             )
 
-    def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
+    async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
         console.print("\n")
         
         if self.thread_id and self.current_task_id and self.monitor:
-             self.monitor.update_task(self.thread_id, self.current_task_id, "done")
+             await self.monitor.update_task(self.thread_id, self.current_task_id, "done")
              self.current_task_id = None
              if hasattr(self, '_current_stream_buffer'):
                  del self._current_stream_buffer
 
-    def on_tool_start(
+    async def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
     ) -> None:
         """Run when tool starts running."""
         # Check cancellation
         if self.thread_id and self.monitor:
-            self.monitor.check_cancellation(self.thread_id)
+            await self.monitor.check_cancellation(self.thread_id)
 
         tool_name = serialized.get("name")
         console.print(Panel(
@@ -103,20 +98,18 @@ class TransparentCallbackHandler(BaseCallbackHandler):
                     tname = data.get("TaskName")
                     tstatus = data.get("TaskStatus")
                     if mode and tname:
-                        self.monitor.update_agent_state(self.thread_id, mode, tname, tstatus)
+                        await self.monitor.update_agent_state(self.thread_id, mode, tname, tstatus)
                 except:
                     pass
             
             # 2. Handle Artifacts
             if tool_name in ["write_to_file", "write_file", "create_file", "replace_file_content", "multi_replace_file_content"]:
                 try:
-                    # input_str might be JSON or direct string
                     if input_str.strip().startswith("{"):
                         data = json.loads(input_str)
-                        # Check various keys
                         fname = data.get("TargetFile") or data.get("target_file") or data.get("filename") or data.get("file_path")
                         if fname:
-                             self.monitor.add_artifact(self.thread_id, fname.split("/")[-1], "file", "pending", fname)
+                             await self.monitor.add_artifact(self.thread_id, fname.split("/")[-1], "file", "pending", fname)
                 except:
                     pass
             
@@ -137,18 +130,14 @@ class TransparentCallbackHandler(BaseCallbackHandler):
                 except:
                     friendly_name = "Running Command"
 
-            self.current_task_id = self.monitor.add_task(self.thread_id, friendly_name, "tool")
+            self.current_task_id = await self.monitor.add_task(self.thread_id, friendly_name, "tool")
 
-    def on_tool_end(self, output: str, **kwargs: Any) -> None:
+    async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Run when tool ends running."""
         if self.thread_id and self.current_task_id:
-             self.monitor.update_task(self.thread_id, self.current_task_id, "done")
+             await self.monitor.update_task(self.thread_id, self.current_task_id, "done")
              self.current_task_id = None
              
-             # If it was a write, mark artifact as modified/created
-             # We rely on on_tool_start to have caught the name. 
-             # Refinement: We could parse output to confirm success, but let's assume success for now.
-
         # Determine if output is long...
         if "```" in output or len(output) > 500:
             console.print(Panel(
@@ -163,12 +152,14 @@ class TransparentCallbackHandler(BaseCallbackHandler):
                 border_style="white"
             ))
 
-    def on_chain_start(
+    async def on_chain_start(
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
     ) -> None:
         """Run when chain starts running."""
         pass
         
-    def on_text(self, text: str, **kwargs: Any) -> None:
+    # on_text is usually synchronous in BaseCallbackHandler but async in Async? 
+    # Let's keep it sync if not awaiting anything, but AsyncCallbackHandler expects async.
+    async def on_text(self, text: str, **kwargs: Any) -> None:
         """Run on arbitrary text."""
         console.print(text)

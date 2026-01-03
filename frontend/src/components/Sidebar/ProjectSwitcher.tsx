@@ -1,5 +1,5 @@
 import * as React from "react"
-import { ChevronsUpDown, Folder, Search, Clock, ListTodo } from "lucide-react"
+import { ChevronsUpDown, Folder, Search, Clock, ListTodo, RefreshCw } from "lucide-react"
 
 import {
     Dialog,
@@ -57,7 +57,11 @@ export function ProjectSwitcher() {
                         <span className="truncate font-medium">
                             {currentProject?.name || t('projectSwitcher.select')}
                         </span>
-                        {currentProject?.status_text && (
+                        {currentProject?.indexing_status === 'indexing' ? (
+                            <Badge variant="secondary" className="ml-2 h-5 text-[10px] px-1.5 font-normal bg-blue-100 text-blue-700 hidden sm:inline-flex gap-1">
+                                <RefreshCw className="h-3 w-3 animate-spin" /> Indexing
+                            </Badge>
+                        ) : currentProject?.status_text && (
                             <Badge variant="secondary" className="ml-2 h-5 text-[10px] px-1.5 font-normal text-muted-foreground hidden sm:inline-flex">
                                 {currentProject.status_text}
                             </Badge>
@@ -120,6 +124,11 @@ export function ProjectSwitcher() {
 
                                                         {project.status_text || t('projectSwitcher.unknown')}
                                                     </Badge>
+                                                    {project.indexing_status === 'indexing' && (
+                                                        <div title="Indexing..." className="text-blue-500 animate-spin">
+                                                            <RefreshCw className="h-3.5 w-3.5" />
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <p className="text-xs text-muted-foreground truncate font-mono" title={project.path}>
                                                     {project.path}

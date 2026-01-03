@@ -105,6 +105,11 @@ async def handle_project_switch_event(event_data: dict):
              repo = await service.get_or_create_repo(path, repo_name)
              await indexing_manager.start_watching(path, repo.id)
              logger.info(f"[EvoLoop] Started watching {path}")
+             
+             # NEW: Trigger Smart Full-Indexing for "Staleness Check"
+             # Since index_repository is incremental (MD5 check), this is cheap.
+             indexing_manager.run_indexing_background(repo.id)
+
         except Exception as e:
             logger.error(f"[EvoLoop] Failed to start watching {path}: {e}")
             

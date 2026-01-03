@@ -212,8 +212,12 @@ class ProjectDiscoveryEventHandler(FileSystemEventHandler):
             service = IndexingService()
             repo = await service.get_or_create_repo(project_path, repo_name)
             await indexing_manager.start_watching(project_path, repo.id)
+            
+            # Start full indexing for the new project
+            indexing_manager.run_indexing_background(repo.id)
         except Exception as e:
             logger.error(f"Error handling new project {project_path}: {e}")
+
 
     async def _handle_project_deleted(self, project_path: str):
         try:

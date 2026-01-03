@@ -68,6 +68,11 @@ export function ProjectList() {
                                 <FolderOpen className="h-5 w-5" />
                             </div>
                             <div className="flex items-center gap-2">
+                                {proj.indexing_status === 'indexing' && (
+                                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200 gap-1">
+                                        <RefreshCw className="h-3 w-3 animate-spin" /> {t('projects.status.indexing', 'Indexing')}
+                                    </Badge>
+                                )}
                                 <Badge variant="outline">{proj.status_text || t('projects.active')}</Badge>
                                 <div onClick={(e) => e.stopPropagation()}>
                                     <ProjectActions project={proj} />

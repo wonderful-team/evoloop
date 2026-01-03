@@ -529,7 +529,32 @@
         },
         "danger": {
             "title": "Delete Account",
-            "description": "Permanently delete your account and all associated data."
+            "description": "Permanently delete your account and all associated data.",
+            "kb_reset_title": "Reset Knowledge Base & Index",
+            "kb_reset_desc": "Wipe all indexed code, file summaries, and memory concepts. Use this if the AI seems confused or hallucinations persist.",
+            "kb_reset_btn": "Reset Knowledge Base",
+            "kb_reset_confirm_title": "Are you absolutely sure?",
+            "kb_reset_confirm_desc": "This will delete all indexed code, file summaries, and memory concepts. The system will need to re-index everything from scratch.",
+            "kb_reset_success": "Knowledge Base wiped successfully.",
+            "kb_reset_error": "Failed to wipe Knowledge Base."
+        },
+        "embedding": {
+            "title": "Model Settings",
+            "description": "Configure the embedding model used for Code Search and Memory.",
+            "warning": "Warning",
+            "warning_desc": "Changing this setting will require a full re-index of your codebase.",
+            "provider": "Provider",
+            "base_url": "Base URL",
+            "model_name": "Model Name",
+            "api_key": "API Key",
+            "api_key_desc": "Optional for local models",
+            "test_connection": "Test Connection",
+            "apply_btn": "Apply & Re-Index",
+            "confirm_switch": "WARNING: Switching embedding models will DELETE all existing knowledge indices (Vectors) and trigger a full re-index. This process cannot be undone. Are you sure?",
+            "success_connected": "Connected! Dimensions: {{dim}}",
+            "success_updated": "Embedding Model Updated & Re-indexing Triggered",
+            "error_connection": "Connection Error",
+            "error_update": "Failed to update embedding model"
         }
     },
     "mcp": {
