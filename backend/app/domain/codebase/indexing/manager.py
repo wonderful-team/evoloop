@@ -99,8 +99,81 @@ class IndexingManager:
                             await directory_summarizer.summarize_directory(repo.project_id, "", recursive=True)
                         except Exception as e:
                             logger.error(f"Directory Summarization Failed: {e}")
+
+                        # --- Phase 8: Project Cognitive Summary ---
+                        # Now that we have the deep directory summary, we generate the High-Level Project Overview.
+                        # This ensures the "Description" and "Concepts" reflect the actual codebase structure.
+                        try:
+                            from app.domain.project.summarizer import project_summarizer
+                            # project_summarizer internal logic checks if it's already done (project.json exists)
+                            # to avoid re-running on every restart, unless we force it?
+                            # For now, we rely on its internal idempotency.
+                            # repo.local_path is absolute or relative? It's usually absolute in DB if set properly, or relative to root.
+                            # We assume it resolves correctly.
+                            
+                            # We need project name. Repo name is usually project name.
+                            await project_summarizer.add_project(repo.name, repo.local_path)
+                        except Exception as e:
+                            logger.error(f"Project Summarization Trigger Failed: {e}")
+
+                        # --- Phase 9: Standards & Patterns Analysis ---
+                        # Sample code to extract implicit style guidelines for the Agent to follow.
+                        try:
+                            from app.domain.codebase.indexing.standards import project_standards_analyst
+                            await project_standards_analyst.analyze_standards(repo.project_id, repo.local_path)
+                        except Exception as e:
+                            logger.error(f"Standards Analysis Failed: {e}")
+
+                        # --- Phase 10: Tier 4 Dynamic Indexing (Omniscience) ---
+                        # Pre-condition: Is this a Software Project?
+                        try:
+                            from app.domain.codebase.indexing.classifier import project_classifier, ProjectType
+                            p_type = project_classifier.classify(repo.local_path)
+                            
+                            if p_type == ProjectType.SOFTWARE:
+                                logger.info(f"Project classified as SOFTWARE. Running Tier 4 Indexing (API/DB)...")
+                                await self._run_tier4_indexing(repo.local_path, repo.project_id)
+                            else:
+                                logger.info(f"Project classified as {p_type}. Skipping Tier 4 Indexing.")
+                                
+                        except Exception as e:
+                            logger.error(f"Tier 4 Indexing Failed: {e}")
                             
                 self._active_jobs[project_id] = "done"
+                
+        except Exception as e:
+            logger.error(f"Full Index Failed for Project {project_id}: {e}")
+            self._active_jobs[project_id] = "error"
+
+    async def _run_tier4_indexing(self, repo_path: str, project_id: int):
+        """
+        Run specialized extractors for Software Projects (API, DB, Tech Debt).
+        """
+        from app.domain.codebase.indexing.extractors.api_extractor import api_extractor
+        from app.domain.codebase.indexing.extractors.db_extractor import db_extractor
+        
+        # Scanners list
+        scanners = [api_extractor, db_extractor]
+        
+        # Walk once
+        for root, dirs, files in os.walk(repo_path):
+            if ".git" in dirs: dirs.remove(".git")
+            if "__pycache__" in dirs: dirs.remove("__pycache__")
+            
+            for f in files:
+                full_path = os.path.join(root, f)
+                
+                # API Extraction
+                if f.endswith(".py"): # Only Python supported currently
+                    # API
+                    endpoints = await api_extractor.extract(full_path)
+                    if endpoints:
+                        await api_extractor.sync_to_graph(project_id, endpoints)
+                    
+                    # DB
+                    tables = await db_extractor.extract(full_path)
+                    if tables:
+                        await db_extractor.sync_to_graph(project_id, tables)
                 
         except Exception as e:
             logger.error(f"Full Index Failed for Project {project_id}: {e}")

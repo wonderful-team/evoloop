@@ -1,6 +1,6 @@
 import glob
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -83,34 +83,51 @@ class IndexingService:
                     # Let's keep it to avoid regression but rely on FileFilter for "Bad Files"
                     return
 
+
+                # Optimization: Check mtime first to avoid reading file content
+                stmt = select(SourceFile).where(SourceFile.repository_id == repo_id, SourceFile.path == rel_path)
+                result = await session.execute(stmt)
+                source_file = result.scalars().first()
+
+                if not force and source_file:
+                    try:
+                        mtime_ts = os.path.getmtime(file_path)
+                        # Ensure timezone awareness (UTC)
+                        file_mtime = datetime.fromtimestamp(mtime_ts, timezone.utc)
+                        # Add a small buffer (e.g. 1s) for precision differences? 
+                        # Comparison: if file_mtime is OLDER than last_indexed_at, it's unchanged.
+                        # source_file.last_indexed_at should be in UTC.
+                        if source_file.last_indexed_at and file_mtime < source_file.last_indexed_at:
+                             # logger.debug(f"Skipping {rel_path} (mtime unchanged)")
+                             return
+                    except Exception as e:
+                        # Fallback to checksum if mtime check fails
+                        pass
+
                 # Read content
                 try:
                     from app.utils.file import read_file_content
                     # read_file_content returns (content, encoding)
                     content, _ = read_file_content(file_path)
-                    if content is None: # utils returns empty string on failure currently, or raises? 
-                         # My impl says: returns "", encoding and logs error.
-                         # But wait, empty file is valid. 
-                         # If exception caught inside, it returns "".
-                         # We should probably trust it or check existence first.
-                         # But wait, existing logic raised exception?
+                    if content is None: 
                          pass
                 except Exception as e:
                     logger.warning(f"Could not read {file_path}: {e}")
                     return
 
                 # Checksum Verification
-                # Checksum Verification
                 from app.utils.hash import compute_md5
                 new_checksum = compute_md5(content)
 
-                # 1. Get or Create SourceFile (to check previous checksum)
-                stmt = select(SourceFile).where(SourceFile.repository_id == repo_id, SourceFile.path == rel_path)
-                result = await session.execute(stmt)
-                source_file = result.scalars().first()
-
                 if not force and source_file and source_file.checksum == new_checksum:
-                    # logger.debug(f"Skipping {rel_path} (Unchanged)")
+                    # Update timestamp even if checksum matches? 
+                    # If we trust checksum, we can just return.
+                    # But if we relied on mtime check and it failed (e.g. touch), verifying checksum is good.
+                    # If checksum matches, we should update last_indexed_at to avoid future mtime checks failing if mtime > last_index?
+                    # Yes, update last_indexed_at so next time mtime check passes.
+                    source_file.last_indexed_at = datetime.now(timezone.utc)
+                    session.add(source_file)
+                    await session.commit()
                     return
 
                 # If we are here, it's new, modified, or forced
@@ -154,7 +171,7 @@ class IndexingService:
                 else:
                     # Update Checksum
                     source_file.checksum = new_checksum
-                    source_file.updated_at = datetime.utcnow()
+                    source_file.last_indexed_at = datetime.now(timezone.utc)
                     session.add(source_file)
 
                 # 2. Clear old chunks, entities and relations (Full Refresh for this file)

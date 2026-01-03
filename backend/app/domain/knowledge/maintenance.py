@@ -24,6 +24,13 @@ async def wipe_knowledge_base():
             # Delete Chunks
             await session.run("MATCH (n:CodeChunk) DETACH DELETE n")
             
+            # DROP Vector Indexes to allow recreation with correct dimensions
+            try:
+                await session.run("DROP INDEX concept_embeddings IF EXISTS")
+                logger.info("Neo4j: Dropped 'concept_embeddings' index.")
+            except Exception as e:
+                logger.warning(f"Neo4j: Failed to drop index: {e}")
+            
         logger.info("✅ Neo4j: Wiped [File, Directory, CodeEntity, Concept, CodeChunk].")
     except Exception as e:
         logger.error(f"Failed to wipe Neo4j: {e}")

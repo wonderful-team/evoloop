@@ -10,7 +10,7 @@ from watchdog.observers import Observer
 
 from app.domain.codebase.indexing.service import IndexingService
 # Services
-from app.domain.project.summarizer import project_summarizer
+# Services
 
 logger = logging.getLogger(__name__)
 
@@ -208,7 +208,10 @@ class ProjectDiscoveryEventHandler(FileSystemEventHandler):
             # Legacy logic removed: restoration of soft-deleted projects from DB.
             # Projects are now managed by Member Center or file existence.
             
-            await project_summarizer.add_project(repo_name, project_path)
+            # Note: We do NOT trigger project_summarizer here anymore.
+            # We delay it to IndexingManager to ensure it runs AFTER initial indexing (and directory summarization).
+            # await project_summarizer.add_project(repo_name, project_path)
+
             service = IndexingService()
             repo = await service.get_or_create_repo(project_path, repo_name)
             await indexing_manager.start_watching(project_path, repo.id)

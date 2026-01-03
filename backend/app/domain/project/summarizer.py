@@ -24,6 +24,51 @@ async def _summarize_project_logic(name: str, path: str):
     """
     logger.info(f"[ProjectSummarizer] Analyzing {name}...")
     
+    # 0. Resolve Project ID Early (Used for Graph Lookup)
+    project_id = 1 # Default
+    try:
+        projects = await project_context_manager.scan_projects()
+        abs_path = os.path.abspath(path)
+        matched = None
+        for p in projects:
+            if p.get("path") and os.path.abspath(p.get("path")) == abs_path:
+                matched = p
+                break
+        if not matched:
+             for p in projects:
+                 if p.get("name") == name:
+                     matched = p
+                     break
+        if matched:
+            project_id = matched.get("id")
+    except Exception as e:
+        logger.warning(f"Early project ID resolution failed: {e}")
+
+    # 1. Fetch Deep Architectural Summary from Graph (if available)
+    arch_summary = "Not available yet."
+    try:
+        from app.infrastructure.database.graph.driver import get_graph_db
+        driver = await get_graph_db()
+        async with driver.session() as session:
+            # Check for Root Directory Node
+            # Logic: path should match exactly. 
+            # Note: DirectorySummarizer logic ensures path has no trailing slash usually, or normalized.
+            # We try exact match first.
+            query = """
+            MATCH (d:Directory {path: $path, project_id: $pid})
+            RETURN d.description as summary
+            """
+            result = await session.run(query, path=path, pid=project_id)
+            record = await result.single()
+            if record and record["summary"]:
+                arch_summary = record["summary"]
+                logger.info(f"[ProjectSummarizer] Found existing architectural summary for {name}")
+            else:
+                # Try fallback: maybe path needs trailing slash?
+                 pass
+    except Exception as e:
+        logger.warning(f"[ProjectSummarizer] Failed to fetch graph summary: {e}")
+
     # Re-initialize LLM chain here because this runs in a separate process
     llm = LLMFactory.create_llm(temperature=0.3)
     
@@ -31,8 +76,18 @@ async def _summarize_project_logic(name: str, path: str):
     You are a Technical Project Analyst. Analyze the following project information and generate a concise summary.
     
     Project Name: {name}
-    File Structure (Top Level): {files}
-    README Content (Snippet): {readme}
+    
+    --- Context 1: File Structure ---
+    Top Level Files: {files}
+    
+    --- Context 2: Documentation (README) ---
+    {readme}
+    
+    --- Context 3: Deep Architectural Analysis (from Codebase Index) ---
+    {arch_summary}
+    
+    Instruction: Combine the high-level intent from the README with the actual implementation details from the Architectural Analysis.
+    If the Architecture Analysis contradicts the README (e.g. README says "Part 1" but Code says "Part 1 & 2"), prioritize the Code Analysis.
     
     Return a JSON object with:
     - "description": A concise, one-sentence description of what the project does.
@@ -46,7 +101,7 @@ async def _summarize_project_logic(name: str, path: str):
     chain = prompt | llm | parser
 
     try:
-        # 1. Gather Context
+        # 1. Gather Context (Files)
         from app.domain.codebase.filter import FileFilter
         f_filter = FileFilter()
         
@@ -70,7 +125,8 @@ async def _summarize_project_logic(name: str, path: str):
         result = await chain.ainvoke({
             "name": name,
             "files": ", ".join(files[:20]),
-            "readme": readme_content[:2000] # Give more context than the simple snippet
+            "readme": readme_content[:2000], # Give more context than the simple snippet
+            "arch_summary": arch_summary[:5000] # Inject the deep summary
         })
         
         # 3. Save Result
@@ -86,44 +142,22 @@ async def _summarize_project_logic(name: str, path: str):
         concepts = result.get("concepts", [])
         description = result.get("description", "")
         
-        # Resolve Project ID via API Scan
-        project_id = 1 # Default fallback
-        try:
-            # We scan to find the ID associated with this path/name
-            projects = await project_context_manager.scan_projects()
-            # Match by path first, then name
-            matched = None
-            abs_path = os.path.abspath(path)
+        # Resolve Project ID via API Scan (Redundant but safe fallback if logic above failed? No we have early check.)
+        # We can reuse project_id resolved above.
+        
+        if project_id:
+            logger.info(f"[ProjectSummarizer] Resolved Project ID {project_id} for {name}")
             
-            for p in projects:
-                # projects from scan have 'path' which is external_path
-                if p.get("path") and os.path.abspath(p.get("path")) == abs_path:
-                    matched = p
-                    break
-            
-            if not matched:
-                 for p in projects:
-                     if p.get("name") == name:
-                         matched = p
-                         break
-            
-            if matched:
-                project_id = matched.get("id")
-                logger.info(f"[ProjectSummarizer] Resolved Project ID {project_id} for {name}")
-                
-                # Upload Summary
-                if description:
-                    try:
-                        # This is an async call call now
-                        await imagicbox_client.update_project(project_id, description)
-                        logger.info(f"[ProjectSummarizer] Uploaded summary for {name}")
-                    except Exception as up_e:
-                        logger.error(f"Failed to upload summary: {up_e}")
-            else:
-                logger.warning(f"[ProjectSummarizer] Could not resolve Project ID for {name}, using default 1")
-
-        except Exception as resolve_e:
-            logger.warning(f"Error resolving project info: {resolve_e}")
+            # Upload Summary
+            if description:
+                try:
+                    # This is an async call call now
+                    await imagicbox_client.update_project(project_id, description)
+                    logger.info(f"[ProjectSummarizer] Uploaded summary for {name}")
+                except Exception as up_e:
+                    logger.error(f"Failed to upload summary: {up_e}")
+        else:
+            logger.warning(f"[ProjectSummarizer] Could not resolve Project ID for {name}, using default 1")
 
         # 5. Save Concepts to Memory
         for c in concepts:

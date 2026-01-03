@@ -108,6 +108,21 @@ class TreeSitterExtractor(BaseExtractor):
         relations = []
         processed_ranges = set()
 
+        # Default: Create a 'module' entity for the file itself to anchor file-level relations (imports)
+        # Check if we already have one? No, we just create it.
+        # But wait, start/end line? Whole file.
+        file_line_count = content.count('\n') + 1
+        module_entity = ExtractedEntity(
+            name=module_path.split("/")[-1], # simple name
+            type="module",
+            full_name=module_path, # <--- The File Identifier
+            start_line=1,
+            end_line=file_line_count,
+            content=None, # content is too big? or use whole file? leave None for efficiency
+            metadata={"lang": lang_key}
+        )
+        entities.append(module_entity)
+
         for pattern_index, captured_nodes in matches:
             # captured_nodes is a dict: name -> list of nodes OR single node
             # We iterate over the dict to find our targets
@@ -159,9 +174,9 @@ class TreeSitterExtractor(BaseExtractor):
                                         break
                                     
                                 # Try specific field "name"
-                                name_child = curr.child_by_field_name("name")
-                                if name_child:
-                                    class_name = name_child.text.decode("utf8")
+                                nam_child = curr.child_by_field_name("name")
+                                if nam_child:
+                                    class_name = nam_child.text.decode("utf8")
                                 
                                 if class_name:
                                     fqn_parts.insert(0, class_name)
@@ -226,8 +241,51 @@ class TreeSitterExtractor(BaseExtractor):
                                             start_line=node.start_point[0] + 1
                                         ))
 
-                    # 2. Imports (Dependencies) - Still tricky, keeping basic logic placeholder
+                    # 2. Imports (Dependencies)
                     elif capture_name == "import":
-                         pass 
+                         # Capture "module" field
+                         # In queries.py we have @module capture
+                         module_nodes = captured_nodes.get("module", [])
+                         if not isinstance(module_nodes, list): module_nodes = [module_nodes]
+                         
+                         for m_node in module_nodes:
+                             import_path = m_node.text.decode("utf8").strip("'\"") # strip quotes
+                             if import_path:
+                                 # Standard Import Relation
+                                 relations.append(ExtractedRelation(
+                                     source_full_name=module_path, # Link from FILE (Module Entity)
+                                     target_full_name=import_path, 
+                                     relation_type="imports",
+                                     start_line=node.start_point[0] + 1
+                                 ))
+
+                                 # COGNITION: Inferred 'TESTS' relation
+                                 # Heuristic: If this file is a test file, and it imports a local module,
+                                 # it is likely testing that module.
+                                 if self._is_test_file(file_path) and self._is_likely_local_import(import_path):
+                                      relations.append(ExtractedRelation(
+                                         source_full_name=module_path,
+                                         target_full_name=import_path,
+                                         relation_type="tests", # Stronger semantic link
+                                         start_line=node.start_point[0] + 1
+                                     ))
 
         return ExtractionResult(documents=documents, entities=entities, relations=relations)
+
+    def _is_test_file(self, file_path: str) -> bool:
+        """Check if file is a test file based on naming convention."""
+        filename = file_path.split("/")[-1]
+        return filename.startswith("test_") or filename.endswith("_test.py") or "tests/" in file_path
+
+    def _is_likely_local_import(self, import_path: str) -> bool:
+        """
+        Check if import is likely local.
+        Heuristic: Starts with 'app', 'domain', 'core' or implicit relative import.
+        """
+        if import_path.startswith("."): return True
+        # Customize for this specific project structure (EvoLoop)
+        # We know top-level pkgs are app, domain, core, infrastructure, etc.
+        # But 'app' is the main one.
+        common_prefixes = ["app", "domain", "core", "infrastructure", "interfaces", "common"]
+        first_part = import_path.split(".")[0]
+        return first_part in common_prefixes
