@@ -12,6 +12,9 @@
     "shell:default",
     "stt:default",
     "tts:default",
+    "core:tray:default",
+    "core:tray:allow-set-title",
+    "core:tray:allow-set-icon-as-template",
     {
       "identifier": "http:default",
       "allow": [
@@ -20,6 +23,16 @@
         },
         {
           "url": "http://localhost:8000/**"
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "uv",
+          "cmd": "uv",
+          "args": true
         }
       ]
     }
