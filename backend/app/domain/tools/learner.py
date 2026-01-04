@@ -65,9 +65,14 @@ async def harvest_knowledge(lookback: int = 1):
     llm = LLMFactory.create_llm()
     structured_llm = llm.with_structured_output(ExtractionResult)
     
+    from app.domain.system.service import SystemConfigService
+    user_lang = SystemConfigService.get_language_preference()
+    
+    lang_directive = f"\n\nLANGUAGE PROTOCOL:\nUser Language: {user_lang}\nConcept 'description' fields MUST be written in {user_lang}.\nConcept 'name' should usually remain in English (Code)."
+    
     try:
         result = await structured_llm.ainvoke([
-            SystemMessage(content=HARVEST_PROMPT.format(diff=diff_text))
+            SystemMessage(content=HARVEST_PROMPT.format(diff=diff_text) + lang_directive)
         ])
     except Exception as e:
         logger.error(f"Harvest extraction failed: {e}")

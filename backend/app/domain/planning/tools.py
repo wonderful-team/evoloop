@@ -8,7 +8,6 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
-
 from app.logging import get_context
 from .models import Plan, Step
 
@@ -40,6 +39,10 @@ Return a strict analysis report in Markdown:
     - Missing Symbols: (List symbols not found)
     - Impact Analysis: (Briefly describe impact)
 - **Recommendations**: (Specific actions to fix the plan)
+
+LANGUAGE PROTOCOL (STRICT):
+User Language: {user_lang}
+You MUST write the analysis report (Risk Score, Validation Details, Recommendations) in {user_lang}.
 """)
 
 
@@ -142,17 +145,24 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         context_str = "\n".join([f"File: {r['file_path']}\nSnippet: {r['content'][:500]}..." for r in search_results])
 
         # Get Project Structure
-        from app.domain.tools.visualizer import get_annotated_tree
-        tree = await get_annotated_tree.ainvoke({"path": root, "max_depth": 3}, config=config)
+        # Use underlying Generator directly (no longer a tool)
+        from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+        # Smart Truncation enabled to avoid context overflow
+        generator = AnnotatedTreeGenerator(root, max_depth=3, with_symbols=False, file_limit=30)
+        tree = await generator.generate()
 
         # LLM Analysis
         from app.core.llm.factory import LLMFactory
         llm = LLMFactory.create_llm()
+        from app.domain.system.service import SystemConfigService
+        user_lang = SystemConfigService.get_language_preference()
+
         chain = FEASIBILITY_ANALYSIS_PROMPT | llm | StrOutputParser()
         report = await chain.ainvoke({
             "plan": proposed_plan,
             "context": context_str,
-            "tree": tree
+            "tree": tree,
+            "user_lang": user_lang
         }, config=config)
 
         return report

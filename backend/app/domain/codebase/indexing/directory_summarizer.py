@@ -1,8 +1,8 @@
-
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.core.config import settings
 from app.logging import logger
 from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
+
 
 class DirectorySummarizer:
     """
@@ -157,5 +157,7 @@ class DirectorySummarizer:
             except Exception as e:
                 logger.error(f"LLM Summary Failed: {e}")
                 return "Summary generation failed."
+
+
 # Global Instance
 directory_summarizer = DirectorySummarizer()

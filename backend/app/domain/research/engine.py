@@ -55,10 +55,14 @@ class DeepResearchEngine:
 
         # Construct the planning prompt
         # We inject the topic directly. If prompts have placeholders, use format.
-        # Assuming defaults don't have {topic} placeholders based on previous inspection, 
-        # we append the topic as a User Message context.
+        
+        # Language Injection
+        from app.domain.system.service import SystemConfigService
+        user_lang = SystemConfigService.get_language_preference()
+        lang_msg = SystemMessage(content=f"LANGUAGE PROTOCOL (STRICT):\nUser Language: {user_lang}\nYou MUST write your plans, updates, and conclusions in {user_lang}.")
 
         messages = [
+            lang_msg,
             SystemMessage(content=RESEARCH_PLAN_PROMPT),
             HumanMessage(content=f"User Query: {topic}")
         ]
@@ -95,6 +99,7 @@ class DeepResearchEngine:
 
             # Inner ReAct Loop
             step_messages = [
+                lang_msg,
                 SystemMessage(content=update_system_content),
                 HumanMessage(content=update_user_content)
             ]
@@ -158,6 +163,7 @@ class DeepResearchEngine:
         conclusion_user_content = f"Topic: {topic}\n\nAll Findings:\n{current_logs_str}\n\nPlease provide the detailed Final Conclusion."
 
         final_messages = [
+            lang_msg,
             SystemMessage(content=RESEARCH_CONCLUSION_PROMPT),
             HumanMessage(content=conclusion_user_content)
         ]

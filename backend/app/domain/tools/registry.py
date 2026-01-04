@@ -10,7 +10,6 @@ from app.domain.tools.facades import manage_file, explore_codebase, manage_git, 
 from app.infrastructure.mcp.client import mcp_client_manager
 from app.domain.tools.execution import run_command
 from app.domain.tools.project_tools import create_project_task
-from app.domain.tools.visualizer import get_annotated_tree
 
 # Agent Tools
 from app.domain.tools.browser import browser_agent
@@ -35,7 +34,6 @@ def get_all_tools() -> List[BaseTool]:
         manage_memory,
         
         # Primary Visualization
-        get_annotated_tree,
         consult_architecture,
         
         # Execution
@@ -65,7 +63,6 @@ def get_coder_tools() -> List[BaseTool]:
     Includes Architect Mode tools.
     """
     core_tools = [
-        get_annotated_tree,
         consult_architecture, # [ARCHITECT MODE]
         manage_file,
         explore_codebase,

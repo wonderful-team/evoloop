@@ -8,18 +8,13 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 
-from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
-from rich.markdown import Markdown
-
-# Initialize a global console
-console = Console()
+# Use standard logger instead of rich Console
+logger = logging.getLogger("evoloop.callbacks")
 
 class TransparentCallbackHandler(AsyncCallbackHandler):
     """
-    A CallbackHandler that uses 'rich' to render LLM thoughts, tool calls, 
-    and code generation in real-time on the console.
+    A CallbackHandler that logs LLM thoughts, tool calls, 
+    and code generation to standard logger.
     Async compliant for Redis Monitor integration.
     """
 
@@ -29,20 +24,20 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         from app.core.monitoring.activity import activity_monitor
         self.monitor = activity_monitor
         self.current_task_id = None
+        self._current_stream_buffer = ""
 
     async def on_llm_start(
         self, serialized: Dict[str, Any], prompts: List[str], **kwargs: Any
     ) -> None:
-        """Run when LLM starts running. Create a literal 'Thinking' task to visualize progress."""
+        """Run when LLM starts running."""
+        # logger.info("LLM Start") # Too noisy
         if self.thread_id and self.monitor:
-            # Check for cancellation
             await self.monitor.check_cancellation(self.thread_id)
-            
-            # Create a task for the AI generation
             self.current_task_id = await self.monitor.add_task(self.thread_id, "Typing...", "ai")
             
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
-        console.print(token, end="", style="cyan")
+        # Avoid logging every token to file!
+        # console.print(token, end="", style="cyan") 
         
         # Check cancellation during streaming
         if self.thread_id and self.monitor:
@@ -50,11 +45,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         
         # Update monitor task details with streamed content
         if self.thread_id and self.current_task_id and self.monitor:
-            if not hasattr(self, '_current_stream_buffer'):
-                self._current_stream_buffer = ""
-            
             self._current_stream_buffer += token
-            
             await self.monitor.update_task(
                 self.thread_id, 
                 self.current_task_id, 
@@ -64,13 +55,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
-        console.print("\n")
+        # logger.info("LLM End")
         
         if self.thread_id and self.current_task_id and self.monitor:
              await self.monitor.update_task(self.thread_id, self.current_task_id, "done")
              self.current_task_id = None
-             if hasattr(self, '_current_stream_buffer'):
-                 del self._current_stream_buffer
+             self._current_stream_buffer = ""
 
     async def on_tool_start(
         self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
@@ -81,11 +71,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             await self.monitor.check_cancellation(self.thread_id)
 
         tool_name = serialized.get("name")
-        console.print(Panel(
-            Text(f"Tool Call: {tool_name}\nInput: {input_str}", style="yellow"),
-            title="[bold yellow]Worker Action[/bold yellow]",
-            border_style="yellow"
-        ))
+        # Standard Log Output
+        logger.info(f"[Tool Start] {tool_name} Input: {input_str[:500]}...")
         
         if self.thread_id:
             import json
@@ -138,19 +125,10 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
              await self.monitor.update_task(self.thread_id, self.current_task_id, "done")
              self.current_task_id = None
              
-        # Determine if output is long...
-        if "```" in output or len(output) > 500:
-            console.print(Panel(
-                Markdown(output),
-                title="[bold white]Tool Output[/bold white]",
-                border_style="white"
-            ))
-        else:
-            console.print(Panel(
-                Text(output, style="white"),
-                title="[bold white]Tool Output[/bold white]",
-                border_style="white"
-            ))
+        # Standard Log Output
+        # Truncate output logging to avoid spam
+        log_output = output  # [:1000] + "..." if len(output) > 1000 else output
+        logger.info(f"[Tool End] Output: {log_output}")
 
     async def on_chain_start(
         self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
@@ -158,8 +136,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         """Run when chain starts running."""
         pass
         
-    # on_text is usually synchronous in BaseCallbackHandler but async in Async? 
-    # Let's keep it sync if not awaiting anything, but AsyncCallbackHandler expects async.
     async def on_text(self, text: str, **kwargs: Any) -> None:
         """Run on arbitrary text."""
-        console.print(text)
+        logger.info(f"[Text] {text}")

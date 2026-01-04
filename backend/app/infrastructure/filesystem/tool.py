@@ -12,7 +12,7 @@ def list_files(path: str = ".", recursive: bool = False, config: RunnableConfig 
     """
     List files in a directory.
     By default is non-recursive. Set recursive=True for deep listing (careful with large projects).
-    for structural understanding, prefer `get_annotated_tree`.
+    for structural understanding, prefer `manage_file(action='list_tree')`.
     """
     root = get_working_directory(config)
     target_path = os.path.abspath(os.path.join(root, path))

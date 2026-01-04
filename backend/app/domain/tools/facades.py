@@ -12,17 +12,24 @@ from app.domain.tools.git import git_status, git_diff, git_commit, git_history, 
 from app.domain.tools.memory import save_preference, get_user_preferences, search_concepts, add_concept
 
 @evoloop_tool
-def manage_file(
-    action: Literal['read', 'create', 'update_block', 'overwrite', 'list', 'create_directory', 'delete', 'move'],
+async def manage_file(
+    action: Literal['read', 'create', 'update_block', 'overwrite', 'list', 'list_tree', 'create_directory', 'delete', 'move'],
     path: str,
     content: Optional[str] = None,
     target: Optional[str] = None,
     start_line: Optional[int] = None,
     end_line: Optional[int] = None,
+    max_depth: int = 3,
+    with_symbols: bool = False,
     config: Optional[RunnableConfig] = None
 ) -> str:
     """
     Unified File Management Tool.
+    
+    **CRITICAL GUIDELINES**:
+    - **Do NOT Guess Paths**: If you are unsure if a file exists, use `action='list'` or `action='list_tree'`.
+    - **Explore First**: When exploring a new codebase, `list_tree` is the most efficient way to understand structure.
+    - **Read Suggestions**: If you get a "File not found" error, carefully read the suggestions.
     
     Args:
         action: Operation to perform.
@@ -30,6 +37,10 @@ def manage_file(
         content: Content for 'create', 'overwrite', or replacement for 'update_block'. Alternatively, destination path for 'move'.
         target: Target block to replace (for 'update_block').
         start_line/end_line: For 'read' (limit range).
+        max_depth: For 'list_tree' (default 3).
+        with_symbols: For 'list_tree' (default False).
+            - False: Returns a FLAT LIST of file paths (Copy-Paste friendly).
+            - True: Returns an ASCII TREE with class/function symbols.
     """
     from app.core.tools import get_working_directory
     from app.utils.file import resolve_path, read_file_content as utils_read_file, write_file_contents as utils_write_file
@@ -136,6 +147,29 @@ def manage_file(
         if not res.success:
             return f"Error: {res.stderr}"
         return res.stdout[:2000]
+
+    elif action == 'list_tree':
+        # Delegate to AnnotatedTreeGenerator
+        # Lazily import to avoid circular dependency
+        from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+        
+        if not os.path.exists(target_path):
+             return f"Error: Path does not exist: {path}"
+             
+        try:
+             # Use provided max_depth and with_symbols
+             # Smart Truncation: Limit files per directory to 30 to prevent context overflow while preserving structure
+             generator = AnnotatedTreeGenerator(
+                 target_path, 
+                 max_depth=max_depth, 
+                 with_symbols=with_symbols,
+                 file_limit=30 
+             )
+             tree_output = await generator.generate()
+             
+             return tree_output
+        except Exception as e:
+             return f"Error generating tree: {e}"
         
     elif action == 'create_directory':
         try:

@@ -73,6 +73,12 @@ class EmbeddingConfigService:
         with Session(engine) as session:
             logger.warning("TRUNCATING code_chunks table...")
             session.exec(text("TRUNCATE TABLE code_chunks CASCADE"))
+            
+            # CRITICAL: Update column type to match new dimension
+            # Postgres pgvector requires explicit cast or truncation (we truncated).
+            logger.warning(f"ALTERING code_chunks embedding to VECTOR({new_dim})...")
+            session.exec(text(f"ALTER TABLE code_chunks ALTER COLUMN embedding TYPE vector({new_dim}) USING embedding::vector({new_dim})"))
+            
             session.commit()
             
             # Recreate Index? pgvector index works on column. 

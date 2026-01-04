@@ -603,6 +603,10 @@
     "chat": {
         "limitReached": "今日对话次数已耗尽",
         "limitReachedDescription": "您已达到今日免费对话上限。请升级以继续使用。",
+        "steps": {
+            "collapsedSummary": "{{count}} 个已完成步骤...",
+            "hideHistory": "隐藏历史"
+        },
         "sidebar": {
             "tabChats": "对话",
             "tabFiles": "文件",

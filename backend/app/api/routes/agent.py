@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from app.logging import logger, set_context
 from app.core.config import settings
 from app.api.deps import get_db, SessionDep, CurrentUserOptional
-from app.core.callbacks.transparent import console
+
 from app.core.monitoring.activity import activity_monitor
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.models import Conversation, Message

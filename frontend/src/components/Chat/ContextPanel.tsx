@@ -2,7 +2,6 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Brain, Map, Layers, Database, ExternalLink, X, Plus, RefreshCw, Loader2, Search, FileText } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -20,6 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
+import { MessageContent } from "./MessageContent"
 
 interface ContextPanelProps {
     projectId?: number
@@ -233,14 +233,12 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
                                     </div>
                                 ) : (
                                     concepts?.map((c, i) => (
-                                        <Card key={i} className="shadow-sm">
-                                            <CardHeader className="p-3 pb-1">
-                                                <CardTitle className="text-sm font-medium">{c.name}</CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="p-3 pt-1 text-xs text-muted-foreground">
-                                                {c.description}
-                                            </CardContent>
-                                        </Card>
+                                        <div key={i} className="mb-4 pb-4 border-b last:border-0 last:pb-0 px-1">
+                                            <div className="text-sm font-medium mb-1">{c.name}</div>
+                                            <div className="text-xs text-muted-foreground">
+                                                <MessageContent content={c.description} />
+                                            </div>
+                                        </div>
                                     ))
                                 )}
                             </div>

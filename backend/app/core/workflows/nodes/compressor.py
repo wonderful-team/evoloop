@@ -34,13 +34,27 @@ async def compress_history_delta(messages: list[BaseMessage], keep_last: int = 1
     for msg in to_summarize:
         role = msg.type
         content = str(msg.content)
+        if len(content) > 2000:
+            content = content[:2000] + "...[TRUNCATED]"
         conversation_text += f"{role}: {content}\n"
+    
+    # Safety truncation for the whole prompt context
+    if len(conversation_text) > 25000:
+        conversation_text = conversation_text[:25000] + "\n...[HEAVILY TRUNCATED DUE TO LENGTH]"
         
+    # Language Preference
+    from app.domain.system.service import SystemConfigService
+    user_lang = SystemConfigService.get_language_preference()
+
     prompt = f"""Summarize the following conversation history concisely.
     Retain key decisions, active tasks, and file context.
     
     CONVERSATION:
     {conversation_text}
+    
+    LANGUAGE PROTOCOL:
+    User Language: {user_lang}
+    You MUST write the summary in {user_lang}.
     
     SUMMARY:
     """

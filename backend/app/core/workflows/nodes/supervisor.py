@@ -2,6 +2,7 @@ import json
 from typing import List, Literal, Optional, Annotated
 from pydantic import BaseModel, Field
 from langchain_core.messages import AIMessage, ToolMessage, SystemMessage, HumanMessage
+from langchain_core.runnables import RunnableConfig
 from langgraph.graph import END
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -27,7 +28,7 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
     
     CRITICAL PROTOCOL:
     1. **Context First**: 
-       - If you are unsure about the file structure, call `get_annotated_tree` FIRST.
+       - If you are unsure about the file structure, call `manage_file(action='list_tree')` FIRST.
        - If user mentions a file/doc, call `manage_file(action='read')` IMMEDIATELY.
     2. **Measure Twice, Cut Once**: Before delegating to `Coder`, you MUST validate your plan.
        - Use `create_plan` tool to draft your approach.
@@ -45,7 +46,11 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
     5. **Continuous Learning**:
        - When you have successfully completed a coding task (before finishing), call `harvest_knowledge` to record new concepts.
 
-    
+    6. **LANGUAGE PROTOCOL (STRICT)**:
+       - User Language Preference: {user_lang}
+       - Communicate with the user in that specific language (e.g., if Chinese, use Chinese).
+       - This applies to your thoughts, plans, and final responses.
+
     **Direct Response Protocol (Thinking Mode)**:
     - For simple greetings ("Hello"), questions ("What can you do?"), or clarifications:
       - **DO NOT** use tools.
@@ -88,7 +93,6 @@ class RoutingDecision(BaseModel):
         description="List of topics to research in parallel. REQUIRED if next_node is 'map_research'."
     )
 
-from langchain_core.runnables import RunnableConfig
 
 async def supervisor_node(state: AgentState, config: RunnableConfig):
     llm = LLMFactory.create_llm()
@@ -181,31 +185,96 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     # Create a chain for tool calling
     # Gather System Info
     import os, platform
+    from app.domain.system.service import SystemConfigService
+    
     cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
     
+    # Language Preference (Synced with Frontend)
+    user_lang = SystemConfigService.get_language_preference()
+
     # Context Injection Phase
     # 1. Project Structure (Tree)
     project_structure = "Tree not available"
     try:
-        from app.domain.tools.visualizer import get_annotated_tree
-        # Lightweight tree (level 2)
-        project_structure = str(get_annotated_tree.invoke({"max_lines": 100}, config=config))
+        # Use underlying Generator directly (Smart Truncation)
+        from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+        
+        # Limit depth to 3 and files per dir to 30 for tokens safety
+        generator = AnnotatedTreeGenerator(cwd, max_depth=3, with_symbols=False, file_limit=30)
+        project_structure = await generator.generate()
+        
     except Exception as e:
         project_structure = f"Tree error: {e}"
         
-    sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\n\nProject Structure:\n{project_structure[:1000]}{project_concepts}" # Limit size
+    sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage Preference: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}" # Limit size
     
     tool_chain = supervisor_prompt.partial(
         project_id=project_id, 
         current_plan=current_plan, 
         iteration_count=iteration_count,
-        system_info=sys_info
+        system_info=sys_info,
+        user_lang=user_lang
     ) | llm_with_tools
     
     # Allow up to 10 turns for planning & analysis
     has_replied_directly = False
     
     for i in range(10):
+        # Initialize logger
+        import logging
+        logger = logging.getLogger(__name__)
+
+        # Sanitize / Repair Messages
+        # Verify that every ToolMessage is preceded by an AIMessage with matching tool_calls
+        repaired_messages = []
+        
+        # We reconstruct the list
+        iterator = iter(messages)
+        try:
+            prev_msg = None
+            while True:
+                msg = next(iterator)
+                
+                if isinstance(msg, ToolMessage):
+                    is_orphan = False
+                    if prev_msg is None:
+                        is_orphan = True
+                    elif not isinstance(prev_msg, AIMessage):
+                        is_orphan = True
+                    elif not prev_msg.tool_calls:
+                        # Previous was AI, but had no tool calls? Orphan.
+                        is_orphan = True
+                    else:
+                        found = False
+                        for call in prev_msg.tool_calls:
+                            if call['id'] == msg.tool_call_id:
+                                found = True
+                                break
+                        if not found:
+                             is_orphan = True
+                    
+                    if is_orphan:
+                        logger.debug(f"🔧 REPAIRING ORPHANED TOOL MESSAGE: {msg.tool_call_id}")
+                        # Create a dummy AI message that 'calls' this tool
+                        dummy_ai = AIMessage(
+                            content="Resuming tool execution...",
+                            tool_calls=[{
+                                "name": msg.name or "unknown_tool",
+                                "args": {},
+                                "id": msg.tool_call_id
+                            }]
+                        )
+                        repaired_messages.append(dummy_ai)
+                
+                repaired_messages.append(msg)
+                prev_msg = msg
+                
+        except StopIteration:
+            pass
+            
+        # Update state temporarily for this invocation
+        state["messages"] = repaired_messages
+    
         # Pass config for streaming callbacks
         result = await tool_chain.ainvoke(state, config=config)
         
@@ -279,7 +348,8 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         project_id=project_id, 
         current_plan=current_plan, 
         iteration_count=iteration_count,
-        system_info=sys_info
+        system_info=sys_info,
+        user_lang=user_lang
     ) | structured_llm
     
     next_node = "deep_researcher"

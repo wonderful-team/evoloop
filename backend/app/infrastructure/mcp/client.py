@@ -15,6 +15,29 @@ from app.core.config import settings
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import McpServer
 
+import sys
+from contextlib import contextmanager
+
+@contextmanager
+def restore_std_streams():
+    """
+    Temporarily restore sys.stdout and sys.stderr to original streams.
+    This fixes issues where libraries (like Celery) monkey-patch stdout/stderr with proxies
+    that don't implement fileno(), causing subprocess creation to fail.
+    """
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+    
+    try:
+        if hasattr(sys, '__stdout__') and sys.__stdout__:
+            sys.stdout = sys.__stdout__
+        if hasattr(sys, '__stderr__') and sys.__stderr__:
+            sys.stderr = sys.__stderr__
+        yield
+    finally:
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
+
 logger = logging.getLogger("evoloop.mcp_client")
 
 
@@ -139,9 +162,16 @@ class McpClientManager:
             env=full_env
         )
 
+
+
+
+
         try:
             # Enter the context managers
-            read, write = await self.exit_stack.enter_async_context(stdio_client(server_params))
+            # Use restore_std_streams to avoid 'LoggingProxy' errors during subprocess spawn
+            with restore_std_streams():
+                read, write = await self.exit_stack.enter_async_context(stdio_client(server_params))
+            
             session = await self.exit_stack.enter_async_context(ClientSession(read, write))
             
             await session.initialize()

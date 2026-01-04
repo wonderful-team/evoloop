@@ -42,6 +42,11 @@ class GenericOpenAIEmbedder(BaseEmbedder):
         if self.dimensions:
             kwargs["dimensions"] = self.dimensions
 
+        # DEBUG: Log embedding request details
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"Embedding Query Request: Model={self.model}, Dimensions={self.dimensions}, InputLength={len(query)}")
+
         try:
             response = await self.client.embeddings.create(**kwargs)
             return response.data[0].embedding

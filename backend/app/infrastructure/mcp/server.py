@@ -163,7 +163,7 @@ async def get_annotated_tree(path: str = ".") -> str:
         if not os.path.exists(target_path):
              return f"Error: Path {path} not found."
              
-        generator = AnnotatedTreeGenerator(target_path)
+        generator = AnnotatedTreeGenerator(target_path, file_limit=30)
         return _truncate(await generator.generate())
     except Exception as e:
         return f"Error generating tree: {e}"

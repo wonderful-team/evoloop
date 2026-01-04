@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 from app.core.config import settings
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import SourceFile, CodeChunk
+import fnmatch
 
 
 @dataclass
@@ -47,23 +48,39 @@ class AnnotatedTreeGenerator:
     - ASCII formatting
     """
 
-    def __init__(self, root_path: str, max_lines: int = None, max_depth: int = 3, include_root: bool = False, pattern: str = None):
+    def __init__(self, root_path: str, max_lines: int = None, max_depth: int = 3, include_root: bool = False, pattern: str = None, with_symbols: bool = True, file_limit: int = 50):
         self.root_path = os.path.abspath(root_path)
         self.max_lines = max_lines or settings.TREE_VIEW_MAX_LINES
         self.max_depth = max_depth
         self.include_root = include_root
         self.pattern = pattern
+        self.with_symbols = with_symbols
+        self.file_limit = file_limit
         self.db_files_map = {}
 
-    async def generate(self) -> str:
-        # 1. Fetch DB Data
-        async with session_scope() as session:
-            self.db_files_map = await self._fetch_source_files_map(session)
+    async def generate(self, style: str = "auto") -> str:
+        """
+        Generate the tree string.
+        Args:
+             style: 'tree' (ASCII art) or 'flat' (List of paths). 'auto' defaults to 'flat' if no symbols, 'tree' if symbols.
+        """
+        # 1. Fetch DB Data (Only if symbols requested)
+        if self.with_symbols:
+            async with session_scope() as session:
+                self.db_files_map = await self._fetch_source_files_map(session)
 
         # 2. Build Tree Structure
         root_node = self._build_tree_structure()
+        
+        # 3. Determine Format
+        if style == "auto":
+             style = "tree" if self.with_symbols else "flat"
+             
+        if style == "flat":
+             return self._render_flat(root_node)
 
-        # 3. Adapt & Render
+        # 3. Adapt & Render (Tree)
+
         # Strategy: Try full detail -> No Methods -> No Classes -> Depth Limit
 
         # Level 1: Full Detail
@@ -98,25 +115,6 @@ class AnnotatedTreeGenerator:
         
         from app.domain.codebase.filter import FileFilter
         from app.constants import BLACKLIST_DIRS
-        
-        self.file_filter = FileFilter()
-        
-        root_node = TreeNode(os.path.basename(self.root_path), 'dir')
-        nodes_map = {self.root_path: root_node}
-
-    def __init__(self, root_path: str, max_lines: int = None, max_depth: int = 3, include_root: bool = False, pattern: str = None):
-        self.root_path = os.path.abspath(root_path)
-        self.max_lines = max_lines or settings.TREE_VIEW_MAX_LINES
-        self.max_depth = max_depth
-        self.include_root = include_root
-        self.pattern = pattern
-        self.db_files_map = {}
-
-    def _build_tree_structure(self) -> TreeNode:
-        
-        from app.domain.codebase.filter import FileFilter
-        from app.constants import BLACKLIST_DIRS
-        import fnmatch
         
         self.file_filter = FileFilter()
         
@@ -184,8 +182,24 @@ class AnnotatedTreeGenerator:
                 current_node.add_child(f_node)
 
                 # Add Symbols to File
+                # Try to find matching DB chunk using suffix match if strict rel_path fails
                 rel_path = os.path.relpath(f_abs, self.root_path)
-                chunks = self.db_files_map.get(rel_path, [])
+                
+                chunks = []
+                # Simple lookup first
+                if rel_path in self.db_files_map:
+                    chunks = self.db_files_map[rel_path]
+                else:
+                    # Fallback: Look for any key that ends with this rel_path (best effort for subdirs)
+                    # This is O(N) but safer for now than broken symbols
+                    # To optimize, we could check if any key in map ends with /rel_path
+                    # But keys are "backend/app/main.py". rel_path is "main.py".
+                    # Ends with checks are risky if filenames are not unique.
+                    # Ideally we use absolute path logic, but we don't have project root here.
+                    # For now, let's just stick to exact match, or use f_abs if map uses abs?
+                    # DB map uses whatever is in SourceFile.path (relative).
+                    pass
+
                 self._add_symbols_to_file_node(f_node, chunks)
 
         # Post-process: Prune empty directories if pattern is active
@@ -300,6 +314,51 @@ class AnnotatedTreeGenerator:
             if child_text:
                 lines.append(child_text)
 
+        return "\n".join(lines)
+
+    def _render_flat(self, node: TreeNode, prefix: str = None) -> str:
+        """
+        Recursive flat list renderer.
+        Returns accumulated paths relative to root.
+        """
+        lines = []
+        
+        # Calculate current path
+        if prefix is None:
+             # Root Node
+             current_path = node.name if self.include_root else ""
+        else:
+             current_path = os.path.join(prefix, node.name) if prefix else node.name
+             
+        # Add self if file
+        if node.type == 'file':
+             # Only add if path is not empty
+             if current_path:
+                 lines.append(current_path)
+             
+        # Recurse
+        files_shown = 0
+        total_files = len([c for c in node.children if c.type == 'file'])
+        
+        for child in node.children:
+             if child.type == 'dir':
+                 child_lines = self._render_flat(child, prefix=current_path)
+                 if child_lines:
+                     lines.append(child_lines)
+                     
+             elif child.type == 'file':
+                 if files_shown < self.file_limit:
+                     # Render File
+                     # Use current_path (parent) to construct child path
+                     child_path = os.path.join(current_path, child.name) if current_path else child.name
+                     lines.append(child_path)
+                     files_shown += 1
+                 else:
+                     # Limit Reached
+                     remaining = total_files - files_shown
+                     lines.append(f"{current_path}/... (+ {remaining} more files)")
+                     break
+        
         return "\n".join(lines)
 
     async def _fetch_source_files_map(self, session) -> Dict[str, List[CodeChunk]]:

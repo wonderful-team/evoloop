@@ -110,7 +110,7 @@ async def _run_agent_logic(thread_id: str, inputs: Dict[str, Any]):
         callbacks.append(EvoLoopCallbackHandler(imagicbox_client, thread_id, command_id=evoloop_command_id))
             
         config["callbacks"] = callbacks
-        config["recursion_limit"] = 50
+        config["recursion_limit"] = settings.RECURSION_LIMIT
         
         # MCP Connection (Per-Task to ensure loop binding)
         # We must connect here because Celery worker process is distinct and loop might change
@@ -125,7 +125,7 @@ async def _run_agent_logic(thread_id: str, inputs: Dict[str, Any]):
             from psycopg_pool import AsyncConnectionPool
             from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
             from app.core.workflows.workflow import create_graph
-            from app.core.config import settings
+            # from app.core.config import settings
     
             db_uri = settings.CHECKPOINTER_DATABASE_URI
             # kwargs={"autocommit": True} is required for CREATE INDEX CONCURRENTLY

@@ -174,6 +174,7 @@ class Settings(BaseSettings):
     MEMORY_SEARCH_LIMIT: int = 5
     RESEARCH_MAX_ITERATIONS: int = 5
     TREE_VIEW_MAX_LINES: int = 1500
+    RECURSION_LIMIT: int = 50  # Default LangGraph recursion limit
 
     @computed_field  # type: ignore[prop-decorator]
     @property

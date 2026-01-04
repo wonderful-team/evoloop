@@ -1,3 +1,6 @@
+import logging
+import os
+
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from app.core.config import settings
@@ -5,10 +8,6 @@ from app.core.workflows.state import AgentState
 from app.domain.tools.registry import get_all_tools
 from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
-
-import logging
-import os
-import json
 
 logger = logging.getLogger(__name__)
 
@@ -51,21 +50,19 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     3. For each page, triggers a Deep Research session to write the content.
     4. Saves the files.
     """
-    # 1. Get Project Structure
-    # We can use the MCP tool 'get_annotated_tree' manually here
-    annotated_tree_tool = None
-    tools = get_all_tools()
-    for t in tools:
-        if t.name == "get_annotated_tree":
-            annotated_tree_tool = t
-            break
-    
+    # 2. Get Project Structure
     tree_output = ""
-    if annotated_tree_tool:
-        executor = ToolExecutor()
-        tree_output = await executor.execute(annotated_tree_tool, {"max_lines": 500}, config=config)
-        if str(tree_output).startswith("Error"):
-             tree_output = f"(Tree generation failed: {tree_output})"
+    try:
+        from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+        # Use default max_depth=3 or higher for docs
+        # We assume root is managed by context or we get it from config
+        root_path = config.get("configurable", {}).get("working_directory", ".")
+        generator = AnnotatedTreeGenerator(root_path, max_depth=3, with_symbols=False, file_limit=30)
+        tree_output = await generator.generate()
+        
+        # Smart Truncation enabled in Generator (file_limit=30)
+    except Exception as e:
+        tree_output = f"(Tree generation failed: {e})"
     
     # 2. Plan Structure (Using LLM directly)
     from pydantic import BaseModel, Field
@@ -81,8 +78,25 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     llm = LLMFactory.create_llm()
     structured_llm = llm.with_structured_output(WikiPlan)
     
+    # Language Preference
+    from app.domain.system.service import SystemConfigService
+    user_lang = SystemConfigService.get_language_preference()
+    
+    lang_directive = f"""LANGUAGE PROTOCOL:
+    User Preference: {user_lang}.
+    All documentation topics and filenames (if appropriate) should respect this language.
+    Specifically, the 'topic' description should be in {user_lang}.
+    """
+    
     try:
-        plan: WikiPlan = await structured_llm.ainvoke([HumanMessage(content=FILE_STRUCTURE_PROMPT.format(tree=tree_output))], config=config)
+        from langchain_core.messages import SystemMessage
+        # Prepend System Message
+        msgs = [
+            SystemMessage(content=lang_directive),
+            HumanMessage(content=FILE_STRUCTURE_PROMPT.format(tree=tree_output))
+        ]
+        
+        plan: WikiPlan = await structured_llm.ainvoke(msgs, config=config)
         pages = [p.model_dump() for p in plan.pages]
         
     except Exception as e:
@@ -114,7 +128,9 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
         try:
             # Trigger Deep Research Loop
             # We use a reduced iteration count (e.g. 3) for docs to save time, unless it's complex
-            content = await engine.run(topic=f"Write a comprehensive documentation page about: {topic}. This is for the file {filename}.", max_iterations=3, config=config)
+            # Inject language into the topic prompt
+            prompt_content = f"Write a comprehensive documentation page about: {topic}. This is for the file {filename}.\n\nIMPORTANT: Write the documentation content in {user_lang}."
+            content = await engine.run(topic=prompt_content, max_iterations=3, config=config)
             
             # Save to file
             file_path = os.path.join(docs_dir, filename)

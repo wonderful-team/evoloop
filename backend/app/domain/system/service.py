@@ -34,3 +34,19 @@ class SystemConfigService:
         with Session(engine) as session:
             statement = select(SystemConfig)
             return session.exec(statement).all()
+
+    @staticmethod
+    def get_language_preference() -> str:
+        """
+        Get the human-readable language preference for LLM prompts.
+        Defaults to 'Chinese (中文)' if not set or set to 'zh'.
+        """
+        code = SystemConfigService.get_value("LANGUAGE", "zh")
+        language_map = {
+            "zh": "Chinese (中文)",
+            "en": "English",
+            "ja": "Japanese (日本語)",
+            # Add more as needed
+        }
+        return language_map.get(code, code)
+

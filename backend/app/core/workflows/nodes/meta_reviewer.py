@@ -14,6 +14,10 @@ async def meta_reviewer_node(state: AgentState, config: RunnableConfig):
     """
     llm = LLMFactory.create_llm(temperature=0.5)
 
+    # 0. Language Preference
+    from app.domain.system.service import SystemConfigService
+    user_lang = SystemConfigService.get_language_preference()
+
     reviewer_prompt = ChatPromptTemplate.from_template("""
 You are the Meta-Reviewer, a Senior Technical Lead.
 The engineering team (Coder & Tester) is stuck in a loop of failures.
@@ -26,6 +30,10 @@ Iteration Count: {iteration_count}
 
 Project Structure (Architecture):
 {tree}
+
+LANGUAGE PROTOCOL (STRICT):
+User Preference: {user_lang}
+You MUST write your analysis and advice in {user_lang}.
 
 Your Task:
 Analyze the situation. Why are they failing? 
@@ -48,14 +56,17 @@ Suggest a new angle or a step back to research if needed.
     
     # 1. Get Architectural Context
     import os
-    from app.domain.tools.visualizer import get_annotated_tree
+    from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
     
     # Resolve root
     root = config.get("configurable", {}).get("working_directory") or os.getcwd()
     
     try:
         # Depth 2 is usually enough for high-level architecture
-        tree_context = await get_annotated_tree.ainvoke({"path": root, "max_depth": 3}, config=config)
+        generator = AnnotatedTreeGenerator(root, max_depth=3, with_symbols=False, file_limit=30)
+        tree_context = await generator.generate()
+        
+        # Smart Truncation enabled in Generator (file_limit=30)
     except Exception as e:
         tree_context = f"Error fetching architecture: {e}"
 
@@ -66,7 +77,8 @@ Suggest a new angle or a step back to research if needed.
         "plan": plan,
         "test_results": test_results,
         "iteration_count": iteration_count,
-        "tree": tree_context
+        "tree": tree_context,
+        "user_lang": user_lang
     }, config=config)
     
     # We prefix the analysis to make it clear it's an intervention

@@ -12,7 +12,6 @@ import {
     Card,
     CardContent,
     CardDescription,
-    CardFooter,
     CardHeader,
     CardTitle,
 } from "@/components/ui/card"
@@ -66,12 +65,17 @@ export default function GeneralSettings() {
                     PROJECTS_ROOT: configMap.PROJECTS_ROOT || "",
                     EVOLOOP_DEVICE_NAME: configMap.EVOLOOP_DEVICE_NAME || "",
                 })
+
+                // Sync Language from Backend if exists
+                if (configMap.LANGUAGE) {
+                    i18n.changeLanguage(configMap.LANGUAGE)
+                }
             } catch (error) {
                 toast.error(t('settings.general.loadError'))
             }
         }
         fetchConfig()
-    }, [form])
+    }, [form, i18n])
 
     const queryClient = useQueryClient()
 
@@ -84,6 +88,11 @@ export default function GeneralSettings() {
             await SystemService.updateSystemConfig({
                 requestBody: { key: "EVOLOOP_DEVICE_NAME", value: data.EVOLOOP_DEVICE_NAME },
             })
+            // Save Language Preference
+            await SystemService.updateSystemConfig({
+                requestBody: { key: "LANGUAGE", value: i18n.language },
+            })
+
             toast.success(t('settings.general.success'))
             await queryClient.invalidateQueries({ queryKey: ["systemConfig"] })
         } catch (error) {

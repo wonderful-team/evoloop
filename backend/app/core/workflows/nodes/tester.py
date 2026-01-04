@@ -32,8 +32,12 @@ async def tester_node(state: AgentState, config: RunnableConfig):
     """
     messages = state["messages"]
 
+    # Language Preference
+    from app.domain.system.service import SystemConfigService
+    user_lang = SystemConfigService.get_language_preference()
+
     # Tester System Prompt
-    system_msg = """You are a Senior QA Engineer.
+    system_msg = f"""You are a Senior QA Engineer.
     The Coder has just written/modified code. Your job is to VERIFY it.
     
     Tools:
@@ -48,6 +52,10 @@ async def tester_node(state: AgentState, config: RunnableConfig):
     5. Generate a Fix Suggestion in the final output.
     
     If you see a `report.xml` parsed output, TRUST IT.
+
+    LANGUAGE PROTOCOL:
+    User Preference: {user_lang}
+    You MUST write your Test Analysis, Summary, and Fix Suggestion in {user_lang}.
     """
 
     tools = get_all_tools()
@@ -128,6 +136,7 @@ async def tester_node(state: AgentState, config: RunnableConfig):
     
     return {
         "test_results": analysis.status,
-        "messages": [AIMessage(content=output_msg)]
+        "messages": [AIMessage(content=output_msg)],
+        "iteration_count": state.get("iteration_count", 0) + 1
     }
 

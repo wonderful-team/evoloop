@@ -28,6 +28,10 @@ class LLMFactory:
         api_key = db_api_key or settings.OPENAI_API_KEY
         final_model = model_name or db_model or settings.OPENAI_MODEL_NAME
         
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"LLM Config - Provider: {db_provider}, Base URL: {base_url}, Model: {final_model}")
+        
         return ChatOpenAI(
             api_key=api_key,
             base_url=base_url,

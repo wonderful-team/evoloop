@@ -607,6 +607,10 @@
     "chat": {
         "limitReached": "Daily Limit Reached",
         "limitReachedDescription": "You have reached your daily free message limit. Please upgrade to continue.",
+        "steps": {
+            "collapsedSummary": "{{count}} previously completed steps...",
+            "hideHistory": "Hide history"
+        },
         "sidebar": {
             "tabChats": "Chats",
             "tabFiles": "Files",
