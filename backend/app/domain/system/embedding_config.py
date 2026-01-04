@@ -1,6 +1,6 @@
 import logging
 from sqlalchemy import text
-from sqlmodel import Session
+from sqlmodel import Session, select
 from app.core.db import engine
 from app.domain.system.service import SystemConfigService
 from app.domain.codebase.indexing.vectors.factory import EmbedderFactory

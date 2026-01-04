@@ -12,6 +12,7 @@ from app.core.config import settings
 
 # Import existing domain tools
 from app.domain.codebase.indexing.tools import index_path
+from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.memory.service import memory_service
 
 # Expose Facades via MCP

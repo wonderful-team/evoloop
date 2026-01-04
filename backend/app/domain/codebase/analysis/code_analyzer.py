@@ -54,7 +54,10 @@ class CodeAnalyzer:
         root = tree.root_node
 
         # Metrics
-        loc = len(content.splitlines())
+        lines = content.splitlines()
+        line_count = len(lines)
+        blank_lines = sum(1 for line in lines if not line.strip())
+        code_lines = line_count - blank_lines
         complexity = 0 # Placeholder
 
         # Structure Extraction

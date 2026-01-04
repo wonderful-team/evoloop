@@ -53,9 +53,6 @@ class BrowserService:
             
         logger.info(f"Starting Browser Agent task: {task} (Session: {session_id})")
         
-        if not api_key:
-             # Try factory to get system config api key
-             pass
 
         logger.info(f"Using dynamic LLM for Browser Agent")
         

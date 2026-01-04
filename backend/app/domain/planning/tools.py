@@ -135,12 +135,14 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
 
     try:
         # Retrieval
+        from app.domain.codebase.retrieval.service import RetrievalService
         retrieval_service = RetrievalService()
         search_results = await retrieval_service.search(proposed_plan, project_id=project_id, limit=5)
 
         context_str = "\n".join([f"File: {r['file_path']}\nSnippet: {r['content'][:500]}..." for r in search_results])
 
         # Get Project Structure
+        from app.domain.tools.visualizer import get_annotated_tree
         tree = await get_annotated_tree.ainvoke({"path": root, "max_depth": 3}, config=config)
 
         # LLM Analysis
