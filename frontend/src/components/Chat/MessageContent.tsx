@@ -99,28 +99,37 @@ export function MessageContent({ content }: { content: string }) {
                         components={{
                             code({ node, inline, className, children, ...props }: any) {
                                 const match = /language-(\w+)/.exec(className || '')
-                                return !inline && match ? (
-                                    <div className="my-2 rounded-md overflow-hidden bg-[#1e1e1e]">
-                                        <div className="flex items-center justify-between px-3 py-1 bg-[#252526] text-[10px] text-gray-400 border-b border-[#3e3e3e]">
-                                            <span>{match[1]}</span>
-                                            <button
-                                                onClick={() => navigator.clipboard.writeText(String(children))}
-                                                className="hover:text-white transition-colors"
+                                const codeString = String(children).replace(/\n$/, '')
+                                const lineCount = codeString.split('\n').length
+                                const isLong = lineCount > 15
+
+                                if (!inline && match) {
+                                    const codeBlock = (
+                                        <div className="my-2 rounded-md overflow-hidden bg-[#1e1e1e]">
+                                            <div className="flex items-center justify-between px-3 py-1 bg-[#252526] text-[10px] text-gray-400 border-b border-[#3e3e3e]">
+                                                <span>{match[1]} {isLong && `(${lineCount} lines)`}</span>
+                                                <button
+                                                    onClick={() => navigator.clipboard.writeText(codeString)}
+                                                    className="hover:text-white transition-colors"
+                                                >
+                                                    {t('chat.messageList.copy', 'Copy')}
+                                                </button>
+                                            </div>
+                                            <SyntaxHighlighter
+                                                style={vscDarkPlus as any}
+                                                language={match[1]}
+                                                PreTag="div"
+                                                customStyle={{ margin: 0, borderRadius: 0, fontSize: '12px', maxHeight: isLong ? '200px' : 'none', overflow: 'auto' }}
+                                                {...props}
                                             >
-                                                {t('chat.messageList.copy', 'Copy')}
-                                            </button>
+                                                {codeString}
+                                            </SyntaxHighlighter>
                                         </div>
-                                        <SyntaxHighlighter
-                                            style={vscDarkPlus as any}
-                                            language={match[1]}
-                                            PreTag="div"
-                                            customStyle={{ margin: 0, borderRadius: 0, fontSize: '12px' }}
-                                            {...props}
-                                        >
-                                            {String(children).replace(/\n$/, '')}
-                                        </SyntaxHighlighter>
-                                    </div>
-                                ) : (
+                                    )
+                                    return codeBlock
+                                }
+
+                                return (
                                     <code className="bg-muted px-1.5 py-0.5 rounded text-[85%] font-mono break-all" {...props}>
                                         {children}
                                     </code>
@@ -135,7 +144,27 @@ export function MessageContent({ content }: { content: string }) {
                             table: ({ children }) => <div className="overflow-x-auto my-2 rounded-lg border"><table className="w-full text-sm text-left">{children}</table></div>,
                             th: ({ children }) => <th className="bg-muted px-4 py-2 font-medium border-b">{children}</th>,
                             td: ({ children }) => <td className="px-4 py-2 border-b last:border-0">{children}</td>,
-                            img: ({ src, alt }) => <img src={src} alt={alt} className="max-w-full rounded-lg my-2" />
+                            img: ({ src, alt }) => <img src={src} alt={alt} className="max-w-full rounded-lg my-2" />,
+                            li: ({ children }) => {
+                                // Check if children (text) starts with our tool emojis
+                                const text = String(children);
+                                const isToolAction = /^(📄|📝|💻|📅|🔍|🔧|📁|📍)/.test(text);
+
+                                if (isToolAction) {
+                                    // Style as a chip/badge
+                                    // Distinct colors for different actions could be nice, but uniform "Action" look is also clean.
+                                    // Let's use a subtle border and background.
+                                    return (
+                                        <li className="list-none mb-1.5 last:mb-0">
+                                            <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-muted/50 border border-border text-xs font-medium font-mono text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                                {children}
+                                            </span>
+                                        </li>
+                                    )
+                                }
+
+                                return <li className="mb-0.5">{children}</li>
+                            }
                         }}
                     >
                         {part}

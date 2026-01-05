@@ -2,30 +2,29 @@ import { useState, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AgentService, ProjectsService, MemoryService, FilesService } from "@/client"
-import { EvoLoopApi } from "@/client/evoloopClient"
+import { useSSE } from "@/hooks/useSSE"
+
 import { toast } from "sonner"
 import { Button } from "../ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import { ContextPanel } from "./ContextPanel"
-import { Send, Loader2, Bot, User, Paperclip, Brain, MoreHorizontal, Save, RotateCcw, Copy, ChevronDown, Square } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { Loader2, Bot, Brain } from "lucide-react"
 
-// Simple type for message
-interface Message {
-    id: number
-    role: "user" | "ai"
-    content: string
-    thinking?: string
-}
+
+
+
+
 
 import { useProjectStore } from "@/stores/projectStore"
 
 import { ChatSidebar, type Thread } from "./ChatSidebar"
-import { MessageContent } from "./MessageContent"
+
+
+import { ChatMessageItem, type Message } from "./ChatMessageItem"
 import { TaskSteps } from "./TaskSteps"
+import { ChatInputArea } from "./ChatInputArea"
 
 export function ChatInterface() {
     const { t } = useTranslation()
@@ -40,12 +39,23 @@ export function ChatInterface() {
         return tid && tid.trim() !== '' ? tid : crypto.randomUUID()
     }
 
-    const [inputValue, setInputValue] = useState("")
-    const [isUploading, setIsUploading] = useState(false)
     const [messages, setMessages] = useState<Message[]>([])
     const [activeThreadId, setActiveThreadId] = useState<string>(getInitialThreadId)
     const [showContextPanel, setShowContextPanel] = useState(true)
     const [isAgentWorking, setIsAgentWorking] = useState(false)
+    const [isSending, setIsSending] = useState(false) // New state to prevent flicker
+    const [streamedContent, setStreamedContent] = useState('')  // SSE streamed content
+
+    // SSE Streaming Hook
+    useSSE({
+        threadId: activeThreadId,
+        enabled: isAgentWorking,
+        onToken: (token) => setStreamedContent(prev => prev + token),
+        onDone: () => {
+            setStreamedContent('')
+            queryClient.invalidateQueries({ queryKey: ["chatHistory", activeThreadId] })
+        }
+    })
 
     // Track local pending messages to prevent flash
     // Map: thread_id -> pending text
@@ -91,10 +101,21 @@ export function ChatInterface() {
     useEffect(() => {
         if (activityData) {
             // Check if status is running
-            const working = (activityData as any).status === 'running'
-            setIsAgentWorking(working)
+            const status = (activityData as any).status
+            const working = status === 'running' || status === 'SUMMARIZING' || status === 'INDEXING' // robustness
+
+            // If we are currently sending, we FORCE working state to stay true 
+            // until we see a confirmation from backend or timeout
+            if (isSending) {
+                if (working) {
+                    setIsSending(false) // Backend caught up!
+                }
+                setIsAgentWorking(true)
+            } else {
+                setIsAgentWorking(working)
+            }
         }
-    }, [activityData])
+    }, [activityData, isSending])
 
     // Sync State
     useEffect(() => {
@@ -115,12 +136,13 @@ export function ChatInterface() {
                 }
 
                 return {
-                    id: idx,
+                    id: m.id || idx,  // Use backend ID if available
                     role: m.type === 'human' ? 'user' : 'ai',
                     content: content,
-                    thinking: thinking
+                    thinking: thinking,
+                    timestamp: m.created_at  // ISO timestamp from backend
                 }
-            }).filter(m => (m.content && m.content.trim().length > 0) || (m.thinking && m.thinking.trim().length > 0))
+            }).filter((m: Message) => (m.content && m.content.trim().length > 0) || (m.thinking && m.thinking.trim().length > 0))
 
             // --- FLUSH PREVENTION & MERGE ---
             // If backend has new messages, render them.
@@ -138,23 +160,23 @@ export function ChatInterface() {
                 // Check if the last human message in formatted matches the first pending
                 // Ideally we clear pending once it appears in history.
 
+                // ROBUSTNESS FIX: Compare trimmed content
                 const lastHuman = formatted.slice().reverse().find(m => m.role === 'user')
 
-                if (lastHuman && currentPending.includes(lastHuman.content)) {
-                    // It arrived! Remove from pending
-                    const nextPending = currentPending.filter(t => t !== lastHuman.content)
+                if (lastHuman && currentPending.some(p => p.trim() === lastHuman.content.trim())) {
+                    // It arrived! Remove from pending (fuzzy match)
+                    // We remove specifically the one that matched
+                    const matchText = currentPending.find(p => p.trim() === lastHuman.content.trim())
+                    const nextPending = currentPending.filter(t => t !== matchText)
                     pendingMessagesRef.current.set(activeThreadId, nextPending)
                 }
 
                 // If still pending, append them to formatted (Optimistic UI)
-                // Note: This logic assumes pending messages are strictly strictly sequential after history.
-                // It might duplicate if there is a partial match or lag.
-                // Safer: Just append all remaining pending messages that are NOT in formatted.
                 const pendingRemaining = pendingMessagesRef.current.get(activeThreadId) || []
 
                 pendingRemaining.forEach((txt, i) => {
                     // Double check overlap (simplistic)
-                    if (!formatted.some(m => m.role === 'user' && m.content === txt)) {
+                    if (!formatted.some(m => m.role === 'user' && m.content.trim() === txt.trim())) {
                         formatted.push({
                             id: Date.now() + i,
                             role: "user",
@@ -183,10 +205,17 @@ export function ChatInterface() {
             queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
             // Start Working State immediately
             setIsAgentWorking(true)
+            // Keep "Sending" state true for a bit to prevent flicker if poll is slow
+            setTimeout(() => {
+                // Only turn off if backend hasn't picked up yet (handled in poll effect)
+                // But we need a failsafe
+                setIsSending(false)
+            }, 15000)
         },
         onError: () => {
             setMessages(prev => [...prev, { id: Date.now(), role: "ai", content: t('chat.interface.errorSend') }])
-            // Remove from pending on error?
+            setIsSending(false)
+            setIsAgentWorking(false)
         }
     })
 
@@ -275,7 +304,9 @@ export function ChatInterface() {
         onSuccess: () => {
             toast.info(t('chat.interface.stopped', "Generation Stopped"))
             setIsAgentWorking(false)
+            setIsSending(false)
             queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
+            queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
         },
         onError: (err) => {
             console.error(err)
@@ -283,10 +314,8 @@ export function ChatInterface() {
         }
     })
 
-    const handleSend = () => {
-        if (!inputValue.trim() || sendMutation.isPending) return
-        const text = inputValue
-        setInputValue("")
+    const handleSend = (text: string) => {
+        if (!text.trim() || sendMutation.isPending) return
 
         // Optimistic & Tracking
         const current = pendingMessagesRef.current.get(activeThreadId) || []
@@ -294,6 +323,10 @@ export function ChatInterface() {
 
         // Immediate Local Render
         setMessages(prev => [...prev, { id: Date.now(), role: "user", content: text }])
+
+        // Set Sending State
+        setIsSending(true)
+        setIsAgentWorking(true)
 
         sendMutation.mutate(text)
     }
@@ -322,6 +355,15 @@ export function ChatInterface() {
                         setActiveThreadId={setActiveThreadId}
                         projectId={projectId}
                         onDeleteThread={(id) => deleteMutation.mutate(id)}
+                        onStopThread={(id) => {
+                            // Stop specific thread
+                            AgentService.stopChat({
+                                requestBody: { thread_id: id, message: "" }
+                            }).then(() => {
+                                toast.info(t('chat.interface.stopped'))
+                                queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
+                            })
+                        }}
                         onNewChat={handleNewChat}
                     />
                 </ResizablePanel>
@@ -342,98 +384,97 @@ export function ChatInterface() {
 
                         <div className="flex-1 overflow-y-auto p-4 min-h-0" ref={scrollRef}>
                             <div className="space-y-6 max-w-3xl mx-auto">
-                                {messages.length === 0 ? (
+                                {/* Loading Skeleton */}
+                                {!historyData && messages.length === 0 && (
+                                    <div className="space-y-4 animate-pulse">
+                                        {[1, 2, 3].map(i => (
+                                            <div key={i} className={`flex gap-3 ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
+                                                <div className="h-8 w-8 rounded-full bg-muted" />
+                                                <div className={`rounded-lg ${i % 2 === 0 ? 'bg-primary/20' : 'bg-muted'} h-16 w-48`} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {/* Empty State */}
+                                {historyData && messages.length === 0 ? (
                                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground mt-20">
                                         <Bot size={48} className="mb-4 opacity-20" />
                                         <p>{t('chat.interface.startPrompt')}</p>
                                     </div>
                                 ) : messages.map((msg) => (
-                                    <div key={msg.id} className={`group flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'} items-start`}>
-                                        {msg.role === 'ai' && (
-                                            <Avatar className="h-8 w-8 mt-1 shrink-0">
-                                                <AvatarImage src="/bot-avatar.png" />
-                                                <AvatarFallback><Bot size={16} /></AvatarFallback>
-                                            </Avatar>
-                                        )}
-
-                                        <div className={`relative max-w-[85%]`}>
-                                            <div className="flex flex-col gap-1">
-                                                {/* Reasoning/Thinking Block */}
-                                                {msg.thinking && (
-                                                    <Collapsible defaultOpen={false} className="w-full">
-                                                        <CollapsibleTrigger asChild>
-                                                            <Button variant="ghost" size="sm" className="h-6 p-0 text-muted-foreground hover:bg-transparent flex items-center gap-1 text-xs">
-                                                                <Brain size={12} />
-                                                                <span className="italic">{t('chat.interface.thinkingProcess', "Reasoning Process")}</span>
-                                                                <ChevronDown size={12} className="opacity-50" />
-                                                            </Button>
-                                                        </CollapsibleTrigger>
-                                                        <CollapsibleContent className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-md mb-2 border-l-2 border-primary/20 whitespace-pre-wrap">
-                                                            {msg.thinking}
-                                                        </CollapsibleContent>
-                                                    </Collapsible>
-                                                )}
-
-                                                {/* Main Content */}
-                                                {(msg.content || !msg.thinking) && (
-                                                    <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'}`}>
-                                                        <MessageContent content={msg.content} />
-                                                    </div>
-                                                )}
-                                            </div>
-
-                                            {/* Message Actions */}
-                                            <div className={`absolute -top-2 ${msg.role === 'user' ? '-left-10' : '-right-10'} opacity-0 group-hover:opacity-100 transition-opacity`}>
-                                                <DropdownMenu>
-                                                    <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full bg-background border shadow-sm">
-                                                            <MoreHorizontal className="h-4 w-4" />
-                                                        </Button>
-                                                    </DropdownMenuTrigger>
-                                                    <DropdownMenuContent>
-                                                        <DropdownMenuItem onClick={() => navigator.clipboard.writeText(msg.content)}>
-                                                            <Copy className="mr-2 h-4 w-4" /> {t('chat.interface.copy')}
-                                                        </DropdownMenuItem>
-                                                        {msg.role === 'ai' && (
-                                                            <>
-                                                                <DropdownMenuItem onClick={() => addToMemoryMutation.mutate(msg.content)}>
-                                                                    <Brain className="mr-2 h-4 w-4" /> {t('chat.interface.memorize')}
-                                                                </DropdownMenuItem>
-                                                                <DropdownMenuItem onClick={() => exportFileMutation.mutate(msg.content)}>
-                                                                    <Save className="mr-2 h-4 w-4" /> {t('chat.interface.export')}
-                                                                </DropdownMenuItem>
-                                                                <DropdownMenuItem onClick={() => rewindMutation.mutate()}>
-                                                                    <RotateCcw className="mr-2 h-4 w-4" /> {t('chat.interface.rewind')}
-                                                                </DropdownMenuItem>
-                                                            </>
-                                                        )}
-                                                    </DropdownMenuContent>
-                                                </DropdownMenu>
-                                            </div>
-                                        </div>
-
-                                        {msg.role === 'user' && (
-                                            <Avatar className="h-8 w-8 mt-1 shrink-0">
-                                                <AvatarFallback><User size={16} /></AvatarFallback>
-                                            </Avatar>
-                                        )}
-                                    </div>
+                                    <ChatMessageItem
+                                        key={msg.id}
+                                        msg={msg}
+                                        onAddToMemory={(txt) => addToMemoryMutation.mutate(txt)}
+                                        onExport={(txt) => exportFileMutation.mutate(txt)}
+                                        onRewind={() => rewindMutation.mutate()}
+                                    />
                                 ))}
 
                                 {isAgentWorking && (
-                                    <div className="flex gap-3 justify-start max-w-3xl mx-auto animate-in fade-in duration-300 pl-11">
-                                        {(activityData as any)?.tasks?.length > 0 ? (
-                                            <TaskSteps tasks={(activityData as any).tasks} />
-                                        ) : (
-                                            <div className="flex items-center gap-3">
-                                                <Avatar className="h-8 w-8 mt-1">
-                                                    <AvatarFallback><Bot size={16} /></AvatarFallback>
-                                                </Avatar>
-                                                <div className="rounded-lg px-4 py-3 bg-muted text-muted-foreground text-sm flex items-center gap-2">
-                                                    <Loader2 size={14} className="animate-spin" /> {t('chat.interface.deepResearching', "Agent working...")}
-                                                </div>
+                                    <div className="flex flex-col gap-2 max-w-3xl mx-auto animate-in fade-in duration-300 py-4">
+                                        {/* 1. Steps (System Activity) - Indented to align with content */}
+                                        {(activityData as any)?.tasks?.length > 0 && (
+                                            <div className="pl-11 mb-2">
+                                                <TaskSteps tasks={(activityData as any).tasks} />
                                             </div>
                                         )}
+
+                                        {/* 2. Ghost Streaming Bubble (The Active Answer) */}
+                                        {(() => {
+                                            const tasks = (activityData as any)?.tasks || [];
+                                            const aiTask = tasks.find((t: any) => t.status === 'running' && t.type === 'ai');
+
+                                            // Prefer SSE streamedContent over polling (aiTask.details)
+                                            const displayContent = streamedContent || aiTask?.details
+
+                                            // Case A: AI is streaming text (SSE or polling)
+                                            if (displayContent) {
+                                                return (
+                                                    <div className="flex gap-3 justify-start items-start">
+                                                        <Avatar className="h-8 w-8 mt-1 shrink-0">
+                                                            <AvatarImage src="/bot-avatar.png" />
+                                                            <AvatarFallback><Bot size={16} /></AvatarFallback>
+                                                        </Avatar>
+                                                        <div className="rounded-lg px-4 py-3 bg-muted text-foreground text-sm leading-relaxed whitespace-pre-wrap shadow-sm min-w-[20px] max-w-[80%]">
+                                                            {displayContent}
+                                                            <span className="inline-block w-1.5 h-4 bg-primary ml-1 align-middle animate-pulse" />
+                                                        </div>
+                                                    </div>
+                                                )
+                                            }
+
+                                            // Case B: Initializing / No Tasks yet / Tool running without streaming text
+                                            // If no tasks, show loader. If tasks exist but not AI streaming, we just show steps (handled above).
+                                            if (tasks.length === 0) {
+                                                return (
+                                                    <div className="flex items-center gap-3 pl-11">
+                                                        <Loader2 size={14} className="animate-spin text-muted-foreground" />
+                                                        <span className="text-sm text-muted-foreground">{t('chat.interface.deepResearching', "Agent initializing...")}</span>
+                                                    </div>
+                                                )
+                                            }
+
+                                            // Case C: Tasks exist but no AI streaming - show current action
+                                            const runningTask = tasks.find((t: any) => t.status === 'running')
+                                            if (runningTask && !aiTask) {
+                                                // Extract meaningful name
+                                                let actionName = runningTask.name || 'Working'
+                                                actionName = actionName.replace(/^Entering \[|\]$/g, '').replace(/^Exiting \[.*\]$/, '')
+
+                                                return (
+                                                    <div className="flex items-center gap-3 pl-11">
+                                                        <Loader2 size={14} className="animate-spin text-primary" />
+                                                        <span className="text-sm text-muted-foreground">
+                                                            {t('chat.interface.workingOn', "Working...")}
+                                                            <span className="font-medium text-foreground ml-1">{actionName}</span>
+                                                        </span>
+                                                    </div>
+                                                )
+                                            }
+                                            return null;
+                                        })()}
                                     </div>
                                 )}
 
@@ -452,71 +493,14 @@ export function ChatInterface() {
                         </div>
 
                         {/* Fixed Input Area */}
-                        <div className="shrink-0 p-4 pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-                            <div className="w-full max-w-3xl mx-auto">
-                                <div className="bg-background rounded-2xl shadow-sm border border-input p-2 flex items-end gap-2 transition-all focus-within:ring-2 focus-within:ring-ring ring-offset-2">
-                                    <Button variant="ghost" size="icon" className="shrink-0 mb-1 h-8 w-8 rounded-full" onClick={() => document.getElementById('file-upload')?.click()} disabled={isUploading}>
-                                        {isUploading ? <Loader2 size={18} className="animate-spin text-muted-foreground" /> : <Paperclip size={18} className="text-muted-foreground" />}
-                                    </Button>
-                                    <input
-                                        type="file"
-                                        id="file-upload"
-                                        className="hidden"
-                                        onChange={async (e) => {
-                                            const file = e.target.files?.[0]
-                                            if (!file) return
-
-                                            setIsUploading(true)
-                                            try {
-                                                const url = await EvoLoopApi.uploadFile(file)
-                                                setInputValue(prev => prev + (prev ? "\n" : "") + `[File: ${url}]`)
-                                                toast.success(t('chat.interface.uploadSuccess'))
-                                            } catch (error) {
-                                                toast.error(t('chat.interface.uploadError'))
-                                                console.error(error)
-                                            } finally {
-                                                setIsUploading(false)
-                                                // Reset input
-                                                e.target.value = ''
-                                            }
-                                        }}
-                                    />
-                                    <textarea
-                                        value={inputValue}
-                                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInputValue(e.target.value)}
-                                        onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                                            if (e.key === 'Enter' && !e.shiftKey) {
-                                                e.preventDefault()
-                                                handleSend()
-                                            }
-                                        }}
-                                        placeholder={currentProject ? t('chat.interface.askProject', { project: currentProject.name }) : t('chat.interface.selectProject')}
-                                        disabled={!currentProject}
-                                        className="flex min-h-[44px] w-full bg-transparent border-none focus:ring-0 px-2 py-2.5 text-sm placeholder:text-muted-foreground resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 max-h-[200px]"
-                                        rows={1}
-                                    />
-                                    <Button
-                                        onClick={() => {
-                                            if (isAgentWorking) {
-                                                stopMutation.mutate()
-                                            } else {
-                                                handleSend()
-                                            }
-                                        }}
-                                        disabled={(!inputValue.trim() && !isAgentWorking) || sendMutation.isPending || !currentProject || isUploading}
-                                        size="icon"
-                                        className={`mb-0.5 h-9 w-9 rounded-xl shadow-sm transition-all ${isAgentWorking ? "bg-red-500 hover:bg-red-600 text-white animate-pulse" : ""}`}
-                                        title={isAgentWorking ? t('chat.interface.stop', "Stop Generating") : t('chat.interface.send', "Send Message")}
-                                    >
-                                        {isAgentWorking || stopMutation.isPending ? (
-                                            stopMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Square size={16} fill="currentColor" />
-                                        ) : (
-                                            <Send size={16} />
-                                        )}
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
+                        <ChatInputArea
+                            onSend={handleSend}
+                            onStop={() => stopMutation.mutate()}
+                            isAgentWorking={isAgentWorking}
+                            isSending={isSending}
+                            isStopPending={stopMutation.isPending}
+                            currentProject={currentProject}
+                        />
                     </div>
                 </ResizablePanel>
 

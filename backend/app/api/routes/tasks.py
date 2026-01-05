@@ -1,6 +1,6 @@
 import time
 from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Header
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, BackgroundTasks
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage
 
@@ -145,6 +145,7 @@ async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, autho
 @router.post("/{task_id}/execute")
 async def execute_task(
     task_id: int, 
+    bg_tasks: BackgroundTasks,
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -182,8 +183,8 @@ Remember to follow the project structure and coding standards.
     # Use task ID in thread ID to allow resuming/tracking specific to this task
     thread_id = f"task-{task_id}-{int(time.time())}"
     
-    # 4. Trigger Celery Task
-    from app.core.workflows.tasks import run_agent_task
+    # 4. Trigger Local Background Task
+    from app.core.workflows.tasks import run_agent_background
     
     # Construct Inputs (Serialized)
     # prompt is string.
@@ -230,10 +231,10 @@ Remember to follow the project structure and coding standards.
         logger.error(f"Failed to persist task message {thread_id}: {e}")
     # --------------------------------------
     
-    run_agent_task.delay(thread_id, inputs)
+    bg_tasks.add_task(run_agent_background, thread_id, inputs)
     
     return {
         "status": "queued",
         "thread_id": thread_id,
-        "message": "Agent execution started (Celery)"
+        "message": "Agent execution started (Local BG)"
     }

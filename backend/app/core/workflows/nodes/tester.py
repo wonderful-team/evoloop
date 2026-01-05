@@ -119,24 +119,37 @@ async def tester_node(state: AgentState, config: RunnableConfig):
     # We feed the FULL conversation (including potential tool outputs) to the structured LLM
     # to let it summarize the result.
     final_prompt = [
-        SystemMessage(content="Analyze the test execution above. Provide a structured report. If failed, you MUST provide a fix_suggestion based on the stack trace."),
+        SystemMessage(content="Analyze the test execution above. Provide a structured report in JSON format. If failed, you MUST provide a fix_suggestion based on the stack trace."),
     ] + loop_messages
     
     try:
         analysis = await structured_llm.ainvoke(final_prompt, config=config)
     except Exception as e:
         # Fallback
-        analysis = TestAnalysis(status="FAIL", summary=f"Error analyzing tests: {e}", root_cause="LLM Error")
+        analysis = TestAnalysis(status="FAIL", summary=f"Error analyzing tests: {e}", root_cause="LLM Error", fix_suggestion="Check logs")
 
     # Format output for next node (Coder or Supervisor)
     
-    output_msg = f"TEST PHASE: {analysis.status}\n\nSummary: {analysis.summary}"
-    if analysis.status == "FAIL":
-        output_msg += f"\n\nRCA: {analysis.root_cause}\n\n=== FIX SUGGESTION ===\n{analysis.fix_suggestion}"
+    # Construct JSON Artifact
+    artifact = {
+        "type": "artifact",
+        "artifact_type": "test_report",
+        "data": {
+            "status": analysis.status,
+            "summary": analysis.summary,
+            "root_cause": analysis.root_cause,
+            "fix_suggestion": analysis.fix_suggestion,
+            "failures": [] # We could populate this from test_results if we parsed them in detail here, but analysis.summary usually covers it.
+        }
+    }
     
+    # Add failure details if available in parsed results (optional, requires passing more data from run_tests)
+    # For now, relying on analysis fields.
+    
+    output_msg = json.dumps(artifact, ensure_ascii=False)
+
     return {
         "test_results": analysis.status,
         "messages": [AIMessage(content=output_msg)],
         "iteration_count": state.get("iteration_count", 0) + 1
     }
-

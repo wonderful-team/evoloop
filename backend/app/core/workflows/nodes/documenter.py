@@ -143,6 +143,8 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
             logger.error(f"Failed to generate {filename}: {e}")
             generated_pages.append(f"{filename} (FAILED: {e})")
 
+    msg_content = f"Wiki Generation Complete.\nPages created:\n" + "\n".join(generated_pages)
+
     return {
-        "messages": [AIMessage(content=f"Wiki Generation Complete.\nPages created:\n" + "\n".join(generated_pages))]
+        "messages": [AIMessage(content=msg_content)]
     }

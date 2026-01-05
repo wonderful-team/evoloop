@@ -1,4 +1,4 @@
-from typing import TypedDict, Annotated, List, Union, Optional
+from typing import TypedDict, Annotated, List, Union, Optional, Dict, Any
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 import operator
@@ -48,3 +48,7 @@ class AgentState(TypedDict):
     # Planning
     technical_analysis: Optional[str]
     implementation_plan: Optional[str]
+
+    # [NEW] Dynamic State Store
+    # A dictionary to hold arbitrary variables (e.g. "loop_index", "api_status", "summary_draft")
+    scratchpad: Annotated[Dict[str, Any], operator.ior]

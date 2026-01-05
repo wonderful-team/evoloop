@@ -94,6 +94,28 @@ async def create_project(req: CreateProjectRequest):
         logger.error(f"Failed to create project: {e}")
         raise HTTPException(500, str(e))
 
+@router.get("/{project_id}/status")
+async def get_project_status(project_id: int):
+    """
+    Get real-time status of system tasks (Indexing, Summarization) for a project.
+    """
+    from app.core.monitoring.activity import activity_monitor
+    
+    indexing_key = f"sys:{project_id}:indexing"
+    summarization_key = f"sys:{project_id}:summarization"
+    
+    # We can fetch both concurrently or pipelined if we added a specific method.
+    # For now, let's just fetch individual activities. 
+    # ActivityMonitor.get_activity is fast enough (single HGETALL).
+    
+    indexing = await activity_monitor.get_activity(indexing_key)
+    summarization = await activity_monitor.get_activity(summarization_key)
+    
+    return {
+        "indexing": indexing,
+        "summarization": summarization
+    }
+
 @router.delete("/{project_id}")
 async def delete_project(project_id: int):
     """Delete a project (Unlink from Member Center)."""
@@ -130,13 +152,19 @@ async def list_project_conversations(project_id: int):
         result = await session.execute(stmt)
         threads = result.scalars().all()
         
+    # Inject Status
+    from app.core.monitoring.activity import activity_monitor
+    thread_ids = [str(t.id) for t in threads]
+    status_map = await activity_monitor.get_statuses(thread_ids)
+
     return {
         "conversations": [
             {
                 "thread_id": t.id, 
                 "title": t.title,
                 "project_id": t.project_id,
-                "updated_at": t.updated_at
+                "updated_at": t.updated_at,
+                "status": status_map.get(str(t.id), "idle")
             } 
             for t in threads
         ]
@@ -155,7 +183,16 @@ async def get_conversation_history(thread_id: str):
             db_messages = result.scalars().all()
             
             # Simple list of role/content, no complex graph parsing needed anymore!
-            messages = [{"type": m.role, "content": m.content, "thinking": m.thinking} for m in db_messages]
+            messages = [
+                {
+                    "id": str(m.id),
+                    "type": m.role,
+                    "content": m.content,
+                    "thinking": m.thinking,
+                    "created_at": m.created_at.isoformat() if m.created_at else None
+                }
+                for m in db_messages
+            ]
             
             return {"messages": messages}
             

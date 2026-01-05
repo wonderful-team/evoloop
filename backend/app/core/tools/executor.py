@@ -68,6 +68,8 @@ class ToolExecutor:
             # We assume the tool itself handles exceptions via @evoloop_tool, 
             # but we allow bubbling if raw execution
             output = await tool.ainvoke(args, config=config)
+        except InterruptedError:
+            raise
         except Exception as e:
             output = f"Error executing {tool_name}: {str(e)}"
 

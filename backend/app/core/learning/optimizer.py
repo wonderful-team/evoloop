@@ -1,0 +1,72 @@
+
+from typing import List, Optional
+import logging
+from langchain_core.messages import SystemMessage, HumanMessage
+from app.core.llm.factory import LLMFactory
+from app.domain.system.service import SystemConfigService
+
+logger = logging.getLogger("evoloop.learning.optimizer")
+
+META_OPTIMIZER_PROMPT = """
+You are an Expert Prompt Engineer and Coach for AI Agents.
+Your goal is to IMPROVE an Agent's System Prompt based on a reported failure or feedback.
+
+## Inputs
+1. **Current System Prompt**: The instructions the agent was following.
+2. **Context/Trace**: A summary of what the agent did (and failed at).
+3. **Feedback/Error**: What went wrong or what the user complained about.
+
+## Your Task
+1. Analyze the root cause. Did the agent misunderstand? Did it ignore a rule? Did it lack a rule?
+2. Rewrite the System Prompt to strictly prevent this specific failure in the future.
+3. **Constraint**: Keep the prompt concise. Do not remove essential existing instructions unless they conflict. Add a specific "Rule" or "Constraint".
+
+## Output
+Return ONLY the new System Prompt text. Do not wrap in markdown blocks if not necessary (just the text).
+"""
+
+class PromptOptimizer:
+    
+    async def optimize(self, current_prompt: str, trace_summary: str, feedback: str) -> str:
+        """
+        Reflects on the failure and returns a better prompt.
+        """
+        try:
+             provider = await SystemConfigService.get_value("provider") or "openai"
+             llm = LLMFactory.create_llm(provider=provider, smart=True)
+             
+             user_content = f"""
+## Current Prompt
+{current_prompt}
+
+## Execution Pattern (Trace)
+{trace_summary}
+
+## Feedback (The Failure)
+{feedback}
+
+Please optimize the prompt to fix this.
+"""
+             messages = [
+                 SystemMessage(content=META_OPTIMIZER_PROMPT),
+                 HumanMessage(content=user_content)
+             ]
+             
+             response = await llm.ainvoke(messages)
+             new_prompt = response.content.strip()
+             
+             # Basic cleanup
+             if new_prompt.startswith("```"):
+                 lines = new_prompt.splitlines()
+                 # Remove first and last lines if they are fences
+                 if lines[0].startswith("```"): lines = lines[1:]
+                 if lines and lines[-1].startswith("```"): lines = lines[:-1]
+                 new_prompt = "\n".join(lines).strip()
+                 
+             logger.info(f"Optimized prompt based on feedback: {feedback}")
+             return new_prompt
+             
+        except Exception as e:
+            logger.error(f"Prompt optimization failed: {e}")
+            return current_prompt # Fallback
+

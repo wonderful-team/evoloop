@@ -9,6 +9,7 @@ from app.core.workflows.nodes.deep_researcher import deep_researcher_node
 from app.core.workflows.nodes.documenter import documenter_node
 from app.core.workflows.nodes.meta_reviewer import meta_reviewer_node
 from app.core.workflows.nodes.router import router_node
+from app.core.workflows.nodes.finish import finish_node
 from app.domain.tools.browser import browser_agent
 from app.domain.tools.computer import computer_agent_tool
 from app.domain.tools.mobile import mobile_agent_tool
@@ -49,6 +50,8 @@ def create_graph(checkpointer=None):
     workflow.add_node("documenter", documenter_node)
     workflow.add_node("meta_reviewer", meta_reviewer_node)
 
+    workflow.add_node("finish", finish_node)
+
     # Set Entry Point
     workflow.set_entry_point("router")
     
@@ -69,8 +72,10 @@ def create_graph(checkpointer=None):
     workflow.add_edge("browser_executor", "supervisor")
     workflow.add_edge("computer_executor", "supervisor")
     workflow.add_edge("mobile_executor", "supervisor")
+    
+    # Finish Logic
+    workflow.add_edge("finish", END)
 
-    # Add Edges from Supervisor
     # Add Edges from Supervisor
     
     def route_supervisor(state: AgentState):
@@ -82,7 +87,6 @@ def create_graph(checkpointer=None):
             return [Send("deep_researcher", {
                 "research_topic": topic,
                 "project_id": project_id,
-                # We don't pass full messages to save tokens/bandwidth, assuming research is self-contained
             }) for topic in tasks]
         if next_node == "finish":
             return "finish"
@@ -96,7 +100,7 @@ def create_graph(checkpointer=None):
             "deep_researcher": "deep_researcher",
             "documenter": "documenter",
             "supervisor": "supervisor",
-            "finish": END
+            "finish": "finish"
         }
     )
 
@@ -119,7 +123,6 @@ def create_graph(checkpointer=None):
     # Coder -> Tester
     workflow.add_edge("coder", "tester")
 
-    # Tester Logic
     # Tester Logic
     def route_tester(state: AgentState):
         if state.get("test_results") == "PASS":

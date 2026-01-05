@@ -44,6 +44,7 @@ export interface Project {
     status_text: string
     priority_text: string
     indexing_status?: string
+    summarization_status?: string
 }
 
 interface ProjectState {
@@ -54,6 +55,7 @@ interface ProjectState {
     fetchProjects: () => Promise<void>
     setProject: (project: Project) => void
     getProject: (id: number) => Project | undefined
+    updateProjectStatus: (id: number, statusUpdates: Partial<Project>) => void
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -125,5 +127,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     getProject: (id) => {
         return get().projects.find((p) => p.id === id)
+    },
+
+    updateProjectStatus: (id, statusUpdates) => {
+        set(state => {
+            const newProjects = state.projects.map(p =>
+                p.id === id ? { ...p, ...statusUpdates } : p
+            )
+
+            // Also update current if matches
+            const newCurrent = state.currentProject?.id === id
+                ? { ...state.currentProject, ...statusUpdates }
+                : state.currentProject
+
+            return {
+                projects: newProjects,
+                currentProject: newCurrent
+            }
+        })
     }
 }))

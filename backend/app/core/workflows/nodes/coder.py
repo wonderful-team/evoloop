@@ -7,9 +7,11 @@ import json
 from langchain_core.runnables import RunnableConfig
 from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
+from app.core.workflows.middleware import context_aware
 
 
-async def coder_node(state: AgentState, config: RunnableConfig):
+@context_aware(inject=["current_plan", "user_preferences", "memory", "project_id"])
+async def coder_node(state: AgentState, config: RunnableConfig, context: dict = None):
     """
     Coder Node:
     1. Reads plan.
@@ -17,8 +19,16 @@ async def coder_node(state: AgentState, config: RunnableConfig):
     """
     llm = LLMFactory.create_llm()
     messages = state["messages"]
-    context = state.get("context", "")
-    plan = state.get("current_plan", "")
+    
+    # Context injected by middleware
+    plan = context.get("current_plan", "")
+    prefs = context.get("user_preferences", "None")
+    project_id = context.get("project_id", 1)
+    concepts = context.get("memory", "None")
+    
+    # Explicit Context from State (e.g. Previous retrieval)
+    # Some things might still live in state if they are transient
+    retrieval_ctx = state.get("context", "")
     
     # Get tools
     # Core Tools Imports
@@ -35,7 +45,7 @@ async def coder_node(state: AgentState, config: RunnableConfig):
     mcp_tools = mcp_client_manager.get_tools()
     await tool_retriever.index_tools(mcp_tools)
     
-    query = f"{plan} {context}"
+    query = f"{plan} {retrieval_ctx}"
     retrieved_tools = await tool_retriever.retrieve(query, k=10)
     
     # 3. Combine
@@ -44,10 +54,6 @@ async def coder_node(state: AgentState, config: RunnableConfig):
     
     llm_with_tools = llm.bind_tools(tools)
     tool_map = {t.name: t for t in tools}
-    
-    prefs = state.get("user_preferences", "None")
-    project_id = state.get("project_id", 1)
-    concepts = state.get("project_concepts", "None")
     
     from app.domain.system.service import SystemConfigService
     user_lang = SystemConfigService.get_language_preference()
@@ -214,7 +220,9 @@ async def coder_node(state: AgentState, config: RunnableConfig):
             
             loop_messages.append(ToolMessage(content=str(result), tool_call_id=tool_id))
 
+    msg = f"Implementation complete. {generated_code_summary}"
+    
     return {
         "code": "Code implemented via tools",
-        "messages": [AIMessage(content=f"Implementation complete. {generated_code_summary}")]
+        "messages": [AIMessage(content=msg)]
     }

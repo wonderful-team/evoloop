@@ -18,7 +18,7 @@ from app.domain.tools.memory import save_preference, search_concepts
 from app.domain.tools.facades import manage_file
 from app.domain.planning.tools import create_plan, update_step_status, analyze_feasibility
 
-llm = LLMFactory.create_llm()
+# llm = LLMFactory.create_llm()
 
 # Supervisor is a decision maker.
 # For simplicity, we use a function calling or structured output model.
@@ -52,15 +52,18 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
        - This applies to your thoughts, plans, and final responses.
 
     **Direct Response Protocol (Thinking Mode)**:
-    - For simple greetings ("Hello"), questions ("What can you do?"), or clarifications:
+    - For simple greetings ("Hello"), questions ("What can you do?", "Who are you?"), or clarifications:
       - **DO NOT** use tools.
       - **DO NOT** route to Researcher unless external info is needed.
-      - Just **reply directly** to the user in the final output.
+      - **DO NOT** output JSON.
+      - Just **reply directly** to the user in **PLAIN TEXT** (Natural Language).
       - Then route to `finish`.
+      - Example: "I can help you with coding and research." (NOT `{{"response": "I can help..."}}`)
 
     5. **Think Before Action**:
-       - Before calling ANY tool, you MUST output a brief sentence explaining WHY you are taking this action.
-       - Example: "I will read the file `main.py` to check the import statements."
+       - **CHECK HISTORY**: Before calling ANY tool, check if you have just performed this action.
+       - **AVOID REDUNDANCY**: If you have already read a file or searched a query and received a valid result, DO NOT repeat it.
+       - Explain WHY: "I will read the file `main.py` to check imports." or "I see I have already read `main.py`, proceeding to analysis."
     
     Your routing options:
     1. Researcher: For questions, info gathering, or if you need to investigate the codebase.
@@ -98,6 +101,19 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     llm = LLMFactory.create_llm()
     # Context
     project_id = state.get("project_id", 1) # Default to 1 if missing
+
+    # OPTIMIZATION: Emit "Thinking" status immediately for UI responsiveness
+    try:
+        from app.core.monitoring.activity import activity_monitor
+        thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+        await activity_monitor.update_agent_state(
+            thread_id=thread_id,
+            mode="PLANNING",
+            task_name="Supervisor Decision",
+            task_status="Analyzing context and tools..."
+        )
+    except Exception:
+        pass
 
     # 0. Context Compression Check
     try:
@@ -286,33 +302,56 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
 
             # Create tool map for easy lookup
             tool_map = {t.name: t for t in tools}
+            
+            # Track executed tools in this session to prevent loops
+            # We use a simple signature: name + sorted(args.items())
+            if "tool_history" not in state:
+                state["tool_history"] = []
 
             # Execute tools
             for tool_call in result.tool_calls:
                 tool_name = tool_call["name"]
                 tool_args = tool_call["args"]
                 
-                content = ""
+                # Check for duplication
+                import json
+                try:
+                    # Normalize args for comparison
+                    tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
+                except:
+                    tool_sig = f"{tool_name}:{str(tool_args)}"
                 
-                if tool_name in tool_map:
-                    selected_tool = tool_map[tool_name]
-                    executor = ToolExecutor()
-                    
-                    # Universal async invocation with observability
-                    content = await executor.execute(selected_tool, tool_args, config=config)
-                         
-                    # Special Handling for State Updates (create_plan)
-                    if tool_name == "create_plan":
-                        try:
-                            plan_data = json.loads(str(content))
-                            steps_text = "\\n".join([f"- {s['title']} ({s['status']})" for s in plan_data.get('steps', [])])
-                            current_plan = f"Plan: {plan_data.get('title')}\\n{steps_text}"
-                            state["structured_plan"] = str(content)
-                            state["current_plan"] = current_plan
-                        except:
-                            pass
+                content = ""
+                is_duplicate = False
+                
+                # Check duplication against local state history
+                if tool_sig in state["tool_history"]:
+                     content = f"⚠️ SYSTEM ALERT: You have ALREADY executed `{tool_name}` with these exact arguments. Do not repeat actions. Review the history to see the results. Proceed to the next step."
+                     is_duplicate = True
+                     logger.warning(f"Prevented duplicate tool call: {tool_sig}")
                 else:
-                    content = f"Error: Tool {tool_name} not found."
+                    state["tool_history"].append(tool_sig)
+
+                if not is_duplicate:
+                    if tool_name in tool_map:
+                        selected_tool = tool_map[tool_name]
+                        executor = ToolExecutor()
+                        
+                        # Universal async invocation with observability
+                        content = await executor.execute(selected_tool, tool_args, config=config)
+                             
+                        # Special Handling for State Updates (create_plan)
+                        if tool_name == "create_plan":
+                            try:
+                                plan_data = json.loads(str(content))
+                                steps_text = "\\n".join([f"- {s['title']} ({s['status']})" for s in plan_data.get('steps', [])])
+                                current_plan = f"Plan: {plan_data.get('title')}\\n{steps_text}"
+                                state["structured_plan"] = str(content)
+                                state["current_plan"] = current_plan
+                            except:
+                                pass
+                    else:
+                        content = f"Error: Tool {tool_name} not found."
 
                 # Create tool message
                 tool_msg = ToolMessage(content=str(content), tool_call_id=tool_call["id"], name=tool_name)
@@ -343,20 +382,71 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
             break
             
     # 2. Make Routing Decision
-    structured_llm = llm.with_structured_output(RoutingDecision)
-    chain = supervisor_prompt.partial(
-        project_id=project_id, 
-        current_plan=current_plan, 
-        iteration_count=iteration_count,
-        system_info=sys_info,
-        user_lang=user_lang
-    ) | structured_llm
     
+    # HEURISTIC: Check if we just received a Deep Research Report
+    if messages and isinstance(messages[-1], AIMessage):
+        last_content = messages[-1].content
+        if "Full Research Report" in last_content or "Detailed Conclusion" in last_content or "# Final Conclusion" in last_content:
+            logger.info("Supervisor detected Research Report. Defaulting to FINISH to avoid loops.")
+            return {
+                "next_node": "finish",
+                "messages": new_messages,
+                "current_plan": state.get("current_plan"),
+                "structured_plan": state.get("structured_plan"),
+                "parallel_research_tasks": []
+            }
+
+    from langchain_core.output_parsers import JsonOutputParser
+    parser = JsonOutputParser(pydantic_object=RoutingDecision)
+    format_instructions = parser.get_format_instructions()
+
+    routing_prompt = ChatPromptTemplate.from_messages([
+        ("system", """You are the Supervisor. Decide the next step.
+        
+        Options:
+        - "coder": If you have a plan and need to write code.
+        - "deep_researcher": If you need to search, read docs, or investigate complex topics.
+        - "documenter": If you need to write documentation.
+        - "finish": If the user's request is fully satisfied, OR if you have replied directly to a general question (e.g. "What can you do?").
+        
+        CRITICAL: 
+        - If you have answered a simple question directly, CHOOSE "finish".
+        - You MUST output a JSON object matching the schema.
+        - "next_node" is REQUIRED.
+        
+        {format_instructions}
+        
+        system_info: {system_info}
+        """),
+        ("placeholder", "{messages}"),
+        ("system", "Analyze the above conversation. Decide the next step. Output ONLY the JSON object."),
+    ])
+    
+    chain = routing_prompt.partial(
+        system_info=sys_info,
+        format_instructions=format_instructions
+    ) | llm | parser
+
     next_node = "deep_researcher"
     decision: Optional[RoutingDecision] = None
     try:
-        decision = await chain.ainvoke(state, config=config)
+        # Create a clean config without callbacks to hide internal routing logic from user
+        # We don't want "Thinking..." or raw JSON to appear in chat for this metadata step.
+        routing_config = config.copy() if config else {}
+        # CRITICAL: We must explicitly set to empty list to override parent context callbacks!
+        # Deleting the key causes it to inherit from parent context.
+        routing_config["callbacks"] = []
+        
+        if "configurable" in routing_config:
+            # Keep configurable but ensure we don't accidentally pass other tracking metadata if needed
+            pass
+            
+        raw_decision = await chain.ainvoke(state, config=routing_config)
+        # Parse manually into Pydantic to ensure validation
+        decision = RoutingDecision(**raw_decision)
         next_node = decision.next_node
+    except InterruptedError:
+        raise
     except Exception as e:
         # Fallback if structured output fails
         next_node = "deep_researcher"

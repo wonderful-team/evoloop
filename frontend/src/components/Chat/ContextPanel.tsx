@@ -2,11 +2,12 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Brain, Map, Layers, Database, ExternalLink, X, Plus, RefreshCw, Loader2, Search, FileText } from "lucide-react"
+import { Brain, Map, Layers, Database, ExternalLink, X, Plus, RefreshCw, Loader2, Search, FileText, Cpu, Wrench } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { MemoryService, PlanningService, FilesService } from "@/client"
+import { ToolsService } from "@/client/ToolsService"
 import { ConceptResponse } from "@/client/types.gen"
 import {
     Dialog,
@@ -131,6 +132,27 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
         enabled: false // Trigger manually
     })
 
+    // 4. Tools
+    const { data: tools, isLoading: isLoadingTools } = useQuery({
+        queryKey: ["tools", activeTab],
+        queryFn: async () => {
+            return ToolsService.listRuntimeTools()
+        },
+        enabled: activeTab === 'tools'
+    })
+
+    // 5. Files (Resources)
+    const { data: filesData, isLoading: isLoadingFiles } = useQuery({
+        queryKey: ["files", projectId],
+        queryFn: async () => {
+            if (!projectId) return null
+            const res = await FilesService.listFiles({ projectId })
+            // FilesService.listFiles returns Array<FileNode> directly
+            return res
+        },
+        enabled: !!projectId && activeTab === 'resources'
+    })
+
     if (!projectId) {
         return (
             <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4 text-center">
@@ -162,12 +184,14 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
-                <div className="px-3 pt-2 shrink-0">
-                    <TabsList className="grid w-full grid-cols-4">
-                        <TabsTrigger value="memory" title={t('chat.context.tabMemory')}><Brain className="h-4 w-4" /></TabsTrigger>
-                        <TabsTrigger value="plan" title={t('chat.context.tabPlan')}><Map className="h-4 w-4" /></TabsTrigger>
-                        <TabsTrigger value="knowledge" title={t('chat.context.tabKnowledge')}><Database className="h-4 w-4" /></TabsTrigger>
-                        <TabsTrigger value="resources" title={t('chat.context.tabResources')}><Layers className="h-4 w-4" /></TabsTrigger>
+                <div className="px-1 pt-2 shrink-0">
+                    <TabsList className="flex flex-wrap h-auto w-full gap-1 bg-transparent justify-start">
+                        <TabsTrigger value="memory" title={t('chat.context.tabMemory')} className="flex-1 min-w-[3rem] px-2 py-1.5"><Brain className="h-4 w-4" /></TabsTrigger>
+                        <TabsTrigger value="plan" title={t('chat.context.tabPlan')} className="flex-1 min-w-[3rem] px-2 py-1.5"><Map className="h-4 w-4" /></TabsTrigger>
+                        <TabsTrigger value="state" title={t('chat.context.tabState')} className="flex-1 min-w-[3rem] px-2 py-1.5"><Cpu className="h-4 w-4" /></TabsTrigger>
+                        <TabsTrigger value="tools" title="Tools" className="flex-1 min-w-[3rem] px-2 py-1.5"><Wrench className="h-4 w-4" /></TabsTrigger>
+                        <TabsTrigger value="knowledge" title={t('chat.context.tabKnowledge')} className="flex-1 min-w-[3rem] px-2 py-1.5"><Database className="h-4 w-4" /></TabsTrigger>
+                        <TabsTrigger value="resources" title={t('chat.context.tabResources')} className="flex-1 min-w-[3rem] px-2 py-1.5"><Layers className="h-4 w-4" /></TabsTrigger>
                     </TabsList>
                 </div>
 
@@ -291,6 +315,72 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
                         </ScrollArea>
                     </TabsContent>
 
+                    {/* State Inspector Tab */}
+                    <TabsContent value="state" className="h-full m-0 flex flex-col">
+                        <div className="p-2 border-b bg-muted/20 flex justify-between items-center">
+                            <span className="text-xs font-medium text-muted-foreground">{t('chat.context.stateTitle')}</span>
+                        </div>
+                        <ScrollArea className="flex-1 p-3">
+                            {!typedPlanData?.state ? (
+                                <div className="text-center text-xs text-muted-foreground py-8">
+                                    {t('chat.context.noState')}
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <div className="text-xs font-semibold text-muted-foreground uppercase">Context</div>
+                                        <div className="grid grid-cols-[80px_1fr] gap-2 text-xs">
+                                            <span className="text-muted-foreground">Project:</span>
+                                            <span className="font-mono">{typedPlanData.state.project_id || '-'}</span>
+                                            <span className="text-muted-foreground">Work Dir:</span>
+                                            <span className="font-mono break-all">{typedPlanData.state.working_directory || '-'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <div className="text-xs font-semibold text-muted-foreground uppercase">Scratchpad</div>
+                                        <div className="bg-muted/50 p-2 rounded-md border text-xs font-mono whitespace-pre-wrap break-words min-h-[100px]">
+                                            {typedPlanData.state.scratchpad || 'Empty'}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </ScrollArea>
+                    </TabsContent>
+
+                    {/* Tools Tab */}
+                    <TabsContent value="tools" className="h-full m-0 flex flex-col">
+                        <div className="p-2 border-b bg-muted/20 flex justify-between items-center">
+                            <span className="text-xs font-medium text-muted-foreground">Runtime Tools</span>
+                        </div>
+                        <ScrollArea className="flex-1 p-3">
+                            {isLoadingTools ? (
+                                <div className="flex justify-center p-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+                            ) : tools && tools.length > 0 ? (
+                                <div className="space-y-3">
+                                    {tools.map((tool: any, i: number) => (
+                                        <div key={i} className="border rounded-md p-2 bg-card">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <div className="font-semibold text-xs text-primary">{tool.name}</div>
+                                                <div className="text-[10px] bg-muted px-1 rounded text-muted-foreground">dynamic</div>
+                                            </div>
+                                            <div className="text-xs text-muted-foreground mb-2">
+                                                {tool.description}
+                                            </div>
+                                            {/* Args Schema */}
+                                            <div className="bg-muted/30 p-1.5 rounded text-[10px] font-mono overflow-x-auto whitespace-pre">
+                                                {JSON.stringify(tool.args_schema?.properties || {}, null, 2)}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center text-xs text-muted-foreground py-8">
+                                    No runtime tools found.
+                                </div>
+                            )}
+                        </ScrollArea>
+                    </TabsContent>
+
                     {/* Knowledge Tab */}
                     <TabsContent value="knowledge" className="h-full m-0 flex flex-col">
                         <div className="p-2 border-b bg-muted/20 space-y-2">
@@ -333,18 +423,43 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
 
                     {/* Resources Tab */}
                     <TabsContent value="resources" className="h-full m-0 flex flex-col">
+                        <div className="p-2 border-b bg-muted/20 flex justify-between items-center">
+                            <span className="text-xs font-medium text-muted-foreground">{t('chat.context.resourcesTitle')}</span>
+                            <Button variant="ghost" size="icon" className="h-6 w-6"><RefreshCw className="h-3 w-3" /></Button>
+                        </div>
                         <ScrollArea className="flex-1 p-3">
                             <div className="space-y-4">
-                                <h4 className="text-sm font-medium leading-none">{t('chat.context.resourcesTitle')}</h4>
-                                <Button variant="outline" className="w-full justify-start gap-2 h-9" onClick={() => window.open("about:blank", "_blank")}>
-                                    <ExternalLink className="h-4 w-4" />
-                                    {t('chat.context.openImagicBox')}
-                                </Button>
+                                <div>
+                                    <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase">{t('chat.context.filesTitle')}</h4>
+                                    {isLoadingFiles ? (
+                                        <div className="flex justify-center p-2"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
+                                    ) : filesData && filesData.length > 0 ? (
+                                        <div className="space-y-1">
+                                            {filesData.map((file: any, i: number) => (
+                                                <div key={i} className="flex items-center gap-2 text-xs p-1.5 hover:bg-muted rounded cursor-pointer group">
+                                                    <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                                                    <span className="truncate flex-1">{file.name || file.path}</span>
+                                                    {file.size && <span className="text-[10px] text-muted-foreground">{file.size}B</span>}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-xs text-muted-foreground italic">{t('chat.context.noFiles')}</div>
+                                    )}
+                                </div>
+
+                                <div>
+                                    <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase">{t('chat.context.externalLinksTitle')}</h4>
+                                    <Button variant="outline" className="w-full justify-start gap-2 h-8 text-xs" onClick={() => window.open("/imagicbox", "_blank")}>
+                                        <ExternalLink className="h-3 w-3" />
+                                        {t('chat.context.openImagicBox')}
+                                    </Button>
+                                </div>
                             </div>
                         </ScrollArea>
                     </TabsContent>
                 </div>
-            </Tabs>
-        </div>
+            </Tabs >
+        </div >
     )
 }

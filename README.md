@@ -1,230 +1,160 @@
-# Full Stack FastAPI Template
+# EvoLoop - 通用智能体系统 (Universal Agent System)
 
-<a href="https://github.com/fastapi/full-stack-fastapi-template/actions?query=workflow%3A%22Test+Docker+Compose%22" target="_blank"><img src="https://github.com/fastapi/full-stack-fastapi-template/workflows/Test%20Docker%20Compose/badge.svg" alt="Test Docker Compose"></a>
-<a href="https://github.com/fastapi/full-stack-fastapi-template/actions?query=workflow%3A%22Test+Backend%22" target="_blank"><img src="https://github.com/fastapi/full-stack-fastapi-template/workflows/Test%20Backend/badge.svg" alt="Test Backend"></a>
-<a href="https://coverage-badge.samuelcolvin.workers.dev/redirect/fastapi/full-stack-fastapi-template" target="_blank"><img src="https://coverage-badge.samuelcolvin.workers.dev/fastapi/full-stack-fastapi-template.svg" alt="Coverage"></a>
+EvoLoop 是一个先进的**通用智能体系统**，旨在跨多个环境（Web、桌面和移动端）自主规划、研究、编码和执行任务。基于 **LangGraph** 构建，它编排了一组专业的智能体（Agent）来处理复杂的工作流，具备自我纠错和深度上下文感知能力。
 
-## Technology Stack and Features
+## 🌟 核心特性 (Key Features)
 
-- ⚡ [**FastAPI**](https://fastapi.tiangolo.com) for the Python backend API.
-  - 🧰 [SQLModel](https://sqlmodel.tiangolo.com) for the Python SQL database interactions (ORM).
-  - 🔍 [Pydantic](https://docs.pydantic.dev), used by FastAPI, for the data validation and settings management.
-  - 💾 [PostgreSQL](https://www.postgresql.org) as the SQL database.
-- 🚀 [React](https://react.dev) for the frontend.
-  - 💃 Using TypeScript, hooks, [Vite](https://vitejs.dev), and other parts of a modern frontend stack.
-  - 🎨 [Tailwind CSS](https://tailwindcss.com) and [shadcn/ui](https://ui.shadcn.com) for the frontend components.
-  - 🤖 An automatically generated frontend client.
-  - 🧪 [Playwright](https://playwright.dev) for End-to-End testing.
-  - 🦇 Dark mode support.
-- 🐋 [Docker Compose](https://www.docker.com) for development and production.
-- 🔒 Secure password hashing by default.
-- 🔑 JWT (JSON Web Token) authentication.
-- 📫 Email based password recovery.
-- 📬 [Mailcatcher](https://mailcatcher.me) for local email testing during development.
-- ✅ Tests with [Pytest](https://pytest.org).
-- 📞 [Traefik](https://traefik.io) as a reverse proxy / load balancer.
-- 🚢 Deployment instructions using Docker Compose, including how to set up a frontend Traefik proxy to handle automatic HTTPS certificates.
-- 🏭 CI (continuous integration) and CD (continuous deployment) based on GitHub Actions.
+- **🧠 自主编排 (Autonomous Orchestration)**: 系统支持 **Multi-Agent Orchestration (Phase 10)**。除了预置的 Supervisor，Agent 现在可以动态发现并根据 YAML 配置生成 **Sub-Agents (Skills)**，实现无限层级的任务委派 (`Manager` -> `Architect` -> `Coder`)。
+- **🧩 动态工具 (Dynamic Tooling)**: Agent 具备自我进化能力，能在运行时编写全新的 Python 工具 (`create_python_tool`) 并立即注册使用，不再受限于预定义的工具集。
+- **🌐 全平台控制 (Omni-Platform Control)**:
+  - **Browser**: 自动化 Web 交互。
+  - **Desktop**: 控制本地桌面环境。
+  - **Mobile**: 通过 Tauri 管理移动端工作流。
+- **📚 深度代码理解 (Deep Code Understanding)**: 使用 **Neo4j** 和 **Tree-sitter** 对代码库进行语义索引和查询。
+- **🔄 自愈工作流 (Self-Healing Workflows)**: `Coder` <-> `Tester` 循环允许系统在无需人工干预的情况下迭代检测并修复 Bug。
+- **⚡ 并行深度研究 (Parallel Deep Research)**: 在执行前生成并发的研究任务以收集信息。
 
-### Dashboard Login
+## 🐝 多智能体编排 (Multi-Agent Orchestration)
 
-[![API docs](img/login.png)](https://github.com/fastapi/full-stack-fastapi-template)
+EvoLoop Phase 10 引入了**动态技能注册 (Skill Registry)** 和 **委派机制 (Delegation)**，允许您通过 YAML 配置文件定义和组装复杂的 Agent 团队。
 
-### Dashboard - Admin
+### 1. 标准工程团队 (Standard Engineering Team)
 
-[![API docs](img/dashboard.png)](https://github.com/fastapi/full-stack-fastapi-template)
+系统内置了一组专家级 Agent 配置 (`backend/app/core/workflows/config/`)：
 
-### Dashboard - Items
+| Agent Role | ID (`skill_name`) | 职能描述 | 核心工具 |
+| :--- | :--- | :--- | :--- |
+| **Engineering Manager** | `team_manager` | **团队指挥官**。负责接收用户需求，拆解任务计划，并动态委派给 Researcher, Architect 和 Engineer。 | `delegate_task`, `create_plan` |
+| **Senior Architect** | `team_architect` | **架构师**。负责顶层设计，查阅现有架构文档，确保技术决策的一致性。 | `consult_architecture` |
+| **Researcher** | `team_researcher` | **研究员**。深度阅读代码和文档，提供上下文分析报告。 | `explore_codebase`, `read_document` |
+| **Senior Engineer** | `team_engineer` | **高级工程师**。负责实际代码实现。拥有**自制工具** (`create_python_tool`) 的权限。 | `manage_file`, `create_python_tool` |
 
-[![API docs](img/dashboard-items.png)](https://github.com/fastapi/full-stack-fastapi-template)
+### 2. 如何使用 (Usage)
 
-### Dashboard - Dark Mode
+Agent 之间通过 `delegate_task` 工具自动协作。如果您想让系统以 "Manager" 模式运行，您可以直接与 `team_manager` 交互（取决于系统配置的入口），或者仅仅只需告诉主 Agent："请让工程团队处理这个问题"。
 
-[![API docs](img/dashboard-dark.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-### Interactive API Documentation
-
-[![API docs](img/docs.png)](https://github.com/fastapi/full-stack-fastapi-template)
-
-## How To Use It
-
-You can **just fork or clone** this repository and use it as is.
-
-✨ It just works. ✨
-
-### How to Use a Private Repository
-
-If you want to have a private repository, GitHub won't allow you to simply fork it as it doesn't allow changing the visibility of forks.
-
-But you can do the following:
-
-- Create a new GitHub repo, for example `my-full-stack`.
-- Clone this repository manually, set the name with the name of the project you want to use, for example `my-full-stack`:
-
-```bash
-git clone git@github.com:fastapi/full-stack-fastapi-template.git my-full-stack
+```python
+# 示例：Agent 内部调用逻辑
+await delegate_task.ainvoke({
+    "skill_name": "team_manager", 
+    "task_input": {
+        "messages": [{"role": "user", "content": "重构 backend/app/core 模块"}]
+    }
+})
 ```
 
-- Enter into the new directory:
+### 3. 自定义 Agent (Custom Skills)
 
+您可以在 `backend/app/core/workflows/config/` 目录下创建新的 `.yaml` 文件来定义新的 Agent：
+
+```yaml
+# my_agent.yaml
+name: my_special_agent
+version: "1.0"
+nodes:
+  - id: worker
+    path: "app.core.workflows.nodes.generic.GenericLLMNode"
+    config:
+      system_prompt: "You are a Specialist in X."
+      tools: ["your_tool_a", "your_tool_b"]
+edges:
+  - from: worker
+    to: END
+```
+系统会自动扫描并注册 `my_special_agent`，使其可被委派。
+
+
+## 🏗 系统架构 (Architecture)
+
+系统分为强大的 Python 后端和跨平台的前端。
+
+### 后端 (`/backend`)
+- **框架**: FastAPI + LangGraph
+- **数据库**: PostgreSQL (关系型) + Neo4j (图数据库)
+- **队列**: Redis + Celery
+- **运行时**: Python 3.11 (由 `uv` 管理)
+
+### 前端 (`/frontend`)
+- **核心**: React 19 + Vite
+- **UI 组件**: Shadcn/UI + TailwindCSS v4
+- **原生封装**: Tauri v2 (支持 Windows, macOS, Linux, Android, iOS)
+
+## 🚀 快速开始 (Getting Started)
+
+### 环境要求 (Prerequisites)
+
+- **Docker & Docker Compose** (用于数据库基础设施)
+- **Python 3.11+** & [uv](https://docs.astral.sh/uv/)
+- **Node.js 20+** & npm
+- **Rust** (用于 Tauri 桌面应用构建)
+
+### 1. 环境配置 (Environment Setup)
+
+复制示例环境变量文件：
 ```bash
-cd my-full-stack
+cp .env.example .env
+cd backend && cp .env.example .env
+cd ../frontend && cp .env.example .env
+```
+> **注意**: 你需要在 `backend/.env` 中配置 LLM 提供商（OpenAI/Anthropic）的 API Key。
+
+### 2. 启动基础设施 (Start Infrastructure)
+
+启动 Postgres, Redis, 和 Neo4j：
+```bash
+docker compose up -d db redis neo4j
 ```
 
-- Set the new origin to your new repository, copy it from the GitHub interface, for example:
+### 3. 启动后端 (Run Backend)
 
+你可以使用 Docker 或手动启动后端进行开发。
+
+**手动开发模式 (推荐):**
 ```bash
-git remote set-url origin git@github.com:octocat/my-full-stack.git
+cd backend
+uv sync
+source .venv/bin/activate
+# 启动 Web 服务
+fastapi run --reload app/main.py
 ```
 
-- Add this repo as another "remote" to allow you to get updates later:
-
+**启动 Celery Worker (研究/异步任务必需):**
 ```bash
-git remote add upstream git@github.com:fastapi/full-stack-fastapi-template.git
+# 在新终端中执行
+cd backend
+source .venv/bin/activate
+# 使用脚本运行 (推荐)
+./scripts/start_worker.sh
+# 或者手动运行
+# celery -A app.celery_app worker -l info -P solo -Q celery
 ```
 
-- Push the code to your new repository:
+### 4. 启动客户端 (Run Client)
 
+**Web 模式:**
 ```bash
-git push -u origin master
+cd frontend
+npm install
+npm run dev
 ```
 
-### Update From the Original Template
-
-After cloning the repository, and after doing changes, you might want to get the latest changes from this original template.
-
-- Make sure you added the original repository as a remote, you can check it with:
-
+**桌面应用 (Tauri):**
 ```bash
-git remote -v
-
-origin    git@github.com:octocat/my-full-stack.git (fetch)
-origin    git@github.com:octocat/my-full-stack.git (push)
-upstream    git@github.com:fastapi/full-stack-fastapi-template.git (fetch)
-upstream    git@github.com:fastapi/full-stack-fastapi-template.git (push)
+cd frontend
+npm run tauri dev
 ```
 
-- Pull the latest changes without merging:
-
+**构建发布 (Build):**
 ```bash
-git pull --no-commit upstream master
+cd frontend
+npm run tauri build
 ```
 
-This will download the latest changes from this template without committing them, that way you can check everything is right before committing.
+## 🛠 开发指南 (Development)
 
-- If there are conflicts, solve them in your editor.
+- **后端文档**: 请参阅 [backend/README.md](./backend/README.md)
+- **前端文档**: 请参阅 [frontend/README.md](./frontend/README.md)
 
-- Once you are done, commit the changes:
+## 📄 许可证 (License)
 
-```bash
-git merge --continue
-```
-
-### Configure
-
-You can then update configs in the `.env` files to customize your configurations.
-
-Before deploying it, make sure you change at least the values for:
-
-- `SECRET_KEY`
-- `POSTGRES_PASSWORD`
-
-You can (and should) pass these as environment variables from secrets.
-
-Read the [deployment.md](./deployment.md) docs for more details.
-
-### Generate Secret Keys
-
-Some environment variables in the `.env` file have a default value of `changethis`.
-
-You have to change them with a secret key, to generate secret keys you can run the following command:
-
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"
-```
-
-Copy the content and use that as password / secret key. And run that again to generate another secure key.
-
-## How To Use It - Alternative With Copier
-
-This repository also supports generating a new project using [Copier](https://copier.readthedocs.io).
-
-It will copy all the files, ask you configuration questions, and update the `.env` files with your answers.
-
-### Install Copier
-
-You can install Copier with:
-
-```bash
-pip install copier
-```
-
-Or better, if you have [`pipx`](https://pipx.pypa.io/), you can run it with:
-
-```bash
-pipx install copier
-```
-
-**Note**: If you have `pipx`, installing copier is optional, you could run it directly.
-
-### Generate a Project With Copier
-
-Decide a name for your new project's directory, you will use it below. For example, `my-awesome-project`.
-
-Go to the directory that will be the parent of your project, and run the command with your project's name:
-
-```bash
-copier copy https://github.com/fastapi/full-stack-fastapi-template my-awesome-project --trust
-```
-
-If you have `pipx` and you didn't install `copier`, you can run it directly:
-
-```bash
-pipx run copier copy https://github.com/fastapi/full-stack-fastapi-template my-awesome-project --trust
-```
-
-**Note** the `--trust` option is necessary to be able to execute a [post-creation script](https://github.com/fastapi/full-stack-fastapi-template/blob/master/.copier/update_dotenv.py) that updates your `.env` files.
-
-### Input Variables
-
-Copier will ask you for some data, you might want to have at hand before generating the project.
-
-But don't worry, you can just update any of that in the `.env` files afterwards.
-
-The input variables, with their default values (some auto generated) are:
-
-- `project_name`: (default: `"FastAPI Project"`) The name of the project, shown to API users (in .env).
-- `stack_name`: (default: `"fastapi-project"`) The name of the stack used for Docker Compose labels and project name (no spaces, no periods) (in .env).
-- `secret_key`: (default: `"changethis"`) The secret key for the project, used for security, stored in .env, you can generate one with the method above.
-- `smtp_host`: (default: "") The SMTP server host to send emails, you can set it later in .env.
-- `smtp_user`: (default: "") The SMTP server user to send emails, you can set it later in .env.
-- `smtp_password`: (default: "") The SMTP server password to send emails, you can set it later in .env.
-- `emails_from_email`: (default: `"info@example.com"`) The email account to send emails from, you can set it later in .env.
-- `postgres_password`: (default: `"changethis"`) The password for the PostgreSQL database, stored in .env, you can generate one with the method above.
-- `sentry_dsn`: (default: "") The DSN for Sentry, if you are using it, you can set it later in .env.
-
-## Backend Development
-
-Backend docs: [backend/README.md](./backend/README.md).
-
-## Frontend Development
-
-Frontend docs: [frontend/README.md](./frontend/README.md).
-
-## Deployment
-
-Deployment docs: [deployment.md](./deployment.md).
-
-## Development
-
-General development docs: [development.md](./development.md).
-
-This includes using Docker Compose, custom local domains, `.env` configurations, etc.
-
-## Release Notes
-
-Check the file [release-notes.md](./release-notes.md).
-
-## License
-
-The Full Stack FastAPI Template is licensed under the terms of the MIT license.
+本项目采用 MIT 许可证。详情请参阅 [LICENSE](./LICENSE) 文件。

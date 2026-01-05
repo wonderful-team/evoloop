@@ -45,6 +45,11 @@ Analyze the situation. Why are they failing?
 Provide a "Course Correction" directive to the Supervisor. 
 Be specific about what they should STOP doing and what they SHOULD do instead.
 Suggest a new angle or a step back to research if needed.
+
+FORMAT START:
+You must start your response EXACTLY with:
+"**META-REVIEW INTERVENTION**:"
+followed by your analysis.
 """)
 
     logger.info("Meta-Reviewer triggered.")
@@ -81,8 +86,9 @@ Suggest a new angle or a step back to research if needed.
         "user_lang": user_lang
     }, config=config)
     
-    # We prefix the analysis to make it clear it's an intervention
-    advice = f"**META-REVIEW INTERVENTION**:\n{response.content}"
+    # We rely on the LLM to include the header now, which means the standard callback handler
+    # will log it nicely, and we don't need manual persistence or manual prefixing.
+    advice = response.content
     
     return {
         "messages": [AIMessage(content=advice)],

@@ -125,58 +125,72 @@ class ActivityMonitor:
     
     async def add_task(self, thread_id: str, name: str, task_type="node"):
         key = f"activity:{thread_id}"
-        if not await self.client.exists(key):
+        
+        # Use a lock to prevent Race Conditions on the JSON list
+        lock_key = f"lock:{key}"
+        # We need a dedicated client for locking usually, or just use the same one.
+        # redis-py lock is robust.
+        
+        try:
+            async with self.client.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
+                if not await self.client.exists(key):
+                    return None
+            
+                tasks_json = await self.client.hget(key, "tasks")
+                tasks = json.loads(tasks_json) if tasks_json else []
+                
+                task_id = len(tasks) + 1
+                new_task = {
+                    "id": task_id,
+                    "name": name,
+                    "status": "running",
+                    "type": task_type,
+                    "start_time": time.time(),
+                    "time": "0s"
+                }
+                tasks.append(new_task)
+                
+                await self.client.hset(key, mapping={
+                    "tasks": json.dumps(tasks),
+                    "updated_at": time.time()
+                })
+                return task_id
+        except Exception as e:
+            # If lock fails, we might just skip adding task to avoid blocking execution?
+            # Or retry. For UI visibility, skipping is better than crashing.
             return None
-        
-        # Optimistic locking using WATCH? Or just generic race acceptance since single writer per thread generally?
-        # Agent execution is sequential mostly. User interaction is out of band.
-        # We'll use simple get/set.
-        
-        tasks_json = await self.client.hget(key, "tasks")
-        tasks = json.loads(tasks_json) if tasks_json else []
-        
-        task_id = len(tasks) + 1
-        new_task = {
-            "id": task_id,
-            "name": name,
-            "status": "running",
-            "type": task_type,
-            "start_time": time.time(),
-            "time": "0s"
-        }
-        tasks.append(new_task)
-        
-        await self.client.hset(key, mapping={
-            "tasks": json.dumps(tasks),
-            "updated_at": time.time()
-        })
-        return task_id
 
     async def update_task(self, thread_id: str, task_id: int, status: str, details: str = None):
         key = f"activity:{thread_id}"
-        # We need to fetch, modify, save.
-        tasks_json = await self.client.hget(key, "tasks")
-        if not tasks_json: return
+        lock_key = f"lock:{key}"
         
-        tasks = json.loads(tasks_json)
-        modified = False
-        
-        for task in tasks:
-            if task["id"] == task_id:
-                task["status"] = status
-                if details:
-                    task["details"] = details
-                if status in ["done", "failed"]:
-                    duration = time.time() - task["start_time"]
-                    task["time"] = f"{duration:.2f}s"
-                modified = True
-                break
-        
-        if modified:
-            await self.client.hset(key, mapping={
-                "tasks": json.dumps(tasks),
-                "updated_at": time.time()
-            })
+        try:
+            async with self.client.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
+                # We need to fetch, modify, save.
+                tasks_json = await self.client.hget(key, "tasks")
+                if not tasks_json: return
+                
+                tasks = json.loads(tasks_json)
+                modified = False
+                
+                for task in tasks:
+                    if task["id"] == task_id:
+                        task["status"] = status
+                        if details:
+                            task["details"] = details
+                        if status in ["done", "failed"]:
+                            duration = time.time() - task["start_time"]
+                            task["time"] = f"{duration:.2f}s"
+                        modified = True
+                        break
+                
+                if modified:
+                    await self.client.hset(key, mapping={
+                        "tasks": json.dumps(tasks),
+                        "updated_at": time.time()
+                    })
+        except Exception:
+            pass
 
     async def update_agent_state(self, thread_id: str, mode: str, task_name: str, task_status: str):
         # New method to sync Agent State (Sidebar info)
@@ -245,6 +259,26 @@ class ActivityMonitor:
             "agent_state": agent_state,
             "verification": verification
         }
+
+    async def get_statuses(self, thread_ids: List[str]) -> Dict[str, str]:
+        """Batch fetch statuses for multiple threads efficiently."""
+        if not thread_ids:
+            return {}
+            
+        pipeline = self.client.pipeline()
+        for tid in thread_ids:
+            pipeline.hget(f"activity:{tid}", "status")
+            
+        results = await pipeline.execute()
+        
+        status_map = {}
+        for i, status in enumerate(results):
+            if status:
+                status_map[thread_ids[i]] = status
+            else:
+                status_map[thread_ids[i]] = "unknown"
+                
+        return status_map
 
 # Global Instance
 activity_monitor = ActivityMonitor.get_instance()

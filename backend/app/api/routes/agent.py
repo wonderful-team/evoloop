@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional, List, Annotated
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, BackgroundTasks
 from pydantic import BaseModel
 from langchain_core.messages import HumanMessage, RemoveMessage
 from datetime import datetime, timezone
@@ -19,6 +19,7 @@ from app.infrastructure.database.sql.database import session_scope
 from app.core.callbacks.transparent import TransparentCallbackHandler
 from app.core.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
+from app.core.workflows.tasks import run_agent_background # New implementation
 
 router = APIRouter()
 
@@ -46,11 +47,12 @@ class IndexingRequest(BaseModel):
 @router.post("/chat")
 async def chat_endpoint(
     req: ChatRequest, 
+    bg_tasks: BackgroundTasks, # Injected
     current_user: CurrentUserOptional, # Use Optional Auth
     x_guest_id: Annotated[str | None, Header()] = None
 ):
     """
-    Unified entry point for User Chat (Celery).
+    Unified entry point for User Chat (Local Background Task).
     """
     set_context(thread_id=req.thread_id, project_id=req.project_id)
 
@@ -136,13 +138,14 @@ async def chat_endpoint(
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
             
-            # Log User Message
+            # Log User Message (sequence_number=1 for first message in each run)
             user_msg = Message(
                 thread_id=req.thread_id,
                 project_id=req.project_id,
                 role="human",
                 content=req.message,
-                thinking=None
+                thinking=None,
+                sequence_number=1
             )
             session.add(user_msg)
             await session.flush() # Ensure FK consistency
@@ -155,9 +158,8 @@ async def chat_endpoint(
         # We should NOT propagate error to block chat, but log strictly.
         pass
             
-    # 2. Add to Celery Task
-    from app.core.workflows.tasks import run_agent_task
-    run_agent_task.delay(req.thread_id, inputs)
+    # 2. Dispatch Background Task (Local)
+    bg_tasks.add_task(run_agent_background, req.thread_id, inputs)
             
     return {"status": "queued", "thread_id": req.thread_id}
 
@@ -240,9 +242,12 @@ async def rewind_chat(req: ChatRequest):
         return {"status": "failed_no_ids", "thread_id": thread_id}
 
 @router.post("/webhook")
-async def webhook_endpoint(req: WebhookRequest):
+async def webhook_endpoint(
+    req: WebhookRequest,
+    bg_tasks: BackgroundTasks # Injected
+):
     """
-    Entry point for External Events (Celery).
+    Entry point for External Events (Local BG Task).
     """
     messages = EventAdapter.adapt(req.source, req.event_type, req.payload)
     if not messages:
@@ -281,7 +286,6 @@ async def webhook_endpoint(req: WebhookRequest):
 
     inputs = {"messages": serialized_msgs}
     
-    from app.core.workflows.tasks import run_agent_task
-    run_agent_task.delay(tid, inputs)
+    bg_tasks.add_task(run_agent_background, tid, inputs)
     
     return {"status": "accepted", "thread_id": tid}

@@ -11,7 +11,7 @@ import {
 } from "../ui/card"
 import { Button } from "../ui/button"
 import { Badge } from "../ui/badge"
-import { FolderOpen, RefreshCw, Layers } from "lucide-react"
+import { FolderOpen, RefreshCw, Layers, ListTodo } from "lucide-react"
 import AddProject from "./AddProject"
 import { ProjectActions } from "./ProjectActions"
 import { useTranslation } from "react-i18next"
@@ -71,6 +71,11 @@ export function ProjectList() {
                                 {proj.indexing_status === 'indexing' && (
                                     <Badge variant="secondary" className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200 gap-1">
                                         <RefreshCw className="h-3 w-3 animate-spin" /> {t('projects.status.indexing', 'Indexing')}
+                                    </Badge>
+                                )}
+                                {(proj.summarization_status === 'running' || proj.summarization_status === 'SUMMARIZING') && (
+                                    <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200 gap-1">
+                                        <ListTodo className="h-3 w-3 animate-pulse" /> Analyzing
                                     </Badge>
                                 )}
                                 <Badge variant="outline">{proj.status_text || t('projects.active')}</Badge>

@@ -1,5 +1,6 @@
 import * as React from "react"
 import { ChevronsUpDown, Folder, Search, Clock, ListTodo, RefreshCw } from "lucide-react"
+import { useProjectStatus } from "@/hooks/useProjectStatus"
 
 import {
     Dialog,
@@ -24,6 +25,9 @@ export function ProjectSwitcher() {
     const [searchQuery, setSearchQuery] = React.useState("")
 
     const navigate = useNavigate()
+
+    // Poll for status
+    useProjectStatus()
 
     React.useEffect(() => {
         if (projects.length === 0) {
@@ -60,6 +64,10 @@ export function ProjectSwitcher() {
                         {currentProject?.indexing_status === 'indexing' ? (
                             <Badge variant="secondary" className="ml-2 h-5 text-[10px] px-1.5 font-normal bg-blue-100 text-blue-700 hidden sm:inline-flex gap-1">
                                 <RefreshCw className="h-3 w-3 animate-spin" /> Indexing
+                            </Badge>
+                        ) : currentProject?.summarization_status === 'running' || currentProject?.summarization_status === 'SUMMARIZING' ? (
+                            <Badge variant="secondary" className="ml-2 h-5 text-[10px] px-1.5 font-normal bg-purple-100 text-purple-700 hidden sm:inline-flex gap-1">
+                                <ListTodo className="h-3 w-3 animate-pulse" /> Analyzing
                             </Badge>
                         ) : currentProject?.status_text && (
                             <Badge variant="secondary" className="ml-2 h-5 text-[10px] px-1.5 font-normal text-muted-foreground hidden sm:inline-flex">

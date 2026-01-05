@@ -20,13 +20,25 @@ from app.domain.tools.memory import save_preference, search_concepts
 from app.domain.tools.memory import save_preference, search_concepts
 from app.domain.planning.tools import create_plan, update_step_status, analyze_feasibility
 from app.domain.tools.learner import harvest_knowledge
+# State Tools
+from app.domain.tools.state_tools import update_scratchpad
+
+# Runtime Registry for Dynamic Tools (Phase 9)
+from app.domain.tools.dynamic import create_python_tool
+
+# Runtime Registry (Isolated)
+from app.domain.tools.runtime_registry import get_runtime_tools
 
 
 def get_all_tools() -> List[BaseTool]:
     """
     Return a list of all available tools in the domain.
     """
+    # Lazy import to avoid circular dependency
+    from app.core.orchestration.delegator import delegate_task
+
     return [
+        # Match previous list...
         # Core 4 Facades
         manage_file,
         explore_codebase,
@@ -53,9 +65,18 @@ def get_all_tools() -> List[BaseTool]:
         create_plan, update_step_status, analyze_feasibility,
         
         # Learning
-        harvest_knowledge
+        harvest_knowledge,
+        
+        # State
+        update_scratchpad,
 
-    ] + mcp_client_manager.get_tools()
+        # Dynamic Tooling (Meta-Tool)
+        create_python_tool,
+        
+        # Orchestration (Phase 10)
+        delegate_task
+
+    ] + mcp_client_manager.get_tools() + get_runtime_tools()
 
 def get_coder_tools() -> List[BaseTool]:
     """
@@ -81,8 +102,24 @@ def get_supervisor_tools() -> List[BaseTool]:
         save_preference, 
         search_concepts, 
         create_plan, 
-        update_step_status, 
-        analyze_feasibility,
-        harvest_knowledge
     ]
     return core_tools
+
+
+def get_tools_by_names(names: List[str]) -> List[BaseTool]:
+    """
+    Dynamically retrieve tools by their string names.
+    Useful for Universal Agent configuration.
+    """
+    all_tools = get_all_tools()
+    tool_map = {t.name: t for t in all_tools}
+    
+    selected_tools = []
+    for name in names:
+        if name in tool_map:
+            selected_tools.append(tool_map[name])
+        else:
+            # Fallback for MCP tools or specialized mapping if needed
+            pass
+            
+    return selected_tools

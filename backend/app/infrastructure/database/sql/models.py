@@ -130,6 +130,7 @@ class Message(Base):
     content: Mapped[str] = mapped_column(Text)
     thinking: Mapped[Optional[str]] = mapped_column(Text) # Separate reasoning content
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    sequence_number: Mapped[Optional[int]] = mapped_column(Integer)  # Thread-local ordering
 
     # Optional: reference to checkpoint ID if we want to linked back to graph state
     checkpoint_id: Mapped[Optional[str]] = mapped_column(String(255))
@@ -189,3 +190,28 @@ class McpServer(Base):
     enabled: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class TraceEvent(Base):
+    """
+    Represents a high-fidelity snapshot of agent execution for Imitation Learning.
+    Stores State -> Action tuples.
+    """
+    __tablename__ = "trace_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    thread_id: Mapped[str] = mapped_column(String(255), index=True)
+    step_number: Mapped[int] = mapped_column(Integer)
+    
+    # State Context
+    node_name: Mapped[str] = mapped_column(String(100))
+    state_snapshot: Mapped[dict] = mapped_column(Text) # Huge JSON of inputs/scratchpad
+    
+    # Action
+    action_type: Mapped[str] = mapped_column(String(50)) # "node_start", "llm_call", "tool_call", "user_intervention"
+    action_payload: Mapped[dict] = mapped_column(Text) # JSON of args/output/message
+    
+    # Feedback
+    reward: Mapped[Optional[float]] = mapped_column(Integer, nullable=True) # Normalized reward if available
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -12,9 +12,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     Callback Handler that logs user-friendly messages to the database.
     Acts as a View Layer sanitizer.
     """
-    def __init__(self, thread_id: str, project_id: int):
+    def __init__(self, thread_id: str, project_id: int, start_sequence: int = 0):
         self.thread_id = thread_id
         self.project_id = project_id
+        self._sequence_counter = start_sequence  # Track message order within thread
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         pass
@@ -99,7 +100,11 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                     md += f"**Intent:** `{intent}`"
                     if refined:
                         md += f"\n**Refined Goal:** {refined}"
-                    content = md
+                    
+                    # Fix: Move this internal analysis to 'thinking' so it's collapsed in UI
+                    # instead of showing as a main bubble.
+                    thinking = md
+                    content = ""
 
             except json.JSONDecodeError:
                 pass # Not JSON, ignore
@@ -116,70 +121,126 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         # output is usually a string, but could be Artifact?
         content = str(output)
         
-        # Simple heuristic: If it contains "Error" or "Exception" or "Failed"
-        # AND it's short enough to be a message.
-        if "error" in content.lower() or "exception" in content.lower() or "failed" in content.lower():
-             # It might be an error. Log it.
-             # Clean up a bit
-             if len(content) > 500:
-                  content = content[:500] + "... (truncated)"
+        # Refined Heuristic:
+        # 1. Must START with "Error:" or "Exception:" or "Failed:" (Case insensitive)
+        # 2. OR be very short (< 200 chars) and contain "error" (to catch "FileNotFoundError" ecc)
+        # 3. Explicitly ignore large content blocks (likely file reads)
+        
+        is_error = False
+        lower_content = content.lower().strip()
+        
+        if len(content) > 500:
+             # Large output is almost certainly NOT a tool execution error (it's data)
+             is_error = False
+        elif lower_content.startswith("error:") or lower_content.startswith("exception:") or lower_content.startswith("failed:"):
+             is_error = True
+        elif len(content) < 200 and ("error" in lower_content or "exception" in lower_content or "traceback" in lower_content):
+             is_error = True
              
+        if is_error:
+             # It might be an error. Log it.
              await self._save_log("tool", f"❌ **Tool Error:** {content}")
         else:
             # Success (presumably). Skip logging to DB.
             # The 'Action' log from on_llm_end covers the intent.
             pass
+            
+    async def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
+        """
+        Capture Node Outputs (State Updates).
+        This handles manually constructed messages from nodes like Tester/Coder/Finish.
+        We filter specifically for 'messages' key to target Graph Node outputs.
+        """
+        if not isinstance(outputs, dict) or "messages" not in outputs:
+            return
+
+        ms_list = outputs["messages"]
+        if not isinstance(ms_list, list):
+            ms_list = [ms_list]
+
+        from langchain_core.messages import AIMessage
+        
+        for msg in ms_list:
+            # We only care about AI Messages (System/Human are inputs or internal)
+            # And we only care if there is content.
+            if isinstance(msg, AIMessage) and msg.content:
+                # Deduplication logic is handled inside _save_log or implies distinct events.
+                await self._save_log("ai", msg.content)
 
     def _get_tool_summary(self, tool_call: Dict) -> str:
         t_name = tool_call.get("name", "tool")
         t_args = tool_call.get("args", {})
         
         try:
-            if t_name in ["write_file", "replace_file_content", "write_to_file"]:
+            if t_name in ["write_file", "replace_file_content", "write_to_file", "multi_replace_file_content"]:
                 path = t_args.get("target_file") or t_args.get("TargetFile") or t_args.get("file_path") or "unknown"
                 path_parts = path.split("/")
-                short_path = "/".join(path_parts[-2:]) if len(path_parts) > 1 else path
+                short_path = path_parts[-1] # Filename only
                 
-                # Try to count lines?
-                content = t_args.get("code_content") or t_args.get("replacement_content") or ""
-                lines = len(content.splitlines()) if content else 0
-                return f"Writing `{short_path}` ({lines} lines)"
+                return f"📝 Write `{short_path}`"
                 
-            elif t_name in ["read_document", "read_file", "view_file"]:
-                path = t_args.get("file_path") or t_args.get("AbsolutePath") or t_args.get("url") or "unknown"
-                path_parts = path.split("/")
-                short_path = "/".join(path_parts[-2:]) if len(path_parts) > 1 else path
-                return f"Reading `{short_path}`"
+            elif t_name in ["read_document", "read_file", "view_file", "manage_file"]:
+                # Check action for manage_file
+                if t_name == "manage_file" and t_args.get("action") != "read":
+                     action = t_args.get("action", "exec")
+                     path = t_args.get("path") or "unknown"
+                     return f"📁 FS: {action} `{path.split('/')[-1]}`"
+
+                path = t_args.get("file_path") or t_args.get("AbsolutePath") or t_args.get("url") or t_args.get("path") or "unknown"
+                short_path = path.split("/")[-1]
+                return f"📄 Read `{short_path}`"
                 
             elif t_name == "run_command":
                 cmd = t_args.get("command_line") or t_args.get("CommandLine") or "unknown"
-                return f"Running: `{cmd}`"
+                # Truncate cmd
+                return f"💻 Exec `{cmd[:40]}...`" if len(cmd) > 40 else f"💻 Exec `{cmd}`"
                 
             elif t_name == "create_plan":
                 title = t_args.get("title", "Untitled")
-                steps = t_args.get("steps", [])
-                return f"Creating Plan: **{title}** ({len(steps)} steps)"
+                return f"📅 Plan: {title}"
                 
-            elif t_name in ["search_codebase", "grep_search"]:
-                query = t_args.get("query") or "unknown"
-                return f"Searching: `{query}`"
-                
-            return f"Calling `{t_name}`"
+            elif t_name in ["search_codebase", "grep_search", "find_by_name"]:
+                query = t_args.get("query") or t_args.get("Pattern") or "unknown"
+                return f"🔍 Search `{query}`"
+            
+            elif t_name == "task_boundary":
+                mode = t_args.get("Mode", "UPDATE")
+                return f"📍 Task: {mode}"
+
+            return f"🔧 {t_name}"
         except:
-            return f"Calling `{t_name}`"
+            return f"🔧 {t_name}"
 
     async def _save_log(self, role: str, content: str, thinking: str = None):
         if not content and not thinking:
             return
 
+        # Improved Deduplication: Hash + Role + Time Window (2 seconds)
+        # This allows legitimately repeated messages while preventing rapid-fire duplicates
+        import time
+        current_time = time.time()
+        current_hash = hash((role, content)) if content else 0
+        
+        last_hash = getattr(self, "_last_logged_hash", None)
+        last_time = getattr(self, "_last_logged_time", 0)
+        
+        # Dedup: Same hash AND role within 2 second window
+        if current_hash == last_hash and (current_time - last_time) < 2.0:
+            return
+            
+        self._last_logged_hash = current_hash
+        self._last_logged_time = current_time
+
         try:
+             self._sequence_counter += 1
              async with session_scope() as session:
                  log = Message(
                      thread_id=self.thread_id,
                      project_id=self.project_id,
                      role=role,
                      content=content,
-                     thinking=thinking
+                     thinking=thinking,
+                     sequence_number=self._sequence_counter
                  )
                  session.add(log)
                  # session_scope commits automatically

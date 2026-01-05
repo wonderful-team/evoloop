@@ -15,27 +15,48 @@ class IntentionOutput(BaseModel):
     refined_instruction: str = Field(description="The instruction optimized for the selected agent.")
 
 class IntentionPredictor:
-    def __init__(self):
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert intent classifier for a multi-modal agent system.
-            Your goal is to route the user's request to the most appropriate specialist agent.
-            
-            Agents available:
-            1. **Browser Agent**: Can visit websites, extract data, interact with web apps. Use for queries like "search google", "check price on amazon", "login to website".
-            2. **Computer Agent (OS/Desktop)**: Can control the local computer mouse/keyboard. Use for "open calculator", "move files on desktop", "open VS Code", "system settings".
-            3. **Mobile Agent (Phone)**: Can control a connected Android/iOS device. Use for "open WeChat", "swipe on phone", "check mobile app", "send SMS".
-            4. **General Agent**: For general coding, questions, file editing (VS Code extension), or if unsure.
-            
-            Analyze the user's request and classify the intent. Also verify if the request implies a specific device (e.g. "on my phone" -> Mobile).
-            """),
-            ("human", "{instruction}")
-        ])
-
     async def predict(self, instruction: str) -> IntentionOutput:
         from app.core.llm.factory import LLMFactory
+        from langchain_core.output_parsers import JsonOutputParser
+        
         # Dynamic LLM creation
         llm = LLMFactory.create_llm(temperature=0)
-        chain = self.prompt | llm.with_structured_output(IntentionOutput)
-        return await chain.ainvoke({"instruction": instruction})
+        
+        # We manually construct the parser and inject instructions
+        parser = JsonOutputParser(pydantic_object=IntentionOutput)
+        
+        # Override the prompt to be extremely explicit for the parser
+        format_instructions = parser.get_format_instructions()
+        
+        final_prompt = ChatPromptTemplate.from_template("""You are an expert intent classifier.
+Your goal is to route the user's request.
+
+Agents:
+1. **Browser**: Web tasks.
+2. **Computer**: Desktop/File tasks.
+3. **Mobile**: APP/Phone tasks.
+4. **General**: Coding, Questions, Chat.
+
+CRITICAL: 
+- If request is broad/unclear, SELECT "general".
+- OUTPUT JSON ONLY. NO MARKDOWN. NO EXPLANATIONS.
+- DO NOT use "**Analysis:**" or "**Intent:**" prefixes. Just pure JSON.
+
+{format_instructions}
+
+User Request: {instruction}
+""")
+        
+        chain = final_prompt | llm | parser
+        
+        try:
+            result = await chain.ainvoke({"instruction": instruction, "format_instructions": format_instructions})
+            # Fix: Parser returns dict, need to convert to Pydantic
+            if isinstance(result, dict):
+                return IntentionOutput(**result)
+            return result
+        except Exception:
+            # Fallback for parsing errors
+            return IntentionOutput(intent="general", reasoning="Error parsing intention", refined_instruction=instruction)
 
 intention_predictor = IntentionPredictor()

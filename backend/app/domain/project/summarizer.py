@@ -22,6 +22,9 @@ async def _summarize_project_logic(name: str, path: str):
     Core logic to summarize a project using LLM.
     Functionally equivalent to the old _summarize_project method.
     """
+    # Import Monitor
+    from app.core.monitoring.activity import activity_monitor
+    
     logger.info(f"[ProjectSummarizer] Analyzing {name}...")
     
     # 0. Resolve Project ID Early (Used for Graph Lookup)
@@ -44,63 +47,71 @@ async def _summarize_project_logic(name: str, path: str):
     except Exception as e:
         logger.warning(f"Early project ID resolution failed: {e}")
 
-    # 1. Fetch Deep Architectural Summary from Graph (if available)
-    arch_summary = "Not available yet."
-    try:
-        from app.infrastructure.database.graph.driver import get_graph_db
-        driver = await get_graph_db()
-        async with driver.session() as session:
-            # Check for Root Directory Node
-            # Logic: path should match exactly. 
-            # Note: DirectorySummarizer logic ensures path has no trailing slash usually, or normalized.
-            # We try exact match first.
-            query = """
-            MATCH (d:Directory {path: $path, project_id: $pid})
-            RETURN d.description as summary
-            """
-            result = await session.run(query, path=path, pid=project_id)
-            record = await result.single()
-            if record and record["summary"]:
-                arch_summary = record["summary"]
-                logger.info(f"[ProjectSummarizer] Found existing architectural summary for {name}")
-            else:
-                # Try fallback: maybe path needs trailing slash?
-                 pass
-    except Exception as e:
-        logger.warning(f"[ProjectSummarizer] Failed to fetch graph summary: {e}")
-
-    # Re-initialize LLM chain here because this runs in a separate process
-    llm = LLMFactory.create_llm(temperature=0.3)
-    
-    prompt = ChatPromptTemplate.from_template("""
-    You are a Technical Project Analyst. Analyze the following project information and generate a concise summary.
-    
-    Project Name: {name}
-    
-    --- Context 1: File Structure ---
-    Top Level Files: {files}
-    
-    --- Context 2: Documentation (README) ---
-    {readme}
-    
-    --- Context 3: Deep Architectural Analysis (from Codebase Index) ---
-    {arch_summary}
-    
-    Instruction: Combine the high-level intent from the README with the actual implementation details from the Architectural Analysis.
-    If the Architecture Analysis contradicts the README (e.g. README says "Part 1" but Code says "Part 1 & 2"), prioritize the Code Analysis.
-    
-    Return a JSON object with:
-    - "description": A concise, one-sentence description of what the project does.
-    - "tags": A list of 3-5 technical tags (e.g. "FastAPI", "React", "Tool").
-    - "framework": The main framework used (if identifiable, else "Unknown").
-    - "concepts": A list of 3-5 core domain concepts/terms found in the project (e.g., specific protocols, architecture components). List of objects {{"name": "...", "description": "..."}}.
-    
-    JSON Only.
-    """)
-    parser = JsonOutputParser()
-    chain = prompt | llm | parser
+    # Start Activity
+    sys_tid = f"sys:{project_id}:summarization"
+    await activity_monitor.start_run(sys_tid, f"Summarize Project: {name}")
+    await activity_monitor.update_agent_state(sys_tid, "SUMMARIZING", "Project Analysis", "Gathering Context...")
 
     try:
+        # 1. Fetch Deep Architectural Summary from Graph (if available)
+        arch_summary = "Not available yet."
+        try:
+            from app.infrastructure.database.graph.driver import get_graph_db
+            driver = await get_graph_db()
+            async with driver.session() as session:
+                # Check for Root Directory Node
+                # Logic: path should match exactly. 
+                # Note: DirectorySummarizer logic ensures path has no trailing slash usually, or normalized.
+                # We try exact match first.
+                query = """
+                MATCH (d:Directory {path: $path, project_id: $pid})
+                RETURN d.description as summary
+                """
+                result = await session.run(query, path=path, pid=project_id)
+                record = await result.single()
+                if record and record["summary"]:
+                    arch_summary = record["summary"]
+                    logger.info(f"[ProjectSummarizer] Found existing architectural summary for {name}")
+                else:
+                    # Try fallback: maybe path needs trailing slash?
+                     pass
+        except Exception as e:
+            logger.warning(f"[ProjectSummarizer] Failed to fetch graph summary: {e}")
+
+        # Re-initialize LLM chain here because this runs in a separate process
+        llm = LLMFactory.create_llm(temperature=0.3)
+        
+        prompt = ChatPromptTemplate.from_template("""
+        You are a Technical Project Analyst. Analyze the following project information and generate a concise summary.
+        
+        Project Name: {name}
+        
+        --- Context 1: File Structure ---
+        Top Level Files: {files}
+        
+        --- Context 2: Documentation (README) ---
+        {readme}
+        
+        --- Context 3: Deep Architectural Analysis (from Codebase Index) ---
+        {arch_summary}
+        
+        Instruction: Combine the high-level intent from the README with the actual implementation details from the Architectural Analysis.
+        If the Architecture Analysis contradicts the README (e.g. README says "Part 1" but Code says "Part 1 & 2"), prioritize the Code Analysis.
+        
+        Return a JSON object with:
+        - "description": A concise, one-sentence description of what the project does.
+        - "tags": A list of 3-5 technical tags (e.g. "FastAPI", "React", "Tool").
+        - "framework": The main framework used (if identifiable, else "Unknown").
+        - "concepts": A list of 3-5 core domain concepts/terms found in the project (e.g., specific protocols, architecture components). List of objects {{"name": "...", "description": "..."}}.
+        
+        JSON Only.
+        """)
+        parser = JsonOutputParser()
+        chain = prompt | llm | parser
+
+        # Update Status
+        await activity_monitor.update_agent_state(sys_tid, "SUMMARIZING", "Project Analysis", "Reading Files & Context...")
+
         # 1. Gather Context (Files)
         from app.domain.codebase.filter import FileFilter
         f_filter = FileFilter()
@@ -120,6 +131,9 @@ async def _summarize_project_logic(name: str, path: str):
         # Note: project_context_manager needs to be safe to use here.
         # It usually is just file reading.
         readme_content = project_context_manager._extract_description_from_readme(path)
+        
+        # Update Status
+        await activity_monitor.update_agent_state(sys_tid, "SUMMARIZING", "Project Analysis", "Generating Summary with LLM...")
         
         # 2. Call LLM
         result = await chain.ainvoke({
@@ -165,9 +179,13 @@ async def _summarize_project_logic(name: str, path: str):
             c_desc = c.get("description")
             if c_name and c_desc:
                 await memory_service.add_concept(name=c_name, description=c_desc, project_id=project_id, related_files=[path])
+                
+        # Done
+        await activity_monitor.end_run(sys_tid, "done")
         
     except Exception as e:
         logger.error(f"[ProjectSummarizer] Failed to summarize {name}: {e}")
+        await activity_monitor.end_run(sys_tid, "failed")
         # Re-raise to let Celery know it failed (triggering retries if configured)
         raise e
 

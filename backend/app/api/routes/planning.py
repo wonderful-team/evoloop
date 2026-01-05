@@ -45,7 +45,14 @@ async def get_plan(thread_id: str):
         return {
             "status": "success", 
             "plan": plan_data, 
-            "text_summary": current_plan_text
+            "text_summary": current_plan_text,
+            "state": {
+                "scratchpad": state.values.get("scratchpad"),
+                "project_id": state.values.get("project_id"),
+                "working_directory": state.values.get("working_directory"),
+                "last_node": state.next, # graph.aget_state returns Checkpoint tuple, state.next is standard
+                "snapshot_time": state.created_at
+            }
         }
         
     except Exception as e:

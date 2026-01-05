@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import {
     Activity, Users, Clock,
-    CheckCircle2, CheckSquare
+    CheckCircle2, CheckSquare, RefreshCw, ListTodo
 } from "lucide-react"
 import { ProjectModulesService, TasksService } from "@/client/sdk.gen"
+import { useProjectStore } from "@/stores/projectStore"
 // import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 interface ProjectStats {
@@ -29,6 +30,7 @@ interface RecentTask {
 
 export const ProjectOverview: React.FC = () => {
     const { projectId } = useParams({ from: '/_layout/projects/$projectId' })
+    const { currentProject } = useProjectStore()
     const { t } = useTranslation()
     const [stats, setStats] = useState<ProjectStats | null>(null)
     // const [members, setMembers] = useState<ProjectMember[]>([])
@@ -84,7 +86,20 @@ export const ProjectOverview: React.FC = () => {
     return (
         <div className="h-full w-full overflow-auto p-6 space-y-6">
             <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold tracking-tight">{t('projects.overview.title', 'Project Overview')}</h2>
+                <div className="flex items-center gap-3">
+                    <h2 className="text-2xl font-bold tracking-tight">{t('projects.overview.title', 'Project Overview')}</h2>
+                    {/* Status Badges */}
+                    {currentProject?.indexing_status === 'indexing' && (
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-700 gap-1">
+                            <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Indexing
+                        </Badge>
+                    )}
+                    {(currentProject?.summarization_status === 'running' || currentProject?.summarization_status === 'SUMMARIZING') && (
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-700 gap-1">
+                            <ListTodo className="h-3.5 w-3.5 animate-pulse" /> Analyzing
+                        </Badge>
+                    )}
+                </div>
             </div>
 
             {/* Stats Grid */}

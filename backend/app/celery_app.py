@@ -6,8 +6,8 @@ celery_app = Celery(
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
     include=[
-        "app.core.workflows.tasks",
-        "app.domain.codebase.indexing.tasks"
+        "app.domain.codebase.indexing.tasks",
+        "app.domain.project.summarizer"
     ]
 )
 

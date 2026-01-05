@@ -38,7 +38,7 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
         # Run the engine
         # The engine manages the full loop (Plan -> Iterate -> Conclude)
         # and returns the final markdown report.
-        final_report = await engine.run(topic, max_iterations=max_iter, config=config)
+        final_report = await engine.run(topic, previous_history=messages, max_iterations=max_iter, config=config)
 
         # In this simplified integration, we consider the process atomic from the graph's perspective.
         # We don't expose intermediate steps to the graph unless we refactor Engine to be a generator.

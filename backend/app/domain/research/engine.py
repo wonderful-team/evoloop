@@ -32,12 +32,13 @@ class DeepResearchEngine:
         self.update_prompt_template = PromptTemplate.from_template(RESEARCH_UPDATE_PROMPT)
         self.conclusion_prompt_template = PromptTemplate.from_template(RESEARCH_CONCLUSION_PROMPT)
 
-    async def run(self, topic: str, max_iterations: int = settings.RESEARCH_MAX_ITERATIONS, config: RunnableConfig = None) -> str:
+    async def run(self, topic: str, previous_history: list = None, max_iterations: int = settings.RESEARCH_MAX_ITERATIONS, config: RunnableConfig = None) -> str:
         """
         Run the full Deep Research process on a topic.
         
         Args:
             topic: The research topic/query.
+            previous_history: List of prior messages in the conversation.
             max_iterations: Maximum number of research iterations.
         
         Returns:
@@ -61,10 +62,23 @@ class DeepResearchEngine:
         user_lang = SystemConfigService.get_language_preference()
         lang_msg = SystemMessage(content=f"LANGUAGE PROTOCOL (STRICT):\nUser Language: {user_lang}\nYou MUST write your plans, updates, and conclusions in {user_lang}.")
 
+        # Context Formatting
+        context_str = ""
+        if previous_history:
+            # We summarize or format the history to avoid token explosion, 
+            # or just filter for vital info. For now, we append the text representation.
+            # We filter for only Human and AI messages to keep it clean.
+            relevant_msgs = [m for m in previous_history if isinstance(m, (HumanMessage, AIMessage, ToolMessage))]
+            # Limit to last 10 messages to stay focused
+            relevant_msgs = relevant_msgs[-10:]
+            
+            history_text = "\\n".join([f"{m.type}: {str(m.content)[:500]}" for m in relevant_msgs])
+            context_str = f"\\n\\nCONTEXT FROM PREVIOUS TURN:\\n{history_text}\\n"
+
         messages = [
             lang_msg,
             SystemMessage(content=RESEARCH_PLAN_PROMPT),
-            HumanMessage(content=f"User Query: {topic}")
+            HumanMessage(content=f"User Query: {topic}{context_str}")
         ]
 
         response = await self.llm.ainvoke(messages, config=config)
@@ -80,6 +94,9 @@ class DeepResearchEngine:
         tools = get_all_tools()
         llm_with_tools = self.llm.bind_tools(tools)
         tool_map = {t.name: t for t in tools}
+
+        # Track executed tools in this run
+        run_tool_history = set()
 
         while current_iteration < max_iterations:
             current_iteration += 1
@@ -125,13 +142,25 @@ class DeepResearchEngine:
                     args_str = str(args)[:100] + "..." if len(str(args)) > 100 else str(args)
                     logger.info(f"{log_prefix} Tool Call: {tool_name}({args_str})")
 
-                    tool = tool_map.get(tool_name)
-                    result = "Tool not found"
-                    if tool:
-                        try:
-                            result = await tool.ainvoke(args, config=config)
-                        except Exception as e:
-                            result = f"Error: {e}"
+                    # Deduplication Check
+                    import json
+                    try:
+                        tool_sig = f"{tool_name}:{json.dumps(args, sort_keys=True)}"
+                    except:
+                        tool_sig = f"{tool_name}:{str(args)}"
+
+                    if tool_sig in run_tool_history:
+                        result = f"⚠️ SYSTEM ALERT: You have ALREADY executed `{tool_name}` with these exact arguments in a previous step. Do not repeat actions. Review your previous steps or summaries. Proceed to new inquiries."
+                        logger.warning(f"{log_prefix} Prevented duplicate tool call: {tool_name}")
+                    else:
+                        run_tool_history.add(tool_sig)
+                        tool = tool_map.get(tool_name)
+                        result = "Tool not found"
+                        if tool:
+                            try:
+                                result = await tool.ainvoke(args, config=config)
+                            except Exception as e:
+                                result = f"Error: {e}"
 
                     # Truncate result for context window
                     result_str = str(result)

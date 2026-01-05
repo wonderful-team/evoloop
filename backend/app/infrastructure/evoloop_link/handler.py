@@ -43,9 +43,10 @@ async def handle_remote_command(command_data: dict):
             "command_id": command_data.get("command_id") 
         }
         
-        # Run agent in background (Celery)
-        from app.core.workflows.tasks import run_agent_task
-        run_agent_task.delay(thread_id, inputs)
+        # Run agent in background (Local)
+        import asyncio
+        from app.core.workflows.tasks import run_agent_background
+        asyncio.create_task(run_agent_background(thread_id, inputs))
 
 async def handle_project_switch_event(event_data: dict):
     """

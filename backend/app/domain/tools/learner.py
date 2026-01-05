@@ -29,6 +29,7 @@ Diff:
 {diff}
 
 Extract up to 5 most important concepts.
+Output a JSON object.
 """
 
 @tool
