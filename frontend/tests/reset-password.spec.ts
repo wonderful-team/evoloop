@@ -58,7 +58,6 @@ test("User can reset password successfully using the link", async ({
 
   let url = await page.getAttribute(selector, "href")
 
-  // TODO: update var instead of doing a replace
   url = url!.replace("http://localhost/", "http://localhost:5173/")
 
   // Set the new password and confirm it
