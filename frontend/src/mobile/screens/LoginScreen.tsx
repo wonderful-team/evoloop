@@ -269,7 +269,7 @@ export function LoginScreen() {
                                     <FormItem><FormControl><Input className="placeholder:text-xs" type="password" placeholder={t('auth.login.passwordPlaceholder')} {...field} /></FormControl><FormMessage /></FormItem>
                                 )} />
 
-                                {captchaConfig === 1 && ( // Account login captcha TODO: Update API if needed
+                                {captchaConfig === 1 && (
                                     <div className="text-xs text-yellow-600">{t('auth.login.captchaNote')}</div>
                                 )}
 
