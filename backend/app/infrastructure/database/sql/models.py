@@ -101,7 +101,7 @@ class CodeChunk(Base):
     # Vector Embedding (1536 dims for OpenAI, 768 for others - make it generic or config dependent?)
     # Using 1536 as default for generic OpenAI ada-002 compatibility, but pgvector allows any size.
     # Note: User should ensure embedding dimension matches this column.
-    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(768))
+    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536))
 
     source_file: Mapped["SourceFile"] = relationship(back_populates="chunks")
 
@@ -184,7 +184,7 @@ class Tool(Base):
     category: Mapped[Optional[str]] = mapped_column(String(100), index=True)
 
     # Vector Embedding
-    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(768))
+    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536))
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
@@ -289,7 +289,7 @@ class LearnedSkill(Base):
     
     # New fields compatibility
     project_id: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
-    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(768), nullable=True)
+    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536), nullable=True)
 
 
 # --- NEW TABLES START HERE ---

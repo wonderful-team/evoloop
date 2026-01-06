@@ -1,3 +1,4 @@
+import { memo } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useTranslation } from "react-i18next"
 import { ProjectSwitcher } from "@/components/Sidebar/ProjectSwitcher"
@@ -15,7 +16,7 @@ interface ChatSidebarProps {
     onNewChat: () => void
 }
 
-export function ChatSidebar({
+export const ChatSidebar = memo(({
     threads,
     activeThreadId,
     setActiveThreadId,
@@ -23,7 +24,7 @@ export function ChatSidebar({
     onDeleteThread,
     onStopThread,
     onNewChat
-}: ChatSidebarProps) {
+}: ChatSidebarProps) => {
     const { t } = useTranslation()
 
     return (
@@ -57,5 +58,7 @@ export function ChatSidebar({
             </Tabs>
         </div>
     )
-}
+})
+
+ChatSidebar.displayName = "ChatSidebar"
 

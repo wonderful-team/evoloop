@@ -229,7 +229,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
              # Add a "Section" task
              # We use type="node" (or "section") 
              # For now "node" matches generic logic
-             friendly_name = f"Entering {node_name}"
+             friendly_name = f"Entering [{node_name}]"
              
              # Auto-close previous node tasks? 
              # ActivityMonitor supports hierarchical tasks? No, flat list.
@@ -263,19 +263,41 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
              # In our code, we init `TransparentCallbackHandler(thread_id)` for the run.
              # So it persists.
              
-             # If we want to close it properly on_chain_end, we need to map run_id -> task_id.
+             # If we want to close it properly on_chain_end, we need to map run_id -> (task_id, node_name).
              if not hasattr(self, "_active_nodes"):
                  self._active_nodes = {}
              
-             self._active_nodes[run_id] = task_id
+             self._active_nodes[run_id] = (task_id, node_name)
              
     async def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> None:
         """Run when chain ends running."""
         run_id = kwargs.get("run_id")
         if hasattr(self, "_active_nodes") and run_id in self._active_nodes:
-            task_id = self._active_nodes[run_id]
+            task_id, node_name = self._active_nodes[run_id]
             if self.thread_id and self.monitor:
+                # 1. Update the original node task to 'done'
                 await self.monitor.update_task(self.thread_id, task_id, "done")
+                
+                # 2. Emit an "Exiting" milestone to trigger frontend stack pop
+                # This is crucial for TaskSteps auto-collapse and hierarchy logic
+                exit_name = f"Exiting [{node_name}]"
+                await self.monitor.add_task(self.thread_id, exit_name, "node", status="done")
+                
+            del self._active_nodes[run_id]
+
+    async def on_chain_error(self, error: BaseException, **kwargs: Any) -> None:
+        """Run when chain errors."""
+        run_id = kwargs.get("run_id")
+        if hasattr(self, "_active_nodes") and run_id in self._active_nodes:
+            task_id, node_name = self._active_nodes[run_id]
+            if self.thread_id and self.monitor:
+                # 1. Update the original node task to 'failed'
+                await self.monitor.update_task(self.thread_id, task_id, "failed", details=str(error))
+                
+                # 2. Emit an "Exiting" milestone with 'failed' status
+                exit_name = f"Exiting [{node_name}]"
+                await self.monitor.add_task(self.thread_id, exit_name, "node", status="failed")
+                
             del self._active_nodes[run_id]
         
     async def on_text(self, text: str, **kwargs: Any) -> None:

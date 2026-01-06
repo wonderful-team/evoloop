@@ -1,7 +1,7 @@
 from collections.abc import Generator
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import Depends, HTTPException, status, Header
+from fastapi import Depends, HTTPException, status, Header, Query
 from sqlmodel import Session
 
 from app.core.config import settings
@@ -16,19 +16,27 @@ def get_db() -> Generator[Session, None, None]:
 
 SessionDep = Annotated[Session, Depends(get_db)]
 
-async def get_token_header(authorization: Annotated[str | None, Header()] = None) -> str:
-    if not authorization:
-         raise HTTPException(status_code=401, detail="Missing authorization header")
-    if not authorization.startswith("Bearer "):
-         raise HTTPException(status_code=401, detail="Invalid authorization header format")
-    return authorization.split(" ")[1]
+async def get_token_header(
+    authorization: Annotated[str | None, Header()] = None,
+    token: Annotated[str | None, Query()] = None
+) -> str:
+    effective_token = None
+    if authorization and authorization.startswith("Bearer "):
+        effective_token = authorization.split(" ")[1]
+    elif token:
+        effective_token = token
+        
+    if not effective_token:
+         raise HTTPException(status_code=401, detail="Missing authorization")
+    return effective_token
 
-async def get_token_header_optional(authorization: Annotated[str | None, Header()] = None) -> str | None:
-    if not authorization:
-        return None
-    if not authorization.startswith("Bearer "):
-        return None  # Or raise error if strict
-    return authorization.split(" ")[1]
+async def get_token_header_optional(
+    authorization: Annotated[str | None, Header()] = None,
+    token: Annotated[str | None, Query()] = None
+) -> str | None:
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.split(" ")[1]
+    return token
 
 TokenDep = Annotated[str, Depends(get_token_header)]
 TokenDepOptional = Annotated[str | None, Depends(get_token_header_optional)]
@@ -103,7 +111,8 @@ from app.infrastructure.external.imagicbox import imagicbox_client
 
 async def verify_guest_access(
     current_user: CurrentUserOptional,
-    x_guest_id: Annotated[str | None, Header()] = None
+    x_guest_id: Annotated[str | None, Header()] = None,
+    guest_id: Optional[str] = None # Added for Query Param support
 ) -> None:
     """
     Middleware-like dependency to verify guest access limits.
@@ -113,8 +122,11 @@ async def verify_guest_access(
     if current_user:
         return
 
-    if not x_guest_id:
-        raise HTTPException(status_code=401, detail="Authentication required (or X-Guest-ID)")
+    # Resolve IDs
+    effective_guest_id = x_guest_id or guest_id
+    
+    if not effective_guest_id:
+        raise HTTPException(status_code=401, detail="Authentication required (or guest_id)")
     
     # Check Guest Limits via Redis
     try:
@@ -136,7 +148,7 @@ async def verify_guest_access(
 
         # 2. Check Daily Usage
         today = datetime.now().strftime("%Y-%m-%d")
-        key = f"guest:usage:{today}:{x_guest_id}"
+        key = f"guest:usage:{today}:{effective_guest_id}"
         
         async with redis_client:
             current_usage = await redis_client.incr(key)
@@ -149,7 +161,7 @@ async def verify_guest_access(
                 detail=f"Guest limit reached ({limit}/day). Please upgrade."
             )
             
-        # logger.info(f"Guest {x_guest_id} usage: {current_usage}/{limit}")
+        # logger.info(f"Guest {effective_guest_id} usage: {current_usage}/{limit}")
 
     except HTTPException as he:
         raise he

@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from "react"
+import { useState, useMemo, memo, useEffect } from "react"
 import { CheckCircle2, Loader2, XCircle, Terminal, Cpu, ChevronDown, ChevronRight, LayoutList } from "lucide-react"
 
 export interface TaskItem {
@@ -23,9 +23,9 @@ function buildTaskTree(tasks: TaskItem[]): TreeTask[] {
     const root: TreeTask[] = []
     const stack: { list: TreeTask[], parentName?: string }[] = [{ list: root }]
 
-    // Regex to detect scope entry/exit
-    const RE_ENTER = /^Entering \[(.+)\]/
-    const RE_EXIT = /^Exiting \[(.+)\]/
+    // Regex to detect scope entry/exit (supporting optional brackets)
+    const RE_ENTER = /^Entering (?:\[(.+)\]|(.+))/
+    const RE_EXIT = /^Exiting (?:\[(.+)\]|(.+))/
 
     tasks.forEach(task => {
         const currentLevel = stack[stack.length - 1].list
@@ -38,7 +38,7 @@ function buildTaskTree(tasks: TaskItem[]): TreeTask[] {
         if (enterMatch) {
             // New Scope
             currentLevel.push(treeNode)
-            stack.push({ list: treeNode.children, parentName: enterMatch[1] })
+            stack.push({ list: treeNode.children, parentName: enterMatch[1] || enterMatch[2] })
         } else if (exitMatch) {
             // Close Scope (add this task to current, then pop)
             currentLevel.push(treeNode)
@@ -54,11 +54,20 @@ function buildTaskTree(tasks: TaskItem[]): TreeTask[] {
     return root
 }
 
+// Helper to check if any child (recursively) is running
+const isAnyChildRunning = (node: TreeTask): boolean => {
+    return node.children.some(c => c.status === 'running' || isAnyChildRunning(c));
+}
+
 const TaskNode = memo(({ node, depth = 0 }: { node: TreeTask, depth?: number }) => {
     const isFolder = node.children.length > 0
-    // Auto-collapse: Keep open only if this node or any child is running
-    const hasRunningChild = node.children.some(c => c.status === 'running' || c.children.some(gc => gc.status === 'running'))
+    const hasRunningChild = useMemo(() => isAnyChildRunning(node), [node])
     const [isOpen, setIsOpen] = useState(node.status === 'running' || hasRunningChild)
+
+    // Sync open state with status: Auto-expand when running, Auto-collapse when done
+    useEffect(() => {
+        setIsOpen(node.status === 'running' || hasRunningChild)
+    }, [node.status, hasRunningChild])
 
     // Adjust visual style for folders vs atomic tasks
     const isScopeNode = /^Entering|Exiting/.test(node.name)

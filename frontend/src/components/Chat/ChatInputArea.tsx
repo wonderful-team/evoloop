@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, memo } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Button } from "../ui/button"
@@ -19,7 +19,7 @@ interface ChatInputAreaProps {
     activeThreadId?: string
 }
 
-export function ChatInputArea({
+export const ChatInputArea = memo(({
     onSend,
     onStop,
     isAgentWorking,
@@ -27,7 +27,7 @@ export function ChatInputArea({
     isStopPending,
     currentProject,
     activeThreadId
-}: ChatInputAreaProps) {
+}: ChatInputAreaProps) => {
     const { t } = useTranslation()
     const [inputValue, setInputValue] = useState("")
     const [isUploading, setIsUploading] = useState(false)
@@ -189,4 +189,6 @@ export function ChatInputArea({
             </div>
         </div>
     )
-}
+})
+
+ChatInputArea.displayName = "ChatInputArea"

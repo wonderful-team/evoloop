@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, memo } from "react"
 import { useTranslation } from "react-i18next"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Brain, Map, Layers, Database, X, Cpu, Wrench } from "lucide-react"
@@ -18,7 +18,7 @@ interface ContextPanelProps {
     onClose?: () => void
 }
 
-export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPanelProps) {
+export const ContextPanel = memo(({ projectId, activeThreadId, onClose }: ContextPanelProps) => {
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState("memory")
 
@@ -85,4 +85,6 @@ export function ContextPanel({ projectId, activeThreadId, onClose }: ContextPane
             </Tabs >
         </div >
     )
-}
+})
+
+ContextPanel.displayName = "ContextPanel"

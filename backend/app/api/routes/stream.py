@@ -5,15 +5,16 @@ Streams tokens and activity updates as they happen.
 import asyncio
 import json
 import logging
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from app.core.monitoring.activity import activity_monitor
+from app.api.deps import verify_guest_access
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
 
 
-@router.get("/chat/{thread_id}")
+@router.get("/chat/{thread_id}", dependencies=[Depends(verify_guest_access)])
 async def stream_chat(thread_id: str):
     """
     SSE endpoint to stream chat updates for a thread.
@@ -83,10 +84,12 @@ async def stream_chat(thread_id: str):
                      yield f"event: status\ndata: {json.dumps({'status': status})}\n\n"
                      last_activity_str = current_activity_str
 
-                # Check if done
-                if status not in ["running", "SUMMARIZING", "INDEXING"]:
-                    yield f"event: done\ndata: {json.dumps({'status': status})}\n\n"
-                    break
+                # Check if done - CHANGED for Arch 2.0: Do not disconnect.
+                # Just emit the status update (handled above)
+                # if status not in ["running", "SUMMARIZING", "INDEXING"]:
+                #     yield f"event: done\ndata: {json.dumps({'status': status})}\n\n"
+                #     break
+
                     
                 await asyncio.sleep(0.3)  # 300ms polling
                 check_count += 1

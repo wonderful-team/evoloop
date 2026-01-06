@@ -37,7 +37,7 @@ class LLMFactory:
             base_url=base_url,
             model=final_model,
             temperature=temperature,
-            streaming=False
+            streaming=True
         )
 
 

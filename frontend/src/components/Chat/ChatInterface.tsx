@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { AgentService, ConversationsService, MemoryService, FilesService } from "@/client"
-import { useSSE } from "@/hooks/useSSE"
+import { useChatStore } from "@/stores/chatStore"
 
 import { toast } from "sonner"
 import { Button } from "../ui/button"
@@ -15,10 +15,61 @@ import { Loader2, Bot, Brain } from "lucide-react"
 import { useProjectStore } from "@/stores/projectStore"
 
 import { ChatSidebar, type Thread } from "./ChatSidebar"
-import { ChatMessageItem, type Message } from "./ChatMessageItem"
+import { ChatMessageItem } from "./ChatMessageItem"
 import { TaskSteps } from "./TaskSteps"
 import { ChatInputArea } from "./ChatInputArea"
 import { HumanInputDialog } from "./HumanInputDialog"
+import { memo } from "react"
+import { MessageContent } from "./MessageContent"
+import { ArrowDown } from "lucide-react"
+
+const StreamingBubble = memo(() => {
+    const streamedContent = useChatStore(s => s.streamedContent)
+    const tasks = useChatStore(s => s.tasks)
+
+    const aiTask = useChatStore(() => tasks.find((t: any) => t.status === 'running' && t.type === 'ai'))
+
+    if (!streamedContent && !aiTask) return null
+
+    return (
+        <div className="flex gap-3 justify-start items-start mb-4">
+            <Avatar className="h-8 w-8 mt-1 shrink-0">
+                <AvatarImage src="/bot-avatar.png" />
+                <AvatarFallback><Bot size={16} /></AvatarFallback>
+            </Avatar>
+            <div className={`rounded-lg px-4 py-3 bg-muted text-foreground text-sm leading-relaxed shadow-sm min-w-[20px] max-w-[80%] overflow-hidden`}>
+                <MessageContent content={streamedContent} />
+                {/* Blinking Cursor (only if content is empty or at very end? MessageContent handles rendering. We can append cursor?) */}
+                {/* Actually, MessageContent might wrap content in div. Let's just put cursor after if possible, or inside MessageContent? 
+                     For simplicity, we just rely on the streaming feel. Detailed cursor integration with Markdown is hard. 
+                     We can add a small indicator below or inline if content is empty. */}
+                {!streamedContent && <span className="inline-block w-1.5 h-4 bg-primary align-middle animate-pulse" />}
+            </div>
+        </div>
+    )
+})
+StreamingBubble.displayName = "StreamingBubble"
+
+const StatusIndicator = memo(() => {
+    const status = useChatStore(s => s.status)
+    const tasks = useChatStore(s => s.tasks)
+
+    if (status !== 'running' && status !== 'SUMMARIZING') return null
+
+    // Find active task name
+    const runningTask = tasks.find((t: any) => t.status === 'running')
+    const actionName = runningTask ? runningTask.name : "Working..."
+
+    return (
+        <div className="flex items-center gap-3 pl-11 mb-4">
+            <Loader2 size={14} className="animate-spin text-primary" />
+            <span className="text-sm text-muted-foreground">
+                {actionName}
+            </span>
+        </div>
+    )
+})
+StatusIndicator.displayName = "StatusIndicator"
 
 export function ChatInterface() {
     const { t } = useTranslation()
@@ -26,51 +77,43 @@ export function ChatInterface() {
     const projectId = currentProject?.id
     const queryClient = useQueryClient()
 
-    // Get initial thread ID from URL if present
-    const getInitialThreadId = () => {
-        const params = new URLSearchParams(window.location.search)
-        const tid = params.get('thread_id')
-        return tid && tid.trim() !== '' ? tid : crypto.randomUUID()
-    }
+    // --- Store State ---
+    // --- Store State (Granular Selectors to avoid full re-renders) ---
+    const activeThreadId = useChatStore(s => s.threadId)
+    const messages = useChatStore(s => s.messages)
+    const status = useChatStore(s => s.status)
+    const tasks = useChatStore(s => s.tasks)
+    // streamedContent is handled by StreamingBubble
+    const setThread = useChatStore(s => s.setThread)
+    const sendMessage = useChatStore(s => s.sendMessage)
+    const stopAgent = useChatStore(s => s.stopAgent)
 
-    const [messages, setMessages] = useState<Message[]>([])
-    const [activeThreadId, setActiveThreadId] = useState<string>(getInitialThreadId)
+    // We maintain 'showContextPanel' locally as it involves UI preference
     const [showContextPanel, setShowContextPanel] = useState(true)
-    const [isAgentWorking, setIsAgentWorking] = useState(false)
-    const [isSending, setIsSending] = useState(false) // New state to prevent flicker
-    const [streamedContent, setStreamedContent] = useState('')  // SSE streamed content
-
-    // SSE Streaming Hook
-    useSSE({
-        threadId: activeThreadId,
-        enabled: !!activeThreadId, // Always connect to listen for start events
-        onToken: (token) => setStreamedContent(prev => prev + token),
-        onActivity: (data) => {
-            // Real-time Push: value equals backend snapshot
-            queryClient.setQueryData(["chatActivity", activeThreadId], data)
-        },
-        onDone: () => {
-            setStreamedContent('')
-            queryClient.invalidateQueries({ queryKey: ["chatHistory", activeThreadId] })
-            // Ensure final status is fetched (just in case)
-            queryClient.invalidateQueries({ queryKey: ["chatActivity", activeThreadId] })
-            setIsAgentWorking(false)
-        }
-    })
-
-    // Track local pending messages to prevent flash
-    // Map: thread_id -> pending text
-    const pendingMessagesRef = useRef<Map<string, string[]>>(new Map())
-
     const scrollRef = useRef<HTMLDivElement>(null)
 
-    // 1. Fetch Conversation List
+    // Smart Scroll State
+    const [isUserScrolled, setIsUserScrolled] = useState(false)
+
+    // --- Initialization ---
+    useEffect(() => {
+        // Get initial thread ID from URL if present, or create new
+        const params = new URLSearchParams(window.location.search)
+        const tid = params.get('thread_id')
+        const initId = tid && tid.trim() !== '' ? tid : crypto.randomUUID()
+
+        // Init Store
+        if (projectId) {
+            setThread(initId, projectId)
+        }
+    }, [projectId, setThread]) // Run once when project loads
+
+    // --- Thread List (Sidebar) ---
+    // Kept in React Query as it is a list view concern
     const { data: threadsData } = useQuery({
         queryKey: ["projectConversations", projectId],
-        queryFn: async () => {
-            return ConversationsService.listConversations(projectId)
-        },
-        // Enable even if no project (Global History)
+        queryFn: async () => ConversationsService.listConversations(projectId),
+        enabled: !!projectId
     })
 
     const threads: Thread[] = (Array.isArray(threadsData) ? threadsData : []).map((t: any) => ({
@@ -80,272 +123,110 @@ export function ChatInterface() {
         status: t.status
     }))
 
-    // 2. Poll output for Active Thread
-    const { data: historyData } = useQuery({
-        queryKey: ["chatHistory", activeThreadId],
-        queryFn: () => ConversationsService.getConversationMessages(activeThreadId),
-        // refetchInterval: 1000, // Keep disabled, rely on SSE onDone
-        enabled: !!activeThreadId
-    })
+    // --- Handlers ---
 
-    // 3. Poll Activity for Status ("Working...") - Safety Fallback
-    const { data: activityData } = useQuery({
-        queryKey: ["chatActivity", activeThreadId],
-        queryFn: async () => {
-            // Use SDK to fetch activity
-            try {
-                return await ConversationsService.getConversationActivity(activeThreadId)
-            } catch (e) {
-                return null
-            }
-        },
-        refetchInterval: isAgentWorking ? 3000 : 5000, // Safety poll
-        enabled: !!activeThreadId
-    })
+    const handleNewChat = () => {
+        const newId = crypto.randomUUID()
+        if (projectId) setThread(newId, projectId)
+    }
 
-    useEffect(() => {
-        if (activityData) {
-            // Check if status is running
-            const status = (activityData as any).status
-            const working = status === 'running' || status === 'SUMMARIZING' || status === 'INDEXING' // robustness
-
-            // If we are currently sending, we FORCE working state to stay true 
-            // until we see a confirmation from backend or timeout
-            if (isSending) {
-                if (working) {
-                    setIsSending(false) // Backend caught up!
-                }
-                setIsAgentWorking(true)
-            } else {
-                setIsAgentWorking(working)
-            }
-        }
-    }, [activityData, isSending])
-
-    // Sync State
-    useEffect(() => {
-        // historyData is an array of messages (MessageItem[])
-        const data = historyData as any
-        const rawMessages = Array.isArray(data) ? data : (Array.isArray(data?.messages) ? data.messages : [])
-
-        if (rawMessages.length > 0 || (threads.length > 0 && !messages.length)) {
-            const formatted: Message[] = rawMessages.map((m: any, idx: number) => {
-                let content = m.content
-                let thinking = m.thinking
-
-                // Parse <think>...</think>
-                // Case 1: <think>...</think> Content
-                // Case 2: Content <think>...</think> (Unlikely but possible)
-                // We assume strict <think> at start if present
-                const thinkMatch = content ? content.match(/<think>([\s\S]*?)<\/think>/) : null
-                if (thinkMatch) {
-                    thinking = thinkMatch[1].trim()
-                    content = content.replace(thinkMatch[0], "").trim()
-                }
-
-                return {
-                    id: m.id || idx,  // Use backend ID if available
-                    role: m.type === 'human' ? 'user' : 'ai',
-                    content: content || '',
-                    thinking: thinking,
-                    timestamp: m.created_at  // ISO timestamp from backend
-                }
-            }).filter((m: Message) => (m.content && m.content.trim().length > 0) || (m.thinking && m.thinking?.trim().length > 0))
-
-            // --- FLUSH PREVENTION & MERGE ---
-            // If backend has new messages, render them.
-            // If backend lags behind local pending messages, KEEP local pending messages.
-
-            // Simple heuristic: If last remote message is NOT our pending message, append pending.
-            // But we don't know IDs.
-            // So we rely on content + role.
-
-            // Logic: Always trust Backend History, BUT if we have local pending messages for this thread,
-            // check if they are already in the history.
-
-            const currentPending = pendingMessagesRef.current.get(activeThreadId) || []
-            if (currentPending.length > 0) {
-                // Check if the last human message in formatted matches the first pending
-                // Ideally we clear pending once it appears in history.
-
-                // ROBUSTNESS FIX: Compare trimmed content
-                const lastHuman = formatted.slice().reverse().find(m => m.role === 'user')
-
-                if (lastHuman && currentPending.some(p => p.trim() === lastHuman.content.trim())) {
-                    // It arrived! Remove from pending (fuzzy match)
-                    // We remove specifically the one that matched
-                    const matchText = currentPending.find(p => p.trim() === lastHuman.content.trim())
-                    const nextPending = currentPending.filter(t => t !== matchText)
-                    pendingMessagesRef.current.set(activeThreadId, nextPending)
-                }
-
-                // If still pending, append them to formatted (Optimistic UI)
-                const pendingRemaining = pendingMessagesRef.current.get(activeThreadId) || []
-
-                pendingRemaining.forEach((txt, i) => {
-                    // Double check overlap (simplistic)
-                    if (!formatted.some(m => m.role === 'user' && m.content.trim() === txt.trim())) {
-                        formatted.push({
-                            id: Date.now() + i,
-                            role: "user",
-                            content: txt
-                        })
-                    }
-                })
-            }
-
-            setMessages(formatted)
-        } else if (threads.find((t: Thread) => t.thread_id === activeThreadId) === undefined) {
-            // New thread
-            if (!messages.length) setMessages([])
-        }
-    }, [historyData, activeThreadId])
-
-    const sendMutation = useMutation({
-        mutationFn: (text: string) => AgentService.chatEndpoint({
-            requestBody: {
-                message: text,
-                thread_id: activeThreadId,
-                project_id: projectId
-            }
-        }),
-        onSuccess: () => {
+    const handleDeleteThread = async (id: string) => {
+        try {
+            await ConversationsService.deleteConversation(id)
             queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
-            // Start Working State immediately
-            setIsAgentWorking(true)
-            // Keep "Sending" state true for a bit to prevent flicker if poll is slow
-            setTimeout(() => {
-                // Only turn off if backend hasn't picked up yet (handled in poll effect)
-                // But we need a failsafe
-                setIsSending(false)
-            }, 15000)
-        },
-        onError: () => {
-            setMessages(prev => [...prev, { id: Date.now(), role: "ai", content: t('chat.interface.errorSend') }])
-            setIsSending(false)
-            setIsAgentWorking(false)
-        }
-    })
-
-    const deleteMutation = useMutation({
-        mutationFn: (threadId: string) => ConversationsService.deleteConversation(threadId),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
-            if (threads.length > 0) {
-                const next = threads[0].thread_id
-                setActiveThreadId(next)
-            } else {
-                handleNewChat()
+            if (id === activeThreadId) {
+                // Switch to next or new
+                if (threads.length > 0) {
+                    const next = threads.find(t => t.thread_id !== id)
+                    if (next && projectId) setThread(next.thread_id, projectId)
+                    else handleNewChat()
+                } else {
+                    handleNewChat()
+                }
             }
+        } catch (e) {
+            toast.error("Failed to delete chat")
         }
-    })
+    }
+
+    const handleStopThread = async (id: string) => {
+        // If stopping active, use store action. Else API.
+        if (id === activeThreadId) {
+            await stopAgent()
+        } else {
+            await AgentService.stopChat({ requestBody: { thread_id: id, message: "" } })
+            toast.info("Stopped")
+        }
+    }
+
+    // --- Side Effect Mutations (Keep here or move to store if generic) ---
+    // These are specific to message item actions
 
     const addToMemoryMutation = useMutation({
         mutationFn: async (text: string) => {
-            if (!projectId) throw new Error("No project selected")
+            if (!projectId) throw new Error("No project")
             return MemoryService.addConcept({
                 projectId,
-                requestBody: {
-                    name: t('chat.interface.learnedFromChat'),
-                    description: text,
-                    related_files: []
-                }
+                requestBody: { name: t('chat.interface.learnedFromChat'), description: text, related_files: [] }
             })
         },
-        onSuccess: () => {
-            toast.success("Added to Project Memory")
-            queryClient.invalidateQueries({ queryKey: ["projectMemory"] })
-        },
-        onError: (err) => {
-            console.error(err)
-            toast.error("Failed to add memory")
-        }
+        onSuccess: () => { toast.success("Added to Memory"); queryClient.invalidateQueries({ queryKey: ["projectMemory"] }) }
     })
 
     const exportFileMutation = useMutation({
         mutationFn: async (text: string) => {
-            if (!projectId) throw new Error("No project selected")
+            if (!projectId) throw new Error("No project")
             const path = prompt(t('chat.interface.exportPrompt'), "docs/chat-export.md")
             if (!path) return Promise.reject("Cancelled")
-
-            return FilesService.createFile({
-                projectId,
-                requestBody: {
-                    path,
-                    content: text
-                }
-            })
+            return FilesService.createFile({ projectId, requestBody: { path, content: text } })
         },
-        onSuccess: () => toast.success(t('chat.interface.exportSuccess')),
-        onError: (err) => {
-            if ((err as any) !== "Cancelled") {
-                console.error(err)
-                toast.error("Failed to export file")
-            }
-        }
+        onSuccess: () => toast.success(t('chat.interface.exportSuccess'))
     })
 
     const rewindMutation = useMutation({
-        mutationFn: () => ConversationsService.rewindConversation(activeThreadId),
+        mutationFn: () => ConversationsService.rewindConversation(activeThreadId!),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
-            toast.success(t('chat.interface.rewindSuccess', "Rewinded conversation"))
-        },
-        onError: (err) => {
-            console.error(err)
-            toast.error("Failed to rewind")
+            // Reload store
+            if (activeThreadId && projectId) setThread(activeThreadId, projectId)
+            toast.success("Rewinded")
         }
     })
 
-    const stopMutation = useMutation({
-        mutationFn: () => AgentService.stopChat({
-            requestBody: {
-                thread_id: activeThreadId,
-                message: ""
-            }
-        }),
-        onSuccess: () => {
-            toast.info(t('chat.interface.stopped', "Generation Stopped"))
-            setIsAgentWorking(false)
-            setIsSending(false)
-            queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
-            queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
-        },
-        onError: (err) => {
-            console.error(err)
-            toast.error("Failed to stop")
-        }
-    })
+    // --- Auto Scroll Logic ---
+    const streamedLen = useChatStore(s => s.streamedContent.length)
 
-    const handleSend = (text: string) => {
-        if (!text.trim() || sendMutation.isPending) return
-
-        // Optimistic & Tracking
-        const current = pendingMessagesRef.current.get(activeThreadId) || []
-        pendingMessagesRef.current.set(activeThreadId, [...current, text])
-
-        // Immediate Local Render
-        setMessages(prev => [...prev, { id: Date.now(), role: "user", content: text }])
-
-        // Set Sending State
-        setIsSending(true)
-        setIsAgentWorking(true)
-
-        sendMutation.mutate(text)
+    // Handle User Scroll Interaction
+    const handleScroll = () => {
+        if (!scrollRef.current) return
+        const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
+        // If user is not at the bottom (threshold 50px), mark as user scrolled
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 100
+        setIsUserScrolled(!isAtBottom)
     }
 
-    const handleNewChat = () => {
-        const newId = crypto.randomUUID()
-        setActiveThreadId(newId)
-        setMessages([])
-    }
-
-    // Auto-scroll
-    useEffect(() => {
+    const scrollToBottom = () => {
         if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+            scrollRef.current.scrollTo({
+                top: scrollRef.current.scrollHeight,
+                behavior: 'auto' // Instant scroll for streaming
+            })
+            setIsUserScrolled(false)
         }
-    }, [messages])
+    }
+
+    useEffect(() => {
+        // Only auto-scroll if user hasn't scrolled up
+        if (!isUserScrolled) {
+            scrollToBottom()
+        }
+    }, [messages.length, streamedLen, tasks.length]) // Trigger on updates
+
+    // Fix: Force scroll to bottom on new thread load or manual send
+    useEffect(() => {
+        setIsUserScrolled(false)
+        scrollToBottom()
+    }, [activeThreadId])
+
 
     return (
         <div className="flex flex-col h-full relative bg-background overflow-hidden">
@@ -354,19 +235,11 @@ export function ChatInterface() {
                 <ResizablePanel defaultSize={20} minSize={15} maxSize={25} className="hidden lg:block min-w-[250px] border-r">
                     <ChatSidebar
                         threads={threads}
-                        activeThreadId={activeThreadId}
-                        setActiveThreadId={setActiveThreadId}
+                        activeThreadId={activeThreadId || ''}
+                        setActiveThreadId={(id) => projectId && setThread(id, projectId)}
                         projectId={projectId}
-                        onDeleteThread={(id) => deleteMutation.mutate(id)}
-                        onStopThread={(id) => {
-                            // Stop specific thread
-                            AgentService.stopChat({
-                                requestBody: { thread_id: id, message: "" }
-                            }).then(() => {
-                                toast.info(t('chat.interface.stopped'))
-                                queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
-                            })
-                        }}
+                        onDeleteThread={handleDeleteThread}
+                        onStopThread={handleStopThread}
                         onNewChat={handleNewChat}
                     />
                 </ResizablePanel>
@@ -376,7 +249,7 @@ export function ChatInterface() {
                 {/* Center Chat Panel */}
                 <ResizablePanel defaultSize={showContextPanel ? 60 : 80} minSize={40}>
                     <div className="flex flex-col h-full relative min-h-0">
-                        {/* Header/Toolbar (Optional - for toggling Context Panel if closed) */}
+                        {/* Toggle Context Panel Button */}
                         {!showContextPanel && (
                             <div className="absolute top-4 right-4 z-20">
                                 <Button variant="ghost" size="icon" onClick={() => setShowContextPanel(true)} title="Open Context Panel">
@@ -385,27 +258,22 @@ export function ChatInterface() {
                             </div>
                         )}
 
-                        <div className="flex-1 overflow-y-auto p-4 min-h-0" ref={scrollRef}>
-                            <div className="space-y-6 max-w-3xl mx-auto">
-                                {/* Loading Skeleton */}
-                                {!historyData && messages.length === 0 && (
-                                    <div className="space-y-4 animate-pulse">
-                                        {[1, 2, 3].map(i => (
-                                            <div key={i} className={`flex gap-3 ${i % 2 === 0 ? 'justify-end' : 'justify-start'}`}>
-                                                <div className="h-8 w-8 rounded-full bg-muted" />
-                                                <div className={`rounded-lg ${i % 2 === 0 ? 'bg-primary/20' : 'bg-muted'} h-16 w-48`} />
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
+                        <div
+                            className="flex-1 overflow-y-auto p-4 min-h-0 scroll-smooth"
+                            ref={scrollRef}
+                            onScroll={handleScroll}
+                        >
+                            <div className="space-y-6 max-w-3xl mx-auto pb-4">
 
-                                {/* Empty State */}
-                                {historyData && messages.length === 0 ? (
+                                {/* Messages List */}
+                                {messages.length === 0 && (
                                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground mt-20">
                                         <Bot size={48} className="mb-4 opacity-20" />
                                         <p>{t('chat.interface.startPrompt')}</p>
                                     </div>
-                                ) : messages.map((msg) => (
+                                )}
+
+                                {messages.map((msg) => (
                                     <ChatMessageItem
                                         key={msg.id}
                                         msg={msg}
@@ -415,107 +283,59 @@ export function ChatInterface() {
                                     />
                                 ))}
 
-                                {isAgentWorking && (
-                                    <div className="flex flex-col gap-2 max-w-3xl mx-auto animate-in fade-in duration-300 py-4">
-                                        {/* 1. Steps (System Activity) - Indented to align with content */}
-                                        {(activityData as any)?.tasks?.length > 0 && (
-                                            <div className="pl-11 mb-2">
-                                                <TaskSteps tasks={(activityData as any).tasks} />
-                                            </div>
-                                        )}
-
-                                        {/* 2. Ghost Streaming Bubble (The Active Answer) */}
-                                        {(() => {
-                                            const tasks = (activityData as any)?.tasks || [];
-                                            const aiTask = tasks.find((t: any) => t.status === 'running' && t.type === 'ai');
-
-                                            // Prefer SSE streamedContent over polling (aiTask.details)
-                                            const displayContent = streamedContent || aiTask?.details
-
-                                            // Case A: AI is streaming text (SSE or polling)
-                                            if (displayContent) {
-                                                return (
-                                                    <div className="flex gap-3 justify-start items-start">
-                                                        <Avatar className="h-8 w-8 mt-1 shrink-0">
-                                                            <AvatarImage src="/bot-avatar.png" />
-                                                            <AvatarFallback><Bot size={16} /></AvatarFallback>
-                                                        </Avatar>
-                                                        <div className="rounded-lg px-4 py-3 bg-muted text-foreground text-sm leading-relaxed whitespace-pre-wrap shadow-sm min-w-[20px] max-w-[80%]">
-                                                            {displayContent}
-                                                            <span className="inline-block w-1.5 h-4 bg-primary ml-1 align-middle animate-pulse" />
-                                                        </div>
-                                                    </div>
-                                                )
-                                            }
-
-                                            // Case B: Initializing / No Tasks yet / Tool running without streaming text
-                                            // If no tasks, show loader. If tasks exist but not AI streaming, we just show steps (handled above).
-                                            if (tasks.length === 0) {
-                                                return (
-                                                    <div className="flex items-center gap-3 pl-11">
-                                                        <Loader2 size={14} className="animate-spin text-muted-foreground" />
-                                                        <span className="text-sm text-muted-foreground">{t('chat.interface.deepResearching', "Agent initializing...")}</span>
-                                                    </div>
-                                                )
-                                            }
-
-                                            // Case C: Tasks exist but no AI streaming - show current action
-                                            const runningTask = tasks.find((t: any) => t.status === 'running')
-                                            if (runningTask && !aiTask) {
-                                                // Extract meaningful name
-                                                let actionName = runningTask.name || 'Working'
-                                                actionName = actionName.replace(/^Entering \[|\]$/g, '').replace(/^Exiting \[.*\]$/, '')
-
-                                                return (
-                                                    <div className="flex items-center gap-3 pl-11">
-                                                        <Loader2 size={14} className="animate-spin text-primary" />
-                                                        <span className="text-sm text-muted-foreground">
-                                                            {t('chat.interface.workingOn', "Working...")}
-                                                            <span className="font-medium text-foreground ml-1">{actionName}</span>
-                                                        </span>
-                                                    </div>
-                                                )
-                                            }
-                                            return null;
-                                        })()}
+                                {/* Always show TaskSteps if tasks exist (Persistence Fix) */}
+                                {tasks.length > 0 && (
+                                    <div className="flex flex-col gap-2 max-w-3xl mx-auto animate-in fade-in duration-300 py-2">
+                                        <div className="pl-11 mb-2">
+                                            <TaskSteps tasks={tasks} />
+                                        </div>
                                     </div>
                                 )}
 
-                                {/* Loading Placeholder for Send Latency */}
-                                {sendMutation.isPending && !isAgentWorking && (
-                                    <div className="flex gap-3 justify-start max-w-3xl mx-auto opacity-50">
-                                        <Avatar className="h-8 w-8 mt-1">
-                                            <AvatarFallback><Bot size={16} /></AvatarFallback>
-                                        </Avatar>
-                                        <div className="rounded-lg px-4 py-3 bg-muted/50 text-muted-foreground text-sm flex items-center gap-2">
-                                            <Loader2 size={14} className="animate-spin" /> {t('chat.interface.sending', "Sending...")}
-                                        </div>
+                                {/* Streaming Content & Status */}
+                                {(status !== 'idle' && status !== 'stopped' && status !== 'unknown') && (
+                                    <div className="flex flex-col gap-2 max-w-3xl mx-auto animate-in fade-in duration-300">
+                                        <StreamingBubble />
+                                        <StatusIndicator />
                                     </div>
                                 )}
                             </div>
                         </div>
 
-                        {/* Fixed Input Area */}
+                        {/* Scroll to Bottom Button */}
+                        {isUserScrolled && (
+                            <div className="absolute bottom-4 right-4 z-10 animate-in fade-in slide-in-from-bottom-2">
+                                <Button
+                                    size="icon"
+                                    variant="secondary"
+                                    className="rounded-full shadow-md bg-background/80 backdrop-blur border"
+                                    onClick={scrollToBottom}
+                                >
+                                    <ArrowDown className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
+
+                        {/* Input Area */}
                         <ChatInputArea
-                            onSend={handleSend}
-                            onStop={() => stopMutation.mutate()}
-                            isAgentWorking={isAgentWorking}
-                            isSending={isSending}
-                            isStopPending={stopMutation.isPending}
+                            onSend={sendMessage}
+                            onStop={stopAgent}
+                            isAgentWorking={status === 'running' || status === 'SUMMARIZING'}
+                            isSending={false} // Store handles optimistic, no separate loading state needed here
+                            isStopPending={false} // Immediate
                             currentProject={currentProject}
-                            activeThreadId={activeThreadId}
+                            activeThreadId={activeThreadId || undefined}
                         />
                     </div>
                 </ResizablePanel>
 
-                {/* Right Context Panel (Conditional) */}
                 {showContextPanel && (
                     <>
                         <ResizableHandle withHandle />
                         <ResizablePanel defaultSize={20} minSize={15} maxSize={30} className="min-w-[300px]">
                             <ContextPanel
                                 projectId={currentProject?.id}
-                                activeThreadId={activeThreadId}
+                                activeThreadId={activeThreadId || ''}
                                 onClose={() => setShowContextPanel(false)}
                             />
                         </ResizablePanel>
@@ -523,8 +343,7 @@ export function ChatInterface() {
                 )}
             </ResizablePanelGroup>
 
-            {/* Human-in-Loop Dialog (Phase 0.2) */}
-            <HumanInputDialog threadId={activeThreadId} />
+            <HumanInputDialog threadId={activeThreadId || ''} />
         </div>
     )
 }
