@@ -98,6 +98,8 @@ class RoutingDecision(BaseModel):
 
 
 async def supervisor_node(state: AgentState, config: RunnableConfig):
+    import logging
+    logger = logging.getLogger(__name__)
     llm = LLMFactory.create_llm()
     # Context
     project_id = state.get("project_id", 1) # Default to 1 if missing
@@ -131,6 +133,57 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         # Fallback to normal execution if compression fails
         # Log error? 
         pass
+
+    # 0.5 Skill Matching Hook (Imitation Learning Phase 3/4)
+    # Check if user's request matches a learned skill BEFORE standard LLM processing
+    try:
+        from app.core.learning.skill_executor import skill_matcher, SkillExecutor
+        from app.domain.tools.registry import get_supervisor_tools
+        from app.infrastructure.mcp.client import mcp_client_manager
+        
+        # Get last user message
+        current_msgs = state.get("messages", [])
+        last_human_msg = None
+        for msg in reversed(current_msgs):
+            if isinstance(msg, HumanMessage):
+                last_human_msg = msg.content
+                break
+        
+        if last_human_msg and not state.get("skill_execution_attempted"):
+            match = await skill_matcher.match(last_human_msg, threshold=0.7)
+            
+            if match:
+                logger.info(f"🎯 Skill Match Found: '{match.skill_name}' (confidence: {match.confidence:.2f})")
+                
+                # Build tool registry for execution
+                core_tools = get_supervisor_tools()
+                mcp_tools = mcp_client_manager.get_tools()
+                tool_registry = {t.name: t for t in core_tools + mcp_tools}
+                
+                # Execute skill
+                executor = SkillExecutor(config)
+                success, result = await executor.execute_skill(
+                    match.skill_id,
+                    match.extracted_params,
+                    tool_registry
+                )
+                
+                # Create response message
+                if success:
+                    response_content = f"✅ Executed skill '{match.skill_name}':\n{result}"
+                else:
+                    response_content = f"⚠️ Skill '{match.skill_name}' partially failed:\n{result}"
+                
+                # Return with skill execution result, skip to finish
+                return {
+                    "messages": [AIMessage(content=response_content)],
+                    "next_node": "finish",
+                    "skill_execution_attempted": True
+                }
+    except Exception as e:
+        logger.warning(f"Skill matching failed, falling back to standard processing: {e}")
+        # Mark as attempted to avoid retry loops
+        state["skill_execution_attempted"] = True
 
     # Initialize messages early
     messages = list(state.get("messages", []))
@@ -237,8 +290,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     
     for i in range(10):
         # Initialize logger
-        import logging
-        logger = logging.getLogger(__name__)
+        # logger = logging.getLogger(__name__)
 
         # Sanitize / Repair Messages
         # Verify that every ToolMessage is preceded by an AIMessage with matching tool_calls

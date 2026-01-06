@@ -52,3 +52,6 @@ class AgentState(TypedDict):
     # [NEW] Dynamic State Store
     # A dictionary to hold arbitrary variables (e.g. "loop_index", "api_status", "summary_draft")
     scratchpad: Annotated[Dict[str, Any], operator.ior]
+
+    # Skill Execution (Imitation Learning Phase 3/4)
+    skill_execution_attempted: Optional[bool]

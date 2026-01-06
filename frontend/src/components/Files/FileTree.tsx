@@ -1,9 +1,11 @@
-import { Folder, FileCode, ChevronRight, ChevronDown, Loader2 } from "lucide-react"
+import { Folder, FileCode, ChevronRight, ChevronDown, Loader2, Pin } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
-import { FilesService } from "@/client"
+import { FilesService, ResourcesService } from "@/client"
+import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 
 interface FileNode {
     name: string
@@ -59,6 +61,23 @@ export function FileTree({ projectId, path = "", level = 0, onSelectFile }: File
 function FileTreeNode({ node, level, projectId, onSelectFile }: { node: FileNode, level: number, projectId: number, onSelectFile: (file: FileNode) => void }) {
     const [isOpen, setIsOpen] = useState(false)
     const isFolder = node.type === "directory"
+    const { t } = useTranslation()
+    const queryClient = useQueryClient()
+
+    const pinResourceMutation = useMutation({
+        mutationFn: async () => {
+            return ResourcesService.createResource(projectId, {
+                type: 'file',
+                name: node.name,
+                content: node.path
+            })
+        },
+        onSuccess: () => {
+            toast.success(t('files.pinnedSuccess', "File pinned"))
+            queryClient.invalidateQueries({ queryKey: ["projectResources", projectId] })
+        },
+        onError: () => toast.error(t('files.pinnedError', "Failed to pin file"))
+    })
 
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation()
@@ -73,7 +92,7 @@ function FileTreeNode({ node, level, projectId, onSelectFile }: { node: FileNode
         <div>
             <div
                 className={cn(
-                    "flex items-center gap-1.5 py-1 px-2 hover:bg-accent/50 cursor-pointer rounded-sm select-none whitespace-nowrap transition-colors",
+                    "flex items-center gap-1.5 py-1 px-2 hover:bg-accent/50 cursor-pointer rounded-sm select-none whitespace-nowrap transition-colors group",
                     // Indentation handled by component nesting or padding? 
                     // Since we nest FileTree, we don't need manual level content padding if the container handles indentation.
                     // BUT here we nest the OUTPUT of FileTree. 
@@ -96,7 +115,23 @@ function FileTreeNode({ node, level, projectId, onSelectFile }: { node: FileNode
                     <FileCode size={14} className="text-muted-foreground shrink-0" />
                 )}
 
-                <span className="truncate">{node.name}</span>
+                <span className="truncate flex-1">{node.name}</span>
+
+                {!isFolder && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mr-1"
+                        title={t('files.pinToResources', "Pin to Resources")}
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            pinResourceMutation.mutate()
+                        }}
+                        disabled={pinResourceMutation.isPending}
+                    >
+                        {pinResourceMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Pin size={12} className="text-muted-foreground hover:text-primary" />}
+                    </Button>
+                )}
             </div>
 
             {isFolder && isOpen && (

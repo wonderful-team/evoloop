@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { AgentService, ProjectsService, MemoryService, FilesService } from "@/client"
+import { AgentService, ConversationsService, MemoryService, FilesService } from "@/client"
 import { useSSE } from "@/hooks/useSSE"
 
 import { toast } from "sonner"
@@ -12,19 +12,13 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { ContextPanel } from "./ContextPanel"
 import { Loader2, Bot, Brain } from "lucide-react"
 
-
-
-
-
-
 import { useProjectStore } from "@/stores/projectStore"
 
 import { ChatSidebar, type Thread } from "./ChatSidebar"
-
-
 import { ChatMessageItem, type Message } from "./ChatMessageItem"
 import { TaskSteps } from "./TaskSteps"
 import { ChatInputArea } from "./ChatInputArea"
+import { HumanInputDialog } from "./HumanInputDialog"
 
 export function ChatInterface() {
     const { t } = useTranslation()
@@ -49,11 +43,18 @@ export function ChatInterface() {
     // SSE Streaming Hook
     useSSE({
         threadId: activeThreadId,
-        enabled: isAgentWorking,
+        enabled: !!activeThreadId, // Always connect to listen for start events
         onToken: (token) => setStreamedContent(prev => prev + token),
+        onActivity: (data) => {
+            // Real-time Push: value equals backend snapshot
+            queryClient.setQueryData(["chatActivity", activeThreadId], data)
+        },
         onDone: () => {
             setStreamedContent('')
             queryClient.invalidateQueries({ queryKey: ["chatHistory", activeThreadId] })
+            // Ensure final status is fetched (just in case)
+            queryClient.invalidateQueries({ queryKey: ["chatActivity", activeThreadId] })
+            setIsAgentWorking(false)
         }
     })
 
@@ -67,34 +68,38 @@ export function ChatInterface() {
     const { data: threadsData } = useQuery({
         queryKey: ["projectConversations", projectId],
         queryFn: async () => {
-            if (!projectId) return { conversations: [] }
-            return ProjectsService.listProjectConversations({ projectId: projectId })
+            return ConversationsService.listConversations(projectId)
         },
-        enabled: !!projectId,
+        // Enable even if no project (Global History)
     })
 
-    const threads = (threadsData as any)?.conversations || []
+    const threads: Thread[] = (Array.isArray(threadsData) ? threadsData : []).map((t: any) => ({
+        thread_id: t.thread_id,
+        title: t.title,
+        updated_at: t.updated_at || new Date().toISOString(),
+        status: t.status
+    }))
 
     // 2. Poll output for Active Thread
     const { data: historyData } = useQuery({
         queryKey: ["chatHistory", activeThreadId],
-        queryFn: () => ProjectsService.getConversationHistory({ threadId: activeThreadId }),
-        refetchInterval: 1000,
+        queryFn: () => ConversationsService.getConversationMessages(activeThreadId),
+        // refetchInterval: 1000, // Keep disabled, rely on SSE onDone
         enabled: !!activeThreadId
     })
 
-    // 3. Poll Activity for Status ("Working...")
+    // 3. Poll Activity for Status ("Working...") - Safety Fallback
     const { data: activityData } = useQuery({
         queryKey: ["chatActivity", activeThreadId],
         queryFn: async () => {
             // Use SDK to fetch activity
             try {
-                return await ProjectsService.getConversationActivity({ threadId: activeThreadId })
+                return await ConversationsService.getConversationActivity(activeThreadId)
             } catch (e) {
                 return null
             }
         },
-        refetchInterval: 1000,
+        refetchInterval: isAgentWorking ? 3000 : 5000, // Safety poll
         enabled: !!activeThreadId
     })
 
@@ -119,9 +124,12 @@ export function ChatInterface() {
 
     // Sync State
     useEffect(() => {
+        // historyData is an array of messages (MessageItem[])
         const data = historyData as any
-        if (data && Array.isArray(data.messages)) {
-            const formatted: Message[] = data.messages.map((m: any, idx: number) => {
+        const rawMessages = Array.isArray(data) ? data : (Array.isArray(data?.messages) ? data.messages : [])
+
+        if (rawMessages.length > 0 || (threads.length > 0 && !messages.length)) {
+            const formatted: Message[] = rawMessages.map((m: any, idx: number) => {
                 let content = m.content
                 let thinking = m.thinking
 
@@ -129,7 +137,7 @@ export function ChatInterface() {
                 // Case 1: <think>...</think> Content
                 // Case 2: Content <think>...</think> (Unlikely but possible)
                 // We assume strict <think> at start if present
-                const thinkMatch = content.match(/<think>([\s\S]*?)<\/think>/)
+                const thinkMatch = content ? content.match(/<think>([\s\S]*?)<\/think>/) : null
                 if (thinkMatch) {
                     thinking = thinkMatch[1].trim()
                     content = content.replace(thinkMatch[0], "").trim()
@@ -138,11 +146,11 @@ export function ChatInterface() {
                 return {
                     id: m.id || idx,  // Use backend ID if available
                     role: m.type === 'human' ? 'user' : 'ai',
-                    content: content,
+                    content: content || '',
                     thinking: thinking,
                     timestamp: m.created_at  // ISO timestamp from backend
                 }
-            }).filter((m: Message) => (m.content && m.content.trim().length > 0) || (m.thinking && m.thinking.trim().length > 0))
+            }).filter((m: Message) => (m.content && m.content.trim().length > 0) || (m.thinking && m.thinking?.trim().length > 0))
 
             // --- FLUSH PREVENTION & MERGE ---
             // If backend has new messages, render them.
@@ -220,7 +228,7 @@ export function ChatInterface() {
     })
 
     const deleteMutation = useMutation({
-        mutationFn: (threadId: string) => ProjectsService.deleteConversation({ conversationId: threadId }),
+        mutationFn: (threadId: string) => ConversationsService.deleteConversation(threadId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["projectConversations"] })
             if (threads.length > 0) {
@@ -278,12 +286,7 @@ export function ChatInterface() {
     })
 
     const rewindMutation = useMutation({
-        mutationFn: () => AgentService.rewindChat({
-            requestBody: {
-                thread_id: activeThreadId,
-                message: ""
-            }
-        }),
+        mutationFn: () => ConversationsService.rewindConversation(activeThreadId),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["chatHistory"] })
             toast.success(t('chat.interface.rewindSuccess', "Rewinded conversation"))
@@ -500,6 +503,7 @@ export function ChatInterface() {
                             isSending={isSending}
                             isStopPending={stopMutation.isPending}
                             currentProject={currentProject}
+                            activeThreadId={activeThreadId}
                         />
                     </div>
                 </ResizablePanel>
@@ -518,6 +522,9 @@ export function ChatInterface() {
                     </>
                 )}
             </ResizablePanelGroup>
+
+            {/* Human-in-Loop Dialog (Phase 0.2) */}
+            <HumanInputDialog threadId={activeThreadId} />
         </div>
     )
 }

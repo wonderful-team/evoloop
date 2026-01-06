@@ -1,10 +1,13 @@
-
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { Button } from "../ui/button"
 import { Send, Loader2, Paperclip, Square } from "lucide-react"
 import { EvoLoopApi } from "@/client/evoloopClient"
+import { RecordingButton } from "./RecordingButton"
+import { SkillLibraryDialog } from "@/components/Learning/SkillLibraryDialog"
+import { BookOpen } from "lucide-react"
+import { Attachment, AttachmentPreview } from "./AttachmentPreview"
 
 interface ChatInputAreaProps {
     onSend: (text: string) => void
@@ -12,7 +15,8 @@ interface ChatInputAreaProps {
     isAgentWorking: boolean
     isSending: boolean
     isStopPending: boolean
-    currentProject: { name: string } | null | undefined
+    currentProject: { id?: number, name: string } | null | undefined
+    activeThreadId?: string
 }
 
 export function ChatInputArea({
@@ -21,81 +25,166 @@ export function ChatInputArea({
     isAgentWorking,
     isSending,
     isStopPending,
-    currentProject
+    currentProject,
+    activeThreadId
 }: ChatInputAreaProps) {
     const { t } = useTranslation()
     const [inputValue, setInputValue] = useState("")
     const [isUploading, setIsUploading] = useState(false)
+    const [attachments, setAttachments] = useState<Attachment[]>([])
 
     const handleSend = () => {
-        if (!inputValue.trim() || isSending) return
-        onSend(inputValue)
+        if ((!inputValue.trim() && attachments.length === 0) || isSending) return
+
+        // Build final message with attachments appended
+        let finalMessage = inputValue
+        if (attachments.length > 0) {
+            const attachmentLinks = attachments.map(att => `[File: ${att.url}]`).join("\n")
+            finalMessage = finalMessage ? `${finalMessage}\n${attachmentLinks}` : attachmentLinks
+        }
+
+        onSend(finalMessage)
+
+        // Clear state
         setInputValue("")
+        setAttachments([])
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleSend()
+        }
+    }
+
+    const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+
+        setIsUploading(true)
+        try {
+            const url = await EvoLoopApi.uploadFile(file)
+
+            // Infer type
+            const isImage = file.type.startsWith('image/')
+            const newAtt: Attachment = {
+                id: crypto.randomUUID(),
+                url: url,
+                name: file.name,
+                type: isImage ? 'image' : 'file'
+            }
+
+            setAttachments(prev => [...prev, newAtt])
+            toast.success(t('chat.interface.uploadSuccess'))
+        } catch (error) {
+            toast.error(t('chat.interface.uploadError'))
+            console.error(error)
+        } finally {
+            setIsUploading(false)
+            e.target.value = ''
+        }
     }
 
     return (
         <div className="shrink-0 p-4 pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <div className="w-full max-w-3xl mx-auto">
-                <div className="bg-background rounded-2xl shadow-sm border border-input p-2 flex items-end gap-2 transition-all focus-within:ring-2 focus-within:ring-ring ring-offset-2">
-                    <Button variant="ghost" size="icon" className="shrink-0 mb-1 h-8 w-8 rounded-full" onClick={() => document.getElementById('chat-file-upload')?.click()} disabled={isUploading}>
-                        {isUploading ? <Loader2 size={18} className="animate-spin text-muted-foreground" /> : <Paperclip size={18} className="text-muted-foreground" />}
-                    </Button>
-                    <input
-                        type="file"
-                        id="chat-file-upload"
-                        className="hidden"
-                        onChange={async (e) => {
-                            const file = e.target.files?.[0]
-                            if (!file) return
+            <div className="w-full max-w-4xl mx-auto">
+                <div className="bg-background rounded-2xl shadow-sm border border-input transition-all focus-within:ring-2 focus-within:ring-ring ring-offset-2 overflow-hidden">
 
-                            setIsUploading(true)
-                            try {
-                                const url = await EvoLoopApi.uploadFile(file)
-                                setInputValue(prev => prev + (prev ? "\n" : "") + `[File: ${url}]`)
-                                toast.success(t('chat.interface.uploadSuccess'))
-                            } catch (error) {
-                                toast.error(t('chat.interface.uploadError'))
-                                console.error(error)
-                            } finally {
-                                setIsUploading(false)
-                                // Reset input
-                                e.target.value = ''
-                            }
-                        }}
+                    {/* Top: Attachment Preview */}
+                    <AttachmentPreview
+                        attachments={attachments}
+                        onRemove={(id) => setAttachments(prev => prev.filter(a => a.id !== id))}
                     />
-                    <textarea
-                        value={inputValue}
-                        onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInputValue(e.target.value)}
-                        onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault()
-                                handleSend()
-                            }
-                        }}
-                        placeholder={currentProject ? t('chat.interface.askProject', { project: currentProject.name }) : t('chat.interface.selectProject')}
-                        disabled={!currentProject}
-                        className="flex min-h-[44px] w-full bg-transparent border-none focus:ring-0 px-2 py-2.5 text-sm placeholder:text-muted-foreground resize-y focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 max-h-[300px]"
-                        rows={1}
-                    />
-                    <Button
-                        onClick={() => {
-                            if (isAgentWorking) {
-                                onStop()
-                            } else {
-                                handleSend()
-                            }
-                        }}
-                        disabled={(!inputValue.trim() && !isAgentWorking) || isSending || !currentProject || isUploading}
-                        size="icon"
-                        className={`mb-0.5 h-9 w-9 rounded-xl shadow-sm transition-all ${isAgentWorking ? "bg-red-500 hover:bg-red-600 text-white animate-pulse" : ""}`}
-                        title={isAgentWorking ? t('chat.interface.stop', "Stop Generating") : t('chat.interface.send', "Send Message")}
-                    >
-                        {isAgentWorking || isStopPending ? (
-                            isStopPending ? <Loader2 size={16} className="animate-spin" /> : <Square size={16} fill="currentColor" />
-                        ) : (
-                            <Send size={16} />
-                        )}
-                    </Button>
+
+                    {/* Middle: Text Area */}
+                    <div className="px-3 py-2">
+                        <textarea
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            placeholder={currentProject ? t('chat.interface.askProject', { project: currentProject.name }) : t('chat.interface.selectProject')}
+                            disabled={!currentProject}
+                            className="flex w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-muted-foreground resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-[50px] max-h-[300px]"
+                            rows={1}
+                            style={{ height: 'auto', minHeight: '50px' }}
+                            onInput={(e) => {
+                                // Auto-grow hack
+                                const target = e.target as HTMLTextAreaElement;
+                                target.style.height = 'auto';
+                                target.style.height = `${Math.min(target.scrollHeight, 300)}px`;
+                            }}
+                        />
+                    </div>
+
+                    {/* Bottom: Toolbar */}
+                    <div className="flex justify-between items-center p-2 bg-muted/20 border-t border-border/40">
+                        {/* Left Group: Tools */}
+                        <div className="flex items-center gap-1">
+                            {activeThreadId && (
+                                <>
+                                    <SkillLibraryDialog
+                                        threadId={activeThreadId}
+                                        projectId={currentProject?.id}
+                                        trigger={
+                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground" title="Skill Library">
+                                                <BookOpen size={16} />
+                                            </Button>
+                                        }
+                                    />
+                                    <div className="h-8 flex items-center justify-center">
+                                        <RecordingButton threadId={activeThreadId} enabled={!!currentProject} />
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Right Group: Action */}
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="file"
+                                id="chat-file-upload"
+                                className="hidden"
+                                onChange={handleUpload}
+                                disabled={!currentProject || isUploading}
+                            />
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                                onClick={() => document.getElementById('chat-file-upload')?.click()}
+                                disabled={isUploading || !currentProject}
+                                title="Upload File"
+                            >
+                                {isUploading ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+                            </Button>
+
+                            <div className="w-px h-6 bg-border mx-1" />
+
+                            <Button
+                                onClick={() => isAgentWorking ? onStop() : handleSend()}
+                                disabled={((!inputValue.trim() && attachments.length === 0) && !isAgentWorking) || isSending || !currentProject || isUploading}
+                                size="sm"
+                                className={`h-8 px-3 rounded-lg transition-all ${isAgentWorking ? "bg-red-500 hover:bg-red-600 text-white shadow-red-500/20 shadow-lg animate-pulse" : "shadow-primary/20 shadow-md"}`}
+                            >
+                                {isAgentWorking || isStopPending ? (
+                                    <span className="flex items-center gap-2">
+                                        {isStopPending ? <Loader2 size={14} className="animate-spin" /> : <Square size={14} fill="currentColor" />}
+                                        <span className="text-xs font-medium">{t('common.stop', 'Stop')}</span>
+                                    </span>
+                                ) : (
+                                    <span className="flex items-center gap-2">
+                                        <Send size={14} />
+                                        <span className="text-xs font-bold">{t('common.send', 'Send')}</span>
+                                    </span>
+                                )}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Hint Text */}
+                <div className="text-[10px] text-center mt-2 text-muted-foreground/60 select-none">
+                    Enter to send, Shift + Enter for new line
                 </div>
             </div>
         </div>

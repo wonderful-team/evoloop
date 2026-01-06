@@ -1,27 +1,20 @@
 from collections.abc import Generator
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Header
 from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import engine
 
 from app.models import User
-
-
+from app.logging import logger
 
 def get_db() -> Generator[Session, None, None]:
     with Session(engine) as session:
         yield session
 
 SessionDep = Annotated[Session, Depends(get_db)]
-# TokenDep = Annotated[str, Depends(reusable_oauth2)]
-# TokenDepOptional = Annotated[str | None, Depends(reusable_oauth2_optional)]
-
-# Since we removed OAuth2PasswordBearer, we need another way to get the token.
-# Simplest way is to define it manually as a dependency that extracts from header
-from fastapi import Header
 
 async def get_token_header(authorization: Annotated[str | None, Header()] = None) -> str:
     if not authorization:
@@ -80,7 +73,6 @@ async def get_current_user(token: TokenDep) -> User:
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
-
 async def get_current_user_optional(token: TokenDepOptional) -> User | None:
     if not token:
         return None
@@ -103,3 +95,65 @@ async def get_current_user_optional(token: TokenDepOptional) -> User | None:
         return None
 
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
+
+# --- Guest Verification Logic (Extracted from agent.py) ---
+from datetime import datetime
+import redis.asyncio as redis
+from app.infrastructure.external.imagicbox import imagicbox_client
+
+async def verify_guest_access(
+    current_user: CurrentUserOptional,
+    x_guest_id: Annotated[str | None, Header()] = None
+) -> None:
+    """
+    Middleware-like dependency to verify guest access limits.
+    If 'current_user' is present, this check is skipped (Paid/Auth user).
+    If no user, 'x_guest_id' is checked against Redis daily limits.
+    """
+    if current_user:
+        return
+
+    if not x_guest_id:
+        raise HTTPException(status_code=401, detail="Authentication required (or X-Guest-ID)")
+    
+    # Check Guest Limits via Redis
+    try:
+        redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
+        
+        # 1. Get Global Config
+        try:
+            # Async call to global config
+            config_res = await imagicbox_client.get_ai_global_config()
+            limit = 10 # Default
+            if config_res and config_res.get("code") == 0:
+                limit = int(config_res.get("data", {}).get("guest_daily_limit", 10))
+        except Exception as e:
+            logger.warning(f"Failed to fetch guest config, using default: {e}")
+            limit = 10
+        
+        if limit <= 0:
+            raise HTTPException(status_code=403, detail="Guest chat disabled")
+
+        # 2. Check Daily Usage
+        today = datetime.now().strftime("%Y-%m-%d")
+        key = f"guest:usage:{today}:{x_guest_id}"
+        
+        async with redis_client:
+            current_usage = await redis_client.incr(key)
+            if current_usage == 1:
+                await redis_client.expire(key, 86400) # 24h
+        
+        if current_usage > limit:
+            raise HTTPException(
+                status_code=402, 
+                detail=f"Guest limit reached ({limit}/day). Please upgrade."
+            )
+            
+        # logger.info(f"Guest {x_guest_id} usage: {current_usage}/{limit}")
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Redis error during guest check: {e}")
+        # Fail-Close: If Redis is down, we cannot verify quota, so we must deny to prevent abuse.
+        raise HTTPException(status_code=503, detail="Guest validation service temporary unavailable.")

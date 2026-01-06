@@ -175,7 +175,7 @@ class IndexingService:
                     session.add(source_file)
 
                 # 2. Clear old chunks, entities and relations (Full Refresh for this file)
-                await session.execute(delete(CodeChunk).where(CodeChunk.file_id == source_file.id))
+                await session.execute(delete(CodeChunk).where(CodeChunk.source_file_id == source_file.id))
                 
                 # Delete relations first (using subquery on entities before they are gone)
                 subq = select(CodeEntity.id).where(CodeEntity.file_id == source_file.id)
@@ -218,7 +218,7 @@ class IndexingService:
 
                     for doc, vector in zip(docs, embeddings):
                         chunk = CodeChunk(
-                            file_id=source_file.id,
+                            source_file_id=source_file.id,
                             chunk_type=doc.metadata.get("type", "unknown"),
                             identifier=doc.metadata.get("name", "unknown"),
                             start_line=doc.metadata.get("start_line", 0),
@@ -362,7 +362,7 @@ class IndexingService:
                 # If not, manual delete required. Models usually have cascade='all, delete'.
                 # Assuming cascade works or manual delete needed. 
                 # Let's do manual delete to be safe as previously done in index_file
-                await session.execute(delete(CodeChunk).where(CodeChunk.file_id == source_file.id))
+                await session.execute(delete(CodeChunk).where(CodeChunk.source_file_id == source_file.id))
                 subq = select(CodeEntity.id).where(CodeEntity.file_id == source_file.id)
                 await session.execute(delete(CodeRelation).where(CodeRelation.source_entity_id.in_(subq)))
                 await session.execute(delete(CodeEntity).where(CodeEntity.file_id == source_file.id))

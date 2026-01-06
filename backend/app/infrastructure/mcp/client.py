@@ -49,7 +49,7 @@ class McpClientManager:
 
     def __init__(self):
         self.sessions: Dict[str, ClientSession] = {}
-        self.exit_stack = AsyncExitStack()
+        self.server_stacks: Dict[str, AsyncExitStack] = {}
         self._tools_cache: Dict[str, List[StructuredTool]] = {}
         # Legacy config path for migration
         self.legacy_config_path = "mcp_servers_config.json"
@@ -143,6 +143,14 @@ class McpClientManager:
     async def connect_server(self, name: str, details: Dict[str, Any]):
         """Connect to a single MCP server (Stdio only for now)."""
         logger.info(f"Connecting to MCP server: {name}")
+
+        # Disconnect existing if any
+        if name in self.server_stacks:
+            logger.info(f"Disconnecting existing session for {name}")
+            await self.server_stacks[name].aclose()
+            del self.server_stacks[name]
+        if name in self.sessions:
+            del self.sessions[name]
         
         command = details.get("command")
         args = details.get("args", [])
@@ -167,14 +175,19 @@ class McpClientManager:
 
 
         try:
+            # Create new stack for this server
+            stack = AsyncExitStack()
+            
             # Enter the context managers
             # Use restore_std_streams to avoid 'LoggingProxy' errors during subprocess spawn
             with restore_std_streams():
-                read, write = await self.exit_stack.enter_async_context(stdio_client(server_params))
+                read, write = await stack.enter_async_context(stdio_client(server_params))
             
-            session = await self.exit_stack.enter_async_context(ClientSession(read, write))
+            session = await stack.enter_async_context(ClientSession(read, write))
             
             await session.initialize()
+            
+            self.server_stacks[name] = stack
             self.sessions[name] = session
             logger.info(f"Connected to MCP server: {name}")
             
@@ -183,6 +196,8 @@ class McpClientManager:
             
         except Exception as e:
             logger.error(f"Error connecting to {name}: {e}")
+            if 'stack' in locals():
+                await stack.aclose()
             raise
 
     async def _refresh_tools(self, server_name: str):
@@ -256,7 +271,10 @@ class McpClientManager:
 
     async def cleanup(self):
         """Disconnect all servers."""
-        await self.exit_stack.aclose()
+        for stack in self.server_stacks.values():
+            await stack.aclose()
+        self.server_stacks.clear()
+        self.sessions.clear()
 
     async def add_server(self, name: str, details: Dict[str, Any]):
         """Add a new server to DB and connect."""
@@ -291,14 +309,17 @@ class McpClientManager:
             # Commit happens automatically in session_scope
 
         # 2. Connect (Live update)
-        # If it was connected, we might want to reconnect to refresh tools/config?
-        # TODO: Implement disconnect logic if exists
+        # Reconnecting handles cleanup of old stack if exists
         await self.connect_server(name, details)
         return {"status": "connected", "tools": len(self._tools_cache.get(name, []))}
 
     async def remove_server(self, name: str):
         """Remove a server from DB and disconnect."""
-        # 1. Disconnect Logic (Incomplete in legacy, but we can try to clean up memory)
+        # 1. Disconnect Logic
+        if name in self.server_stacks:
+             await self.server_stacks[name].aclose()
+             del self.server_stacks[name]
+        
         if name in self.sessions:
              del self.sessions[name]
              if name in self._tools_cache:

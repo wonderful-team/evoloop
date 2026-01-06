@@ -4,9 +4,6 @@ from langchain_core.tools import BaseTool
 
 from app.domain.tools.facades import manage_file, explore_codebase, manage_git, manage_memory, consult_architecture
 
-# ...
-
-# ...
 from app.infrastructure.mcp.client import mcp_client_manager
 from app.domain.tools.execution import run_command
 from app.domain.tools.project_tools import create_project_task
@@ -22,6 +19,12 @@ from app.domain.planning.tools import create_plan, update_step_status, analyze_f
 from app.domain.tools.learner import harvest_knowledge
 # State Tools
 from app.domain.tools.state_tools import update_scratchpad
+
+# Vision Tools (Phase 0.1)
+from app.domain.tools.vision import analyze_screenshot, locate_element, compare_screenshots, extract_text_from_image
+
+# Human-in-Loop Tools (Phase 0.2)
+from app.domain.tools.human_input import request_human_input, request_approval
 
 # Runtime Registry for Dynamic Tools (Phase 9)
 from app.domain.tools.dynamic import create_python_tool
@@ -72,6 +75,16 @@ def get_all_tools() -> List[BaseTool]:
 
         # Dynamic Tooling (Meta-Tool)
         create_python_tool,
+        
+        # Vision (Phase 0.1)
+        analyze_screenshot,
+        locate_element,
+        compare_screenshots,
+        extract_text_from_image,
+        
+        # Human-in-Loop (Phase 0.2)
+        request_human_input,
+        request_approval,
         
         # Orchestration (Phase 10)
         delegate_task

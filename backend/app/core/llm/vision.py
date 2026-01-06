@@ -1,0 +1,161 @@
+"""
+Vision LLM Factory for multimodal capabilities.
+Provides LLM instances configured for image understanding (GPT-4V, Claude Vision, etc.)
+"""
+
+import base64
+import logging
+from typing import Optional, Union, List
+from pathlib import Path
+
+from langchain_openai import ChatOpenAI
+from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import HumanMessage
+
+from app.core.config import settings
+
+logger = logging.getLogger("evoloop.vision")
+
+
+class VisionLLMFactory:
+    """
+    Factory for creating Vision-capable LLM instances.
+    Supports GPT-4V, Claude 3, and other multimodal models.
+    """
+    
+    # Known vision-capable models
+    VISION_MODELS = {
+        "openai": ["gpt-4o", "gpt-4-turbo", "gpt-4-vision-preview", "gpt-4o-mini"],
+        "anthropic": ["claude-3-opus", "claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet"],
+    }
+    
+    @staticmethod
+    def create_vision_llm(
+        model_name: Optional[str] = None,
+        temperature: float = 0.3,
+        max_tokens: int = 4096
+    ) -> BaseChatModel:
+        """
+        Create a Vision-capable LLM instance.
+        Prioritizes SystemConfig -> Settings.
+        """
+        from app.domain.system.service import SystemConfigService
+        
+        # Fetch dynamic config
+        db_base_url = SystemConfigService.get_value("LLM_BASE_URL")
+        db_model = SystemConfigService.get_value("LLM_MODEL")
+        db_api_key = SystemConfigService.get_value("LLM_API_KEY")
+        
+        # Resolve with fallbacks
+        base_url = db_base_url or settings.OPENAI_BASE_URL
+        api_key = db_api_key or settings.OPENAI_API_KEY
+        
+        # Default to gpt-4o for vision (best multimodal support)
+        final_model = model_name or db_model or "gpt-4o"
+        
+        logger.info(f"Vision LLM Config - Model: {final_model}, Base URL: {base_url}")
+        
+        return ChatOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            model=final_model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            streaming=False
+        )
+    
+    @staticmethod
+    def encode_image(image_path: str) -> str:
+        """Encode image file to base64 string."""
+        path = Path(image_path)
+        if not path.exists():
+            raise FileNotFoundError(f"Image not found: {image_path}")
+            
+        with open(path, "rb") as f:
+            return base64.b64encode(f.read()).decode("utf-8")
+    
+    @staticmethod
+    def get_image_media_type(image_path: str) -> str:
+        """Get MIME type from image extension."""
+        ext = Path(image_path).suffix.lower()
+        mime_types = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+        }
+        return mime_types.get(ext, "image/png")
+    
+    @staticmethod
+    def create_image_message(
+        image_path: str,
+        prompt: str = "Describe this image in detail."
+    ) -> HumanMessage:
+        """
+        Create a HumanMessage with image content for Vision LLM.
+        
+        Args:
+            image_path: Path to the image file
+            prompt: Text prompt to accompany the image
+            
+        Returns:
+            HumanMessage with multimodal content
+        """
+        base64_image = VisionLLMFactory.encode_image(image_path)
+        media_type = VisionLLMFactory.get_image_media_type(image_path)
+        
+        return HumanMessage(
+            content=[
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{media_type};base64,{base64_image}"
+                    }
+                },
+                {
+                    "type": "text",
+                    "text": prompt
+                }
+            ]
+        )
+    
+    @staticmethod
+    def create_multi_image_message(
+        image_paths: List[str],
+        prompt: str
+    ) -> HumanMessage:
+        """
+        Create a HumanMessage with multiple images for comparison/analysis.
+        
+        Args:
+            image_paths: List of paths to image files
+            prompt: Text prompt for multi-image analysis
+            
+        Returns:
+            HumanMessage with multimodal content
+        """
+        content = []
+        
+        for path in image_paths:
+            base64_image = VisionLLMFactory.encode_image(path)
+            media_type = VisionLLMFactory.get_image_media_type(path)
+            content.append({
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:{media_type};base64,{base64_image}"
+                }
+            })
+        
+        content.append({
+            "type": "text",
+            "text": prompt
+        })
+        
+        return HumanMessage(content=content)
+
+
+# Convenience function
+def get_vision_llm() -> BaseChatModel:
+    """Get a default Vision LLM instance."""
+    return VisionLLMFactory.create_vision_llm()

@@ -705,6 +705,23 @@
             "openImagicBox": "Open IMagicBox"
         }
     },
+    "learning": {
+        "inputRequired": "Input Required",
+        "approvalRequired": "Approval Required",
+        "responseSubmitted": "Response Submitted",
+        "responseFailed": "Failed to Submit Response",
+        "requestCancelled": "Request Cancelled",
+        "enterResponse": "Enter your response...",
+        "approve": "Approve",
+        "reject": "Reject",
+        "startRecording": "Record",
+        "stopRecording": "Stop",
+        "recordingStarted": "Recording started, capturing your actions",
+        "recordingStopped": "Recording stopped, captured {{count}} events",
+        "recordingFailed": "Failed to start recording",
+        "recordingTooltip": "Recording your actions for imitation learning",
+        "startRecordingTooltip": "Start recording your actions"
+    },
     "table": {
         "noResults": "No results found.",
         "rowsPerPage": "Rows per page",

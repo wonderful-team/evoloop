@@ -26,7 +26,30 @@ const tauriAdapter = async (config: AxiosRequestConfig) => {
     try {
         console.log(`[TauriAdapter] Requesting: ${url}`);
 
-        const body = (config.data && typeof config.data === 'object') ? JSON.stringify(config.data) : config.data;
+        let body: string | FormData | undefined;
+        const contentType = config.headers?.['Content-Type'] as string | undefined;
+
+        // Handle FormData for form submissions
+        if (config.data instanceof FormData) {
+            // Check if it's URL-encoded form (login) or multipart
+            if (contentType?.includes('application/x-www-form-urlencoded')) {
+                // Convert FormData to URLSearchParams for URL-encoded format
+                const params = new URLSearchParams();
+                config.data.forEach((value, key) => {
+                    params.append(key, value as string);
+                });
+                body = params.toString();
+            } else {
+                // Keep as FormData for multipart/form-data
+                body = config.data;
+            }
+        } else if (config.data && typeof config.data === 'object') {
+            // Regular JSON body
+            body = JSON.stringify(config.data);
+        } else {
+            body = config.data;
+        }
+
         const response = await fetch(url!, {
             method: config.method?.toUpperCase(),
             headers: config.headers as any,
@@ -65,9 +88,16 @@ export const adaptedAxios = axios.create({
     adapter: isTauri() ? (tauriAdapter as any) : undefined,
 });
 
+import { OpenAPI } from './OpenAPI';
+
 // Request interceptor to add token
 adaptedAxios.interceptors.request.use(
     (config) => {
+        // Ensure baseURL is set from OpenAPI config if missing
+        if (!config.baseURL && OpenAPI.BASE) {
+            config.baseURL = OpenAPI.BASE;
+        }
+
         const token = localStorage.getItem('evoloop_token');
         if (token) {
             // Niushop backend checks Input('token'), so passed as query param

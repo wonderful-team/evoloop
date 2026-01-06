@@ -88,7 +88,7 @@ class DirectorySummarizer:
             file_summaries_query = """
             MATCH (f:File {project_id: $pid})
             WHERE f.path IN $paths
-            OPTIONAL MATCH (f)-[:CONTAINS]->(c:CodeChunk {chunk_type: 'whole_file'})
+            OPTIONAL MATCH (f)-[:CONTAINS]->(c:CodeChunk {chunk_type: 'file'})
             RETURN f.path as path, c.content as content
             """
             async with driver.session() as session:

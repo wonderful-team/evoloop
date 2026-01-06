@@ -187,19 +187,19 @@ export const ProjectOverview: React.FC = () => {
                         <CardTitle>{t('projects.overview.quickActions', 'Quick Actions')}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2">
-                        <Link to={`/projects/${projectId}/tasks`} className="block">
+                        <Link to="/projects/$projectId/tasks" params={{ projectId: projectId! }} className="block">
                             <Button variant="outline" className="w-full justify-start">
                                 <CheckSquare className="mr-2 h-4 w-4" />
                                 {t('projects.actions.viewTasks', 'View Tasks')}
                             </Button>
                         </Link>
-                        <Link to={`/projects/${projectId}/gantt`} className="block">
+                        <Link to="/projects/$projectId/gantt" params={{ projectId: projectId! }} className="block">
                             <Button variant="outline" className="w-full justify-start">
                                 <Activity className="mr-2 h-4 w-4" />
                                 {t('projects.actions.viewGantt', 'View Gantt Chart')}
                             </Button>
                         </Link>
-                        <Link to={`/projects/${projectId}/timesheet`} className="block">
+                        <Link to="/projects/$projectId/timesheet" params={{ projectId: projectId! }} className="block">
                             <Button variant="outline" className="w-full justify-start">
                                 <Clock className="mr-2 h-4 w-4" />
                                 {t('projects.actions.logTime', 'Log Time')}

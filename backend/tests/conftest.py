@@ -17,9 +17,7 @@ def db() -> Generator[Session, None, None]:
         init_db(session)
         yield session
 
-        statement = delete(User)
-        session.execute(statement)
-        session.commit()
+        pass
 
 
 @pytest.fixture(scope="module")
