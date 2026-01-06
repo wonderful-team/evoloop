@@ -3,8 +3,10 @@ import asyncio
 import logging
 from typing import List, Dict, Optional, Any
 from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, UploadFile, File
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+import shutil
 import subprocess
 import sys
 from app.domain.project.service import project_context_manager
@@ -225,6 +227,63 @@ async def create_file(project_id: int, req: CreateFileRequest):
     except Exception as e:
         logger.error(f"Failed to write file {target_file}: {e}")
         raise HTTPException(500, f"Failed to write file: {str(e)}")
+
+@router.post("/upload")
+async def upload_file(project_id: int, file: UploadFile = File(...)):
+    """
+    Upload a file to project's 'uploads' directory.
+    Returns the URL to access it via /raw endpoint.
+    """
+    project = await project_context_manager.get_project_by_id(project_id)
+    if not project:
+         raise HTTPException(status_code=404, detail="Project not found")
+         
+    root_path = project.get("path")
+    if not root_path or not os.path.exists(root_path):
+        raise HTTPException(status_code=404, detail="Project path invalid")
+    
+    upload_dir = os.path.join(root_path, "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # Generate unique name if needed, or secure filename
+    # For chat attachments, usually want to keep original name if possible or uuid
+    # Let's use original name but prepend timestamp/uuid if conflict?
+    # For now, simple override or unique.
+    filename = os.path.basename(file.filename or "uploaded_file")
+    target_path = os.path.join(upload_dir, filename)
+    
+    # Simple dedupe
+    if os.path.exists(target_path):
+        base, ext = os.path.splitext(filename)
+        import time
+        filename = f"{base}_{int(time.time())}{ext}"
+        target_path = os.path.join(upload_dir, filename)
+
+    try:
+        with open(target_path, "wb") as buffer:
+             shutil.copyfileobj(file.file, buffer)
+             
+        # Return URL. 
+        # API URL structure: /api/projects/{id}/files/raw?path=uploads/{filename}
+        # We return absolute path or relative? 
+        # ChatInput expects a URL it can put in [File: URL]. 
+        # The URL should be accessible by the Agent (who reads file?) or by the User (who clicks link?).
+        # If Agent reads it, it might need local path. 
+        # If User clicks, they need http url.
+        # Let's return the API URL.
+        # Assuming format: /api/projects/{project_id}/files/raw?path=uploads/{filename}
+        # We don't know the full domain here easily without request context, but we can return relative API path.
+        # Frontend usually prepends base or handles it?
+        # Actually `sdk.gen.ts` uses relative paths.
+        # So we return `/api/projects/{project_id}/files/raw?path=uploads/{filename}`
+        
+        rel_path = f"uploads/{filename}"
+        url = f"/api/projects/{project_id}/files/raw?path={rel_path}"
+        return {"url": url, "filename": filename, "path": rel_path}
+        
+    except Exception as e:
+        logger.error(f"Failed to upload file {target_path}: {e}")
+        raise HTTPException(500, f"Failed to upload file: {str(e)}")
 
 @router.get("/search", response_model=List[dict])
 async def search_files(project_id: int, q: str):

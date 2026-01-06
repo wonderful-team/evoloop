@@ -31,3 +31,6 @@ class AgentConfig(BaseModel):
     state_schema: str = "app.core.workflows.state.AgentState"
     nodes: List[NodeConfig]
     edges: List[EdgeConfig]
+    # Human-in-the-Loop Support
+    interrupt_before: List[str] = []  # Node IDs to interrupt BEFORE execution
+    interrupt_after: List[str] = []   # Node IDs to interrupt AFTER execution

@@ -1,16 +1,16 @@
-import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
 
 const useCustomToast = () => {
   const { t } = useTranslation()
   const showSuccessToast = (description: string) => {
-    toast.success(t('toast.success'), {
+    toast.success(t("toast.success"), {
       description,
     })
   }
 
   const showErrorToast = (description: string) => {
-    toast.error(t('toast.error'), {
+    toast.error(t("toast.error"), {
       description,
     })
   }

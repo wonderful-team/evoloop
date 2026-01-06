@@ -12,9 +12,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     Callback Handler that logs user-friendly messages to the database.
     Acts as a View Layer sanitizer.
     """
-    def __init__(self, thread_id: str, project_id: int, start_sequence: int = 0):
+    def __init__(self, thread_id: str, project_id: int, start_sequence: int = 0, run_id: str = None):
         self.thread_id = thread_id
         self.project_id = project_id
+        self.run_id = run_id  # Phase 3: Associate messages with runs
         self._sequence_counter = start_sequence  # Track message order within thread
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
@@ -211,7 +212,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         except:
             return f"🔧 {t_name}"
 
-    async def _save_log(self, role: str, content: str, thinking: str = None):
+    async def _save_log(self, role: str, content: str, thinking: str = None, status: str = "completed"):
         if not content and not thinking:
             return
 
@@ -240,10 +241,56 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                      role=role,
                      content=content,
                      thinking=thinking,
-                     sequence_number=self._sequence_counter
+                     sequence_number=self._sequence_counter,
+                     # Phase 3: Message-Run Association
+                     run_id=self.run_id,
+                     status=status
                  )
                  session.add(log)
                  # session_scope commits automatically
         except Exception as e:
             # logger.error(f"Failed to log message: {e}")
+            pass
+
+    async def snapshot_tasks_to_last_message(self, tasks: list):
+        """
+        Phase 6: Persist task steps to the last AI message for historical rendering.
+        Called when a run completes (done/failed/cancelled).
+        """
+        if not tasks:
+            return
+            
+        try:
+            from sqlalchemy import select, desc
+            async with session_scope() as session:
+                # Find the last AI message for this thread/run
+                stmt = (
+                    select(Message)
+                    .where(Message.thread_id == self.thread_id)
+                    .where(Message.role == "ai")
+                )
+                if self.run_id:
+                    stmt = stmt.where(Message.run_id == self.run_id)
+                stmt = stmt.order_by(desc(Message.sequence_number)).limit(1)
+                
+                result = await session.execute(stmt)
+                last_msg = result.scalar_one_or_none()
+                
+                if last_msg:
+                    # Serialize tasks (strip non-essential fields like start_time)
+                    serialized_tasks = [
+                        {
+                            "id": t.get("id"),
+                            "name": t.get("name"),
+                            "status": t.get("status"),
+                            "type": t.get("type"),
+                            "time": t.get("time"),
+                            "details": t.get("details")
+                        }
+                        for t in tasks
+                    ]
+                    last_msg.tasks_snapshot = serialized_tasks
+                    # session commits on exit
+        except Exception as e:
+            # Non-critical - don't crash the run
             pass

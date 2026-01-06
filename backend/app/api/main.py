@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.routes import login, users, utils, agent, projects, mcp, files, conversations, member, memory, planning, symbols, system, devices, tools, stream, learning, resources
+from app.api.routes import login, users, utils, agent, projects, mcp, files, conversations, member, memory, planning, symbols, system, devices, tools, stream, learning, resources, auth_proxy
 from app.core.config import settings
 from app.api.routes import tasks, project_modules
 
@@ -8,6 +8,7 @@ api_router = APIRouter()
 api_router.include_router(login.router)
 api_router.include_router(users.router)
 api_router.include_router(utils.router)
+api_router.include_router(auth_proxy.router, prefix="/auth", tags=["auth"])
 
 
 api_router.include_router(agent.router, tags=["agent"]) # agent.py defines /chat, /webhook

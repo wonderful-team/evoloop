@@ -183,6 +183,18 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 except:
                     friendly_name = "Running Command"
 
+            # Phase 7: Detect Memory Tool Access
+            if tool_name in ["manage_memory", "search_concepts", "add_concept", "get_user_preferences"]:
+                try:
+                    data = json.loads(input_str) if input_str.strip().startswith("{") else {}
+                    # Extract identifier (action or query)
+                    action = data.get("action", "")
+                    key = data.get("key") or data.get("query") or "Unknown"
+                    memory_name = f"{action or tool_name}: {key[:30]}"
+                    await self.monitor.set_active_memory(self.thread_id, f"tool-{tool_name}", memory_name)
+                except:
+                    pass
+
             self.current_task_id = await self.monitor.add_task(self.thread_id, friendly_name, "tool")
 
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:

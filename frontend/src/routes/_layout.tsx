@@ -1,12 +1,8 @@
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
 import { Footer } from "@/components/Common/Footer"
 import AppSidebar from "@/components/Sidebar/AppSidebar"
-
-import {
-  SidebarInset,
-  SidebarProvider,
-} from "@/components/ui/sidebar"
 import InitializationCheck from "@/components/System/InitializationCheck"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 
 export const Route = createFileRoute("/_layout")({
   component: Layout,
@@ -16,7 +12,10 @@ export const Route = createFileRoute("/_layout")({
 function Layout() {
   const router = useRouterState()
   const pathname = router.location.pathname
-  const isFullWidth = pathname.includes('/chat') || pathname.includes('/files') || pathname.includes('/projects')
+  const isFullWidth =
+    pathname.includes("/chat") ||
+    pathname.includes("/files") ||
+    pathname.includes("/projects")
 
   return (
     <InitializationCheck>
@@ -28,8 +27,12 @@ function Layout() {
               <SidebarTrigger className="-ml-1 text-muted-foreground" />
             </div>
           </header>*/}
-          <main className={`flex-1 ${isFullWidth ? 'overflow-hidden' : 'p-6 md:p-8'}`}>
-            <div className={isFullWidth ? 'h-full w-full' : 'mx-auto max-w-7xl'}>
+          <main
+            className={`flex-1 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8"}`}
+          >
+            <div
+              className={isFullWidth ? "h-full w-full" : "mx-auto max-w-7xl"}
+            >
               <Outlet />
             </div>
           </main>

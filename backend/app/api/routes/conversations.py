@@ -39,6 +39,7 @@ class MessageItem(BaseModel):
     content: str
     thinking: Optional[str]
     created_at: Optional[str]
+    tasks_snapshot: Optional[List[dict]] = None  # Phase 6: Historical task steps
     
 class RewindResponse(BaseModel):
     status: str
@@ -84,7 +85,7 @@ async def list_conversations(project_id: Optional[int] = None):
 async def get_conversation_messages(thread_id: str):
     """
     Get message history for a thread from the persistent SQL log.
-    Renamed from 'history' to 'messages' for clarity, but frontend usage implies we might need alias or update.
+    Includes tasks_snapshot for historical task visualization.
     """
     try:
         async with get_db_session() as session:
@@ -98,7 +99,8 @@ async def get_conversation_messages(thread_id: str):
                     type=m.role,
                     content=m.content,
                     thinking=m.thinking,
-                    created_at=m.created_at.isoformat() if m.created_at else None
+                    created_at=m.created_at.isoformat() if m.created_at else None,
+                    tasks_snapshot=m.tasks_snapshot  # Phase 6: Include historical tasks
                 )
                 for m in db_messages
             ]

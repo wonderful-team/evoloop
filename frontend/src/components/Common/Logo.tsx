@@ -21,16 +21,12 @@ export function Logo({
 
   const logoContent = (
     <div className={cn("flex items-center gap-2", className)}>
-      <img
-        src={iconLogo}
-        alt="EvoLoop"
-        className="size-8"
-      />
+      <img src={iconLogo} alt="EvoLoop" className="size-8" />
       <span
         className={cn(
           "font-bold text-xl tracking-tight text-primary", // Use text-primary for theme consistency
           variant === "responsive" && "group-data-[collapsible=icon]:hidden",
-          variant === "icon" && "hidden"
+          variant === "icon" && "hidden",
         )}
       >
         EvoLoop

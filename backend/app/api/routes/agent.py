@@ -102,6 +102,72 @@ async def stop_chat(req: ChatRequest):
     await activity_monitor.stop_run(req.thread_id)
     return {"status": "stopping", "thread_id": req.thread_id}
 
+
+class ResumeRequest(BaseModel):
+    thread_id: str
+    user_input: Optional[str] = None  # Optional user response for HITL
+
+
+@router.post("/chat/resume")
+async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
+    """
+    Resume a paused/interrupted graph execution.
+    Used after Human-in-the-Loop interrupts where user provides input.
+    """
+    from app.core.globals import get_graph
+    from app.core.persistence import get_checkpointer
+    from langchain_core.messages import HumanMessage
+    
+    graph = get_graph()
+    checkpointer = get_checkpointer()
+    
+    if not graph or not checkpointer:
+        raise HTTPException(status_code=500, detail="Graph or Checkpointer not initialized")
+    
+    # Config for resuming from checkpoint
+    config = {
+        "configurable": {
+            "thread_id": req.thread_id
+        }
+    }
+    
+    # Prepare input - if user provided input, add as message
+    inputs = None
+    if req.user_input:
+        inputs = {"messages": [HumanMessage(content=req.user_input)]}
+    
+    # Resume in background
+    async def _resume_graph():
+        from app.core.callbacks.transparent import TransparentCallbackHandler
+        from app.core.callbacks.database_logger import DatabaseCallbackHandler
+        from app.core.exceptions import AgentCancelledException
+        
+        callback = TransparentCallbackHandler(thread_id=req.thread_id)
+        
+        try:
+            await activity_monitor.start_run(req.thread_id, "Resuming...")
+            
+            resume_config = {
+                **config,
+                "callbacks": [callback]
+            }
+            
+            # Resume execution
+            async for event in graph.astream(inputs, config=resume_config):
+                await activity_monitor.check_cancellation(req.thread_id)
+            
+            await activity_monitor.end_run(req.thread_id, "done")
+            
+        except AgentCancelledException:
+            await activity_monitor.end_run(req.thread_id, "cancelled")
+        except Exception as e:
+            logger.error(f"Resume error for {req.thread_id}: {e}")
+            await activity_monitor.end_run(req.thread_id, "failed")
+    
+    bg_tasks.add_task(_resume_graph)
+    
+    return {"status": "resuming", "thread_id": req.thread_id}
+
 @router.post("/webhook")
 async def webhook_endpoint(
     req: WebhookRequest,

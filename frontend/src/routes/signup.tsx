@@ -5,8 +5,8 @@ import {
   redirect,
 } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
-import { z } from "zod"
 import { useTranslation } from "react-i18next"
+import { z } from "zod"
 import { AuthLayout } from "@/components/Common/AuthLayout"
 import {
   Form,
@@ -21,22 +21,25 @@ import { LoadingButton } from "@/components/ui/loading-button"
 import { PasswordInput } from "@/components/ui/password-input"
 import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 
-const createSchema = (t: any) => z
-  .object({
-    email: z.email(),
-    full_name: z.string().min(1, { message: t('auth.errors.fullNameRequired') }),
-    password: z
-      .string()
-      .min(1, { message: t('auth.errors.passwordRequired') })
-      .min(8, { message: t('auth.errors.passwordMin8') }),
-    confirm_password: z
-      .string()
-      .min(1, { message: t('auth.errors.confirmPasswordRequired') }),
-  })
-  .refine((data) => data.password === data.confirm_password, {
-    message: t('auth.errors.passwordsNoMatch'),
-    path: ["confirm_password"],
-  })
+const createSchema = (t: any) =>
+  z
+    .object({
+      email: z.email(),
+      full_name: z
+        .string()
+        .min(1, { message: t("auth.errors.fullNameRequired") }),
+      password: z
+        .string()
+        .min(1, { message: t("auth.errors.passwordRequired") })
+        .min(8, { message: t("auth.errors.passwordMin8") }),
+      confirm_password: z
+        .string()
+        .min(1, { message: t("auth.errors.confirmPasswordRequired") }),
+    })
+    .refine((data) => data.password === data.confirm_password, {
+      message: t("auth.errors.passwordsNoMatch"),
+      path: ["confirm_password"],
+    })
 
 type FormData = z.infer<ReturnType<typeof createSchema>>
 
@@ -91,7 +94,9 @@ function SignUp() {
         >
           <div className="flex flex-col items-center gap-2 text-center">
             <div className="flex flex-col items-center gap-2 text-center">
-              <h1 className="text-2xl font-bold">{t('auth.register.desktopTitle')}</h1>
+              <h1 className="text-2xl font-bold">
+                {t("auth.register.desktopTitle")}
+              </h1>
             </div>
           </div>
 
@@ -101,7 +106,7 @@ function SignUp() {
               name="full_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('auth.register.fullName')}</FormLabel>
+                  <FormLabel>{t("auth.register.fullName")}</FormLabel>
                   <FormControl>
                     <Input
                       data-testid="full-name-input"
@@ -139,11 +144,11 @@ function SignUp() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('auth.login.passwordPlaceholder')}</FormLabel>
+                  <FormLabel>{t("auth.login.passwordPlaceholder")}</FormLabel>
                   <FormControl>
                     <PasswordInput
                       data-testid="password-input"
-                      placeholder={t('auth.login.passwordPlaceholder')}
+                      placeholder={t("auth.login.passwordPlaceholder")}
                       {...field}
                     />
                   </FormControl>
@@ -157,11 +162,15 @@ function SignUp() {
               name="confirm_password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('auth.register.confirmPasswordPlaceholder')}</FormLabel>
+                  <FormLabel>
+                    {t("auth.register.confirmPasswordPlaceholder")}
+                  </FormLabel>
                   <FormControl>
                     <PasswordInput
                       data-testid="confirm-password-input"
-                      placeholder={t('auth.register.confirmPasswordPlaceholder')}
+                      placeholder={t(
+                        "auth.register.confirmPasswordPlaceholder",
+                      )}
                       {...field}
                     />
                   </FormControl>
@@ -175,14 +184,14 @@ function SignUp() {
               className="w-full"
               loading={signUpMutation.isPending}
             >
-              {t('auth.register.submit')}
+              {t("auth.register.submit")}
             </LoadingButton>
           </div>
 
           <div className="text-center text-sm">
-            {t('auth.register.hasAccount')}{" "}
+            {t("auth.register.hasAccount")}{" "}
             <RouterLink to="/login" className="underline underline-offset-4">
-              {t('auth.register.login')}
+              {t("auth.register.login")}
             </RouterLink>
           </div>
         </form>

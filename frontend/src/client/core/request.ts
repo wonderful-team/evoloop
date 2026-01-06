@@ -1,4 +1,4 @@
-
+import axios from 'axios';
 import type { AxiosError, AxiosRequestConfig, AxiosResponse, AxiosInstance } from 'axios';
 
 import { ApiError } from './ApiError';
@@ -7,7 +7,6 @@ import type { ApiResult } from './ApiResult';
 import { CancelablePromise } from './CancelablePromise';
 import type { OnCancel } from './CancelablePromise';
 import type { OpenAPIConfig } from './OpenAPI';
-import { adaptedAxios } from './adaptedAxios';
 
 export const isString = (value: unknown): value is string => {
 	return typeof value === 'string';
@@ -135,11 +134,11 @@ export const getHeaders = async <T>(config: OpenAPIConfig, options: ApiRequestOp
 		...additionalHeaders,
 		...options.headers,
 	})
-		.filter(([, value]) => value !== undefined && value !== null)
-		.reduce((headers, [key, value]) => ({
-			...headers,
-			[key]: String(value),
-		}), {} as Record<string, string>);
+	.filter(([, value]) => value !== undefined && value !== null)
+	.reduce((headers, [key, value]) => ({
+		...headers,
+		[key]: String(value),
+	}), {} as Record<string, string>);
 
 	if (isStringWithValue(token)) {
 		headers['Authorization'] = `Bearer ${token}`;
@@ -306,7 +305,7 @@ export const catchErrorCodes = (options: ApiRequestOptions, result: ApiResult): 
  * @returns CancelablePromise<T>
  * @throws ApiError
  */
-export const request = <T>(config: OpenAPIConfig, options: ApiRequestOptions<T>, axiosClient: AxiosInstance = adaptedAxios): CancelablePromise<T> => {
+export const request = <T>(config: OpenAPIConfig, options: ApiRequestOptions<T>, axiosClient: AxiosInstance = axios): CancelablePromise<T> => {
 	return new CancelablePromise(async (resolve, reject, onCancel) => {
 		try {
 			const url = getUrl(config, options);

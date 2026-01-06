@@ -147,6 +147,11 @@ class Message(Base):
     # New columns for tool calls
     tool_calls: Mapped[Optional[List[dict]]] = mapped_column(JSON)
     tool_output: Mapped[Optional[str]] = mapped_column(Text)
+    
+    # Phase 3: Message-Run Association
+    run_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)  # Associate with a specific execution run
+    status: Mapped[Optional[str]] = mapped_column(String(50))  # pending, streaming, completed, failed, waiting_human
+    tasks_snapshot: Mapped[Optional[List[dict]]] = mapped_column(JSON)  # Embedded task steps at completion
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages", primaryjoin="Message.thread_id == Conversation.id", foreign_keys=[thread_id])
 

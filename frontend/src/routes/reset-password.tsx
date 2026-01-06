@@ -9,7 +9,6 @@ import {
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
-
 import { AuthLayout } from "@/components/Common/AuthLayout"
 import {
   Form,
@@ -84,8 +83,8 @@ function ResetPassword() {
   const mutation = useMutation({
     mutationFn: (_data: { new_password: string; token: string }) => {
       // LoginService.resetPassword({ requestBody: data }),
-      console.warn("resetPassword not implemented in SDK");
-      return Promise.resolve();
+      console.warn("resetPassword not implemented in SDK")
+      return Promise.resolve()
     },
     onSuccess: () => {
       showSuccessToast("Password updated successfully")

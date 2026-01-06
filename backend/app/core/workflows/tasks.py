@@ -7,6 +7,7 @@ from typing import Dict, Any, List
 from langchain_core.messages import HumanMessage, BaseMessage
 from app.logging import logger, set_context
 from app.core.config import settings
+from app.core.exceptions import AgentCancelledException
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.models import Conversation
 from app.infrastructure.database.sql.database import session_scope
@@ -70,8 +71,9 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
         evoloop_command_id = inputs.get("command_id")
         
         # Callbacks
+        # Phase 3: Pass run_id (using thread_id as unique run identifier)
         callback = TransparentCallbackHandler(thread_id=thread_id)
-        db_callback = DatabaseCallbackHandler(thread_id=thread_id, project_id=project_id)
+        db_callback = DatabaseCallbackHandler(thread_id=thread_id, project_id=project_id, run_id=thread_id)
         
         # Reinforce running state when background task starts
         await activity_monitor.start_run(thread_id)
@@ -122,6 +124,12 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
                 await activity_monitor.check_cancellation(thread_id)
                 pass
             
+            # Phase 6: Snapshot tasks before ending run
+            activity_data = await activity_monitor.get_activity(thread_id)
+            tasks_snapshot = activity_data.get("tasks", [])
+            if tasks_snapshot:
+                await db_callback.snapshot_tasks_to_last_message(tasks_snapshot)
+            
             await activity_monitor.end_run(thread_id, "done")
             
             # Upload Final Log
@@ -141,11 +149,20 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
             except Exception as e:
                 logger.warning(f"Failed to send final output: {e}")
                 
-        except InterruptedError:
+        except AgentCancelledException:
             logger.info(f"Task {thread_id} cancelled by user.")
             await activity_monitor.end_run(thread_id, "cancelled")
-            
+        
         except Exception as e:
+            # Check if this is a LangGraph interrupt (graph paused for human input)
+            # LangGraph raises various interrupt types - check by class name for compatibility
+            exc_name = type(e).__name__
+            if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
+                logger.info(f"Task {thread_id} interrupted for human input: {e}")
+                await activity_monitor.set_interrupted(thread_id, str(e))
+                # Do NOT end the run - it's paused, not finished
+                return
+            
             logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
             await activity_monitor.end_run(thread_id, "failed")
             

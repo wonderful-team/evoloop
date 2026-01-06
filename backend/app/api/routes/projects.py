@@ -29,6 +29,12 @@ async def list_projects():
     
     return {"count": len(final_projects), "projects": final_projects, "root": project_context_manager.get_working_directory("default")}
 
+@router.get("/current")
+async def get_current_project():
+    """Get current project from Member Center"""
+    from app.infrastructure.external.imagicbox import imagicbox_client
+    return await imagicbox_client.get_current_project()
+
 @router.post("/")
 async def create_project(req: CreateProjectRequest):
     """Create a new project directory and sync to Member Center."""

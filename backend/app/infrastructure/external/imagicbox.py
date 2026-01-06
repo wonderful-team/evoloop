@@ -299,6 +299,60 @@ class ImagicBoxClient:
     async def cancel_cancellation_apply(self) -> Dict:
         return await self._request("POST", "/membercancel/api/membercancel/cancelApply")
 
+    # --- Auth / Public ---
+    
+    async def get_captcha_config(self) -> Dict:
+        return await self._request("GET", "/api/captcha/config")
+
+    async def get_captcha(self, captcha_id: str) -> Dict:
+        return await self._request("GET", "/api/captcha/get", params={"id": captcha_id})
+        
+    async def get_register_config(self) -> Dict:
+        return await self._request("GET", "/api/register/config")
+
+    async def get_register_agreement(self) -> Dict:
+        return await self._request("GET", "/api/register/agreement")
+
+    async def send_mobile_code(self, mobile: str, captcha_id: str, captcha_code: str, type: str = "login") -> Dict:
+        return await self._request("POST", "/api/sms/send", data={
+            "mobile": mobile, 
+            "captcha_id": captcha_id, 
+            "captcha_code": captcha_code,
+            "type": type
+        })
+
+    async def register_mobile(self, data: Dict) -> Dict:
+        # data: mobile, key, code, [captcha_id, captcha_code]
+        return await self._request("POST", "/api/register/mobile", data=data)
+
+    async def register_username(self, data: Dict) -> Dict:
+        # data: username, password, [captcha_id, captcha_code]
+        return await self._request("POST", "/api/register/account", data=data)
+
+    async def login_mobile(self, mobile: str, key: str, code: str) -> Dict:
+        res = await self._request("POST", "/passport/api/login/mobile", data={"mobile": mobile, "key": key, "code": code})
+        if res.get("code", -1) >= 0:
+            token = res.get("data", {}).get("token")
+            if token:
+                self._save_token(token, 0)
+                asyncio.create_task(self.start_device_link())
+                return {"success": True, "token": token, "member_id": res.get("data", {}).get("member_id")}
+        return {"success": False, "message": res.get("message", "Login failed")}
+
+    async def check_mobile_exist(self, mobile: str) -> Dict[str, Any]:
+        """Check if mobile exists"""
+        return await self._request("GET", "/passport/api/mobile/check", params={"mobile": mobile})
+
+    async def reset_password_by_mobile(self, mobile: str, code: str, key: str, password: str) -> Dict[str, Any]:
+        """Reset password via mobile code"""
+        return await self._request("POST", "/passport/api/password/reset/mobile", json={
+            "mobile": mobile,
+            "code": code,
+            "key": key,
+            "password": password
+        })
+
+
 
     # --- Device Link / WebSocket Logic ---
 

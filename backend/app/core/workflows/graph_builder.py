@@ -131,4 +131,8 @@ class GraphBuilder:
         else:
             workflow.set_entry_point(node_ids[0])
             
-        return workflow.compile(checkpointer=checkpointer)
+        return workflow.compile(
+            checkpointer=checkpointer,
+            interrupt_before=agent_config.interrupt_before or None,
+            interrupt_after=agent_config.interrupt_after or None
+        )

@@ -1,11 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useTranslation } from "react-i18next"
 import {
   createFileRoute,
   Link as RouterLink,
   redirect,
 } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
+import { useTranslation } from "react-i18next"
 import { z } from "zod"
 
 import type { Body_login_login_access_token as AccessToken } from "@/client"
@@ -25,13 +25,14 @@ import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 
 // Schema needs to be inside or passed t function, but for simplicity we can move it inside component or use a function creator.
 // Moving schema inside component is safer for i18n
-const createSchema = (t: any) => z.object({
-  username: z.string().min(1, t('auth.errors.usernameRequired')),
-  password: z
-    .string()
-    .min(1, { message: t('auth.errors.passwordRequired') })
-    .min(8, { message: t('auth.errors.passwordMin8') }),
-}) satisfies z.ZodType<AccessToken>
+const createSchema = (t: any) =>
+  z.object({
+    username: z.string().min(1, t("auth.errors.usernameRequired")),
+    password: z
+      .string()
+      .min(1, { message: t("auth.errors.passwordRequired") })
+      .min(8, { message: t("auth.errors.passwordMin8") }),
+  }) satisfies z.ZodType<AccessToken>
 
 type FormData = z.infer<ReturnType<typeof createSchema>>
 
@@ -72,7 +73,6 @@ function Login() {
     loginMutation.mutate(data)
   }
 
-
   return (
     <AuthLayout>
       <Form {...form}>
@@ -81,7 +81,9 @@ function Login() {
           className="flex flex-col gap-6"
         >
           <div className="flex flex-col items-center gap-2 text-center">
-            <h1 className="text-2xl font-bold">{t('auth.login.desktopTitle')}</h1>
+            <h1 className="text-2xl font-bold">
+              {t("auth.login.desktopTitle")}
+            </h1>
           </div>
 
           <div className="grid gap-4">
@@ -90,11 +92,11 @@ function Login() {
               name="username"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('auth.login.emailOrUsername')}</FormLabel>
+                  <FormLabel>{t("auth.login.emailOrUsername")}</FormLabel>
                   <FormControl>
                     <Input
                       data-testid="email-input"
-                      placeholder={t('auth.login.emailOrUsername')}
+                      placeholder={t("auth.login.emailOrUsername")}
                       type="text"
                       {...field}
                     />
@@ -110,18 +112,18 @@ function Login() {
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center">
-                    <FormLabel>{t('auth.login.passwordPlaceholder')}</FormLabel>
+                    <FormLabel>{t("auth.login.passwordPlaceholder")}</FormLabel>
                     <RouterLink
                       to="/recover-password"
                       className="ml-auto text-sm underline-offset-4 hover:underline"
                     >
-                      {t('auth.login.forgotPassword')}
+                      {t("auth.login.forgotPassword")}
                     </RouterLink>
                   </div>
                   <FormControl>
                     <PasswordInput
                       data-testid="password-input"
-                      placeholder={t('auth.login.passwordPlaceholder')}
+                      placeholder={t("auth.login.passwordPlaceholder")}
                       {...field}
                     />
                   </FormControl>
@@ -131,14 +133,14 @@ function Login() {
             />
 
             <LoadingButton type="submit" loading={loginMutation.isPending}>
-              {t('auth.login.submit')}
+              {t("auth.login.submit")}
             </LoadingButton>
           </div>
 
           <div className="text-center text-sm">
-            {t('auth.login.noAccount')}{" "}
+            {t("auth.login.noAccount")}{" "}
             <RouterLink to="/signup" className="underline underline-offset-4">
-              {t('auth.login.signUp')}
+              {t("auth.login.signUp")}
             </RouterLink>
           </div>
         </form>

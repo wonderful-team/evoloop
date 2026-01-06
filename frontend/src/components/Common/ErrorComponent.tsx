@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router"
-import { Button } from "@/components/ui/button"
 import { useTranslation } from "react-i18next"
+import { Button } from "@/components/ui/button"
 
 const ErrorComponent = () => {
   const { t } = useTranslation()
@@ -12,17 +12,19 @@ const ErrorComponent = () => {
       <div className="flex items-center z-10">
         <div className="flex flex-col ml-4 items-center justify-center p-4">
           <span className="text-6xl md:text-8xl font-bold leading-none mb-4">
-            {t('common.error.title')}
+            {t("common.error.title")}
           </span>
-          <span className="text-2xl font-bold mb-2">{t('common.error.oops')}</span>
+          <span className="text-2xl font-bold mb-2">
+            {t("common.error.oops")}
+          </span>
         </div>
       </div>
 
       <p className="text-lg text-muted-foreground mb-4 text-center z-10">
-        {t('common.error.message')}
+        {t("common.error.message")}
       </p>
       <Link to="/">
-        <Button>{t('common.error.goHome')}</Button>
+        <Button>{t("common.error.goHome")}</Button>
       </Link>
     </div>
   )

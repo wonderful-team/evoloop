@@ -7,7 +7,7 @@ const __dirname = path.dirname(__filename)
 
 dotenv.config({ path: path.join(__dirname, "../../.env") })
 
-function getEnvVar(name: string): string {
+function _getEnvVar(name: string): string {
   const value = process.env[name]
   if (!value) {
     throw new Error(`Environment variable ${name} is undefined`)

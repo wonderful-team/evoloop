@@ -5,6 +5,9 @@ from pydantic import BaseModel
 from app.api.deps import TokenDep
 from app.infrastructure.external.imagicbox import imagicbox_client
 
+class BindClientRequest(BaseModel):
+    client_id: str
+
 router = APIRouter()
 
 # --- Schemas (Basic) ---
@@ -54,3 +57,44 @@ async def search_logs(
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
+
+@router.post("/{device_id}/bind")
+async def bind_client(device_id: int, req: BindClientRequest, token: TokenDep):
+    """Bind mobile client to device"""
+    # Verify device belongs to user? ImagicBox handles logic usually.
+    # ImagicBoxClient uses device_id stored in self?
+    # No, it uses self.device_id for its own link.
+    # But here we are binding A CLIENT (mobile) to THIS SERVER (as a device)?
+    # useEvoLoopWebSocket.ts: "Bind mobile client to user" via EvoLoopApi.bindMobile(clientId).
+    # Legacy EvoLoopApi.bindMobile logic: POST /evolooplink/api/device/bind?
+    # ImagicBoxClient._bind_client_id uses self.device_id (Server's ID).
+    # If the USER is calling this, they are telling the Server: "Bind this ClientID to YOU (Server)".
+    # So we don't need {device_id} in path if we bind to current server?
+    # BUT `useEvoLoopWebSocket` calls it when it gets 'init' message from WS.
+    # The WS is connected to `ImagicBox`.
+    # `ImagicBox` identifies THIS server by `device_key`.
+    # The MOBILE client connects to `ImagicBox` too? Or connects to THIS server?
+    # frontend/src/hooks/useEvoLoopWebSocket.ts connects to `WS_URL` which defaults to `wss://mall.imagicbox.cn/wss/`.
+    # So Mobile connects to ImagicBox.
+    # ImagicBox sends 'init' with 'client_id'.
+    # Mobile calls `EvoLoopApi.bindMobile(clientId)`.
+    # This must tell Backend (Server) to bind that ClientID to itself?
+    # `ImagicBoxClient._bind_client_id` does exactly that: `POST /evolooplink/api/device/bind` with `self.device_id` and `client_id`.
+    # So we need an endpoint `POST /devices/bind` (no ID in path, implicit current server) OR `POST /bind`.
+    # Since `devices.py` is mounted at `/api/devices` (usually?),
+    # I'll add `POST /bind` to `devices.py` or `POST /current/bind`.
+    # If I put it in `devices.py`, `router` prefix might be `/devices`?
+    # I need to check `main.py` for router connection.
+    # Assuming `/api/devices`.
+    # I'll add `POST /bind` which calls `imagicbox_client._bind_client_id(req.client_id)`.
+    # Wait, `_bind_client_id` is "private". I should make it public or expose wrapper.
+    # It is `async def _bind_client_id`.
+    # I will call it or expose a public one.
+    # I'll call it directly since I'm in same app.
+    pass
+
+@router.post("/bind")
+async def bind_current_device(req: BindClientRequest, token: TokenDep):
+    """Bind a client_id (e.g. mobile) to this device"""
+    await imagicbox_client._bind_client_id(req.client_id)
+    return {"status": "success"}

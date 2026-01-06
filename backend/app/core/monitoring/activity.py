@@ -72,7 +72,8 @@ class ActivityMonitor:
             "agent_state": json.dumps({}), 
             "verification": json.dumps({}), 
             "tasks": json.dumps([]),     
-            "artifacts": json.dumps([]), 
+            "artifacts": json.dumps([]),
+            "active_memories": json.dumps([]),  # Phase 7: Track active memory references
             "updated_at": now
         }
         # Use HSET
@@ -117,10 +118,44 @@ class ActivityMonitor:
 
     async def check_cancellation(self, thread_id: str):
         """Check if run is marked for stopping and raise exception if so."""
+        from app.core.exceptions import AgentCancelledException
         key = f"activity:{thread_id}"
         status = await self.client.hget(key, "status")
         if status == "stopping":
-            raise InterruptedError("Cancelled by user")
+            raise AgentCancelledException(f"Run {thread_id} cancelled by user")
+
+    async def set_interrupted(self, thread_id: str, reason: str = "awaiting_human_input"):
+        """Mark a run as interrupted (paused for human input)."""
+        key = f"activity:{thread_id}"
+        if await self.client.exists(key):
+            await self.client.hset(key, mapping={
+                "status": "interrupted",
+                "interrupt_reason": reason,
+                "updated_at": time.time()
+            })
+
+    async def set_active_memory(self, thread_id: str, memory_id: str, memory_name: str):
+        """Phase 7: Track which memory is currently being accessed by the Agent."""
+        key = f"activity:{thread_id}"
+        if not await self.client.exists(key):
+            return
+            
+        memories_json = await self.client.hget(key, "active_memories")
+        memories = json.loads(memories_json) if memories_json else []
+        
+        # Add if not already in list
+        if not any(m.get("id") == memory_id for m in memories):
+            memories.append({"id": memory_id, "name": memory_name})
+            await self.client.hset(key, mapping={
+                "active_memories": json.dumps(memories),
+                "updated_at": time.time()
+            })
+
+    async def clear_active_memories(self, thread_id: str):
+        """Clear active memory highlights at end of run."""
+        key = f"activity:{thread_id}"
+        if await self.client.exists(key):
+            await self.client.hset(key, "active_memories", json.dumps([]))
 
     
     async def add_task(self, thread_id: str, name: str, task_type="node"):
@@ -244,11 +279,13 @@ class ActivityMonitor:
             artifacts = json.loads(data.get("artifacts", "[]"))
             agent_state = json.loads(data.get("agent_state", "{}"))
             verification = json.loads(data.get("verification", "{}"))
+            active_memories = json.loads(data.get("active_memories", "[]"))  # Phase 7
         except:
             tasks = []
             artifacts = []
             agent_state = {}
             verification = {}
+            active_memories = []
             
         return {
             "status": data.get("status", "unknown"),
@@ -257,7 +294,8 @@ class ActivityMonitor:
             "tasks": tasks,
             "artifacts": artifacts,
             "agent_state": agent_state,
-            "verification": verification
+            "verification": verification,
+            "active_memories": active_memories  # Phase 7
         }
 
     async def get_statuses(self, thread_ids: List[str]) -> Dict[str, str]:

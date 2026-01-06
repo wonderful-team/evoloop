@@ -2,17 +2,11 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useMutation } from "@tanstack/react-query"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
-import { z } from "zod"
 import { useTranslation } from "react-i18next"
+import { z } from "zod"
 
-import { } from "@/client"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Form,
   FormControl,
@@ -26,12 +20,16 @@ import { LoadingButton } from "@/components/ui/loading-button"
 import useAuth from "@/hooks/useAuth"
 // import useCustomToast from "@/hooks/useCustomToast"
 import { cn } from "@/lib/utils"
+
 // import { handleError } from "@/utils"
 
-const createSchema = (t: any) => z.object({
-  nickname: z.string().max(30).optional(),
-  email: z.email({ message: t('auth.errors.invalidEmail') || "Invalid email address" }),
-})
+const createSchema = (t: any) =>
+  z.object({
+    nickname: z.string().max(30).optional(),
+    email: z.email({
+      message: t("auth.errors.invalidEmail") || "Invalid email address",
+    }),
+  })
 
 type FormData = z.infer<ReturnType<typeof createSchema>>
 
@@ -73,8 +71,10 @@ const UserInformation = () => {
   */
   // Dummy mutation to satisfy usage
   const mutation = useMutation({
-    mutationFn: async (data: any) => { console.log('Update not supported', data) },
-    onSuccess: () => toggleEditMode()
+    mutationFn: async (data: any) => {
+      console.log("Update not supported", data)
+    },
+    onSuccess: () => toggleEditMode(),
   })
 
   const onSubmit = (data: FormData) => {
@@ -102,7 +102,7 @@ const UserInformation = () => {
   return (
     <Card className="max-w-md">
       <CardHeader>
-        <CardTitle>{t('settings.profile.title')}</CardTitle>
+        <CardTitle>{t("settings.profile.title")}</CardTitle>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -116,7 +116,7 @@ const UserInformation = () => {
               render={({ field }) =>
                 editMode ? (
                   <FormItem>
-                    <FormLabel>{t('settings.profile.nickname')}</FormLabel>
+                    <FormLabel>{t("settings.profile.nickname")}</FormLabel>
                     <FormControl>
                       <Input type="text" {...field} />
                     </FormControl>
@@ -124,14 +124,14 @@ const UserInformation = () => {
                   </FormItem>
                 ) : (
                   <FormItem>
-                    <FormLabel>{t('settings.profile.nickname')}</FormLabel>
+                    <FormLabel>{t("settings.profile.nickname")}</FormLabel>
                     <p
                       className={cn(
                         "py-2 truncate max-w-sm",
                         !field.value && "text-muted-foreground",
                       )}
                     >
-                      {field.value || t('settings.profile.na')}
+                      {field.value || t("settings.profile.na")}
                     </p>
                   </FormItem>
                 )
@@ -144,7 +144,7 @@ const UserInformation = () => {
               render={({ field }) =>
                 editMode ? (
                   <FormItem>
-                    <FormLabel>{t('settings.profile.email')}</FormLabel>
+                    <FormLabel>{t("settings.profile.email")}</FormLabel>
                     <FormControl>
                       <Input type="email" {...field} />
                     </FormControl>
@@ -152,7 +152,7 @@ const UserInformation = () => {
                   </FormItem>
                 ) : (
                   <FormItem>
-                    <FormLabel>{t('settings.profile.email')}</FormLabel>
+                    <FormLabel>{t("settings.profile.email")}</FormLabel>
                     <p className="py-2 truncate max-w-sm">{field.value}</p>
                   </FormItem>
                 )
@@ -167,7 +167,7 @@ const UserInformation = () => {
                     loading={mutation.isPending}
                     disabled={!form.formState.isDirty}
                   >
-                    {t('settings.profile.save')}
+                    {t("settings.profile.save")}
                   </LoadingButton>
                   <Button
                     type="button"
@@ -175,12 +175,12 @@ const UserInformation = () => {
                     onClick={onCancel}
                     disabled={mutation.isPending}
                   >
-                    {t('settings.profile.cancel')}
+                    {t("settings.profile.cancel")}
                   </Button>
                 </>
               ) : (
                 <Button type="button" onClick={toggleEditMode}>
-                  {t('settings.profile.edit')}
+                  {t("settings.profile.edit")}
                 </Button>
               )}
             </div>

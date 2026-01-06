@@ -4,9 +4,10 @@ import { useNavigate } from "@tanstack/react-router"
 import {
   type Body_login_login_access_token as AccessToken,
   LoginService,
+  MemberService,
+  AuthService,
   type UserPublic,
   UsersService,
-  MemberService,
 } from "@/client"
 import { handleError } from "@/utils"
 import useCustomToast from "./useCustomToast"
@@ -38,7 +39,7 @@ const useAuth = () => {
 
   const signUpMutation = useMutation({
     mutationFn: (data: UserRegister) =>
-      MemberService.registerUsername({ requestBody: data }), // Fix: Use MemberService
+      AuthService.registerUsername({ requestBody: data as any }), // Fix: Use AuthService
     onSuccess: () => {
       navigate({ to: "/login" })
     },
@@ -73,7 +74,6 @@ const useAuth = () => {
     } catch (e) {
       console.error("Logout cleanup failed:", e)
     } finally {
-
       // Clear PC token
       localStorage.removeItem("access_token")
 

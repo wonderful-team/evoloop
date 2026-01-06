@@ -145,7 +145,11 @@ def create_graph(checkpointer=None):
     )
 
     # Add Checkpointer for auto-saving state
+    # Human-in-the-Loop: Interrupt BEFORE supervisor to allow user approval
     if checkpointer:
-        return workflow.compile(checkpointer=checkpointer)
+        return workflow.compile(
+            checkpointer=checkpointer,
+            interrupt_before=["supervisor"]  # Pause before supervisor for HITL
+        )
     else:
         return workflow.compile()
