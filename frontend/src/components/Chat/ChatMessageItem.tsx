@@ -32,6 +32,14 @@ export interface Message {
   content: string
   thinking?: string
   timestamp?: string // ISO timestamp from backend
+  run_id?: string // Deep Linking
+  parent_id?: number // Phase 8: Threading
+  references?: Array<{ // Phase 9: Persistent References
+    id: string
+    type: string // memory, file, knowledge
+    target_id: string
+    target_name: string
+  }>
   tasks_snapshot?: Array<{
     // Phase 6: Historical task steps
     id: number
@@ -54,8 +62,19 @@ const ChatMessageItem = memo(
   ({ msg, onAddToMemory, onExport, onRewind }: ChatMessageItemProps) => {
     const { t } = useTranslation()
 
+    // Helper to get icon for reference
+    const getReferenceIcon = (type: string) => {
+      switch (type) {
+        case "memory": return <Brain size={10} className="text-purple-500" />
+        case "file": return <Save size={10} className="text-blue-500" /> // Use Save icon for file for now or file icon
+        case "knowledge": return <Bot size={10} className="text-green-500" />
+        default: return <div className="w-2 h-2 rounded-full bg-muted-foreground" />
+      }
+    }
+
     return (
       <div
+        data-run-id={msg.run_id}
         className={`group relative flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"} items-start mb-4`}
       >
         {msg.role === "ai" && (
@@ -69,6 +88,18 @@ const ChatMessageItem = memo(
 
         <div className={`relative max-w-[85%]`}>
           <div className="flex flex-col gap-1">
+            {/* Phase 9: References (Context Sources) */}
+            {msg.references && msg.references.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-1 pl-1">
+                {msg.references.map(ref => (
+                  <div key={ref.id} className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded border border-transparent hover:border-border transition-colors cursor-help" title={`${ref.type}: ${ref.target_id}`}>
+                    {getReferenceIcon(ref.type)}
+                    <span className="truncate max-w-[150px]">{ref.target_name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Reasoning/Thinking Block */}
             {msg.thinking && (
               <Collapsible defaultOpen={false} className="w-full">

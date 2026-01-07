@@ -9,6 +9,7 @@ interface PlanStep {
   title: string
   status: "pending" | "in_progress" | "completed" | "failed"
   result?: string
+  execution_run_id?: string // Deep Linking
 }
 
 interface Plan {
@@ -73,27 +74,36 @@ export function PlanTab({ activeThreadId }: PlanTabProps) {
               {plan.steps.map((step, idx) => (
                 <div
                   key={step.id}
-                  className={`relative pl-4 border-l-2 ${
-                    step.status === "completed"
+                  onClick={() => {
+                    if (step.execution_run_id) {
+                      window.dispatchEvent(
+                        new CustomEvent("chat-scroll-to-run", {
+                          detail: { runId: step.execution_run_id },
+                        }),
+                      )
+                    }
+                  }}
+                  className={`relative pl-4 border-l-2 transition-colors ${step.status === "completed"
                       ? "border-primary"
                       : step.status === "in_progress"
                         ? "border-yellow-500"
                         : "border-muted"
-                  }`}
+                    } ${step.execution_run_id ? "cursor-pointer hover:bg-muted/10 pr-2 rounded-r" : ""}`}
                 >
                   <div className="text-xs font-medium flex items-center gap-2">
                     <span
-                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${
-                        step.status === "completed"
+                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${step.status === "completed"
                           ? "bg-primary text-primary-foreground"
                           : step.status === "in_progress"
                             ? "bg-yellow-500 text-white"
                             : "bg-muted text-muted-foreground"
-                      }`}
+                        }`}
                     >
                       {idx + 1}
                     </span>
-                    {step.title}
+                    <span className={step.execution_run_id ? "underline decoration-dotted underline-offset-2" : ""}>
+                      {step.title}
+                    </span>
                   </div>
                   {step.result && (
                     <div className="mt-1 text-[10px] text-muted-foreground bg-muted/30 p-1.5 rounded">

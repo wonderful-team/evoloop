@@ -152,8 +152,31 @@ class Message(Base):
     run_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)  # Associate with a specific execution run
     status: Mapped[Optional[str]] = mapped_column(String(50))  # pending, streaming, completed, failed, waiting_human
     tasks_snapshot: Mapped[Optional[List[dict]]] = mapped_column(JSON)  # Embedded task steps at completion
+    
+    # Phase 4: Threading
+    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("messages.id"), nullable=True)
+    parent: Mapped[Optional["Message"]] = relationship("Message", remote_side="[Message.id]", backref="children")
+
+    references: Mapped[List["MessageReference"]] = relationship(back_populates="message", cascade="all, delete-orphan")
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages", primaryjoin="Message.thread_id == Conversation.id", foreign_keys=[thread_id])
+
+
+class MessageReference(Base):
+    """
+    Phase 9: Persistent Context References
+    Tracks what memory/knowledge/tool was used to generate a message.
+    """
+    __tablename__ = "message_references"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True) # UUID
+    message_id: Mapped[int] = mapped_column(ForeignKey("messages.id"), index=True)
+    type: Mapped[str] = mapped_column(String(50)) # memory, tool, knowledge, file
+    target_id: Mapped[str] = mapped_column(String(255)) # ID or Name of the item
+    target_name: Mapped[str] = mapped_column(String(255)) # Human readable name
+    timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    
+    message: Mapped["Message"] = relationship(back_populates="references")
 
 
 class Conversation(Base):
@@ -338,6 +361,9 @@ class PlanStep(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     
+    # Phase 8: Deep Linking
+    execution_run_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True) # ID of the run that executed this step
+
     plan: Mapped["Plan"] = relationship(back_populates="steps")
 
 

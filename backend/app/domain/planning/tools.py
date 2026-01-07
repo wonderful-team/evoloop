@@ -110,18 +110,46 @@ def create_plan(title: str, steps: List[str]):
 
 
 @tool
-def update_step_status(plan_id: str, step_id: str, status: str, result: str = None):
+async def update_step_status(plan_id: str, step_id: str, status: str, result: str = None, execution_run_id: str = None):
     """
     Update the status of a step in the plan.
+    Args:
+        plan_id: The ID of the plan.
+        step_id: The ID of the step.
+        status: New status (pending, in_progress, completed, failed).
+        result: Optional result description.
+        execution_run_id: Optional ID of the current agent run executing this step.
     """
-    # This function is pure logic, the state update happens in the Node.
-    return json.dumps({
-        "action": "update_step",
-        "plan_id": plan_id,
-        "step_id": step_id,
-        "status": status,
-        "result": result
-    })
+    from app.infrastructure.database.sql.database import session_scope
+    from app.domain.planning.models import PlanStep # Ensure this is correct import or use app.infrastructure.database.sql.models
+
+    # Use the shared models from infrastructure to match session definition
+    from app.infrastructure.database.sql.models import PlanStep
+
+    try:
+        async with session_scope() as session:
+            step = await session.get(PlanStep, step_id)
+            if step:
+                step.status = status
+                if result:
+                    step.result = result
+                if execution_run_id:
+                    step.execution_run_id = execution_run_id
+                
+                # session commits automatically on exit
+            else:
+                 return json.dumps({"error": "Step not found"})
+
+        return json.dumps({
+            "action": "update_step",
+            "plan_id": plan_id,
+            "step_id": step_id,
+            "status": status,
+            "result": result,
+            "execution_run_id": execution_run_id
+        })
+    except Exception as e:
+        return json.dumps({"error": str(e)})
 
 
 @tool

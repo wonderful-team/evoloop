@@ -145,6 +145,8 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
         callback = TransparentCallbackHandler(thread_id=req.thread_id)
         
         try:
+            # Clear any pending human request since we are resuming
+            await activity_monitor.clear_human_request(req.thread_id)
             await activity_monitor.start_run(req.thread_id, "Resuming...")
             
             resume_config = {

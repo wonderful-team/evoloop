@@ -153,13 +153,22 @@ async def run_agent_background(thread_id: str, inputs: Dict[str, Any]):
             logger.info(f"Task {thread_id} cancelled by user.")
             await activity_monitor.end_run(thread_id, "cancelled")
         
-        except Exception as e:
             # Check if this is a LangGraph interrupt (graph paused for human input)
             # LangGraph raises various interrupt types - check by class name for compatibility
             exc_name = type(e).__name__
             if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
                 logger.info(f"Task {thread_id} interrupted for human input: {e}")
-                await activity_monitor.set_interrupted(thread_id, str(e))
+                
+                # Construct structured request
+                import uuid
+                request_data = {
+                    "id": str(uuid.uuid4()),
+                    "type": "confirmation" if "approve" in str(e).lower() else "text",
+                    "prompt": str(e),
+                    "created_at": str(asyncio.get_event_loop().time())
+                }
+                
+                await activity_monitor.set_human_request(thread_id, request_data)
                 # Do NOT end the run - it's paused, not finished
                 return
             

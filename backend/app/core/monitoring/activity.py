@@ -134,6 +134,32 @@ class ActivityMonitor:
                 "updated_at": time.time()
             })
 
+    async def set_human_request(self, thread_id: str, request_data: Dict[str, Any]):
+        """
+        Store a structured Human Request (HITL).
+        Replaces simple 'set_interrupted' for rich interactions.
+        """
+        key = f"activity:{thread_id}"
+        if await self.client.exists(key):
+            await self.client.hset(key, mapping={
+                "status": "interrupted",
+                "human_request": json.dumps(request_data),
+                "interrupt_reason": request_data.get("prompt", "Human Input Required"),
+                "updated_at": time.time()
+            })
+
+    async def clear_human_request(self, thread_id: str):
+        """Clear human request upon resumption."""
+        key = f"activity:{thread_id}"
+        if await self.client.exists(key):
+            # We don't delete the key, just clear the field and set status to running
+            await self.client.hset(key, mapping={
+                "status": "running",
+                "human_request": "", # Clear it
+                "interrupt_reason": "",
+                "updated_at": time.time()
+            })
+
     async def set_active_memory(self, thread_id: str, memory_id: str, memory_name: str):
         """Phase 7: Track which memory is currently being accessed by the Agent."""
         key = f"activity:{thread_id}"
@@ -280,12 +306,16 @@ class ActivityMonitor:
             agent_state = json.loads(data.get("agent_state", "{}"))
             verification = json.loads(data.get("verification", "{}"))
             active_memories = json.loads(data.get("active_memories", "[]"))  # Phase 7
+            
+            human_request_raw = data.get("human_request")
+            human_request = json.loads(human_request_raw) if human_request_raw else None
         except:
             tasks = []
             artifacts = []
             agent_state = {}
             verification = {}
             active_memories = []
+            human_request = None
             
         return {
             "status": data.get("status", "unknown"),
@@ -295,7 +325,8 @@ class ActivityMonitor:
             "artifacts": artifacts,
             "agent_state": agent_state,
             "verification": verification,
-            "active_memories": active_memories  # Phase 7
+            "active_memories": active_memories,  # Phase 7
+            "human_request": human_request
         }
 
     async def get_statuses(self, thread_ids: List[str]) -> Dict[str, str]:

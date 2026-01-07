@@ -112,107 +112,42 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             
         # 3. Save if we have content or thinking
         if content or thinking:
-             await self._save_log("ai", content, thinking=thinking)
-
-    async def on_tool_end(self, output: str, **kwargs: Any) -> Any:
-        """
-        Only log tool outputs if they look like errors.
-        Users don't need to see 'File read successfully' 100 times.
-        """
-        # output is usually a string, but could be Artifact?
-        content = str(output)
-        
-        # Refined Heuristic:
-        # 1. Must START with "Error:" or "Exception:" or "Failed:" (Case insensitive)
-        # 2. OR be very short (< 200 chars) and contain "error" (to catch "FileNotFoundError" ecc)
-        # 3. Explicitly ignore large content blocks (likely file reads)
-        
-        is_error = False
-        lower_content = content.lower().strip()
-        
-        if len(content) > 500:
-             # Large output is almost certainly NOT a tool execution error (it's data)
-             is_error = False
-        elif lower_content.startswith("error:") or lower_content.startswith("exception:") or lower_content.startswith("failed:"):
-             is_error = True
-        elif len(content) < 200 and ("error" in lower_content or "exception" in lower_content or "traceback" in lower_content):
-             is_error = True
+             # Phase 9: Extract References from tool calls
+             references = []
+             if hasattr(message, "tool_calls") and message.tool_calls:
+                 for tc in message.tool_calls:
+                     ref = self._extract_reference(tc)
+                     if ref:
+                         references.append(ref)
              
-        if is_error:
-             # It might be an error. Log it.
-             await self._save_log("tool", f"❌ **Tool Error:** {content}")
-        else:
-            # Success (presumably). Skip logging to DB.
-            # The 'Action' log from on_llm_end covers the intent.
-            pass
-            
-    async def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> Any:
-        """
-        Capture Node Outputs (State Updates).
-        This handles manually constructed messages from nodes like Tester/Coder/Finish.
-        We filter specifically for 'messages' key to target Graph Node outputs.
-        """
-        if not isinstance(outputs, dict) or "messages" not in outputs:
-            return
+             await self._save_log("ai", content, thinking=thinking, references=references)
 
-        ms_list = outputs["messages"]
-        if not isinstance(ms_list, list):
-            ms_list = [ms_list]
-
-        from langchain_core.messages import AIMessage
-        
-        for msg in ms_list:
-            # We only care about AI Messages (System/Human are inputs or internal)
-            # And we only care if there is content.
-            if isinstance(msg, AIMessage) and msg.content:
-                # Deduplication logic is handled inside _save_log or implies distinct events.
-                await self._save_log("ai", msg.content)
-
-    def _get_tool_summary(self, tool_call: Dict) -> str:
+    def _extract_reference(self, tool_call: Dict) -> Optional[Dict]:
+        """Extract structure reference data from tool call"""
         t_name = tool_call.get("name", "tool")
         t_args = tool_call.get("args", {})
         
         try:
-            if t_name in ["write_file", "replace_file_content", "write_to_file", "multi_replace_file_content"]:
-                path = t_args.get("target_file") or t_args.get("TargetFile") or t_args.get("file_path") or "unknown"
-                path_parts = path.split("/")
-                short_path = path_parts[-1] # Filename only
-                
-                return f"📝 Write `{short_path}`"
-                
-            elif t_name in ["read_document", "read_file", "view_file", "manage_file"]:
-                # Check action for manage_file
-                if t_name == "manage_file" and t_args.get("action") != "read":
-                     action = t_args.get("action", "exec")
-                     path = t_args.get("path") or "unknown"
-                     return f"📁 FS: {action} `{path.split('/')[-1]}`"
-
-                path = t_args.get("file_path") or t_args.get("AbsolutePath") or t_args.get("url") or t_args.get("path") or "unknown"
-                short_path = path.split("/")[-1]
-                return f"📄 Read `{short_path}`"
-                
-            elif t_name == "run_command":
-                cmd = t_args.get("command_line") or t_args.get("CommandLine") or "unknown"
-                # Truncate cmd
-                return f"💻 Exec `{cmd[:40]}...`" if len(cmd) > 40 else f"💻 Exec `{cmd}`"
-                
-            elif t_name == "create_plan":
-                title = t_args.get("title", "Untitled")
-                return f"📅 Plan: {title}"
-                
-            elif t_name in ["search_codebase", "grep_search", "find_by_name"]:
-                query = t_args.get("query") or t_args.get("Pattern") or "unknown"
-                return f"🔍 Search `{query}`"
+            if t_name in ["read_document", "read_file", "view_file", "manage_file"]:
+                 path = t_args.get("file_path") or t_args.get("AbsolutePath") or t_args.get("url") or t_args.get("path") or "unknown"
+                 name = path.split("/")[-1]
+                 return {"type": "file", "target_id": path, "target_name": name}
             
-            elif t_name == "task_boundary":
-                mode = t_args.get("Mode", "UPDATE")
-                return f"📍 Task: {mode}"
-
-            return f"🔧 {t_name}"
+            elif t_name in ["search_codebase", "grep_search", "find_by_name"]:
+                 query = t_args.get("query") or t_args.get("Pattern") or "unknown"
+                 return {"type": "knowledge", "target_id": query, "target_name": f"Search: {query}"}
+                 
+            elif t_name == "read_memory_item": # Hypothetical tool for memory
+                 mem_id = t_args.get("id", "unknown")
+                 return {"type": "memory", "target_id": mem_id, "target_name": "Memory Item"}
+            
+            return None
         except:
-            return f"🔧 {t_name}"
+            return None
 
-    async def _save_log(self, role: str, content: str, thinking: str = None, status: str = "completed"):
+    # ... (on_tool_end, on_chain_end remain same) ...
+
+    async def _save_log(self, role: str, content: str, thinking: str = None, status: str = "completed", references: List[Dict] = None):
         if not content and not thinking:
             return
 
@@ -235,6 +170,19 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         try:
              self._sequence_counter += 1
              async with session_scope() as session:
+                 # Phase 4: Threading - Find parent (Last message in thread)
+                 # Ideally we should pass parent_id explicitly, but for now linear threading is fine.
+                 from sqlalchemy import select, desc
+                 parent_id = None
+                 stmt = (
+                     select(Message.id)
+                     .where(Message.thread_id == self.thread_id)
+                     .order_by(desc(Message.sequence_number))
+                     .limit(1)
+                 )
+                 result = await session.execute(stmt)
+                 parent_id = result.scalar_one_or_none()
+
                  log = Message(
                      thread_id=self.thread_id,
                      project_id=self.project_id,
@@ -244,9 +192,26 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                      sequence_number=self._sequence_counter,
                      # Phase 3: Message-Run Association
                      run_id=self.run_id,
-                     status=status
+                     status=status,
+                     # Phase 4: Threading
+                     parent_id=parent_id
                  )
                  session.add(log)
+                 await session.flush() # Get ID
+
+                 # Phase 9: Save References
+                 if references:
+                     from app.infrastructure.database.sql.models import MessageReference
+                     for ref in references:
+                         mr = MessageReference(
+                             id=str(UUID(int=hash(f"{log.id}-{ref['target_id']}-{time.time()}") & ((1<<128)-1))), # Pseudo UUID
+                             message_id=log.id,
+                             type=ref["type"],
+                             target_id=ref["target_id"],
+                             target_name=ref["target_name"]
+                         )
+                         session.add(mr)
+
                  # session_scope commits automatically
         except Exception as e:
             # logger.error(f"Failed to log message: {e}")

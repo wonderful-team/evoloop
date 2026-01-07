@@ -4,6 +4,7 @@ export interface ChatConnectionCallbacks {
     onConnectionChange: (connected: boolean, status: string) => void;
     onToken: (token: string) => void;
     onActivity: (activity: any) => void;
+    onHumanRequest: (request: any) => void;
     onError: (error: string) => void;
 }
 
@@ -106,6 +107,15 @@ export class ChatConnection {
             } catch (err) {
                 // Fallback for raw text
                 if (e.data) this.callbacks?.onToken(e.data);
+            }
+        });
+
+        sse.addEventListener("human_request", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onHumanRequest(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse human_request", err);
             }
         });
 

@@ -61,6 +61,18 @@ async def stream_chat(thread_id: str):
                         last_content_length = len(details)
                         yield f"event: token\ndata: {json.dumps({'content': new_tokens})}\n\n"
                 
+                # Emit Human Request (Separate Event)
+                human_req = activity.get("human_request")
+                # Initialize tracker if not exists
+                if 'last_req_id' not in locals():
+                    last_req_id = None
+                    
+                if human_req:
+                    req_id = human_req.get("id")
+                    if last_req_id != req_id:
+                        yield f"event: human_request\ndata: {json.dumps(human_req)}\n\n"
+                        last_req_id = req_id
+                
                 # Emit Activity Update (if changed)
                 # We construct a snapshot of what frontend needs
                 current_activity_snapshot = {

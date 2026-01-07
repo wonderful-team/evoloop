@@ -28,8 +28,7 @@ import { ChatInputArea } from "./ChatInputArea"
 import { ChatMessageItem } from "./ChatMessageItem"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
-import { HumanInputDialog } from "./HumanInputDialog"
-import { InterruptedBanner } from "./InterruptedBanner"
+import { HumanRequestCard } from "./HumanRequestCard"
 import { MessageContent } from "./MessageContent"
 import { TaskSteps } from "./TaskSteps"
 
@@ -128,6 +127,7 @@ export function ChatInterface() {
   const messages = useChatStore((s) => s.messages)
   const status = useChatStore((s) => s.status)
   const tasks = useChatStore((s) => s.tasks)
+  const humanRequest = useChatStore((s) => s.humanRequest) // New selector
   // streamedContent is handled by StreamingBubble
   const setThread = useChatStore((s) => s.setThread)
   const sendMessage = useChatStore((s) => s.sendMessage)
@@ -282,11 +282,32 @@ export function ChatInterface() {
     }
   }, [isUserScrolled, scrollToBottom]) // Trigger on updates
 
-  // Fix: Force scroll to bottom on new thread load or manual send
   useEffect(() => {
     setIsUserScrolled(false)
     scrollToBottom()
   }, [scrollToBottom])
+
+  // Phase 8: Deep Linking Listener
+  useEffect(() => {
+    const handleScrollToRun = (e: CustomEvent<{ runId: string }>) => {
+      const runId = e.detail.runId
+      // Find DOM element within scroll container
+      const el = scrollRef.current?.querySelector(`[data-run-id="${runId}"]`)
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" })
+        // Visual indicator
+        el.classList.add("ring-2", "ring-primary/20", "rounded-lg")
+        setTimeout(() => el.classList.remove("ring-2", "ring-primary/20", "rounded-lg"), 2000)
+      } else {
+        toast.info("Message for this step not loaded in view")
+      }
+    }
+
+    window.addEventListener("chat-scroll-to-run" as any, handleScrollToRun as any)
+    return () => {
+      window.removeEventListener("chat-scroll-to-run" as any, handleScrollToRun as any)
+    }
+  }, [])
 
   return (
     <div className="flex flex-col h-full relative bg-background overflow-hidden">
@@ -408,8 +429,10 @@ export function ChatInterface() {
               </div>
             )}
 
-            {/* Interrupted State Banner */}
-            <InterruptedBanner />
+            {/* Interrupted State Banner (REMOVED - migrated to HumanRequestCard) */}
+            {humanRequest && status === "interrupted" && (
+              <HumanRequestCard request={humanRequest} />
+            )}
 
             {/* Input Area */}
             <ChatInputArea
@@ -443,7 +466,7 @@ export function ChatInterface() {
         )}
       </ResizablePanelGroup>
 
-      <HumanInputDialog threadId={activeThreadId || ""} />
+      {/* Removed HumanInputDialog */}
     </div>
   )
 }

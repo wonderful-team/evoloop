@@ -33,6 +33,12 @@ class ConversationListItem(BaseModel):
     updated_at: Optional[datetime]
     status: str = "idle"
 
+class ReferenceItem(BaseModel):
+    id: str
+    type: str
+    target_id: str
+    target_name: str
+
 class MessageItem(BaseModel):
     id: str
     type: str
@@ -40,46 +46,16 @@ class MessageItem(BaseModel):
     thinking: Optional[str]
     created_at: Optional[str]
     tasks_snapshot: Optional[List[dict]] = None  # Phase 6: Historical task steps
-    
+    run_id: Optional[str] = None  # Phase 8: Deep Linking
+    parent_id: Optional[int] = None # Phase 8: Threading
+    references: List[ReferenceItem] = [] # Phase 9: Persistent References
+
 class RewindResponse(BaseModel):
     status: str
-    removed_count: int = 0
     thread_id: str
+    removed_count: int = 0
 
-# --- Endpoints ---
-
-@router.get("/", response_model=List[ConversationListItem])
-async def list_conversations(project_id: Optional[int] = None):
-    """
-    List conversations, optionally filtered by project_id.
-    Includes real-time status from ActivityMonitor.
-    """
-    async with get_db_session() as session:
-        stmt = select(Conversation)
-        if project_id:
-            stmt = stmt.where(Conversation.project_id == project_id)
-            
-        stmt = stmt.order_by(Conversation.updated_at.desc(), Conversation.created_at.desc()).limit(50)
-        result = await session.execute(stmt)
-        threads = result.scalars().all()
-        
-    # Inject Status
-    if not threads:
-        return []
-        
-    thread_ids = [str(t.id) for t in threads]
-    status_map = await activity_monitor.get_statuses(thread_ids)
-
-    return [
-        ConversationListItem(
-            thread_id=t.id, 
-            title=t.title,
-            project_id=t.project_id,
-            updated_at=t.updated_at,
-            status=status_map.get(str(t.id), "idle")
-        )
-        for t in threads
-    ]
+# ...
 
 @router.get("/{thread_id}/messages", response_model=List[MessageItem])
 async def get_conversation_messages(thread_id: str):
@@ -88,8 +64,15 @@ async def get_conversation_messages(thread_id: str):
     Includes tasks_snapshot for historical task visualization.
     """
     try:
+        from sqlalchemy.orm import selectinload
         async with get_db_session() as session:
-            stmt = select(Message).where(Message.thread_id == thread_id).order_by(Message.id.asc())
+            # Optimize: Eager load references
+            stmt = (
+                select(Message)
+                .where(Message.thread_id == thread_id)
+                .options(selectinload(Message.references))
+                .order_by(Message.id.asc())
+            )
             result = await session.execute(stmt)
             db_messages = result.scalars().all()
             
@@ -100,7 +83,17 @@ async def get_conversation_messages(thread_id: str):
                     content=m.content,
                     thinking=m.thinking,
                     created_at=m.created_at.isoformat() if m.created_at else None,
-                    tasks_snapshot=m.tasks_snapshot  # Phase 6: Include historical tasks
+                    tasks_snapshot=m.tasks_snapshot,
+                    run_id=m.run_id,
+                    parent_id=m.parent_id,
+                    references=[
+                        ReferenceItem(
+                            id=ref.id,
+                            type=ref.type,
+                            target_id=ref.target_id,
+                            target_name=ref.target_name
+                        ) for ref in m.references
+                    ] if m.references else []
                 )
                 for m in db_messages
             ]
