@@ -115,7 +115,7 @@ async def _harvest_report_concepts(report_text: str, project_id: int) -> list[st
         Extract up to 5 most important concepts worth remembering for this project.
         """
         
-        result = await structured_llm.ainvoke([SystemMessage(content=prompt)])
+        result = await structured_llm.ainvoke([SystemMessage(content=prompt)], config={"callbacks": []})
         
         if result and result.concepts:
             for concept in result.concepts:

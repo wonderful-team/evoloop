@@ -167,27 +167,36 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
             
     # 3. Recent History (Sliding Window)
     # We take last 8 messages to give enough context for immediate tool loops.
-    # Note: If messages list is short, overlap is handled by slicing logic.
-    recent_messages = messages[-8:]
+    # CRITICAL FIX: Ensure we don't slice off the parent AIMessage of a ToolMessage.
     
+    start_index = max(0, len(messages) - 8)
+    recent_messages = messages[start_index:]
+    
+    # Check for Orphaned Tool Message at start
+    while recent_messages and isinstance(recent_messages[0], ToolMessage):
+        # Tools need their AI call. We must look backwards.
+        start_index -= 1
+        if start_index < 0:
+             # Should not happen in valid history, but if it does, 
+             # we cannot fix it by going back further.
+             # In this case, we DROP the orphaned tool message to satisfy LLM API.
+             recent_messages.pop(0)
+             # Continue check in case next one is also tool
+        else:
+             # Prepend the previous message (hopefully the AIMessage)
+             previous_msg = messages[start_index]
+             recent_messages.insert(0, previous_msg)
+             # Loops again to check if THAT message is also dependent (rare for AI, but safe)
+
     # Build Final Loop Messages
     loop_messages = [system_message]
     
     if original_goal_message:
         # If the original goal is NOT in recent messages, insert it explicitly as context reminder.
-        # Check by object identity or content? Content is safer.
         is_in_recent = any(m.content == original_goal_message.content for m in recent_messages)
         
         if not is_in_recent:
-            # We add a "Reminder" of the original goal
-            # Or just inject the message itself. 
-            # Injecting message itself might confuse LLM flow if timestamps imply it was long ago.
-            # Better strategy: Append a High-Level Reminder to system prompt? 
-            # Or just put it after system prompt.
             loop_messages.append(original_goal_message)
-            
-            # Add a separator or context note?
-            # "Below is the recent conversation history..." (Implicit)
             
     loop_messages.extend(recent_messages)
     

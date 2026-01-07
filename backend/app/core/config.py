@@ -170,6 +170,11 @@ class Settings(BaseSettings):
 
     PROJECTS_ROOT: str = Field(default_factory=_default_projects_root, validation_alias="PROJECTS_ROOT")
 
+    # Artifacts
+    BROWSER_ARTIFACTS_DIR: str = os.path.join(os.getcwd(), "uploads", "browser_artifacts")
+    SCREENSHOTS_DIR: str = os.path.join(os.getcwd(), "uploads", "screenshots")
+
+
     # Logic Limits
     MEMORY_SEARCH_LIMIT: int = 5
     RESEARCH_MAX_ITERATIONS: int = 5

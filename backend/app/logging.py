@@ -2,16 +2,16 @@ import logging
 import sys
 import contextvars
 from datetime import datetime, timezone
+
+from app.core.config import settings
 from app.utils import json as json_utils
 from app.utils.context import get_context, set_context
-from app.core.config import settings
 
-# Re-export set_context/get_context for backwards compatibility if needed, 
+# Re-export set_context/get_context for backwards compatibility if needed,
 # or consumers should import from utils.context directly.
 # For now, we keep them here but implementation delegates to utils.
-
-
 # set_context and get_context are imported from app.utils.context
+
 
 class ContextFilter(logging.Filter):
     """
@@ -22,6 +22,7 @@ class ContextFilter(logging.Filter):
         record.thread_id = ctx.get("thread_id", "-")
         record.project_id = ctx.get("project_id", "-")
         return True
+
 
 class JSONFormatter(logging.Formatter):
     """
@@ -36,12 +37,13 @@ class JSONFormatter(logging.Formatter):
             "thread_id": getattr(record, "thread_id", "-"),
             "project_id": getattr(record, "project_id", "-")
         }
-        
+
         # Include exception info if present
         if record.exc_info:
             log_obj["exception"] = self.formatException(record.exc_info)
-            
+
         return json_utils.dumps(log_obj)
+
 
 def setup_logging():
     """
@@ -76,6 +78,11 @@ def setup_logging():
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("openai").setLevel(logging.WARNING)
     logging.getLogger("mcp").setLevel(logging.WARNING)
+    logging.getLogger("watchfiles").setLevel(logging.WARNING)
+
+    # Enable detailed logs for our app
+    logging.getLogger("app").setLevel(logging.DEBUG)
+    logging.getLogger("langchain.core").setLevel(logging.DEBUG)
 
 
 logger = logging.getLogger("evoloop")

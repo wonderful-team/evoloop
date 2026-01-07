@@ -23,7 +23,10 @@ interface ChatState {
     tasks: TaskStep[]
     streamedContent: string // The currently streaming token buffer (for the specific AI task)
     activeMemories: Array<{ id: string; name: string }> // Phase 7: Active memory highlights
+    artifacts: Array<{ id: number; name: string; type: string; status: string; path?: string }> // Phase 8: Artifacts
     humanRequest: any | null // HITL Request
+    agentState: { mode: string; task_name: string; task_status: string; details?: any } | null // Phase 9
+    thoughts: any[] // Phase 6: Transient Thoughts history
 
     isConnected: boolean
     connectionStatus: string
@@ -58,8 +61,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     status: "idle",
     tasks: [],
     streamedContent: "",
-    activeMemories: [], // Phase 7
+
+    activeMemories: [],
+    artifacts: [],
     humanRequest: null,
+    agentState: null,
+    thoughts: [], // Phase 6
 
     isConnected: false,
     connectionStatus: "disconnected",
@@ -135,12 +142,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 .map((m: any, idx: number) => ({
                     id: m.id || idx,
                     role: m.type === "human" ? "user" : "ai",
+                    originalType: m.type, // Keep raw type for filtering
                     content: m.content || "",
                     thinking: m.thinking,
                     timestamp: m.created_at,
                     tasks_snapshot: m.tasks_snapshot, // Phase 6: Historical tasks
                 }))
-                .filter((m: Message) => m.content || m.thinking)
+                // Filter out empty messages AND 'tool' messages (which cause chat bubble explosion)
+                .filter((m: any) => (m.content || m.thinking) && m.originalType !== "tool")
 
             // Optimistic Swap:
             // If we are still on the same thread, update the messages.
@@ -285,14 +294,57 @@ export const useChatStore = create<ChatState>((set, get) => ({
             }
         }
 
+        // Normalize Backend Status -> Frontend Status
+        // Backend: running, done, failed, cancelled, stopping, interrupted, idle
+        // Frontend: running, idle, error, stopped, interrupted, SUMMARIZING, INDEXING
+
+        let normalizedStatus = newStatus
+        if (["done", "failed", "cancelled"].includes(newStatus)) {
+            normalizedStatus = "idle"
+        } else if (newStatus === "stopping") {
+            normalizedStatus = "stopped"
+        }
+
         set({
-            status: newStatus,
+            status: normalizedStatus,
             tasks: data.tasks || [],
+            artifacts: data.artifacts || [], // Phase 8: Automatically Map Artifacts
             activeMemories: data.active_memories || [], // Phase 7
+            agentState: data.agent_state || null, // Phase 9
         })
+
+        // Phase 6: Transient Thought Extraction
+        if (data.agent_state && data.agent_state.details && data.agent_state.details.type === 'thought') {
+            const newThought = data.agent_state.details
+            const thoughtId = `${Date.now()}-${Math.random()}`
+
+            // Deduplicate: Don't add if we just added this exact title/type recently (e.g. within 2 seconds)
+            const recentThoughts = get().thoughts.slice(-3)
+            const isDuplicate = recentThoughts.some(t =>
+                t.title === (data.agent_state.task_status || "Thinking") &&
+                Date.now() - t.timestamp < 2000
+            )
+
+            if (!isDuplicate) {
+                const thoughtObj = {
+                    id: thoughtId,
+                    type: "thought",
+                    thought_type: newThought.thought_type || "generic",
+                    title: data.agent_state.task_status || "Thinking",
+                    content: newThought,
+                    confidence: newThought.confidence,
+                    timestamp: Date.now()
+                }
+
+                // Add to thoughts list, keep last 20
+                set(state => ({
+                    thoughts: [...state.thoughts, thoughtObj as any].slice(-20)
+                }))
+            }
+        }
     },
 
     _setError: (error: string) => {
-        // toast.error(`Connection Error: ${error}`)
+        toast.error(`Connection Error: ${error}`)
     },
 }))

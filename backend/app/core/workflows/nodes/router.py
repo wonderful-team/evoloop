@@ -18,8 +18,10 @@ async def router_node(state: AgentState, config: RunnableConfig):
         return {"next_node": "supervisor"}
 
     instruction = last_message.content
+    instruction = last_message.content
     try:
-        prediction = await intention_predictor.predict(instruction)
+        thread_id = config.get("configurable", {}).get("thread_id")
+        prediction = await intention_predictor.predict(instruction, thread_id=thread_id)
         intent = prediction.intent
         
         # Mapping intent to Nodes/Tools

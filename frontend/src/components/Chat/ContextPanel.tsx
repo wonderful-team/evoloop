@@ -7,7 +7,7 @@ import {
   Wrench,
   X,
 } from "lucide-react"
-import { memo, useState } from "react"
+import { memo, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -22,13 +22,28 @@ import { ToolsTab } from "./context/ToolsTab"
 interface ContextPanelProps {
   projectId?: number
   activeThreadId?: string
+  autoSwitchToTab?: string
   onClose?: () => void
 }
 
 export const ContextPanel = memo(
-  ({ projectId, activeThreadId, onClose }: ContextPanelProps) => {
+  ({ projectId, activeThreadId, autoSwitchToTab, onClose }: ContextPanelProps) => {
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState("memory")
+
+    // Phase 5: Auto-switch Tab
+    useEffect(() => {
+      if (autoSwitchToTab) {
+        setActiveTab(autoSwitchToTab)
+      }
+    }, [autoSwitchToTab])
+
+    // Default to 'memory' if no auto-switch
+    useEffect(() => {
+      if (!autoSwitchToTab) {
+        setActiveTab("memory")
+      }
+    }, [autoSwitchToTab])
 
     if (typeof projectId !== "number" || Number.isNaN(projectId)) {
       return (

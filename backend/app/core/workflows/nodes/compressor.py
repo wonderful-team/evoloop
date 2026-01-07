@@ -60,7 +60,7 @@ async def compress_history_delta(messages: list[BaseMessage], keep_last: int = 1
     """
     
     try:
-        summary_response = await llm.ainvoke(prompt)
+        summary_response = await llm.ainvoke(prompt, config={"callbacks": []})  # Internal thought, do not stream
         summary_text = summary_response.content
         
         delta = []

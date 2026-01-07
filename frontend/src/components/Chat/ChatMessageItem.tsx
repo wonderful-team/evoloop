@@ -25,10 +25,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 import { Button } from "../ui/button"
 import { TestReportCard } from "./Artifacts/TestReportCard"
 import { MessageContent } from "./MessageContent"
+import { SourcesFooter } from "./SourcesFooter"
 
 export interface Message {
   id: number | string
-  role: "user" | "ai"
+  role: "user" | "ai" | "tool" | "system"
   content: string
   thinking?: string
   timestamp?: string // ISO timestamp from backend
@@ -62,14 +63,9 @@ const ChatMessageItem = memo(
   ({ msg, onAddToMemory, onExport, onRewind }: ChatMessageItemProps) => {
     const { t } = useTranslation()
 
-    // Helper to get icon for reference
-    const getReferenceIcon = (type: string) => {
-      switch (type) {
-        case "memory": return <Brain size={10} className="text-purple-500" />
-        case "file": return <Save size={10} className="text-blue-500" /> // Use Save icon for file for now or file icon
-        case "knowledge": return <Bot size={10} className="text-green-500" />
-        default: return <div className="w-2 h-2 rounded-full bg-muted-foreground" />
-      }
+    // Hide intermediate tool outputs and system prompts from main chat
+    if (msg.role === "tool" || msg.role === "system") {
+      return null
     }
 
     return (
@@ -88,17 +84,6 @@ const ChatMessageItem = memo(
 
         <div className={`relative max-w-[85%]`}>
           <div className="flex flex-col gap-1">
-            {/* Phase 9: References (Context Sources) */}
-            {msg.references && msg.references.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-1 pl-1">
-                {msg.references.map(ref => (
-                  <div key={ref.id} className="flex items-center gap-1 text-[10px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded border border-transparent hover:border-border transition-colors cursor-help" title={`${ref.type}: ${ref.target_id}`}>
-                    {getReferenceIcon(ref.type)}
-                    <span className="truncate max-w-[150px]">{ref.target_name}</span>
-                  </div>
-                ))}
-              </div>
-            )}
 
             {/* Reasoning/Thinking Block */}
             {msg.thinking && (
@@ -167,6 +152,17 @@ const ChatMessageItem = memo(
                   </ul>
                 </CollapsibleContent>
               </Collapsible>
+            )}
+
+            {/* Sources Footer */}
+            {msg.role === "ai" && msg.references && msg.references.length > 0 && (
+              <SourcesFooter
+                references={msg.references.map(ref => ({
+                  type: ref.type,
+                  name: ref.target_name,
+                  path: ref.target_id
+                }))}
+              />
             )}
 
             {/* Main Content */}

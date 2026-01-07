@@ -74,7 +74,7 @@ async def harvest_knowledge(lookback: int = 1):
     try:
         result = await structured_llm.ainvoke([
             SystemMessage(content=HARVEST_PROMPT.format(diff=diff_text) + lang_directive)
-        ])
+        ], config={"callbacks": []})
     except Exception as e:
         logger.error(f"Harvest extraction failed: {e}")
         return f"Error extracting concepts: {e}"

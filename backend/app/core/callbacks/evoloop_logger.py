@@ -27,16 +27,10 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
         )
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
-        self.token_buffer += token
-        # Throttle updates: flush on newline or every 50 chars
-        if "\n" in token or len(self.token_buffer) >= 50:
-            await self.client.upload_log(
-                thread_id=self.thread_id,
-                log_type="thought",
-                content=self.token_buffer,
-                command_id=self.command_id
-            )
-            self.token_buffer = ""
+        # User requested to disable streaming. Accumulate silently only if needed for local logic,
+        # but here we rely on LLMResult in on_llm_end.
+        # Actually, on_llm_end provides the full generation, so we don't need to buffer manually.
+        pass
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
         if not response.generations:
@@ -45,8 +39,6 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
         # Capture the first generation text
         text = response.generations[0][0].text
         if text:
-            # We overwrite or append? The UI renders distinct log items.
-            # So this will be a second "thought" item with the actual content.
             await self.client.upload_log(
                 thread_id=self.thread_id,
                 log_type="thought",

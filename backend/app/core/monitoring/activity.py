@@ -4,6 +4,7 @@ import json
 import redis.asyncio as redis
 import asyncio
 from app.core.config import settings
+from app.schemas.events import TaskEvent, ArtifactEvent, AgentStateEvent, StatusEvent
 
 class ActivityMonitor:
     _instance = None
@@ -106,6 +107,22 @@ class ActivityMonitor:
                     modified = True
             if modified:
                  await self.client.hset(key, "tasks", json.dumps(tasks))
+                 
+                 # Publish update events for modified tasks
+                 # Simplification: Just publish the end-run status for now or iterate
+                 # Iterate to be precise
+                 for t in tasks:
+                     if t["status"] in ["done", "cancelled"] and t.get("start_time"): # It was running
+                          await self.client.publish(
+                              f"chat:{thread_id}:events", 
+                              TaskEvent(action="update", id=t["id"], data={"status": t["status"]}).json()
+                          )
+
+        # Publish Status Change
+        await self.client.publish(
+            f"chat:{thread_id}:events",
+            StatusEvent(status=final_status).json()
+        )
 
     async def stop_run(self, thread_id: str):
         """Signal a run to stop."""
@@ -200,6 +217,9 @@ class ActivityMonitor:
                 tasks_json = await self.client.hget(key, "tasks")
                 tasks = json.loads(tasks_json) if tasks_json else []
                 
+                if not name:
+                    return None
+                    
                 task_id = len(tasks) + 1
                 new_task = {
                     "id": task_id,
@@ -215,10 +235,16 @@ class ActivityMonitor:
                     "tasks": json.dumps(tasks),
                     "updated_at": time.time()
                 })
+                
+                # Publish Event
+                await self.client.publish(
+                    f"chat:{thread_id}:events",
+                    TaskEvent(action="create", id=task_id, data=new_task).json()
+                )
+                
                 return task_id
         except Exception as e:
-            # If lock fails, we might just skip adding task to avoid blocking execution?
-            # Or retry. For UI visibility, skipping is better than crashing.
+            # logger.error(f"Failed to add task: {e}")
             return None
 
     async def update_task(self, thread_id: str, task_id: int, status: str, details: str = None):
@@ -250,6 +276,15 @@ class ActivityMonitor:
                         "tasks": json.dumps(tasks),
                         "updated_at": time.time()
                     })
+                    
+                    # Publish Event
+                    # We accept 'details' might mean partial update, but our schema is flexible
+                    update_data = {"status": status}
+                    if details: update_data["details"] = details
+                    await self.client.publish(
+                        f"chat:{thread_id}:events",
+                        TaskEvent(action="update", id=task_id, data=update_data).json()
+                    )
         except Exception:
             pass
 
@@ -262,6 +297,12 @@ class ActivityMonitor:
             "task_status": task_status
         }
         await self.client.hset(key, "agent_state", json.dumps(state))
+        
+        # Publish Event
+        await self.client.publish(
+            f"chat:{thread_id}:events",
+            AgentStateEvent(data=state).json()
+        )
 
     async def add_artifact(self, thread_id: str, name: str, artifact_type: str, status="created", path: str = None):
         key = f"activity:{thread_id}"
@@ -273,6 +314,11 @@ class ActivityMonitor:
             if art["name"] == name:
                 art["status"] = "modified"
                 await self.client.hset(key, "artifacts", json.dumps(artifacts))
+                # Publish Event for modification
+                await self.client.publish(
+                    f"chat:{thread_id}:events",
+                    ArtifactEvent(action="update", name=name, data=art).json()
+                )
                 return
         
         artifacts.append({
@@ -288,6 +334,16 @@ class ActivityMonitor:
             "artifacts": json.dumps(artifacts),
             "updated_at": time.time()
         })
+        
+        # Publish Event
+        # We need to find the artifact we just added/modified
+        target_art = next((a for a in artifacts if a["name"] == name), None)
+        if target_art:
+            action = "update" if status == "modified" else "create"
+            await self.client.publish(
+                f"chat:{thread_id}:events",
+                ArtifactEvent(action=action, name=name, data=target_art).json()
+            )
 
     async def get_activity(self, thread_id: str):
         key = f"activity:{thread_id}"

@@ -16,6 +16,7 @@ from app.domain.tools.human_input import (
     cleanup_old_requests
 )
 from app.api.deps import verify_guest_access
+from app.core.config import settings
 from app.core.workflows.tasks import run_agent_background
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import Conversation, Message
@@ -265,7 +266,7 @@ async def record_events(body: RecordEventsRequest):
                         import os
                         
                         # Ensure upload directory exists
-                        upload_dir = os.path.join(os.getcwd(), "uploads", "screenshots")
+                        upload_dir = settings.SCREENSHOTS_DIR
                         os.makedirs(upload_dir, exist_ok=True)
                         
                         # Generate unique filename
@@ -282,7 +283,7 @@ async def record_events(body: RecordEventsRequest):
                             f.write(base64.b64decode(b64_data))
                             
                         # Store relative path
-                        screenshot_path = f"uploads/screenshots/{filename}"
+                        screenshot_path = os.path.relpath(file_path, os.getcwd())
                     except Exception as e:
                         print(f"Failed to save screenshot: {e}")
                         # Don't fail the event recording, just skip screenshot

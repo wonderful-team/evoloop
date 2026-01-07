@@ -14,11 +14,12 @@ from langchain_core.messages import SystemMessage
 from pydantic import BaseModel, Field
 
 from app.core.llm.vision import VisionLLMFactory, get_vision_llm
+from app.core.config import settings
 
 logger = logging.getLogger("evoloop.tools.vision")
 
 # Directory for storing screenshots
-SCREENSHOTS_DIR = os.path.join(os.getcwd(), "screenshots")
+SCREENSHOTS_DIR = settings.SCREENSHOTS_DIR
 os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
 
 

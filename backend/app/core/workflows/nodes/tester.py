@@ -21,6 +21,37 @@ class TestAnalysis(BaseModel):
     fix_suggestion: Optional[str] = Field(description="Concrete code snippet or steps to fix the issue (if FAIL). Be extremely specific.")
     
 
+
+def _repair_history(messages: list) -> list:
+    """
+    Ensure no ToolMessage is orphaned (without preceding AIMessage with tool_calls).
+    If found, insert a dummy AIMessage.
+    """
+    repaired = []
+    
+    for msg in messages:
+        if isinstance(msg, ToolMessage):
+            # Check previous
+            is_orphaned = True
+            if repaired:
+                last = repaired[-1]
+                if isinstance(last, AIMessage) and last.tool_calls:
+                    # Check ID match
+                    ids = [tc['id'] for tc in last.tool_calls]
+                    if msg.tool_call_id in ids:
+                         is_orphaned = False
+            
+            if is_orphaned:
+                 # Insert Dummy AIMessage
+                 dummy = AIMessage(content="Thinking...", tool_calls=[
+                     {"id": msg.tool_call_id, "name": "unknown_tool", "args": {}}
+                 ])
+                 repaired.append(dummy)
+        
+        repaired.append(msg)
+        
+    return repaired
+
 async def tester_node(state: AgentState, config: RunnableConfig):
     llm = LLMFactory.create_llm()
     """
@@ -62,7 +93,9 @@ async def tester_node(state: AgentState, config: RunnableConfig):
     llm_with_tools = llm.bind_tools(tools)
     tool_map = {t.name: t for t in tools}
 
-    loop_messages = [SystemMessage(content=system_msg)] + messages[-5:]  # Valid Context
+    # Construct and Repair Context
+    raw_context = [SystemMessage(content=system_msg)] + messages[-5:]
+    loop_messages = _repair_history(raw_context)
 
     import os
     cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
@@ -117,13 +150,21 @@ async def tester_node(state: AgentState, config: RunnableConfig):
     structured_llm = llm.with_structured_output(TestAnalysis)
     
     # We feed the FULL conversation (including potential tool outputs) to the structured LLM
-    # to let it summarize the result.
+    # to let it summarize the result. Matches Loop Messages.
+    # Note: loop_messages already includes system msg and tools.
+    
     final_prompt = [
         SystemMessage(content="Analyze the test execution above. Provide a structured report in JSON format. If failed, you MUST provide a fix_suggestion based on the stack trace."),
-    ] + loop_messages
+    ] + loop_messages[1:] # Skip original system message to avoid duplication if we want, but loop_messages has the history.
+    
+    # Actually, structured_llm needs Clean History too. loop_messages IS clean (repaired).
+    # But loop_messages[0] is SystemMessage. We can replace it or just append.
+    # Let's just use loop_messages but prepend the instruction.
+    
+    final_prompt = [SystemMessage(content="Analyze the test execution above...")] + loop_messages[1:]
     
     try:
-        analysis = await structured_llm.ainvoke(final_prompt, config=config)
+        analysis = await structured_llm.ainvoke(final_prompt, config={"callbacks": []})
     except Exception as e:
         # Fallback
         analysis = TestAnalysis(status="FAIL", summary=f"Error analyzing tests: {e}", root_cause="LLM Error", fix_suggestion="Check logs")

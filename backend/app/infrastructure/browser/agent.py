@@ -1,19 +1,16 @@
 import logging
-import asyncio
 import os
 import glob
 import shutil
-from typing import Optional, Dict
 
 from app.utils.id import gen_uuid
 from app.core.config import settings
-from app.constants import MODEL_GPT4O, MODEL_CLAUDE_SONNET
 
 logger = logging.getLogger(__name__)
 
 # Directory for browser artifacts
-BROWSER_ARTIFACTS_DIR = os.path.join(os.getcwd(), "browser_artifacts")
-os.makedirs(BROWSER_ARTIFACTS_DIR, exist_ok=True)
+# Directory for browser artifacts
+os.makedirs(settings.BROWSER_ARTIFACTS_DIR, exist_ok=True)
 
 try:
     from browser_use import Agent, Browser
@@ -88,7 +85,7 @@ class BrowserService:
                 latest_gif = gifs[-1]
                 # Move to static dir
                 filename = f"browser_session_{gen_uuid()}.gif"
-                dest_path = os.path.join(BROWSER_ARTIFACTS_DIR, filename)
+                dest_path = os.path.join(settings.BROWSER_ARTIFACTS_DIR, filename)
                 shutil.move(latest_gif, dest_path)
                 
                 # Construct URL

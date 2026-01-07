@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
+from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger("evoloop.tools.human_input")
 
@@ -212,6 +213,21 @@ The frontend will display this request and collect user input.
 """
     
     logger.info(f"Human input requested: {prompt[:50]}...")
+    
+    # Notify Activity Monitor with Structured Data
+    await activity_monitor.set_human_request(
+        thread_id=thread_id,
+        request_data={
+            "id": request.id,
+            "type": input_type,
+            "prompt": prompt,
+            "options": options,
+            "context": context,
+            "default_value": default_value,
+            "timeout_seconds": 300
+        }
+    )
+    
     return response_text
 
 
@@ -283,6 +299,20 @@ Please respond with APPROVE or REJECT.
 """
     
     logger.info(f"Approval requested for: {action_description[:50]}... (Risk: {risk_level})")
+    
+    # Notify Activity Monitor with Structured Data
+    await activity_monitor.set_human_request(
+        thread_id=thread_id,
+        request_data={
+            "id": request.id,
+            "type": "approval",
+            "prompt": action_description,
+            "context": approval_context,
+            "default_value": "REJECTED",
+            "risk_level": risk_level
+        }
+    )
+    
     return response_text
 
 

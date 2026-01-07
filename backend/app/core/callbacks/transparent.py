@@ -7,6 +7,7 @@ import json
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
+from app.schemas.events import TokenEvent
 
 # Use standard logger instead of rich Console
 logger = logging.getLogger("evoloop.callbacks")
@@ -59,17 +60,54 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if self.thread_id and self.current_task_id and self.monitor:
             if run_id == self.active_llm_run_id:
                 self._current_stream_buffer += token
-                await self.monitor.update_task(
-                    self.thread_id, 
-                    self.current_task_id, 
-                    "running", 
-                    details=self._current_stream_buffer
-                )
+                # 1. Update Monitor (Still needed for full history/re-rendering - optimized?)
+                # Maybe we don't need to update Redis for EVERY token either? 
+                # Let's keep it for now as Redis is fast, but could be optimized similarly.
+                # Actually, let's optimize Redis writes too to reduce load.
+                
+                # 2. BUFFERED PUBLISH Strategy (No more typewriter)
+                # We use a temporary buffer for the "View" event
+                if not hasattr(self, "_publish_buffer"):
+                    self._publish_buffer = ""
+                
+                self._publish_buffer += token
+                
+                # Condition: Flush on Newline OR > 50 chars (Chunked display)
+                if "\n" in token or len(self._publish_buffer) > 50:
+                    try:
+                        if hasattr(self.monitor, "client"):
+                             await self.monitor.client.publish(
+                                  f"chat:{self.thread_id}:events",
+                                  TokenEvent(content=self._publish_buffer).json()
+                             )
+                        self._publish_buffer = ""
+                        
+                        # Also update the task detail in Redis only on these intervals
+                        await self.monitor.update_task(
+                            self.thread_id, 
+                            self.current_task_id, 
+                            "running", 
+                            details=self._current_stream_buffer
+                        )
+                    except Exception:
+                         pass
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
         # logger.info("LLM End")
         
+        # FLUSH REMAINING BUFFER
+        if hasattr(self, "_publish_buffer") and self._publish_buffer:
+             try:
+                if self.thread_id and self.monitor and hasattr(self.monitor, "client"):
+                     await self.monitor.client.publish(
+                          f"chat:{self.thread_id}:events",
+                          TokenEvent(content=self._publish_buffer).json()
+                     )
+             except:
+                 pass
+             self._publish_buffer = ""
+
         run_id = kwargs.get("run_id")
         if self.thread_id and self.current_task_id and self.monitor:
              # Only close if the ending run is the one that started the task
@@ -238,48 +276,35 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
              
              # Avoid "Start" / "End" noise if possible, but LangGraph usually names them specifically
              
-             # Add a "Section" task
-             # We use type="node" (or "section") 
-             # For now "node" matches generic logic
-             friendly_name = f"Entering [{node_name}]"
+             # FLATTENING UI: User wants "categorization" or "folding".
+             # We re-enable this but map node names to friendly "Phase" names.
+             # This creates "Phase" tasks that can act as headers in the UI.
              
-             # Auto-close previous node tasks? 
-             # ActivityMonitor supports hierarchical tasks? No, flat list.
-             # So we just append this as a milestone.
-             # We mark it as 'done' immediately? Or leave it running until next node?
-             # If we leave it running, we need to track it to close it.
-             # But on_chain_end triggers for this node too?
-             # Yes, on_chain_end should trigger. 
-             # Let's track it.
+             # Map internal node names to friendly phases
+             friendly_map = {
+                 "coder": "Coding Phase",
+                 "planner": "Planning Phase",
+                 "reviewer": "Review Phase",
+                 "researcher": "Research Phase",
+                 "executor": "Execution Phase",
+                 "verifier": "Verification Phase"
+             }
              
-             # Store node_run_id -> task_id map? 
-             # We only have one `current_task_id` in this handler class.
-             # But on_chain_start nests.
-             # If we overwrite `current_task_id`, we lose the previous one (e.g. LLM call inside Node).
-             # Wait, Node is the wrapper. LLM runs INSIDE Node.
-             # sequence: Node Start -> LLM Start -> LLM End -> Node End.
+             phase_name = friendly_map.get(node_name, f"Phase: {node_name}")
+             friendly_name = f"► {phase_name}" 
              
-             # So:
-             # 1. Node Start: Set `current_node_task_id`? 
-             # We might need a stack if we want perfect nesting.
-             # But for MVP, let's just log "Entering X" and mark it done immediately?
-             # Or mark it "running" and close it on_chain_end?
-             
-             # Let's try marking it running.
-             run_id = kwargs.get("run_id")
-             task_id = await self.monitor.add_task(self.thread_id, friendly_name, "node")
-             
-             # We can't easily track multiple active tasks with just one variable.
-             # But this handler instance is per run? No, standard callback handler is reused?
-             # Actually, usually one handler per invoke? Or global?
-             # In our code, we init `TransparentCallbackHandler(thread_id)` for the run.
-             # So it persists.
-             
-             # If we want to close it properly on_chain_end, we need to map run_id -> (task_id, node_name).
+             # Store node_run_id -> task_id map
              if not hasattr(self, "_active_nodes"):
                  self._active_nodes = {}
              
-             self._active_nodes[run_id] = (task_id, node_name)
+             # Only log if it's a known significant node (avoid internal LangGraph nodes)
+             should_log = node_name in friendly_map
+             
+             if should_log:
+                 run_id = kwargs.get("run_id")
+                 # We mark it as 'running' so it shows as the active phase
+                 task_id = await self.monitor.add_task(self.thread_id, friendly_name, "node")
+                 self._active_nodes[run_id] = (task_id, node_name)
              
     async def on_chain_end(self, outputs: Dict[str, Any], **kwargs: Any) -> None:
         """Run when chain ends running."""
@@ -291,9 +316,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 await self.monitor.update_task(self.thread_id, task_id, "done")
                 
                 # 2. Emit an "Exiting" milestone to trigger frontend stack pop
-                # This is crucial for TaskSteps auto-collapse and hierarchy logic
                 exit_name = f"Exiting [{node_name}]"
-                await self.monitor.add_task(self.thread_id, exit_name, "node", status="done")
+                # Add task first (defaults to running)
+                exit_id = await self.monitor.add_task(self.thread_id, exit_name, "node")
+                # Immediately mark done
+                if exit_id:
+                     await self.monitor.update_task(self.thread_id, exit_id, "done")
                 
             del self._active_nodes[run_id]
 
@@ -308,7 +336,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 
                 # 2. Emit an "Exiting" milestone with 'failed' status
                 exit_name = f"Exiting [{node_name}]"
-                await self.monitor.add_task(self.thread_id, exit_name, "node", status="failed")
+                exit_id = await self.monitor.add_task(self.thread_id, exit_name, "node")
+                if exit_id:
+                     await self.monitor.update_task(self.thread_id, exit_id, "failed")
                 
             del self._active_nodes[run_id]
         

@@ -26,62 +26,55 @@ from app.domain.planning.tools import create_plan, update_step_status, analyze_f
 supervisor_prompt = ChatPromptTemplate.from_messages([
     ("system", """You are the Supervisor of an elite coding team.
     
-    CRITICAL PROTOCOL:
+    **MISSION**: Your goal is to PREPARE the workspace for specialized workers (Coder, Deep Researcher). You do not write code yourself; you Analyze, Plan, and Route.
+
+    **WORKFLOW PHASES**:
+    1. **Explore**: If uncertain, use `manage_file` to inspect the directory tree or read critical documents.
+    2. **Plan**: For any modification task, you MUST use `create_plan` to draft a structured step-by-step plan.
+    3. **Verify**: Check if your plan covers all requirements.
+    4. **Handoff**: When ready, STOP tools and signal the next step.
+
+    **CRITICAL PROTOCOL**:
     1. **Context First**: 
        - If you are unsure about the file structure, call `manage_file(action='list_tree')` FIRST.
        - If user mentions a file/doc, call `manage_file(action='read')` IMMEDIATELY.
-    2. **Measure Twice, Cut Once**: Before delegating to `Coder`, you MUST validate your plan.
-       - Use `create_plan` tool to draft your approach.
-       - Verify that your plan covers all requirements and is technically sound.
-       - ONLY when you are confident in your plan should you route to `Coder`.
-    3. **Active Learning**:
-       - If the user explicitly states a preference (e.g. "Use pytest", "Don't use X"), call `save_preference` IMMEDIATELY.
-       - If you encounter unknown terms, call `search_concepts`.
 
-    4. **Explicit Planning (MANDATORY)**:
-       - You MUST call `create_plan` before delegating complex tasks to Coder or Deep Researcher.
+    2. **Explicit Planning (MANDATORY)**:
+       - You MUST call `create_plan` before delegating complex tasks to Coder.
        - If the user's request is a single-step question, you can skip planning.
-       - But for any "implement", "refactor", or "create" task, a Plan is REQUIRED.
        
-    5. **Continuous Learning**:
-       - When you have successfully completed a coding task (before finishing), call `harvest_knowledge` to record new concepts.
+    3. **Active Learning**:
+       - If user states a preference (e.g., "Use pytest"), call `save_preference`.
+       - If you complete a task, call `harvest_knowledge`.
 
-    6. **LANGUAGE PROTOCOL (STRICT)**:
-       - User Language Preference: {user_lang}
-       - Communicate with the user in that specific language (e.g., if Chinese, use Chinese).
-       - This applies to your thoughts, plans, and final responses.
+    4. **Language Protocol**:
+       - User Language: {user_lang}
+       - Communicate in this language.
 
-    **Direct Response Protocol (Thinking Mode)**:
-    - For simple greetings ("Hello"), questions ("What can you do?", "Who are you?"), or clarifications:
-      - **DO NOT** use tools.
-      - **DO NOT** route to Researcher unless external info is needed.
-      - **DO NOT** output JSON.
-      - Just **reply directly** to the user in **PLAIN TEXT** (Natural Language).
-      - Then route to `finish`.
-      - Example: "I can help you with coding and research." (NOT `{{"response": "I can help..."}}`)
+    **EXIT / HANDOFF STRATEGY**:
+    - **To Coder**: When you have a solid, feasible plan -> Output: "Plan verified. Ready for Coder." (STOP calling tools).
+    - **To Researcher**: If you need deep investigation -> Output: "Need more research on X." (STOP calling tools).
+    - **Direct Reply**: For simple questions -> Output the answer text directly.
 
-    5. **Think Before Action**:
-       - **CHECK HISTORY**: Before calling ANY tool, check if you have just performed this action.
-       - **AVOID REDUNDANCY**: If you have already read a file or searched a query and received a valid result, DO NOT repeat it.
-       - Explain WHY: "I will read the file `main.py` to check imports." or "I see I have already read `main.py`, proceeding to analysis."
-    
-    Your routing options:
-    1. Researcher: For questions, info gathering, or if you need to investigate the codebase.
-    2. Coder: ONLY when you have a feasible, verified plan and all context.
-    3. Deep Research: For complex investigations.
-    4. Documenter: For documentation tasks.
-    5. Finish: When done (or after a direct response).
-    
-    Default to Researcher if unsure.
-    
+    **Dynamic HITL Protocol**:
+    - Use `request_human_input` if ambiguous or risky. System will pause.
+
+    **Think Before Action**:
+    - **CHECK HISTORY**: Before calling ANY tool, check if you have just performed this action.
+    - **CHECK FOR ANSWER**: If the conversation history shows you have ALREADY answered the user's question, DO NOT explore again.
+      - Output: "I have provided the answer above. Task completed."
+      - This will effectively trigger the "finish" route.
+    - **AVOID REDUNDANCY**: If you have already read a file or searched a query and received a valid result, DO NOT repeat it.
+    - Explain WHY: "I will read the file `main.py` to check imports." or "I see I have already read `main.py`, proceeding to analysis."
     Current Plan: {current_plan}
     Project ID: {project_id}
     Iteration: {iteration_count}
     System Info: {system_info}
     """),
     ("placeholder", "{messages}"),
-    ("system", "Follow the protocol: Read docs, Create Plan, Then decide.")
+    ("system", "Follow protocol: Explore -> Plan -> Handoff. Do not code directly.")
 ])
+
 
 # Define Structured Output for Supervisor
 class RoutingDecision(BaseModel):
@@ -102,7 +95,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     logger = logging.getLogger(__name__)
     llm = LLMFactory.create_llm()
     # Context
-    project_id = state.get("project_id", 1) # Default to 1 if missing
+    project_id = state.get("project_id", 1)  # Default to 1 if missing
 
     # OPTIMIZATION: Emit "Thinking" status immediately for UI responsiveness
     try:
@@ -140,7 +133,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         from app.core.learning.skill_executor import skill_matcher, SkillExecutor
         from app.domain.tools.registry import get_supervisor_tools
         from app.infrastructure.mcp.client import mcp_client_manager
-        
+
         # Get last user message
         current_msgs = state.get("messages", [])
         last_human_msg = None
@@ -148,18 +141,19 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
             if isinstance(msg, HumanMessage):
                 last_human_msg = msg.content
                 break
-        
+
         if last_human_msg and not state.get("skill_execution_attempted"):
-            match = await skill_matcher.match(last_human_msg, threshold=0.7)
-            
+            thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+            match = await skill_matcher.match(last_human_msg, threshold=0.7, thread_id=thread_id)
+
             if match:
                 logger.info(f"🎯 Skill Match Found: '{match.skill_name}' (confidence: {match.confidence:.2f})")
-                
+
                 # Build tool registry for execution
                 core_tools = get_supervisor_tools()
                 mcp_tools = mcp_client_manager.get_tools()
                 tool_registry = {t.name: t for t in core_tools + mcp_tools}
-                
+
                 # Execute skill
                 executor = SkillExecutor(config)
                 success, result = await executor.execute_skill(
@@ -167,13 +161,13 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
                     match.extracted_params,
                     tool_registry
                 )
-                
+
                 # Create response message
                 if success:
                     response_content = f"✅ Executed skill '{match.skill_name}':\n{result}"
                 else:
                     response_content = f"⚠️ Skill '{match.skill_name}' partially failed:\n{result}"
-                
+
                 # Return with skill execution result, skip to finish
                 return {
                     "messages": [AIMessage(content=response_content)],
@@ -198,28 +192,28 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
             state["user_preferences"] = prefs
         except Exception as e:
             state["user_preferences"] = f"Error fetching preferences: {e}"
-            
+
     # Tool Binding with Semantic Retrieval
     from app.infrastructure.mcp.client import mcp_client_manager
     from app.domain.tools.retrieval import tool_retriever
     from app.domain.tools.registry import get_supervisor_tools
-    
+
     # 1. Core Tools (Always Active)
     core_tools = get_supervisor_tools()
-    
+
     # 2. Candidate Tools (MCP)
     mcp_tools = mcp_client_manager.get_tools()
-    
+
     # 3. Retrieve Relevant Tools
     # Ensure candidates are indexed (idempotent)
     await tool_retriever.index_tools(mcp_tools)
-    
+
     # Context for retrieval
     query_context = state.get("task_status", "General task")
     last_msg = ""
     if messages and isinstance(messages[-1].content, str):
-         last_msg = messages[-1].content
-         query_context += f" {last_msg}"
+        last_msg = messages[-1].content
+        query_context += f" {last_msg}"
 
     # Semantic Concept Injection (Active Knowledge)
     project_concepts = ""
@@ -229,25 +223,25 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         if last_msg:
             found_concepts = await memory_service.search_concepts(last_msg, project_id)
             if found_concepts and "No relevant concepts" not in found_concepts:
-                 project_concepts = f"\nRelevant Project Concepts:\n{found_concepts}"
+                project_concepts = f"\nRelevant Project Concepts:\n{found_concepts}"
     except Exception as e:
         project_concepts = f"\n(Concept Search Failed: {e})"
-    
+
     # Fetch top relevant tools
     retrieved_tools = await tool_retriever.retrieve(query_context, k=15)
-    
+
     # Combine (Core + Retrieved)
     # Use a dict by name to deduplicate in case of overlap
     tool_dict = {t.name: t for t in core_tools + retrieved_tools}
     tools = list(tool_dict.values())
-    
+
     llm_with_tools = llm.bind_tools(tools)
-    
+
     # 1. Tool Loop (Read -> Plan -> Analyze -> Think/Response)
     # Increased loop count to allow: Read Doc -> Analyze Plan -> (maybe Analyze again) -> Decide
-    
+
     # messages list is already initialized above
-    
+
     current_plan = state.get("current_plan", "No plan yet.")
     iteration_count = state.get("iteration_count", 0)
 
@@ -255,9 +249,9 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     # Gather System Info
     import os, platform
     from app.domain.system.service import SystemConfigService
-    
+
     cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
-    
+
     # Language Preference (Synced with Frontend)
     user_lang = SystemConfigService.get_language_preference()
 
@@ -267,61 +261,51 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     try:
         # Use underlying Generator directly (Smart Truncation)
         from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
-        
+
         # Limit depth to 3 and files per dir to 30 for tokens safety
         generator = AnnotatedTreeGenerator(cwd, max_depth=3, with_symbols=False, file_limit=30)
         project_structure = await generator.generate()
-        
+
     except Exception as e:
         project_structure = f"Tree error: {e}"
-        
-    sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage Preference: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}" # Limit size
-    
-    tool_chain = supervisor_prompt.partial(
-        project_id=project_id, 
-        current_plan=current_plan, 
-        iteration_count=iteration_count,
-        system_info=sys_info,
-        user_lang=user_lang
-    ) | llm_with_tools
-    
+
+    # Limit size
+    sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage Preference: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}"
+
     # Allow up to 10 turns for planning & analysis
     has_replied_directly = False
-    
+
     for i in range(10):
+        # Refresh Context for Prompt (Critical for Plan updates)
+        current_plan = state.get("current_plan", "No plan yet.")
+        iteration_count = state.get("iteration_count", 0)
+
+        tool_chain = supervisor_prompt.partial(
+            project_id=project_id,
+            current_plan=current_plan,
+            iteration_count=iteration_count,
+            system_info=sys_info,
+            user_lang=user_lang
+        ) | llm_with_tools
         # Initialize logger
         # logger = logging.getLogger(__name__)
 
         # Sanitize / Repair Messages
         # Verify that every ToolMessage is preceded by an AIMessage with matching tool_calls
+        # Fix: Support Parallel Tool Calls (AI -> Tool1 -> Tool2)
         repaired_messages = []
-        
-        # We reconstruct the list
+        valid_tool_ids = set()
+
         iterator = iter(messages)
         try:
-            prev_msg = None
             while True:
                 msg = next(iterator)
-                
-                if isinstance(msg, ToolMessage):
-                    is_orphan = False
-                    if prev_msg is None:
-                        is_orphan = True
-                    elif not isinstance(prev_msg, AIMessage):
-                        is_orphan = True
-                    elif not prev_msg.tool_calls:
-                        # Previous was AI, but had no tool calls? Orphan.
-                        is_orphan = True
-                    else:
-                        found = False
-                        for call in prev_msg.tool_calls:
-                            if call['id'] == msg.tool_call_id:
-                                found = True
-                                break
-                        if not found:
-                             is_orphan = True
-                    
-                    if is_orphan:
+
+                if isinstance(msg, AIMessage) and msg.tool_calls:
+                    valid_tool_ids = {tc['id'] for tc in msg.tool_calls}
+                elif isinstance(msg, ToolMessage):
+                    if msg.tool_call_id not in valid_tool_ids:
+                        # is_orphan = True
                         logger.debug(f"🔧 REPAIRING ORPHANED TOOL MESSAGE: {msg.tool_call_id}")
                         # Create a dummy AI message that 'calls' this tool
                         dummy_ai = AIMessage(
@@ -333,19 +317,24 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
                             }]
                         )
                         repaired_messages.append(dummy_ai)
-                
+                        # Now it's valid for this dummy
+                        valid_tool_ids.add(msg.tool_call_id)
+                elif isinstance(msg, (HumanMessage, SystemMessage)):
+                    # Reset valid tools on new turn
+                    valid_tool_ids = set()
+
                 repaired_messages.append(msg)
-                prev_msg = msg
-                
+
         except StopIteration:
             pass
-            
+
         # Update state temporarily for this invocation
         state["messages"] = repaired_messages
-    
+
         # Pass config for streaming callbacks
         result = await tool_chain.ainvoke(state, config=config)
-        
+        logger.info(f"LLM Response: {result.content}")
+
         # Check for tool calls
         if hasattr(result, "tool_calls") and result.tool_calls:
             # Append the AI message (Assistant) first - ONCE
@@ -354,7 +343,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
 
             # Create tool map for easy lookup
             tool_map = {t.name: t for t in tools}
-            
+
             # Track executed tools in this session to prevent loops
             # We use a simple signature: name + sorted(args.items())
             if "tool_history" not in state:
@@ -364,7 +353,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
             for tool_call in result.tool_calls:
                 tool_name = tool_call["name"]
                 tool_args = tool_call["args"]
-                
+
                 # Check for duplication
                 import json
                 try:
@@ -372,15 +361,15 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
                     tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
                 except:
                     tool_sig = f"{tool_name}:{str(tool_args)}"
-                
+
                 content = ""
                 is_duplicate = False
-                
+
                 # Check duplication against local state history
                 if tool_sig in state["tool_history"]:
-                     content = f"⚠️ SYSTEM ALERT: You have ALREADY executed `{tool_name}` with these exact arguments. Do not repeat actions. Review the history to see the results. Proceed to the next step."
-                     is_duplicate = True
-                     logger.warning(f"Prevented duplicate tool call: {tool_sig}")
+                    content = f"⚠️ SYSTEM ALERT: You have ALREADY executed `{tool_name}` with these exact arguments. Do not repeat actions. Review the history to see the results. Proceed to the next step."
+                    is_duplicate = True
+                    logger.warning(f"Prevented duplicate tool call: {tool_sig}")
                 else:
                     state["tool_history"].append(tool_sig)
 
@@ -388,10 +377,10 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
                     if tool_name in tool_map:
                         selected_tool = tool_map[tool_name]
                         executor = ToolExecutor()
-                        
+
                         # Universal async invocation with observability
                         content = await executor.execute(selected_tool, tool_args, config=config)
-                             
+
                         # Special Handling for State Updates (create_plan)
                         if tool_name == "create_plan":
                             try:
@@ -407,17 +396,17 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
 
                 # Create tool message
                 tool_msg = ToolMessage(content=str(content), tool_call_id=tool_call["id"], name=tool_name)
-                
+
                 # Update state messages
                 messages.append(tool_msg)
                 new_messages.append(tool_msg)
-                
+
             # Update local state for next iteration (after all tools processed)
             state["messages"] = messages
-            
+
             # Continue loop
             continue
-        
+
         # Check for direct text response (Thinking Mode)
         elif result.content:
             # The LLM provided a direct response (e.g. "Hello! I can help you with...")
@@ -428,13 +417,13 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
             has_replied_directly = True
             # We break because we got a response, now we decide where to go (likely Finish)
             break
-            
+
         else:
             # No tool call, no content? Just break ready to decide
             break
-            
+
     # 2. Make Routing Decision
-    
+
     # HEURISTIC: Check if we just received a Deep Research Report
     if messages and isinstance(messages[-1], AIMessage):
         last_content = messages[-1].content
@@ -446,6 +435,18 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
                 "current_plan": state.get("current_plan"),
                 "structured_plan": state.get("structured_plan"),
                 "parallel_research_tasks": []
+            }
+
+    # HEURISTIC: Check if we just requested Human Input
+    # If the last tool call was `request_human_input`, we must STOP and wait (route to finish).
+    # The system will resume later with the user's input.
+    if messages and isinstance(messages[-1], ToolMessage):
+        if messages[-1].name == "request_human_input" or messages[-1].name == "request_approval":
+            logger.info("Human Input requested. Creating interrupt point (finish).")
+            return {
+                "next_node": "finish",
+                "messages": new_messages,
+                "current_plan": state.get("current_plan"),
             }
 
     from langchain_core.output_parsers import JsonOutputParser
@@ -461,19 +462,26 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         - "documenter": If you need to write documentation.
         - "finish": If the user's request is fully satisfied, OR if you have replied directly to a general question (e.g. "What can you do?").
         
-        CRITICAL: 
-        - If you have answered a simple question directly, CHOOSE "finish".
-        - You MUST output a JSON object matching the schema.
-        - "next_node" is REQUIRED.
+        CRITICAL EXIT CRITERIA (CHECK FIRST):
+        1. **Direct Answer Provided**: If the LAST message from the AI (Supervisor) contains a direct answer to the user's question (e.g. "The project is...", "I have fixed..."), YOU MUST CHOOSE "finish".
+        2. **Task Completed**: If the Agent says "Done", "Fixed", or "Plan is ready for Coder" -> Route accordingly (Finish or Coder).
+        
+        Specific Rules:
+        - If Agent says "Plan verified. Ready for Coder" -> Route to "coder".
+        - If Agent says "Need more research" -> Route to "deep_researcher".
+        - If Agent provided the answer -> Route to "finish".
+        
+        You MUST output a JSON object matching the schema.
+        "next_node" is REQUIRED.
         
         {format_instructions}
         
         system_info: {system_info}
         """),
         ("placeholder", "{messages}"),
-        ("system", "Analyze the above conversation. Decide the next step. Output ONLY the JSON object."),
+        ("system", "Analyze the above conversation. Has the question been answered? If yes, route to finish. Output ONLY the JSON object."),
     ])
-    
+
     chain = routing_prompt.partial(
         system_info=sys_info,
         format_instructions=format_instructions
@@ -488,11 +496,11 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         # CRITICAL: We must explicitly set to empty list to override parent context callbacks!
         # Deleting the key causes it to inherit from parent context.
         routing_config["callbacks"] = []
-        
+
         if "configurable" in routing_config:
             # Keep configurable but ensure we don't accidentally pass other tracking metadata if needed
             pass
-            
+
         raw_decision = await chain.ainvoke(state, config=routing_config)
         # Parse manually into Pydantic to ensure validation
         decision = RoutingDecision(**raw_decision)
@@ -502,7 +510,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     except Exception as e:
         # Fallback if structured output fails
         next_node = "deep_researcher"
-        
+
     # CRITICAL: Return the new messages so LangGraph persists them!
     # If we return "messages": new_messages, LangGraph's reducer (operator.add) will append them.
     # If map_research is chosen but no tasks, fallback

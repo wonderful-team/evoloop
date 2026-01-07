@@ -347,5 +347,27 @@ class MemoryService:
             
         return info
 
+    async def get_project_concepts(self, project_id: int) -> list[str]:
+        """
+        Retrieve all concepts associated with a project.
+        """
+        driver = await get_graph_db()
+        pid_val = project_id if project_id else 0
+        
+        query = """
+        MATCH (c:Concept {project_id: $pid})
+        RETURN c.name as name, c.description as description
+        ORDER BY c.name
+        """
+        
+        async with driver.session() as session:
+            result = await session.run(query, pid=pid_val)
+            records = await result.data()
+            
+        if not records:
+             return []
+             
+        return [f"{r['name']}: {r['description']}" for r in records]
+
 memory_service = MemoryService()
 

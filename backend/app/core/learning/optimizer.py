@@ -27,7 +27,7 @@ Return ONLY the new System Prompt text. Do not wrap in markdown blocks if not ne
 
 class PromptOptimizer:
     
-    async def optimize(self, current_prompt: str, trace_summary: str, feedback: str) -> str:
+    async def optimize(self, current_prompt: str, trace_summary: str, feedback: str, thread_id: str = None) -> str:
         """
         Reflects on the failure and returns a better prompt.
         """
@@ -52,7 +52,7 @@ Please optimize the prompt to fix this.
                  HumanMessage(content=user_content)
              ]
              
-             response = await llm.ainvoke(messages)
+             response = await llm.ainvoke(messages, config={"callbacks": []})
              new_prompt = response.content.strip()
              
              # Basic cleanup
@@ -64,6 +64,27 @@ Please optimize the prompt to fix this.
                  new_prompt = "\n".join(lines).strip()
                  
              logger.info(f"Optimized prompt based on feedback: {feedback}")
+             
+             # Phase 6: Transparent Thought
+             if thread_id:
+                 try:
+                     from app.core.monitoring.activity import activity_monitor
+                     await activity_monitor.update_agent_state(
+                         thread_id=thread_id,
+                         mode="LEARNING",
+                         task_name="Prompt Optimization",
+                         task_status="Applied Self-Correction",
+                         details={
+                            "type": "thought",
+                            "thought_type": "optimization",
+                            "original_length": len(current_prompt),
+                            "new_length": len(new_prompt),
+                            "feedback": feedback
+                         }
+                     )
+                 except Exception:
+                     pass
+                     
              return new_prompt
              
         except Exception as e:

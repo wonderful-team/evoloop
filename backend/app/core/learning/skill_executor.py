@@ -71,7 +71,7 @@ class SkillMatcher:
         regex = re.sub(r'\\{(\w+)\\}', r'(?P<\1>.+?)', escaped)
         return f"^{regex}$"
     
-    async def match(self, user_input: str, threshold: float = 0.5) -> Optional[SkillMatch]:
+    async def match(self, user_input: str, threshold: float = 0.5, thread_id: str = None) -> Optional[SkillMatch]:
         """
         Find best matching skill for user input.
         
@@ -112,7 +112,7 @@ class SkillMatcher:
         
         # If no regex match, try semantic matching with LLM
         if not best_match or best_confidence < threshold:
-            semantic_match = await self._semantic_match(user_input, skills)
+            semantic_match = await self._semantic_match(user_input, skills, thread_id=thread_id)
             if semantic_match and semantic_match.confidence > best_confidence:
                 best_match = semantic_match
         
@@ -121,7 +121,7 @@ class SkillMatcher:
         
         return None
     
-    async def _semantic_match(self, user_input: str, skills: List[LearnedSkillModel]) -> Optional[SkillMatch]:
+    async def _semantic_match(self, user_input: str, skills: List[LearnedSkillModel], thread_id: str = None) -> Optional[SkillMatch]:
         """
         Use LLM to semantically match user input to skills.
         """
@@ -153,7 +153,7 @@ Output ONLY the JSON, no explanation."""
             response = await llm.ainvoke([
                 SystemMessage(content="You are a skill matching assistant."),
                 HumanMessage(content=prompt)
-            ])
+            ], config={"callbacks": []})  # Disable global callbacks to prevent JSON leakage
             
             content = response.content.strip()
             if "```" in content:
@@ -164,12 +164,34 @@ Output ONLY the JSON, no explanation."""
             data = json.loads(content)
             
             if data.get("skill_id"):
-                return SkillMatch(
+                match = SkillMatch(
                     skill_id=data["skill_id"],
                     skill_name=data.get("skill_name", ""),
                     confidence=data.get("confidence", 0.6),
                     extracted_params=data.get("params", {})
                 )
+                
+                # Phase 6: Transparent Thought
+                if thread_id:
+                    from app.core.monitoring.activity import activity_monitor
+                    try:
+                        await activity_monitor.update_agent_state(
+                            thread_id=thread_id,
+                            mode="SKILL",
+                            task_name="Skill Matching",
+                            task_status=f"Identified Skill: {match.skill_name}",
+                            details={
+                                "type": "thought",
+                                "thought_type": "skill_match",
+                                "skill_name": match.skill_name,
+                                "confidence": match.confidence,
+                                "params": match.extracted_params
+                            }
+                        )
+                    except Exception:
+                        pass
+                
+                return match
         except Exception as e:
             logger.warning(f"Semantic skill matching failed: {e}")
         
@@ -214,6 +236,18 @@ class SkillExecutor:
             return False, "Failed to parse skill steps"
         
         logger.info(f"Executing skill '{skill.name}' with {len(steps)} steps")
+        
+        # Notify Activity Monitor
+        from app.core.monitoring.activity import activity_monitor
+        thread_id = self.config.get("configurable", {}).get("thread_id")
+        skill_task_id = None
+        
+        if thread_id:
+            skill_task_id = await activity_monitor.add_task(
+                thread_id, 
+                f"Executing Skill: {skill.name}", 
+                "skill"
+            )
         
         results = []
         previous_result = None
@@ -269,6 +303,10 @@ class SkillExecutor:
         
         success = not any("Failed" in r for r in results)
         summary = "\n".join(results)
+        
+        if thread_id and skill_task_id:
+            status = "done" if success else "failed"
+            await activity_monitor.update_task(thread_id, skill_task_id, status, details=summary)
         
         return success, summary
     

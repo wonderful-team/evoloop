@@ -171,7 +171,7 @@ class EnhancedWorkflowSynthesizer:
             HumanMessage(content="Please analyze the trace and generate the skill YAML.")
         ]
         
-        response = await llm.ainvoke(messages)
+        response = await llm.ainvoke(messages, config={"callbacks": []})  # Internal thought, do not stream
         content = response.content
         
         # Strip markdown fences

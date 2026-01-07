@@ -58,7 +58,8 @@ export function MessageContent({ content }: { content: string }) {
   }
 
   // Split by [Image: ...] or [File: ...]
-  const parts = content.split(/(\[(?:Image|File):\s*https?:\/\/[^\]]+\])/g)
+  // Fix: Regex now accepts any non-bracket characters as URL/Path to support local refs
+  const parts = content.split(/(\[(?:Image|File):\s*[^\]]+\])/g)
 
   const handleFileClick = (url: string) => {
     window.open(url, "_blank")
@@ -67,8 +68,8 @@ export function MessageContent({ content }: { content: string }) {
   return (
     <div className="text-sm leading-relaxed overflow-hidden break-words">
       {parts.map((part, index) => {
-        const imageMatch = part.match(/^\[Image:\s*(https?:\/\/[^\]]+)\]$/)
-        const fileMatch = part.match(/^\[File:\s*(https?:\/\/[^\]]+)\]$/)
+        const imageMatch = part.match(/^\[Image:\s*([^\]]+)\]$/)
+        const fileMatch = part.match(/^\[File:\s*([^\]]+)\]$/)
 
         if (imageMatch) {
           const url = imageMatch[1]

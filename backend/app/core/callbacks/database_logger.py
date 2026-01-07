@@ -104,8 +104,11 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                     
                     # Fix: Move this internal analysis to 'thinking' so it's collapsed in UI
                     # instead of showing as a main bubble.
+                    # Fix: Keep a summary in content so it's not empty
                     thinking = md
-                    content = ""
+                    if not content or content.strip().startswith("{"):
+                         content = f"🤔 **Thinking Process:**\n{reasoning}\n\n(See Thinking tab for details)"
+
 
             except json.JSONDecodeError:
                 pass # Not JSON, ignore
@@ -114,13 +117,40 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         if content or thinking:
              # Phase 9: Extract References from tool calls
              references = []
+             tool_calls_data = None
+             
              if hasattr(message, "tool_calls") and message.tool_calls:
+                 tool_calls_data = [tc for tc in message.tool_calls] # Copy list
                  for tc in message.tool_calls:
                      ref = self._extract_reference(tc)
                      if ref:
                          references.append(ref)
              
-             await self._save_log("ai", content, thinking=thinking, references=references)
+             # Determine Role: If pure tool call (no text content), log as 'tool' to hide from UI
+             # But if mixed (Text + Action), keep as 'ai'
+             log_role = "ai"
+             original_text_content = generation.message.content or ""
+             if not original_text_content.strip() and hasattr(message, "tool_calls") and message.tool_calls:
+                 log_role = "tool"
+
+             await self._save_log(log_role, content, thinking=thinking, references=references, tool_calls=tool_calls_data)
+
+    def _get_tool_summary(self, tool_call: Dict) -> str:
+        """Generate a user-friendly summary of what a tool is doing."""
+        tool_name = tool_call.get("name", "tool")
+        tool_input = tool_call.get("args", {})
+        
+        if tool_name == "manage_file":
+            action = tool_input.get("action", "access")
+            path = tool_input.get("path", "file")
+            return f"{action.replace('_', ' ').capitalize()} '{path}'"
+        elif tool_name == "search_codebase":
+            query = tool_input.get("query", "")
+            return f"Searching code for '{query}'"
+        elif tool_name == "request_human_input":
+            return f"Asking user: {tool_input.get('prompt', '')}"
+        
+        return f"Running {tool_name}"
 
     def _extract_reference(self, tool_call: Dict) -> Optional[Dict]:
         """Extract structure reference data from tool call"""
@@ -145,17 +175,28 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         except:
             return None
 
-    # ... (on_tool_end, on_chain_end remain same) ...
+    # Implement on_tool_end to capture tool outputs
+    async def on_tool_end(
+        self,
+        output: str,
+        *,
+        run_id: UUID,
+        parent_run_id: Optional[UUID] = None,
+        **kwargs: Any,
+    ) -> Any:
+        # Capture tool output
+        # Used for history and debugging
+        await self._save_log(role="tool", content=str(output), status="completed", tool_output=str(output))
 
-    async def _save_log(self, role: str, content: str, thinking: str = None, status: str = "completed", references: List[Dict] = None):
-        if not content and not thinking:
+    async def _save_log(self, role: str, content: str, thinking: str = None, status: str = "completed", references: List[Dict] = None, tool_calls: List = None, tool_output: str = None):
+        if not content and not thinking and not tool_calls:
             return
 
         # Improved Deduplication: Hash + Role + Time Window (2 seconds)
         # This allows legitimately repeated messages while preventing rapid-fire duplicates
         import time
         current_time = time.time()
-        current_hash = hash((role, content)) if content else 0
+        current_hash = hash((role, content, str(tool_calls))) if content else 0
         
         last_hash = getattr(self, "_last_logged_hash", None)
         last_time = getattr(self, "_last_logged_time", 0)
@@ -194,7 +235,10 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                      run_id=self.run_id,
                      status=status,
                      # Phase 4: Threading
-                     parent_id=parent_id
+                     parent_id=parent_id,
+                     # Tool Data
+                     tool_calls=tool_calls,
+                     tool_output=tool_output
                  )
                  session.add(log)
                  await session.flush() # Get ID

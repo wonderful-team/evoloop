@@ -15,9 +15,10 @@ class IntentionOutput(BaseModel):
     refined_instruction: str = Field(description="The instruction optimized for the selected agent.")
 
 class IntentionPredictor:
-    async def predict(self, instruction: str) -> IntentionOutput:
+    async def predict(self, instruction: str, thread_id: str = None) -> IntentionOutput:
         from app.core.llm.factory import LLMFactory
         from langchain_core.output_parsers import JsonOutputParser
+        from app.core.monitoring.activity import activity_monitor
         
         # Dynamic LLM creation
         llm = LLMFactory.create_llm(temperature=0)
@@ -50,11 +51,38 @@ User Request: {instruction}
         chain = final_prompt | llm | parser
         
         try:
-            result = await chain.ainvoke({"instruction": instruction, "format_instructions": format_instructions})
-            # Fix: Parser returns dict, need to convert to Pydantic
+            result = await chain.ainvoke(
+                {"instruction": instruction, "format_instructions": format_instructions},
+                config={"callbacks": []}  # Disable global callbacks (streaming) for internal thought
+            )
+            
+            output = None
             if isinstance(result, dict):
-                return IntentionOutput(**result)
-            return result
+                output = IntentionOutput(**result)
+            else:
+                output = result
+                
+            # Phase 6: Side Channel for Transparent Thought
+            if thread_id:
+                try:
+                    await activity_monitor.update_agent_state(
+                        thread_id=thread_id,
+                        mode="ROUTING",
+                        task_name="Intent Analysis",
+                        task_status=f"Intent detected: {output.intent.upper()}",
+                        details={
+                            "type": "thought",
+                            "thought_type": "intent",
+                            "intent": output.intent,
+                            "reasoning": output.reasoning,
+                            "confidence": 0.95 # Proxy high confidence for success
+                        }
+                    )
+                except Exception as e:
+                    pass # Non-blocking
+                    
+            return output
+            
         except Exception:
             # Fallback for parsing errors
             return IntentionOutput(intent="general", reasoning="Error parsing intention", refined_instruction=instruction)

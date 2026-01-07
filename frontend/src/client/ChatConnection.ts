@@ -101,8 +101,12 @@ export class ChatConnection {
         sse.addEventListener("token", (e) => {
             try {
                 const data = JSON.parse(e.data);
+                // Phase 3 Refactor: Backend now sends { content: "..." }
                 if (data && typeof data.content === 'string') {
                     this.callbacks?.onToken(data.content);
+                } else if (typeof data === 'string') {
+                    // Fallback for raw legacy
+                    this.callbacks?.onToken(data);
                 }
             } catch (err) {
                 // Fallback for raw text

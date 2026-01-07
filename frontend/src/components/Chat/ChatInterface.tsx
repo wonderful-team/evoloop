@@ -24,22 +24,25 @@ import { useChatStore } from "@/stores/chatStore"
 import { useProjectStore } from "@/stores/projectStore"
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 import { Button } from "../ui/button"
+import { ArtifactsList } from "./Artifacts/ArtifactsList"
 import { ChatInputArea } from "./ChatInputArea"
 import { ChatMessageItem } from "./ChatMessageItem"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
-import { HumanRequestCard } from "./HumanRequestCard"
 import { MessageContent } from "./MessageContent"
 import { TaskSteps } from "./TaskSteps"
+import { AgentCanvas } from "./AgentCanvas"
+import { HITLBanner } from "./HITLBanner"
 
 const CompositeAIBubble = memo(() => {
   const streamedContent = useChatStore((s) => s.streamedContent)
   const tasks = useChatStore((s) => s.tasks)
+  const artifacts = useChatStore((s) => s.artifacts)
   const status = useChatStore((s) => s.status)
 
-  // Only show when there's activity (streaming content or running tasks)
+  // Only show when there's activity (streaming content, running tasks, or artifacts)
   const hasContent =
-    streamedContent || tasks.some((t) => t.status === "running")
+    streamedContent || tasks.some((t) => t.status === "running") || artifacts.length > 0
   if (!hasContent && status === "idle") return null
 
   return (
@@ -77,6 +80,9 @@ const CompositeAIBubble = memo(() => {
           </Collapsible>
         )}
 
+        {/* Artifacts List */}
+        {artifacts.length > 0 && <ArtifactsList artifacts={artifacts} />}
+
         {/* Streaming Content */}
         {streamedContent && (
           <div className="rounded-lg px-4 py-3 bg-muted text-foreground text-sm leading-relaxed shadow-sm overflow-hidden">
@@ -99,17 +105,43 @@ CompositeAIBubble.displayName = "CompositeAIBubble"
 const StatusIndicator = memo(() => {
   const status = useChatStore((s) => s.status)
   const tasks = useChatStore((s) => s.tasks)
+  const agentState = useChatStore((s) => s.agentState)
 
   if (status !== "running" && status !== "SUMMARIZING") return null
 
-  // Find active task name
+  // Find active task name (fallback if no high-level state)
   const runningTask = tasks.find((t: any) => t.status === "running")
-  const actionName = runningTask ? runningTask.name : "Working..."
+  // Prefer Agent State (High Level) > Running Task (Low Level) > Default
+  const displayTask = agentState?.task_name || runningTask?.name || "Working..."
+  const displayMode = agentState?.mode || "BUSY"
+
+  const getModeColor = (mode: string) => {
+    switch (mode.toUpperCase()) {
+      case 'PLANNING': return 'text-purple-600 bg-purple-100/50 dark:bg-purple-900/20'
+      case 'RESEARCHING':
+      case 'DEEP RESEARCH': return 'text-blue-600 bg-blue-100/50 dark:bg-blue-900/20'
+      case 'CODING': return 'text-amber-600 bg-amber-100/50 dark:bg-amber-900/20'
+      case 'REVIEWING': return 'text-pink-600 bg-pink-100/50 dark:bg-pink-900/20'
+      default: return 'text-muted-foreground bg-muted'
+    }
+  }
 
   return (
-    <div className="flex items-center gap-3 pl-11 mb-4">
-      <Loader2 size={14} className="animate-spin text-primary" />
-      <span className="text-sm text-muted-foreground">{actionName}</span>
+    <div className="flex items-center gap-3 pl-11 mb-4 animate-in fade-in duration-300">
+      <div className="relative">
+        <Loader2 size={16} className="animate-spin text-primary" />
+      </div>
+
+      <div className="flex items-center gap-2 overflow-hidden">
+        {agentState && (
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${getModeColor(displayMode)}`}>
+            {displayMode}
+          </span>
+        )}
+        <span className="text-sm text-muted-foreground truncate animate-pulse selection:bg-transparent">
+          {displayTask}
+        </span>
+      </div>
     </div>
   )
 })
@@ -127,14 +159,15 @@ export function ChatInterface() {
   const messages = useChatStore((s) => s.messages)
   const status = useChatStore((s) => s.status)
   const tasks = useChatStore((s) => s.tasks)
-  const humanRequest = useChatStore((s) => s.humanRequest) // New selector
-  // streamedContent is handled by StreamingBubble
+  const streamedContent = useChatStore((s) => s.streamedContent)
   const setThread = useChatStore((s) => s.setThread)
   const sendMessage = useChatStore((s) => s.sendMessage)
   const stopAgent = useChatStore((s) => s.stopAgent)
 
   // We maintain 'showContextPanel' locally as it involves UI preference
   const [showContextPanel, setShowContextPanel] = useState(true)
+  // Agent Canvas visibility state - auto-opens when agent is active
+  const [isCanvasOpen, setIsCanvasOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Smart Scroll State
@@ -280,12 +313,23 @@ export function ChatInterface() {
     if (!isUserScrolled) {
       scrollToBottom()
     }
-  }, [isUserScrolled, scrollToBottom]) // Trigger on updates
+  }, [isUserScrolled, scrollToBottom, messages, streamedContent, tasks]) // Trigger on content updates
 
   useEffect(() => {
     setIsUserScrolled(false)
     scrollToBottom()
   }, [scrollToBottom])
+
+  // Auto-open/close Agent Canvas based on status
+  useEffect(() => {
+    if (status === "running" || status === "interrupted" || status === "SUMMARIZING") {
+      setIsCanvasOpen(true)
+    } else if (status === "idle" && !streamedContent) {
+      // Close canvas when agent finishes, with a small delay for smooth transition
+      const timer = setTimeout(() => setIsCanvasOpen(false), 500)
+      return () => clearTimeout(timer)
+    }
+  }, [status, streamedContent])
 
   // Phase 8: Deep Linking Listener
   useEffect(() => {
@@ -320,7 +364,11 @@ export function ChatInterface() {
           className="hidden lg:block min-w-[250px] border-r"
         >
           <ChatSidebar
-            threads={threads}
+            threads={threads.map(t => ({
+              ...t,
+              // Override status if it's the active thread, using reliable store state
+              status: t.thread_id === activeThreadId ? status : t.status
+            }))}
             activeThreadId={activeThreadId || ""}
             setActiveThreadId={(id) => projectId && setThread(id, projectId)}
             projectId={projectId}
@@ -349,6 +397,9 @@ export function ChatInterface() {
               </div>
             )}
 
+            {/* HITL Banner - Top of chat area when agent is waiting */}
+            <HITLBanner />
+
             <div
               className="flex-1 overflow-y-auto p-4 min-h-0 scroll-smooth"
               ref={scrollRef}
@@ -373,43 +424,21 @@ export function ChatInterface() {
                   />
                 ))}
 
-                {/* Composite AI Bubble - Shows TaskSteps + Streaming Content together */}
-                {status !== "idle" &&
-                  status !== "stopped" &&
-                  status !== "unknown" &&
-                  status !== "interrupted" && (
-                    <div className="flex flex-col gap-2 max-w-3xl mx-auto animate-in fade-in duration-300">
-                      <CompositeAIBubble />
-                      <StatusIndicator />
-                    </div>
-                  )}
-
-                {/* Show collapsed TaskSteps when idle but tasks exist (Persistence after completion) */}
-                {status === "idle" && tasks.length > 0 && (
-                  <div className="flex gap-3 justify-start items-start mb-4 max-w-3xl mx-auto">
-                    <Avatar className="h-8 w-8 mt-1 shrink-0 opacity-50">
+                {/* Agent Canvas now handles live content - status indicator inline for reference */}
+                {status === "running" && (
+                  <div className="flex gap-3 justify-start items-start mb-4 max-w-3xl mx-auto animate-in fade-in">
+                    <Avatar className="h-8 w-8 mt-1 shrink-0">
+                      <AvatarImage src="/bot-avatar.png" />
                       <AvatarFallback>
                         <Bot size={16} />
                       </AvatarFallback>
                     </Avatar>
-                    <Collapsible defaultOpen={false} className="flex-1">
-                      <CollapsibleTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 p-0 text-muted-foreground hover:bg-transparent flex items-center gap-1 text-xs"
-                        >
-                          <ChevronDown size={12} className="opacity-50" />
-                          <span className="italic">
-                            {tasks.filter((t) => t.status === "done").length}/
-                            {tasks.length} steps completed
-                          </span>
-                        </Button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent className="mt-1">
-                        <TaskSteps tasks={tasks} />
-                      </CollapsibleContent>
-                    </Collapsible>
+                    <div className="flex items-center gap-2 py-2">
+                      <Loader2 size={14} className="animate-spin text-primary" />
+                      <span className="text-sm text-muted-foreground italic">
+                        {t("chat.interface.agentWorking", "Agent is working... See details in the side panel →")}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -429,10 +458,7 @@ export function ChatInterface() {
               </div>
             )}
 
-            {/* Interrupted State Banner (REMOVED - migrated to HumanRequestCard) */}
-            {humanRequest && status === "interrupted" && (
-              <HumanRequestCard request={humanRequest} />
-            )}
+            {/* HumanRequestCard moved to AgentCanvas */}
 
             {/* Input Area */}
             <ChatInputArea
@@ -459,6 +485,11 @@ export function ChatInterface() {
               <ContextPanel
                 projectId={currentProject?.id}
                 activeThreadId={activeThreadId || ""}
+                autoSwitchToTab={
+                  status === "running" || status === "SUMMARIZING" || status === "interrupted"
+                    ? "plan"
+                    : "memory"
+                }
                 onClose={() => setShowContextPanel(false)}
               />
             </ResizablePanel>
@@ -466,7 +497,23 @@ export function ChatInterface() {
         )}
       </ResizablePanelGroup>
 
-      {/* Removed HumanInputDialog */}
+      {/* Agent Canvas - Right-side sliding panel */}
+      <AgentCanvas
+        isOpen={isCanvasOpen}
+        onClose={() => setIsCanvasOpen(false)}
+      />
+
+      {/* Backdrop when canvas is open */}
+      {isCanvasOpen && (
+        <div
+          className="fixed inset-0 bg-black/20 z-40 lg:hidden"
+          onClick={() => setIsCanvasOpen(false)}
+          onKeyDown={(e) => e.key === "Escape" && setIsCanvasOpen(false)}
+          role="button"
+          tabIndex={0}
+          aria-label="Close agent canvas"
+        />
+      )}
     </div>
   )
 }
