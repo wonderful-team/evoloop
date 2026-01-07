@@ -55,7 +55,29 @@ class RewindResponse(BaseModel):
     thread_id: str
     removed_count: int = 0
 
-# ...
+
+@router.get("/", response_model=List[ConversationListItem])
+async def list_conversations(project_id: Optional[int] = None):
+    """
+    List conversations, optionally filtered by project.
+    """
+    async with get_db_session() as session:
+        stmt = select(Conversation).order_by(Conversation.updated_at.desc())
+        if project_id:
+            stmt = stmt.where(Conversation.project_id == project_id)
+            
+        result = await session.execute(stmt)
+        conversations = result.scalars().all()
+        
+        return [
+            ConversationListItem(
+                thread_id=c.id,
+                title=c.title or "Untitled",
+                project_id=c.project_id,
+                updated_at=c.updated_at,
+                status="idle" # TODO: Fetch status from active runs?
+            ) for c in conversations
+        ]
 
 @router.get("/{thread_id}/messages", response_model=List[MessageItem])
 async def get_conversation_messages(thread_id: str):
