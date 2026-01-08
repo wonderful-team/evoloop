@@ -8,6 +8,12 @@ from app.core.config import settings
 from app.infrastructure.solidlsp.ls import SolidLanguageServer, LSPFileBuffer
 from app.infrastructure.solidlsp.language_servers.pyright_server import PyrightServer
 from app.infrastructure.solidlsp.language_servers.typescript_language_server import TypeScriptLanguageServer
+from app.infrastructure.solidlsp.language_servers.gopls import Gopls
+from app.infrastructure.solidlsp.language_servers.rust_analyzer import RustAnalyzer
+from app.infrastructure.solidlsp.language_servers.eclipse_jdtls import EclipseJDTLS
+from app.infrastructure.solidlsp.language_servers.clangd_language_server import ClangdLanguageServer
+from app.infrastructure.solidlsp.language_servers.intelephense import Intelephense
+from app.infrastructure.solidlsp.language_servers.vue_language_server import VueLanguageServer
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig, Language
 
@@ -52,6 +58,24 @@ class LSPManager:
         elif language_str.lower() in ["typescript", "javascript", "ts", "js"]:
             language = Language.TYPESCRIPT
             server_class = TypeScriptLanguageServer
+        elif language_str.lower() == "go":
+            language = Language.GO
+            server_class = Gopls
+        elif language_str.lower() == "rust":
+            language = Language.RUST
+            server_class = RustAnalyzer
+        elif language_str.lower() == "java":
+            language = Language.JAVA
+            server_class = EclipseJDTLS
+        elif language_str.lower() in ["c", "cpp", "c++"]:
+            language = Language.CPP
+            server_class = ClangdLanguageServer
+        elif language_str.lower() == "php":
+            language = Language.PHP
+            server_class = Intelephense
+        elif language_str.lower() == "vue":
+            language = Language.VUE
+            server_class = VueLanguageServer
         else:
             raise ValueError(f"Unsupported language for LSP: {language_str}")
 
@@ -145,6 +169,18 @@ async def consult_lsp(
         language = 'python'
     elif suffix in ['.ts', '.tsx', '.js', '.jsx']:
         language = 'typescript'
+    elif suffix in ['.go']:
+        language = 'go'
+    elif suffix in ['.rs']:
+        language = 'rust'
+    elif suffix in ['.java']:
+        language = 'java'
+    elif suffix in ['.c', '.cpp', '.h', '.hpp', '.cc']:
+        language = 'c++'
+    elif suffix in ['.php']:
+        language = 'php'
+    elif suffix in ['.vue']:
+        language = 'vue'
     else:
         return f"Error: Unsupported language for file extension {suffix}"
 

@@ -152,6 +152,15 @@ npm run tauri build
 
 ## 🛠 开发指南 (Development)
 
+### 5. LSP 配置 (LSP Configuration)
+
+EvoLoop 使用 **LSP (Language Server Protocol)** 为 Agent 提供深度代码智能（跳转定义、错误检查）。
+
+- **Python**: 依赖 `pyright`。已包含在后端依赖中 (`pyproject.toml`)，无需额外配置。
+- **TypeScript/JavaScript**: 依赖 `Node.js` 和 `npm`。
+  - 系统会在首次运行时自动下载并配置 `typescript-language-server` 到本地缓存目录，无需全局安装。
+  - 请确保 `node` 和 `npm` 命令在系统的 `PATH` 中可用。
+
 - **后端文档**: 请参阅 [backend/README.md](./backend/README.md)
 - **前端文档**: 请参阅 [frontend/README.md](./frontend/README.md)
 
