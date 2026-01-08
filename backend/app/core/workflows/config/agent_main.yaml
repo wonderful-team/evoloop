@@ -21,6 +21,9 @@ nodes:
   - id: "deep_researcher"
     path: "app.core.workflows.nodes.deep_researcher.deep_researcher_node"
 
+  - id: "planner"
+    path: "app.core.workflows.nodes.planner.planner_node"
+
   - id: "documenter"
     path: "app.core.workflows.nodes.documenter.documenter_node"
 
@@ -29,6 +32,9 @@ nodes:
 
   - id: "finish"
     path: "app.core.workflows.nodes.finish.finish_node"
+
+  - id: "chat"
+    path: "app.core.workflows.nodes.chat.chat_node"
 
   # Executor Nodes
   - id: "browser_executor"
@@ -45,9 +51,15 @@ edges:
     router: "app.core.workflows.routers.route_by_next_node_field"
     map:
       supervisor: "supervisor"
+      chat: "chat"
       browser_executor: "browser_executor"
       computer_executor: "computer_executor"
       mobile_executor: "mobile_executor"
+
+  # 1.5 Chat -> END
+  - from: "chat"
+    to: "END"
+    type: "simple"
   
   # 2. Executors -> Supervisor (Return path)
   - from: "browser_executor"
@@ -66,6 +78,7 @@ edges:
     router: "app.core.workflows.routers.route_supervisor"
     map:
       coder: "coder"
+      planner: "planner"
       deep_researcher: "deep_researcher"
       documenter: "documenter"
       supervisor: "supervisor"
@@ -98,6 +111,9 @@ edges:
     to: "supervisor"
     type: "simple"
   - from: "meta_reviewer"
+    to: "supervisor"
+    type: "simple"
+  - from: "planner"
     to: "supervisor"
     type: "simple"
 

@@ -85,27 +85,49 @@ const ChatMessageItem = memo(
         <div className={`relative max-w-[85%]`}>
           <div className="flex flex-col gap-1">
 
-            {/* Reasoning/Thinking Block */}
-            {msg.thinking && (
-              <Collapsible defaultOpen={false} className="w-full">
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 p-0 text-muted-foreground hover:bg-transparent flex items-center gap-1 text-xs"
-                  >
-                    <Brain size={12} />
-                    <span className="italic">
-                      {t("chat.interface.thinkingProcess", "Reasoning Process")}
-                    </span>
-                    <ChevronDown size={12} className="opacity-50" />
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-md mb-2 border-l-2 border-primary/20 whitespace-pre-wrap">
-                  {msg.thinking}
-                </CollapsibleContent>
-              </Collapsible>
-            )}
+            {/* Reasoning/Thinking Block (Historical or Streaming) */}
+            {(() => {
+              // 1. Use persisted thinking if available
+              let thinkingContent = msg.thinking
+
+              // 2. Or fallback to parsing from content (for streaming)
+              if (!thinkingContent && msg.content && msg.content.includes("<think>")) {
+                const thinkMatch = msg.content.match(/<think>([\s\S]*?)<\/think>/)
+                if (thinkMatch) {
+                  thinkingContent = thinkMatch[1]
+                } else if (msg.content.includes("<think>")) {
+                  // Streaming incomplete tag? or open tag
+                  const parts = msg.content.split("<think>")
+                  if (parts.length > 1) {
+                    thinkingContent = parts[1] // Show incomplete thinking
+                  }
+                }
+              }
+
+              const isStreaming = !msg.thinking && !!msg.content && msg.content.includes("<think>")
+              if (!thinkingContent) return null
+
+              return (
+                <Collapsible defaultOpen={isStreaming} className="w-full">
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 p-0 text-muted-foreground hover:bg-transparent flex items-center gap-1 text-xs"
+                    >
+                      <Brain size={12} />
+                      <span className="italic">
+                        {t("chat.interface.thinkingProcess", "Reasoning Process")}
+                      </span>
+                      <ChevronDown size={12} className="opacity-50" />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-md mb-2 border-l-2 border-primary/20 whitespace-pre-wrap font-mono">
+                    {thinkingContent}
+                  </CollapsibleContent>
+                </Collapsible>
+              )
+            })()}
 
             {/* Phase 6: Historical Task Steps */}
             {msg.tasks_snapshot && msg.tasks_snapshot.length > 0 && (
@@ -189,8 +211,18 @@ const ChatMessageItem = memo(
                     }
                   }
 
+                  // Strip <think> tags for display if they were extracted above
+                  let cleanContent = msg.content
+                  if (!msg.thinking && msg.content.includes("<think>")) {
+                    cleanContent = msg.content.replace(/<think>[\s\S]*?<\/think>/g, "").trim()
+                    // Also handle open tag case for streaming
+                    if (cleanContent.includes("<think>")) {
+                      cleanContent = cleanContent.split("<think>")[0].trim()
+                    }
+                  }
+
                   // Standard Markdown Render
-                  return <MessageContent content={msg.content} />
+                  return <MessageContent content={cleanContent} />
                 })()}
               </div>
             )}

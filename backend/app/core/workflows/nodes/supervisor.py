@@ -16,7 +16,8 @@ from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
 from app.domain.tools.memory import save_preference, search_concepts
 from app.domain.tools.facades import manage_file
-from app.domain.planning.tools import create_plan, update_step_status, analyze_feasibility
+from app.domain.tools.facades import manage_file
+# from app.domain.planning.tools import create_plan, update_step_status, analyze_feasibility -> Moved to Planner Node
 
 # llm = LLMFactory.create_llm()
 
@@ -30,9 +31,18 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
 
     **WORKFLOW PHASES**:
     1. **Explore**: If uncertain, use `manage_file` to inspect the directory tree or read critical documents.
-    2. **Plan**: For any modification task, you MUST use `create_plan` to draft a structured step-by-step plan.
-    3. **Verify**: Check if your plan covers all requirements.
-    4. **Handoff**: When ready, STOP tools and signal the next step.
+    # 2. Plan (DELEGATED):
+    # If the task is complex and you do not have a `current_plan` in the context,
+    # you MUST route to `planner` node. Do NOT try to plan yourself.
+    # Just output: `next_node="planner"`.
+    #
+    # If you have a plan, follow it.
+
+    # 3. Verify:
+    # After Coder finishes, if you need to run tests, route to `coder` with `run_tests` instructions (or specialized tester).
+
+    # 4. Handoff:
+    # When tasks are done, route to `finish`. and signal the next step.
 
     **CRITICAL PROTOCOL**:
     1. **Context First**: 
@@ -81,8 +91,8 @@ class RoutingDecision(BaseModel):
     """
     Decision on the next step in the workflow.
     """
-    next_node: Literal["coder", "deep_researcher", "documenter", "finish", "map_research"] = Field(
-        description="The next node to execute. Use 'map_research' if you want to research multiple topics in parallel."
+    next_node: Literal["planner", "coder", "deep_researcher", "documenter", "finish", "map_research"] = Field(
+        description="The next worker node to route to. Default to 'finish' if done."
     )
     parallel_research_tasks: Optional[List[str]] = Field(
         default=None,

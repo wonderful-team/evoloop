@@ -30,14 +30,13 @@ async def router_node(state: AgentState, config: RunnableConfig):
         # For Supercomplete, we want direct routing if possible.
         
         if intent == "browser":
-             # We can route to a specialized 'browser_node' that invokes the tool
-             # Or inform supervisor. For now, let's route to supervisor but inject the intent
-             # Actually, best practice: Route to a node that runs the tool
              return {"next_node": "browser_executor", "refined_instruction": prediction.refined_instruction}
         elif intent == "computer":
              return {"next_node": "computer_executor", "refined_instruction": prediction.refined_instruction}
         elif intent == "mobile":
              return {"next_node": "mobile_executor", "refined_instruction": prediction.refined_instruction}
+        elif intent == "chat":
+             return {"next_node": "chat", "refined_instruction": prediction.refined_instruction}
         else:
              return {"next_node": "supervisor"}
 

@@ -59,7 +59,6 @@ def get_supervisor_tools() -> List[BaseTool]:
         "manage_file", 
         "save_preference", 
         "search_concepts", 
-        "create_plan",
         "delegate_task" # Supervisor needs delegation
     ]
     return get_tools_by_names(tool_names)

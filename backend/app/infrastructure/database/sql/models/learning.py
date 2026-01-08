@@ -90,3 +90,21 @@ class LearnedSkill(Base):
     # New fields compatibility
     project_id: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
     embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536), nullable=True)
+
+class RouterTrainingData(Base):
+    """
+    Stores few-shot examples for the Intent Router.
+    This replaces the local 'few_shots.json' file with a persistent DB table.
+    """
+    __tablename__ = "router_training_data"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    
+    instruction: Mapped[str] = mapped_column(Text)
+    intent: Mapped[str] = mapped_column(String(50))
+    reasoning: Mapped[str] = mapped_column(Text)
+    
+    # Metadata
+    is_active: Mapped[bool] = mapped_column(default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    source: Mapped[str] = mapped_column(String(50), default="user_feedback") # 'manual', 'user_feedback', 'system'
