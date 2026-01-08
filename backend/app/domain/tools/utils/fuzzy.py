@@ -77,8 +77,8 @@ def apply_fuzzy_patch(file_content: str, target: str, replacement: str) -> tuple
     if n_target == 0: return False, file_content, "Empty target lines"
     
     # This is expensive for large files (O(N*M)). 
-    # Limit: if file > 2000 lines, skip fuzzy
-    if len(file_lines) > 2000:
+    # Limit: if file > 20000 lines, skip fuzzy
+    if len(file_lines) > 20000:
          return False, file_content, "File too large for fuzzy patch"
          
     best_score = 0
