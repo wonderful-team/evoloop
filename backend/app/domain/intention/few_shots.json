@@ -1,0 +1,22 @@
+[
+    {
+        "instruction": "Hi there",
+        "intent": "chat",
+        "reasoning": "Standard greeting"
+    },
+    {
+        "instruction": "Search for latest news on AI",
+        "intent": "browser",
+        "reasoning": "Explicit web search request"
+    },
+    {
+        "instruction": "Open Calculator",
+        "intent": "computer",
+        "reasoning": "OS native application launching"
+    },
+    {
+        "instruction": "Write a python script to parse CSV",
+        "intent": "general",
+        "reasoning": "Coding task requires Supervisor/Coder"
+    }
+]
