@@ -32,24 +32,37 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
     
     # Get tools
     # Core Tools Imports
-    from app.domain.tools.registry import get_coder_tools
-    from app.domain.tools.facades import manage_file, explore_codebase, manage_git, manage_memory
-    from app.domain.tools.execution import run_command
+    from app.domain.tools.profiles import get_profile_static_tools
     from app.infrastructure.mcp.client import mcp_client_manager
-    from app.domain.tools.retrieval import tool_retriever
+    from app.domain.tools.vector_store import pg_tool_retriever
+
+    # 1. Orchestration: Determine Profile & Query (Phase 3.0)
+    profile_name = state.get("active_tool_profile") or "GENERAL"
+    retrieval_query = state.get("tool_retrieval_query")
     
-    # 1. Get Base Tools from Registry
-    core_tools = get_coder_tools()
+    # 2. Get Static Tools for Profile
+    core_tools = get_profile_static_tools(profile_name)
     
-    # 2. Retrieve Candidate Tools (MCP)
-    mcp_tools = mcp_client_manager.get_tools()
-    await tool_retriever.index_tools(mcp_tools)
-    
-    query = f"{plan} {retrieval_ctx}"
-    retrieved_tools = await tool_retriever.retrieve(query, k=10)
-    
-    # 3. Combine
-    tool_dict = {t.name: t for t in core_tools + retrieved_tools}
+    # 3. Dynamic Retrieval (Hybrid Binding)
+    dynamic_tools = []
+    if retrieval_query:
+        # User defined dynamic query
+        # Retrieve metadata first
+        records = await pg_tool_retriever.search_tools(retrieval_query, k=5)
+        
+        # Hydrate into actual tools
+        # For now, we fetch ALL MCP tools and filter. 
+        # OPTIMIZATION TODO: Fetch only needed tools by name if MCP supports it.
+        all_mcp_tools = mcp_client_manager.get_tools()
+        mcp_map = {t.name: t for t in all_mcp_tools}
+        
+        for rec in records:
+            if rec['name'] in mcp_map:
+                dynamic_tools.append(mcp_map[rec['name']])
+
+    # 4. Combine
+    # Use dict to deduplicate
+    tool_dict = {t.name: t for t in core_tools + dynamic_tools}
     tools = list(tool_dict.values())
     
     llm_with_tools = llm.bind_tools(tools)
@@ -98,6 +111,12 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
     2.  **Respect Boundaries**: Do not violate the dependencies returned by the tool (e.g., Domain layer should not depend on Infrastructure).
     3.  **Read Before Write**: Use `explore_codebase` or `manage_file(action='list_tree')` to verify file locations.
     
+    ### CODE QUALITY CHECK (MANDATORY)
+    After writing or modifying any code, you MUST verify it using `consult_lsp`:
+    1. Call `consult_lsp(action='check_errors', file_path=...)` for the modified file.
+    2. If errors are returned (e.g. "Line 10: [Error] ..."), you MUST fix them immediately.
+    3. Do NOT declare "Implementation complete" until `check_errors` returns "No errors found".
+    
     Tools:
     1. consult_architecture(path): **ARCHITECT'S MAP**. Returns high-level summary & dependencies. USE THIS FIRST for architecture queries.
     
@@ -123,6 +142,11 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
     6. manage_memory(action, key, value): Project Memory.
        
     7. run_command(command): Run shell scripts/tests.
+    
+    8. consult_lsp(action, file_path, line, character): Code Intelligence.
+       - action='check_errors': Check for syntax/type errors.
+       - action='find_definition': Go to definition.
+       - action='hover': See documentation.
     
     ### DECISION TREE
     - Need to understand Module/Architecture? -> `consult_architecture`.

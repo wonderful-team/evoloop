@@ -55,3 +55,7 @@ class AgentState(TypedDict):
 
     # Skill Execution (Imitation Learning Phase 3/4)
     skill_execution_attempted: Optional[bool]
+    
+    # Tool Orchestration (Phase 3.0)
+    active_tool_profile: Optional[str] # e.g. "DEVOPS", "RESEARCH"
+    tool_retrieval_query: Optional[str] # e.g. "kubernetes tools"

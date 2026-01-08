@@ -88,6 +88,16 @@ class RoutingDecision(BaseModel):
         default=None,
         description="List of topics to research in parallel. REQUIRED if next_node is 'map_research'."
     )
+    
+    # Orchestration Fields (Phase 3.0)
+    tool_profile: Optional[Literal["GENERAL", "DEVOPS", "RESEARCH"]] = Field(
+        default="GENERAL",
+        description="The tool profile to activate for the Coder. Use 'DEVOPS' for k8s/docker/aws, 'RESEARCH' for analysis, 'GENERAL' for coding."
+    )
+    retrieval_query: Optional[str] = Field(
+        default=None,
+        description="Optional keywords to retrieve specialized tools from database (e.g. 'kubernetes deployment', 'aws s3')."
+    )
 
 
 async def supervisor_node(state: AgentState, config: RunnableConfig):
@@ -471,6 +481,13 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         - If Agent says "Need more research" -> Route to "deep_researcher".
         - If Agent provided the answer -> Route to "finish".
         
+        **ORCHESTRATION (TOOLING CONTROL)**:
+        - When routing to "coder", you MUST decide the appropriate Tool Profile:
+          - "DEVOPS": If task involves Docker, K8s, AWS, Terraform, or shell scripts.
+          - "RESEARCH": If task is purely reading/analyzing code or docs without modification.
+          - "GENERAL": Default for most coding tasks.
+        - You can also provide a `retrieval_query` to load specialized tools (e.g. "kubernetes deployment", "aws s3 buckets").
+        
         You MUST output a JSON object matching the schema.
         "next_node" is REQUIRED.
         
@@ -525,5 +542,9 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         "messages": new_messages,
         "current_plan": state.get("current_plan"),
         "structured_plan": state.get("structured_plan"),
-        "parallel_research_tasks": parallel_research_tasks
+        "parallel_research_tasks": parallel_research_tasks,
+        
+        # Orchestration (Phase 3.0)
+        "active_tool_profile": decision.tool_profile if decision else "GENERAL",
+        "tool_retrieval_query": decision.retrieval_query if decision else None
     }

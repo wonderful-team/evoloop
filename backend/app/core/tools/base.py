@@ -57,5 +57,11 @@ def evoloop_tool(func):
                 # Log error
                 return f"Error: {str(e)}"
     
+    # Mark for Auto-Discovery on the wrapper function
+    wrapper.is_evoloop_active = True
+    wrapper.evoloop_module = func.__module__
+
     # Apply LangChain's @tool
-    return langchain_tool(wrapper)
+    tool_instance = langchain_tool(wrapper)
+    
+    return tool_instance
