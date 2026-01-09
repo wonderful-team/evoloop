@@ -36,6 +36,9 @@ nodes:
   - id: "chat"
     path: "app.core.workflows.nodes.chat.chat_node"
 
+  - id: "requirement_analyst"
+    path: "app.core.workflows.nodes.requirement_analyst.requirement_analyst_node"
+
   # Executor Nodes
   - id: "browser_executor"
     path: "app.core.workflows.nodes.executors.browser_executor"
@@ -81,6 +84,7 @@ edges:
       planner: "planner"
       deep_researcher: "deep_researcher"
       documenter: "documenter"
+      requirement_analyst: "requirement_analyst"
       supervisor: "supervisor"
       finish: "finish"
 
@@ -114,6 +118,11 @@ edges:
     to: "supervisor"
     type: "simple"
   - from: "planner"
+    to: "supervisor"
+    type: "simple"
+
+  # 7.5 Requirement Analyst -> Supervisor
+  - from: "requirement_analyst"
     to: "supervisor"
     type: "simple"
 

@@ -32,7 +32,9 @@ class LLMFactory:
         logger = logging.getLogger(__name__)
         logger.info(f"LLM Config - Provider: {db_provider}, Base URL: {base_url}, Model: {final_model}")
         
-        return ChatOpenAI(
+        from app.core.llm.adaptive import AdaptiveChatOpenAI
+        
+        return AdaptiveChatOpenAI(
             api_key=api_key,
             base_url=base_url,
             model=final_model,

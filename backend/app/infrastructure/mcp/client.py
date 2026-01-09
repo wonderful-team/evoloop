@@ -2,7 +2,8 @@ import asyncio
 import json
 import logging
 import os
-from contextlib import AsyncExitStack
+import sys
+from contextlib import AsyncExitStack, contextmanager
 from typing import Dict, List, Any, Optional
 
 from langchain_core.tools import StructuredTool
@@ -15,8 +16,6 @@ from app.core.config import settings
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import McpServer
 
-import sys
-from contextlib import contextmanager
 
 @contextmanager
 def restore_std_streams():
@@ -170,18 +169,20 @@ class McpClientManager:
             env=full_env
         )
 
-
-
-
-
         try:
             # Create new stack for this server
             stack = AsyncExitStack()
             
             # Enter the context managers
             # Use restore_std_streams to avoid 'LoggingProxy' errors during subprocess spawn
-            with restore_std_streams():
-                read, write = await stack.enter_async_context(stdio_client(server_params))
+            # Use restore_std_streams to avoid 'LoggingProxy' errors during subprocess spawn
+            if command.startswith("http://") or command.startswith("https://"):
+                from mcp.client.sse import sse_client
+                logger.info(f"Connecting via SSE to {command}")
+                read, write = await stack.enter_async_context(sse_client(command))
+            else:
+                with restore_std_streams():
+                    read, write = await stack.enter_async_context(stdio_client(server_params))
             
             session = await stack.enter_async_context(ClientSession(read, write))
             
@@ -350,6 +351,7 @@ class McpClientManager:
                     "tools_count": len(self._tools_cache.get(s.name, [])) if is_connected else 0
                 })
             return output
+
 
 # Singleton instance
 mcp_client_manager = McpClientManager()

@@ -4,6 +4,7 @@ from langchain_openai import ChatOpenAI
 
 logger = logging.getLogger(__name__)
 
+
 class LLMConfigService:
     
     @staticmethod

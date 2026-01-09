@@ -91,7 +91,7 @@ class RoutingDecision(BaseModel):
     """
     Decision on the next step in the workflow.
     """
-    next_node: Literal["planner", "coder", "deep_researcher", "documenter", "finish", "map_research"] = Field(
+    next_node: Literal["planner", "coder", "deep_researcher", "documenter", "finish", "map_research", "requirement_analyst"] = Field(
         description="The next worker node to route to. Default to 'finish' if done."
     )
     parallel_research_tasks: Optional[List[str]] = Field(
@@ -477,6 +477,8 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         ("system", """You are the Supervisor. Decide the next step.
         
         Options:
+        - "requirement_analyst": IF the user's request is AMBIGUOUS, VAGUE, or a NEW PROJECT Idea. Run this to clarify requirements BEFORE planning.
+        - "planner": If requirements are clear but complex, and you need a step-by-step Technical Plan.
         - "coder": If you have a plan and need to write code.
         - "deep_researcher": If you need to search, read docs, or investigate complex topics.
         - "documenter": If you need to write documentation.
@@ -487,6 +489,9 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         2. **Task Completed**: If the Agent says "Done", "Fixed", or "Plan is ready for Coder" -> Route accordingly (Finish or Coder).
         
         Specific Rules:
+        - If Request is Vague ("Build a blog") -> Route to "requirement_analyst".
+        - If YOU (System) just asked Clarifying Questions -> Route to "finish" (wait for user reply).
+        - If User Replied to Questions -> Route to "requirement_analyst" (to summarize).
         - If Agent says "Plan verified. Ready for Coder" -> Route to "coder".
         - If Agent says "Need more research" -> Route to "deep_researcher".
         - If Agent provided the answer -> Route to "finish".
