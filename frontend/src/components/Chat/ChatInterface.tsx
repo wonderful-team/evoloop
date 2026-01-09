@@ -31,7 +31,7 @@ import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
 import { MessageContent } from "./MessageContent"
 import { TaskSteps } from "./TaskSteps"
-import { AgentCanvas } from "./AgentCanvas"
+
 import { HITLBanner } from "./HITLBanner"
 
 const CompositeAIBubble = memo(() => {
@@ -166,8 +166,6 @@ export function ChatInterface() {
 
   // We maintain 'showContextPanel' locally as it involves UI preference
   const [showContextPanel, setShowContextPanel] = useState(true)
-  // Agent Canvas visibility state - auto-opens when agent is active
-  const [isCanvasOpen, setIsCanvasOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   // Smart Scroll State
@@ -289,6 +287,30 @@ export function ChatInterface() {
     },
   })
 
+  // Phase 6: Retry Logic
+  const retryMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeThreadId) throw new Error("No active thread")
+      // Check if AgentService has retryChat (manually added to SDK)
+      // @ts-ignore
+      return AgentService.retryChat({
+        requestBody: {
+          thread_id: activeThreadId,
+          message: "", // Backend finds the last user message
+          project_id: projectId
+        }
+      })
+    },
+    onSuccess: () => {
+      toast.success(t("chat.interface.retrying", "Retrying from last user message..."))
+      // Reload store to reflect rolled back state and new streaming status
+      if (activeThreadId && projectId) setThread(activeThreadId, projectId)
+    },
+    onError: () => {
+      toast.error(t("chat.interface.retryFailed", "Retry failed"))
+    }
+  })
+
   // --- Auto Scroll Logic ---
   // Auto-scroll logic
 
@@ -320,16 +342,7 @@ export function ChatInterface() {
     scrollToBottom()
   }, [scrollToBottom])
 
-  // Auto-open/close Agent Canvas based on status
-  useEffect(() => {
-    if (status === "running" || status === "interrupted" || status === "SUMMARIZING") {
-      setIsCanvasOpen(true)
-    } else if (status === "idle" && !streamedContent) {
-      // Close canvas when agent finishes, with a small delay for smooth transition
-      const timer = setTimeout(() => setIsCanvasOpen(false), 500)
-      return () => clearTimeout(timer)
-    }
-  }, [status, streamedContent])
+
 
   // Phase 8: Deep Linking Listener
   useEffect(() => {
@@ -421,6 +434,7 @@ export function ChatInterface() {
                     onAddToMemory={(txt) => addToMemoryMutation.mutate(txt)}
                     onExport={(txt) => exportFileMutation.mutate(txt)}
                     onRewind={() => rewindMutation.mutate()}
+                    onRetry={() => retryMutation.mutate()}
                   />
                 ))}
 
@@ -477,43 +491,21 @@ export function ChatInterface() {
           <>
             <ResizableHandle withHandle />
             <ResizablePanel
-              defaultSize={20}
-              minSize={15}
-              maxSize={30}
-              className="min-w-[300px]"
+              defaultSize={30}
+              minSize={25}
+              maxSize={40}
+              className="min-w-[320px]"
             >
               <ContextPanel
                 projectId={currentProject?.id}
                 activeThreadId={activeThreadId || ""}
-                autoSwitchToTab={
-                  status === "running" || status === "SUMMARIZING" || status === "interrupted"
-                    ? "plan"
-                    : "memory"
-                }
+                autoSwitchToTab={undefined} // Disable auto-switch as we have Live Zone now
                 onClose={() => setShowContextPanel(false)}
               />
             </ResizablePanel>
           </>
         )}
       </ResizablePanelGroup>
-
-      {/* Agent Canvas - Right-side sliding panel */}
-      <AgentCanvas
-        isOpen={isCanvasOpen}
-        onClose={() => setIsCanvasOpen(false)}
-      />
-
-      {/* Backdrop when canvas is open */}
-      {isCanvasOpen && (
-        <div
-          className="fixed inset-0 bg-black/20 z-40 lg:hidden"
-          onClick={() => setIsCanvasOpen(false)}
-          onKeyDown={(e) => e.key === "Escape" && setIsCanvasOpen(false)}
-          role="button"
-          tabIndex={0}
-          aria-label="Close agent canvas"
-        />
-      )}
     </div>
   )
 }

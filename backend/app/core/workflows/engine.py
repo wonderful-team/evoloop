@@ -56,20 +56,36 @@ class AgentEngine:
             final_system_prompt += f"\n\nUser Language Preference: {user_lang}\nCommunicate in this language."
 
         # 3. Message Handling & Repair
-        messages = list(state.get("messages", []))
+        raw_messages = list(state.get("messages", []))
         
-        # 3.1 Repair Orphaned Tool Messages
-        # (Copy-pasted logic from Supervisor/Coder, now centralized)
+        # 3.0 Smart Windowing
+        # We want a window of approx N messages, but we MUST NOT split an (AI -> Tool) pair.
+        # If the window starts with a ToolMessage, we try to include the preceding AIMessage.
+        window_size = 30 # Increased from 15 to 30 for better context
+        
+        start_index = max(0, len(raw_messages) - window_size)
+        
+        # If we are cutting off, and the first message in window is a ToolMessage,
+        # step back to include the parent AIMessage (if possible).
+        while start_index > 0 and isinstance(raw_messages[start_index], ToolMessage):
+             start_index -= 1
+             
+        windowed_messages = raw_messages[start_index:]
+        
+        # 3.1 Repair Orphaned Tool Messages (ON THE WINDOWED SLICE)
+        # We only care about validity within the actual payload sent to LLM.
+        messages_to_process = windowed_messages
+        
         valid_tool_ids = set()
         repaired_messages = []
         
-        # Check history to build valid_tool_ids set from existing AIMessages
-        for msg in messages:
+        # Check history OF THE SLICE to build valid_tool_ids
+        for msg in messages_to_process:
             if isinstance(msg, AIMessage) and msg.tool_calls:
                  for tc in msg.tool_calls:
                      valid_tool_ids.add(tc['id'])
         
-        iterator = iter(messages)
+        iterator = iter(messages_to_process)
         try:
             while True:
                 msg = next(iterator)
@@ -86,8 +102,6 @@ class AgentEngine:
                                 "id": msg.tool_call_id
                             }]
                         )
-                        # We must insert it BEFORE this tool message. 
-                        # Since we are rebuilding the list, we append dummy then the msg.
                         repaired_messages.append(dummy_ai)
                         valid_tool_ids.add(msg.tool_call_id)
                 
@@ -95,20 +109,13 @@ class AgentEngine:
                     for tc in msg.tool_calls:
                         valid_tool_ids.add(tc['id'])
                 
-                elif isinstance(msg, (HumanMessage, SystemMessage)):
-                     # Resetting valid IDs on Human message is a strict strategy, 
-                     # but in LangGraph history is flat. We should preserve IDs.
-                     # The original Supervisor logic reset it. Let's keep it safe.
-                     pass
-
                 repaired_messages.append(msg)
         except StopIteration:
             pass
             
         # 4. Loop Execution
-        # We construct the messages for the LLM
         # Always prepend System Prompt
-        loop_messages = [SystemMessage(content=final_system_prompt)] + repaired_messages[-15:] # Windowing
+        loop_messages = [SystemMessage(content=final_system_prompt)] + repaired_messages
         
         # LOGGING: Print System Prompt for Debugging (Context/Memory Check)
         logger.debug(f"--- [AgentEngine] System Prompt (First 500 chars) ---\n{final_system_prompt[:500]}...\n-----------------------------------------------------")

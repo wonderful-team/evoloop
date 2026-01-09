@@ -57,10 +57,11 @@ interface ChatMessageItemProps {
   onAddToMemory?: (text: string) => void
   onExport?: (text: string) => void
   onRewind?: () => void
+  onRetry?: () => void
 }
 
 const ChatMessageItem = memo(
-  ({ msg, onAddToMemory, onExport, onRewind }: ChatMessageItemProps) => {
+  ({ msg, onAddToMemory, onExport, onRewind, onRetry }: ChatMessageItemProps) => {
     const { t } = useTranslation()
 
     // Hide intermediate tool outputs and system prompts from main chat
@@ -268,6 +269,13 @@ const ChatMessageItem = memo(
                       <DropdownMenuItem onClick={() => onRewind()}>
                         <RotateCcw className="mr-2 h-4 w-4" />{" "}
                         {t("chat.interface.rewind")}
+                      </DropdownMenuItem>
+                    )}
+                    {/* Retry Action for AI Messages (Regenerate) */}
+                    {onRetry && (
+                      <DropdownMenuItem onClick={() => onRetry()}>
+                        <RotateCcw className="mr-2 h-4 w-4" />{" "}
+                        {t("chat.interface.retry", "Retry")}
                       </DropdownMenuItem>
                     )}
                   </>

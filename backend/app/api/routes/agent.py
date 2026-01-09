@@ -103,6 +103,65 @@ async def stop_chat(req: ChatRequest):
     return {"status": "stopping", "thread_id": req.thread_id}
 
 
+@router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
+async def retry_chat(
+    req: ChatRequest, 
+    bg_tasks: BackgroundTasks
+):
+    """
+    Retry the last user message.
+    Rolls back history (deletes AI messages after last human msg) and restarts generation.
+    """
+    from sqlalchemy import select, delete
+    
+    retry_message_content = None
+    
+    async with session_scope() as session:
+        # 1. Find last human message
+        stmt = (
+            select(Message)
+            .where(Message.thread_id == req.thread_id)
+            .where(Message.role == "human")
+            .order_by(Message.id.desc())
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        last_human_msg = result.scalar_one_or_none()
+        
+        if not last_human_msg:
+            raise HTTPException(status_code=404, detail="No human message found to retry")
+            
+        retry_message_content = last_human_msg.content
+        last_msg_id = last_human_msg.id
+        
+        # 2. Delete all messages AFTER this human message
+        del_stmt = (
+            delete(Message)
+            .where(Message.thread_id == req.thread_id)
+            .where(Message.id > last_msg_id)
+        )
+        await session.execute(del_stmt)
+        # Session commits automatically on exit context if no error
+        
+        logger.info(f"Retrying thread {req.thread_id} from message {last_msg_id}")
+
+    # 3. Setup Context
+    set_context(thread_id=req.thread_id, project_id=req.project_id)
+    await activity_monitor.start_run(req.thread_id, f"Retry: {retry_message_content[:50]}...")
+    
+    # 4. Dispatch
+    # Ensure inputs match normal chat flow
+    inputs = {
+        "messages": [{"type": "human", "content": retry_message_content}], 
+        "project_id": req.project_id,
+        "is_retry": True # Flag for engine if needed (optional)
+    }
+    
+    bg_tasks.add_task(run_agent_background, req.thread_id, inputs)
+    
+    return {"status": "queued", "thread_id": req.thread_id, "action": "retry"}
+
+
 class ResumeRequest(BaseModel):
     thread_id: str
     user_input: Optional[str] = None  # Optional user response for HITL

@@ -295,7 +295,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage Preference: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}"
     
     # OBSERVE: Log Context Stats
-    logger.info(f"[Supervisor] 📂 Context Loaded - Tree Chars: {len(project_structure)}, Concepts: {len(project_concepts) if project_concepts else 0} chars, Plan: {'Yes' if len(current_plan) > 20 else 'No'}")
+    logger.info(f"[Supervisor] 📂 Context Loaded - Tree Chars: {len(project_structure)}, Concepts: {len(project_concepts) if project_concepts else 0} chars, Plan: {'Yes' if current_plan and len(current_plan) > 20 else 'No'}")
 
     # Allow up to 10 turns for planning & analysis
     has_replied_directly = False
@@ -467,18 +467,18 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         pass
 
     # OBSERVE: Final Route
-    logger.info(f"[Supervisor] 🚦 Routing Decision: {decision.next_node} (Reason: {decision.next_node if decision.next_node != 'finish' else 'Task Completed'})")
+    logger.info(f"[Supervisor] 🚦 Routing Decision: {next_node} (Reason: {next_node if next_node != 'finish' else 'Task Completed'})")
 
     profile = decision.tool_profile if decision else "GENERAL"
     query = decision.retrieval_query if decision else None
 
     return {
-        "next_node": decision.next_node,
+        "next_node": next_node,
         "messages": new_messages,
         "current_plan": state.get("current_plan"),
         "structured_plan": state.get("structured_plan"),
         "parallel_research_tasks": parallel_research_tasks,
         "active_tool_profile": profile, # Persist for next step
         "tool_retrieval_query": query,
-        "scratchpad": {"last_supervisor_route": decision.next_node} # Debug info
+        "scratchpad": {"last_supervisor_route": next_node} # Debug info
     }

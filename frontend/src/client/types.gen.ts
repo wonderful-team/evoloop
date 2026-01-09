@@ -141,8 +141,8 @@ export type McpServerCreate = {
     command: string;
     args?: (Array<(string)> | null);
     env?: ({
-    [key: string]: (string);
-} | null);
+        [key: string]: (string);
+    } | null);
 };
 
 export type MessageItem = {
@@ -152,8 +152,8 @@ export type MessageItem = {
     thinking: (string | null);
     created_at: (string | null);
     tasks_snapshot?: (Array<{
-    [key: string]: unknown;
-}> | null);
+        [key: string]: unknown;
+    }> | null);
 };
 
 export type MobileCodeRequest = {
@@ -176,8 +176,8 @@ export type RecordedEvent = {
     target_selector?: (string | null);
     target_text?: (string | null);
     payload?: ({
-    [key: string]: unknown;
-} | null);
+        [key: string]: unknown;
+    } | null);
     screenshot_base64?: (string | null);
 };
 
@@ -389,6 +389,12 @@ export type AgentResumeChatData = {
 };
 
 export type AgentResumeChatResponse = (unknown);
+
+export type AgentRetryChatData = {
+    requestBody: ChatRequest;
+};
+
+export type AgentRetryChatResponse = (unknown);
 
 export type AgentWebhookEndpointData = {
     requestBody: WebhookRequest;

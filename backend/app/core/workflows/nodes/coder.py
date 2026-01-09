@@ -132,11 +132,19 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
        - action='find_definition': Go to definition.
        - action='hover': See documentation.
     
+    ### CRITICAL RULES DO NOT IGNORE
+    1. **NO CHAT-ONLY CODE**: You cannot "apply" changes by just printing code blocks in the chat. 
+       - **YOU MUST USE THE `manage_file` TOOL**. 
+       - If you do not call `manage_file`, the file is NOT changed.
+       - Any code in your final response is just for display, it does NOT execute.
+    2. **VERIFY APPLICATION**: After using `manage_file` to write/update, assume it succeeded but double check if necessary.
+    3. **NO SIMULATIONS**: Do not say "I have updated..." unless you have received a `ToolMessage` confirmation from `manage_file`.
+    
     ### DECISION TREE
     - Need to understand Module/Architecture? -> `consult_architecture`.
     - Need to see map? -> `manage_file(action='list_tree')`.
     - Need to find code? -> `explore_codebase`.
-    - Need to read/edit code? -> `manage_file`.
+    - Need to read/edit code? -> `manage_file` (MANDATORY for edits).
     - Need to run tests? -> `run_command`.
     """
     
