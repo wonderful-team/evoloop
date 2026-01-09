@@ -36,7 +36,7 @@ async def generic_node(state: AgentState, config: RunnableConfig, node_config: D
     tool_map = {t.name: t for t in tools}
     
     # 3. Create LLM
-    llm = LLMFactory.create_llm(model=cfg.model, temperature=cfg.temperature)
+    llm = LLMFactory.create_llm(model_name=cfg.model, temperature=cfg.temperature)
     if tools:
         llm_with_tools = llm.bind_tools(tools)
     else:

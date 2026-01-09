@@ -41,11 +41,25 @@ nodes:
 
   # Executor Nodes
   - id: "browser_executor"
-    path: "app.core.workflows.nodes.executors.browser_executor"
+    path: "app.core.workflows.nodes.generic.generic_node"
+    config:
+      system_prompt: "You are an expert Browser Automation Agent. You can navigate the web, click elements, and extract data. Execute the user's request using the available tools."
+      tools: ["browser_agent"]
+      model: "gpt-4o"
+
   - id: "computer_executor"
-    path: "app.core.workflows.nodes.executors.computer_executor"
+    path: "app.core.workflows.nodes.generic.generic_node"
+    config:
+      system_prompt: "You are an expert Computer Control Agent. You can use the mouse and keyboard to interact with the OS. Execute the request carefully."
+      tools: ["computer_agent_tool"]
+      model: "gpt-4o"
+
   - id: "mobile_executor"
-    path: "app.core.workflows.nodes.executors.mobile_executor"
+    path: "app.core.workflows.nodes.generic.generic_node"
+    config:
+      system_prompt: "You are an expert Mobile Automation Agent. You can control a mobile device/emulator."
+      tools: ["mobile_agent_tool"]
+      model: "gpt-4o"
 
 edges:
   # 1. Router (L1 Dispatch)

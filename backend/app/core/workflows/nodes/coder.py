@@ -17,8 +17,8 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
     1. Reads plan.
     2. Writes code using MCP tools.
     """
-    llm = LLMFactory.create_llm()
-    messages = state["messages"]
+    import logging
+    logger = logging.getLogger(__name__)
     
     # Context injected by middleware
     plan = context.get("current_plan", "")
@@ -27,7 +27,6 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
     concepts = context.get("memory", "None")
     
     # Explicit Context from State (e.g. Previous retrieval)
-    # Some things might still live in state if they are transient
     retrieval_ctx = state.get("context", "")
     
     # Get tools
@@ -35,6 +34,7 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
     from app.domain.tools.profiles import get_profile_static_tools
     from app.infrastructure.mcp.client import mcp_client_manager
     from app.domain.tools.vector_store import pg_tool_retriever
+    from app.core.workflows.engine import AgentEngine
 
     # 1. Orchestration: Determine Profile & Query (Phase 3.0)
     profile_name = state.get("active_tool_profile") or "GENERAL"
@@ -47,12 +47,9 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
     dynamic_tools = []
     if retrieval_query:
         # User defined dynamic query
-        # Retrieve metadata first
         records = await pg_tool_retriever.search_tools(retrieval_query, k=5)
         
         # Hydrate into actual tools
-        # For now, we fetch ALL MCP tools and filter. 
-        # OPTIMIZATION TODO: Fetch only needed tools by name if MCP supports it.
         all_mcp_tools = mcp_client_manager.get_tools()
         mcp_map = {t.name: t for t in all_mcp_tools}
         
@@ -61,16 +58,9 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
                 dynamic_tools.append(mcp_map[rec['name']])
 
     # 4. Combine
-    # Use dict to deduplicate
     tool_dict = {t.name: t for t in core_tools + dynamic_tools}
     tools = list(tool_dict.values())
     
-    llm_with_tools = llm.bind_tools(tools)
-    tool_map = {t.name: t for t in tools}
-    
-    from app.domain.system.service import SystemConfigService
-    user_lang = SystemConfigService.get_language_preference()
-
     system_msg = f"""You are the **PRINCIPAL ARCHITECT** and **TECHNICAL GUARDIAN** of this system.
     Plan: {plan}
     Context: {context}
@@ -82,12 +72,6 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
     - **Game Theory**: You are playing a game of "Maintenance vs. Speed".
       - If the user asks for "Speed" at the cost of "Structure", you MUST **OBJECT** and propose a negotiation.
       - E.g., "I refuse to put SQL in the Controller. I can implement a Helper Function (Medium Debt) or a proper Repository (Zero Debt). Choose."
-    
-    ### LANGUAGE DIRECTIVE (STRICT)
-    User Language Preference: **{user_lang}**.
-    - **Code Comments**: Must be in {user_lang}.
-    - **Docstrings**: Must be in {user_lang}.
-    - **Explanations**: Must be in {user_lang}.
     
     ### PROTOCOL: THE ARCHITECT'S LOOP
     1.  **Assess**: Before writing code, use `consult_architecture` and `explore_codebase`.
@@ -158,6 +142,7 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
     
     # Check for recent Test Failure (Fix Mode)
     last_msg_content = ""
+    messages = state.get("messages", [])
     if messages and isinstance(messages[-1].content, str):
         last_msg_content = messages[-1].content
         
@@ -175,87 +160,14 @@ async def coder_node(state: AgentState, config: RunnableConfig, context: dict = 
         2. Apply the 'FIX SUGGESTION' provided above if it makes sense.
         3. Verify the fix by running the test.
         """
-    
-    # --- CONTEXT PINNING STRATEGY ---
-    # To fix "Context Amnesia", we ensure the Original Goal (First Human Message) is always present.
-    
-    # 1. System Prompt (Always First)
-    system_message = AIMessage(content=system_msg)
-    
-    # 2. Original Goal (Pinning)
-    original_goal_message = None
-    for m in messages:
-        if m.type == "human":
-            original_goal_message = m
-            break
-            
-    # 3. Recent History (Sliding Window)
-    # We take last 8 messages to give enough context for immediate tool loops.
-    # CRITICAL FIX: Ensure we don't slice off the parent AIMessage of a ToolMessage.
-    
-    start_index = max(0, len(messages) - 8)
-    recent_messages = messages[start_index:]
-    
-    # Check for Orphaned Tool Message at start
-    while recent_messages and isinstance(recent_messages[0], ToolMessage):
-        # Tools need their AI call. We must look backwards.
-        start_index -= 1
-        if start_index < 0:
-             # Should not happen in valid history, but if it does, 
-             # we cannot fix it by going back further.
-             # In this case, we DROP the orphaned tool message to satisfy LLM API.
-             recent_messages.pop(0)
-             # Continue check in case next one is also tool
-        else:
-             # Prepend the previous message (hopefully the AIMessage)
-             previous_msg = messages[start_index]
-             recent_messages.insert(0, previous_msg)
-             # Loops again to check if THAT message is also dependent (rare for AI, but safe)
-
-    # Build Final Loop Messages
-    loop_messages = [system_message]
-    
-    if original_goal_message:
-        # If the original goal is NOT in recent messages, insert it explicitly as context reminder.
-        is_in_recent = any(m.content == original_goal_message.content for m in recent_messages)
         
-        if not is_in_recent:
-            loop_messages.append(original_goal_message)
-            
-    loop_messages.extend(recent_messages)
+    # Delegate to Engine
+    logger.info("Coder delegating to AgentEngine")
     
-    generated_code_summary = ""
-    
-    # Simple ReAct Loop
-    for _ in range(5):
-        response = await llm_with_tools.ainvoke(loop_messages, config=config)
-        loop_messages.append(response)
-        
-        if not response.tool_calls:
-            generated_code_summary = response.content
-            break
-            
-        for tool_call in response.tool_calls:
-            tool_name = tool_call["name"]
-            tool_args = tool_call["args"]
-            tool_id = tool_call["id"]
-            
-            # print(f"Coder [MCP Tool]: {tool_name} args={tool_args}")
-            
-            tool = tool_map.get(tool_name)
-            executor = ToolExecutor()
-            
-            if tool:
-                # Use executor for logging and error handling standardization
-                result = await executor.execute(tool, tool_args, config=config)
-            else:
-                result = f"Error: Tool {tool_name} not found"
-            
-            loop_messages.append(ToolMessage(content=str(result), tool_call_id=tool_id))
-
-    msg = f"Implementation complete. {generated_code_summary}"
-    
-    return {
-        "code": "Code implemented via tools",
-        "messages": [AIMessage(content=msg)]
-    }
+    return await AgentEngine.run_node(
+        state=state,
+        config=config,
+        system_prompt=system_msg,
+        tools=tools,
+        name="Coder"
+    )

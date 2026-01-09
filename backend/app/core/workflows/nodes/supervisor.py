@@ -17,6 +17,7 @@ from app.core.tools.executor import ToolExecutor
 from app.domain.tools.memory import save_preference, search_concepts
 from app.domain.tools.facades import manage_file
 from app.domain.tools.facades import manage_file
+from app.core.workflows.engine import AgentEngine
 # from app.domain.planning.tools import create_plan, update_step_status, analyze_feasibility -> Moved to Planner Node
 
 # llm = LLMFactory.create_llm()
@@ -24,8 +25,10 @@ from app.domain.tools.facades import manage_file
 # Supervisor is a decision maker.
 # For simplicity, we use a function calling or structured output model.
 
-supervisor_prompt = ChatPromptTemplate.from_messages([
-    ("system", """You are the Supervisor of an elite coding team.
+# Supervisor is a decision maker.
+# For simplicity, we use a function calling or structured output model.
+
+SUPERVISOR_SYSTEM_TEMPLATE = """You are the Supervisor of an elite coding team.
     
     **MISSION**: Your goal is to PREPARE the workspace for specialized workers (Coder, Deep Researcher). You do not write code yourself; you Analyze, Plan, and Route.
 
@@ -80,10 +83,9 @@ supervisor_prompt = ChatPromptTemplate.from_messages([
     Project ID: {project_id}
     Iteration: {iteration_count}
     System Info: {system_info}
-    """),
-    ("placeholder", "{messages}"),
-    ("system", "Follow protocol: Explore -> Plan -> Handoff. Do not code directly.")
-])
+    
+    Follow protocol: Explore -> Plan -> Handoff. Do not code directly.
+    """
 
 
 # Define Structured Output for Supervisor
@@ -289,158 +291,62 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     except Exception as e:
         project_structure = f"Tree error: {e}"
 
-    # Limit size
+    # Limit size system info log
     sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage Preference: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}"
+    
+    # OBSERVE: Log Context Stats
+    logger.info(f"[Supervisor] 📂 Context Loaded - Tree Chars: {len(project_structure)}, Concepts: {len(project_concepts) if project_concepts else 0} chars, Plan: {'Yes' if len(current_plan) > 20 else 'No'}")
 
     # Allow up to 10 turns for planning & analysis
     has_replied_directly = False
 
-    for i in range(10):
-        # Refresh Context for Prompt (Critical for Plan updates)
-        current_plan = state.get("current_plan", "No plan yet.")
-        iteration_count = state.get("iteration_count", 0)
-
-        tool_chain = supervisor_prompt.partial(
-            project_id=project_id,
-            current_plan=current_plan,
-            iteration_count=iteration_count,
-            system_info=sys_info,
-            user_lang=user_lang
-        ) | llm_with_tools
-        # Initialize logger
-        # logger = logging.getLogger(__name__)
-
-        # Sanitize / Repair Messages
-        # Verify that every ToolMessage is preceded by an AIMessage with matching tool_calls
-        # Fix: Support Parallel Tool Calls (AI -> Tool1 -> Tool2)
-        repaired_messages = []
-        valid_tool_ids = set()
-
-        iterator = iter(messages)
-        try:
-            while True:
-                msg = next(iterator)
-
-                if isinstance(msg, AIMessage) and msg.tool_calls:
-                    valid_tool_ids = {tc['id'] for tc in msg.tool_calls}
-                elif isinstance(msg, ToolMessage):
-                    if msg.tool_call_id not in valid_tool_ids:
-                        # is_orphan = True
-                        logger.debug(f"🔧 REPAIRING ORPHANED TOOL MESSAGE: {msg.tool_call_id}")
-                        # Create a dummy AI message that 'calls' this tool
-                        dummy_ai = AIMessage(
-                            content="Resuming tool execution...",
-                            tool_calls=[{
-                                "name": msg.name or "unknown_tool",
-                                "args": {},
-                                "id": msg.tool_call_id
-                            }]
-                        )
-                        repaired_messages.append(dummy_ai)
-                        # Now it's valid for this dummy
-                        valid_tool_ids.add(msg.tool_call_id)
-                elif isinstance(msg, (HumanMessage, SystemMessage)):
-                    # Reset valid tools on new turn
-                    valid_tool_ids = set()
-
-                repaired_messages.append(msg)
-
-        except StopIteration:
-            pass
-
-        # Update state temporarily for this invocation
-        state["messages"] = repaired_messages
-
-        # Pass config for streaming callbacks
-        result = await tool_chain.ainvoke(state, config=config)
-        logger.info(f"LLM Response: {result.content}")
-
-        # Check for tool calls
-        if hasattr(result, "tool_calls") and result.tool_calls:
-            # Append the AI message (Assistant) first - ONCE
-            messages.append(result)
-            new_messages.append(result)
-
-            # Create tool map for easy lookup
-            tool_map = {t.name: t for t in tools}
-
-            # Track executed tools in this session to prevent loops
-            # We use a simple signature: name + sorted(args.items())
-            if "tool_history" not in state:
-                state["tool_history"] = []
-
-            # Execute tools
-            for tool_call in result.tool_calls:
-                tool_name = tool_call["name"]
-                tool_args = tool_call["args"]
-
-                # Check for duplication
+    # Phase 1: Thinking & Action (Delegated to AgentEngine)
+    # The Supervisor first "thinks" and "acts" (calls tools like manage_file, create_plan)
+    # The Engine handles the loop, history repair, and tool execution.
+    
+    # We construct the System Prompt with dynamic info
+    dynamic_system_prompt = SUPERVISOR_SYSTEM_TEMPLATE.format(
+        project_id=project_id,
+        current_plan=current_plan,
+        iteration_count=iteration_count,
+        system_info=sys_info,
+        user_lang=user_lang
+    )
+    
+    # Run the Engine
+    # Note: We pass max_steps=10 as Supervisor does more exploration/planning
+    engine_output = await AgentEngine.run_node(
+        state=state,
+        config=config,
+        system_prompt=dynamic_system_prompt,
+        tools=tools,
+        max_steps=10,
+        name="Supervisor"
+    )
+    
+    # Update local variables with result from Engine
+    # The engine returns {"messages": [new_messages...]}
+    new_generated_messages = engine_output.get("messages", [])
+    
+    # We must append these to our local lists to allow the Routing Decision (below) to see them
+    messages.extend(new_generated_messages)
+    new_messages.extend(new_generated_messages)
+    
+    # SPECIAL HANDLING: State Updates from Tools
+    # In the original code, `create_plan` updated `current_plan` in state.
+    # The Engine doesn't automatically mutate our local `current_plan` variable.
+    # We need to re-scan the new tool outputs to grab any plan updates.
+    for msg in new_generated_messages:
+        if isinstance(msg, ToolMessage) and msg.name == "create_plan":
+             try:
                 import json
-                try:
-                    # Normalize args for comparison
-                    tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
-                except:
-                    tool_sig = f"{tool_name}:{str(tool_args)}"
-
-                content = ""
-                is_duplicate = False
-
-                # Check duplication against local state history
-                if tool_sig in state["tool_history"]:
-                    content = f"⚠️ SYSTEM ALERT: You have ALREADY executed `{tool_name}` with these exact arguments. Do not repeat actions. Review the history to see the results. Proceed to the next step."
-                    is_duplicate = True
-                    logger.warning(f"Prevented duplicate tool call: {tool_sig}")
-                else:
-                    state["tool_history"].append(tool_sig)
-
-                if not is_duplicate:
-                    if tool_name in tool_map:
-                        selected_tool = tool_map[tool_name]
-                        executor = ToolExecutor()
-
-                        # Universal async invocation with observability
-                        content = await executor.execute(selected_tool, tool_args, config=config)
-
-                        # Special Handling for State Updates (create_plan)
-                        if tool_name == "create_plan":
-                            try:
-                                plan_data = json.loads(str(content))
-                                steps_text = "\\n".join([f"- {s['title']} ({s['status']})" for s in plan_data.get('steps', [])])
-                                current_plan = f"Plan: {plan_data.get('title')}\\n{steps_text}"
-                                state["structured_plan"] = str(content)
-                                state["current_plan"] = current_plan
-                            except:
-                                pass
-                    else:
-                        content = f"Error: Tool {tool_name} not found."
-
-                # Create tool message
-                tool_msg = ToolMessage(content=str(content), tool_call_id=tool_call["id"], name=tool_name)
-
-                # Update state messages
-                messages.append(tool_msg)
-                new_messages.append(tool_msg)
-
-            # Update local state for next iteration (after all tools processed)
-            state["messages"] = messages
-
-            # Continue loop
-            continue
-
-        # Check for direct text response (Thinking Mode)
-        elif result.content:
-            # The LLM provided a direct response (e.g. "Hello! I can help you with...")
-            # We treat this as a valid step and append it.
-            messages.append(result)
-            new_messages.append(result)
-            state["messages"] = messages
-            has_replied_directly = True
-            # We break because we got a response, now we decide where to go (likely Finish)
-            break
-
-        else:
-            # No tool call, no content? Just break ready to decide
-            break
+                plan_data = json.loads(str(msg.content))
+                steps_text = "\\n".join([f"- {s['title']} ({s['status']})" for s in plan_data.get('steps', [])])
+                current_plan = f"Plan: {plan_data.get('title')}\\n{steps_text}"
+                state["structured_plan"] = str(msg.content)
+                state["current_plan"] = current_plan
+             except:
+                pass
 
     # 2. Make Routing Decision
 
@@ -552,14 +458,27 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
             next_node = "deep_researcher"
         parallel_research_tasks = decision.parallel_research_tasks or []
 
+    # OBSERVE: Routing Decision
+    logger.info(f"[Supervisor] 🚦 Routing Decision: {decision.next_node if decision else 'deep_researcher'} (Profile: {decision.tool_profile if decision else 'GENERAL'}, Query: {decision.retrieval_query if decision else 'None'})")
+
+    # If the Supervisor decided to finish, and it wasn't because it replied directly,
+    # we should log this as a task completion.
+    if decision and decision.next_node == "finish" and not has_replied_directly:
+        pass
+
+    # OBSERVE: Final Route
+    logger.info(f"[Supervisor] 🚦 Routing Decision: {decision.next_node} (Reason: {decision.next_node if decision.next_node != 'finish' else 'Task Completed'})")
+
+    profile = decision.tool_profile if decision else "GENERAL"
+    query = decision.retrieval_query if decision else None
+
     return {
-        "next_node": next_node,
+        "next_node": decision.next_node,
         "messages": new_messages,
         "current_plan": state.get("current_plan"),
         "structured_plan": state.get("structured_plan"),
         "parallel_research_tasks": parallel_research_tasks,
-        
-        # Orchestration (Phase 3.0)
-        "active_tool_profile": decision.tool_profile if decision else "GENERAL",
-        "tool_retrieval_query": decision.retrieval_query if decision else None
+        "active_tool_profile": profile, # Persist for next step
+        "tool_retrieval_query": query,
+        "scratchpad": {"last_supervisor_route": decision.next_node} # Debug info
     }
