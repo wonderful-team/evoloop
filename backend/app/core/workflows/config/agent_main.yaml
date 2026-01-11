@@ -44,21 +44,21 @@ nodes:
     path: "app.core.workflows.nodes.generic.generic_node"
     config:
       system_prompt: "You are an expert Browser Automation Agent. You can navigate the web, click elements, and extract data. Execute the user's request using the available tools."
-      tools: ["browser_agent"]
+      tools: ["browse_web"]
       model: "gpt-4o"
 
   - id: "computer_executor"
     path: "app.core.workflows.nodes.generic.generic_node"
     config:
       system_prompt: "You are an expert Computer Control Agent. You can use the mouse and keyboard to interact with the OS. Execute the request carefully."
-      tools: ["computer_agent_tool"]
+      tools: ["computer_execute"]
       model: "gpt-4o"
 
   - id: "mobile_executor"
     path: "app.core.workflows.nodes.generic.generic_node"
     config:
       system_prompt: "You are an expert Mobile Automation Agent. You can control a mobile device/emulator."
-      tools: ["mobile_agent_tool"]
+      tools: ["control_mobile"]
       model: "gpt-4o"
 
 edges:

@@ -91,6 +91,64 @@ async def init_mcp() -> None:
     else:
         logger.warning("BRAVE_API_KEY not found. Skipping 'brave-search' MCP auto-configuration.")
 
+    # 4. Agent-S (Micro-Skill)
+    # We use the internal docker DNS 'skill-agent-s'
+    # Default port 8000 mapped internally
+    agent_s_url = "http://skill-agent-s:8000/sse"
+    details_agent_s = {
+        "command": agent_s_url, # Command is URL for SSE
+        "args": [],
+        "env": {}
+    }
+    try:
+        # We add it but it might fail if container is not up yet - MCP Client handles reconnection/retry?
+        # mcp_client.add_server will try to connect. If fail, it should still add to DB?
+        # Our implementation of add_server tries to connect and logs error if fails, but adds to DB?
+        # Let's check add_server implementation... it adds to DB first! So it's safe.
+        await mcp_client_manager.add_server("skill-agent-s", details_agent_s)
+        logger.info("MCP 'skill-agent-s' configured successfully.")
+    except Exception as e:
+        logger.info(f"Configuration created for 'skill-agent-s' (Connection pending): {e}")
+
+    # 5. Browser-Use (Micro-Skill)
+    browser_use_url = "http://skill-browser-use:8000/sse"
+    details_browser = {
+        "command": browser_use_url,
+        "args": [],
+        "env": {}
+    }
+    try:
+        await mcp_client_manager.add_server("skill-browser-use", details_browser)
+        logger.info("MCP 'skill-browser-use' configured successfully.")
+    except Exception as e:
+        logger.info(f"Configuration created for 'skill-browser-use' (Connection pending): {e}")
+
+    # 6. Open-AutoGLM (Micro-Skill)
+    autoglm_url = "http://skill-open-autoglm:8000/sse"
+    details_autoglm = {
+        "command": autoglm_url,
+        "args": [],
+        "env": {}
+    }
+    try:
+        await mcp_client_manager.add_server("skill-open-autoglm", details_autoglm)
+        logger.info("MCP 'skill-open-autoglm' configured successfully.")
+    except Exception as e:
+        logger.info(f"Configuration created for 'skill-open-autoglm' (Connection pending): {e}")
+
+    # 7. Crawl4AI (Micro-Skill)
+    crawl4ai_url = "http://skill-crawl4ai:8000/sse"
+    details_crawl = {
+        "command": crawl4ai_url,
+        "args": [],
+        "env": {}
+    }
+    try:
+        await mcp_client_manager.add_server("skill-crawl4ai", details_crawl)
+        logger.info("MCP 'skill-crawl4ai' configured successfully.")
+    except Exception as e:
+        logger.info(f"Configuration created for 'skill-crawl4ai' (Connection pending): {e}")
+
 
 def main() -> None:
     logger.info("Creating initial data")

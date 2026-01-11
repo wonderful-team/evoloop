@@ -81,6 +81,26 @@ edges:
 - **UI 组件**: Shadcn/UI + TailwindCSS v4
 - **原生封装**: Tauri v2 (支持 Windows, macOS, Linux, Android, iOS)
 
+## ⚡ 微技能架构 (Micro-Skills Architecture)
+
+EvoLoop 采用先进的 **Micro-Skills** 架构，将重型能力（如浏览器、Docker环境、GUI控制）剥离为独立的 Docker Sidecar 容器。核心 Backend 保持极度轻量，通过 **MCP (Model Context Protocol)** 协议与这些技能单元（Skill Cells）通信。
+
+这种架构带来了极致的稳定性和扩展性：即使某个技能崩溃（如浏览器假死），也不会影响主系统的运行。
+
+| Skill Cell | 端口 | 协议 | 功能描述 |
+| :--- | :--- | :--- | :--- |
+| **GUI Control (Agent-S)** | `8001` | MCP/SSE | **桌面自动化**。基于 Agent-S，通过 Xvfb/PyAutoGUI 控制 Linux 桌面环境。 |
+| **Web Browser (Browser-Use)** | `8002` | MCP/SSE | **复杂网页操作**。基于 Playwright，支持复杂的 DOM 交互和视觉理解。 |
+| **Mobile Control (Open-AutoGLM)** | `8003` | MCP/SSE | **移动端控制**。基于 ADB/Uiautomator2，控制 Android 真机或模拟器。 |
+| **Web Crawler (Crawl4AI)** | `8004` | MCP/SSE | **高性能爬虫**。将动态网页极速转换为 Markdown/JSON，供 LLM 阅读。 |
+
+### 扩展新技能
+
+只需三步即可无缝挂载新能力：
+1. **Containerize**: 将新工具封装为 Docker 容器，暴露 MCP 接口。
+2. **Sidecar**: 在 `docker-compose.yaml` 中添加服务定义。
+3. **Register**: 系统启动时自动发现并注册为由 LLM 调用的工具。
+
 ## 🚀 快速开始 (Getting Started)
 
 ### 环境要求 (Prerequisites)
