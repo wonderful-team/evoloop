@@ -84,6 +84,7 @@ async def lifespan(app: FastAPI):
         logger.error(f"Failed to connect to MCP servers: {e}")
 
     # 6. Watchers
+    logger.info("Initializing File Watchers...")
     discovery_watcher = None
     try:
         default_path = project_context_manager.get_working_directory("default")
@@ -114,14 +115,6 @@ async def lifespan(app: FastAPI):
             await indexing_manager.run_indexing_background(repo.id)
 
     except Exception as e:
-        logger.error(f"Failed to start startup watcher: {e}")
-
-        # 7. EvoLoop Link Client (Unified)
-        # (Checking for the second occurrence logic block lines 164-169)
-        # Logic: I will use MultiReplace to target specific blocks or replace the file content carefully.
-        # Actually, replace_file_content tool supports chunks but I selected "single contiguous block" tool (replace_file_content).
-        # Wait, replace_file_content does NOT support multiple chunks. The tool usage says "Use this tool ONLY when you are making a SINGLE CONTIGUOUS block... If you are making multiple edits... use multi_replace...".
-        # I should use `multi_replace_file_content` for `main.py` since the calls are far apart (Line 105 and 169).
         logger.error(f"Failed to start startup watcher: {e}")
 
     # 7. EvoLoop Link Client (Unified)
@@ -179,10 +172,12 @@ async def lifespan(app: FastAPI):
                         # This means watchers start with potentially STALE default, then we fetch cloud.
                         # We should RE-TRIGGER watcher if cloud differs.
 
+                        project_id = project_data.get("project_id")
+                        
                         from app.domain.codebase.indexing.service import IndexingService
                         service = IndexingService()
                         repo_name = os.path.basename(cloud_path)
-                        repo = await service.get_or_create_repo(cloud_path, repo_name)
+                        repo = await service.get_or_create_repo(cloud_path, repo_name, project_id=project_id)
                         await indexing_manager.start_watching(cloud_path, repo.id)
                         await indexing_manager.run_indexing_background(repo.id)
 

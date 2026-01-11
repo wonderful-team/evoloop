@@ -1,4 +1,3 @@
-
 import os
 import json
 import time
@@ -44,32 +43,32 @@ class ImagicBoxClient:
     def __init__(self):
         if hasattr(self, "_initialized") and self._initialized:
             return
-            
+
         # --- Config ---
         self.base_url = str(settings.IMAGICBOX_API_URL).rstrip('/')
         self.ws_url = str(settings.IMAGICBOX_WS_URL)
         self.api_key = settings.IMAGICBOX_API_KEY
         self.api_secret = settings.IMAGICBOX_API_SECRET
         self.timeout = 30.0
-        
+
         # --- Authentication ---
         self._user_token: Optional[str] = None
         self._member_id: Optional[int] = None
-        
+
         # --- Device Link State ---
-        db_device_name = SystemConfigService.get_value("IMAGICBOX_DEVICE_NAME") # Legacy key in DB? Or migrate?
+        db_device_name = SystemConfigService.get_value("IMAGICBOX_DEVICE_NAME")  # Legacy key in DB? Or migrate?
         self.device_name = settings.IMAGICBOX_DEVICE_NAME or db_device_name or f"{platform.node()}"
         self.device_key = self._get_or_create_device_key()
         self.device_id: Optional[int] = None
         self.client_id: Optional[str] = None
-        
+
         # --- Connection State ---
         self.ws: Optional[websockets.WebSocketClientProtocol] = None
         self._running = False
         self._reconnect_delay = 5
-        self._client_session: Optional[httpx.AsyncClient] = None # Deprecated in favor of _clients
+        self._client_session: Optional[httpx.AsyncClient] = None  # Deprecated in favor of _clients
         self._clients: Dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
-        
+
         # --- Handlers ---
         self._command_handler: Optional[Callable[[Dict[str, Any]], None]] = None
         self._event_handler: Optional[Callable[[str, Dict[str, Any]], None]] = None
@@ -93,7 +92,7 @@ class ImagicBoxClient:
             client = self._clients[loop]
             if not client.is_closed:
                 return client
-        
+
         # Create new
         client = http_utils.create_client(timeout=self.timeout)
         self._clients[loop] = client
@@ -107,7 +106,7 @@ class ImagicBoxClient:
         self._clients.clear()
 
     # --- Authentication Helper ---
-    
+
     def _load_token(self):
         """Load token from local storage or environment"""
         try:
@@ -129,13 +128,13 @@ class ImagicBoxClient:
         try:
             self._user_token = token
             self._member_id = member_id
-            
+
             auth_dir = os.path.join(os.getcwd(), ".evoloop")
             os.makedirs(auth_dir, exist_ok=True)
-            
+
             with open(os.path.join(auth_dir, "auth.json"), "w") as f:
                 json.dump({"token": token, "member_id": member_id}, f)
-                
+
             # Sync to Redis for other processes/cache
             # We don't block on this sync save, but we should start async task or ignore
             # Since this is sync method called by login logic, we keep it simple.
@@ -176,20 +175,20 @@ class ImagicBoxClient:
         """
         client = await self.get_client()
         active_token = token or self._user_token
-        
+
         url = f"{self.base_url}{endpoint}"
         timestamp = int(time.time())
         body_str = json_utils.dumps(data) if data else ""
-        
+
         headers = {
             'Content-Type': 'application/json',
             'X-Timestamp': str(timestamp)
         }
-        
+
         if self.api_key and self.api_secret:
             headers['X-API-Key'] = self.api_key
             headers['X-Signature'] = self._generate_signature(method, endpoint, body_str, timestamp)
-            
+
         # Params preparation
         if params is None:
             params = {}
@@ -199,11 +198,11 @@ class ImagicBoxClient:
         try:
             logger.debug(f"Req: {method} {endpoint}")
             resp = await client.request(method, url, params=params, json=data, headers=headers)
-            
+
             # Simple error handling
             if resp.status_code >= 400:
                 logger.error(f"API Error {resp.status_code}: {resp.text[:200]}")
-            
+
             try:
                 res_json = resp.json()
                 return res_json
@@ -242,8 +241,12 @@ class ImagicBoxClient:
         payload = {"name": name, "description": description, "path": path, "source": "EvoLoopV3"}
         return await self._request("POST", "/projectmanage/api/ProjectOpen/createProject", data=payload)
 
-    async def update_project(self, project_id: int, description: str) -> Dict:
-        return await self._request("POST", "/projectmanage/api/ProjectOpen/updateProject", data={"project_id": project_id, "project_desc": description})
+    async def update_project(self, project_id: int, description: str = None, name: str = None, path: str = None) -> Dict:
+        data = {"project_id": project_id}
+        if description is not None: data["project_desc"] = description
+        if name is not None: data["name"] = name
+        if path is not None: data["path"] = path  # Ensure backend API supports this
+        return await self._request("POST", "/projectmanage/api/ProjectOpen/updateProject", data=data)
 
     async def delete_project(self, project_id: int) -> Dict:
         return await self._request("POST", "/projectmanage/api/ProjectOpen/deleteProject", data={"project_id": project_id})
@@ -292,7 +295,7 @@ class ImagicBoxClient:
     # Cancellation
     async def get_cancellation_info(self) -> Dict:
         return await self._request("GET", "/membercancel/api/membercancel/info")
-    
+
     async def apply_cancellation(self) -> Dict:
         return await self._request("POST", "/membercancel/api/membercancel/apply")
 
@@ -300,13 +303,13 @@ class ImagicBoxClient:
         return await self._request("POST", "/membercancel/api/membercancel/cancelApply")
 
     # --- Auth / Public ---
-    
+
     async def get_captcha_config(self) -> Dict:
         return await self._request("GET", "/api/captcha/config")
 
     async def get_captcha(self, captcha_id: str) -> Dict:
         return await self._request("GET", "/api/captcha/get", params={"id": captcha_id})
-        
+
     async def get_register_config(self) -> Dict:
         return await self._request("GET", "/api/register/config")
 
@@ -315,8 +318,8 @@ class ImagicBoxClient:
 
     async def send_mobile_code(self, mobile: str, captcha_id: str, captcha_code: str, type: str = "login") -> Dict:
         return await self._request("POST", "/api/sms/send", data={
-            "mobile": mobile, 
-            "captcha_id": captcha_id, 
+            "mobile": mobile,
+            "captcha_id": captcha_id,
             "captcha_code": captcha_code,
             "type": type
         })
@@ -345,21 +348,19 @@ class ImagicBoxClient:
 
     async def reset_password_by_mobile(self, mobile: str, code: str, key: str, password: str) -> Dict[str, Any]:
         """Reset password via mobile code"""
-        return await self._request("POST", "/passport/api/password/reset/mobile", json={
+        return await self._request("POST", "/passport/api/password/reset/mobile", data={
             "mobile": mobile,
             "code": code,
             "key": key,
             "password": password
         })
 
-
-
     # --- Device Link / WebSocket Logic ---
 
     def _get_or_create_device_key(self) -> str:
         key_file = os.path.expanduser("~/.evoloop_device_key")
         if os.path.exists(key_file):
-                return file_utils.read_file(key_file).strip()
+            return file_utils.read_file(key_file).strip()
         else:
             dk = gen_uuid()
             file_utils.write_file(key_file, dk)
@@ -375,16 +376,16 @@ class ImagicBoxClient:
         """Start the WebSocket connection and Heartbeat """
         if token:
             self._user_token = token
-            
+
         if self._running:
             return
-        
+
         if not self._user_token:
             logger.warning("[ImagicBox] Cannot start Device Link: No Token")
             return
 
         self._running = True
-        
+
         # Register
         if not await self._register_device():
             logger.error("[ImagicBox] Device registration failed. Aborting Link.")
@@ -427,8 +428,8 @@ class ImagicBoxClient:
 
     async def _register_device(self) -> bool:
         res = await self._request(
-            "POST", 
-            "/evolooplink/api/device/register", 
+            "POST",
+            "/evolooplink/api/device/register",
             data={
                 "device_key": self.device_key,
                 "device_name": self.device_name,
@@ -478,7 +479,7 @@ class ImagicBoxClient:
                         await self._handle_ws_message(message)
             except Exception as e:
                 logger.warning(f"[ImagicBox] WS Connection Error: {e}")
-            
+
             if self._running:
                 await asyncio.sleep(self._reconnect_delay)
 
@@ -486,17 +487,17 @@ class ImagicBoxClient:
         try:
             data = json.loads(message)
             msg_type = data.get("type")
-            
+
             if msg_type == "init":
                 client_id = data.get("data", {}).get("client_id")
                 if client_id:
                     await self._bind_client_id(client_id)
-            
+
             elif msg_type == "new_command":
                 cmd = data.get("data", {})
                 if self._command_handler:
                     asyncio.create_task(self._execute_command_wrapper(cmd))
-            
+
             elif msg_type == "project_switch":
                 if self._event_handler:
                     if asyncio.iscoroutinefunction(self._event_handler):
@@ -516,16 +517,16 @@ class ImagicBoxClient:
 
     async def _execute_command_wrapper(self, cmd_data):
         cmd_id = cmd_data.get("command_id")
-        await self.update_command_status(cmd_id, 2) # Running
+        await self.update_command_status(cmd_id, 2)  # Running
         try:
             if asyncio.iscoroutinefunction(self._command_handler):
                 await self._command_handler(cmd_data)
             else:
                 await run_in_thread(self._command_handler, cmd_data)
-            await self.update_command_status(cmd_id, 3) # Completed
+            await self.update_command_status(cmd_id, 3)  # Completed
         except Exception as e:
             logger.error(f"Command execution error: {e}")
-            await self.update_command_status(cmd_id, 4, str(e)) # Failed
+            await self.update_command_status(cmd_id, 4, str(e))  # Failed
 
     async def update_command_status(self, command_id, status, result=None):
         data = {"command_id": command_id, "status": status}
@@ -535,9 +536,9 @@ class ImagicBoxClient:
     async def upload_log(self, thread_id, log_type, content, command_id=None, project_id=None):
         if not self.device_id: return
         data = {
-            "device_id": self.device_id, 
-            "thread_id": thread_id, 
-            "type": log_type, 
+            "device_id": self.device_id,
+            "thread_id": thread_id,
+            "type": log_type,
             "content": json_utils.dumps(content) if isinstance(content, (dict, list)) else str(content)
         }
         if command_id: data["command_id"] = command_id

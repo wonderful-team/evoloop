@@ -21,7 +21,16 @@ class IndexingService:
         self.extractor = TreeSitterExtractor()
         self.embedder: BaseEmbedder = EmbedderFactory.get_embedder()
 
-    async def get_or_create_repo(self, path: str, name: str) -> Repository:
+    async def get_repo_by_path(self, path: str) -> Repository | None:
+        """
+        Look up a repository by its local path.
+        """
+        async with self.session_factory() as session:
+            stmt = select(Repository).where(Repository.local_path == path)
+            result = await session.execute(stmt)
+            return result.scalars().first()
+
+    async def get_or_create_repo(self, path: str, name: str, project_id: int = None) -> Repository:
         async with self.session_factory() as session:
             # Check existing
             stmt = select(Repository).where(Repository.local_path == path)
@@ -31,17 +40,18 @@ class IndexingService:
             if repo:
                 return repo
 
-            # Resolve Project ID dynamically
-            project_id = 1
-            try:
-                projects = await project_context_manager.scan_projects()
-                abs_path = os.path.abspath(path)
-                for p in projects:
-                    if p.get("path") and os.path.abspath(p.get("path")) == abs_path:
-                        project_id = p.get("id", 1)
-                        break
-            except Exception as e:
-                logger.warning(f"Failed to resolve project_id for {path}, using default 1: {e}")
+            # Resolve Project ID dynamically (if not provided)
+            if not project_id:
+                project_id = 1
+                try:
+                    projects = await project_context_manager.scan_projects()
+                    abs_path = os.path.abspath(path)
+                    for p in projects:
+                        if p.get("path") and os.path.abspath(p.get("path")) == abs_path:
+                            project_id = p.get("id", 1)
+                            break
+                except Exception as e:
+                    logger.warning(f"Failed to resolve project_id for {path}, using default 1: {e}")
 
             # Create Repo
             repo = Repository(project_id=project_id, name=name, url="local", local_path=path)
