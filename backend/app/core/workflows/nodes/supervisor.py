@@ -18,6 +18,7 @@ from app.domain.tools.memory import save_preference, search_concepts
 from app.domain.tools.facades import manage_file
 from app.domain.tools.facades import manage_file
 from app.core.workflows.engine import AgentEngine
+
 # from app.domain.planning.tools import create_plan, update_step_status, analyze_feasibility -> Moved to Planner Node
 
 # llm = LLMFactory.create_llm()
@@ -118,14 +119,15 @@ class RoutingDecision(BaseModel):
     """
     Decision on the next step in the workflow.
     """
-    next_node: Literal["planner", "coder", "deep_researcher", "documenter", "finish", "map_research", "requirement_analyst"] = Field(
+    next_node: Literal[
+        "planner", "coder", "deep_researcher", "documenter", "finish", "map_research", "requirement_analyst"] = Field(
         description="The next worker node to route to. Default to 'finish' if done."
     )
     parallel_research_tasks: Optional[List[str]] = Field(
         default=None,
         description="List of topics to research in parallel. REQUIRED if next_node is 'map_research'."
     )
-    
+
     # Orchestration Fields (Phase 3.0)
     tool_profile: Optional[Literal["GENERAL", "DEVOPS", "RESEARCH"]] = Field(
         default="GENERAL",
@@ -318,9 +320,10 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
 
     # Limit size system info log
     sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage Preference: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}"
-    
+
     # OBSERVE: Log Context Stats
-    logger.info(f"[Supervisor] 📂 Context Loaded - Tree Chars: {len(project_structure)}, Concepts: {len(project_concepts) if project_concepts else 0} chars, Plan: {'Yes' if current_plan and len(current_plan) > 20 else 'No'}")
+    logger.info(
+        f"[Supervisor] 📂 Context Loaded - Tree Chars: {len(project_structure)}, Concepts: {len(project_concepts) if project_concepts else 0} chars, Plan: {'Yes' if current_plan and len(current_plan) > 20 else 'No'}")
 
     # Allow up to 10 turns for planning & analysis
     has_replied_directly = False
@@ -328,7 +331,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     # Phase 1: Thinking & Action (Delegated to AgentEngine)
     # The Supervisor first "thinks" and "acts" (calls tools like manage_file, create_plan)
     # The Engine handles the loop, history repair, and tool execution.
-    
+
     # We construct the System Prompt with dynamic info
     dynamic_system_prompt = SUPERVISOR_SYSTEM_TEMPLATE.format(
         project_id=project_id,
@@ -337,7 +340,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         system_info=sys_info,
         user_lang=user_lang
     )
-    
+
     # Run the Engine
     # Note: We pass max_steps=10 as Supervisor does more exploration/planning
     engine_output = await AgentEngine.run_node(
@@ -348,29 +351,29 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         max_steps=10,
         name="Supervisor"
     )
-    
+
     # Update local variables with result from Engine
     # The engine returns {"messages": [new_messages...]}
     new_generated_messages = engine_output.get("messages", [])
-    
+
     # We must append these to our local lists to allow the Routing Decision (below) to see them
     messages.extend(new_generated_messages)
     new_messages.extend(new_generated_messages)
-    
+
     # SPECIAL HANDLING: State Updates from Tools
     # In the original code, `create_plan` updated `current_plan` in state.
     # The Engine doesn't automatically mutate our local `current_plan` variable.
     # We need to re-scan the new tool outputs to grab any plan updates.
     for msg in new_generated_messages:
         if isinstance(msg, ToolMessage) and msg.name == "create_plan":
-             try:
+            try:
                 import json
                 plan_data = json.loads(str(msg.content))
                 steps_text = "\\n".join([f"- {s['title']} ({s['status']})" for s in plan_data.get('steps', [])])
                 current_plan = f"Plan: {plan_data.get('title')}\\n{steps_text}"
                 state["structured_plan"] = str(msg.content)
                 state["current_plan"] = current_plan
-             except:
+            except:
                 pass
 
     # 2. Make Routing Decision
@@ -384,8 +387,30 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
                 "next_node": "finish",
                 "messages": new_messages,
                 "current_plan": state.get("current_plan"),
-                "structured_plan": state.get("structured_plan"),
                 "parallel_research_tasks": []
+            }
+
+    # HEURISTIC: Check for Pending Wiki Plan (Resume Documenter)
+    if state.get("pending_wiki_plan"):
+        # We have a plan pending approval.
+        # Logic:
+        # 1. If we just came from Documenter (Last msg is AIMessage), we must WAIT (finish).
+        # 2. If we just got user input (Last msg is HumanMessage), we RESUME (documenter).
+
+        last_msg = messages[-1] if messages else None
+        if isinstance(last_msg, HumanMessage):
+            logger.info("Pending Wiki Plan + User Replied -> Resuming Documenter.")
+            return {
+                "next_node": "documenter",
+                "messages": new_messages,
+                "current_plan": state.get("current_plan"),
+            }
+        else:
+            logger.info("Pending Wiki Plan + No User Reply yet -> Waiting (Finish).")
+            return {
+                "next_node": "finish",
+                "messages": new_messages,
+                "current_plan": state.get("current_plan"),
             }
 
     # HEURISTIC: Check if we just requested Human Input
@@ -448,7 +473,8 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         system_info: {system_info}
         """),
         ("placeholder", "{messages}"),
-        ("system", "Analyze the above conversation. Has the question been answered? If yes, route to finish. Output ONLY the JSON object."),
+        ("system",
+         "Analyze the above conversation. Has the question been answered? If yes, route to finish. Output ONLY the JSON object."),
     ])
 
     chain = routing_prompt.partial(
@@ -490,7 +516,8 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         parallel_research_tasks = decision.parallel_research_tasks or []
 
     # OBSERVE: Routing Decision
-    logger.info(f"[Supervisor] 🚦 Routing Decision: {decision.next_node if decision else 'deep_researcher'} (Profile: {decision.tool_profile if decision else 'GENERAL'}, Query: {decision.retrieval_query if decision else 'None'})")
+    logger.info(
+        f"[Supervisor] 🚦 Routing Decision: {decision.next_node if decision else 'deep_researcher'} (Profile: {decision.tool_profile if decision else 'GENERAL'}, Query: {decision.retrieval_query if decision else 'None'})")
 
     # If the Supervisor decided to finish, and it wasn't because it replied directly,
     # we should log this as a task completion.
@@ -498,7 +525,8 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         pass
 
     # OBSERVE: Final Route
-    logger.info(f"[Supervisor] 🚦 Routing Decision: {next_node} (Reason: {next_node if next_node != 'finish' else 'Task Completed'})")
+    logger.info(
+        f"[Supervisor] 🚦 Routing Decision: {next_node} (Reason: {next_node if next_node != 'finish' else 'Task Completed'})")
 
     profile = decision.tool_profile if decision else "GENERAL"
     query = decision.retrieval_query if decision else None
@@ -509,7 +537,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         "current_plan": state.get("current_plan"),
         "structured_plan": state.get("structured_plan"),
         "parallel_research_tasks": parallel_research_tasks,
-        "active_tool_profile": profile, # Persist for next step
+        "active_tool_profile": profile,  # Persist for next step
         "tool_retrieval_query": query,
-        "scratchpad": {"last_supervisor_route": next_node} # Debug info
+        "scratchpad": {"last_supervisor_route": next_node}  # Debug info
     }

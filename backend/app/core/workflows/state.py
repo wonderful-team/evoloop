@@ -59,3 +59,6 @@ class AgentState(TypedDict):
     # Tool Orchestration (Phase 3.0)
     active_tool_profile: Optional[str] # e.g. "DEVOPS", "RESEARCH"
     tool_retrieval_query: Optional[str] # e.g. "kubernetes tools"
+    
+    # Wiki Generation State
+    pending_wiki_plan: Optional[str] # JSON string of domain.planning.models.WikiPlan

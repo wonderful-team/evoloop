@@ -45,26 +45,118 @@ Output ONLY JSON.
 async def documenter_node(state: AgentState, config: RunnableConfig):
     """
     Documenter Agent:
-    1. Analyzes project structure.
-    2. Plans a documentation structure (Wiki).
-    3. For each page, triggers a Deep Research session to write the content.
-    4. Saves the files.
+    Phase 1: Analyzes project structure -> Generates Plan -> Requests Approval.
+    Phase 2: Resumes -> Checks Approval -> Generates Content.
     """
+    import json
+    from app.core.tools.executor import ToolExecutor
+    from langchain_core.messages import ToolMessage
+    
+    # Check for pending plan
+    pending_plan_json = state.get("pending_wiki_plan")
+    
+    # Phase 2: Execution (Resume)
+    if pending_plan_json:
+        logger.info("Resuming Documenter: Found pending plan.")
+        
+        # Check if user approved.
+        # Implied: If we are back here, the Supervisor routed us here.
+        # Supervisor only routes here if the user said "Yes" or we force routed back.
+        # Let's perform a safety check on the last message.
+        messages = state.get("messages", [])
+        last_msg = messages[-1]
+        
+        is_approved = False
+        if isinstance(last_msg, HumanMessage):
+             # Simple heuristic for "Yes"
+             if "yes" in last_msg.content.lower() or "approve" in last_msg.content.lower() or "ok" in last_msg.content.lower():
+                 is_approved = True
+        
+        if not is_approved:
+            # Maybe they said "No" or "Change X".
+            # For "No", we abort.
+            if "no" in last_msg.content.lower() and len(last_msg.content) < 10:
+                return {
+                    "messages": [AIMessage(content="Documentation plan cancelled by user.")],
+                    "pending_wiki_plan": None # Clear it
+                }
+            # For "Change X", we arguably should Re-Plan. 
+            # For simple MVP, let's treat non-approval as "Re-Plan" request.
+            logger.info("User did not explicitly approve. Treating as Re-Plan request.")
+            # Fallthrough to Phase 1, but maybe we should clear the pending plan first?
+            # Actually, to re-plan, we just overwrite pending_wiki_plan with new one.
+            # So we can just let it fall through to Phase 1 logic below?
+            # Wait, if we fall through, we generate a NEW plan.
+            pass
+        else:
+            # EXECUTION
+            try:
+                plan_data = json.loads(pending_plan_json)
+                pages = plan_data
+            except:
+                return {"messages": [AIMessage(content="Error loading pending plan. Please try again.")], "pending_wiki_plan": None}
+
+            # 3. Generate Pages (Iterative Deep Research)
+            from app.domain.research.engine import DeepResearchEngine
+            from langchain_core.messages import AIMessage
+            
+            # Initialize Engine
+            llm = LLMFactory.create_llm()
+            engine = DeepResearchEngine(llm)
+            
+            docs_dir = os.path.join(settings.PROJECT_ROOT, "docs", "wiki")
+            os.makedirs(docs_dir, exist_ok=True)
+            
+            generated_pages = []
+            
+            # Language Preference
+            from app.domain.system.service import SystemConfigService
+            user_lang = SystemConfigService.get_language_preference()
+            
+            for page in pages:
+                filename = page.get('filename')
+                topic = page.get('topic')
+                
+                if not filename or not topic:
+                    continue
+                    
+                logger.info(f"Generating Wiki Page: {filename} ({topic})")
+                
+                try:
+                    # Trigger Deep Research Loop
+                    prompt_content = f"Write a comprehensive documentation page about: {topic}. This is for the file {filename}.\n\nIMPORTANT: Write the documentation content in {user_lang}."
+                    content = await engine.run(topic=prompt_content, max_iterations=3, config=config)
+                    
+                    # Save to file
+                    file_path = os.path.join(docs_dir, filename)
+                    with open(file_path, "w", encoding="utf-8") as f:
+                        f.write(content)
+                        
+                    generated_pages.append(f"{filename} ({len(content)} chars)")
+                    
+                except Exception as e:
+                    logger.error(f"Failed to generate {filename}: {e}")
+                    generated_pages.append(f"{filename} (FAILED: {e})")
+            
+            msg_content = f"Wiki Generation Complete.\nPages created:\n" + "\n".join(generated_pages)
+            
+            return {
+                "messages": [AIMessage(content=msg_content)],
+                "pending_wiki_plan": None # Clear state
+            }
+
+    # Phase 1: Planning (Draft)
     # 2. Get Project Structure
     tree_output = ""
     try:
         from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
-        # Use default max_depth=3 or higher for docs
-        # We assume root is managed by context or we get it from config
         root_path = config.get("configurable", {}).get("working_directory", ".")
         generator = AnnotatedTreeGenerator(root_path, max_depth=3, with_symbols=False, file_limit=30)
         tree_output = await generator.generate()
-        
-        # Smart Truncation enabled in Generator (file_limit=30)
     except Exception as e:
         tree_output = f"(Tree generation failed: {e})"
     
-    # 2. Plan Structure (Using LLM directly)
+    # 2. Plan Structure
     from pydantic import BaseModel, Field
     from typing import List
 
@@ -90,7 +182,6 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     
     try:
         from langchain_core.messages import SystemMessage
-        # Prepend System Message
         msgs = [
             SystemMessage(content=lang_directive),
             HumanMessage(content=FILE_STRUCTURE_PROMPT.format(tree=tree_output))
@@ -99,52 +190,38 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
         plan: WikiPlan = await structured_llm.ainvoke(msgs, config=config)
         pages = [p.model_dump() for p in plan.pages]
         
+        # Save to State
+        plan_json = json.dumps(pages)
+        
+        # Generate Approval Message
+        plan_summary = "\n".join([f"- **{p['filename']}**: {p['topic']}" for p in pages])
+        approval_msg = f"I have designed the following Wiki structure based on your project:\n\n{plan_summary}\n\nDo you want me to proceed with generating these files?"
+        
+        # Trigger Approval Tool
+        from app.domain.tools.human_input import request_approval
+
+        # Format plan as Markdown for better readability in the Approval Card
+        plan_md = "| Filename | Topic |\n|---|---|\n"
+        for p in pages:
+            plan_md += f"| `{p['filename']}` | {p['topic']} |\n"
+
+        await request_approval.ainvoke({
+            "action_description": "Create Wiki Documentation based on Project Structure",
+            "risk_level": "low",
+            "details": f"**Proposed File Structure:**\n\n{plan_md}",
+            "consequences": f"This will create {len(pages)} new files in `docs/wiki/`. Existing files with same names will be overwritten."
+        }, config=config)
+        
+        # Return state
+        return {
+            "messages": [
+                AIMessage(content=approval_msg),
+            ],
+            "pending_wiki_plan": plan_json
+        }
+        
     except Exception as e:
         logger.error(f"Failed to parse documentation plan: {e}")
         return {
             "messages": [AIMessage(content=f"Error planning documentation: {e}")]
         }
-    
-    # 3. Generate Pages (Iterative Deep Research)
-    from app.domain.research.engine import DeepResearchEngine
-    
-    # Initialize Engine
-    engine = DeepResearchEngine(llm)
-    
-    docs_dir = os.path.join(settings.PROJECT_ROOT, "docs", "wiki")
-    os.makedirs(docs_dir, exist_ok=True)
-    
-    generated_pages = []
-    
-    for page in pages:
-        filename = page.get('filename')
-        topic = page.get('topic')
-        
-        if not filename or not topic:
-            continue
-            
-        logger.info(f"Generating Wiki Page: {filename} ({topic})")
-        
-        try:
-            # Trigger Deep Research Loop
-            # We use a reduced iteration count (e.g. 3) for docs to save time, unless it's complex
-            # Inject language into the topic prompt
-            prompt_content = f"Write a comprehensive documentation page about: {topic}. This is for the file {filename}.\n\nIMPORTANT: Write the documentation content in {user_lang}."
-            content = await engine.run(topic=prompt_content, max_iterations=3, config=config)
-            
-            # Save to file
-            file_path = os.path.join(docs_dir, filename)
-            with open(file_path, "w", encoding="utf-8") as f:
-                f.write(content)
-                
-            generated_pages.append(f"{filename} ({len(content)} chars)")
-            
-        except Exception as e:
-            logger.error(f"Failed to generate {filename}: {e}")
-            generated_pages.append(f"{filename} (FAILED: {e})")
-
-    msg_content = f"Wiki Generation Complete.\nPages created:\n" + "\n".join(generated_pages)
-
-    return {
-        "messages": [AIMessage(content=msg_content)]
-    }
