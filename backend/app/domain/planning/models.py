@@ -11,6 +11,7 @@ class Step(BaseModel):
     sub_steps: List["Step"] = Field(default_factory=list)
     result: Optional[str] = Field(None, description="The result or output of this step")
 
+
 class Plan(BaseModel):
     id: str = Field(default_factory=gen_uuid)
     title: str = Field(..., description="High level goal of this plan")

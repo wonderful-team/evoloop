@@ -235,21 +235,21 @@ class ImagicBoxClient:
 
     # Project
     async def get_projects(self, page=1, page_size=100) -> Dict:
-        return await self._request("GET", "/projectmanage/api/ProjectOpen/projects", params={"page": page, "page_size": page_size})
+        return await self._request("GET", "/projectmanage/api/projectOpen/projects", params={"page": page, "page_size": page_size})
 
     async def create_project(self, name: str, description: str, path: str) -> Dict:
         payload = {"name": name, "description": description, "path": path, "source": "EvoLoopV3"}
-        return await self._request("POST", "/projectmanage/api/ProjectOpen/createProject", data=payload)
+        return await self._request("POST", "/projectmanage/api/projectOpen/createProject", data=payload)
 
     async def update_project(self, project_id: int, description: str = None, name: str = None, path: str = None) -> Dict:
         data = {"project_id": project_id}
         if description is not None: data["project_desc"] = description
         if name is not None: data["name"] = name
         if path is not None: data["path"] = path  # Ensure backend API supports this
-        return await self._request("POST", "/projectmanage/api/ProjectOpen/updateProject", data=data)
+        return await self._request("POST", "/projectmanage/api/projectOpen/updateProject", data=data)
 
     async def delete_project(self, project_id: int) -> Dict:
-        return await self._request("POST", "/projectmanage/api/ProjectOpen/deleteProject", data={"project_id": project_id})
+        return await self._request("POST", "/projectmanage/api/projectOpen/deleteProject", data={"project_id": project_id})
 
     # Task
     async def get_project_tasks(self, project_id: int, page=1, page_size=50, status=None, token=None) -> Dict:

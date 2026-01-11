@@ -6,6 +6,7 @@ from pgvector.sqlalchemy import Vector
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
+
 class TraceEvent(Base):
     """
     Represents a high-fidelity snapshot of agent execution for Imitation Learning.
@@ -23,26 +24,26 @@ class TraceEvent(Base):
 
     # State Context
     node_name: Mapped[str] = mapped_column(String(100))
-    state_snapshot: Mapped[dict] = mapped_column(Text) # Huge JSON of inputs/scratchpad
+    state_snapshot: Mapped[dict] = mapped_column(Text)  # Huge JSON of inputs/scratchpad
 
     # Action
-    action_type: Mapped[str] = mapped_column(String(50)) # "node_start", "llm_call", "tool_call", "user_intervention", "user_click", "user_input"
-    action_payload: Mapped[dict] = mapped_column(Text) # JSON of args/output/message
+    action_type: Mapped[str] = mapped_column(String(50))  # "node_start", "llm_call", "tool_call", "user_intervention", "user_click", "user_input"
+    action_payload: Mapped[dict] = mapped_column(Text)  # JSON of args/output/message
 
     # Human/Agent Distinction (Phase 1)
-    is_human_action: Mapped[bool] = mapped_column(default=False) # True if action was performed by human, not agent
+    is_human_action: Mapped[bool] = mapped_column(default=False)  # True if action was performed by human, not agent
 
     # Visual Context (Phase 1)
-    screenshot_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True) # Path to screenshot taken at this moment
-    ui_element_info: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # JSON: target element selector, text, bounds
+    screenshot_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Path to screenshot taken at this moment
+    ui_element_info: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON: target element selector, text, bounds
 
     # Feedback & Reward
-    reward: Mapped[Optional[float]] = mapped_column(Integer, nullable=True) # Normalized reward if available
-    user_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True) # User correction/comment
+    reward: Mapped[Optional[float]] = mapped_column(Integer, nullable=True)  # Normalized reward if available
+    user_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # User correction/comment
 
     # Session Tracking
-    recording_session_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True) # Groups events in one recording session
-    
+    recording_session_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)  # Groups events in one recording session
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # New columns for compatibility with new refactors (Nullable)
@@ -86,10 +87,11 @@ class LearnedSkill(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
-    
+
     # New fields compatibility
     project_id: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
     embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536), nullable=True)
+
 
 class RouterTrainingData(Base):
     """
@@ -99,12 +101,12 @@ class RouterTrainingData(Base):
     __tablename__ = "router_training_data"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    
+
     instruction: Mapped[str] = mapped_column(Text)
     intent: Mapped[str] = mapped_column(String(50))
     reasoning: Mapped[str] = mapped_column(Text)
-    
+
     # Metadata
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    source: Mapped[str] = mapped_column(String(50), default="user_feedback") # 'manual', 'user_feedback', 'system'
+    source: Mapped[str] = mapped_column(String(50), default="user_feedback")  # 'manual', 'user_feedback', 'system'

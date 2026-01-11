@@ -102,6 +102,21 @@ async def lifespan(app: FastAPI):
         if os.path.exists(root_projects_dir):
             discovery_watcher = ProjectDiscoveryWatcher(root_projects_dir)
             discovery_watcher.start()
+            
+            # 6.5 Startup Reconciliation
+            # Catch up on offline changes (creates, deletes)
+            try:
+                from app.domain.project.sync_service import project_sync_service
+                # Run reconciliation in background to not block startup significantly, 
+                # or await it if critical? Await is safer to ensure state consistency before accepting requests.
+                # However, for large folders, it might be slow. 
+                # Given "Local-First" robustness, we can update state asynchronously.
+                # But let's await it for V1 safety.
+                print(f"DEBUG: Triggering reconcile_projects on {root_projects_dir}")
+                await project_sync_service.reconcile_projects(root_projects_dir)
+            except Exception as e:
+                logger.error(f"Startup Reconciliation failed: {e}")
+                print(f"DEBUG: Startup Reconciliation failed: {e}")
 
         if default_path and os.path.exists(default_path) and not is_root_dir:
             from app.domain.codebase.indexing.service import IndexingService

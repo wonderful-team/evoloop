@@ -4,6 +4,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import JSONB
 from app.infrastructure.database.sql.database import Base
 
+
 class Checkpoint(Base):
     __tablename__ = "checkpoints"
 

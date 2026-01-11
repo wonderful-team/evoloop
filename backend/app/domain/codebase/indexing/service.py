@@ -1,6 +1,7 @@
 import glob
 import os
 from datetime import datetime, timezone
+from typing import List
 
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,6 +72,15 @@ class IndexingService:
             await session.commit()
             await session.refresh(repo)
             return repo
+
+    async def get_all_repos(self) -> List[Repository]:
+        """
+        Get all repositories from the database.
+        """
+        async with self.session_factory() as session:
+            stmt = select(Repository)
+            result = await session.execute(stmt)
+            return result.scalars().all()
 
     async def index_file(self, file_path: str, repo_id: int, force: bool = False):
         """

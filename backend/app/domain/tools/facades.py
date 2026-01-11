@@ -33,10 +33,13 @@ async def manage_file_read_only(
     # Force safe actions
     if action not in ['list_tree', 'read']:
          return f"Error: Action '{action}' is not allowed in Read-Only mode."
+    
+    # Validation Fix: Default path to current directory if None for list_tree
+    safe_path = path if path is not None else "."
          
     return await manage_file.ainvoke({
         "action": action,
-        "path": path,
+        "path": safe_path,
         "recursive": recursive,
         "depth": depth,
         "file_limit": file_limit,

@@ -32,13 +32,13 @@ Common Pages (create these if relevant):
 - Component Interaction
 - Configuration & Ops
 
-Output a JSON list of objects:
-[
-  {{"filename": "overview.md", "topic": "Project Overview & Core Features"}},
-  {{"filename": "architecture.md", "topic": "System Architecture & Design Patterns"}},
-  ...
-]
-Output ONLY JSON.
+Output a JSON object with a "pages" key:
+{{
+  "pages": [
+    {{"filename": "overview.md", "topic": "Project Overview & Core Features"}},
+    ...
+  ]
+}}
 """
 
 
@@ -98,7 +98,6 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
 
             # 3. Generate Pages (Iterative Deep Research)
             from app.domain.research.engine import DeepResearchEngine
-            from langchain_core.messages import AIMessage
             
             # Initialize Engine
             llm = LLMFactory.create_llm()
@@ -187,7 +186,11 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
             HumanMessage(content=FILE_STRUCTURE_PROMPT.format(tree=tree_output))
         ]
         
-        plan: WikiPlan = await structured_llm.ainvoke(msgs, config=config)
+        # Prevent streaming the raw JSON to the frontend
+        clean_config = config.copy() if config else {}
+        clean_config["callbacks"] = []
+        
+        plan: WikiPlan = await structured_llm.ainvoke(msgs, config=clean_config)
         pages = [p.model_dump() for p in plan.pages]
         
         # Save to State

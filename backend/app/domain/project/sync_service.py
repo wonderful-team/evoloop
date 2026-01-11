@@ -59,7 +59,8 @@ class ProjectSyncService:
                 )
 
                 if res.get("code") == 0:
-                    new_pid = res["data"]["id"]
+                    # Cloud API returns {'project_id': <id>}
+                    new_pid = res["data"]["project_id"]
                     logger.info(f"[ProjectSync] Cloud Creation Success! Project ID: {new_pid}")
 
                     # Update Local Record
@@ -81,14 +82,14 @@ class ProjectSyncService:
                 logger.error(f"[ProjectSync] Cloud API Error: {e}")
                 # Remain PENDING.
 
-        # 4. Start Indexing
-        # We start watching and indexing regardless of Cloud status.
+        # 4. Start Indexing (Background/Celery)
+        # We use run_indexing_background which dispatches to Celery if possible.
+        # This prevents blocking the main process and "massive logs" during startup reconciliation.
         try:
             await indexing_manager.start_watching(path, repo.id)
-            # Use repo-based indexing trigger which handles missing project_id gracefully (by just indexing local files)
-            await indexing_manager.trigger_full_index_for_repo(repo.id)
+            await indexing_manager.run_indexing_background(repo.id)
         except Exception as e:
-            logger.error(f"[ProjectSync] Failed to start indexing: {e}")
+            logger.error(f"Failed to trigger background indexing for {path}: {e}")
 
     async def handle_project_deleted(self, path: str):
         """
@@ -179,6 +180,90 @@ class ProjectSyncService:
         except Exception:
             pass
         return None
+
+    async def reconcile_projects(self, root_path: str):
+        """
+        Reconcile local filesystem projects with system state (DB/Cloud).
+        Handles creation/deletion that occurred while service was offline.
+        """
+        if not root_path or not os.path.exists(root_path):
+            logger.warning(f"[ProjectSync] Root path {root_path} invalid. Skipping reconciliation.")
+            return
+
+        logger.info(f"[ProjectSync] Starting Reconciliation on {root_path}...")
+
+        # 1. Scan Filesystem (Dirs only)
+        # Exclude hidden folders like .evoloop, .git
+        fs_projects = set()
+        try:
+            for entry in os.scandir(root_path):
+                if entry.is_dir() and not entry.name.startswith("."):
+                    fs_projects.add(entry.path)
+        except Exception as e:
+            logger.error(f"[ProjectSync] FS Scan failed: {e}")
+            return
+
+        # 2. Get Known Projects (Local DB)
+        # We use IndexingService to get all local repositories.
+        # Note: We trust local DB "local_path" as truth for what System thinks exists.
+        known_projects_map = {}  # path -> repo
+        try:
+            repos = await self._indexing_service.get_all_repos()
+            for r in repos:
+                if r.local_path:
+                    abs_p = os.path.abspath(r.local_path)
+                    known_projects_map[abs_p] = r
+        except Exception as e:
+            logger.error(f"[ProjectSync] DB Scan failed: {e}")
+            # If DB fails, abort to be safe (don't delete everything).
+            return
+
+        # 3. Detect Changes
+        known_paths = set(known_projects_map.keys())
+        # Normalize FS paths
+        fs_paths = {os.path.abspath(p) for p in fs_projects}
+
+        # A. New Projects (In FS, Not in DB)
+        new_paths = fs_paths - known_paths
+        for p in new_paths:
+            logger.info(f"[ProjectSync] Found offline creation: {p}")
+            await self.handle_project_created(p)
+
+        # A.2 Retry Pending Projects
+        # Projects that exist locally (FS & DB) but failed to sync to Cloud previously.
+        for p in known_paths:
+            if p in fs_paths:
+                repo = known_projects_map[p]
+                if repo.sync_status == "PENDING_CREATION":
+                    logger.info(f"[ProjectSync] Retrying sync for pending project: {p}")
+                    # Re-use handle_project_created logic which handles "Already exists" checks smartly
+                    # But handle_project_created does get_or_create.
+                    # Since it exists, it will get it. Then check if project_id is missing.
+                    # Then try sync. This matches our need perfectly.
+                    await self.handle_project_created(p)
+
+        # B. Deleted Projects (In DB, Not in FS)
+        # Only verify repos that are supposed to be inside this root_path?
+        # Yes, if we have repos elsewhere, this watcher shouldn't touch them.
+        abs_root = os.path.abspath(root_path)
+
+        missing_paths = []
+        for p in known_paths:
+            # Check if this project belongs to the monitored root
+            # e.g. /projects/foo is inside /projects
+            if p.startswith(abs_root) and p not in fs_paths:
+                # Double check it's not actually there (case sensitivity?)
+                if not os.path.exists(p):
+                    missing_paths.append(p)
+
+        for p in missing_paths:
+            # Check status first. If already DISCONNECTED, skip.
+            repo = known_projects_map[p]
+            if repo.sync_status != "DISCONNECTED":
+                logger.info(f"[ProjectSync] Found offline deletion: {p}")
+                await self.handle_project_deleted(p)
+
+        logger.info(f"[ProjectSync] Reconciliation Complete. New: {len(new_paths)}, Missing: {len(missing_paths)}")
 
 
 # Global Instance

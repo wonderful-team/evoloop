@@ -56,10 +56,10 @@ SUPERVISOR_SYSTEM_TEMPLATE = """You are the Supervisor of an elite coding team.
     2. **Explicit Planning (MANDATORY)**:
        - You MUST have a plan (`current_plan`) before delegating to Coder.
        
-       **FAST TRACK PROTOCOL (For Simple Tasks)**:
-       - IF the request is simple (e.g., "Fix typo", "Change color", "Add comment"), DO NOT route to `planner`.
-       - ACTION: Call `create_plan` YOURSELF with a simple 1-step plan.
-       - THEN: Output "Plan verified. Ready for Coder."
+       **FAST TRACK PROTOCOL (For Simple Tasks OR Wiki)**:
+       - IF the request is simple (e.g., "Fix typo") OR is about "Wiki/Documentation" generation, DO NOT explore or plan.
+       - IMMEDIATE ACTION: Reply "Proceeding to specialized agent." (This stops the tool loop and enables routing).
+       - DO NOT call `manage_file` or `create_plan`.
        
        **DEEP PLANNING (For Complex Tasks)**:
        - IF the request involves multiple files, architecture changes, or new features -> Route to `planner`.
@@ -390,28 +390,26 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
                 "parallel_research_tasks": []
             }
 
-    # HEURISTIC: Check for Pending Wiki Plan (Resume Documenter)
+    # HEURISTIC 3: Wiki Approval Flow
+    # If we have a pending plan, we strictly control the flow:
+    # 1. If User just replied (HumanMessage) -> Resume Documenter (to check approval).
+    # 2. Otherwise (AIMessage requesting approval OR ToolMessage from request_approval) -> Wait (finish).
     if state.get("pending_wiki_plan"):
-        # We have a plan pending approval.
-        # Logic:
-        # 1. If we just came from Documenter (Last msg is AIMessage), we must WAIT (finish).
-        # 2. If we just got user input (Last msg is HumanMessage), we RESUME (documenter).
-
-        last_msg = messages[-1] if messages else None
-        if isinstance(last_msg, HumanMessage):
-            logger.info("Pending Wiki Plan + User Replied -> Resuming Documenter.")
-            return {
-                "next_node": "documenter",
-                "messages": new_messages,
-                "current_plan": state.get("current_plan"),
-            }
+        last_msg_obj = messages[-1] if messages else None
+        if isinstance(last_msg_obj, HumanMessage):
+             logger.info("Wiki Plan Pending + Human Input -> Resuming Documenter.")
+             return {
+                 "next_node": "documenter",
+                 "messages": new_messages,
+                 "current_plan": state.get("current_plan"),
+             }
         else:
-            logger.info("Pending Wiki Plan + No User Reply yet -> Waiting (Finish).")
-            return {
-                "next_node": "finish",
-                "messages": new_messages,
-                "current_plan": state.get("current_plan"),
-            }
+             logger.info("Wiki Plan Pending + No Human Input -> Waiting for Approval (finish).")
+             return {
+                 "next_node": "finish",
+                 "messages": new_messages,
+                 "current_plan": state.get("current_plan"),
+             }
 
     # HEURISTIC: Check if we just requested Human Input
     # If the last tool call was `request_human_input`, we must STOP and wait (route to finish).
@@ -437,7 +435,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         - "planner": If requirements are clear but complex, and you need a step-by-step Technical Plan.
         - "coder": If you have a plan and need to write code.
         - "deep_researcher": If you need to search, read docs, or investigate complex topics.
-        - "documenter": If you need to write documentation.
+        - "documenter": If you need to write documentation, generate a WIKI, or create a README. PRIORITIZE this over "planner" for documentation tasks.
         - "finish": If the user's request is fully satisfied, OR if you have replied directly to a general question (e.g. "What can you do?").
         
         CRITICAL EXIT CRITERIA (CHECK FIRST):
@@ -456,6 +454,7 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         - If User says "Implement", "Write code", "Fix this", "Create file" -> Route to "coder".
         - If Agent says "Plan verified. Ready for Coder" OR "Ready for Coder" -> Route to "coder".
         - If Agent says "Need more research" -> Route to "deep_researcher".
+        - If User says "Generate Wiki", "Create Documentation", "Write Readme" -> Route to "documenter" (Do NOT route to planner).
         - If Agent provided the answer -> Route to "finish".
         
         **ORCHESTRATION (TOOLING CONTROL)**:
