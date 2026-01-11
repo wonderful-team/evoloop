@@ -41,6 +41,35 @@ class AgentEngine:
             llm_with_tools = llm
             tool_map = {}
 
+        # [NEW] Inject TraceCallbackHandler for Imitation/Reinforcement Learning
+        try:
+            from app.core.learning.trace_recorder import TraceCallbackHandler
+            thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+            if thread_id and thread_id != "unknown":
+                trace_handler = TraceCallbackHandler(thread_id)
+                
+                # Safely update callbacks
+                existing_callbacks = config.get("callbacks", [])
+                if existing_callbacks is None:
+                    existing_callbacks = []
+                elif not isinstance(existing_callbacks, list):
+                    # Handle CallbackManager if necessary, but usually generic list here
+                    if hasattr(existing_callbacks, "handlers"):
+                         existing_callbacks = existing_callbacks.handlers
+                    else:
+                         existing_callbacks = [existing_callbacks]
+                
+                # Check duplication to avoid double logging
+                has_tracer = any(isinstance(c, TraceCallbackHandler) for c in existing_callbacks)
+                
+                if not has_tracer:
+                    # Create a new config dict to avoid mutating the original globally if shared
+                    # But config is usually per-run.
+                    config = config.copy()
+                    config["callbacks"] = existing_callbacks + [trace_handler]
+        except Exception as e:
+            logger.warning(f"Failed to inject TraceCallbackHandler: {e}")
+
         # 2. Context Injection
         # 2.1 Language Preference
         user_lang = SystemConfigService.get_language_preference()
@@ -58,7 +87,16 @@ class AgentEngine:
         # 3. Message Handling & Repair
         raw_messages = list(state.get("messages", []))
         
-        # 3.0 Smart Windowing
+        # 3.0 Context Pruning (Feature Phase 8: Smart Token Management)
+        try:
+            from app.core.memory.pruner import ContextPruner
+            # Apply pruning to reduce token usage from old tool outputs
+            # This modifies the list locally for this turn's prompt construction
+            raw_messages = ContextPruner.prune_messages(raw_messages)
+        except ImportError:
+            pass
+
+        # 3.1 Smart Windowing
         # We want a window of approx N messages, but we MUST NOT split an (AI -> Tool) pair.
         # If the window starts with a ToolMessage, we try to include the preceding AIMessage.
         window_size = 30 # Increased from 15 to 30 for better context
@@ -168,14 +206,44 @@ class AgentEngine:
                     
                     if tool:
                         try:
+                            # --- Diff Tracking Start ---
+                            # Only track edits (manage_file, write_to_file)
+                            # Assuming "manage_file" is the main edit tool. 
+                            # If we have others, we check if they modify files.
+                            snapshot_path = None
+                            from app.core.memory.diff import diff_tracker
+                            
+                            if tool_name == "manage_file" and isinstance(tool_args, dict):
+                                arg_path = tool_args.get("absolute_path")
+                                action = tool_args.get("action")
+                                if arg_path and action in ["create", "update_block", "write"]:
+                                     snapshot_path = arg_path
+                                     diff_tracker.capture_snapshot(snapshot_path)
+                                     
+                            # Execute Tool
                             content = await executor.execute(tool, tool_args, config=config)
+                            
+                            # --- Diff Tracking End ---
+                            if snapshot_path:
+                                diff = diff_tracker.compute_diff(snapshot_path)
+                                if diff:
+                                    logger.info(f"📝 Diff Detected:\n{diff}")
+                                    # Append diff to the tool output for immediate awareness?
+                                    # Or store it in a separate memory stream? 
+                                    # For now, let's append it to content so LLM sees what it did.
+                                    content = str(content) + f"\n\n[Version Control] Changes Applied:\n```diff\n{diff}\n```"
+                                else:
+                                    # If no diff but success, maybe it was a create or identical replace
+                                    pass
+
                         except Exception as e:
                             content = f"Error executing {tool_name}: {e}"
                     else:
                         content = f"Error: Tool {tool_name} not found."
 
                 # Create ToolMessage
-                tool_msg = ToolMessage(content=str(content), tool_call_id=tool_id, name=tool_name)
+                import uuid
+                tool_msg = ToolMessage(content=str(content), tool_call_id=tool_id, name=tool_name, id=str(uuid.uuid4()))
                 
                 # OBSERVE: Tool Result
                 log_content = str(content)

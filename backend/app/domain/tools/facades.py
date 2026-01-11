@@ -16,6 +16,61 @@ from app.domain.tools.memory import save_preference, get_user_preferences, searc
 # Import the new dispatched tool
 from app.domain.tools.files.dispatcher import manage_file
 
+@evoloop_tool
+async def manage_file_read_only(
+    action: Literal['list_tree', 'read'],
+    path: Optional[str] = None,
+    recursive: bool = False,
+    depth: int = 2,
+    file_limit: int = 50,
+    start_line: Optional[int] = None,
+    end_line: Optional[int] = None,
+    config: Optional[RunnableConfig] = None
+) -> str:
+    """
+    [READ-ONLY] Use this tool to explore the filesystem. You CANNOT write or modify files.
+    """
+    # Force safe actions
+    if action not in ['list_tree', 'read']:
+         return f"Error: Action '{action}' is not allowed in Read-Only mode."
+         
+    return await manage_file.ainvoke({
+        "action": action,
+        "path": path,
+        "recursive": recursive,
+        "depth": depth,
+        "file_limit": file_limit,
+        "start_line": start_line,
+        "end_line": end_line
+    }, config=config)
+
+@evoloop_tool
+async def manage_file_docs_only(
+    action: Literal['list_tree', 'read', 'create', 'update_block'],
+    path: Optional[str] = None,
+    content: Optional[str] = None,
+    target: Optional[str] = None,
+    config: Optional[RunnableConfig] = None
+) -> str:
+    """
+    [DOCS-ONLY] Use this tool to write documentation (.md, .txt) ONLY. 
+    You CANNOT modify code files (.py, .php, etc).
+    """
+    # 1. Extension Check
+    if action in ['create', 'update_block', 'write']:
+        if not path: return "Error: Path is required for write actions."
+        valid_exts = ['.md', '.txt', '.json', '.yaml', '.yml', '.csv']
+        if not any(path.endswith(ext) for ext in valid_exts):
+             return f"Error: Permission Denied. You may only write to {valid_exts}. For code changes, route to Coder."
+    
+    # 2. Proxy to real tool
+    return await manage_file.ainvoke({
+        "action": action,
+        "path": path,
+        "content": content,
+        "target": target
+    }, config=config)
+
 
 
 @evoloop_tool

@@ -9,7 +9,6 @@ from langchain_core.outputs import ChatResult
 
 logger = logging.getLogger(__name__)
 
-
 class AdaptiveChatOpenAI(ChatOpenAI):
     """
     A robust ChatOpenAI wrapper that implements DeepCode's 'Adaptive Token Strategy'.
@@ -45,10 +44,6 @@ class AdaptiveChatOpenAI(ChatOpenAI):
         for attempt in range(self.adaptive_retries + 1):
             try:
                 # Update params for this attempt
-                # Note: modifying self is not thread-safe if shared, but usually LLM instances are per-node.
-                # To be safe, we pass these as call-time kwargs if possible, or temporary set.
-                # However, _generate accepts kwargs that override defaults.
-                
                 request_kwargs = kwargs.copy()
                 request_kwargs["max_tokens"] = current_max_tokens
                 request_kwargs["temperature"] = current_temp
@@ -62,29 +57,20 @@ class AdaptiveChatOpenAI(ChatOpenAI):
             except Exception as e:
                 error_str = str(e).lower()
                 
-                # 1. Check for Context/Length Errors
-                # OpenAI: "context_length_exceeded", "maximum context length"
-                # Anthropic: "prompt is too long"
                 is_context_error = (
                     "context_length_exceeded" in error_str 
                     or "maximum context length" in error_str
                     or "prompt is too long" in error_str
                     or "string too long" in error_str
-                    or "rate limit" in error_str # Sometimes aggressive rate limits need backoff/reduction
+                    or "rate limit" in error_str
                 )
                 
                 if not is_context_error:
-                    # Reraise other errors (Auth, Network, etc)
                     raise e
                 
                 if attempt == self.adaptive_retries:
                     logger.error(f"❌ Adaptive Retry Exhaused. Final Error: {e}")
                     raise e
-                
-                # 2. Calculate New Parameters (DeepCode Strategy)
-                # Retry 1: REDUCE to 90% (or specific limit)
-                # Retry 2: REDUCE to 80%
-                # Retry 3: REDUCE to 60%
                 
                 decay_factor = 1.0
                 if attempt == 0:
@@ -95,8 +81,22 @@ class AdaptiveChatOpenAI(ChatOpenAI):
                     decay_factor = 0.6
                 
                 current_max_tokens = int(current_max_tokens * decay_factor)
-                
-                # Reduce temperature to be more conservative
                 current_temp = max(current_temp - 0.15, 0.05)
                 
                 logger.warning(f"⚠️ LLM Context Error detected. Adjusting params: factor={decay_factor}, new_max={current_max_tokens}")
+
+    async def summarize(self, text: str) -> str:
+        """
+        Generate a concise summary of the input text.
+        """
+        from langchain_core.prompts import PromptTemplate
+        from langchain_core.runnables import RunnableSequence, RunnablePassthrough, RunnableLambda
+        
+        prompt = PromptTemplate.from_template("请简要总结以下内容：\n{input}")
+        chain = (
+            RunnablePassthrough.assign(prompt=prompt)
+            | RunnableLambda(lambda x: x['prompt'].format(input=x['input']))
+            | self
+        )
+        result = await chain.ainvoke({"input": text})
+        return result.content

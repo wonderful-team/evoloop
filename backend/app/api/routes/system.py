@@ -13,6 +13,25 @@ def get_system_config() -> list[SystemConfig]:
 def update_system_config(config: SystemConfig) -> SystemConfig:
     return SystemConfigService.set_value(config.key, config.value, config.description)
 
+@router.get("/evolution-status", dependencies=[Depends(get_current_user)])
+def get_evolution_status():
+    from app.core.config import settings
+    from app.domain.system.service import SystemConfigService
+    from app.domain.system.evolution_config import EvolutionConfigService
+    
+    db_value = SystemConfigService.get_value(EvolutionConfigService.KEY, default="false")
+    db_enabled = str(db_value).lower() == "true"
+    
+    # Optimization: Calculate effective status here instead of calling EvolutionConfigService.is_enabled()
+    # which would trigger a second DB query.
+    effective_enabled = settings.ENABLE_SELF_EVOLUTION and db_enabled
+
+    return {
+        "enabled": effective_enabled,
+        "env_enabled": settings.ENABLE_SELF_EVOLUTION,
+        "db_enabled": db_enabled
+    }
+
 from pydantic import BaseModel, Field
 from typing import Optional
 from app.domain.system.embedding_config import EmbeddingConfigService

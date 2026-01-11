@@ -20,8 +20,9 @@ class DeepResearchEngine:
 
     TOOLS_LOOP_LIMIT = 5
 
-    def __init__(self, llm: BaseChatModel):
+    def __init__(self, llm: BaseChatModel, tools: list = None):
         self.llm = llm
+        self.tools = tools
         self._init_prompts()
 
     def _init_prompts(self):
@@ -91,7 +92,7 @@ class DeepResearchEngine:
         current_iteration = 1
 
         # Get Tools
-        tools = get_all_tools()
+        tools = self.tools if self.tools else get_all_tools()
         llm_with_tools = self.llm.bind_tools(tools)
         tool_map = {t.name: t for t in tools}
 
@@ -200,4 +201,13 @@ class DeepResearchEngine:
         final_response = await self.llm.ainvoke(final_messages, config=config)
         logger.info(f"{log_prefix} Research Completed.")
 
-        return final_response.content
+        # Generate Structured Report
+        from app.domain.research.generator import ReportGenerator
+        final_report = ReportGenerator.generate_report(
+            topic=topic,
+            conclusion=final_response.content,
+            logs=logs,
+            metadata={"Iterations": max_iterations}
+        )
+
+        return final_report

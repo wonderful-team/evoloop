@@ -131,7 +131,7 @@ export const ContextPanel = memo(
               <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
                 <Bot size={12} />
                 {t("chat.canvas.title", "Live Activity")}
-                {status === "interrupted" && <span className="text-amber-500 font-bold ml-1">(WAITING INPUT)</span>}
+                {status === "interrupted" && <span className="text-amber-500 font-bold ml-1">({t("chat.canvas.waiting", "WAITING INPUT")})</span>}
               </div>
               {isLiveZoneExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </div>
@@ -148,7 +148,7 @@ export const ContextPanel = memo(
                   {/* Streamed Output (Current Response) */}
                   {streamedContent && (
                     <div className="space-y-1">
-                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">Response</h4>
+                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">{t("chat.canvas.response", "Response")}</h4>
                       <div className="rounded-md px-3 py-2 bg-background border text-xs leading-relaxed max-h-[200px] overflow-y-auto">
                         <MessageContent content={streamedContent} />
                       </div>
@@ -158,7 +158,7 @@ export const ContextPanel = memo(
                   {/* Active Thoughts */}
                   {thoughts.length > 0 && (
                     <div className="space-y-1">
-                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">Thoughts</h4>
+                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">{t("chat.canvas.thoughts", "Thoughts")}</h4>
                       {thoughts.slice(-3).reverse().map(thought => (
                         <ThoughtCard key={thought.id} thought={thought} />
                       ))}
@@ -168,7 +168,7 @@ export const ContextPanel = memo(
                   {/* Task Pipeline */}
                   {tasks.length > 0 && (
                     <div className="space-y-1">
-                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">Action Plan</h4>
+                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">{t("chat.canvas.plan", "Action Plan")}</h4>
                       <div className="pl-1">
                         <TaskSteps tasks={tasks} />
                       </div>
@@ -178,7 +178,7 @@ export const ContextPanel = memo(
                   {/* Artifacts */}
                   {artifacts.length > 0 && (
                     <div className="space-y-1">
-                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">Artifacts</h4>
+                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">{t("chat.canvas.artifacts", "Artifacts")}</h4>
                       <ArtifactsList artifacts={artifacts} />
                     </div>
                   )}
@@ -199,50 +199,44 @@ export const ContextPanel = memo(
               <TabsTrigger
                 value="memory"
                 title={t("chat.context.tabMemory")}
-                className="flex-1 min-w-[2.5rem] px-2 py-1.5 text-xs"
+                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted"
               >
-                <Brain className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden xl:inline">Memory</span>
+                <Brain className="h-4 w-4" />
               </TabsTrigger>
               <TabsTrigger
                 value="plan"
                 title={t("chat.context.tabPlan")}
-                className="flex-1 min-w-[2.5rem] px-2 py-1.5 text-xs"
+                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted"
               >
-                <MapIcon className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden xl:inline">Plan</span>
+                <MapIcon className="h-4 w-4" />
               </TabsTrigger>
               <TabsTrigger
                 value="state"
                 title={t("chat.context.tabState")}
-                className="flex-1 min-w-[2.5rem] px-2 py-1.5 text-xs"
+                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted"
               >
-                <Cpu className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden xl:inline">State</span>
+                <Cpu className="h-4 w-4" />
               </TabsTrigger>
               <TabsTrigger
                 value="tools"
-                title="Tools"
-                className="flex-1 min-w-[2.5rem] px-2 py-1.5 text-xs hidden sm:flex"
+                title={t("chat.context.tabTools")}
+                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted hidden sm:flex"
               >
-                <Wrench className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden xl:inline">Tools</span>
+                <Wrench className="h-4 w-4" />
               </TabsTrigger>
               <TabsTrigger
                 value="knowledge"
                 title={t("chat.context.tabKnowledge")}
-                className="flex-1 min-w-[2.5rem] px-2 py-1.5 text-xs"
+                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted"
               >
-                <Database className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden xl:inline">RAG</span>
+                <Database className="h-4 w-4" />
               </TabsTrigger>
               <TabsTrigger
                 value="resources"
                 title={t("chat.context.tabResources")}
-                className="flex-1 min-w-[2.5rem] px-2 py-1.5 text-xs"
+                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted"
               >
-                <Layers className="h-3.5 w-3.5 mr-1" />
-                <span className="hidden xl:inline">Files</span>
+                <Layers className="h-4 w-4" />
               </TabsTrigger>
             </TabsList>
           </div>

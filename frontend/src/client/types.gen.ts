@@ -141,8 +141,8 @@ export type McpServerCreate = {
     command: string;
     args?: (Array<(string)> | null);
     env?: ({
-        [key: string]: (string);
-    } | null);
+    [key: string]: (string);
+} | null);
 };
 
 export type MessageItem = {
@@ -152,8 +152,11 @@ export type MessageItem = {
     thinking: (string | null);
     created_at: (string | null);
     tasks_snapshot?: (Array<{
-        [key: string]: unknown;
-    }> | null);
+    [key: string]: unknown;
+}> | null);
+    run_id?: (string | null);
+    parent_id?: (number | null);
+    references?: Array<ReferenceItem>;
 };
 
 export type MobileCodeRequest = {
@@ -176,8 +179,8 @@ export type RecordedEvent = {
     target_selector?: (string | null);
     target_text?: (string | null);
     payload?: ({
-        [key: string]: unknown;
-    } | null);
+    [key: string]: unknown;
+} | null);
     screenshot_base64?: (string | null);
 };
 
@@ -185,6 +188,13 @@ export type RecordEventsRequest = {
     session_id: string;
     thread_id: string;
     events: Array<RecordedEvent>;
+};
+
+export type ReferenceItem = {
+    id: string;
+    type: string;
+    target_id: string;
+    target_name: string;
 };
 
 export type RegisterMobileRequest = {
@@ -246,8 +256,8 @@ export type ResumeRequest = {
 
 export type RewindResponse = {
     status: string;
-    removed_count?: number;
     thread_id: string;
+    removed_count?: number;
 };
 
 export type SearchResult = {
@@ -336,6 +346,15 @@ export type Token = {
     token_type?: string;
 };
 
+export type UpdateSkillRequest = {
+    name?: (string | null);
+    description?: (string | null);
+    trigger_patterns?: (Array<(string)> | null);
+    parameters?: (Array<{
+    [key: string]: unknown;
+}> | null);
+};
+
 export type UserPublic = {
     id: (number | string);
     username?: (string | null);
@@ -384,17 +403,21 @@ export type AgentStopChatData = {
 
 export type AgentStopChatResponse = (unknown);
 
+export type AgentRetryChatData = {
+    authorization?: (string | null);
+    guestId?: (string | null);
+    requestBody: ChatRequest;
+    token?: (string | null);
+    xGuestId?: (string | null);
+};
+
+export type AgentRetryChatResponse = (unknown);
+
 export type AgentResumeChatData = {
     requestBody: ResumeRequest;
 };
 
 export type AgentResumeChatResponse = (unknown);
-
-export type AgentRetryChatData = {
-    requestBody: ChatRequest;
-};
-
-export type AgentRetryChatResponse = (unknown);
 
 export type AgentWebhookEndpointData = {
     requestBody: WebhookRequest;
@@ -679,6 +702,13 @@ export type LearningDeactivateSkillData = {
 };
 
 export type LearningDeactivateSkillResponse = (unknown);
+
+export type LearningUpdateSkillData = {
+    requestBody: UpdateSkillRequest;
+    skillId: number;
+};
+
+export type LearningUpdateSkillResponse = (unknown);
 
 export type LearningExecuteSkillData = {
     requestBody: ExecuteSkillRequest;

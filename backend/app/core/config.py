@@ -180,6 +180,9 @@ class Settings(BaseSettings):
     RESEARCH_MAX_ITERATIONS: int = 5
     TREE_VIEW_MAX_LINES: int = 1500
     RECURSION_LIMIT: int = 50  # Default LangGraph recursion limit
+    
+    # Meta-Evolution
+    ENABLE_SELF_EVOLUTION: bool = False # Dangerous! Requires sandbox.
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -14,7 +14,20 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
     Delegates to the DeepResearchEngine.
     """
     llm = LLMFactory.create_llm()
-    engine = DeepResearchEngine(llm)
+    # Researcher Engine usually manages its own tools, but we should enforce it uses RBAC tools
+    from app.core.tools.registry_utils import get_node_tools
+    tools = get_node_tools("researcher")
+    # engine = DeepResearchEngine(llm) -> We need to check if Engine supports tools injection.
+    # Assuming DeepResearchEngine has its own internal tool logic or accepts tools.
+    # If not, we might need to modify DeepResearchEngine.
+    # For now, let's assume it has internal logic as it wasn't passing tools before.
+    # BUT wait, the proposal says Researcher gets `fs_read`.
+    # Let's keep it as is for now but if we need to restrict, we'd pass tools here.
+    # Since DeepResearchEngine likely instantiates its own tools internally (like web search),
+    # we might need to refactor DeepResearchEngine later.
+    # For this task, we will just proceed with others as DeepResearcher logic is encapsulated.
+    # Pass specific tools to engine
+    engine = DeepResearchEngine(llm, tools=tools)
 
     messages = state.get("messages", [])
 

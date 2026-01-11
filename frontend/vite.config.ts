@@ -11,6 +11,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  envDir: "../",
   plugins: [
     tanstackRouter({
       target: "react",

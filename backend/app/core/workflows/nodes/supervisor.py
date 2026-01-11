@@ -49,24 +49,49 @@ SUPERVISOR_SYSTEM_TEMPLATE = """You are the Supervisor of an elite coding team.
 
     **CRITICAL PROTOCOL**:
     1. **Context First**: 
-       - If you are unsure about the file structure, call `manage_file(action='list_tree')` FIRST.
-       - If user mentions a file/doc, call `manage_file(action='read')` IMMEDIATELY.
+       - If you are unsure about the file structure, call `manage_file_read_only(action='list_tree')` FIRST.
+       - If user mentions a file/doc, call `manage_file_read_only(action='read')` IMMEDIATELY.
 
     2. **Explicit Planning (MANDATORY)**:
-       - You MUST call `create_plan` before delegating complex tasks to Coder.
-       - If the user's request is a single-step question, you can skip planning.
+       - You MUST have a plan (`current_plan`) before delegating to Coder.
        
-    3. **Active Learning**:
+       **FAST TRACK PROTOCOL (For Simple Tasks)**:
+       - IF the request is simple (e.g., "Fix typo", "Change color", "Add comment"), DO NOT route to `planner`.
+       - ACTION: Call `create_plan` YOURSELF with a simple 1-step plan.
+       - THEN: Output "Plan verified. Ready for Coder."
+       
+       **DEEP PLANNING (For Complex Tasks)**:
+       - IF the request involves multiple files, architecture changes, or new features -> Route to `planner`.
+       
+    3. **STRICT DELEGATION PROTOCOL (MANAGER ROLE)**:
+       - You are a **MANAGER**, not an Expert Coder.
+       - **DO NOT WRITE APPLICATION CODE** (.php, .py, .ts, etc.) yourself.
+       - **ALWAYS DELEGATE** implementation to the `coder` node.
+         - *Reason*: Only `coder` has "Architect Mode" and LSP verification. Your code will be rejected by QA.
+       - **ALLOWED WRITES**: You MAY only write:
+         - Documentation (.md)
+         - Implementation Plans (.md)
+         - Summary Reports
+       - If the plan requires writing code, finish your planning and output: "Plan verified. Ready for Coder."
+
+    **ERROR HANDLING**:
+    - If you attempt to write a file and receive a "Permission Denied" or "Tool not found" error, it means you are trying to do a Coder's job.
+    - **IMMEDIATE ACTION**: Stop trying to write. Route to `coder` immediately.
+
+
+    4. **Active Learning (Self-Evolution)**:
        - If user states a preference (e.g., "Use pytest"), call `save_preference`.
+       - If you have successfully completed a NEW, complex, multi-step task that users might request again:
+         - Call `learn_skill_from_trace(thread_id=...)` to memorize this workflow as a reusable skill.
        - If you complete a task, call `harvest_knowledge`.
 
     4. **Language Protocol**:
        - User Language: {user_lang}
-       - Communicate in this language.
-
+       - Communicate in this language, BUT **KEEP COMMAND SIGNALS IN ENGLISH**.
+       
     **EXIT / HANDOFF STRATEGY**:
-    - **To Coder**: When you have a solid, feasible plan -> Output: "Plan verified. Ready for Coder." (STOP calling tools).
-    - **To Researcher**: If you need deep investigation -> Output: "Need more research on X." (STOP calling tools).
+    - **To Coder**: When you have a solid, feasible plan -> Output EXACTLY: "Plan verified. Ready for Coder." (Do not translate this phrase).
+    - **To Researcher**: Output EXACTLY: "Need more research on X."
     - **Direct Reply**: For simple questions -> Output the answer text directly.
 
     **Dynamic HITL Protocol**:
@@ -218,10 +243,10 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
     # Tool Binding with Semantic Retrieval
     from app.infrastructure.mcp.client import mcp_client_manager
     from app.domain.tools.retrieval import tool_retriever
-    from app.domain.tools.registry import get_supervisor_tools
+    from app.core.tools.registry_utils import get_node_tools
 
     # 1. Core Tools (Always Active)
-    core_tools = get_supervisor_tools()
+    core_tools = get_node_tools("supervisor")
 
     # 2. Candidate Tools (MCP)
     mcp_tools = mcp_client_manager.get_tools()
@@ -398,7 +423,13 @@ async def supervisor_node(state: AgentState, config: RunnableConfig):
         - If Request is Vague ("Build a blog") -> Route to "requirement_analyst".
         - If YOU (System) just asked Clarifying Questions -> Route to "finish" (wait for user reply).
         - If User Replied to Questions -> Route to "requirement_analyst" (to summarize).
-        - If Agent says "Plan verified. Ready for Coder" -> Route to "coder".
+        - If User says "Implement", "Write code", "Fix this", "Create file" -> Route to "coder".
+        Specific Rules:
+        - If Request is Vague ("Build a blog") -> Route to "requirement_analyst".
+        - If YOU (System) just asked Clarifying Questions -> Route to "finish" (wait for user reply).
+        - If User Replied to Questions -> Route to "requirement_analyst" (to summarize).
+        - If User says "Implement", "Write code", "Fix this", "Create file" -> Route to "coder".
+        - If Agent says "Plan verified. Ready for Coder" OR "Ready for Coder" -> Route to "coder".
         - If Agent says "Need more research" -> Route to "deep_researcher".
         - If Agent provided the answer -> Route to "finish".
         

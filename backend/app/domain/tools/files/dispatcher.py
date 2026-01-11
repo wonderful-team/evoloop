@@ -15,6 +15,7 @@ async def manage_file(
     target: Optional[str] = None,
     start_line: Optional[int] = None,
     end_line: Optional[int] = None,
+    allow_multiple: bool = False,  # Phase 14: Fuzzy Edit
     max_depth: int = 3,
     with_symbols: bool = False,
     config: Optional[RunnableConfig] = None
@@ -33,6 +34,7 @@ async def manage_file(
         content: Content for 'create', 'overwrite', or replacement for 'update_block'. Alternatively, destination path for 'move'.
         target: Target block to replace (for 'update_block').
         start_line/end_line: For 'read' (limit range).
+        allow_multiple: For 'update_block' (replace all occurrences).
         max_depth: For 'list_tree' (default 3).
         with_symbols: For 'list_tree' (default False).
             - False: Returns a FLAT LIST of file paths (Copy-Paste friendly).
@@ -45,7 +47,7 @@ async def manage_file(
         return await handle_write(action, path, content, config)
         
     elif action == 'update_block':
-        return await handle_edit(path, target, content, config)
+        return await handle_edit(path, target, content, allow_multiple, config)
         
     elif action in ['list', 'list_tree']:
         return await handle_list(action, path, max_depth, with_symbols, config)

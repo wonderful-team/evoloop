@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query"
 import { Loader2 } from "lucide-react"
 import { useMemo } from "react"
+import { useTranslation } from "react-i18next"
 import { ToolsService } from "@/client"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useChatStore } from "@/stores/chatStore"
 
 export function ToolsTab() {
+  const { t } = useTranslation()
   // Get current tasks from chat store
   const tasks = useChatStore((state) => state.tasks)
 
@@ -63,11 +65,11 @@ export function ToolsTab() {
     <div className="h-full m-0 flex flex-col">
       <div className="p-2 border-b bg-muted/20 flex justify-between items-center">
         <span className="text-xs font-medium text-muted-foreground">
-          Runtime Tools
+          {t("chat.toolsTitle")}
         </span>
         {activeTools.size > 0 && (
           <span className="text-[10px] bg-primary/20 text-primary px-1.5 rounded-full animate-pulse">
-            {activeTools.size} active
+            {t("chat.toolsActive", { count: activeTools.size })}
           </span>
         )}
       </div>
@@ -92,11 +94,10 @@ export function ToolsTab() {
                 return (
                   <div
                     key={i}
-                    className={`border rounded-md p-2 transition-all duration-300 ${
-                      active
-                        ? "bg-primary/10 border-primary ring-2 ring-primary/30"
-                        : "bg-card"
-                    }`}
+                    className={`border rounded-md p-2 transition-all duration-300 ${active
+                      ? "bg-primary/10 border-primary ring-2 ring-primary/30"
+                      : "bg-card"
+                      }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <div
@@ -115,7 +116,7 @@ export function ToolsTab() {
                         </div>
                       ) : (
                         <div className="text-[10px] bg-muted px-1 rounded text-muted-foreground">
-                          dynamic
+                          {t("chat.toolsDynamic")}
                         </div>
                       )}
                     </div>
@@ -138,7 +139,7 @@ export function ToolsTab() {
           </div>
         ) : (
           <div className="text-center text-xs text-muted-foreground py-8">
-            No runtime tools found.
+            {t("chat.noTools")}
           </div>
         )}
       </ScrollArea>

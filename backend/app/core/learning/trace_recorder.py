@@ -7,6 +7,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import TraceEvent
+from sqlalchemy import select
 from datetime import datetime
 
 logger = logging.getLogger("evoloop.learning")
@@ -122,3 +123,76 @@ class TraceCallbackHandler(AsyncCallbackHandler):
                 pass
             clean[k] = v
         return clean
+
+
+async def sync_thread_to_graph(thread_id: str, project_id: int):
+    """
+    Syncs the completed thread's trace from SQL to Neo4j as an Episode.
+    This creates the 'Episodic Memory'.
+    """
+    from app.domain.memory.service import memory_service
+    
+    # 1. Fetch Trace
+    events = []
+    async with session_scope() as session:
+        stmt = select(TraceEvent).where(TraceEvent.thread_id == thread_id).order_by(TraceEvent.step_number)
+        result = await session.execute(stmt)
+        events = result.scalars().all()
+        
+    if not events:
+        logger.warning(f"No trace events found for thread {thread_id}, skipping graph sync.")
+        return
+
+    # 2. Extract Metadata (Heuristic)
+    goal = "Unknown Task"
+    result = "Terminated"
+    error = None
+    plan_snapshot = "No plan recorded"
+    
+    # Try to find goal from first user message or first state
+    try:
+        first_event = events[0]
+        # simplified extraction. Ideally we parse the messages in the snapshot.
+        snapshot = json.loads(first_event.state_snapshot)
+        msgs = snapshot.get("messages", [])
+        if msgs and isinstance(msgs[0], dict) and msgs[0].get("type") == "human":
+             goal = msgs[0].get("content")
+        elif msgs and hasattr(msgs[0], 'content'): # if pickle/object
+             goal = msgs[0].content
+    except:
+        pass
+        
+    # Is result success or failure?
+    last_event = events[-1]
+    if last_event.node_name == "finish":
+        result = "Success"
+        # Try to extract final output
+        try:
+             payload = json.loads(last_event.action_payload)
+             # finish node output usually in messages
+        except:
+             pass
+    else:
+        # If ended not in finish, maybe error?
+        pass
+        
+    # Extract Plan
+    # Look for the last event with a "current_plan" in snapshot
+    for e in reversed(events):
+        try:
+            snap = json.loads(e.state_snapshot)
+            if snap.get("current_plan"):
+                plan_snapshot = snap.get("current_plan")
+                break
+        except:
+            continue
+            
+    # 3. Store to Graph
+    await memory_service.store_episode(
+        goal=goal[:2000], # Limit size
+        result=result,
+        plan_summary=plan_snapshot[:5000],
+        error_msg=error,
+        project_id=project_id
+    )
+

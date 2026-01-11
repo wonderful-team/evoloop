@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { AlertTriangle, CheckCircle2, Loader2, XCircle } from "lucide-react"
+import { AlertTriangle, CheckCircle2, Eye, EyeOff, Loader2, XCircle } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
@@ -47,6 +47,7 @@ export function EmbeddingSettings() {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
   const [testResult, setTestResult] = useState<{
     success: boolean
     msg: string
@@ -204,7 +205,7 @@ export function EmbeddingSettings() {
               name="provider"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("settings.embedding.provider")}</FormLabel>
+                  <FormLabel>{t("settings.modelFields.provider")}</FormLabel>
                   <Select
                     onValueChange={onProviderChange}
                     defaultValue={field.value}
@@ -220,7 +221,7 @@ export function EmbeddingSettings() {
                       <SelectItem value="qwen">
                         Qwen / DashScope (Aliyun)
                       </SelectItem>{" "}
-                      # Added
+                      {/* Added */}
                       <SelectItem value="ollama">Ollama (Local)</SelectItem>
                       <SelectItem value="generic">
                         LMStudio / Generic (OpenAI Compatible)
@@ -238,7 +239,7 @@ export function EmbeddingSettings() {
                 name="base_url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("settings.embedding.base_url")}</FormLabel>
+                    <FormLabel>{t("settings.modelFields.baseUrl")}</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="https://api.openai.com/v1"
@@ -254,7 +255,7 @@ export function EmbeddingSettings() {
                 name="model"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("settings.embedding.model_name")}</FormLabel>
+                    <FormLabel>{t("settings.modelFields.modelName")}</FormLabel>
                     <FormControl>
                       <Input placeholder="text-embedding-3-small" {...field} />
                     </FormControl>
@@ -269,12 +270,31 @@ export function EmbeddingSettings() {
               name="api_key"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("settings.embedding.api_key")}</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="sk-..." {...field} />
-                  </FormControl>
+                  <FormLabel>{t("settings.modelFields.apiKey")}</FormLabel>
+                  <div className="relative">
+                    <FormControl>
+                      <Input
+                        type={showApiKey ? "text" : "password"}
+                        placeholder="sk-..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-9 w-9 text-muted-foreground hover:bg-transparent"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                    >
+                      {showApiKey ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                   <FormDescription>
-                    {t("settings.embedding.api_key_desc")}
+                    {t("settings.modelFields.apiKeyDesc")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

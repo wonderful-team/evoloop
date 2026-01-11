@@ -5,6 +5,8 @@ EvoLoop 是一个先进的**通用智能体系统**，旨在跨多个环境（We
 ## 🌟 核心特性 (Key Features)
 
 - **🧠 自主编排 (Autonomous Orchestration)**: 系统支持 **Multi-Agent Orchestration (Phase 10)**。除了预置的 Supervisor，Agent 现在可以动态发现并根据 YAML 配置生成 **Sub-Agents (Skills)**，实现无限层级的任务委派 (`Manager` -> `Architect` -> `Coder`)。
+- **🧬 元进化循环 (Meta-Evolution Loop)**: 具备自我诊断和自我修复能力。`SystemScanner` 全天候监控系统健康状况，一旦发现异常，自动触发 `EvolutionPlanner` 编写修复代码并提交测试分支。
+- **🕸️ 图谱情节记忆 (Graph-RAG Episodic Memory)**: 将每一次任务的经验（目标、计划、结果）转化为 Neo4j 中的知识图谱节点。Agent 在规划新任务时会自动回忆相似的历史情节，避免重复错误。
 - **🧩 动态工具 (Dynamic Tooling)**: Agent 具备自我进化能力，能在运行时编写全新的 Python 工具 (`create_python_tool`) 并立即注册使用，不再受限于预定义的工具集。
 - **🌐 全平台控制 (Omni-Platform Control)**:
   - **Browser**: 自动化 Web 交互。
@@ -96,7 +98,20 @@ cp .env.example .env
 cd backend && cp .env.example .env
 cd ../frontend && cp .env.example .env
 ```
+
 > **注意**: 你需要在 `backend/.env` 中配置 LLM 提供商（OpenAI/Anthropic）的 API Key。
+
+### 高级特性配置 (Advanced Configuration)
+
+为了安全起见，**自我进化 (Self-Evolution)** 功能默认是**禁用**的。虽然系统会被动地诊断问题，但不会自动修改代码。
+
+要启用此功能（允许 Agent 修改自身后端代码），请在 `backend/.env` 中设置：
+
+```env
+ENABLE_SELF_EVOLUTION=True
+```
+
+> **⚠️ 警告**: 启用此选项意味着 Agent 拥有修改核心代码库的权限。建议仅在受控环境（如开发分支或沙盒）中开启，并确保 Git 版本控制处于活动状态以便回滚。
 
 ### 2. 启动基础设施 (Start Infrastructure)
 

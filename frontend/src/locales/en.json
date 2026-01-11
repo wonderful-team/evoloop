@@ -465,7 +465,8 @@
       "profile": "My profile",
       "password": "Password",
       "appearance": "Appearance",
-      "danger": "Danger zone"
+      "danger": "Danger zone",
+      "evolution": "Safety & Evolution"
     },
     "general": {
       "title": "General Settings",
@@ -573,6 +574,24 @@
       "success_updated": "Embedding Model Updated & Re-indexing Triggered",
       "error_connection": "Connection Error",
       "error_update": "Failed to update embedding model"
+    },
+    "evolution": {
+      "title": "Meta-Evolution Loop",
+      "description": "Allow the agent to autonomously diagnose and fix its own code.",
+      "env_disabled_title": "Disabled by Environment",
+      "env_disabled_desc": "The master switch is disabled in the backend environment variables. You cannot enable this feature dynamically.",
+      "caution_title": "Caution",
+      "caution_desc": "Enabling this allows the Agent to modify the backend source code. Ensure you have Git version control enabled to revert unexpected changes.",
+      "enable_title": "Enable Self-Evolution",
+      "enable_desc": "Automatically trigger Evolution Planner on system errors.",
+      "switch_label": "Enable Self-Evolution Loop"
+    },
+    "modelFields": {
+      "provider": "Provider",
+      "baseUrl": "Base URL",
+      "modelName": "Model Name",
+      "apiKey": "API Key",
+      "apiKeyDesc": "Key is stored securely. Leave blank if not changing."
     }
   },
   "mcp": {
@@ -617,7 +636,8 @@
       "untitled": "Untitled Chat",
       "deleteConfirm": "Are you sure you want to delete this chat?",
       "noHistory": "No chat history found.",
-      "newChat": "New Chat"
+      "newChat": "New Chat",
+      "searchPlaceholder": "Search conversations..."
     },
     "local": {
       "connecting": "Connecting...",
@@ -639,6 +659,14 @@
       "memorize": "Memorize",
       "export": "Export",
       "rewind": "Rewind",
+      "canvas": {
+        "title": "Live Activity",
+        "response": "Response",
+        "thoughts": "Thoughts",
+        "plan": "Action Plan",
+        "artifacts": "Artifacts",
+        "waiting": "WAITING INPUT"
+      },
       "askProject": "Ask {{project}}...",
       "selectProject": "Select a project to start chatting",
       "footer": "EvoLoop AI Assistant",
@@ -678,7 +706,8 @@
       "tabMemory": "Memory",
       "tabPlan": "Plan",
       "tabState": "State",
-      "tabKnowledge": "Knowledge",
+      "tabKowledge": "Knowledge",
+      "tabTools": "Tools",
       "tabResources": "Resources",
       "memoryTitle": "Memory Concepts",
       "noConcepts": "No memory concepts found.",
@@ -695,7 +724,24 @@
       "resourcesTitle": "Files & Resources",
       "filesTitle": "Project Files",
       "externalLinksTitle": "External Links",
+      "stateContext": "Context",
+      "stateProject": "Project",
+      "stateWorkDir": "Work Dir",
+      "stateScratchpad": "Scratchpad",
+      "stateEmpty": "Empty",
+      "toolsTitle": "Runtime Tools",
+      "toolsActive": "{{count}} active",
+      "toolsDynamic": "dynamic",
+      "noTools": "No runtime tools found.",
+      "addLink": "Add Link",
+      "addLinkTitle": "Add External Link",
+      "pinnedFiles": "Pinned Files",
+      "noPinnedFiles": "Right click files in file explorer to pin them here.",
+      "externalLinks": "External Links",
       "noFiles": "No files found.",
+      "linkAdded": "Link added",
+      "linkFailed": "Failed to add link",
+      "resourceRemoved": "Resource removed",
       "addMemory": {
         "title": "Add Memory",
         "name": "Name",

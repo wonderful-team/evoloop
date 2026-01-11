@@ -90,6 +90,20 @@ async def finish_node(state: AgentState, config: RunnableConfig):
         
     final_msg = "\n".join(summary_parts)
     
+    # 4. Sync Trace to Episode Graph (Graph Memory)
+    try:
+        from app.core.learning.trace_recorder import sync_thread_to_graph
+        thread_id = config.get("configurable", {}).get("thread_id", None)
+        project_id = state.get("project_id", 1)
+        
+        if thread_id:
+             logger.info(f"Syncing thread {thread_id} to Episode Graph...")
+             await sync_thread_to_graph(thread_id, project_id)
+        else:
+             logger.warning("No thread_id found in config, skipping Episode Sync.")
+    except Exception as e:
+        logger.error(f"Failed to sync episode to graph: {e}")
+        
     return {
         "messages": [AIMessage(content=final_msg)]
     }

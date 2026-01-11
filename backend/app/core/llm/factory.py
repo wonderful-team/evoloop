@@ -1,6 +1,5 @@
 from typing import Optional
-from langchain_openai import ChatOpenAI
-from langchain_core.language_models import BaseChatModel
+from app.core.llm.adaptive import AdaptiveChatOpenAI
 from app.core.config import settings
 
 
@@ -8,9 +7,9 @@ class LLMFactory:
     """
     Factory for creating LLM instances with consistent configuration.
     """
-
+    
     @staticmethod
-    def create_llm(model_name: Optional[str] = None, temperature: float = 0.7) -> BaseChatModel:
+    def create_llm(model_name: Optional[str] = None, temperature: float = 0.7) -> AdaptiveChatOpenAI:
         """
         Create a standard ChatOpenAI instance.
         Prioritizes SystemConfig (Dynamic) > Settings (Env Checks).
@@ -32,8 +31,6 @@ class LLMFactory:
         logger = logging.getLogger(__name__)
         logger.info(f"LLM Config - Provider: {db_provider}, Base URL: {base_url}, Model: {final_model}")
         
-        from app.core.llm.adaptive import AdaptiveChatOpenAI
-        
         return AdaptiveChatOpenAI(
             api_key=api_key,
             base_url=base_url,
@@ -44,5 +41,5 @@ class LLMFactory:
 
 
 # Global instance for easy import if needed, or prefer using Factory.create()
-def get_default_llm() -> BaseChatModel:
+def get_default_llm() -> AdaptiveChatOpenAI:
     return LLMFactory.create_llm()

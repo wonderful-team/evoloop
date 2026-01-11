@@ -38,16 +38,16 @@ export function StateTab({ activeThreadId }: StateTabProps) {
           <div className="space-y-4">
             <div className="space-y-2">
               <div className="text-xs font-semibold text-muted-foreground uppercase">
-                Context
+                {t("chat.stateContext")}
               </div>
               <div className="grid grid-cols-[80px_1fr] gap-2 text-xs">
-                <span className="text-muted-foreground">Project:</span>
+                <span className="text-muted-foreground">{t("chat.stateProject")}:</span>
                 <span className="font-mono">
                   {typeof typedPlanData.state.project_id === "object"
                     ? JSON.stringify(typedPlanData.state.project_id)
                     : typedPlanData.state.project_id || "-"}
                 </span>
-                <span className="text-muted-foreground">Work Dir:</span>
+                <span className="text-muted-foreground">{t("chat.stateWorkDir")}:</span>
                 <span className="font-mono break-all">
                   {typeof typedPlanData.state.working_directory === "object"
                     ? JSON.stringify(typedPlanData.state.working_directory)
@@ -57,12 +57,12 @@ export function StateTab({ activeThreadId }: StateTabProps) {
             </div>
             <div className="space-y-2">
               <div className="text-xs font-semibold text-muted-foreground uppercase">
-                Scratchpad
+                {t("chat.stateScratchpad")}
               </div>
               <div className="bg-muted/50 p-2 rounded-md border text-xs font-mono whitespace-pre-wrap break-words min-h-[100px]">
                 {typeof typedPlanData.state.scratchpad === "object"
                   ? JSON.stringify(typedPlanData.state.scratchpad, null, 2)
-                  : typedPlanData.state.scratchpad || "Empty"}
+                  : typedPlanData.state.scratchpad || t("chat.stateEmpty")}
               </div>
             </div>
           </div>

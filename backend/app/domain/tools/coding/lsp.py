@@ -2,8 +2,9 @@ import logging
 import os
 from typing import Literal, Optional, Any
 from pathlib import Path
+from langchain_core.runnables import RunnableConfig
 
-from app.core.tools import evoloop_tool
+from app.core.tools import evoloop_tool, get_working_directory
 from app.core.config import settings
 from app.infrastructure.solidlsp.ls import SolidLanguageServer, LSPFileBuffer
 from app.infrastructure.solidlsp.language_servers.pyright_server import PyrightServer
@@ -132,7 +133,8 @@ async def consult_lsp(
     action: Literal['check_errors', 'find_definition', 'hover'],
     file_path: str,
     line: Optional[int] = None, # 1-indexed
-    character: Optional[int] = None # 1-indexed
+    character: Optional[int] = None, # 1-indexed
+    config: Optional[RunnableConfig] = None
 ) -> str:
     """
     Consult the Language Server Protocol (LSP) for code intelligence.
@@ -140,29 +142,38 @@ async def consult_lsp(
     
     Args:
         action: The action to perform.
-            - 'check_errors': Returns a list of diagnostics (errors, warnings) for the file.
-            - 'find_definition': Returns the location where the symbol at line/character is defined.
-            - 'hover': Returns documentation/type info for the symbol at line/character.
-        file_path: Absolute path to the file.
-        line: 1-indexed line number (required for find_definition and hover).
-        character: 1-indexed character/column number (required for find_definition and hover).
+        file_path: Path to the file (Relative to project root or Absolute).
+        line: 1-indexed line number.
+        character: 1-indexed character/column number.
     """
     
-    # Implicitly determine repo root and language?
-    # For now, assume repo root is project root.
-    # In EvoLoop, we might have project_id context, but tools receive strict args.
-    # We can infer repo root by traversing up until .git or using implicit context if possible.
-    # Taking a safe bet: assume file_path is absolute and within a repo. Use simple traversal.
+    # Path Resolution Logic with Context Awareness
+    project_root = Path(get_working_directory(config)).resolve()
     
-    file_path_obj = Path(file_path).resolve()
-    if not file_path_obj.exists():
-        return f"Error: File {file_path} does not exist."
-        
+    candidates = []
+    # 1. Try resolving relative to Project Root (Most likely for Agent)
+    candidates.append((project_root / file_path).resolve())
+    
+    # 2. Try as provided (Absolute or relative to CWD)
+    candidates.append(Path(file_path).resolve())
+
+    file_path_obj = None
+    for cand in candidates:
+        if cand.exists():
+            file_path_obj = cand
+            break
+            
+    if not file_path_obj:
+        return f"Error: File {file_path} does not exist. Searched in: {[str(c) for c in candidates]}. Project Root: {project_root}"
+
     repo_root = _find_repo_root(file_path_obj)
     if not repo_root:
-        # Fallback to file's directory if no git root found
-        repo_root = file_path_obj.parent
-        
+        # Fallback using project_root from context if it looks like a repo
+        if (project_root / ".git").exists():
+            repo_root = project_root
+        else:
+            repo_root = file_path_obj.parent
+            
     # Determine language
     suffix = file_path_obj.suffix.lower()
     if suffix in ['.py']:

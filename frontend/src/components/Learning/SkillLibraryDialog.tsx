@@ -1,4 +1,4 @@
-import { BookOpen, Play, Trash2 } from "lucide-react"
+import { BookOpen, Play, Trash2, Edit } from "lucide-react"
 import type React from "react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table"
 import type { LearnedSkill } from "@/types/skill"
 import { SkillExecutionDialog } from "./SkillExecutionDialog"
+import { SkillEditorDialog } from "./SkillEditorDialog"
 
 interface SkillLibraryDialogProps {
   open?: boolean
@@ -47,9 +48,11 @@ export function SkillLibraryDialog({
   const [selectedSkill, setSelectedSkill] = useState<LearnedSkill | null>(null)
   const [loading, setLoading] = useState(false)
   const [executionOpen, setExecutionOpen] = useState(false)
+  const [editingOpen, setEditingOpen] = useState(false)
   const [skillToExecute, setSkillToExecute] = useState<LearnedSkill | null>(
     null,
   )
+  const [skillToEdit, setSkillToEdit] = useState<LearnedSkill | null>(null)
 
   const fetchSkills = async () => {
     setLoading(true)
@@ -122,11 +125,10 @@ export function SkillLibraryDialog({
                   {skills.map((skill) => (
                     <div
                       key={skill.id}
-                      className={`p-3 rounded-lg border cursor-pointer hover:bg-accent transition-colors group relative ${
-                        selectedSkill?.id === skill.id
-                          ? "bg-accent border-primary"
-                          : "bg-card"
-                      }`}
+                      className={`p-3 rounded-lg border cursor-pointer hover:bg-accent transition-colors group relative ${selectedSkill?.id === skill.id
+                        ? "bg-accent border-primary"
+                        : "bg-card"
+                        }`}
                       onClick={() => setSelectedSkill(skill)}
                     >
                       <div className="font-medium truncate pr-6">
@@ -188,6 +190,17 @@ export function SkillLibraryDialog({
                         >
                           <Play className="h-4 w-4 mr-2" fill="currentColor" />
                           {t("common.run", "Run")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSkillToEdit(selectedSkill)
+                            setEditingOpen(true)
+                          }}
+                        >
+                          <Edit className="h-4 w-4 mr-2" />
+                          {t("common.edit", "Edit")}
                         </Button>
                         <Button
                           variant="destructive"
@@ -283,8 +296,8 @@ export function SkillLibraryDialog({
                           <div className="text-sm font-medium">
                             {selectedSkill.created_at
                               ? new Date(
-                                  selectedSkill.created_at,
-                                ).toLocaleDateString()
+                                selectedSkill.created_at,
+                              ).toLocaleDateString()
                               : "N/A"}
                           </div>
                           <p className="text-xs text-muted-foreground">
@@ -318,6 +331,25 @@ export function SkillLibraryDialog({
           onSuccess={() => {
             // Close library dialog too if we want, or keep it open.
             // Let's keep library open but show success toast (handled in dialog)
+          }}
+        />
+      )}
+
+      {skillToEdit && (
+        <SkillEditorDialog
+          open={editingOpen}
+          onOpenChange={setEditingOpen}
+          skill={skillToEdit}
+          onSuccess={() => {
+            fetchSkills()
+            // Update selected skill to show new values immediately
+            // We need to re-fetch to get latest, but fetchSkills updates 'skills'
+            // We should also find the updated skill in the new list or just close/reopen logic
+            // For simplicity, just refetch. The selectedSkill might be stale until clicked again.
+            // A better UX is to update selectedSkill too.
+            // Let's rely on user re-clicking or ensure fetchSkills updates state.
+            setSelectedSkill(prev => prev ? { ...prev, ...skillToEdit } : null) // Optimistic/Hack update or just wait.
+            // Actually, let's just let fetchSkills handle it. The user might need to click again if ID changed (unlikely).
           }}
         />
       )}

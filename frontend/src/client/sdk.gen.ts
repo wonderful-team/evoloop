@@ -3,8 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AgentChatEndpointData, AgentChatEndpointResponse, AgentStopChatData, AgentStopChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementResponse, AuthSendMobileCodeData, AuthSendMobileCodeResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthGetGlobalConfigResponse, AuthResetPasswordMobileData, AuthResetPasswordMobileResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRenameConversationData, ConversationsRenameConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, DevicesGetDevicesData, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesSearchFilesData, FilesSearchFilesResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningRecordEventsData, LearningRecordEventsResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeactivateSkillData, LearningDeactivateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, MemberLoginData, MemberLoginResponse, MemberStatusResponse, MemberLogoutResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationApplyResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectsListProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemConfigData, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemResetKnowledgeBaseData, SystemResetKnowledgeBaseResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UsersReadUserMeData, UsersReadUserMeResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse } from './types.gen';
-
+import type { AgentChatEndpointData, AgentChatEndpointResponse, AgentStopChatData, AgentStopChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementResponse, AuthSendMobileCodeData, AuthSendMobileCodeResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthGetGlobalConfigResponse, AuthResetPasswordMobileData, AuthResetPasswordMobileResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRenameConversationData, ConversationsRenameConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, DevicesGetDevicesData, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesSearchFilesData, FilesSearchFilesResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningRecordEventsData, LearningRecordEventsResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeactivateSkillData, LearningDeactivateSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, MemberLoginData, MemberLoginResponse, MemberStatusResponse, MemberLogoutResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationApplyResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectsListProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemConfigData, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemResetKnowledgeBaseData, SystemResetKnowledgeBaseResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UsersReadUserMeData, UsersReadUserMeResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse } from './types.gen';
 
 export class AgentService {
     /**
@@ -39,7 +38,7 @@ export class AgentService {
             }
         });
     }
-
+    
     /**
      * Stop Chat
      * Stop the current generation for a thread.
@@ -59,7 +58,40 @@ export class AgentService {
             }
         });
     }
-
+    
+    /**
+     * Retry Chat
+     * Retry the last user message.
+     * Rolls back history (deletes AI messages after last human msg) and restarts generation.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @param data.guestId
+     * @param data.token
+     * @param data.xGuestId
+     * @param data.authorization
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static retryChat(data: AgentRetryChatData): CancelablePromise<AgentRetryChatResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/chat/retry',
+            headers: {
+                'x-guest-id': data.xGuestId,
+                authorization: data.authorization
+            },
+            query: {
+                guest_id: data.guestId,
+                token: data.token
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
     /**
      * Resume Chat
      * Resume a paused/interrupted graph execution.
@@ -80,28 +112,7 @@ export class AgentService {
             }
         });
     }
-
-    /**
-     * Retry Chat
-     * Retry the last user message.
-     * Rolls back history (deletes AI messages after last human msg) and restarts generation.
-     * @param data The data for the request.
-     * @param data.requestBody
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static retryChat(data: AgentRetryChatData): CancelablePromise<AgentRetryChatResponse> {
-        return __request(OpenAPI, {
-            method: 'POST',
-            url: '/api/v1/chat/retry',
-            body: data.requestBody,
-            mediaType: 'application/json',
-            errors: {
-                422: 'Validation Error'
-            }
-        });
-    }
-
+    
     /**
      * Webhook Endpoint
      * Entry point for External Events (Local BG Task).
@@ -136,7 +147,7 @@ export class AuthService {
             url: '/api/v1/auth/captcha/config'
         });
     }
-
+    
     /**
      * Get Captcha
      * Get Captcha Image
@@ -157,7 +168,7 @@ export class AuthService {
             }
         });
     }
-
+    
     /**
      * Get Register Config
      * Get Registration Config
@@ -170,7 +181,7 @@ export class AuthService {
             url: '/api/v1/auth/register/config'
         });
     }
-
+    
     /**
      * Get Register Agreement
      * Get Registration Agreement
@@ -183,7 +194,7 @@ export class AuthService {
             url: '/api/v1/auth/register/agreement'
         });
     }
-
+    
     /**
      * Send Mobile Code
      * Send Mobile Verification Code
@@ -203,7 +214,7 @@ export class AuthService {
             }
         });
     }
-
+    
     /**
      * Register Mobile
      * Register with Mobile
@@ -223,7 +234,7 @@ export class AuthService {
             }
         });
     }
-
+    
     /**
      * Register Username
      * Register with Username/Password
@@ -243,7 +254,7 @@ export class AuthService {
             }
         });
     }
-
+    
     /**
      * Login Mobile
      * Login with Mobile Code
@@ -263,7 +274,7 @@ export class AuthService {
             }
         });
     }
-
+    
     /**
      * Check Mobile
      * Check if mobile is registered
@@ -284,7 +295,7 @@ export class AuthService {
             }
         });
     }
-
+    
     /**
      * Get Global Config
      * Get global config (servicer info etc)
@@ -297,7 +308,7 @@ export class AuthService {
             url: '/api/v1/auth/config/global'
         });
     }
-
+    
     /**
      * Reset Password Mobile
      * Reset password with Mobile Code
@@ -322,8 +333,7 @@ export class AuthService {
 export class ConversationsService {
     /**
      * List Conversations
-     * List conversations, optionally filtered by project_id.
-     * Includes real-time status from ActivityMonitor.
+     * List conversations, optionally filtered by project.
      * @param data The data for the request.
      * @param data.projectId
      * @returns ConversationListItem Successful Response
@@ -341,7 +351,7 @@ export class ConversationsService {
             }
         });
     }
-
+    
     /**
      * Get Conversation Messages
      * Get message history for a thread from the persistent SQL log.
@@ -363,7 +373,7 @@ export class ConversationsService {
             }
         });
     }
-
+    
     /**
      * Search Conversations
      * Full-text search on message logs.
@@ -386,7 +396,7 @@ export class ConversationsService {
             }
         });
     }
-
+    
     /**
      * Rename Conversation
      * Rename a conversation.
@@ -410,7 +420,7 @@ export class ConversationsService {
             }
         });
     }
-
+    
     /**
      * Delete Conversation
      * Delete a conversation history and its checkpoints.
@@ -431,7 +441,7 @@ export class ConversationsService {
             }
         });
     }
-
+    
     /**
      * Get Thread Activity
      * Get real-time activity/status for a thread run.
@@ -452,7 +462,7 @@ export class ConversationsService {
             }
         });
     }
-
+    
     /**
      * Rewind Conversation
      * Rewind the conversation to the previous state (Undo last step).
@@ -500,7 +510,7 @@ export class DevicesService {
             }
         });
     }
-
+    
     /**
      * Send Command
      * Send remote command
@@ -532,7 +542,7 @@ export class DevicesService {
             }
         });
     }
-
+    
     /**
      * Get Recent Logs
      * Get recent logs from device
@@ -565,7 +575,7 @@ export class DevicesService {
             }
         });
     }
-
+    
     /**
      * Search Logs
      * Search logs
@@ -600,7 +610,7 @@ export class DevicesService {
             }
         });
     }
-
+    
     /**
      * Bind Client
      * Bind mobile client to device
@@ -632,7 +642,7 @@ export class DevicesService {
             }
         });
     }
-
+    
     /**
      * Bind Current Device
      * Bind a client_id (e.g. mobile) to this device
@@ -693,7 +703,7 @@ export class FilesService {
             }
         });
     }
-
+    
     /**
      * Create File
      * Create or overwrite a file.
@@ -717,7 +727,7 @@ export class FilesService {
             }
         });
     }
-
+    
     /**
      * Get File Content
      * Read file content.
@@ -742,7 +752,7 @@ export class FilesService {
             }
         });
     }
-
+    
     /**
      * Get Raw File
      * Get raw file content (for previewing images, PDFs, etc).
@@ -767,7 +777,7 @@ export class FilesService {
             }
         });
     }
-
+    
     /**
      * Open File
      * Open file in system default application.
@@ -791,7 +801,7 @@ export class FilesService {
             }
         });
     }
-
+    
     /**
      * Upload File
      * Upload a file to project's 'uploads' directory.
@@ -816,7 +826,7 @@ export class FilesService {
             }
         });
     }
-
+    
     /**
      * Search Files
      * Search for text content within project files (simple grep).
@@ -865,7 +875,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * Get Request
      * Get a specific human input request by ID.
@@ -886,7 +896,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * Respond To Request
      * Submit a response to a pending human input request.
@@ -911,7 +921,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * Cancel Pending Request
      * Cancel a pending human input request.
@@ -933,7 +943,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * Cleanup Requests
      * Clean up old completed/cancelled requests.
@@ -954,7 +964,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * Start Recording
      * Start a new recording session for imitation learning.
@@ -975,7 +985,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * Record Events
      * Record a batch of UI events from the frontend ActionRecorder.
@@ -996,7 +1006,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * Stop Recording
      * Stop a recording session.
@@ -1017,7 +1027,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * List Recording Sessions
      * List active recording sessions.
@@ -1038,7 +1048,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * Synthesize Skill
      * Synthesize a new skill from a trace sequence.
@@ -1059,7 +1069,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * List Skills
      * List all learned skills.
@@ -1080,7 +1090,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * Get Skill
      * Get full details of a specific skill.
@@ -1101,7 +1111,7 @@ export class LearningService {
             }
         });
     }
-
+    
     /**
      * Deactivate Skill
      * Deactivate (soft delete) a skill.
@@ -1122,7 +1132,31 @@ export class LearningService {
             }
         });
     }
-
+    
+    /**
+     * Update Skill
+     * Update a learned skill.
+     * @param data The data for the request.
+     * @param data.skillId
+     * @param data.requestBody
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static updateSkill(data: LearningUpdateSkillData): CancelablePromise<LearningUpdateSkillResponse> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/learning/skills/{skill_id}',
+            path: {
+                skill_id: data.skillId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
     /**
      * Execute Skill
      * Execute a skill by injecting a directive into the agent's conversation.
@@ -1184,7 +1218,7 @@ export class McpService {
             url: '/api/v1/mcp/servers'
         });
     }
-
+    
     /**
      * Add Mcp Server
      * Register and connect a new MCP server.
@@ -1204,7 +1238,7 @@ export class McpService {
             }
         });
     }
-
+    
     /**
      * Delete Mcp Server
      * Remove an MCP server.
@@ -1246,7 +1280,7 @@ export class MemberService {
             }
         });
     }
-
+    
     /**
      * Status
      * @returns unknown Successful Response
@@ -1258,7 +1292,7 @@ export class MemberService {
             url: '/api/v1/member/status'
         });
     }
-
+    
     /**
      * Logout
      * @returns unknown Successful Response
@@ -1270,7 +1304,7 @@ export class MemberService {
             url: '/api/v1/member/logout'
         });
     }
-
+    
     /**
      * Get Cancellation Info
      * Get cancellation status and info
@@ -1283,7 +1317,7 @@ export class MemberService {
             url: '/api/v1/member/cancellation'
         });
     }
-
+    
     /**
      * Apply Cancellation
      * Apply for cancellation
@@ -1296,7 +1330,7 @@ export class MemberService {
             url: '/api/v1/member/cancellation'
         });
     }
-
+    
     /**
      * Cancel Cancellation Apply
      * Cancel existing cancellation request
@@ -1332,7 +1366,7 @@ export class MemoryService {
             }
         });
     }
-
+    
     /**
      * Add Concept
      * Manually add a concept/memory.
@@ -1356,7 +1390,7 @@ export class MemoryService {
             }
         });
     }
-
+    
     /**
      * Search Memory
      * Search memory concepts.
@@ -1432,7 +1466,7 @@ export class ProjectModulesService {
             }
         });
     }
-
+    
     /**
      * Get Budget Overview
      * @param data The data for the request.
@@ -1456,7 +1490,7 @@ export class ProjectModulesService {
             }
         });
     }
-
+    
     /**
      * Get Timesheet List
      * @param data The data for the request.
@@ -1484,7 +1518,7 @@ export class ProjectModulesService {
             }
         });
     }
-
+    
     /**
      * Quick Add Timesheet
      * @param data The data for the request.
@@ -1507,7 +1541,7 @@ export class ProjectModulesService {
             }
         });
     }
-
+    
     /**
      * Get Project Statistics
      * @param data The data for the request.
@@ -1546,7 +1580,7 @@ export class ProjectsService {
             url: '/api/v1/projects/'
         });
     }
-
+    
     /**
      * Create Project
      * Create a new project directory and sync to Member Center.
@@ -1566,7 +1600,7 @@ export class ProjectsService {
             }
         });
     }
-
+    
     /**
      * Get Current Project
      * Get current project from Member Center
@@ -1579,7 +1613,7 @@ export class ProjectsService {
             url: '/api/v1/projects/current'
         });
     }
-
+    
     /**
      * Get Project Status
      * Get real-time status of system tasks (Indexing, Summarization) for a project.
@@ -1600,7 +1634,7 @@ export class ProjectsService {
             }
         });
     }
-
+    
     /**
      * Delete Project
      * Delete a project (Unlink from Member Center).
@@ -1621,7 +1655,7 @@ export class ProjectsService {
             }
         });
     }
-
+    
     /**
      * Run Indexing Endpoint
      * Trigger full indexing for a project (Celery Dispatch).
@@ -1664,7 +1698,7 @@ export class ResourcesService {
             }
         });
     }
-
+    
     /**
      * Create Resource
      * Add a new resource (Pin a file or add a link).
@@ -1688,7 +1722,7 @@ export class ResourcesService {
             }
         });
     }
-
+    
     /**
      * Delete Resource
      * Remove a resource.
@@ -1717,12 +1751,7 @@ export class StreamService {
     /**
      * Stream Chat
      * SSE endpoint to stream chat updates for a thread.
-     *
-     * Emits events:
-     * - token: New LLM token
-     * - task: Task update (start/done/failed)
-     * - status: Overall status change
-     * - done: Stream complete
+     * Uses Redis Pub/Sub for real-time event streaming.
      * @param data The data for the request.
      * @param data.threadId
      * @param data.guestId
@@ -1783,7 +1812,7 @@ export class SymbolsService {
             }
         });
     }
-
+    
     /**
      * Generate Symbol Wiki
      * Generate on-demand Wiki documentation for a specific symbol.
@@ -1832,7 +1861,7 @@ export class SystemService {
             }
         });
     }
-
+    
     /**
      * Update System Config
      * @param data The data for the request.
@@ -1859,7 +1888,7 @@ export class SystemService {
             }
         });
     }
-
+    
     /**
      * Test Embedding Connection
      * Validate connection to embedding provider.
@@ -1887,7 +1916,7 @@ export class SystemService {
             }
         });
     }
-
+    
     /**
      * Apply Embedding Config
      * Apply new embedding config. THIS IS DESTRUCTIVE (Resets Vector DB).
@@ -1915,7 +1944,7 @@ export class SystemService {
             }
         });
     }
-
+    
     /**
      * Test Llm Connection
      * Validate connection to LLM provider.
@@ -1943,7 +1972,7 @@ export class SystemService {
             }
         });
     }
-
+    
     /**
      * Apply Llm Config
      * Apply new LLM config.
@@ -1971,7 +2000,7 @@ export class SystemService {
             }
         });
     }
-
+    
     /**
      * Reset Knowledge Base
      * [DANGER] Wipe the entire Knowledge Base (Neo4j + Postgres Index).
@@ -2029,7 +2058,7 @@ export class TasksService {
             }
         });
     }
-
+    
     /**
      * Create Task
      * Create a new task.
@@ -2053,7 +2082,7 @@ export class TasksService {
             }
         });
     }
-
+    
     /**
      * Get Task Detail
      * Get details of a specific task.
@@ -2078,7 +2107,7 @@ export class TasksService {
             }
         });
     }
-
+    
     /**
      * Update Task
      * Update a task.
@@ -2106,7 +2135,7 @@ export class TasksService {
             }
         });
     }
-
+    
     /**
      * Delete Task
      * Delete a task.
@@ -2131,7 +2160,7 @@ export class TasksService {
             }
         });
     }
-
+    
     /**
      * Update Task Status Endpoint
      * Update task status and progress.
@@ -2159,7 +2188,7 @@ export class TasksService {
             }
         });
     }
-
+    
     /**
      * Execute Task
      * Trigger Autonomous Agent to execute the task.
@@ -2199,7 +2228,7 @@ export class ToolsService {
             url: '/api/v1/tools/runtime'
         });
     }
-
+    
     /**
      * List All Tools
      * List ALL available tools (Static + Runtime).
@@ -2253,7 +2282,7 @@ export class UtilsService {
             url: '/api/v1/utils/health-check/'
         });
     }
-
+    
     /**
      * Get Evoloop Status
      * @returns unknown Successful Response

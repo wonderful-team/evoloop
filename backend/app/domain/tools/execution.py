@@ -27,24 +27,28 @@ async def run_shell_command(command: str) -> str:
     # For this local assistant, we assume trust.
     
     ctx = get_context()
-    cwd = ctx.get("working_directory")
+    # cwd = ctx.get("working_directory") # TerminalManager handles its own CWD
     
     try:
-        from app.utils.process import run_async_command
+        from app.domain.terminal.manager import terminal_manager
         
-        # run_async_command handles timeouts and safe execution wrapper
-        result = await run_async_command(command, cwd=cwd)
+        # Run via Terminal Manager (Stateful)
+        # Wrap in thread to avoid blocking loop since subprocess.run is sync
+        stdout, stderr, returncode = await asyncio.to_thread(
+            terminal_manager.run_command, 
+            command
+        )
         
         output = ""
-        if result.stdout:
-            output += f"STDOUT:\n{result.stdout}\n"
-        if result.stderr:
-            output += f"STDERR:\n{result.stderr}\n"
+        if stdout:
+            output += f"STDOUT:\n{stdout}\n"
+        if stderr:
+            output += f"STDERR:\n{stderr}\n"
             
-        if result.success:
+        if returncode == 0:
             return f"Command Succeeded.\n{output}"
         else:
-            return f"Command Failed (Exit Code {result.returncode}).\n{output}"
+            return f"Command Failed (Exit Code {returncode}).\n{output}"
             
     except Exception as e:
         return f"Execution Error: {str(e)}"

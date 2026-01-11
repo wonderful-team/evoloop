@@ -89,7 +89,9 @@ async def tester_node(state: AgentState, config: RunnableConfig):
     You MUST write your Test Analysis, Summary, and Fix Suggestion in {user_lang}.
     """
 
-    tools = get_all_tools()
+    # RBAC Tools for Tester
+    from app.core.tools.registry_utils import get_node_tools
+    tools = get_node_tools("tester")
     llm_with_tools = llm.bind_tools(tools)
     tool_map = {t.name: t for t in tools}
 

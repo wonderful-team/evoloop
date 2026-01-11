@@ -59,42 +59,59 @@ async def planner_node(state: AgentState, config: RunnableConfig):
     cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
     user_lang = SystemConfigService.get_language_preference()
     
-    # Project Structure (Lightweight)
+    # 4. Prepare Chain
+    # Generate Project Structure dynamically
+    from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
     project_structure = "Tree not available"
     try:
-        from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
         generator = AnnotatedTreeGenerator(cwd, max_depth=2, with_symbols=False, file_limit=20)
         project_structure = await generator.generate()
     except Exception:
         pass
 
-    sys_info = f"OS: {platform.system()}, CWD: {cwd}\nProject Structure:\n{project_structure[:3000]}"
+    # Use Builder (Phase 6)
+    from app.core.prompts.planner_builder import PlannerPromptBuilder
+    from app.domain.planning.manager import PlanManager
     
-    # 2. Update Monitor
+    current_plan_json = state.get("structured_plan")
+    current_plan_display = PlanManager.format_plan_for_prompt(current_plan_json)
+    
+    
+    # 2. Retrieve Past Episodes (Graph-RAG) - Episodic Memory
+    past_episodes = ""
     try:
-        thread_id = config.get("configurable", {}).get("thread_id", "unknown")
-        await activity_monitor.update_agent_state(
-            thread_id=thread_id,
-            mode="PLANNING",
-            task_name="Architecting Solution",
-            task_status="Breaking down requirements..."
-        )
-    except Exception:
-        pass
+        from app.domain.memory.service import memory_service
+        
+        # Determine Goal from Context (Last Human Message)
+        user_goal = "General planning"
+        for m in reversed(list(state.get("messages", []))):
+            from langchain_core.messages import HumanMessage
+            if isinstance(m, HumanMessage):
+                user_goal = m.content
+                break
+                
+        past_episodes = await memory_service.find_similar_episodes(user_goal, project_id)
+    except Exception as e:
+        logger.warning(f"Failed to retrieve past episodes: {e}")
 
-    # 3. Bind Tools
-    tools = [create_plan, analyze_feasibility]
-    llm_with_tools = llm.bind_tools(tools)
-    
-    # 4. Prepare Chain
-    current_plan = state.get("current_plan", "No plan yet.")
-    
-    chain = planner_prompt.partial(
+    prompt_builder = PlannerPromptBuilder(
         project_id=project_id,
-        current_plan=current_plan,
-        system_info=sys_info,
-        user_lang=user_lang
-    ) | llm_with_tools
+        current_plan=current_plan_display,
+        context={
+            "project_structure": project_structure[:3000],
+            "past_experience": past_episodes
+        }
+    )
+    
+    system_msg = prompt_builder.build(config)
+    
+    # Create simple prompt template with system injection
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_msg),
+        ("placeholder", "{messages}"),
+    ])
+    
+    chain = prompt | llm_with_tools
 
     messages = list(state.get("messages", []))
     new_messages = []
@@ -119,27 +136,26 @@ async def planner_node(state: AgentState, config: RunnableConfig):
                 tool_func = None
                 if tool_name == "create_plan":
                     tool_func = create_plan
-                    plan_finalized = True # We assume if plan is created, we are done
+                    plan_finalized = True 
                 elif tool_name == "analyze_feasibility":
                     tool_func = analyze_feasibility
+                elif tool_name == "update_step_status":
+                     tool_func = update_step_status
                 
                 if tool_func:
                     content = await executor.execute(tool_func, tool_args, config=config)
                     
-                    # Update State if Plan Created
+                    # Update State if Plan Created/Updated
                     if tool_name == "create_plan":
                          try:
-                            plan_data = json.loads(str(content))
-                            steps_text = "\\n".join([f"- {s['title']} ({s['status']})" for s in plan_data.get('steps', [])])
-                            current_plan = f"Plan: {plan_data.get('title')}\\n{steps_text}"
+                            # Content is JSON string from tool
                             state["structured_plan"] = str(content)
-                            state["current_plan"] = current_plan
+                            state["current_plan"] = PlanManager.format_plan_for_prompt(str(content))
                          except:
                             pass
                 else:
                     content = f"Error: Tool {tool_name} not found."
                 
-                tool_msg = AIMessage(content=str(content)) # Wait, ToolMessage
                 from langchain_core.messages import ToolMessage
                 tool_msg = ToolMessage(content=str(content), tool_call_id=tool_call["id"], name=tool_name)
                 
@@ -157,5 +173,5 @@ async def planner_node(state: AgentState, config: RunnableConfig):
         "messages": new_messages,
         "current_plan": state.get("current_plan"),
         "structured_plan": state.get("structured_plan"),
-        "next_node": "supervisor" # Always go to supervisor to execute the plan
+        "next_node": "supervisor" 
     }

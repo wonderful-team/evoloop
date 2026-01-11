@@ -2,6 +2,7 @@ from app.core.config import settings
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.logging import logger
 from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
+from typing import Optional
 
 
 class MemoryService:
@@ -64,6 +65,32 @@ class MemoryService:
                 logger.info(f"Vector Index 'concept_embeddings' ensured (dim={dim}).")
             except Exception as e:
                 logger.warning(f"Failed to create Vector Index: {e}")
+
+            # Episode Constraints
+            try:
+                 await session.run("CREATE CONSTRAINT episode_unique IF NOT EXISTS FOR (e:Episode) REQUIRE e.id IS UNIQUE")
+            except Exception as e:
+                 logger.warning(f"Failed to create Episode constraint: {e}")
+
+            # Vector Index for Episodes (Features: Goal)
+            try:
+                # Assuming same dimensions as Concepts for now
+                embedder = EmbedderFactory.get_embedder()
+                vec = await embedder.embed_query("dim_check")
+                dim = len(vec)
+
+                await session.run(f"""
+                    CREATE VECTOR INDEX episode_embeddings IF NOT EXISTS
+                    FOR (e:Episode)
+                    ON (e.embedding)
+                    OPTIONS {{indexConfig: {{
+                        `vector.dimensions`: {dim},
+                        `vector.similarity_function`: 'cosine'
+                    }}}}
+                """)
+                logger.info(f"Vector Index 'episode_embeddings' ensured (dim={dim}).")
+            except Exception as e:
+                logger.warning(f"Failed to create Episode Vector Index: {e}")
 
     async def add_user_preference(self, user_id: str, key: str, value: str, description: str = "", project_id: int = None):
         """
@@ -368,6 +395,91 @@ class MemoryService:
              return []
              
         return [f"{r['name']}: {r['description']}" for r in records]
+
+    async def store_episode(self, goal: str, result: str, plan_summary: str, error_msg: Optional[str], project_id: int):
+        """
+        Store a completed task execution as an Episode in the graph.
+        """
+        driver = await get_graph_db()
+        pid_val = project_id if project_id else 0
+        
+        # 1. Embed the Goal (This is what we search against later)
+        embedder = EmbedderFactory.get_embedder()
+        try:
+             embedding = await embedder.embed_query(goal)
+        except Exception as e:
+             logger.error(f"Failed to embed episode goal: {e}")
+             return
+
+        # 2. Create Episode Node
+        import uuid
+        episode_id = str(uuid.uuid4())
+        
+        query = """
+        CREATE (e:Episode {
+            id: $id,
+            goal: $goal,
+            result: $result,
+            plan: $plan,
+            error: $error,
+            project_id: $pid,
+            timestamp: timestamp(),
+            embedding: $embedding
+        })
+        RETURN e
+        """
+        
+        async with driver.session() as session:
+             await session.run(query, id=episode_id, goal=goal, result=result, plan=plan_summary, error=error_msg, pid=pid_val, embedding=embedding)
+             logger.info(f"Stored Episode: {episode_id} (Result: {result})")
+             
+        # TODO Phase 2: Link Episode to Concepts used in the Plan? 
+        # For now, just storing the node is enough for RAG.
+
+    async def find_similar_episodes(self, current_goal: str, project_id: int, top_k: int = 3) -> str:
+        """
+        Find past episodes similar to the current goal.
+        Useful for planning.
+        """
+        driver = await get_graph_db()
+        embedder = EmbedderFactory.get_embedder()
+        
+        try:
+             query_embedding = await embedder.embed_query(current_goal)
+        except Exception as e:
+             logger.error(f"Failed to embed goal for search: {e}")
+             return ""
+
+        query = """
+        CALL db.index.vector.queryNodes('episode_embeddings', $top_k, $embedding)
+        YIELD node AS e, score
+        WHERE (e.project_id = $pid OR e.project_id = 0)
+        RETURN e.goal as goal, e.result as result, e.plan as plan, e.error as error, score
+        """
+        
+        async with driver.session() as session:
+             result = await session.run(query, embedding=query_embedding, pid=project_id, top_k=top_k)
+             records = await result.data()
+             
+        if not records:
+             return ""
+             
+        lines = ["**Relevant Past Experiences:**"]
+        for r in records:
+             status = "FAILED" if r['error'] else "SUCCESS"
+             # Only show if reasonable similarity
+             if r['score'] < 0.75: continue
+             
+             lines.append(f"- [{status}] Goal: {r['goal']}")
+             if r['error']:
+                 lines.append(f"  Error: {r['error']}")
+             lines.append(f"  Plan: {r['plan']}")
+             lines.append("---")
+             
+        if len(lines) == 1: return "" # Nothing significant found
+        
+        return "\n".join(lines)
+
 
 memory_service = MemoryService()
 

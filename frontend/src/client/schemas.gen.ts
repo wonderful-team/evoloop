@@ -621,6 +621,36 @@ export const MessageItemSchema = {
                 }
             ],
             title: 'Tasks Snapshot'
+        },
+        run_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Run Id'
+        },
+        parent_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Parent Id'
+        },
+        references: {
+            items: {
+                '$ref': '#/components/schemas/ReferenceItem'
+            },
+            type: 'array',
+            title: 'References',
+            default: []
         }
     },
     type: 'object',
@@ -748,6 +778,30 @@ export const RecordedEventSchema = {
     required: ['timestamp', 'event_type'],
     title: 'RecordedEvent',
     description: 'Single recorded event from frontend.'
+} as const;
+
+export const ReferenceItemSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        type: {
+            type: 'string',
+            title: 'Type'
+        },
+        target_id: {
+            type: 'string',
+            title: 'Target Id'
+        },
+        target_name: {
+            type: 'string',
+            title: 'Target Name'
+        }
+    },
+    type: 'object',
+    required: ['id', 'type', 'target_id', 'target_name'],
+    title: 'ReferenceItem'
 } as const;
 
 export const RegisterMobileRequestSchema = {
@@ -975,14 +1029,14 @@ export const RewindResponseSchema = {
             type: 'string',
             title: 'Status'
         },
+        thread_id: {
+            type: 'string',
+            title: 'Thread Id'
+        },
         removed_count: {
             type: 'integer',
             title: 'Removed Count',
             default: 0
-        },
-        thread_id: {
-            type: 'string',
-            title: 'Thread Id'
         }
     },
     type: 'object',
@@ -1438,6 +1492,64 @@ export const TokenSchema = {
     type: 'object',
     required: ['access_token'],
     title: 'Token'
+} as const;
+
+export const UpdateSkillRequestSchema = {
+    properties: {
+        name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Name'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        trigger_patterns: {
+            anyOf: [
+                {
+                    items: {
+                        type: 'string'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Trigger Patterns'
+        },
+        parameters: {
+            anyOf: [
+                {
+                    items: {
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Parameters'
+        }
+    },
+    type: 'object',
+    title: 'UpdateSkillRequest'
 } as const;
 
 export const UserPublicSchema = {

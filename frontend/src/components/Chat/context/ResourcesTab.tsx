@@ -61,12 +61,12 @@ export function ResourcesTab({ projectId }: ResourcesTabProps) {
             })
         },
         onSuccess: () => {
-            toast.success("Link added")
+            toast.success(t("chat.linkAdded"))
             setNewLinkName("")
             setNewLinkUrl("")
             refetchResources()
         },
-        onError: () => toast.error("Failed to add link"),
+        onError: () => toast.error(t("chat.linkFailed")),
     })
 
     const deleteResourceMutation = useMutation({
@@ -75,7 +75,7 @@ export function ResourcesTab({ projectId }: ResourcesTabProps) {
             return ResourcesService.deleteResource({ projectId, resourceId: id })
         },
         onSuccess: () => {
-            toast.success("Resource removed")
+            toast.success(t("chat.resourceRemoved"))
             refetchResources()
         },
     })
@@ -105,7 +105,7 @@ export function ResourcesTab({ projectId }: ResourcesTabProps) {
                                 variant="ghost"
                                 size="icon"
                                 className="h-6 w-6"
-                                title={t("chat.context.addLink")}
+                                title={t("chat.addLink")}
                             >
                                 <Plus className="h-3 w-3" />
                             </Button>
@@ -113,7 +113,7 @@ export function ResourcesTab({ projectId }: ResourcesTabProps) {
                         <DialogContent>
                             <DialogHeader>
                                 <DialogTitle>
-                                    {t("chat.context.addLinkTitle", "Add External Link")}
+                                    {t("chat.addLinkTitle")}
                                 </DialogTitle>
                             </DialogHeader>
                             <div className="grid gap-4 py-4">
@@ -154,7 +154,7 @@ export function ResourcesTab({ projectId }: ResourcesTabProps) {
                     <div>
                         <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase flex items-center gap-1">
                             <FileText className="h-3 w-3" />{" "}
-                            {t("chat.context.pinnedFiles", "Pinned Files")}
+                            {t("chat.pinnedFiles")}
                         </h4>
                         {isLoadingResources ? (
                             <div className="flex justify-center p-2">
@@ -194,10 +194,7 @@ export function ResourcesTab({ projectId }: ResourcesTabProps) {
                             </div>
                         ) : (
                             <div className="text-xs text-muted-foreground italic border-2 border-dashed rounded p-4 text-center">
-                                {t(
-                                    "chat.context.noPinnedFiles",
-                                    "Right click files in file explorer to pin them here.",
-                                )}
+                                {t("chat.noPinnedFiles")}
                             </div>
                         )}
                     </div>
@@ -206,7 +203,7 @@ export function ResourcesTab({ projectId }: ResourcesTabProps) {
                     <div>
                         <h4 className="text-xs font-semibold text-muted-foreground mb-2 uppercase flex items-center gap-1">
                             <ExternalLink className="h-3 w-3" />{" "}
-                            {t("chat.context.externalLinks", "External Links")}
+                            {t("chat.externalLinks")}
                         </h4>
                         <div className="space-y-1">
                             <Button

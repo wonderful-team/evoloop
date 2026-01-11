@@ -108,13 +108,18 @@ export const streamChat = async (
       }
       // Often SSE "error" event has no data and just fires on disconnect.
       // We assume safe close if we haven't resolved yet.
-      // But if we haven't received 'done', it might be error.
-      // Let's rely on 'done' event to resolve.
-      // If error happens without done, we reject (timeout?)
-      // For now, log it.
+      // For 401/403 or connection refused, we should FAIL fast to avoid zombies.
+
       console.warn("SSE Error", event)
-      // evtSource.close();
-      // reject(new Error("Stream connection failed"));
+
+      // Check readyState
+      if (evtSource.readyState === EventSource.CLOSED) {
+        reject(new Error("Stream connection closed unexpectedly"))
+      } else {
+        // Force close on generic error to prevent infinite retry loop in browser
+        evtSource.close()
+        reject(new Error("Stream connection failed"))
+      }
     })
 
     // Safety timeout?

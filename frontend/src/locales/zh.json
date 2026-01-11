@@ -461,7 +461,8 @@
       "profile": "个人资料",
       "password": "密码",
       "appearance": "外观",
-      "danger": "危险区域"
+      "danger": "危险区域",
+      "evolution": "安全与进化"
     },
     "general": {
       "title": "常规设置",
@@ -568,7 +569,25 @@
       "success_connected": "连接成功！维度：{{dim}}",
       "success_updated": "Embedding 模型已更新并触发重建索引",
       "error_connection": "连接错误",
-      "error_update": "更新模型配置失败"
+      "error_update": "更新 Embedding 模型失败"
+    },
+    "evolution": {
+      "title": "元进化循环 (Meta-Evolution Loop)",
+      "description": "允许 Agent 自主诊断并修复自身的代码。",
+      "env_disabled_title": "已被环境变量禁用",
+      "env_disabled_desc": "后端环境变量中已禁用总开关。你无法动态启用此功能。",
+      "caution_title": "警告",
+      "caution_desc": "启用此功能将允许 Agent 修改后端的源代码。请确保您已启用 Git 版本控制以便回滚意外更改。",
+      "enable_title": "启用自我进化",
+      "enable_desc": "在系统出错时自动触发进化规划器 (Evolution Planner)。",
+      "switch_label": "启用自我进化循环"
+    },
+    "modelFields": {
+      "provider": "提供商",
+      "baseUrl": "API 地址",
+      "modelName": "模型名称",
+      "apiKey": "API 密钥",
+      "apiKeyDesc": "密钥将安全存储。如不修改请留空。"
     }
   },
   "mcp": {
@@ -613,7 +632,8 @@
       "untitled": "未命名对话",
       "deleteConfirm": "确认删除此对话？",
       "noHistory": "暂无对话历史。",
-      "newChat": "新对话"
+      "newChat": "新对话",
+      "searchPlaceholder": "搜索会话..."
     },
     "local": {
       "connecting": "连接中...",
@@ -658,6 +678,14 @@
     },
     "messageList": {
       "imageViewer": "图片查看器",
+      "canvas": {
+        "title": "实时活动",
+        "response": "响应内容",
+        "thoughts": "思考过程",
+        "plan": "执行计划",
+        "artifacts": "生成物",
+        "waiting": "等待输入"
+      },
       "clickToOpen": "点击打开",
       "copy": "复制",
       "agentThought": "Agent 思考过程",
@@ -674,7 +702,8 @@
       "tabMemory": "记忆",
       "tabPlan": "计划",
       "tabState": "状态",
-      "tabKnowledge": "知识",
+      "tabKnowledge": "知识库",
+      "tabTools": "工具",
       "tabResources": "资源",
       "memoryTitle": "记忆概念",
       "noConcepts": "未找到记忆概念。",
@@ -691,7 +720,24 @@
       "resourcesTitle": "资源面板",
       "filesTitle": "项目文件",
       "externalLinksTitle": "外部链接",
-      "noFiles": "未找到文件。",
+      "stateContext": "上下文",
+      "stateProject": "项目ID",
+      "stateWorkDir": "工作目录",
+      "stateScratchpad": "草稿纸 (Scratchpad)",
+      "stateEmpty": "空",
+      "toolsTitle": "运行时工具",
+      "toolsActive": "{{count}} 个活跃",
+      "toolsDynamic": "动态加载",
+      "noTools": "未发现运行时工具。",
+      "addLink": "添加链接",
+      "addLinkTitle": "添加外部链接",
+      "pinnedFiles": "置顶文件",
+      "noPinnedFiles": "在文件浏览器中右键点击文件可将其置顶至此。",
+      "externalLinks": "外部链接",
+      "noFiles": "没有找到文件。",
+      "linkAdded": "链接已添加",
+      "linkFailed": "添加链接失败",
+      "resourceRemoved": "资源已移除",
       "addMemory": {
         "title": "添加记忆",
         "name": "名称",

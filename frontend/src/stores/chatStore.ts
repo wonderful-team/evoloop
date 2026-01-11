@@ -1,6 +1,7 @@
 import { toast } from "sonner"
 import { create } from "zustand"
-import { AgentService, ChatConnection, ConversationsService } from "@/client"
+import { AgentService, ConversationsService } from "@/client"
+import { ChatConnection } from "@/lib/ChatConnection"
 import type { Message } from "@/components/Chat/ChatMessageItem"
 import type { TaskItem as TaskStep } from "@/components/Chat/TaskSteps"
 

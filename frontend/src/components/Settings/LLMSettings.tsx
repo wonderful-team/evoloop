@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { CheckCircle2, Loader2, XCircle } from "lucide-react"
+import { CheckCircle2, Eye, EyeOff, Loader2, XCircle } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
@@ -46,6 +46,7 @@ export function LLMSettings() {
   const { t } = useTranslation()
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
+  const [showApiKey, setShowApiKey] = useState(false)
   const [testResult, setTestResult] = useState<{
     success: boolean
     msg: string
@@ -186,7 +187,7 @@ export function LLMSettings() {
               name="provider"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("settings.llm.provider")}</FormLabel>
+                  <FormLabel>{t("settings.modelFields.provider")}</FormLabel>
                   <Select
                     onValueChange={onProviderChange}
                     defaultValue={field.value}
@@ -222,7 +223,7 @@ export function LLMSettings() {
                 name="base_url"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("settings.llm.base_url")}</FormLabel>
+                    <FormLabel>{t("settings.modelFields.baseUrl")}</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="https://api.openai.com/v1"
@@ -238,7 +239,7 @@ export function LLMSettings() {
                 name="model"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("settings.llm.model_name")}</FormLabel>
+                    <FormLabel>{t("settings.modelFields.modelName")}</FormLabel>
                     <FormControl>
                       <Input placeholder="gpt-4o" {...field} />
                     </FormControl>
@@ -253,12 +254,31 @@ export function LLMSettings() {
               name="api_key"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("settings.llm.api_key")}</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="sk-..." {...field} />
-                  </FormControl>
+                  <FormLabel>{t("settings.modelFields.apiKey")}</FormLabel>
+                  <div className="relative">
+                    <FormControl>
+                      <Input
+                        type={showApiKey ? "text" : "password"}
+                        placeholder="sk-..."
+                        {...field}
+                      />
+                    </FormControl>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-9 w-9 text-muted-foreground hover:bg-transparent"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                    >
+                      {showApiKey ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
                   <FormDescription>
-                    {t("settings.llm.api_key_desc")}
+                    {t("settings.modelFields.apiKeyDesc")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
