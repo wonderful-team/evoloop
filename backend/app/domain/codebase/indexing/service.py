@@ -41,20 +41,32 @@ class IndexingService:
                 return repo
 
             # Resolve Project ID dynamically (if not provided)
-            if not project_id:
-                project_id = 1
+            # Default to None (Pending) if resolution fails, supporting Offline Mode.
+            resolved_pid = project_id
+            sync_status = "SYNCED"
+
+            if not resolved_pid:
                 try:
                     projects = await project_context_manager.scan_projects()
                     abs_path = os.path.abspath(path)
                     for p in projects:
                         if p.get("path") and os.path.abspath(p.get("path")) == abs_path:
-                            project_id = p.get("id", 1)
+                            resolved_pid = p.get("id")
                             break
                 except Exception as e:
-                    logger.warning(f"Failed to resolve project_id for {path}, using default 1: {e}")
+                    logger.warning(f"Failed to resolve project_id for {path}: {e}")
+            
+            if not resolved_pid:
+                sync_status = "PENDING_CREATION"
 
             # Create Repo
-            repo = Repository(project_id=project_id, name=name, url="local", local_path=path)
+            repo = Repository(
+                project_id=resolved_pid, 
+                name=name, 
+                url="local", 
+                local_path=path,
+                sync_status=sync_status
+            )
             session.add(repo)
             await session.commit()
             await session.refresh(repo)

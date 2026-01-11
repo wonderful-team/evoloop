@@ -6,13 +6,18 @@ from pgvector.sqlalchemy import Vector
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
+
 class Repository(Base):
     __tablename__ = "repositories"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     # project_id is now a loose reference to the external project ID
     # We index it for faster lookups, but DO NOT enforce foreign key constraint to a local table
-    project_id: Mapped[int] = mapped_column(Integer, index=True)
+    project_id: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
+
+    # Sync Status: SYNCED, PENDING_CREATION, DISCONNECTED
+    sync_status: Mapped[str] = mapped_column(String(50), default="SYNCED")
+
     name: Mapped[str] = mapped_column(String(255))
     url: Mapped[str] = mapped_column(String(1024))
     local_path: Mapped[Optional[str]] = mapped_column(String(1024))
@@ -53,7 +58,7 @@ class CodeEntity(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     file: Mapped["SourceFile"] = relationship(back_populates="entities")
-    
+
     # Relationships
     relations_from: Mapped[List["CodeRelation"]] = relationship("CodeRelation", foreign_keys="CodeRelation.source_entity_id", back_populates="source_entity", cascade="all, delete-orphan")
     relations_to: Mapped[List["CodeRelation"]] = relationship("CodeRelation", foreign_keys="CodeRelation.target_entity_id", back_populates="target_entity", cascade="all, delete-orphan")
@@ -66,7 +71,7 @@ class CodeRelation(Base):
 
     source_entity_id: Mapped[int] = mapped_column(ForeignKey("code_entities.id"))
     target_entity_id: Mapped[Optional[int]] = mapped_column(ForeignKey("code_entities.id"), nullable=True)
-    target_name: Mapped[Optional[str]] = mapped_column(String(512), index=True) # Unresolved target name
+    target_name: Mapped[Optional[str]] = mapped_column(String(512), index=True)  # Unresolved target name
 
     relation_type: Mapped[str] = mapped_column(String(50))  # calls, inherits, imports, defines
 
