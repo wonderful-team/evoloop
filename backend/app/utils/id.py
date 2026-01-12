@@ -1,5 +1,6 @@
 import uuid
 
+
 def gen_uuid() -> str:
     """Generate a standard UUID4 string."""
     return str(uuid.uuid4())

@@ -5,7 +5,6 @@ import subprocess
 import threading
 import time
 
-
 from app.infrastructure.solidlsp import ls_types
 from app.infrastructure.solidlsp.ls import SolidLanguageServer
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig

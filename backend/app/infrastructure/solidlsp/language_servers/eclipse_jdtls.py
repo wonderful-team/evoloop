@@ -12,12 +12,15 @@ import uuid
 from pathlib import PurePath
 from typing import cast
 
-
 from app.infrastructure.solidlsp.ls import LSPFileBuffer, SolidLanguageServer
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig
 from app.infrastructure.solidlsp.ls_types import UnifiedSymbolInformation
 from app.infrastructure.solidlsp.ls_utils import FileUtils, PlatformUtils
-from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import DocumentSymbol, InitializeParams, SymbolInformation
+from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import (
+    DocumentSymbol,
+    InitializeParams,
+    SymbolInformation,
+)
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
 

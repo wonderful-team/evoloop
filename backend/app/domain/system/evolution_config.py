@@ -1,6 +1,7 @@
 from app.core.config import settings
 from app.domain.system.service import SystemConfigService
 
+
 class EvolutionConfigService:
     KEY = "ENABLE_SELF_EVOLUTION"
 
@@ -15,7 +16,7 @@ class EvolutionConfigService:
         # 1. Master Switch (ENV)
         if not settings.ENABLE_SELF_EVOLUTION:
             return False
-            
+
         # 2. Runtime Switch (DB)
         # If DB key is missing, we default to False for safety.
         db_value = SystemConfigService.get_value(EvolutionConfigService.KEY, default="false")
@@ -27,7 +28,7 @@ class EvolutionConfigService:
         Update the runtime switch.
         """
         SystemConfigService.set_value(
-            EvolutionConfigService.KEY, 
+            EvolutionConfigService.KEY,
             "true" if enabled else "false",
             description="Runtime switch for Self-Evolution Loop"
         )

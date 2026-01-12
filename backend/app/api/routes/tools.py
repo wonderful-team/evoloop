@@ -1,13 +1,15 @@
 
+from typing import Any
+
 from fastapi import APIRouter
-from typing import List, Dict, Any
-from app.domain.tools.runtime_registry import get_runtime_tools
+
 from app.domain.tools.registry import get_all_tools
+from app.domain.tools.runtime_registry import get_runtime_tools
 
 router = APIRouter(prefix="/tools", tags=["tools"])
 
 @router.get("/runtime")
-async def list_runtime_tools() -> List[Dict[str, Any]]:
+async def list_runtime_tools() -> list[dict[str, Any]]:
     """
     List all dynamically created runtime tools.
     """
@@ -24,7 +26,7 @@ async def list_runtime_tools() -> List[Dict[str, Any]]:
     return results
 
 @router.get("")
-async def list_all_tools() -> List[Dict[str, Any]]:
+async def list_all_tools() -> list[dict[str, Any]]:
     """
     List ALL available tools (Static + Runtime).
     """

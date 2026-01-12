@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 from threading import RLock
-from typing import Dict, Any
+from typing import Any
 
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
@@ -31,7 +31,7 @@ class GlobalObserverManager:
 
     def _init(self):
         self._observer = Observer()
-        self._watches: Dict[str, Any] = {}  # Map path -> Watch Object
+        self._watches: dict[str, Any] = {}  # Map path -> Watch Object
         self._started = False
 
     def start_observer(self):

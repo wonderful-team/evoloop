@@ -17,7 +17,7 @@ import { useVoice } from "@/hooks/useVoice"
 interface ChatInputProps {
   isConnected: boolean
   isDeviceOnline: boolean
-  onSend: (content: string) => Promise<void>
+  onSend: (content: string, attachments?: any[]) => Promise<void>
   projectId?: number
   className?: string
   innerClassName?: string
@@ -82,27 +82,15 @@ export function ChatInput({
 
     setSending(true)
 
-    // Construct message content: Attachments first, then text
-    let finalContent = ""
-
-    if (attachments.length > 0) {
-      const attachmentStrings = attachments
-        .map((att) => {
-          if (att.type === "image") return `[Image: ${att.url}]`
-          return `[File: ${att.url}]`
-        })
-        .join("\n")
-      finalContent =
-        attachmentStrings + (input.trim() ? `\n${input.trim()}` : "")
-    } else {
-      finalContent = input.trim()
-    }
+    // Construct message content: Pass raw input and attachments
+    // The store handles formatting for both API and local display
 
     setInput("")
     setAttachments([]) // Clear attachments
 
     try {
-      await onSend(finalContent)
+      // @ts-ignore - Assuming onSend signature update propagates or is loose
+      await onSend(input, attachments)
     } finally {
       setSending(false)
     }
@@ -160,7 +148,7 @@ export function ChatInput({
     } catch (error: any) {
       toast.error(
         t("chat.input.uploadFailed") +
-          (error.message ? `: ${error.message}` : ""),
+        (error.message ? `: ${error.message}` : ""),
       )
       console.error(error)
       // Remove failed attachment

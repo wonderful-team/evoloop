@@ -1,6 +1,7 @@
 import os
+
 import pathspec
-from typing import List
+
 
 class GitignoreMatcher:
     """
@@ -17,7 +18,7 @@ class GitignoreMatcher:
         """Parse gitignore content into a PathSpec."""
         try:
             self.spec = pathspec.PathSpec.from_lines('gitwildmatch', content.splitlines())
-        except Exception as e:
+        except Exception:
             # Fallback or log? For now just silent fail or empty spec
             pass
 
@@ -32,21 +33,21 @@ class GitignoreMatcher:
         rel_path = os.path.relpath(abs_path, self.root_path)
         if rel_path == ".":
             return False
-            
+
         # PathSpec expects paths relative to the root (where .gitignore is)
         # It handles OS separators, but usually prefers forward slash internally or handles it.
         # pathspec check_match / match_file logic:
         # returns True if included? No, check_match returns True if it matches the pattern.
         # If it matches a gitignore pattern, it is IGNORED.
-        
+
         # However, pathspec checks against file names?
-        # We should append '/' if it's a directory? 
+        # We should append '/' if it's a directory?
         # pathspec 'gitwildmatch' handles directory detection if path ends with separator?
-        
+
         check_path = rel_path
         if is_dir and not check_path.endswith(os.sep):
             check_path += os.sep
-            
+
         try:
             return self.spec.match_file(check_path)
         except Exception:
@@ -59,7 +60,7 @@ class GitignoreMatcher:
         content = ""
         if os.path.exists(file_path):
             try:
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, encoding="utf-8") as f:
                     content = f.read()
             except Exception:
                 pass

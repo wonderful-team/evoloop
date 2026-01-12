@@ -8,11 +8,15 @@ import pathlib
 import shutil
 from time import sleep
 
-
 from app.infrastructure.solidlsp.ls import SolidLanguageServer
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig
 from app.infrastructure.solidlsp.ls_utils import PlatformId, PlatformUtils
-from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import Definition, DefinitionParams, InitializeParams, LocationLink
+from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import (
+    Definition,
+    DefinitionParams,
+    InitializeParams,
+    LocationLink,
+)
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
 

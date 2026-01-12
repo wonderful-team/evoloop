@@ -4,7 +4,7 @@ Ported from Legacy `CodeSymbolExtractor`.
 Provides deep analysis of code files using Tree-sitter.
 """
 import logging
-from typing import Dict, Any
+from typing import Any
 
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
@@ -20,15 +20,15 @@ class CodeAnalyzer:
 
     def __init__(self):
         # Parsers logic moved to ParserRegistry
-        pass  
+        pass
 
-    def analyze_file(self, file_path: str, content: str = None) -> Dict[str, Any]:
+    def analyze_file(self, file_path: str, content: str = None) -> dict[str, Any]:
         """
         Analyze a file and return structural info and metrics.
         """
         if content is None:
             try:
-                with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                with open(file_path, encoding="utf-8", errors="ignore") as f:
                     content = f.read()
             except Exception as e:
                 logger.error(f"Error reading file {file_path}: {e}")
@@ -38,7 +38,7 @@ class CodeAnalyzer:
             return {}
 
         ext = file_path.split(".")[-1].lower()
-        
+
         parser_info = parser_registry.get_parser(ext)
         if not parser_info:
             # Fallback for non-supported
@@ -86,8 +86,8 @@ class CodeAnalyzer:
                         node = nodes
 
                     if name in ["function", "class"]:
-                        # Look for @name in the same match? 
-                        # Tree sitter matches returns dict. 
+                        # Look for @name in the same match?
+                        # Tree sitter matches returns dict.
                         # In the query: (func ... @func) (name ... @name)
                         # So both are in captures.
 

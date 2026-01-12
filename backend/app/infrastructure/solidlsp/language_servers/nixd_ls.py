@@ -14,9 +14,12 @@ import subprocess
 import threading
 from pathlib import Path
 
-
 from app.infrastructure.solidlsp import ls_types
-from app.infrastructure.solidlsp.ls import DocumentSymbols, LSPFileBuffer, SolidLanguageServer
+from app.infrastructure.solidlsp.ls import (
+    DocumentSymbols,
+    LSPFileBuffer,
+    SolidLanguageServer,
+)
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig
 from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import InitializeParams
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo

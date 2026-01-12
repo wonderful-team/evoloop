@@ -31,7 +31,26 @@
       "success": "Success!",
       "error": "Something went wrong!",
       "bindFailed": "Failed to bind to server notifications"
-    }
+    },
+    "add": "Add",
+    "approve": "Approve",
+    "close": "Close",
+    "name": "Name",
+    "no": "No",
+    "reject": "Reject",
+    "run": "Run",
+    "saved": "Saved",
+    "send": "Send",
+    "stop": "Stop",
+    "submit": "Submit",
+    "success": "Success",
+    "url": "URL",
+    "yes": "Yes"
+  },
+  "toast": {
+    "success": "Success!",
+    "error": "Something went wrong!",
+    "bindFailed": "Failed to bind to server notifications"
   },
   "sidebar": {
     "dashboard": "Dashboard",
@@ -185,6 +204,7 @@
       "restart": "Restart"
     },
     "errors": {
+      "invalidEmail": "Invalid email address",
       "invalidMobile": "Invalid mobile number",
       "codeRequired": "Code is required",
       "passwordRequired": "Password is required",
@@ -232,7 +252,9 @@
     "confirmWithdraw": "Withdraw account deletion request?",
     "language": "Language",
     "english": "English",
-    "chinese": "Chinese"
+    "chinese": "Chinese",
+    "guestTitle": "Guest Access",
+    "guestDesc": "Log in to view your profile"
   },
   "devices": {
     "title": "Devices",
@@ -279,6 +301,7 @@
     "tasks": {
       "title": "Tasks",
       "new": "New Task",
+      "execute": "Confirm & Execute",
       "filter": "Filter",
       "status": "Status",
       "priority": "Priority",
@@ -376,6 +399,31 @@
       "confirmDesc": "This will permanently delete the project <bold>{{name}}</bold>. This action cannot be undone.",
       "deleting": "Deleting...",
       "deleteConfirm": "Delete"
+    },
+    "status": {
+      "indexing": "Indexing"
+    },
+    "backToList": "Back to Project List",
+    "stats": {
+      "totalTasks": "Total Tasks",
+      "completed": "Completed",
+      "inProgress": "In Progress",
+      "members": "Members"
+    },
+    "details": {
+      "description": "Description",
+      "noDescription": "No description provided.",
+      "created": "Created",
+      "tabs": {
+        "ai": "AI Analysis",
+        "discussion": "Discussion"
+      }
+    },
+    "overview": {
+      "title": "Project Overview",
+      "recentActivity": "Recent Activity",
+      "noActivity": "No recent activity",
+      "quickActions": "Quick Actions"
     }
   },
   "files": {
@@ -383,7 +431,10 @@
     "loading": "Loading...",
     "error": "Failed to load files",
     "empty": "Empty",
-    "selectPrompt": "Select a file to view content"
+    "selectPrompt": "Select a file to view content",
+    "pinToResources": "Pin to Resources",
+    "pinnedSuccess": "File pinned successfully",
+    "pinnedError": "Failed to pin file"
   },
   "voice": {
     "micError": "Mic Error: ",
@@ -626,6 +677,56 @@
   "chat": {
     "limitReached": "Daily Limit Reached",
     "limitReachedDescription": "You have reached your daily free message limit. Please upgrade to continue.",
+    "hitl": {
+      "waiting": "Agent is waiting for your input..."
+    },
+    "interrupted": {
+      "title": "Agent Paused",
+      "description": "The agent is waiting for your input or confirmation to continue.",
+      "inputPlaceholder": "Enter additional instructions (optional)...",
+      "resume": "Resume",
+      "addInput": "Add Instructions",
+      "cancel": "Cancel"
+    },
+    "artifacts": {
+      "title": "Generated Files",
+      "testReport": "Test Execution Report",
+      "rootCause": "Root Cause Analysis",
+      "fixSuggestion": "Suggested Fix"
+    },
+    "canvas": {
+      "title": "Live Activity",
+      "response": "Response",
+      "thoughts": "Thoughts",
+      "plan": "Action Plan",
+      "artifacts": "Artifacts",
+      "waiting": "WAITING INPUT",
+      "statusRunning": "Agent is working...",
+      "statusWaiting": "Waiting for your input",
+      "statusSummarizing": "Summarizing..."
+    },
+    "sources": {
+      "title": "Sources:",
+      "more": "more",
+      "showLess": "Show less"
+    },
+    "stateContext": "Context",
+    "stateProject": "Project",
+    "stateWorkDir": "Work Dir",
+    "stateScratchpad": "Scratchpad",
+    "stateEmpty": "Empty",
+    "toolsTitle": "Runtime Tools",
+    "toolsActive": "{{count}} active",
+    "toolsDynamic": "dynamic",
+    "noTools": "No runtime tools found.",
+    "addLink": "Add Link",
+    "addLinkTitle": "Add External Link",
+    "pinnedFiles": "Pinned Files",
+    "noPinnedFiles": "Right click files in file explorer to pin them here.",
+    "externalLinks": "External Links",
+    "resourceRemoved": "Resource removed",
+    "linkAdded": "Link added",
+    "linkFailed": "Failed to add link",
     "steps": {
       "collapsedSummary": "{{count}} previously completed steps...",
       "hideHistory": "Hide history"
@@ -659,14 +760,12 @@
       "memorize": "Memorize",
       "export": "Export",
       "rewind": "Rewind",
-      "canvas": {
-        "title": "Live Activity",
-        "response": "Response",
-        "thoughts": "Thoughts",
-        "plan": "Action Plan",
-        "artifacts": "Artifacts",
-        "waiting": "WAITING INPUT"
-      },
+      "thinkingProcess": "Reasoning Process",
+      "retry": "Retry",
+      "retrying": "Retrying from last user message...",
+      "retryFailed": "Retry failed",
+      "agentWorking": "Agent is working... See details in the side panel →",
+      "stop": "Stop Generation",
       "askProject": "Ask {{project}}...",
       "selectProject": "Select a project to start chatting",
       "footer": "EvoLoop AI Assistant",
@@ -766,7 +865,18 @@
     "recordingStopped": "Recording stopped, captured {{count}} events",
     "recordingFailed": "Failed to start recording",
     "recordingTooltip": "Recording your actions for imitation learning",
-    "startRecordingTooltip": "Start recording your actions"
+    "startRecordingTooltip": "Start recording your actions",
+    "skillLibrary": "Skill Library",
+    "skills": "Learned Skills",
+    "noSkills": "No skills found. Try recording actions to synthesize a new skill.",
+    "synthesize": "Synthesize Skill",
+    "viewDetails": "View Details",
+    "deactivate": "Deactivate",
+    "confirmDeactivate": "Are you sure you want to deactivate this skill?",
+    "triggerPatterns": "Trigger Patterns",
+    "parameters": "Parameters",
+    "steps": "Steps",
+    "successRate": "Success Rate"
   },
   "table": {
     "noResults": "No results found.",
@@ -803,8 +913,6 @@
       "viewAll": "View All",
       "noProjects": "No projects found",
       "noProjectsDesc": "Get started by creating your first project workspace.",
-      "create": "Create Project",
-      "local": "Local",
       "remote": "Remote",
       "openWorkspace": "Open Workspace"
     },

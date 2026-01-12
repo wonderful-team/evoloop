@@ -1,24 +1,28 @@
-from typing import Optional, Literal
+from typing import Literal
+
 from langchain_core.runnables import RunnableConfig
+
 from app.core.tools import evoloop_tool
+
+from .actions.edit import handle_edit
+from .actions.filesystem import handle_filesystem
+from .actions.list import handle_list
 from .actions.read import handle_read
 from .actions.write import handle_write
-from .actions.edit import handle_edit
-from .actions.list import handle_list
-from .actions.filesystem import handle_filesystem
+
 
 @evoloop_tool
 async def manage_file(
     action: Literal['read', 'create', 'update_block', 'overwrite', 'list', 'list_tree', 'create_directory', 'delete', 'move'],
     path: str,
-    content: Optional[str] = None,
-    target: Optional[str] = None,
-    start_line: Optional[int] = None,
-    end_line: Optional[int] = None,
+    content: str | None = None,
+    target: str | None = None,
+    start_line: int | None = None,
+    end_line: int | None = None,
     allow_multiple: bool = False,  # Phase 14: Fuzzy Edit
     max_depth: int = 3,
     with_symbols: bool = False,
-    config: Optional[RunnableConfig] = None
+    config: RunnableConfig | None = None
 ) -> str:
     """
     Unified File Management Tool.
@@ -42,17 +46,17 @@ async def manage_file(
     """
     if action == 'read':
         return await handle_read(path, start_line, end_line, config)
-    
+
     elif action in ['create', 'overwrite']:
         return await handle_write(action, path, content, config)
-        
+
     elif action == 'update_block':
         return await handle_edit(path, target, content, allow_multiple, config)
-        
+
     elif action in ['list', 'list_tree']:
         return await handle_list(action, path, max_depth, with_symbols, config)
-        
+
     elif action in ['create_directory', 'delete', 'move']:
         return await handle_filesystem(action, path, content, config)
-        
+
     return f"Error: Unknown action '{action}'"

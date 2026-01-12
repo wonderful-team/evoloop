@@ -1,8 +1,9 @@
-from typing import List
+
 from langchain_core.tools import BaseTool
+
 from app.core.tools.registry_utils import AutoDiscoveryRegistry
-from app.infrastructure.mcp.client import mcp_client_manager
 from app.domain.tools.runtime_registry import get_runtime_tools
+from app.infrastructure.mcp.client import mcp_client_manager
 
 # Initialize Registry
 REGISTRY = AutoDiscoveryRegistry()
@@ -11,20 +12,22 @@ REGISTRY = AutoDiscoveryRegistry()
 # This will find any function decorated with @evoloop_tool in app.domain.tools.**
 REGISTRY.scan("app.domain.tools")
 
-def get_all_tools() -> List[BaseTool]:
+
+def get_all_tools() -> list[BaseTool]:
     """
     Return a list of all available tools in the domain.
     """
     # Combine discovered tools with dynamic ones (MCP, Runtime)
     return REGISTRY.get_all_tools() + mcp_client_manager.get_tools() + get_runtime_tools()
 
-def get_tools_by_names(names: List[str]) -> List[BaseTool]:
+
+def get_tools_by_names(names: list[str]) -> list[BaseTool]:
     """
     Dynamically retrieve tools by their string names.
     """
     all_tools = get_all_tools()
     tool_map = {t.name: t for t in all_tools}
-    
+
     selected_tools = []
     for name in names:
         if name in tool_map:
@@ -32,10 +35,11 @@ def get_tools_by_names(names: List[str]) -> List[BaseTool]:
         else:
             # Fallback for MCP tools or specialized mapping if needed
             pass
-            
+
     return selected_tools
 
-def get_coder_tools() -> List[BaseTool]:
+
+def get_coder_tools() -> list[BaseTool]:
     """
     Return standard tools for the Coder agent.
     """
@@ -51,14 +55,19 @@ def get_coder_tools() -> List[BaseTool]:
     ]
     return get_tools_by_names(tool_names) + mcp_client_manager.get_tools()
 
-def get_supervisor_tools() -> List[BaseTool]:
+
+def get_supervisor_tools() -> list[BaseTool]:
     """
     Return tools for the Supervisor agent.
+    
+    NOTE: Supervisor is a COORDINATOR, not an executor.
+    It should NOT have business tools like manage_file or create_plan.
+    Those belong to specialized nodes (Coder, Documenter, Planner).
     """
     tool_names = [
-        "manage_file", 
-        "save_preference", 
-        "search_concepts", 
-        "delegate_task" # Supervisor needs delegation
+        "save_preference",  # Learning user preferences
+        "search_concepts",  # Semantic search (read-only)
+        "request_human_input",  # HITL - pause for user input
+        "analyze_image",  # Vision Perception
     ]
     return get_tools_by_names(tool_names)

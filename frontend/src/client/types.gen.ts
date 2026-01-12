@@ -22,6 +22,7 @@ export type ChatRequest = {
     message: string;
     project_id?: (number | null);
     checkpoint_id?: (string | null);
+    attachments?: (Array<{ [key: string]: any }> | null);
 };
 
 export type ConceptCreate = {
@@ -122,6 +123,10 @@ export type LLMConfigRequest = {
      * Model Name
      */
     model: string;
+    /**
+     * Vision Model Name (Optional)
+     */
+    vision_model?: (string | null);
     api_key?: (string | null);
 };
 
@@ -141,8 +146,8 @@ export type McpServerCreate = {
     command: string;
     args?: (Array<(string)> | null);
     env?: ({
-    [key: string]: (string);
-} | null);
+        [key: string]: (string);
+    } | null);
 };
 
 export type MessageItem = {
@@ -152,8 +157,8 @@ export type MessageItem = {
     thinking: (string | null);
     created_at: (string | null);
     tasks_snapshot?: (Array<{
-    [key: string]: unknown;
-}> | null);
+        [key: string]: unknown;
+    }> | null);
     run_id?: (string | null);
     parent_id?: (number | null);
     references?: Array<ReferenceItem>;
@@ -179,8 +184,8 @@ export type RecordedEvent = {
     target_selector?: (string | null);
     target_text?: (string | null);
     payload?: ({
-    [key: string]: unknown;
-} | null);
+        [key: string]: unknown;
+    } | null);
     screenshot_base64?: (string | null);
 };
 
@@ -351,8 +356,8 @@ export type UpdateSkillRequest = {
     description?: (string | null);
     trigger_patterns?: (Array<(string)> | null);
     parameters?: (Array<{
-    [key: string]: unknown;
-}> | null);
+        [key: string]: unknown;
+    }> | null);
 };
 
 export type UserPublic = {

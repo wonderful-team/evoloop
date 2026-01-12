@@ -1,17 +1,23 @@
-import glob
 import os
 from datetime import datetime, timezone
-from typing import List
 
-from sqlalchemy import select, delete
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.codebase.indexing.base import BaseEmbedder
-from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
+from app.domain.codebase.indexing.extractors.treesitter_extractor import (
+    TreeSitterExtractor,
+)
 from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.database import AsyncSessionLocal
-from app.infrastructure.database.sql.models import Repository, SourceFile, CodeChunk, CodeEntity, CodeRelation
+from app.infrastructure.database.sql.models import (
+    CodeChunk,
+    CodeEntity,
+    CodeRelation,
+    Repository,
+    SourceFile,
+)
 from app.logging import logger
 
 
@@ -56,15 +62,15 @@ class IndexingService:
                             break
                 except Exception as e:
                     logger.warning(f"Failed to resolve project_id for {path}: {e}")
-            
+
             if not resolved_pid:
                 sync_status = "PENDING_CREATION"
 
             # Create Repo
             repo = Repository(
-                project_id=resolved_pid, 
-                name=name, 
-                url="local", 
+                project_id=resolved_pid,
+                name=name,
+                url="local",
                 local_path=path,
                 sync_status=sync_status
             )
@@ -73,7 +79,7 @@ class IndexingService:
             await session.refresh(repo)
             return repo
 
-    async def get_all_repos(self) -> List[Repository]:
+    async def get_all_repos(self) -> list[Repository]:
         """
         Get all repositories from the database.
         """
@@ -101,9 +107,9 @@ class IndexingService:
                     logger.error(f"Repository {repo_id} not found")
                     return
                 # ... rest of the function logic ...
-                # Wait, I should better not indent everything inside session if not needed, 
+                # Wait, I should better not indent everything inside session if not needed,
                 # or just copy-paste the existing logic but keep the check outside.
-                
+
                 rel_path = os.path.relpath(file_path, repo.local_path)
 
                 # Check extension - FileFilter handled generic text check, but specific languages?
@@ -126,13 +132,13 @@ class IndexingService:
                         mtime_ts = os.path.getmtime(file_path)
                         # Ensure timezone awareness (UTC)
                         file_mtime = datetime.fromtimestamp(mtime_ts, timezone.utc)
-                        # Add a small buffer (e.g. 1s) for precision differences? 
+                        # Add a small buffer (e.g. 1s) for precision differences?
                         # Comparison: if file_mtime is OLDER than last_indexed_at, it's unchanged.
                         # source_file.last_indexed_at should be in UTC.
                         if source_file.last_indexed_at and file_mtime < source_file.last_indexed_at:
                              # logger.debug(f"Skipping {rel_path} (mtime unchanged)")
                              return
-                    except Exception as e:
+                    except Exception:
                         # Fallback to checksum if mtime check fails
                         pass
 
@@ -141,7 +147,7 @@ class IndexingService:
                     from app.utils.file import read_file_content
                     # read_file_content returns (content, encoding)
                     content, _ = read_file_content(file_path)
-                    if content is None: 
+                    if content is None:
                          pass
                 except Exception as e:
                     logger.warning(f"Could not read {file_path}: {e}")
@@ -152,7 +158,7 @@ class IndexingService:
                 new_checksum = compute_md5(content)
 
                 if not force and source_file and source_file.checksum == new_checksum:
-                    # Update timestamp even if checksum matches? 
+                    # Update timestamp even if checksum matches?
                     # If we trust checksum, we can just return.
                     # But if we relied on mtime check and it failed (e.g. touch), verifying checksum is good.
                     # If checksum matches, we should update last_indexed_at to avoid future mtime checks failing if mtime > last_index?
@@ -167,7 +173,7 @@ class IndexingService:
 
                 # Extract
                 extraction_result = await self.extractor.extract(file_path, content, module_path=rel_path)
-                
+
                 # Unpack result
                 # Support both old list return (if any other extractor used) and new object
                 if isinstance(extraction_result, list):
@@ -187,7 +193,7 @@ class IndexingService:
                     if len(content.strip()) > 50:
                         logger.warning(f"Safe Indexing: Skipping {rel_path} - non-empty content but no extracted data.")
                         return
-                    
+
                     # If content is small (empty file), we proceed to clear DB.
                     # Fallthrough to update SourceFile but clear chunks.
                     pass
@@ -208,11 +214,11 @@ class IndexingService:
 
                 # 2. Clear old chunks, entities and relations (Full Refresh for this file)
                 await session.execute(delete(CodeChunk).where(CodeChunk.source_file_id == source_file.id))
-                
+
                 # Delete relations first (using subquery on entities before they are gone)
                 subq = select(CodeEntity.id).where(CodeEntity.file_id == source_file.id)
                 await session.execute(delete(CodeRelation).where(CodeRelation.source_entity_id.in_(subq)))
-                
+
                 # Then delete entities
                 await session.execute(delete(CodeEntity).where(CodeEntity.file_id == source_file.id))
 
@@ -220,17 +226,19 @@ class IndexingService:
                 # COVERAGE FIX: Add a "whole_file" or "top_level" chunk to catch global variables/scripts
                 # If file is reasonable size, add whole content. If huge, maybe just first 200 lines?
                 # Let's target files < 30KB or just limit lines.
-                
+
                 # Logic: Always add a 'file' chunk, but cap the size to avoid token overflow in Embedder.
-                # OpenAI Embedder limit is usually 8k tokens. 
+                # OpenAI Embedder limit is usually 8k tokens.
                 # Let's take first 300 lines or 15k chars as a safe "Context Summary" chunk.
-                
+
                 file_summary_content = content
                 if len(content) > 15000:
                     file_summary_content = content[:15000] + "\n...(truncated)"
-                
+
                 # We create a pseudo-Document for this
-                from app.domain.codebase.indexing.extractors.treesitter_extractor import Document
+                from app.domain.codebase.indexing.extractors.treesitter_extractor import (
+                    Document,
+                )
                 summary_doc = Document(
                     content=file_summary_content,
                     metadata={
@@ -240,15 +248,15 @@ class IndexingService:
                        "end_line": getattr(source_file, 'lines', content.count('\n') + 1) # simple count if not tracked
                     }
                 )
-                
+
                 # Prepend to docs so it's indexed
                 docs.insert(0, summary_doc)
-                
+
                 if docs:
                     texts = [d.content for d in docs]
                     embeddings = await self.embedder.embed_documents(texts)
 
-                    for doc, vector in zip(docs, embeddings):
+                    for doc, vector in zip(docs, embeddings, strict=False):
                         chunk = CodeChunk(
                             source_file_id=source_file.id,
                             chunk_type=doc.metadata.get("type", "unknown"),
@@ -259,7 +267,7 @@ class IndexingService:
                             embedding=vector
                         )
                         session.add(chunk)
-                
+
                 # 4. Insert Entities and Build Map
                 name_to_id = {}
                 for ent in entities:
@@ -280,11 +288,11 @@ class IndexingService:
                     source_id = name_to_id.get(rel.source_full_name)
                     if not source_id:
                         continue # Cannot link if source is missing (should not happen if logic is correct)
-                    
+
                     # Try to resolve target locally (generic logic, incomplete for full project graph pass)
                     # For now we mostly rely on target_name for cross-file links
                     target_id = name_to_id.get(rel.target_full_name)
-                    
+
                     rel_record = CodeRelation(
                         source_entity_id=source_id,
                         target_entity_id=target_id, # Can be None
@@ -294,7 +302,7 @@ class IndexingService:
                     session.add(rel_record)
 
                 await session.commit()
-                
+
                 # 6. Sync to Neo4j
                 try:
                     from app.infrastructure.database.graph.driver import get_graph_db
@@ -309,17 +317,17 @@ class IndexingService:
 
                         # 6.2 Sync Code Entities and Relations
                         # This is a bit heavier, but necessary for Graph RAG/Analysis
-                        
+
                         # First, we need to clear old entities/relations for this file?
                         # Since we use MERGE/DETACH logic, we might need a strategy.
                         # Strategy: Delete all CHILD nodes of this File first (to clear old functions/classes)
                         # Then recreate.
-                        
+
                         await n4j.run("""
                             MATCH (f:File {path: $path, project_id: $pid})-[r:CONTAINS]->(e)
                             DETACH DELETE e
                         """, path=rel_path, pid=repo.project_id)
-                        
+
                         # Now create new entities and link to File
                         for ent_name, ent_id in name_to_id.items():
                             # We need type info. Logic: we iterate entities list again to get type.
@@ -328,7 +336,7 @@ class IndexingService:
                         for ent in entities:
                             # Create Concept/Entity Node
                             # Label could be :CodeEntity, or specific like :Class, :Function
-                            # Let's use generic :CodeEntity with type property for flexibility, 
+                            # Let's use generic :CodeEntity with type property for flexibility,
                             # or multiple labels if Neo4j supports dynamic labels easily (Cypher specific).
                             # Let's stick to :CodeEntity.
                             await n4j.run("""
@@ -337,7 +345,7 @@ class IndexingService:
                                 ON CREATE SET e.name = $name, e.type = $type, e.pg_id = $ent_pg_id
                                 ON MATCH SET e.name = $name, e.type = $type, e.pg_id = $ent_pg_id
                                 MERGE (f)-[:CONTAINS]->(e)
-                            """, path=rel_path, pid=repo.project_id, 
+                            """, path=rel_path, pid=repo.project_id,
                                  name=ent.name, full_name=ent.full_name, type=ent.type,
                                  ent_pg_id=name_to_id.get(ent.full_name))
 
@@ -347,21 +355,21 @@ class IndexingService:
                         # Creating ghost nodes can pollute graph with duplicates if not managed carefully.
                         # Safer approach: Only link if target exists? No, that breaks order dependency.
                         # Better approach: MERGE on full_name constraint.
-                        
+
                         # Note: We need a constraint on CodeEntity(full_name, project_id).
                         # Assuming schema setup handles constraints. If not, MERGE might be slow or duplicate.
                         # For now, we only link INTRA-FILE relations reliably, and Cross-File via MERGE (optimistic).
-                        
+
                         for rel in relations:
                             if not rel.target_full_name: continue
-                            
+
                             # Cypher to link Source -> Target
                             # We use MERGE for target to ensure it exists (even if ghost for now)
                             await n4j.run("""
                                 MATCH (s:CodeEntity {full_name: $src_name, project_id: $pid})
                                 MERGE (t:CodeEntity {full_name: $tgt_name, project_id: $pid})
                                 MERGE (s)-[:RELATION {type: $rel_type}]->(t)
-                            """, src_name=rel.source_full_name, tgt_name=rel.target_full_name, 
+                            """, src_name=rel.source_full_name, tgt_name=rel.target_full_name,
                                  pid=repo.project_id, rel_type=rel.relation_type)
 
                 except Exception as e:
@@ -381,24 +389,24 @@ class IndexingService:
         async with self.session_factory() as session:
             repo = await session.get(Repository, repo_id)
             if not repo: return
-            
+
             rel_path = os.path.relpath(file_path, repo.local_path)
-            
+
             # 1. Postgres Delete
             stmt = select(SourceFile).where(SourceFile.repository_id == repo_id, SourceFile.path == rel_path)
             result = await session.execute(stmt)
             source_file = result.scalars().first()
-            
+
             if source_file:
-                # CodeChunk/Entity cascades usually configured in DB? 
+                # CodeChunk/Entity cascades usually configured in DB?
                 # If not, manual delete required. Models usually have cascade='all, delete'.
-                # Assuming cascade works or manual delete needed. 
+                # Assuming cascade works or manual delete needed.
                 # Let's do manual delete to be safe as previously done in index_file
                 await session.execute(delete(CodeChunk).where(CodeChunk.source_file_id == source_file.id))
                 subq = select(CodeEntity.id).where(CodeEntity.file_id == source_file.id)
                 await session.execute(delete(CodeRelation).where(CodeRelation.source_entity_id.in_(subq)))
                 await session.execute(delete(CodeEntity).where(CodeEntity.file_id == source_file.id))
-                
+
                 await session.delete(source_file)
                 await session.commit()
                 logger.info(f"Removed {rel_path} from Index")
@@ -425,7 +433,7 @@ class IndexingService:
         """
         # 1. Remove Old
         await self.remove_file(src_path, repo_id)
-        
+
         # 2. Index New
         # Ensure new path exists logic is handled by caller or index_file just reads it.
         # If this is triggered by Watcher, file already exists at dest_path.
@@ -440,10 +448,10 @@ class IndexingService:
         Main entry point to index a repository on disk.
         """
         logger.info(f"Starting full indexing for repo {repo_id} at {repo_path} (Force={force})")
-        
+
+        from app.constants import BLACKLIST_DIRS
         from app.domain.codebase.filter import FileFilter
         from app.domain.codebase.ignore import GitignoreMatcher
-        from app.constants import BLACKLIST_DIRS, DEFAULT_EXCLUDED_DIRS
 
         file_filter = FileFilter()
         ignore_matcher = GitignoreMatcher.from_file(repo_path, ".gitignore")
@@ -453,16 +461,16 @@ class IndexingService:
         for root, dirs, files in os.walk(repo_path):
             # 1. Directory Filtering (Prune traversal)
             # We filter 'dirs' in-place.
-            
+
             d_to_remove = []
             for d in dirs:
                 full_d_path = os.path.join(root, d)
-                
+
                 # Check 1: Hardcoded Blacklist (Fastest)
                 if d in BLACKLIST_DIRS or d.startswith('.'):
                      d_to_remove.append(d)
                      continue
-                
+
                 # Check 2: Gitignore (Flexible)
                 if ignore_matcher.should_ignore(full_d_path, is_dir=True):
                     d_to_remove.append(d)
@@ -473,7 +481,7 @@ class IndexingService:
 
             for f in files:
                 full_path = os.path.join(root, f)
-                
+
                 # Check 1: Gitignore
                 if ignore_matcher.should_ignore(full_path, is_dir=False):
                     continue

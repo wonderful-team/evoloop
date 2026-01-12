@@ -1,6 +1,8 @@
-from typing import List
+
 from openai import AsyncOpenAI
+
 from app.domain.codebase.indexing.base import BaseEmbedder
+
 
 class GenericOpenAIEmbedder(BaseEmbedder):
     """
@@ -15,10 +17,10 @@ class GenericOpenAIEmbedder(BaseEmbedder):
         # Default dims usually kept None to let API decide, or specified if model requires
         self.dimensions = dimensions
 
-    async def embed_documents(self, documents: List[str]) -> List[List[float]]:
+    async def embed_documents(self, documents: list[str]) -> list[list[float]]:
         if not documents:
             return []
-        
+
         # Prepare kwargs
         kwargs = {
             "input": documents,
@@ -26,7 +28,7 @@ class GenericOpenAIEmbedder(BaseEmbedder):
         }
         if self.dimensions:
             kwargs["dimensions"] = self.dimensions
-            
+
         try:
             response = await self.client.embeddings.create(**kwargs)
             return [data.embedding for data in response.data]
@@ -34,7 +36,7 @@ class GenericOpenAIEmbedder(BaseEmbedder):
             print(f"Embedding Error (Docs): {e}")
             raise e
 
-    async def embed_query(self, query: str) -> List[float]:
+    async def embed_query(self, query: str) -> list[float]:
         kwargs = {
             "input": query,
             "model": self.model

@@ -1,9 +1,11 @@
 import os
 import platform
 from datetime import datetime
-from typing import Optional, List
+
 from langchain_core.runnables import RunnableConfig
+
 from app.core.tools.base import get_working_directory
+
 
 class CoderPromptBuilder:
     def __init__(self, plan: str, context: dict, project_id: int):
@@ -18,7 +20,7 @@ class CoderPromptBuilder:
         """
         env_info = self._get_env_info(config)
         rules = self._load_project_rules(config)
-        
+
         self.system_prompt = f"""You are the **PRINCIPAL ARCHITECT** and **TECHNICAL GUARDIAN** of this system.
 Plan: {self.plan}
 Context: {self.context}
@@ -72,14 +74,14 @@ After writing or modifying any code, you MUST verify it using `consult_lsp`:
 - Need to run tests? -> `run_command`.
 """
         return self.system_prompt
-        
+
     def _get_env_info(self, config: RunnableConfig) -> str:
         """Generates the <env> block."""
         cwd = get_working_directory(config)
-        
+
         # Check if git repo
         is_git = os.path.exists(os.path.join(cwd, ".git"))
-        
+
         return f"""
 <env>
   Working directory: {cwd}
@@ -93,20 +95,20 @@ After writing or modifying any code, you MUST verify it using `consult_lsp`:
         """Loads CLAUDE.md or AGENTS.md if they exist."""
         cwd = get_working_directory(config)
         rules = []
-        
+
         # Priority: AGENTS.md > CLAUDE.md
         files_to_check = ["AGENTS.md", "CLAUDE.md"]
-        
+
         for filename in files_to_check:
             path = os.path.join(cwd, filename)
             if os.path.exists(path):
                 try:
-                    with open(path, "r", encoding="utf-8") as f:
+                    with open(path, encoding="utf-8") as f:
                         content = f.read()
                         rules.append(f"### PROJECT RULES ({filename})\n{content}")
                 except Exception:
                     pass
-        
+
         if rules:
             return "\n\n".join(rules)
         return ""

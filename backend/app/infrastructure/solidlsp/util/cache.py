@@ -1,11 +1,11 @@
 import logging
 import pickle
-from typing import Any, Optional
+from typing import Any
 
 log = logging.getLogger(__name__)
 
 
-def load_cache(path: str, version: Any) -> Optional[Any]:
+def load_cache(path: str, version: Any) -> Any | None:
     try:
         with open(path, "rb") as f:
             data = pickle.load(f)

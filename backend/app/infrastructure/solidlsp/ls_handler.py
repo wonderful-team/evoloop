@@ -16,7 +16,9 @@ import psutil
 from app.infrastructure.solidlsp.ls_config import Language
 from app.infrastructure.solidlsp.ls_exceptions import SolidLSPException
 from app.infrastructure.solidlsp.ls_request import LanguageServerRequest
-from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_requests import LspNotification
+from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_requests import (
+    LspNotification,
+)
 from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import ErrorCodes
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import (
     ENCODING,
@@ -32,7 +34,10 @@ from app.infrastructure.solidlsp.lsp_protocol_handler.server import (
     make_request,
     make_response,
 )
-from app.infrastructure.solidlsp.util.subprocess_util import quote_arg, subprocess_kwargs
+from app.infrastructure.solidlsp.util.subprocess_util import (
+    quote_arg,
+    subprocess_kwargs,
+)
 
 log = logging.getLogger(__name__)
 

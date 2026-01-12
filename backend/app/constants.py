@@ -5,6 +5,7 @@ Ported from evoloop-engineer.
 
 from enum import Enum
 
+
 # ====================== Document Type Enum ======================
 class DocumentType(Enum):
     """Document type enumeration"""
@@ -144,7 +145,7 @@ CACHE_TEMP_DIRS = [
 
 # Build and deploy related directories
 BUILD_DEPLOY_DIRS = [
-    "dist", "build", "node_modules", "cdk.out", ".aws-sam", 
+    "dist", "build", "node_modules", "cdk.out", ".aws-sam",
     ".terraform", ".angular", ".next", "_nuxt",
 ]
 

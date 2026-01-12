@@ -1,20 +1,19 @@
 
-from typing import List, Optional
-from sqlalchemy import select, delete
-from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import Tool
-from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
-from app.logging import logger
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import delete, select
 
 from app.core.config import settings
+from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
+from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database.sql.models import Tool
+from app.logging import logger
+
 
 class PGToolRetriever:
     """
     Retrieves tools using PostgreSQL pgvector extension.
     Replaces in-memory ToolRetriever for scalability.
     """
-    
+
     def __init__(self):
         self.embedder = OpenAIEmbedder(
             api_key=settings.OPENAI_API_KEY,
@@ -38,7 +37,7 @@ class PGToolRetriever:
             stmt = select(Tool).where(Tool.name == tool_name)
             result = await session.execute(stmt)
             existing_tool = result.scalar_one_or_none()
-            
+
             if existing_tool:
                 existing_tool.description = description
                 existing_tool.signature = signature
@@ -47,18 +46,18 @@ class PGToolRetriever:
                     existing_tool.category = category
             else:
                 new_tool = Tool(
-                    name=tool_name, 
-                    description=description, 
-                    signature=signature, 
+                    name=tool_name,
+                    description=description,
+                    signature=signature,
                     embedding=vector,
                     category=category
                 )
                 session.add(new_tool)
-            
+
             await session.commit()
             logger.debug(f"Indexed tool: {tool_name}")
 
-    async def search_tools(self, query: str, k: int = 10) -> List[dict]:
+    async def search_tools(self, query: str, k: int = 10) -> list[dict]:
         """
         Search for tools semantically. Returns list of dicts with tool info.
         """
@@ -74,7 +73,7 @@ class PGToolRetriever:
             stmt = select(Tool).order_by(Tool.embedding.cosine_distance(query_vector)).limit(k)
             result = await session.execute(stmt)
             tools = result.scalars().all()
-            
+
             return [
                 {
                     "name": t.name,
@@ -83,7 +82,7 @@ class PGToolRetriever:
                 }
                 for t in tools
             ]
-            
+
     async def clear_all(self):
         async with session_scope() as session:
             await session.execute(delete(Tool))

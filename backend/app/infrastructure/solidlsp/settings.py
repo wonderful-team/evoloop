@@ -8,8 +8,6 @@ import pathlib
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-
-
 if TYPE_CHECKING:
     from app.infrastructure.solidlsp.ls_config import Language
 

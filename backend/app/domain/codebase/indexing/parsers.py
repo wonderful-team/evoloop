@@ -1,5 +1,4 @@
 import logging
-from typing import Dict, Tuple, Optional
 
 # Language bindings
 import tree_sitter_c_sharp
@@ -23,8 +22,8 @@ class ParserRegistry:
     """
 
     def __init__(self):
-        self.parsers: Dict[str, Tuple[Parser, Language]] = {}
-        self.languages: Dict[str, Language] = {}
+        self.parsers: dict[str, tuple[Parser, Language]] = {}
+        self.languages: dict[str, Language] = {}
         self.lang_map = {
             "py": "python", "python": "python",
             "go": "go",
@@ -69,13 +68,13 @@ class ParserRegistry:
         load_parser(tree_sitter_php, "php", ["php"], func_name="language_php")
         # Ruby
         load_parser(tree_sitter_ruby, "ruby", ["rb", "ruby"])
-        
+
         # C#
         load_parser(tree_sitter_c_sharp, "c_sharp", ["cs", "csharp"])
-        
+
         # JavaScript
         load_parser(tree_sitter_javascript, "javascript", ["js", "javascript"])
-        
+
         # TypeScript
         # Note: generic typescript binding usually has 'language_typescript' and 'language_tsx'
         try:
@@ -84,7 +83,7 @@ class ParserRegistry:
             self.parsers["ts"] = (ts_parser, Language(ts_lang))
             self.parsers["typescript"] = (ts_parser, Language(ts_lang))
             self.languages["typescript"] = Language(ts_lang)
-            
+
             tsx_lang = tree_sitter_typescript.language_tsx()
             tsx_parser = Parser(Language(tsx_lang))
             self.parsers["tsx"] = (tsx_parser, Language(tsx_lang))
@@ -93,7 +92,7 @@ class ParserRegistry:
 
         self._initialized = True
 
-    def get_parser(self, extension: str) -> Optional[Tuple[Parser, Language]]:
+    def get_parser(self, extension: str) -> tuple[Parser, Language] | None:
         """
         Get (Parser, Language) tuple for a file extension.
         Extension should be without dot (e.g. 'py').
@@ -101,7 +100,7 @@ class ParserRegistry:
         self._initialize()
         return self.parsers.get(extension.lower())
 
-    def get_language_key(self, extension: str) -> Optional[str]:
+    def get_language_key(self, extension: str) -> str | None:
         """
         Get generic language key (e.g. 'python') for an extension.
         """

@@ -1,22 +1,21 @@
+import fnmatch
 import os
 from dataclasses import dataclass, field
-from typing import List, Dict
 
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import SourceFile, CodeChunk
-import fnmatch
+from app.infrastructure.database.sql.models import CodeChunk, SourceFile
 
 
 @dataclass
 class TreeNode:
     name: str
     type: str  # 'dir', 'file', 'class', 'function', 'method'
-    children: List['TreeNode'] = field(default_factory=list)
-    metadata: Dict = field(default_factory=dict)
+    children: list['TreeNode'] = field(default_factory=list)
+    metadata: dict = field(default_factory=dict)
 
     def add_child(self, node: 'TreeNode'):
         self.children.append(node)
@@ -71,11 +70,11 @@ class AnnotatedTreeGenerator:
 
         # 2. Build Tree Structure
         root_node = self._build_tree_structure()
-        
+
         # 3. Determine Format
         if style == "auto":
              style = "tree" if self.with_symbols else "flat"
-             
+
         if style == "flat":
              return self._render_flat(root_node)
 
@@ -112,12 +111,12 @@ class AnnotatedTreeGenerator:
         return text
 
     def _build_tree_structure(self) -> TreeNode:
-        
-        from app.domain.codebase.filter import FileFilter
+
         from app.constants import BLACKLIST_DIRS
-        
+        from app.domain.codebase.filter import FileFilter
+
         self.file_filter = FileFilter()
-        
+
         root_node = TreeNode(os.path.basename(self.root_path), 'dir')
         nodes_map = {self.root_path: root_node}
 
@@ -130,7 +129,7 @@ class AnnotatedTreeGenerator:
                 current_depth = 0
             else:
                 current_depth = len(rel_root.split(os.sep))
-            
+
             # Prune if too deep
             # If we are AT max_depth, we process files, but prune dirs so we don't go deeper.
             # If we are ABOVE max_depth (shouldn't happen with prune), continue.
@@ -139,7 +138,7 @@ class AnnotatedTreeGenerator:
                 # continue # If we continue, we skip files at this level too.
                 # Decision: Show files at max depth, but no subdirs.
                 # So we let execution proceed to process 'files', but cleared 'dirs' stops recursion.
-            
+
             # Exclude filters - Prune directories in-place (moved after depth check to save cycles)
             # 1. Basic Blacklist (Constants)
             # 2. Startswith .
@@ -151,7 +150,7 @@ class AnnotatedTreeGenerator:
                     # Check if file filter excludes this directory explicitly
                     full_d_path = os.path.join(root, d)
                     pass
-            
+
             for d in d_to_remove:
                 dirs.remove(d)
 
@@ -169,7 +168,7 @@ class AnnotatedTreeGenerator:
             # Add Files
             for f in files:
                 f_abs = os.path.join(root, f)
-                
+
                 # USE FILE FILTER
                 if not self.file_filter.should_include(f_abs):
                     continue
@@ -177,14 +176,14 @@ class AnnotatedTreeGenerator:
                 # PATTERN FILTER
                 if self.pattern and not fnmatch.fnmatch(f, self.pattern):
                     continue
-                    
+
                 f_node = TreeNode(f, 'file')
                 current_node.add_child(f_node)
 
                 # Add Symbols to File
                 # Try to find matching DB chunk using suffix match if strict rel_path fails
                 rel_path = os.path.relpath(f_abs, self.root_path)
-                
+
                 chunks = []
                 # Simple lookup first
                 if rel_path in self.db_files_map:
@@ -205,11 +204,11 @@ class AnnotatedTreeGenerator:
         # Post-process: Prune empty directories if pattern is active
         if self.pattern:
             self._prune_empty_dirs(root_node)
-            
+
         root_node.sort_children()
         return root_node
 
-    def _add_symbols_to_file_node(self, file_node: TreeNode, chunks: List[CodeChunk]):
+    def _add_symbols_to_file_node(self, file_node: TreeNode, chunks: list[CodeChunk]):
         if not chunks:
             return
 
@@ -226,7 +225,7 @@ class AnnotatedTreeGenerator:
                 classes[chunk.identifier] = c_node
                 file_node.add_child(c_node)
             elif chunk.chunk_type == 'function':
-                # Check if it belongs to a class? 
+                # Check if it belongs to a class?
                 # In current DB model, identifiers might be "ClassName.method".
                 # If chunk_type is function, and identifier has '.', it could be a method.
                 if '.' in chunk.identifier and not chunk.identifier.startswith('.'):
@@ -322,30 +321,30 @@ class AnnotatedTreeGenerator:
         Returns accumulated paths relative to root.
         """
         lines = []
-        
+
         # Calculate current path
         if prefix is None:
              # Root Node
              current_path = node.name if self.include_root else ""
         else:
              current_path = os.path.join(prefix, node.name) if prefix else node.name
-             
+
         # Add self if file
         if node.type == 'file':
              # Only add if path is not empty
              if current_path:
                  lines.append(current_path)
-             
+
         # Recurse
         files_shown = 0
         total_files = len([c for c in node.children if c.type == 'file'])
-        
+
         for child in node.children:
              if child.type == 'dir':
                  child_lines = self._render_flat(child, prefix=current_path)
                  if child_lines:
                      lines.append(child_lines)
-                     
+
              elif child.type == 'file':
                  if files_shown < self.file_limit:
                      # Render File
@@ -358,10 +357,10 @@ class AnnotatedTreeGenerator:
                      remaining = total_files - files_shown
                      lines.append(f"{current_path}/... (+ {remaining} more files)")
                      break
-        
+
         return "\n".join(lines)
 
-    async def _fetch_source_files_map(self, session) -> Dict[str, List[CodeChunk]]:
+    async def _fetch_source_files_map(self, session) -> dict[str, list[CodeChunk]]:
         # Modified to fetch chunks with identifiers
         stmt = select(SourceFile).options(selectinload(SourceFile.chunks))
         result = await session.execute(stmt)

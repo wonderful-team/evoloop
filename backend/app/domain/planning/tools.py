@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import List, Optional
 
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -9,6 +8,7 @@ from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 
 from app.logging import get_context
+
 from .models import Plan, Step
 
 logger = logging.getLogger(__name__)
@@ -48,14 +48,14 @@ You MUST write the analysis report (Risk Score, Validation Details, Recommendati
 
 class CreatePlanInput(BaseModel):
     title: str = Field(..., description="High level goal of the plan")
-    steps: List[str] = Field(..., description="List of step titles")
+    steps: list[str] = Field(..., description="List of step titles")
 
 
 class UpdatePlanInput(BaseModel):
     plan_id: str = Field(..., description="ID of the plan to update")
     step_id: str = Field(..., description="ID of the step to update")
     status: str = Field(..., description="New status: pending, in_progress, completed, failed")
-    result: Optional[str] = Field(None, description="Result of the step")
+    result: str | None = Field(None, description="Result of the step")
 
 
 class PlanningTool(BaseTool):
@@ -81,7 +81,7 @@ class PlanningTool(BaseTool):
             return json.dumps(plan.model_dump(), ensure_ascii=False)
 
         elif action == "update":
-            # In a real implementation with LangGraph, the 'tool' might not persist state directly 
+            # In a real implementation with LangGraph, the 'tool' might not persist state directly
             # if it's stateless. But here we simulate the logic.
             # The actual persistence happens when Supervisor invokes this and we save to checkingpointer or return plain dict
             # that Supervisor uses to patch state.
@@ -94,7 +94,7 @@ class PlanningTool(BaseTool):
 
 
 @tool
-def create_plan(title: str, steps: List[str]):
+def create_plan(title: str, steps: list[str]):
     """
     Create a detailed plan for the task.
     Args:
@@ -120,8 +120,10 @@ async def update_step_status(plan_id: str, step_id: str, status: str, result: st
         result: Optional result description.
         execution_run_id: Optional ID of the current agent run executing this step.
     """
+    from app.domain.planning.models import (
+        PlanStep,  # Ensure this is correct import or use app.infrastructure.database.sql.models
+    )
     from app.infrastructure.database.sql.database import session_scope
-    from app.domain.planning.models import PlanStep # Ensure this is correct import or use app.infrastructure.database.sql.models
 
     # Use the shared models from infrastructure to match session definition
     from app.infrastructure.database.sql.models import PlanStep
@@ -135,7 +137,7 @@ async def update_step_status(plan_id: str, step_id: str, status: str, result: st
                     step.result = result
                 if execution_run_id:
                     step.execution_run_id = execution_run_id
-                
+
                 # session commits automatically on exit
             else:
                  return json.dumps({"error": "Step not found"})

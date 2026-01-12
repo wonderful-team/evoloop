@@ -9,7 +9,9 @@ from typing import NotRequired, Union
 
 from typing_extensions import TypedDict
 
-from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import DiagnosticSeverity
+from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import (
+    DiagnosticSeverity,
+)
 
 URI = str
 DocumentUri = str

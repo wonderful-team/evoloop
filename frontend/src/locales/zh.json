@@ -26,7 +26,26 @@
       "oops": "哎呀!",
       "message": "未找到您寻找的页面。",
       "goBack": "返回"
-    }
+    },
+    "add": "添加",
+    "approve": "批准",
+    "close": "关闭",
+    "name": "名称",
+    "no": "否",
+    "reject": "拒绝",
+    "run": "运行",
+    "saved": "已保存",
+    "send": "发送",
+    "stop": "停止",
+    "submit": "提交",
+    "success": "成功",
+    "url": "网址",
+    "yes": "是"
+  },
+  "toast": {
+    "success": "成功!",
+    "error": "出错了!",
+    "bindFailed": "绑定服务器通知失败"
   },
   "sidebar": {
     "dashboard": "仪表盘",
@@ -180,6 +199,7 @@
       "restart": "重新获取"
     },
     "errors": {
+      "invalidEmail": "无效的电子邮件地址",
       "invalidMobile": "请输入有效的手机号",
       "codeRequired": "请输入验证码",
       "passwordRequired": "请输入密码",
@@ -227,7 +247,9 @@
     "confirmWithdraw": "撤销注销申请？",
     "language": "语言",
     "english": "English",
-    "chinese": "中文"
+    "chinese": "中文",
+    "guestTitle": "访客模式",
+    "guestDesc": "登录以查看个人资料"
   },
   "devices": {
     "title": "设备列表",
@@ -274,6 +296,7 @@
     "tasks": {
       "title": "任务管理",
       "new": "新建任务",
+      "execute": "确认并执行",
       "filter": "筛选",
       "status": "状态",
       "priority": "优先级",
@@ -372,6 +395,31 @@
       "confirmDesc": "这将永久删除项目 <bold>{{name}}</bold>。此操作无法撤销。",
       "deleting": "删除中...",
       "deleteConfirm": "删除"
+    },
+    "status": {
+      "indexing": "索引中"
+    },
+    "backToList": "返回项目列表",
+    "stats": {
+      "totalTasks": "总任务",
+      "completed": "已完成",
+      "inProgress": "进行中",
+      "members": "成员"
+    },
+    "details": {
+      "description": "描述",
+      "noDescription": "暂无描述。",
+      "created": "创建时间",
+      "tabs": {
+        "ai": "AI 分析",
+        "discussion": "讨论"
+      }
+    },
+    "overview": {
+      "title": "项目概览",
+      "recentActivity": "最近活动",
+      "noActivity": "暂无最近活动",
+      "quickActions": "快捷操作"
     }
   },
   "files": {
@@ -379,7 +427,10 @@
     "loading": "加载中...",
     "error": "加载文件失败",
     "empty": "空",
-    "selectPrompt": "选择文件以查看内容"
+    "selectPrompt": "选择文件以查看内容",
+    "pinToResources": "固定到资源",
+    "pinnedSuccess": "文件已置顶",
+    "pinnedError": "置顶文件失败"
   },
   "voice": {
     "micError": "麦克风错误：",
@@ -622,6 +673,56 @@
   "chat": {
     "limitReached": "今日对话次数已耗尽",
     "limitReachedDescription": "您已达到今日免费对话上限。请升级以继续使用。",
+    "hitl": {
+      "waiting": "Agent 正在等待您的输入..."
+    },
+    "interrupted": {
+      "title": "Agent 已暂停",
+      "description": "Agent 正在等待您的输入或确认以继续。",
+      "inputPlaceholder": "输入额外指令 (可选)...",
+      "resume": "继续",
+      "addInput": "添加指令",
+      "cancel": "取消"
+    },
+    "artifacts": {
+      "title": "生成的文件",
+      "testReport": "测试执行报告",
+      "rootCause": "根本原因分析",
+      "fixSuggestion": "修复建议"
+    },
+    "canvas": {
+      "title": "实时活动",
+      "response": "响应内容",
+      "thoughts": "思考过程",
+      "plan": "执行计划",
+      "artifacts": "生成物",
+      "waiting": "等待输入",
+      "statusRunning": "Agent 正在工作...",
+      "statusWaiting": "等待您的输入",
+      "statusSummarizing": "总结中..."
+    },
+    "sources": {
+      "title": "来源：",
+      "more": "更多",
+      "showLess": "收起"
+    },
+    "stateContext": "上下文",
+    "stateProject": "项目ID",
+    "stateWorkDir": "工作目录",
+    "stateScratchpad": "草稿纸 (Scratchpad)",
+    "stateEmpty": "空",
+    "toolsTitle": "运行时工具",
+    "toolsActive": "{{count}} 个活跃",
+    "toolsDynamic": "动态加载",
+    "noTools": "未发现运行时工具。",
+    "addLink": "添加链接",
+    "addLinkTitle": "添加外部链接",
+    "pinnedFiles": "置顶文件",
+    "noPinnedFiles": "在文件浏览器中右键点击文件可将其置顶至此。",
+    "externalLinks": "外部链接",
+    "resourceRemoved": "资源已移除",
+    "linkAdded": "链接已添加",
+    "linkFailed": "添加链接失败",
     "steps": {
       "collapsedSummary": "{{count}} 个已完成步骤...",
       "hideHistory": "隐藏历史"
@@ -655,6 +756,12 @@
       "memorize": "记忆",
       "export": "导出",
       "rewind": "回溯",
+      "thinkingProcess": "推理过程",
+      "retry": "重试",
+      "retrying": "正在从最后一条用户消息重试...",
+      "retryFailed": "重试失败",
+      "agentWorking": "Agent正在工作... 请在侧边栏查看详情 →",
+      "stop": "停止生成",
       "askProject": "询问 {{project}}...",
       "selectProject": "选择一个项目开始对话",
       "footer": "EvoLoop AI 助手",
@@ -678,14 +785,6 @@
     },
     "messageList": {
       "imageViewer": "图片查看器",
-      "canvas": {
-        "title": "实时活动",
-        "response": "响应内容",
-        "thoughts": "思考过程",
-        "plan": "执行计划",
-        "artifacts": "生成物",
-        "waiting": "等待输入"
-      },
       "clickToOpen": "点击打开",
       "copy": "复制",
       "agentThought": "Agent 思考过程",

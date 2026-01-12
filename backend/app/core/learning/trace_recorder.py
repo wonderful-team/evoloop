@@ -1,14 +1,14 @@
 
-from typing import Any, Dict, List, Optional
-from uuid import UUID
 import json
 import logging
+from typing import Any
+
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
+from sqlalchemy import select
+
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import TraceEvent
-from sqlalchemy import select
-from datetime import datetime
 
 logger = logging.getLogger("evoloop.learning")
 
@@ -20,7 +20,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
     2. Tool Usage (Action)
     3. User Intervention (Correction)
     """
-    
+
     def __init__(self, thread_id: str):
         self.thread_id = thread_id
         self.step_counter = 0
@@ -28,24 +28,24 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         self._last_state_snapshot = {}
 
     async def on_chain_start(
-        self, serialized: Dict[str, Any], inputs: Dict[str, Any], **kwargs: Any
+        self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any
     ) -> None:
         """Capture State Snapshot on Node Entry."""
         metadata = kwargs.get("metadata", {})
         node_name = metadata.get("langgraph_node")
-        
+
         if node_name:
             self.current_node = node_name
             self.step_counter += 1
-            
+
             # Sanitize inputs (remove huge contexts if necessary, but we want full state for learning)
             # Serialize for DB
             try:
-                # inputs might contain non-serializable objects. 
+                # inputs might contain non-serializable objects.
                 # For LangGraph, inputs IS the State (dict).
                 snapshot = self._sanitize_snapshot(inputs)
                 self._last_state_snapshot = snapshot
-                
+
                 await self._save_event(
                     action_type="node_start",
                     payload={"node": node_name},
@@ -60,14 +60,14 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         # on_tool_start gives serialized info, but on_tool_end only gives output.
         # We rely on the linear execution assumption for now or look at run_id if we tracked it.
         # Simplification: Just log the output.
-        
+
         # NOTE: We can't easily link to the specific tool call args here without tracking run_id.
         # But for Imitation Learning, we mostly care about "Start Tool" (Action) and "End Tool" (Observation).
         # We'll rely on on_tool_start for the action.
         pass
 
     async def on_tool_start(
-        self, serialized: Dict[str, Any], input_str: str, **kwargs: Any
+        self, serialized: dict[str, Any], input_str: str, **kwargs: Any
     ) -> None:
         """Capture Tool Usage (The Agent's Action)."""
         tool_name = serialized.get("name")
@@ -75,7 +75,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
              args = json.loads(input_str)
         except:
              args = {"raw": input_str}
-             
+
         await self._save_event(
             action_type="tool_call",
             payload={"name": tool_name, "args": args},
@@ -86,10 +86,10 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         """Capture LLM Output (Thoughts/Decisions)."""
         if not response.generations:
             return
-            
+
         gen = response.generations[0][0]
         content = gen.text
-        
+
         await self._save_event(
             action_type="llm_output",
             payload={"content": content},
@@ -111,7 +111,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         except Exception as e:
             logger.error(f"Failed to save trace event: {e}")
 
-    def _sanitize_snapshot(self, state: Dict) -> Dict:
+    def _sanitize_snapshot(self, state: dict) -> dict:
         """Clean up state for storage (remove huge lists, tokens, etc)."""
         clean = {}
         for k, v in state.items():
@@ -131,14 +131,14 @@ async def sync_thread_to_graph(thread_id: str, project_id: int):
     This creates the 'Episodic Memory'.
     """
     from app.domain.memory.service import memory_service
-    
+
     # 1. Fetch Trace
     events = []
     async with session_scope() as session:
         stmt = select(TraceEvent).where(TraceEvent.thread_id == thread_id).order_by(TraceEvent.step_number)
         result = await session.execute(stmt)
         events = result.scalars().all()
-        
+
     if not events:
         logger.warning(f"No trace events found for thread {thread_id}, skipping graph sync.")
         return
@@ -148,7 +148,7 @@ async def sync_thread_to_graph(thread_id: str, project_id: int):
     result = "Terminated"
     error = None
     plan_snapshot = "No plan recorded"
-    
+
     # Try to find goal from first user message or first state
     try:
         first_event = events[0]
@@ -161,7 +161,7 @@ async def sync_thread_to_graph(thread_id: str, project_id: int):
              goal = msgs[0].content
     except:
         pass
-        
+
     # Is result success or failure?
     last_event = events[-1]
     if last_event.node_name == "finish":
@@ -175,7 +175,7 @@ async def sync_thread_to_graph(thread_id: str, project_id: int):
     else:
         # If ended not in finish, maybe error?
         pass
-        
+
     # Extract Plan
     # Look for the last event with a "current_plan" in snapshot
     for e in reversed(events):
@@ -186,7 +186,7 @@ async def sync_thread_to_graph(thread_id: str, project_id: int):
                 break
         except:
             continue
-            
+
     # 3. Store to Graph
     await memory_service.store_episode(
         goal=goal[:2000], # Limit size

@@ -1,7 +1,7 @@
 import hashlib
 import hmac
 from datetime import datetime, timedelta, timezone
-from typing import Any, Union
+from typing import Any
 
 import jwt
 from passlib.context import CryptContext

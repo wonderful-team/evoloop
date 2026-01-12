@@ -1,18 +1,18 @@
+import os
 import secrets
 import warnings
-from typing import Annotated, Any, Literal, Optional
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     AnyUrl,
     BeforeValidator,
     EmailStr,
+    Field,
     HttpUrl,
     PostgresDsn,
     computed_field,
     model_validator,
-    Field,
 )
-import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing_extensions import Self
 
@@ -120,23 +120,23 @@ class Settings(BaseSettings):
 
     # General Agent / Intention
     GENERAL_AGENT_MODEL: str = "gpt-4o"
-    
+
     # Browser Agent
     BROWSER_USE_API_KEY: str = "sk-dummy-key-for-local-dev"
-    BROWSER_MODEL_NAME: Optional[str] = "gpt-4o"
+    BROWSER_MODEL_NAME: str | None = "gpt-4o"
 
     # Computer Agent (Agent S)
     OS_PROVIDER: str = "openai"
     OS_MODEL: str = "gpt-4o"
     OS_GROUND_PROVIDER: str = "huggingface"
-    OS_GROUND_URL: Optional[str] = "http://localhost:8080"
+    OS_GROUND_URL: str | None = "http://localhost:8080"
     OS_GROUND_MODEL: str = "ui-tars-1.5-7b"
-    OS_GROUND_API_KEY: Optional[str] = None
+    OS_GROUND_API_KEY: str | None = None
 
     # Mobile Agent (AutoGLM)
     PHONE_AGENT_BASE_URL: str = "http://localhost:8000/v1"
     PHONE_AGENT_MODEL: str = "autoglm-phone-9b"
-    PHONE_AGENT_DEVICE_ID: Optional[str] = None
+    PHONE_AGENT_DEVICE_ID: str | None = None
     PHONE_AGENT_LANG: Literal["cn", "en"] = "cn"
 
     # ImagicBox API
@@ -144,12 +144,12 @@ class Settings(BaseSettings):
     IMAGICBOX_WS_URL: str = Field("wss://mall.imagicbox.cn/wss/", validation_alias="IMAGICBOX_WS_URL")
     IMAGICBOX_API_KEY: str | None = Field(None, validation_alias="IMAGICBOX_API_KEY")
     IMAGICBOX_API_SECRET: str | None = Field(None, validation_alias="IMAGICBOX_API_SECRET")
-    
+
     # Client / Device Info
     IMAGICBOX_ACCESS_TOKEN: str | None = Field(None, validation_alias="IMAGICBOX_ACCESS_TOKEN")
-    IMAGICBOX_DEVICE_NAME: Optional[str] = Field("EvoLoop-Desktop", validation_alias="IMAGICBOX_DEVICE_NAME")
+    IMAGICBOX_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="IMAGICBOX_DEVICE_NAME")
     # Project Management
-    IMAGICBOX_DEVICE_NAME: Optional[str] = Field("EvoLoop-Desktop", validation_alias="IMAGICBOX_DEVICE_NAME")
+    IMAGICBOX_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="IMAGICBOX_DEVICE_NAME")
     # Project Management
     # Logic to find default projects root:
     # 1. ~/项目 (Chinese optimized)
@@ -160,7 +160,7 @@ class Settings(BaseSettings):
         home = os.path.expanduser("~")
         candidates = [
             os.path.join(home, "项目"),
-            os.path.join(home, "Projects"), 
+            os.path.join(home, "Projects"),
             os.path.join(home, "projects")
         ]
         for c in candidates:
@@ -180,7 +180,7 @@ class Settings(BaseSettings):
     RESEARCH_MAX_ITERATIONS: int = 5
     TREE_VIEW_MAX_LINES: int = 1500
     RECURSION_LIMIT: int = 50  # Default LangGraph recursion limit
-    
+
     # Meta-Evolution
     ENABLE_SELF_EVOLUTION: bool = False # Dangerous! Requires sandbox.
 

@@ -1,12 +1,14 @@
 import logging
-from app.domain.system.service import SystemConfigService
+
 from langchain_openai import ChatOpenAI
+
+from app.domain.system.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
 
 class LLMConfigService:
-    
+
     @staticmethod
     async def validate_connection(provider: str, base_url: str, model: str, api_key: str = None) -> bool:
         """
@@ -28,7 +30,7 @@ class LLMConfigService:
             response = await llm.ainvoke("Ping")
             if not response or not response.content:
                  raise ValueError("Empty response from LLM")
-            
+
             return True, response.content
         except Exception as e:
             logger.error(f"LLM Validation Failed: {e}")
@@ -36,24 +38,29 @@ class LLMConfigService:
 
     @staticmethod
     async def applied_llm_config(
-        provider: str, 
-        base_url: str, 
-        model: str, 
+        provider: str,
+        base_url: str,
+        model: str,
+        vision_model: str = None,
         api_key: str = None
     ):
         """
         Updates System Config for LLM.
         Non-destructive logic (unlike Embeddings).
         """
-        
+
         # 1. Validate
         await LLMConfigService.validate_connection(provider, base_url, model, api_key)
-        
+
         # 2. Update Config
         SystemConfigService.set_value("LLM_PROVIDER", provider)
         SystemConfigService.set_value("LLM_BASE_URL", base_url)
         SystemConfigService.set_value("LLM_MODEL", model)
+
+        if vision_model:
+            SystemConfigService.set_value("VISION_MODEL", vision_model)
+
         if api_key:
             SystemConfigService.set_value("LLM_API_KEY", api_key)
-            
+
         logger.info(f"LLM Configuration updated to use {model} at {base_url}")

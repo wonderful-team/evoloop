@@ -15,7 +15,11 @@ from app.infrastructure.solidlsp.language_servers.common import quote_windows_pa
 from app.infrastructure.solidlsp.ls import SolidLanguageServer
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig
 from app.infrastructure.solidlsp.ls_types import SymbolKind, UnifiedSymbolInformation
-from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import Definition, DefinitionParams, LocationLink
+from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import (
+    Definition,
+    DefinitionParams,
+    LocationLink,
+)
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
 

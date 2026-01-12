@@ -1,11 +1,11 @@
-from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
+
 
 class McpServerBase(BaseModel):
     name: str
     command: str
-    args: Optional[List[str]] = []
-    env: Optional[Dict[str, str]] = {}
+    args: list[str] | None = []
+    env: dict[str, str] | None = {}
 
 class McpServerCreate(McpServerBase):
     pass
@@ -16,6 +16,6 @@ class McpServerRead(McpServerBase):
     tools_count: int
 
 class McpServerUpdate(BaseModel):
-    command: Optional[str] = None
-    args: Optional[List[str]] = None
-    env: Optional[Dict[str, str]] = None
+    command: str | None = None
+    args: list[str] | None = None
+    env: dict[str, str] | None = None

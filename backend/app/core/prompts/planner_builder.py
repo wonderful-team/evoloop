@@ -1,21 +1,22 @@
-import os
 import platform
-from typing import Optional, Dict
+
 from langchain_core.runnables import RunnableConfig
+
 from app.core.tools.base import get_working_directory
 from app.domain.system.service import SystemConfigService
 
+
 class PlannerPromptBuilder:
-    def __init__(self, project_id: int, current_plan: str, context: Optional[Dict] = None):
+    def __init__(self, project_id: int, current_plan: str, context: dict | None = None):
         self.project_id = project_id
         self.current_plan = current_plan
         self.context = context or {}
-        
+
     def build(self, config: RunnableConfig) -> str:
         """Constructs the system prompt dynamically."""
         user_lang = self._get_user_language()
         sys_info = self._get_system_info(config)
-        
+
         return f"""You are the **Lead Architect** (Planner) of the system.
 
 **Your Goal**: Analyze the user's request and the current project context to create a robust, step-by-step **Implementation Plan**.
@@ -58,8 +59,8 @@ Past Experience:
         # We could inject tree structure here if we want to be fancy,
         # but for now let's keep it lightweight or assume the node injects it via 'context'
         # if the builder is responsible, we should do it here.
-        
+
         # Let's try to get tree if key is present in context, else generate
         project_structure = self.context.get("project_structure", "Tree not available")
-        
+
         return f"OS: {platform.system()}, CWD: {cwd}\nProject Structure:\n{project_structure}"

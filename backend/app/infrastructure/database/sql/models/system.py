@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import List, Optional
-from sqlalchemy import String, Integer, DateTime, Text, Boolean, Float
-from sqlalchemy.orm import Mapped, mapped_column
+
 from pgvector.sqlalchemy import Vector
+from sqlalchemy import DateTime, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
@@ -22,8 +23,8 @@ class Job(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     # Optional: Error message if failed
-    error: Mapped[Optional[str]] = mapped_column(Text)
-    result: Mapped[Optional[str]] = mapped_column(Text)  # Result/Error
+    error: Mapped[str | None] = mapped_column(Text)
+    result: Mapped[str | None] = mapped_column(Text)  # Result/Error
 
 
 class Tool(Base):
@@ -40,10 +41,10 @@ class Tool(Base):
     signature: Mapped[str] = mapped_column(Text)
 
     # Optional metadata
-    category: Mapped[Optional[str]] = mapped_column(String(100), index=True)
+    category: Mapped[str | None] = mapped_column(String(100), index=True)
 
     # Vector Embedding
-    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536))
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

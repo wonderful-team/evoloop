@@ -18,13 +18,17 @@ from typing import Self, Union, cast
 
 import pathspec
 
-from app.infrastructure.solidlsp.ls_utils import FileUtils, PathUtils, TextUtils, match_path
 from app.infrastructure.solidlsp import ls_types
 from app.infrastructure.solidlsp.ls_config import Language, LanguageServerConfig
 from app.infrastructure.solidlsp.ls_exceptions import SolidLSPException
 from app.infrastructure.solidlsp.ls_handler import SolidLanguageServerHandler
 from app.infrastructure.solidlsp.ls_types import UnifiedSymbolInformation
-from app.infrastructure.solidlsp.ls_types import UnifiedSymbolInformation
+from app.infrastructure.solidlsp.ls_utils import (
+    FileUtils,
+    PathUtils,
+    TextUtils,
+    match_path,
+)
 from app.infrastructure.solidlsp.lsp_protocol_handler import lsp_types
 from app.infrastructure.solidlsp.lsp_protocol_handler import lsp_types as LSPTypes
 from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_constants import LSPConstants
@@ -138,7 +142,7 @@ class SolidLanguageServer(ABC):
     """
 
     CACHE_FOLDER_NAME = "cache"
-    
+
     def store_diagnostics(self, params: dict) -> None:
         """
         Store diagnostics published by the language server.
@@ -295,10 +299,10 @@ class SolidLanguageServer(ABC):
         self.language_id = language_id
         self.open_file_buffers: dict[str, LSPFileBuffer] = {}
         self.language = Language(language_id)
-        
+
         # Diagnostics storage
         self.diagnostics: dict[str, list[dict]] = defaultdict(list)
-        
+
         # initialise symbol caches
         self.cache_dir = (
             Path(self.repository_root_path) / self._solidlsp_settings.project_data_relative_path / self.CACHE_FOLDER_NAME / self.language_id

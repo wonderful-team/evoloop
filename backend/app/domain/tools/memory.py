@@ -18,7 +18,7 @@ async def save_preference(key: str, value: str, description: str = "", is_global
     """
     ctx_pid = get_context().get("project_id", 1)
     pid = project_id or ctx_pid
-    
+
     target_pid = None if is_global else pid
     await memory_service.add_user_preference("user_default", key, value, description, project_id=target_pid)
     scope_str = "Global" if is_global else f"Project {target_pid}"

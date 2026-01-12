@@ -1,14 +1,14 @@
 
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.logging import logger
-from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
+
 
 class OntologyBuilder:
     """
     Infers High-Level Semantic Relationships (Ontology) from Low-Level Code Graph.
     Transforms 'Call Graph' into 'Architecture Graph'.
     """
-    
+
     async def infer_relationships(self, project_id: int):
         """
         Main entry point to infer relationships.
@@ -24,12 +24,12 @@ class OntologyBuilder:
         If many files in Dir A call files in Dir B, then Dir A DEPENDS_ON Dir B.
         """
         driver = await get_graph_db()
-        
+
         # Cypher Logic:
         # Match (d1:Directory)-[*]->(f1:File)-[r:RELATION]->(f2:File)<-[*]-(d2:Directory)
         # Where r.type IN ['calls', 'imports']
         # Count relations. If > Threshold, Create (d1)-[:DEPENDS_ON]->(d2)
-        
+
         query = """
         MATCH (d1:Directory {project_id: $pid})
         MATCH (d2:Directory {project_id: $pid})
@@ -50,10 +50,10 @@ class OntologyBuilder:
         SET r.weight = weight
         RETURN d1.path, d2.path, weight
         """
-        
+
         # Note: This query is expensive (Cartesian if not careful).
         # Optimized approach: Traverse relations first, then aggregate to dirs.
-        
+
         optimized_query = """
         MATCH (e1:CodeEntity {project_id: $pid})-[r:RELATION]->(e2:CodeEntity {project_id: $pid})
         WHERE e1.pg_id IS NOT NULL AND e2.pg_id IS NOT NULL // Ensure they are real
@@ -73,28 +73,28 @@ class OntologyBuilder:
         
         RETURN f1.path as src_path, f2.path as tgt_path
         """
-        
+
         # We will do aggregation in Python to determine Directory nodes involved.
         async with driver.session() as session:
             result = await session.run(optimized_query, pid=project_id)
             records = await result.data()
-            
+
         # Map: (src_dir, tgt_dir) -> count
         dependency_map = {}
-        
+
         for r in records:
             src_p = r['src_path']
             tgt_p = r['tgt_path']
-            
+
             # Simple Heuristic: First level directory is the Module.
             # e.g. app/domain/x.py -> app/domain
             src_dir = self._get_module_dir(src_p)
             tgt_dir = self._get_module_dir(tgt_p)
-            
+
             if src_dir and tgt_dir and src_dir != tgt_dir:
                  key = (src_dir, tgt_dir)
                  dependency_map[key] = dependency_map.get(key, 0) + 1
-                 
+
         # Write back significant dependencies
         async with driver.session() as session:
              for (src, tgt), count in dependency_map.items():

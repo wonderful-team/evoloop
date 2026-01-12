@@ -1,29 +1,26 @@
+import cgi
 import logging
+import mimetypes
 import os
 import re
 import shutil
 import tempfile
 import urllib.request
-from typing import Tuple, List, Optional, Union
-from urllib.parse import urlparse
 from pathlib import Path
-import mimetypes
-import cgi
+from urllib.parse import urlparse
 
 try:
-    from rapidfuzz import process, fuzz
+    from rapidfuzz import fuzz, process
 except ImportError:
     process = None
     fuzz = None
 
 from app.constants import (
-    DEFAULT_EXCLUDED_FILES, 
-    DEFAULT_EXCLUDED_DIRS,
     BLACKLIST_FILE_EXTENSIONS,
+    CODE_EXTENSION_MAP,
+    DEFAULT_EXCLUDED_DIRS,
+    DEFAULT_EXCLUDED_FILES,
     WHITELIST_FILE_EXTENSIONS,
-    BLACKLIST_DIRS,
-    BLACKLIST_FILES,
-    CODE_EXTENSION_MAP
 )
 
 logger = logging.getLogger(__name__)
@@ -32,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Path Resolution & Navigation
 # ============================================================================
 
-def resolve_path(file_path: str, base_path: Optional[str] = None) -> Optional[str]:
+def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
     """
     Resolve a file path to an absolute local path.
     Handles URLs (by downloading), absolute paths, and paths relative to base_path.
@@ -62,18 +59,18 @@ def resolve_path(file_path: str, base_path: Optional[str] = None) -> Optional[st
         full_path = os.path.abspath(os.path.join(base_path, file_path))
         if os.path.exists(full_path):
             return full_path
-        
+
         # Fuzzy/Smart resolution logic from legacy file_utils
         # Check specific edge cases
         repo_parts = base_path.split(os.path.sep)
         file_parts = file_path.split('/')
-        
+
         # Overlap check (e.g. /users/repo/src + src/main.py)
         if file_parts and repo_parts and file_parts[0] == repo_parts[-1]:
             adjusted_path = os.path.join(base_path, *file_parts[1:])
             if os.path.exists(adjusted_path):
                 return adjusted_path
-        
+
         return full_path # Return best guess
 
     return os.path.abspath(file_path)
@@ -105,22 +102,22 @@ def ensure_local_path(file_path: str) -> str:
                     ct = response.headers.get('Content-Type')
                     if ct:
                         ext = mimetypes.guess_extension(ct.split(';')[0].strip())
-                        
+
                 # 4. Default
                 if not ext:
                     ext = ""
 
                 fd, temp_path = tempfile.mkstemp(suffix=ext)
                 os.close(fd)
-                
+
                 with open(temp_path, 'wb') as out_file:
                      shutil.copyfileobj(response, out_file)
-            
+
             logger.info(f"Downloaded {file_path} to {temp_path}")
             return temp_path
         except Exception as e:
             raise ValueError(f"Failed to download remote file: {e}")
-            
+
     return file_path
 
 
@@ -155,34 +152,34 @@ def get_file_encoding(file_path: str) -> str:
     encodings = ['utf-8', 'latin-1', 'utf-16', 'ascii']
     for encoding in encodings:
         try:
-            with open(file_path, 'r', encoding=encoding) as f:
-                f.read(100) 
+            with open(file_path, encoding=encoding) as f:
+                f.read(100)
                 return encoding
         except UnicodeDecodeError:
             continue
     return 'utf-8'
 
 
-def read_file_content(file_path: str, start_line: Optional[int] = None, end_line: Optional[int] = None) -> Tuple[str, str]:
+def read_file_content(file_path: str, start_line: int | None = None, end_line: int | None = None) -> tuple[str, str]:
     """
     Read file content with auto encoding detection and optional line range.
     Returns (content, encoding).
     """
     encoding = get_file_encoding(file_path)
     try:
-        with open(file_path, 'r', encoding=encoding) as f:
+        with open(file_path, encoding=encoding) as f:
             if start_line is None and end_line is None:
                 content = f.read()
             else:
                 lines = f.readlines()
                 total_lines = len(lines)
-                
+
                 # 1-based indexing correction
                 start = max(0, start_line - 1) if start_line else 0
                 end = min(total_lines, end_line) if end_line else total_lines
-                
+
                 content = "".join(lines[start:end])
-                
+
         return content, encoding
     except Exception as e:
         logger.error(f"Failed to read file: {file_path}, error: {str(e)}")
@@ -267,35 +264,35 @@ def is_binary_file(file_path: str) -> bool:
 
         return False
 
-    except (IOError, OSError):
+    except OSError:
         return True # Safer to assume binary if unreadable
 
 
 def is_text_file(file_path: str) -> bool:
     """Opposite of is_binary, with explicit whitelist checks."""
     file_ext = os.path.splitext(file_path)[1].lower()
-    
+
     if file_ext in BLACKLIST_FILE_EXTENSIONS:
         return False
-        
+
     if file_ext in WHITELIST_FILE_EXTENSIONS:
         return True
-        
+
     return not is_binary_file(file_path)
 
 
 def filter_code_files(
-    all_files: List[str],
-    excluded_dirs: List[str] = None,
-    excluded_files: List[str] = None,
-    include_extensions: List[str] = None
-) -> List[str]:
+    all_files: list[str],
+    excluded_dirs: list[str] = None,
+    excluded_files: list[str] = None,
+    include_extensions: list[str] = None
+) -> list[str]:
     """Filter list of files to keep only relevant code files."""
     excluded_dirs = excluded_dirs or DEFAULT_EXCLUDED_DIRS
     excluded_files = excluded_files or DEFAULT_EXCLUDED_FILES
 
     code_files = []
-    
+
     for file_path in all_files:
         # Check excluded dirs
         if any(f"/{excluded_dir}/" in f"/{file_path}/" for excluded_dir in excluded_dirs):
@@ -320,7 +317,7 @@ def filter_code_files(
     return code_files
 
 
-def find_similar_file(file_path: str, repo_files: List[str], threshold: float = 0.7) -> Optional[str]:
+def find_similar_file(file_path: str, repo_files: list[str], threshold: float = 0.7) -> str | None:
     """Fuzzy search for file in list."""
     if not process:
          # Fallback
@@ -328,7 +325,7 @@ def find_similar_file(file_path: str, repo_files: List[str], threshold: float = 
             if file_path.lower() in repo_file.lower():
                 return repo_file
         return None
-        
+
     # Full path match
     matches = process.extractOne(file_path, repo_files, scorer=fuzz.WRatio)
     if matches and matches[1] >= threshold * 100:
@@ -343,5 +340,5 @@ def find_similar_file(file_path: str, repo_files: List[str], threshold: float = 
         matches = process.extractOne(filename, all_filenames, scorer=fuzz.WRatio)
         if matches and matches[1] >= threshold * 100:
              return filename_to_path[matches[0]]
-             
+
     return None

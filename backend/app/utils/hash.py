@@ -1,5 +1,5 @@
 import hashlib
-import os
+
 
 def compute_md5(content: str) -> str:
     """Compute MD5 hash of string content."""
@@ -17,7 +17,7 @@ def compute_file_hash(file_path: str, algo: str = "md5", chunk_size: int = 4096)
         hasher = hashlib.sha256()
     else:
         raise ValueError("Unsupported algorithm")
-        
+
     try:
         with open(file_path, "rb") as f:
             for chunk in iter(lambda: f.read(chunk_size), b""):

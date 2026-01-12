@@ -9,11 +9,15 @@ import pathlib
 import threading
 from collections.abc import Iterable
 
-
 from app.infrastructure.solidlsp.ls import SolidLanguageServer
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig
 from app.infrastructure.solidlsp.ls_exceptions import SolidLSPException
-from app.infrastructure.solidlsp.ls_utils import DotnetVersion, FileUtils, PlatformId, PlatformUtils
+from app.infrastructure.solidlsp.ls_utils import (
+    DotnetVersion,
+    FileUtils,
+    PlatformId,
+    PlatformUtils,
+)
 from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import InitializeParams
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings

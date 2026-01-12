@@ -1,7 +1,6 @@
 import asyncio
 import logging
 import os
-from typing import Dict
 
 from sqlalchemy import select
 
@@ -18,13 +17,13 @@ class IndexingManager:
     Singleton-ish usage recommended.
     """
     def __init__(self):
-        self._watchers: Dict[str, RepoWatcher] = {} # path -> watcher
+        self._watchers: dict[str, RepoWatcher] = {} # path -> watcher
         self._service = IndexingService() # Shared service
         self._lock = asyncio.Lock()
-        
+
         # Track Active Jobs: project_id -> status dict
         # Status: "queuing", "indexing", "error", "done"
-        self._active_jobs: Dict[int, str] = {}
+        self._active_jobs: dict[int, str] = {}
         # Optional: Track last update time or details
 
     def get_project_status(self, project_id: int) -> str:
@@ -75,27 +74,29 @@ class IndexingManager:
         """
         logger.info(f"Triggering full index for Project ID: {project_id} (Rebuild={rebuild})")
         self._active_jobs[project_id] = "indexing"
-        
+
         try:
             async with AsyncSessionLocal() as session:
                 # 1. Fetch Repositories for Project
                 stmt = select(Repository).where(Repository.project_id == project_id)
                 result = await session.execute(stmt)
                 repos = result.scalars().all()
-                
+
                 if not repos:
                     logger.warning(f"No repositories found for Project ID {project_id}")
                     self._active_jobs[project_id] = "done" # nothing to do
                     return
-    
+
                 for repo in repos:
                     if repo.local_path:
                         # IndexingService.index_repository is async.
                         await self._service.index_repository(repo.local_path, repo.id, force=rebuild)
-                        
+
                         # --- Phase 7: Auto-Hierarchy ---
                         try:
-                            from app.domain.codebase.indexing.directory_summarizer import directory_summarizer
+                            from app.domain.codebase.indexing.directory_summarizer import (
+                                directory_summarizer,
+                            )
                             await directory_summarizer.summarize_directory(repo.project_id, "", recursive=True)
                         except Exception as e:
                             logger.error(f"Directory Summarization Failed: {e}")
@@ -110,7 +111,7 @@ class IndexingManager:
                             # For now, we rely on its internal idempotency.
                             # repo.local_path is absolute or relative? It's usually absolute in DB if set properly, or relative to root.
                             # We assume it resolves correctly.
-                            
+
                             # We need project name. Repo name is usually project name.
                             await project_summarizer.add_project(repo.name, repo.local_path)
                         except Exception as e:
@@ -119,7 +120,9 @@ class IndexingManager:
                         # --- Phase 9: Standards & Patterns Analysis ---
                         # Sample code to extract implicit style guidelines for the Agent to follow.
                         try:
-                            from app.domain.codebase.indexing.standards import project_standards_analyst
+                            from app.domain.codebase.indexing.standards import (
+                                project_standards_analyst,
+                            )
                             await project_standards_analyst.analyze_standards(repo.project_id, repo.local_path)
                         except Exception as e:
                             logger.error(f"Standards Analysis Failed: {e}")
@@ -127,20 +130,23 @@ class IndexingManager:
                         # --- Phase 10: Tier 4 Dynamic Indexing (Omniscience) ---
                         # Pre-condition: Is this a Software Project?
                         try:
-                            from app.domain.codebase.indexing.classifier import project_classifier, ProjectType
+                            from app.domain.codebase.indexing.classifier import (
+                                ProjectType,
+                                project_classifier,
+                            )
                             p_type = project_classifier.classify(repo.local_path)
-                            
+
                             if p_type == ProjectType.SOFTWARE:
-                                logger.info(f"Project classified as SOFTWARE. Running Tier 4 Indexing (API/DB)...")
+                                logger.info("Project classified as SOFTWARE. Running Tier 4 Indexing (API/DB)...")
                                 await self._run_tier4_indexing(repo.local_path, repo.project_id)
                             else:
                                 logger.info(f"Project classified as {p_type}. Skipping Tier 4 Indexing.")
-                                
+
                         except Exception as e:
                             logger.error(f"Tier 4 Indexing Failed: {e}")
-                            
+
                 self._active_jobs[project_id] = "done"
-                
+
         except Exception as e:
             logger.error(f"Full Index Failed for Project {project_id}: {e}")
             self._active_jobs[project_id] = "error"
@@ -164,32 +170,32 @@ class IndexingManager:
         """
         from app.domain.codebase.indexing.extractors.api_extractor import api_extractor
         from app.domain.codebase.indexing.extractors.db_extractor import db_extractor
-        
+
         # Scanners list
         scanners = [api_extractor, db_extractor]
-        
+
         # Walk once
         # Walk once
         try:
             for root, dirs, files in os.walk(repo_path):
                 if ".git" in dirs: dirs.remove(".git")
                 if "__pycache__" in dirs: dirs.remove("__pycache__")
-                
+
                 for f in files:
                     full_path = os.path.join(root, f)
-                    
+
                     # API Extraction
                     if f.endswith(".py"): # Only Python supported currently
                         # API
                         endpoints = await api_extractor.extract(full_path)
                         if endpoints:
                             await api_extractor.sync_to_graph(project_id, endpoints)
-                        
+
                         # DB
                         tables = await db_extractor.extract(full_path)
                         if tables:
                             await db_extractor.sync_to_graph(project_id, tables)
-                
+
         except Exception as e:
             logger.error(f"Full Index Failed for Project {project_id}: {e}")
             self._active_jobs[project_id] = "error"
@@ -206,13 +212,13 @@ class IndexingManager:
             if not repo or not repo.local_path:
                 logger.warning(f"Repository {repo_id} not found or has no path")
                 return
-            
+
             project_id = repo.project_id
             if project_id:
                  self._active_jobs[project_id] = "indexing"
-            
+
             logger.info(f"Triggering full index for Repo ID: {repo_id} ({repo.name})")
-            
+
             try:
                 await self._service.index_repository(repo.local_path, repo.id)
                 if project_id:
@@ -221,13 +227,13 @@ class IndexingManager:
                  logger.error(f"Repo Index failed: {e}")
                  if project_id:
                      self._active_jobs[project_id] = "error_repo"
-            
+
     async def run_indexing_background(self, repo_id: int):
         """
         Helper to run indexing in a fire-and-forget background task.
         Switching to Celery dispatch.
         """
-        # We need project_id. 
+        # We need project_id.
         # Since this is async/sync mismatch (run_indexing_background is traditionally sync called from main),
         # but here we made it async in previous tools?
         # Original sig was: def run_indexing_background(self, repo_id: int)
@@ -236,7 +242,7 @@ class IndexingManager:
         # We need to fetch Repo to get Project ID first. This requires DB.
         # DB access is async.
         # So we wraps it.
-        
+
         asyncio.create_task(self._resolve_and_dispatch(repo_id))
 
     async def _resolve_and_dispatch(self, repo_id: int):

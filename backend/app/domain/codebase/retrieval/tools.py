@@ -1,12 +1,12 @@
-from typing import Optional
+
 from langchain_core.tools import tool
 
-from app.logging import get_context
 from app.domain.codebase.retrieval.service import RetrievalService
+from app.logging import get_context
 
 
 @tool
-async def search_codebase(query: str, project_id: Optional[int] = None) -> str:
+async def search_codebase(query: str, project_id: int | None = None) -> str:
     """
     Search the codebase using a combination of Graph (symbol) search and Vector (semantic) search.
     
@@ -22,21 +22,21 @@ async def search_codebase(query: str, project_id: Optional[int] = None) -> str:
     """
     retriever = RetrievalService()
     output_parts = []
-    
+
     # Resolve implicit context
     pid = project_id or get_context().get("project_id", 1)
-    
+
     # 1. Graph / Structure Search (Exact/Fuzzy Symbol Match)
     try:
         # We assume query might be a symbol name.
         # Don't try graph search if query is clearly a natural language sentence
-        if len(query.split()) < 3: 
+        if len(query.split()) < 3:
             graph_result = await retriever.get_entity_relations(query, project_id=pid)
             if "error" not in graph_result:
                 relations = graph_result.get("relations", {})
                 outgoing = relations.get("outgoing", [])
                 incoming = relations.get("incoming", [])
-                
+
                 graph_text = [f"### 🧩 Code Structure: {graph_result['symbol']} ({graph_result['type']})"]
                 graph_text.append(f"File: {graph_result['file']}")
                 if outgoing:
@@ -45,7 +45,7 @@ async def search_codebase(query: str, project_id: Optional[int] = None) -> str:
                 if incoming:
                     graph_text.append("**Incoming Relations (Usage):**")
                     for r in incoming: graph_text.append(f"- {r}")
-                
+
                 output_parts.append("\n".join(graph_text))
     except Exception as e:
         # Graph failure shouldn't block RAG
@@ -61,8 +61,8 @@ async def search_codebase(query: str, project_id: Optional[int] = None) -> str:
             output_parts.append("\n".join(rag_text))
         elif not output_parts: # If graph also empty
             return "No relevant code or symbols found."
-            
+
     except Exception as e:
         return f"Error searching codebase: {str(e)}"
-        
+
     return "\n\n---\n\n".join(output_parts)

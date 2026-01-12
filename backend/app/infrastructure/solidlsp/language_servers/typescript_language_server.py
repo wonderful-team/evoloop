@@ -9,12 +9,10 @@ import shutil
 import threading
 from typing import Any, cast
 
-
-
 from app.infrastructure.solidlsp import ls_types
 from app.infrastructure.solidlsp.ls import SolidLanguageServer
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig
-from app.infrastructure.solidlsp.ls_utils import PlatformId, PlatformUtils, LogTime
+from app.infrastructure.solidlsp.ls_utils import LogTime, PlatformId, PlatformUtils
 from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import InitializeParams
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings

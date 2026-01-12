@@ -1,8 +1,9 @@
-import asyncio
 from sqlalchemy import text
+
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.sql.database import get_db_session
 from app.logging import logger
+
 
 async def wipe_knowledge_base():
     """
@@ -23,14 +24,14 @@ async def wipe_knowledge_base():
             await session.run("MATCH (n:Concept) DETACH DELETE n")
             # Delete Chunks
             await session.run("MATCH (n:CodeChunk) DETACH DELETE n")
-            
+
             # DROP Vector Indexes to allow recreation with correct dimensions
             try:
                 await session.run("DROP INDEX concept_embeddings IF EXISTS")
                 logger.info("Neo4j: Dropped 'concept_embeddings' index.")
             except Exception as e:
                 logger.warning(f"Neo4j: Failed to drop index: {e}")
-            
+
         logger.info("✅ Neo4j: Wiped [File, Directory, CodeEntity, Concept, CodeChunk].")
     except Exception as e:
         logger.error(f"Failed to wipe Neo4j: {e}")
@@ -55,19 +56,19 @@ async def wipe_knowledge_base():
 
         async with get_db_session() as session:
             tables_to_truncate = [
-                "code_chunks", 
-                "code_relations", 
-                "code_entities", 
+                "code_chunks",
+                "code_relations",
+                "code_entities",
                 "source_files",
-                "tools" 
+                "tools"
             ]
-            
+
             for t in tables_to_truncate:
                  try:
                      await session.execute(text(f"TRUNCATE TABLE {t} CASCADE;"))
                  except Exception as e:
                      logger.warning(f"Postgres: Error truncating {t}: {e}")
-            
+
             # SCHEMA FIX: Adjust Vector Column Dimensions
             if target_dim:
                 # We need to alter code_chunks and tools

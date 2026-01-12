@@ -1,7 +1,6 @@
 import asyncio
-import subprocess
 import logging
-from typing import List, Union, Optional, Tuple
+import subprocess
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -11,22 +10,22 @@ class CommandResult:
     returncode: int
     stdout: str
     stderr: str
-    
+
     @property
     def success(self) -> bool:
         return self.returncode == 0
-        
+
     @property
     def output(self) -> str:
         """Combined output or just stdout usually preferred."""
         return self.stdout.strip()
 
 def run_command(
-    cmd: Union[str, List[str]], 
-    cwd: Optional[str] = None, 
+    cmd: str | list[str],
+    cwd: str | None = None,
     check: bool = False,
-    timeout: Optional[float] = None,
-    env: Optional[dict] = None
+    timeout: float | None = None,
+    env: dict | None = None
 ) -> CommandResult:
     """
     Run a synchronous subprocess command.
@@ -40,7 +39,7 @@ def run_command(
     else:
         shell = False
         args = cmd
-        
+
     try:
         logger.debug(f"Running command: {args} (cwd={cwd})")
         result = subprocess.run(
@@ -59,8 +58,8 @@ def run_command(
             # But we want to return CommandResult generally.
             # If check=True, we manually raise to match standard lib expectation IF caller expects it.
             # But here, let's just return the result and let caller check .success
-            pass 
-            
+            pass
+
         return CommandResult(
             returncode=result.returncode,
             stdout=result.stdout,
@@ -72,9 +71,9 @@ def run_command(
 
 
 async def run_async_command(
-    cmd: Union[str, List[str]], 
-    cwd: Optional[str] = None,
-    timeout: Optional[float] = None
+    cmd: str | list[str],
+    cwd: str | None = None,
+    timeout: float | None = None
 ) -> CommandResult:
     """
     Run an asynchronous subprocess command.
@@ -89,9 +88,9 @@ async def run_async_command(
             create_proc = asyncio.create_subprocess_exec
             program = cmd[0]
             args = cmd[1:]
-            
+
         logger.debug(f"Async running: {cmd} (cwd={cwd})")
-        
+
         if isinstance(cmd, str):
             process = await create_proc(
                 program,
@@ -107,7 +106,7 @@ async def run_async_command(
                 stderr=asyncio.subprocess.PIPE,
                 cwd=cwd
             )
-            
+
         try:
             if timeout:
                 stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
@@ -116,13 +115,13 @@ async def run_async_command(
         except asyncio.TimeoutError:
             process.kill()
             return CommandResult(-1, "", "Command timed out")
-            
+
         return CommandResult(
             returncode=process.returncode,
             stdout=stdout.decode().strip() if stdout else "",
             stderr=stderr.decode().strip() if stderr else ""
         )
-        
+
     except Exception as e:
         logger.error(f"Async command failed: {e}")
         return CommandResult(-1, "", str(e))

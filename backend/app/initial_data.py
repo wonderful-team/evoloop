@@ -14,17 +14,17 @@ logger = logging.getLogger(__name__)
 def init() -> None:
     with Session(engine) as session:
         init_db(session)
-        
+
     # Seed System Configuration from Environment/Settings
     # This ensures that on first run, the database is populated with valid defaults
     from app.domain.system.service import SystemConfigService
-    
+
     # 1. PROJECTS_ROOT
     if not SystemConfigService.get_value("PROJECTS_ROOT"):
         default_root = settings.PROJECTS_ROOT
         logger.info(f"Seeding PROJECTS_ROOT from settings: {default_root}")
         SystemConfigService.set_value("PROJECTS_ROOT", default_root, "Root directory for project storage")
-    
+
     # 2. IMAGICBOX_DEVICE_NAME
     if not SystemConfigService.get_value("IMAGICBOX_DEVICE_NAME"):
         default_name = settings.IMAGICBOX_DEVICE_NAME
@@ -42,12 +42,22 @@ def init() -> None:
         SystemConfigService.set_value("EMBEDDING_MODEL", settings.EMBEDDING_MODEL_NAME, "Embedding Model Name")
         SystemConfigService.set_value("EMBEDDING_API_KEY", settings.OPENAI_API_KEY, "Embedding API Key")
 
+    # 4. Vision Configuration
+    if not SystemConfigService.get_value("VISION_MODEL"):
+        logger.info("Seeding VISION_MODEL from settings...")
+        SystemConfigService.set_value("VISION_MODEL", "gpt-4o", "Vision Model Name (Multimodal)")
+
+    # 5. HITL / Router Configuration
+    if not SystemConfigService.get_value("INTENT_MIN_CONFIDENCE"):
+        logger.info("Seeding INTENT_MIN_CONFIDENCE...")
+        SystemConfigService.set_value("INTENT_MIN_CONFIDENCE", "0.35", "Intent Classifier Threshold (0.0-1.0)")
+
 
 async def init_mcp() -> None:
     logger.info("Initializing MCP configuration...")
     # Use the SQLAlchemy URI from settings
     db_url = str(settings.SQLALCHEMY_DATABASE_URI)
-    
+
     # 1. Local Postgres (System Default)
     details_pg = {
         "command": "npx",

@@ -1,18 +1,18 @@
-from typing import List, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, or_
 
 from app.api.deps import get_db
 from app.infrastructure.database.sql.models import CodeEntity, Repository
 
 router = APIRouter()
 
-@router.get("/projects/{project_id}/symbols", response_model=List[dict])
+@router.get("/projects/{project_id}/symbols", response_model=list[dict])
 async def search_symbols(
     project_id: int,
     q: str = Query(..., min_length=2, description="Search query for symbol name"),
-    type: Optional[str] = Query(None, description="Filter by entity type (class, function)"),
+    type: str | None = Query(None, description="Filter by entity type (class, function)"),
     limit: int = 20,
     db: AsyncSession = Depends(get_db)
 ):
@@ -21,33 +21,34 @@ async def search_symbols(
     """
     # 1. Find Repositories for Project (Assuming simple mapping via project_id column in Repository)
     # Note: In new model project_id is just an integer in Repository table.
-    
+
     stmt = select(Repository.id).where(Repository.project_id == project_id)
     result = await db.execute(stmt)
     repo_ids = result.scalars().all()
-    
+
     if not repo_ids:
         # Maybe project has no repos or invalid project? Return empty for now.
         return []
 
     # 2. Search CodeEntities
     # Join with SourceFile to filter by repo_ids
-    from app.infrastructure.database.sql.models import SourceFile
     from sqlalchemy.orm import selectinload
-    
+
+    from app.infrastructure.database.sql.models import SourceFile
+
     query = select(CodeEntity).join(SourceFile, CodeEntity.file_id == SourceFile.id)\
             .where(SourceFile.repository_id.in_(repo_ids))\
             .where(CodeEntity.full_name.ilike(f"%{q}%"))\
             .options(selectinload(CodeEntity.file))
-            
+
     if type:
         query = query.where(CodeEntity.type == type)
-        
+
     query = query.limit(limit)
-    
+
     result = await db.execute(query)
     entities = result.scalars().all()
-    
+
     # 3. Format Response
     response = []
     for ent in entities:
@@ -63,7 +64,7 @@ async def search_symbols(
             "start_line": ent.start_line,
             "end_line": ent.end_line
         })
-        
+
     return response
 
 
@@ -77,10 +78,10 @@ async def generate_symbol_wiki(
     Generate on-demand Wiki documentation for a specific symbol.
     """
     from app.domain.wiki.service import WikiService
-    
+
     # Verify symbol belongs to project? (Optional security check)
     # For MVP just generate.
-    
+
     wiki_service = WikiService(db)
     try:
         content = await wiki_service.generate_doc_for_entity(symbol_id)

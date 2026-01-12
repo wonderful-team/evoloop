@@ -1,22 +1,25 @@
-from typing import Dict, List, Any, Optional
-import time
-import json
-import redis.asyncio as redis
 import asyncio
+import json
+import time
+from typing import Any
+
+import redis.asyncio as redis
+
 from app.core.config import settings
-from app.schemas.events import TaskEvent, ArtifactEvent, AgentStateEvent, StatusEvent
+from app.schemas.events import AgentStateEvent, ArtifactEvent, StatusEvent, TaskEvent
+
 
 class ActivityMonitor:
     _instance = None
-    
+
     def __init__(self):
-        # We use a managed pool from settings? 
+        # We use a managed pool from settings?
         # Or just create a client. Recommendation is one client per app usually.
         self.redis_url = settings.REDIS_URL
         # Map: EventLoop -> RedisClient
-        self._clients = {} 
+        self._clients = {}
         self._global_client = None
-        
+
     async def get_client(self) -> redis.Redis:
         try:
             loop = asyncio.get_running_loop()
@@ -28,24 +31,24 @@ class ActivityMonitor:
              client = self._clients[loop]
              # Check if closed? Redis client doesn't expose is_closed easily, but we trust it.
              return client
-             
+
         # New Client for this loop
         client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
         self._clients[loop] = client
         return client
-      
+
     @property
     def client(self) -> redis.Redis:
-         # Deprecated property access, but kept for backward compat if synchronous? 
+         # Deprecated property access, but kept for backward compat if synchronous?
          # But all usages are `await self.client...` which is wrong if client is property returning object.
-         # Actually usages are `await self.client.hset(...)`. 
-         # We need to change usages to `client = await self.get_client(); await client.hset(...)` 
-         # OR make `client` property return a proxy? 
+         # Actually usages are `await self.client.hset(...)`.
+         # We need to change usages to `client = await self.get_client(); await client.hset(...)`
+         # OR make `client` property return a proxy?
          # Simpler: The usages are `self.client.hset`. `self.client` returns the Redis object.
          # If I change `client` to a method, I break all calls.
          # BUT `client` property cannot be async.
          # AND `asyncio.get_running_loop()` works inside property if called from async function? Yes.
-         
+
          # Let's try to keep property but make it smart.
          try:
             loop = asyncio.get_running_loop()
@@ -57,22 +60,22 @@ class ActivityMonitor:
              if self._global_client is None:
                  self._global_client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
              return self._global_client
-        
+
     @classmethod
     def get_instance(cls):
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
-        
+
     async def start_run(self, thread_id: str, main_goal: str = "处理用户请求"):
         key = f"activity:{thread_id}"
         now = time.time()
         data = {
             "status": "running",
             "main_goal": main_goal,
-            "agent_state": json.dumps({}), 
-            "verification": json.dumps({}), 
-            "tasks": json.dumps([]),     
+            "agent_state": json.dumps({}),
+            "verification": json.dumps({}),
+            "tasks": json.dumps([]),
             "artifacts": json.dumps([]),
             "active_memories": json.dumps([]),  # Phase 7: Track active memory references
             "updated_at": now
@@ -81,21 +84,21 @@ class ActivityMonitor:
         await self.client.hset(key, mapping=data)
         # Expiry 24h
         await self.client.expire(key, 86400)
-    
+
     async def end_run(self, thread_id: str, status="done"):
         key = f"activity:{thread_id}"
         # Check current status first to handle stopping->cancelled
         current_status = await self.client.hget(key, "status")
-        
+
         final_status = status
         if current_status == "stopping":
             final_status = "cancelled"
-            
+
         await self.client.hset(key, mapping={
             "status": final_status,
             "updated_at": time.time()
         })
-        
+
         # Mark running tasks as done/cancelled
         tasks_json = await self.client.hget(key, "tasks")
         if tasks_json:
@@ -107,14 +110,14 @@ class ActivityMonitor:
                     modified = True
             if modified:
                  await self.client.hset(key, "tasks", json.dumps(tasks))
-                 
+
                  # Publish update events for modified tasks
                  # Simplification: Just publish the end-run status for now or iterate
                  # Iterate to be precise
                  for t in tasks:
                      if t["status"] in ["done", "cancelled"] and t.get("start_time"): # It was running
                           await self.client.publish(
-                              f"chat:{thread_id}:events", 
+                              f"chat:{thread_id}:events",
                               TaskEvent(action="update", id=t["id"], data={"status": t["status"]}).json()
                           )
 
@@ -151,7 +154,7 @@ class ActivityMonitor:
                 "updated_at": time.time()
             })
 
-    async def set_human_request(self, thread_id: str, request_data: Dict[str, Any]):
+    async def set_human_request(self, thread_id: str, request_data: dict[str, Any]):
         """
         Store a structured Human Request (HITL).
         Replaces simple 'set_interrupted' for rich interactions.
@@ -182,10 +185,10 @@ class ActivityMonitor:
         key = f"activity:{thread_id}"
         if not await self.client.exists(key):
             return
-            
+
         memories_json = await self.client.hget(key, "active_memories")
         memories = json.loads(memories_json) if memories_json else []
-        
+
         # Add if not already in list
         if not any(m.get("id") == memory_id for m in memories):
             memories.append({"id": memory_id, "name": memory_name})
@@ -200,26 +203,26 @@ class ActivityMonitor:
         if await self.client.exists(key):
             await self.client.hset(key, "active_memories", json.dumps([]))
 
-    
+
     async def add_task(self, thread_id: str, name: str, task_type="node"):
         key = f"activity:{thread_id}"
-        
+
         # Use a lock to prevent Race Conditions on the JSON list
         lock_key = f"lock:{key}"
         # We need a dedicated client for locking usually, or just use the same one.
         # redis-py lock is robust.
-        
+
         try:
             async with self.client.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
                 if not await self.client.exists(key):
                     return None
-            
+
                 tasks_json = await self.client.hget(key, "tasks")
                 tasks = json.loads(tasks_json) if tasks_json else []
-                
+
                 if not name:
                     return None
-                    
+
                 task_id = len(tasks) + 1
                 new_task = {
                     "id": task_id,
@@ -230,36 +233,36 @@ class ActivityMonitor:
                     "time": "0s"
                 }
                 tasks.append(new_task)
-                
+
                 await self.client.hset(key, mapping={
                     "tasks": json.dumps(tasks),
                     "updated_at": time.time()
                 })
-                
+
                 # Publish Event
                 await self.client.publish(
                     f"chat:{thread_id}:events",
                     TaskEvent(action="create", id=task_id, data=new_task).json()
                 )
-                
+
                 return task_id
-        except Exception as e:
+        except Exception:
             # logger.error(f"Failed to add task: {e}")
             return None
 
     async def update_task(self, thread_id: str, task_id: int, status: str, details: str = None):
         key = f"activity:{thread_id}"
         lock_key = f"lock:{key}"
-        
+
         try:
             async with self.client.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
                 # We need to fetch, modify, save.
                 tasks_json = await self.client.hget(key, "tasks")
                 if not tasks_json: return
-                
+
                 tasks = json.loads(tasks_json)
                 modified = False
-                
+
                 for task in tasks:
                     if task["id"] == task_id:
                         task["status"] = status
@@ -270,13 +273,13 @@ class ActivityMonitor:
                             task["time"] = f"{duration:.2f}s"
                         modified = True
                         break
-                
+
                 if modified:
                     await self.client.hset(key, mapping={
                         "tasks": json.dumps(tasks),
                         "updated_at": time.time()
                     })
-                    
+
                     # Publish Event
                     # We accept 'details' might mean partial update, but our schema is flexible
                     update_data = {"status": status}
@@ -297,7 +300,7 @@ class ActivityMonitor:
             "task_status": task_status
         }
         await self.client.hset(key, "agent_state", json.dumps(state))
-        
+
         # Publish Event
         await self.client.publish(
             f"chat:{thread_id}:events",
@@ -308,7 +311,7 @@ class ActivityMonitor:
         key = f"activity:{thread_id}"
         arts_json = await self.client.hget(key, "artifacts")
         artifacts = json.loads(arts_json) if arts_json else []
-            
+
         # Check uniqueness
         for art in artifacts:
             if art["name"] == name:
@@ -320,21 +323,21 @@ class ActivityMonitor:
                     ArtifactEvent(action="update", name=name, data=art).json()
                 )
                 return
-        
+
         artifacts.append({
             "id": len(artifacts) + 1,
             "name": name,
             "type": artifact_type,
             "status": status,
             "path": path,
-            "icon": "FileCode" 
+            "icon": "FileCode"
         })
-        
+
         await self.client.hset(key, mapping={
             "artifacts": json.dumps(artifacts),
             "updated_at": time.time()
         })
-        
+
         # Publish Event
         # We need to find the artifact we just added/modified
         target_art = next((a for a in artifacts if a["name"] == name), None)
@@ -354,7 +357,7 @@ class ActivityMonitor:
                 "tasks": [],
                 "artifacts": []
             }
-            
+
         # Parse JSON fields
         try:
             tasks = json.loads(data.get("tasks", "[]"))
@@ -362,7 +365,7 @@ class ActivityMonitor:
             agent_state = json.loads(data.get("agent_state", "{}"))
             verification = json.loads(data.get("verification", "{}"))
             active_memories = json.loads(data.get("active_memories", "[]"))  # Phase 7
-            
+
             human_request_raw = data.get("human_request")
             human_request = json.loads(human_request_raw) if human_request_raw else None
         except:
@@ -372,7 +375,7 @@ class ActivityMonitor:
             verification = {}
             active_memories = []
             human_request = None
-            
+
         return {
             "status": data.get("status", "unknown"),
             "main_goal": data.get("main_goal", ""),
@@ -385,24 +388,24 @@ class ActivityMonitor:
             "human_request": human_request
         }
 
-    async def get_statuses(self, thread_ids: List[str]) -> Dict[str, str]:
+    async def get_statuses(self, thread_ids: list[str]) -> dict[str, str]:
         """Batch fetch statuses for multiple threads efficiently."""
         if not thread_ids:
             return {}
-            
+
         pipeline = self.client.pipeline()
         for tid in thread_ids:
             pipeline.hget(f"activity:{tid}", "status")
-            
+
         results = await pipeline.execute()
-        
+
         status_map = {}
         for i, status in enumerate(results):
             if status:
                 status_map[thread_ids[i]] = status
             else:
                 status_map[thread_ids[i]] = "unknown"
-                
+
         return status_map
 
 # Global Instance

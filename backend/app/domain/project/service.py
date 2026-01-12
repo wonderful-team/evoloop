@@ -1,11 +1,10 @@
 import logging
 import os
 from threading import Lock
-from typing import Dict, Optional, List
 
 from app.core.config import settings
 from app.domain.system.service import SystemConfigService
-from app.infrastructure.external.imagicbox import imagicbox_client
+from app.infrastructure.external.evocloud import evocloud_client
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,7 @@ class ProjectContextManager:
     """
     Manages the working directory context for different threads (sessions).
     This allows the server to support multiple active projects simultaneously.
-    Integrates with ImagicBox API for project discovery.
+    Integrates with EvoCloud API for project discovery.
     """
     _instance = None
     _lock = Lock()
@@ -29,11 +28,11 @@ class ProjectContextManager:
     def __init__(self):
         if self._initialized:
             return
-        
+
         self._initialized = True
         # Mapping: thread_id -> working_directory path
-        self._thread_contexts: Dict[str, str] = {}
-        self._thread_projects: Dict[str, int] = {} # thread_id -> project_id
+        self._thread_contexts: dict[str, str] = {}
+        self._thread_projects: dict[str, int] = {} # thread_id -> project_id
         # Default fallback directory (from Settings/DB)
         db_root = SystemConfigService.get_value("PROJECTS_ROOT")
         self._default_root = os.path.abspath(db_root if db_root else settings.PROJECTS_ROOT)
@@ -65,10 +64,10 @@ class ProjectContextManager:
         if path:
             return path
         return self._default_root
-    
-    def get_active_project(self, thread_id: str) -> Optional[int]:
+
+    def get_active_project(self, thread_id: str) -> int | None:
         return self._thread_projects.get(thread_id)
-    
+
     def clear_context(self, thread_id: str):
         """Remove context for a thread."""
         if thread_id in self._thread_contexts:
@@ -77,37 +76,37 @@ class ProjectContextManager:
             del self._thread_projects[thread_id]
         logger.info(f"Cleared context for thread {thread_id}")
 
-    async def scan_projects(self) -> List[Dict]:
+    async def scan_projects(self) -> list[dict]:
         """
-        Fetch projects from ImagicBox API.
+        Fetch projects from EvoCloud API.
         Replaces legacy filesystem scanning.
         """
         try:
             # 1. Fetch from API
-            resp = await imagicbox_client.get_projects(page=1, page_size=100)
-            
+            resp = await evocloud_client.get_projects(page=1, page_size=100)
+
             if resp.get("code") != 0:
                 logger.error(f"Failed to fetch projects from API: {resp.get('message')}")
                 return []
-                
+
             data = resp.get("data", {})
             api_projects = data.get("list", [])
-            
+
             projects = []
             for p in api_projects:
                 # Map API fields to Internal Schema
                 name = p.get("project_name", "Unknown")
                 desc = p.get("project_desc", "")
-                
+
                 # 'external_path' is what we rely on for local file access
                 # The API returns the path where the project *should* be.
                 path = p.get("external_path", "")
-                
+
                 # Validation: Does it exist locally?
-                # If not, mark it. We might want to show it as "Not Found" in UI 
+                # If not, mark it. We might want to show it as "Not Found" in UI
                 # or just hide it. Current decision: Show it but flag it.
                 exists = os.path.exists(path) if path else False
-                
+
                 projects.append({
                     "id": p.get("project_id"), # Integer ID from Member Center
                     "name": name,
@@ -117,15 +116,15 @@ class ProjectContextManager:
                     "status_text": p.get("status_text", ""),
                     "owner": p.get("owner_member_name", "")
                 })
-                
+
             return projects
-            
+
 
         except Exception as e:
             logger.error(f"scan_projects failed: {e}")
             return []
 
-    async def get_project_by_id(self, project_id: int) -> Optional[Dict]:
+    async def get_project_by_id(self, project_id: int) -> dict | None:
         """Get project details by numeric ID."""
         projects = await self.scan_projects()
         for p in projects:

@@ -1,22 +1,21 @@
-import asyncio
 import os
 
-import httpx
 from mcp.server.fastmcp import FastMCP
-from app.utils import json as json_utils
-from app.utils import http as http_utils
 
-
-from app.core.config import settings
 # from app.logging import logger # Uses structlog or logging conf. app.core.config might have settings.
-
 # Import existing domain tools
 from app.domain.codebase.indexing.tools import index_path
 from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.memory.service import memory_service
 
 # Expose Facades via MCP
-from app.domain.tools.facades import manage_file, explore_codebase, manage_git, manage_memory, manage_file
+from app.domain.tools.facades import (
+    explore_codebase,
+    manage_file,
+    manage_git,
+    manage_memory,
+)
+from app.utils import json as json_utils
 
 # Initialize FastMCP Server
 mcp = FastMCP("EvoLoop MCP Server")
@@ -33,11 +32,11 @@ def _truncate(text: str, max_chars: int = 20000) -> str:
 
 @mcp.tool()
 def manage_file_ops(
-    action: str, 
-    path: str, 
-    content: str = None, 
-    target: str = None, 
-    start_line: int = None, 
+    action: str,
+    path: str,
+    content: str = None,
+    target: str = None,
+    start_line: int = None,
     end_line: int = None
 ) -> str:
     """
@@ -59,8 +58,8 @@ def manage_file_ops(
 
 @mcp.tool()
 async def explore_codebase_ops(
-    action: str, 
-    query: str, 
+    action: str,
+    query: str,
     scope_path: str = None
 ) -> str:
     """
@@ -83,7 +82,7 @@ async def manage_git_ops(action: str, argument: str = None) -> str:
         return _truncate(manage_git.invoke({"action": action, "argument": argument}))
     except Exception as e:
         return f"Error: {e}"
-        
+
 @mcp.tool()
 async def manage_memory_ops(action: str, key: str = None, value: str = None) -> str:
     """Unified Memory Operations."""
@@ -162,7 +161,7 @@ async def get_annotated_tree(path: str = ".") -> str:
         target_path = os.path.abspath(path)
         if not os.path.exists(target_path):
              return f"Error: Path {path} not found."
-             
+
         generator = AnnotatedTreeGenerator(target_path, file_limit=30)
         return _truncate(await generator.generate())
     except Exception as e:
@@ -178,7 +177,7 @@ async def remember_preference(key: str, value: str, description: str = "") -> st
     try:
         # Ensure schema
         await memory_service.initialize_schema()
-        
+
         # Assume default user "user_default" for now
         await memory_service.add_user_preference("user_default", key, value, description)
         return f"Stored preference: {key}={value}"
@@ -207,10 +206,10 @@ async def query_memory(query: str) -> str:
     """
     try:
         await memory_service.initialize_schema()
-        
+
         prefs = await memory_service.get_user_preferences("user_default")
         concepts = await memory_service.search_concepts(query)
-        
+
         return f"{prefs}\n\n**Relevant Concepts:**\n{concepts}"
     except Exception as e:
         return f"Error: {e}"

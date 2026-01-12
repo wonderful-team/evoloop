@@ -1,8 +1,7 @@
 
-import os
 import logging
+import os
 from enum import Enum
-from typing import Set
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +15,7 @@ class ProjectClassifier:
     Classifies a project directory based on file content and structure.
     Used to gate resource-intensive indexing steps (API/DB extraction).
     """
-    
+
     SOFTWARE_INDICATORS = {
         # Files
         "package.json", "go.mod", "pom.xml", "build.gradle", "requirements.txt",
@@ -42,7 +41,7 @@ class ProjectClassifier:
             # 1. Check for Strong Indicators (Config files) in Root
             entries = set(os.listdir(root_path))
             intersection = self.SOFTWARE_INDICATORS.intersection(entries)
-            
+
             if intersection:
                 logger.info(f"[Classifier] Classified {root_path} as SOFTWARE (Indicators: {intersection})")
                 return ProjectType.SOFTWARE
@@ -55,9 +54,9 @@ class ProjectClassifier:
                 depth = root[len(root_path):].count(os.sep)
                 if depth > 2:
                     # Don't go deep
-                    del dirs[:] 
+                    del dirs[:]
                     continue
-                
+
                 for f in files:
                     _, ext = os.path.splitext(f)
                     if ext in self.CODE_EXTENSIONS:
@@ -68,7 +67,7 @@ class ProjectClassifier:
 
             logger.info(f"[Classifier] Classified {root_path} as CONTENT")
             return ProjectType.CONTENT
-            
+
         except Exception as e:
             logger.error(f"Classification failed: {e}")
             return ProjectType.UNKNOWN

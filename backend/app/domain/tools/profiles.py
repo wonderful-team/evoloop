@@ -1,10 +1,9 @@
-from typing import List, Dict, Optional
 from langchain_core.tools import BaseTool
 
 # Define Standard Profiles
 # These are "Presets" that the Supervisor can select to prime the Coder with the right tools.
 
-PROFILES: Dict[str, Dict[str, any]] = {
+PROFILES: dict[str, dict[str, any]] = {
     "GENERAL": {
         "description": "General purpose coding and file management.",
         "static_tools": ["manage_file", "explore_codebase", "manage_git", "run_command", "manage_memory", "consult_architecture", "consult_lsp"],
@@ -22,7 +21,7 @@ PROFILES: Dict[str, Dict[str, any]] = {
     }
 }
 
-def get_profile_static_tools(profile_name: str) -> List[BaseTool]:
+def get_profile_static_tools(profile_name: str) -> list[BaseTool]:
     """Retrieve the static tool instances for a given profile."""
     from app.domain.tools.registry import get_tools_by_names
     profile = PROFILES.get(profile_name, PROFILES["GENERAL"])

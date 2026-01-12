@@ -1,8 +1,8 @@
 
-from typing import Dict, List
+
 from langchain_core.tools import BaseTool
 
-_RUNTIME_TOOLS: Dict[str, BaseTool] = {}
+_RUNTIME_TOOLS: dict[str, BaseTool] = {}
 
 def register_runtime_tool(tool: BaseTool) -> None:
     """
@@ -10,5 +10,5 @@ def register_runtime_tool(tool: BaseTool) -> None:
     """
     _RUNTIME_TOOLS[tool.name] = tool
 
-def get_runtime_tools() -> List[BaseTool]:
+def get_runtime_tools() -> list[BaseTool]:
     return list(_RUNTIME_TOOLS.values())

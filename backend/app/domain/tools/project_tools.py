@@ -1,28 +1,26 @@
 import json
 import logging
-from typing import Optional
-from app.logging import get_context
 
 from langchain_core.tools import tool
 
+from app.infrastructure.external.evocloud import evocloud_client
+from app.logging import get_context
 
 logger = logging.getLogger(__name__)
 
 
 @tool
-async def create_project_task(project_id: Optional[int] = None, task_data: str = "") -> str:
+async def create_project_task(project_id: int | None = None, task_data: str = "") -> str:
     """
-    Create a task in the remote project management system via ImagicBox.
+    Create a task in the remote project management system via EvoCloud.
     
     Args:
         project_id (int): The ID of the project to add the task to. Optional.
         task_data (str): JSON string representation of the task data (title, desc, priority, etc.).
     """
     pid = project_id or get_context().get("project_id", 1)
-    
+
     try:
-        from app.infrastructure.external.imagicbox import imagicbox_client
-        
         # Parse task data if it's a string
         if isinstance(task_data, str):
             try:
@@ -34,15 +32,15 @@ async def create_project_task(project_id: Optional[int] = None, task_data: str =
 
         # Ensure project_id is set
         task_dict['project_id'] = pid
-        
+
         # Call ImagicBox Client (Business Logic) - Async
-        response = await imagicbox_client.create_task(data=task_dict)
-        
+        response = await evocloud_client.create_task(data=task_dict)
+
         if response.get("code") == 0:
             return f"Success: Task created with ID {response.get('data', {}).get('task_id')}"
         else:
             return f"Failed: {response.get('message')}"
-            
+
     except Exception as e:
         logger.error(f"Task creation failed: {e}")
         return f"Error preparing task creation: {str(e)}"

@@ -1,6 +1,8 @@
 import uuid
 from typing import Any
+
 from sqlmodel import Field, SQLModel
+
 from .config import SystemConfig
 
 

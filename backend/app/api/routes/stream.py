@@ -5,10 +5,12 @@ Streams tokens and activity updates as they happen.
 import asyncio
 import json
 import logging
+
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
-from app.core.monitoring.activity import activity_monitor
+
 from app.api.deps import verify_guest_access
+from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
@@ -20,7 +22,7 @@ async def stream_chat(thread_id: str):
     SSE endpoint to stream chat updates for a thread.
     Uses Redis Pub/Sub for real-time event streaming.
     """
-    
+
     async def event_generator():
         client = None
         pubsub = None
@@ -40,7 +42,7 @@ async def stream_chat(thread_id: str):
                     "human_request": activity.get("human_request") # Include here
                 }
                 yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
-                
+
                 # Check Human Request immediately
                 if activity.get("human_request"):
                      yield f"event: human_request\ndata: {json.dumps(activity['human_request'])}\n\n"
@@ -49,40 +51,40 @@ async def stream_chat(thread_id: str):
             client = await activity_monitor.get_client()
             pubsub = client.pubsub()
             await pubsub.subscribe(f"chat:{thread_id}:events")
-            
+
             # 3. Stream Events
             # We use a loop with a small timeout on get_message to allow checking for cancellation
             while True:
                 message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-                
+
                 if message and message["type"] == "message":
                     # Raw event JSON from backend
                     raw_data = message["data"] # This is a string (JSON)
-                    
+
                     try:
                         # We parse it just to route it correctly if needed, or forward directly
                         # The backend now sends Pydantic .json() strings.
                         # { "type": "task", "action": "create", "id": 1, ... }
                         event_data = json.loads(raw_data)
                         event_type = event_data.get("type", "unknown")
-                        
+
                         # In Phase 3, we simply forward these as specific SSE events
                         # Frontend currently listens to: token, activity, human_request, status, done, error
                         # WE NEED COMPATIBILITY ADAPTER HERE unless we upgrade frontend immediately.
-                        
+
                         # Compatibility Strategy:
                         # For "token" -> emit 'event: token'
                         # For others -> We should ideally trigger a re-fetch or construct a patch.
                         # BUT, for this refactor to work with EXISTING frontend, we have a problem:
                         # The existing frontend expects "event: activity" with FULL SNAPSHOT.
                         # If we only send deltas, the frontend won't update the lists.
-                        
+
                         # Temporary Hybrid Mode:
                         # If we receive a Task/Artifact/State event, we FETCH the full state again and send it.
                         # This turns "Polling" into "Push-Triggered Polling".
                         # It is still 100x better than blind polling.
                         # Once Frontend is updated (Phase 4), we will send the raw delta.
-                        
+
                         # Let's verify if Token is handled
                         if event_type == "token":
                              # Token events in ActivityMonitor are not actually published separately yet?
@@ -92,7 +94,7 @@ async def stream_chat(thread_id: str):
                              # Ah, `monitor.update_task` sends `TaskEvent(action="update")`.
                              # The `details` field contains the text? No, `details` is full text.
                              pass
-                        
+
                         # -- HYBRID ADAPTER --
                         # Trigger full Snapshot emit on structural change
                         state_changing_events = ["task", "artifact", "state", "status"]
@@ -109,7 +111,7 @@ async def stream_chat(thread_id: str):
                                 "status": current.get("status", "unknown")
                              }
                              yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
-                             
+
                              if event_type == "status":
                                  yield f"event: status\ndata: {json.dumps({'status': current['status']})}\n\n"
 
@@ -118,18 +120,18 @@ async def stream_chat(thread_id: str):
                              content = event_data.get("content")
                              if content:
                                  yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
-                        
+
                     except Exception as e:
                         logger.error(f"Error processing pubsub message: {e}")
 
                 # Maintain the "Token Polling" for now?
                 # Mixing PubSub blocking with Polling is hard unless we use `asyncio.wait_for`.
                 # Let's add a specialized Token Handling.
-                
+
                 # Check tokens "frequently"?
-                # Better: Modify ActivityMonitor to publish TokenEvents. 
+                # Better: Modify ActivityMonitor to publish TokenEvents.
                 # See next step. For now, let's implement the skeleton.
-                
+
                 await asyncio.sleep(0.01)
 
         except asyncio.CancelledError:

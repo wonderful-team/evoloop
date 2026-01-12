@@ -1,31 +1,43 @@
-from typing import Optional, Literal
+from typing import Literal
+
 from langchain_core.runnables import RunnableConfig
+
 from app.core.tools import evoloop_tool
+from app.domain.codebase.analysis.tools import find_definition
+from app.domain.codebase.retrieval.tools import search_codebase
+
+# ... (Delegate imports removed as they are now in actions)
+# Import the new dispatched tool
+from app.domain.tools.files.dispatcher import manage_file
+from app.domain.tools.git import (
+    git_commit,
+    git_create_branch,
+    git_diff,
+    git_history,
+    git_status,
+)
+from app.domain.tools.memory import (
+    add_concept,
+    get_user_preferences,
+    save_preference,
+    search_concepts,
+)
 
 # Imports for delegation
 # Imports for delegation
 from app.infrastructure.filesystem.tool import grep_files
-from app.domain.tools.document_reader import read_document
-from app.domain.codebase.retrieval.tools import search_codebase
-from app.domain.codebase.analysis.tools import find_definition
-from app.domain.tools.git import git_status, git_diff, git_commit, git_history, git_create_branch
-from app.domain.tools.memory import save_preference, get_user_preferences, search_concepts, add_concept
 
-# ... (Delegate imports removed as they are now in actions)
-
-# Import the new dispatched tool
-from app.domain.tools.files.dispatcher import manage_file
 
 @evoloop_tool
 async def manage_file_read_only(
     action: Literal['list_tree', 'read'],
-    path: Optional[str] = None,
+    path: str | None = None,
     recursive: bool = False,
     depth: int = 2,
     file_limit: int = 50,
-    start_line: Optional[int] = None,
-    end_line: Optional[int] = None,
-    config: Optional[RunnableConfig] = None
+    start_line: int | None = None,
+    end_line: int | None = None,
+    config: RunnableConfig | None = None
 ) -> str:
     """
     [READ-ONLY] Use this tool to explore the filesystem. You CANNOT write or modify files.
@@ -33,10 +45,10 @@ async def manage_file_read_only(
     # Force safe actions
     if action not in ['list_tree', 'read']:
          return f"Error: Action '{action}' is not allowed in Read-Only mode."
-    
+
     # Validation Fix: Default path to current directory if None for list_tree
     safe_path = path if path is not None else "."
-         
+
     return await manage_file.ainvoke({
         "action": action,
         "path": safe_path,
@@ -50,10 +62,10 @@ async def manage_file_read_only(
 @evoloop_tool
 async def manage_file_docs_only(
     action: Literal['list_tree', 'read', 'create', 'update_block'],
-    path: Optional[str] = None,
-    content: Optional[str] = None,
-    target: Optional[str] = None,
-    config: Optional[RunnableConfig] = None
+    path: str | None = None,
+    content: str | None = None,
+    target: str | None = None,
+    config: RunnableConfig | None = None
 ) -> str:
     """
     [DOCS-ONLY] Use this tool to write documentation (.md, .txt) ONLY. 
@@ -65,7 +77,7 @@ async def manage_file_docs_only(
         valid_exts = ['.md', '.txt', '.json', '.yaml', '.yml', '.csv']
         if not any(path.endswith(ext) for ext in valid_exts):
              return f"Error: Permission Denied. You may only write to {valid_exts}. For code changes, route to Coder."
-    
+
     # 2. Proxy to real tool
     return await manage_file.ainvoke({
         "action": action,
@@ -80,8 +92,8 @@ async def manage_file_docs_only(
 async def explore_codebase(
     action: Literal['search_symbol', 'search_text', 'semantic_code_search', 'analyze_impact'],
     query: str,
-    scope_path: Optional[str] = None, # Optional file pattern or path
-    config: Optional[RunnableConfig] = None
+    scope_path: str | None = None, # Optional file pattern or path
+    config: RunnableConfig | None = None
 ) -> str:
     """
     Unified Codebase Exploration Tool.
@@ -96,31 +108,31 @@ async def explore_codebase(
         scope_path: Optional glob pattern or path.
     """
     # ... imports delegated to function scope to avoid circular deps if needed
-    from app.domain.codebase.analysis.tools import find_definition, analyze_impact
-    
+    from app.domain.codebase.analysis.tools import analyze_impact
+
     if action == 'search_symbol':
         return await find_definition.ainvoke({"symbol_name": query, "file_pattern": scope_path}, config=config)
-        
+
     elif action == 'search_text':
         # Delegate to grep
         args = {"pattern": query, "is_regex": True}
         if scope_path: args["path"] = scope_path
         return grep_files.invoke(args, config=config)
-        
+
     elif action == 'semantic_code_search':
         return await search_codebase.ainvoke({"query": query}, config=config)
-        
+
     elif action == 'analyze_impact':
         return await analyze_impact.ainvoke({"symbol_name": query}, config=config)
-        
+
     return f"Error: Unknown action '{action}'"
 
 
 @evoloop_tool
 def manage_git(
     action: Literal['status', 'diff', 'commit', 'log', 'create_branch'],
-    argument: Optional[str] = None, # message for commit, branch name, etc.
-    config: Optional[RunnableConfig] = None
+    argument: str | None = None, # message for commit, branch name, etc.
+    config: RunnableConfig | None = None
 ) -> str:
     """
     Unified Git Operations.
@@ -141,34 +153,34 @@ def manage_git(
     elif action == 'create_branch':
         if not argument: return "Error: 'argument' (branch_name) required."
         return git_create_branch.invoke({"branch_name": argument}, config=config)
-        
+
     return f"Error: Unknown action '{action}'"
 
 
 @evoloop_tool
 async def manage_memory(
     action: Literal['save_preference', 'retrieve_preferences', 'add_concept', 'search_concepts'],
-    key: Optional[str] = None, # concept name or pref key
-    value: Optional[str] = None, # description or pref value
-    config: Optional[RunnableConfig] = None
+    key: str | None = None, # concept name or pref key
+    value: str | None = None, # description or pref value
+    config: RunnableConfig | None = None
 ) -> str:
     """
     Unified Memory Management.
     """
     # Assuming user_id is handled implicitly or 'user_default'
-    user_id = "user_default" 
-    
+    user_id = "user_default"
+
     if action == 'save_preference':
         if not key or not value: return "Error: key/value required."
         return await save_preference.ainvoke({"key": key, "value": value}, config=config)
-        
+
     elif action == 'retrieve_preferences':
         return await get_user_preferences.ainvoke({"user_id": user_id}, config=config)
-        
+
     elif action == 'add_concept':
         if not key or not value: return "Error: key (name) and value (description) required."
         return await add_concept.ainvoke({"name": key, "description": value}, config=config)
-        
+
     elif action == 'search_concepts':
         if not key: return "Error: key (query) required."
         return await search_concepts.ainvoke({"query": key}, config=config)
@@ -177,6 +189,7 @@ async def manage_memory(
 
 
 from app.utils.context import get_context
+
 
 @evoloop_tool
 async def consult_architecture(path: str = ""):
@@ -190,17 +203,17 @@ async def consult_architecture(path: str = ""):
     """
     ctx = get_context()
     project_id = ctx.get("project_id")
-    
+
     if not project_id:
         return "Error: No active project context."
 
     from app.domain.memory.service import memory_service
-    
+
     info = await memory_service.get_directory_info(project_id, path)
-    
+
     output = [f"# Architecture Report: {info['path'] or 'Root'}"]
     output.append(f"**Summary**: {info['summary']}\n")
-    
+
     if info['sub_modules']:
         output.append("**Sub-Modules**:")
         for Sub in info['sub_modules']:
@@ -208,11 +221,11 @@ async def consult_architecture(path: str = ""):
             s = Sub['summary'] or "No summary"
             output.append(f"- `{Sub['name']}`: {s[:100]}...")
         output.append("")
-            
+
     if info['dependencies']:
         output.append("**Dependencies (Outgoing)**:")
         for dep in info['dependencies']:
             output.append(f"- Depends on `{dep['target']}` (Weight: {dep['weight']})")
-    
+
     return "\n".join(output)
 

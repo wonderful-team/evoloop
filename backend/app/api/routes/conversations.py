@@ -1,16 +1,16 @@
-from typing import List, Optional, Any
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel
-from sqlalchemy import select, delete
-from datetime import datetime, timezone
-from langchain_core.messages import HumanMessage, RemoveMessage
+from datetime import datetime
 
-from app.logging import logger
-from app.infrastructure.database.sql.database import get_db_session
-from app.infrastructure.database.sql.models import Conversation, Message
-from app.core.persistence import get_db_pool
+from fastapi import APIRouter, HTTPException
+from langchain_core.messages import HumanMessage, RemoveMessage
+from pydantic import BaseModel
+from sqlalchemy import delete, select
+
 from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
+from app.core.persistence import get_db_pool
+from app.infrastructure.database.sql.database import get_db_session
+from app.infrastructure.database.sql.models import Conversation, Message
+from app.logging import logger
 
 router = APIRouter()
 
@@ -21,7 +21,7 @@ class SearchResult(BaseModel):
     role: str
     content: str
     created_at: str
-    match_snippet: Optional[str] = None
+    match_snippet: str | None = None
 
 class RenameRequest(BaseModel):
     title: str
@@ -29,8 +29,8 @@ class RenameRequest(BaseModel):
 class ConversationListItem(BaseModel):
     thread_id: str
     title: str
-    project_id: Optional[int]
-    updated_at: Optional[datetime]
+    project_id: int | None
+    updated_at: datetime | None
     status: str = "idle"
 
 class ReferenceItem(BaseModel):
@@ -43,12 +43,12 @@ class MessageItem(BaseModel):
     id: str
     type: str
     content: str
-    thinking: Optional[str]
-    created_at: Optional[str]
-    tasks_snapshot: Optional[List[dict]] = None  # Phase 6: Historical task steps
-    run_id: Optional[str] = None  # Phase 8: Deep Linking
-    parent_id: Optional[int] = None # Phase 8: Threading
-    references: List[ReferenceItem] = [] # Phase 9: Persistent References
+    thinking: str | None
+    created_at: str | None
+    tasks_snapshot: list[dict] | None = None  # Phase 6: Historical task steps
+    run_id: str | None = None  # Phase 8: Deep Linking
+    parent_id: int | None = None # Phase 8: Threading
+    references: list[ReferenceItem] = [] # Phase 9: Persistent References
 
 class RewindResponse(BaseModel):
     status: str
@@ -56,8 +56,8 @@ class RewindResponse(BaseModel):
     removed_count: int = 0
 
 
-@router.get("/", response_model=List[ConversationListItem])
-async def list_conversations(project_id: Optional[int] = None):
+@router.get("/", response_model=list[ConversationListItem])
+async def list_conversations(project_id: int | None = None):
     """
     List conversations, optionally filtered by project.
     """
@@ -65,21 +65,25 @@ async def list_conversations(project_id: Optional[int] = None):
         stmt = select(Conversation).order_by(Conversation.updated_at.desc())
         if project_id:
             stmt = stmt.where(Conversation.project_id == project_id)
-            
+
         result = await session.execute(stmt)
         conversations = result.scalars().all()
-        
+
+        # Fetch active statuses
+        thread_ids = [c.id for c in conversations]
+        status_map = await activity_monitor.get_statuses(thread_ids)
+
         return [
             ConversationListItem(
                 thread_id=c.id,
                 title=c.title or "Untitled",
                 project_id=c.project_id,
                 updated_at=c.updated_at,
-                status="idle" # TODO: Fetch status from active runs?
+                status=status_map.get(c.id, "idle")
             ) for c in conversations
         ]
 
-@router.get("/{thread_id}/messages", response_model=List[MessageItem])
+@router.get("/{thread_id}/messages", response_model=list[MessageItem])
 async def get_conversation_messages(thread_id: str):
     """
     Get message history for a thread from the persistent SQL log.
@@ -97,7 +101,7 @@ async def get_conversation_messages(thread_id: str):
             )
             result = await session.execute(stmt)
             db_messages = result.scalars().all()
-            
+
             return [
                 MessageItem(
                     id=str(m.id),
@@ -119,37 +123,37 @@ async def get_conversation_messages(thread_id: str):
                 )
                 for m in db_messages
             ]
-            
+
     except Exception as e:
         logger.error(f"Failed to fetch history for {thread_id}: {e}")
         return []
 
-@router.get("/search", response_model=List[SearchResult])
-async def search_conversations(q: str, project_id: Optional[int] = None):
+@router.get("/search", response_model=list[SearchResult])
+async def search_conversations(q: str, project_id: int | None = None):
     """
     Full-text search on message logs.
     """
     if not q or len(q.strip()) < 2:
         return []
-        
+
     async with get_db_session() as session:
         stmt = select(Message).where(Message.content.ilike(f"%{q}%"))
-        
+
         if project_id:
             stmt = stmt.where(Message.project_id == project_id)
-            
+
         stmt = stmt.order_by(Message.created_at.desc()).limit(20)
-        
+
         result = await session.execute(stmt)
         logs = result.scalars().all()
-        
+
         return [
             SearchResult(
                 thread_id=log.thread_id,
                 role=log.role,
-                content=log.content, 
+                content=log.content,
                 created_at=str(log.created_at),
-                match_snippet=log.content[:200] 
+                match_snippet=log.content[:200]
             )
             for log in logs
         ]
@@ -163,10 +167,10 @@ async def rename_conversation(thread_id: str, req: RenameRequest):
         conversation = await session.get(Conversation, thread_id)
         if not conversation:
             raise HTTPException(404, "Conversation not found")
-            
+
         conversation.title = req.title
         await session.commit()
-        
+
     return {"status": "updated", "thread_id": thread_id, "title": req.title}
 
 @router.get("/{thread_id}/activity")
@@ -180,25 +184,25 @@ async def delete_conversation(thread_id: str):
     db_pool = get_db_pool()
     if not db_pool:
         raise HTTPException(503, "Database not initialized")
-        
+
     try:
         # 1. Delete Checkpoints (Binary)
         async with db_pool.connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute("DELETE FROM checkpoints WHERE thread_id = %s", (thread_id,))
                 await cur.execute("DELETE FROM checkpoints_writes WHERE thread_id = %s", (thread_id,))
-        
+
         # 2. Delete Thread Metadata & Logs
         async with get_db_session() as session:
             # Delete Conversation
             conversation = await session.get(Conversation, thread_id)
             if conversation:
                 await session.delete(conversation)
-            
+
             # Delete Logs (Bulk delete)
             await session.execute(delete(Message).where(Message.thread_id == thread_id))
             await session.commit()
-            
+
         return {"status": "deleted", "thread_id": thread_id}
     except Exception as e:
         logger.error(f"Failed to delete conversation: {e}")
@@ -210,42 +214,42 @@ async def rewind_conversation(thread_id: str):
     Rewind the conversation to the previous state (Undo last step).
     """
     graph = get_graph()
-    
+
     if not graph:
         raise HTTPException(503, "Graph unavailable")
-        
+
     config = {"configurable": {"thread_id": thread_id}}
     state = await graph.aget_state(config)
-    
+
     if not state.values:
         return {"status": "empty", "thread_id": thread_id}
-        
+
     messages = state.values.get("messages", [])
     if not messages:
         return {"status": "empty", "thread_id": thread_id}
-        
+
     # Find the last HumanMessage
     to_delete = []
-    
+
     # Iterate backwards
     for i in range(len(messages) - 1, -1, -1):
         msg = messages[i]
         to_delete.append(msg)
         if isinstance(msg, HumanMessage):
             break
-            
+
     if not to_delete:
         return {"status": "no_human_message_found", "thread_id": thread_id, "removed_count": 0}
-        
+
     updates = []
     for m in to_delete:
         if hasattr(m, "id") and m.id:
             updates.append(RemoveMessage(id=m.id))
-            
+
     if updates:
         # 1. Update Graph State
         await graph.aupdate_state(config, {"messages": updates})
-        
+
         # 2. Sync DB
         msg_ids = [u.id for u in updates]
         if msg_ids:
@@ -256,7 +260,7 @@ async def rewind_conversation(thread_id: str):
                 logger.info(f"DB Sync: Deleted {len(msg_ids)} messages.")
             except Exception as e:
                 logger.error(f"DB Sync Failed during rewind: {e}")
-                
+
         return {"status": "rewound", "removed_count": len(updates), "thread_id": thread_id}
     else:
         return {"status": "failed_no_ids", "thread_id": thread_id, "removed_count": 0}

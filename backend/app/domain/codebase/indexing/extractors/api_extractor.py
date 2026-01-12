@@ -1,11 +1,11 @@
 
 import logging
-from typing import List, Dict, Optional
 from dataclasses import dataclass
+
 import tree_sitter
 
-from app.utils.file import read_file_content
 from app.domain.codebase.indexing.parsers import parser_registry
+from app.utils.file import read_file_content
 
 logger = logging.getLogger(__name__)
 
@@ -105,7 +105,7 @@ class APIExtractor:
     """
 
     HTTP_METHODS = {"get", "post", "put", "delete", "patch", "options", "head"}
-    
+
     # Map Annotation to Method for Java/C#
     ANNOTATION_TO_METHOD = {
         "GetMapping": "GET",
@@ -120,25 +120,25 @@ class APIExtractor:
         "HttpPatch": "PATCH"
     }
 
-    async def extract(self, file_path: str) -> List[APIEndpoint]:
+    async def extract(self, file_path: str) -> list[APIEndpoint]:
         extension = file_path.split(".")[-1].lower()
         supported_exts = ["py", "ts", "js", "tsx", "java", "go", "cs", "csharp"]
-        
+
         if extension not in supported_exts:
             return []
 
         parser_info = parser_registry.get_parser(extension)
         if not parser_info:
             return []
-        
+
         parser, language = parser_info
-        
+
         try:
             content, _ = read_file_content(file_path)
             if not content: return []
-            
+
             tree = parser.parse(bytes(content, "utf8"))
-            
+
             if extension == "py":
                 return self._extract_python(tree, language, file_path)
             elif extension in ["ts", "js", "tsx"]:
@@ -149,14 +149,14 @@ class APIExtractor:
                 return self._extract_go(tree, language, file_path)
             elif extension in ["cs", "csharp"]:
                 return self._extract_csharp(tree, language, file_path)
-                
+
             return []
 
         except Exception as e:
             logger.error(f"API Extraction failed for {file_path}: {e}")
             return []
 
-    def _extract_python(self, tree, language, file_path) -> List[APIEndpoint]:
+    def _extract_python(self, tree, language, file_path) -> list[APIEndpoint]:
         endpoints = []
         try:
             query = tree_sitter.Query(language, self.PYTHON_API_QUERY)
@@ -168,16 +168,16 @@ class APIExtractor:
                 method_node = self._get_node(captured_nodes, "method")
                 path_node = self._get_node(captured_nodes, "path")
                 handler_node = self._get_node(captured_nodes, "handler")
-                
+
                 if not (obj_node and method_node and path_node and handler_node): continue
-                
+
                 method = method_node.text.decode("utf8").lower()
-                
+
                 if method not in self.HTTP_METHODS: continue
-                
+
                 path = path_node.text.decode("utf8").strip("'\"")
                 handler = handler_node.text.decode("utf8")
-                
+
                 endpoints.append(APIEndpoint(
                     method=method.upper(),
                     path=path,
@@ -190,7 +190,7 @@ class APIExtractor:
             logger.warning(f"Python API Query Error: {e}")
         return endpoints
 
-    def _extract_typescript(self, tree, language, file_path) -> List[APIEndpoint]:
+    def _extract_typescript(self, tree, language, file_path) -> list[APIEndpoint]:
         endpoints = []
         try:
             query = tree_sitter.Query(language, self.TYPESCRIPT_API_QUERY)
@@ -202,9 +202,9 @@ class APIExtractor:
                 method_node = self._get_node(captured_nodes, "method")
                 path_node = self._get_node(captured_nodes, "path")
                 handler_node = self._get_node(captured_nodes, "handler")
-                
+
                 if not (obj_node and method_node and path_node and handler_node): continue
-                
+
                 method = method_node.text.decode("utf8").lower()
                 if method not in self.HTTP_METHODS: continue
 
@@ -218,7 +218,7 @@ class APIExtractor:
                 handler = "anonymous"
                 if handler_node.type == "identifier":
                      handler = handler_node.text.decode("utf8")
-                
+
                 endpoints.append(APIEndpoint(
                     method=method.upper(),
                     path=path,
@@ -226,33 +226,33 @@ class APIExtractor:
                     file_path=file_path,
                     line_number=method_node.start_point[0] + 1
                 ))
-                
+
         except Exception as e:
             logger.warning(f"TypeScript API Query Error: {e}")
         return endpoints
 
-    def _extract_java(self, tree, language, file_path) -> List[APIEndpoint]:
+    def _extract_java(self, tree, language, file_path) -> list[APIEndpoint]:
         endpoints = []
         try:
             query = tree_sitter.Query(language, self.JAVA_API_QUERY)
             cursor = tree_sitter.QueryCursor(query)
             matches = cursor.matches(tree.root_node)
-            
+
             for _, captured_nodes in matches:
                 annotation_node = self._get_node(captured_nodes, "annotation")
                 path_node = self._get_node(captured_nodes, "path")
                 handler_node = self._get_node(captured_nodes, "handler")
-                
+
                 if not (annotation_node and handler_node): continue
-                
+
                 annotation = annotation_node.text.decode("utf8")
                 method = self.ANNOTATION_TO_METHOD.get(annotation)
                 if not method: continue
-                
+
                 path = "/"
                 if path_node:
                     path = path_node.text.decode("utf8").strip('"')
-                
+
                 endpoints.append(APIEndpoint(
                     method=method,
                     path=path,
@@ -264,7 +264,7 @@ class APIExtractor:
             logger.warning(f"Java API Query Error: {e}")
         return endpoints
 
-    def _extract_go(self, tree, language, file_path) -> List[APIEndpoint]:
+    def _extract_go(self, tree, language, file_path) -> list[APIEndpoint]:
         endpoints = []
         try:
             query = tree_sitter.Query(language, self.GO_API_QUERY)
@@ -275,14 +275,14 @@ class APIExtractor:
                 method_node = self._get_node(captured_nodes, "method")
                 path_node = self._get_node(captured_nodes, "path")
                 handler_node = self._get_node(captured_nodes, "handler")
-                
+
                 if not (method_node and path_node and handler_node): continue
-                
+
                 method = method_node.text.decode("utf8").upper()
                 if method not in map(str.upper, self.HTTP_METHODS): continue
-                
+
                 path = path_node.text.decode("utf8").strip('"')
-                
+
                 handler_name = "anonymous"
                 if handler_node.type == "identifier":
                     handler_name = handler_node.text.decode("utf8")
@@ -298,31 +298,31 @@ class APIExtractor:
             logger.warning(f"Go API Query Error: {e}")
         return endpoints
 
-    def _extract_csharp(self, tree, language, file_path) -> List[APIEndpoint]:
+    def _extract_csharp(self, tree, language, file_path) -> list[APIEndpoint]:
         endpoints = []
         try:
             query = tree_sitter.Query(language, self.CSHARP_API_QUERY)
             cursor = tree_sitter.QueryCursor(query)
             matches = cursor.matches(tree.root_node)
-            
+
             for _, captured_nodes in matches:
                 attr_node = self._get_node(captured_nodes, "method_attr")
                 path_arg_node = self._get_node(captured_nodes, "path_arg")
                 handler_node = self._get_node(captured_nodes, "handler")
-                
+
                 if not (attr_node and handler_node): continue
-                
+
                 attr_name = attr_node.text.decode("utf8")
                 method = self.ANNOTATION_TO_METHOD.get(attr_name)
                 if not method: continue
-                
+
                 path = "/"
                 if path_arg_node:
                     # text is usually '"path"', so strip quotes
                     path_text = path_arg_node.text.decode("utf8").strip()
                     if path_text.startswith('"') and path_text.endswith('"'):
                         path = path_text.strip('"')
-                    elif path_text.startswith('nameof('): 
+                    elif path_text.startswith('nameof('):
                         # skip complex args for now
                         continue
 
@@ -338,15 +338,15 @@ class APIExtractor:
             logger.warning(f"C# API Query Error: {e}")
         return endpoints
 
-    def _get_node(self, captured: Dict, name: str):
+    def _get_node(self, captured: dict, name: str):
         nodes = captured.get(name)
         if not nodes: return None
         if isinstance(nodes, list): return nodes[0]
         return nodes
 
-    async def sync_to_graph(self, project_id: int, endpoints: List[APIEndpoint]):
+    async def sync_to_graph(self, project_id: int, endpoints: list[APIEndpoint]):
         if not endpoints: return
-        
+
         try:
             from app.infrastructure.database.graph.driver import get_graph_db
             driver = await get_graph_db()
@@ -359,9 +359,9 @@ class APIExtractor:
                         WITH e
                         MATCH (fn:CodeEntity {name: $handler, project_id: $pid}) 
                         MERGE (e)-[:HANDLED_BY]->(fn)
-                    """, id=full_name, pid=project_id, method=ep.method, path=ep.path, 
+                    """, id=full_name, pid=project_id, method=ep.method, path=ep.path,
                          handler=ep.handler_name, file=ep.file_path)
-                          
+
         except Exception as e:
             logger.error(f"Graph Sync for API failed: {e}")
 

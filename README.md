@@ -1,20 +1,38 @@
 # EvoLoop - 通用智能体系统 (Universal Agent System)
 
-EvoLoop 是一个先进的**通用智能体系统**，旨在跨多个环境（Web、桌面和移动端）自主规划、研究、编码和执行任务。基于 **LangGraph** 构建，它编排了一组专业的智能体（Agent）来处理复杂的工作流，具备自我纠错和深度上下文感知能力。
+EvoLoop 是一个先进的**通用智能体系统**，旨在跨多个环境（Web、桌面和移动端）自主规划、研究、编码和执行任务。基于 **LangGraph** 构建，它编排了一组专业的智能体（Agent）来处理复杂的**任务循环 (Task Loops)**，具备自我纠错和深度上下文感知能力。
 
 ## 🌟 核心特性 (Key Features)
 
 - **🧠 自主编排 (Autonomous Orchestration)**: 系统支持 **Multi-Agent Orchestration (Phase 10)**。除了预置的 Supervisor，Agent 现在可以动态发现并根据 YAML 配置生成 **Sub-Agents (Skills)**，实现无限层级的任务委派 (`Manager` -> `Architect` -> `Coder`)。
-- **🧬 元进化循环 (Meta-Evolution Loop)**: 具备自我诊断和自我修复能力。`SystemScanner` 全天候监控系统健康状况，一旦发现异常，自动触发 `EvolutionPlanner` 编写修复代码并提交测试分支。
+- **🔮 自省与进化 (Introspection & Evolution)**:
+  - **Runtime Introspection**: `Meta-Reviewer` 节点充当即时裁判。当任务陷入死循环或测试反复失败时，它会介入分析架构上下文，提供破局建议。
+  - **Meta-Evolution Loop**: `SystemScanner` 充当系统医生。全天候监控运行日志，统计故障率。一旦发现系统性缺陷，自动触发 "进化模式"，修改自身后端代码以适应新环境（需开启 `ENABLE_SELF_EVOLUTION`）。
 - **🕸️ 图谱情节记忆 (Graph-RAG Episodic Memory)**: 将每一次任务的经验（目标、计划、结果）转化为 Neo4j 中的知识图谱节点。Agent 在规划新任务时会自动回忆相似的历史情节，避免重复错误。
-- **🧩 动态工具 (Dynamic Tooling)**: Agent 具备自我进化能力，能在运行时编写全新的 Python 工具 (`create_python_tool`) 并立即注册使用，不再受限于预定义的工具集。
+- **🧩 动态工具与 MCP (Dynamic Tooling & MCP)**:
+  - **Self-Evolution**: Agent 能在运行时编写全新的 Python 工具 (`create_python_tool`) 并立即注册使用。
+  - **MCP Management**: 支持运行时动态挂载/卸载符合 Model Context Protocol 的外部工具服务（如文件系统、搜索工具），无需重启。
 - **🌐 全平台控制 (Omni-Platform Control)**:
-  - **Browser**: 自动化 Web 交互。
-  - **Desktop**: 控制本地桌面环境。
-  - **Mobile**: 通过 Tauri 管理移动端工作流。
-- **📚 深度代码理解 (Deep Code Understanding)**: 使用 **Neo4j** 和 **Tree-sitter** 对代码库进行语义索引和查询。
-- **🔄 自愈工作流 (Self-Healing Workflows)**: `Coder` <-> `Tester` 循环允许系统在无需人工干预的情况下迭代检测并修复 Bug。
+  - **Browser**: 自动化 Web 交互 (基于 Playwright)。
+  - **Desktop**: 控制本地桌面环境 (基于 Agent-S)。
+  - **Mobile**: 通过 Tauri 管理移动端任务循环。
+- **☁️ EvoCloud 集成 (EvoCloud Integration)**: 内置 `ImagicBoxClient`，实现本地智能体与云端项目管理（任务、工时、预算）的实时同步，并支持通过 WebSocket 远程控制设备。
+- **📚 深度代码理解 (Deep Code Understanding)**:
+  - **Semantic Indexing**: 使用 **Neo4j** 和 **Tree-sitter** 对代码库进行语义索引。
+  - **Architecture Inference**: 自动推断模块间的高层依赖关系（如 "Module A depends on Module B"），生成架构知识图谱。
+- **🗣️ 动态语言适配 (Dynamic Language Adaptation)**: 系统提示词 (Prompts) 会根据用户偏好动态注入语言设置，支持多语言无缝切换。
+- **🔄 自愈循环 (Self-Healing Loops)**: `Coder` <-> `Tester` 循环允许系统在无需人工干预的情况下迭代检测并修复 Bug。
+- **👁️ 视觉理解 (Visual Understanding)**:
+  - **Multimodal Analysis**: 支持输入图片（本地路径或 URL）。Agent 可以调用 `analyze_image` 工具对 UI 截图、架构图或报错截图进行深度分析。
+  - **UI Vision**: 专门针对 GUI/Web 界面优化，能识别按钮、表单和布局结构，辅助 `Browser` 和 `Desktop` Agent 进行精准操作。
+  - **Mobile Visual Command**: 移动端 App 支持直接向 Agent 发送图片指令（如拍照上传 Bug 截图）。系统会自动解析图片内容并作为上下文的一部分进行处理，实现随时随地的多模态交互。
 - **⚡ 并行深度研究 (Parallel Deep Research)**: 在执行前生成并发的研究任务以收集信息。
+- **🛡️ Human-in-the-Loop (HITL) 2.0**:
+  - **Approval Card**: 关键决策（如大范围文件修改、危险Shell命令）会自动挂起。前端会弹出 "Approval Card" 展示 Diff 和风险等级，等待用户 `Approve` 或 `Reject`。
+  - **Interrupt & Resume**: 即使 Agent 处于后台长时间运行（如 Deep Research），用户也可以随时发送指令中断当前执行，调整目标后无缝恢复。
+  - **Autonomous Mode**: 支持在设置中按需开启 "自主模式" 以跳过低风险审批，但在高风险操作时自动回落到 HITL。
+- **📖 自动化文档 (Automated Documentation)**:
+  - **Auto-Wiki**: 一键生成项目 Wiki。Agent 会深度扫描项目结构，规划章节，并撰写 Markdown 文档。
 
 ## 🐝 多智能体编排 (Multi-Agent Orchestration)
 
@@ -22,7 +40,7 @@ EvoLoop Phase 10 引入了**动态技能注册 (Skill Registry)** 和 **委派�
 
 ### 1. 标准工程团队 (Standard Engineering Team)
 
-系统内置了一组专家级 Agent 配置 (`backend/app/core/workflows/config/`)：
+系统内置了一组专家级 Agent 配置 (`backend/app/core/engine/config/`)：
 
 | Agent Role | ID (`skill_name`) | 职能描述 | 核心工具 |
 | :--- | :--- | :--- | :--- |
@@ -47,7 +65,7 @@ await delegate_task.ainvoke({
 
 ### 3. 自定义 Agent (Custom Skills)
 
-您可以在 `backend/app/core/workflows/config/` 目录下创建新的 `.yaml` 文件来定义新的 Agent：
+您可以在 `backend/app/core/engine/config/` 目录下创建新的 `.yaml` 文件来定义新的 Agent：
 
 ```yaml
 # my_agent.yaml
@@ -55,7 +73,7 @@ name: my_special_agent
 version: "1.0"
 nodes:
   - id: worker
-    path: "app.core.workflows.nodes.generic.GenericLLMNode"
+    path: "app.core.engine.nodes.generic.GenericLLMNode"
     config:
       system_prompt: "You are a Specialist in X."
       tools: ["your_tool_a", "your_tool_b"]
@@ -71,15 +89,24 @@ edges:
 系统分为强大的 Python 后端和跨平台的前端。
 
 ### 后端 (`/backend`)
-- **框架**: FastAPI + LangGraph
+- **核心引擎**: FastAPI + LangGraph (Supervisor/Nodes Architecture)
 - **数据库**: PostgreSQL (关系型) + Neo4j (图数据库)
 - **队列**: Redis + Celery
+- **云连接**: ImagicBox Client (WebSocket + REST)
 - **运行时**: Python 3.11 (由 `uv` 管理)
 
 ### 前端 (`/frontend`)
 - **核心**: React 19 + Vite
 - **UI 组件**: Shadcn/UI + TailwindCSS v4
 - **原生封装**: Tauri v2 (支持 Windows, macOS, Linux, Android, iOS)
+
+## ☁️ EvoCloud 架构 (Cloud Architecture)
+
+EvoLoop 不仅仅是一个本地 Agent，它通过 `ImagicBoxClient` 深度集成到企业级研发管理流中：
+
+1.  **项目同步 (Project Sync)**: 本地代码变更会自动追踪，并与云端项目任务 (Task/Feature) 关联。
+2.  **远程控制 (Device Link)**: 通过 WebSocket 长连接，云端 Supervisor 可以向本地 Agent 发送指令（如 "修复这个 Bug"），Agent 执行后自动上传日志和结果。
+3.  **资源管理**: 自动同步工时 (Timesheet) 和预算消耗，实现精确的研发成本核算。
 
 ## ⚡ 微技能架构 (Micro-Skills Architecture)
 

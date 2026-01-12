@@ -1,7 +1,8 @@
-import httpx
-from typing import Optional, Dict
 
-def create_client(timeout: float = 30.0, headers: Optional[Dict[str, str]] = None) -> httpx.AsyncClient:
+import httpx
+
+
+def create_client(timeout: float = 30.0, headers: dict[str, str] | None = None) -> httpx.AsyncClient:
     """
     Create a unified httpx.AsyncClient.
     Ensures consistent timeout and User-Agent.
@@ -12,7 +13,7 @@ def create_client(timeout: float = 30.0, headers: Optional[Dict[str, str]] = Non
     }
     if headers:
         default_headers.update(headers)
-        
+
     return httpx.AsyncClient(
         timeout=timeout,
         headers=default_headers,

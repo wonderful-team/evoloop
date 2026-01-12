@@ -1,10 +1,12 @@
 
-from typing import Dict, Any, List
+from typing import Any
+
 from langchain_core.messages import HumanMessage
+
 
 class EventAdapter:
     @staticmethod
-    def adapt(source: str, event_type: str, payload: Dict[str, Any]) -> List[HumanMessage]:
+    def adapt(source: str, event_type: str, payload: dict[str, Any]) -> list[HumanMessage]:
         """
         Convert external event payload into LangChain messages.
         """
@@ -17,11 +19,11 @@ class EventAdapter:
             return [HumanMessage(content=f"Received unknown event from {source}: {payload}")]
 
     @staticmethod
-    def _adapt_niushop(event_type: str, payload: Dict[str, Any]) -> List[HumanMessage]:
+    def _adapt_niushop(event_type: str, payload: dict[str, Any]) -> list[HumanMessage]:
         task_id = payload.get("id", "Unknown")
         title = payload.get("title", "")
         desc = payload.get("description", "")
-        
+
         content = f"""
         **System Notification**: NiuShop Task Assigned
         **Task ID**: {task_id}
@@ -34,13 +36,13 @@ class EventAdapter:
         return [HumanMessage(content=content)]
 
     @staticmethod
-    def _adapt_gitlab(event_type: str, payload: Dict[str, Any]) -> List[HumanMessage]:
+    def _adapt_gitlab(event_type: str, payload: dict[str, Any]) -> list[HumanMessage]:
         # Simplify GitLab webhook payload
         object_attr = payload.get("object_attributes", {})
         title = object_attr.get("title", "")
         desc = object_attr.get("description", "")
         url = object_attr.get("url", "")
-        
+
         content = f"""
         **System Notification**: GitLab Issue Created
         **Title**: {title}

@@ -1,4 +1,5 @@
-from neo4j import GraphDatabase, AsyncGraphDatabase
+from neo4j import AsyncGraphDatabase
+
 from app.core.config import settings
 from app.logging import logger
 
@@ -11,7 +12,7 @@ class Neo4jManager:
         if cls._driver is None:
             try:
                 cls._driver = AsyncGraphDatabase.driver(
-                    settings.NEO4J_URI, 
+                    settings.NEO4J_URI,
                     auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD)
                 )
                 logger.info("Connected to Neo4j")

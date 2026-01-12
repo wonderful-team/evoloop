@@ -1,6 +1,5 @@
 import logging
 import sys
-import contextvars
 from datetime import datetime, timezone
 
 from app.core.config import settings
@@ -50,7 +49,7 @@ def setup_logging():
     Configure the logging for the application.
     """
     handler = logging.StreamHandler(sys.stderr)
-    
+
     if settings.APP_ENV == "development":
         # Dev: Human Readable but with Context
         formatter = logging.Formatter(
@@ -59,14 +58,14 @@ def setup_logging():
     else:
         # Prod: JSON
         formatter = JSONFormatter()
-        
+
     handler.setFormatter(formatter)
-    
+
     # Root Logger
     root = logging.getLogger()
     root.setLevel(settings.LOG_LEVEL)
     root.handlers = [handler]
-    
+
     # Add Filter
     context_filter = ContextFilter()
     handler.addFilter(context_filter) # Filter on handler ensuring it applies to formatter

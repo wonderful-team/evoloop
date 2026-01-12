@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import List, Optional, ForwardRef
-from sqlalchemy import String, Integer, ForeignKey, DateTime, Text, JSON
+from typing import ForwardRef, Optional
+
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
@@ -18,30 +20,30 @@ class Message(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     thread_id: Mapped[str] = mapped_column(String(255), index=True)
-    project_id: Mapped[Optional[int]] = mapped_column(Integer, index=True)
+    project_id: Mapped[int | None] = mapped_column(Integer, index=True)
     role: Mapped[str] = mapped_column(String(50))  # "human", "ai"
     content: Mapped[str] = mapped_column(Text)
-    thinking: Mapped[Optional[str]] = mapped_column(Text)  # Separate reasoning content
+    thinking: Mapped[str | None] = mapped_column(Text)  # Separate reasoning content
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    sequence_number: Mapped[Optional[int]] = mapped_column(Integer)  # Thread-local ordering
+    sequence_number: Mapped[int | None] = mapped_column(Integer)  # Thread-local ordering
 
     # Optional: reference to checkpoint ID if we want to linked back to graph state
-    checkpoint_id: Mapped[Optional[str]] = mapped_column(String(255))
+    checkpoint_id: Mapped[str | None] = mapped_column(String(255))
 
     # New columns for tool calls
-    tool_calls: Mapped[Optional[List[dict]]] = mapped_column(JSON)
-    tool_output: Mapped[Optional[str]] = mapped_column(Text)
+    tool_calls: Mapped[list[dict] | None] = mapped_column(JSON)
+    tool_output: Mapped[str | None] = mapped_column(Text)
 
     # Phase 3: Message-Run Association
-    run_id: Mapped[Optional[str]] = mapped_column(String(255), index=True)  # Associate with a specific execution run
-    status: Mapped[Optional[str]] = mapped_column(String(50))  # pending, streaming, completed, failed, waiting_human
-    tasks_snapshot: Mapped[Optional[List[dict]]] = mapped_column(JSON)  # Embedded task steps at completion
+    run_id: Mapped[str | None] = mapped_column(String(255), index=True)  # Associate with a specific execution run
+    status: Mapped[str | None] = mapped_column(String(50))  # pending, streaming, completed, failed, waiting_human
+    tasks_snapshot: Mapped[list[dict] | None] = mapped_column(JSON)  # Embedded task steps at completion
 
     # Phase 4: Threading
-    parent_id: Mapped[Optional[int]] = mapped_column(ForeignKey("messages.id"), nullable=True)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), nullable=True)
     parent: Mapped[Optional["Message"]] = relationship("Message", remote_side="[Message.id]", backref="children")
 
-    references: Mapped[List["MessageReference"]] = relationship(back_populates="message", cascade="all, delete-orphan")
+    references: Mapped[list["MessageReference"]] = relationship(back_populates="message", cascade="all, delete-orphan")
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages",
                                                         primaryjoin="Message.thread_id == Conversation.id",
@@ -73,11 +75,11 @@ class Conversation(Base):
 
     id: Mapped[str] = mapped_column(String(255), primary_key=True)  # thread_id (uuid)
     project_id: Mapped[int] = mapped_column(Integer, index=True)
-    title: Mapped[Optional[str]] = mapped_column(String(255))
+    title: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
-    messages: Mapped[List["Message"]] = relationship(back_populates="conversation", cascade="all, delete-orphan",
+    messages: Mapped[list["Message"]] = relationship(back_populates="conversation", cascade="all, delete-orphan",
                                                      primaryjoin=lambda: Message.thread_id == Conversation.id,
                                                      foreign_keys=[Message.thread_id])
     plan: Mapped[Optional["Plan"]] = relationship("Plan", back_populates="conversation", uselist=False,
@@ -95,6 +97,6 @@ class HumanRequest(Base):
     type: Mapped[str] = mapped_column(String(50))  # 'input', 'confirmation', 'selection'
     description: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, completed, rejected
-    result: Mapped[Optional[str]] = mapped_column(Text)  # JSON string of user input
+    result: Mapped[str | None] = mapped_column(Text)  # JSON string of user input
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

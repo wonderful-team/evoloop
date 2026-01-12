@@ -10,7 +10,10 @@ import shutil
 import threading
 from typing import Any
 
-from app.infrastructure.solidlsp.language_servers.common import RuntimeDependency, RuntimeDependencyCollection
+from app.infrastructure.solidlsp.language_servers.common import (
+    RuntimeDependency,
+    RuntimeDependencyCollection,
+)
 from app.infrastructure.solidlsp.ls import SolidLanguageServer
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig
 from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import InitializeParams

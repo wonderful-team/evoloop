@@ -12,9 +12,11 @@ from pathlib import Path
 from time import sleep
 from typing import Any
 
-
 from app.infrastructure.solidlsp import ls_types
-from app.infrastructure.solidlsp.language_servers.common import RuntimeDependency, RuntimeDependencyCollection
+from app.infrastructure.solidlsp.language_servers.common import (
+    RuntimeDependency,
+    RuntimeDependencyCollection,
+)
 from app.infrastructure.solidlsp.language_servers.typescript_language_server import (
     TypeScriptLanguageServer,
     prefer_non_node_modules_definition,
@@ -25,7 +27,12 @@ from app.infrastructure.solidlsp.ls_exceptions import SolidLSPException
 from app.infrastructure.solidlsp.ls_types import Location
 from app.infrastructure.solidlsp.ls_utils import PathUtils
 from app.infrastructure.solidlsp.lsp_protocol_handler import lsp_types
-from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import DocumentSymbol, ExecuteCommandParams, InitializeParams, SymbolInformation
+from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import (
+    DocumentSymbol,
+    ExecuteCommandParams,
+    InitializeParams,
+    SymbolInformation,
+)
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
 

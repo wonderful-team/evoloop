@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException, Depends
+
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
 
 from app.domain.memory.service import memory_service
 from app.logging import logger
@@ -10,13 +10,13 @@ router = APIRouter(tags=["memory"])
 class ConceptCreate(BaseModel):
     name: str
     description: str
-    related_files: Optional[List[str]] = None
+    related_files: list[str] | None = None
 
 class ConceptResponse(BaseModel):
     name: str
     description: str
 
-@router.get("/concepts", response_model=List[ConceptResponse])
+@router.get("/concepts", response_model=list[ConceptResponse])
 async def list_concepts(project_id: int):
     """
     Get all concepts for a project.
@@ -41,7 +41,7 @@ async def add_concept(project_id: int, req: ConceptCreate):
         logger.error(f"Failed to add concept: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/search", response_model=List[ConceptResponse])
+@router.get("/search", response_model=list[ConceptResponse])
 async def search_memory(project_id: int, q: str):
     """
     Search memory concepts.

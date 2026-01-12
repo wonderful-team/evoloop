@@ -1,6 +1,7 @@
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.logging import logger
+
 
 class GraphRetrievalService:
     """
@@ -8,7 +9,7 @@ class GraphRetrievalService:
     Enables 'Find Usages', 'Call Hierarchy', and 'Dependency Analysis'.
     """
 
-    async def find_symbol_definition(self, symbol_name: str, project_id: int) -> List[Dict[str, Any]]:
+    async def find_symbol_definition(self, symbol_name: str, project_id: int) -> list[dict[str, Any]]:
         """
         Find a symbol definition using Graph.
         """
@@ -24,7 +25,7 @@ class GraphRetrievalService:
             records = await result.data()
             return records
 
-    async def find_usages(self, symbol_name: str, project_id: int) -> List[Dict[str, Any]]:
+    async def find_usages(self, symbol_name: str, project_id: int) -> list[dict[str, Any]]:
         """
         Find who uses (calls/references) this symbol.
         Replaces 'grep' for structural usage finding.
@@ -42,12 +43,12 @@ class GraphRetrievalService:
             records = await result.data()
             return records
 
-    async def get_call_hierarchy(self, symbol_name: str, project_id: int, depth: int = 2) -> Dict[str, Any]:
+    async def get_call_hierarchy(self, symbol_name: str, project_id: int, depth: int = 2) -> dict[str, Any]:
         """
         Get recursive call hierarchy (Who calls me, who do I call).
         """
         driver = await get_graph_db()
-        
+
         # Incoming (Who calls me)
         incoming_query = f"""
         MATCH (target:CodeEntity {{name: $name, project_id: $pid}})
@@ -55,7 +56,7 @@ class GraphRetrievalService:
         RETURN path
         LIMIT 20
         """
-        
+
         # Outgoing (Who do I call)
         outgoing_query = f"""
         MATCH (source:CodeEntity {{name: $name, project_id: $pid}})
@@ -63,21 +64,21 @@ class GraphRetrievalService:
         RETURN path
         LIMIT 20
         """
-        
+
         async with driver.session() as session:
-            # For visualization, we might return paths. 
+            # For visualization, we might return paths.
             # For simplistic text output, we just count or list unique nodes.
-            
+
             in_res = await session.run(incoming_query, name=symbol_name, pid=project_id)
             in_paths = await in_res.data()
-            
+
             out_res = await session.run(outgoing_query, name=symbol_name, pid=project_id)
             out_paths = await out_res.data()
-            
+
             return {
                 "incoming": len(in_paths),
                 "outgoing": len(out_paths),
-                "details": "Graph paths fetched (summarized for now)" 
+                "details": "Graph paths fetched (summarized for now)"
             }
 
 graph_retrieval_service = GraphRetrievalService()

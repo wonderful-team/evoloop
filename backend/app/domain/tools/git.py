@@ -1,15 +1,16 @@
 
-import subprocess
 import os
-from langchain_core.tools import tool
-from app.logging import get_context
 
+from langchain_core.tools import tool
+
+from app.logging import get_context
 from app.utils.git import git_command
+
 
 def _run_git(args: list[str]) -> str:
     ctx = get_context()
     cwd = ctx.get("working_directory") or os.getcwd()
-    
+
     # Use util wrapper
     res = git_command(args, cwd=cwd)
     if res.success:
@@ -44,7 +45,7 @@ def git_commit(message: str, add_all: bool = True) -> str:
         add_res = _run_git(["add", "."])
         if "Error" in add_res:
              return f"Failed to add files: {add_res}"
-             
+
     return _run_git(["commit", "-m", message])
 
 @tool

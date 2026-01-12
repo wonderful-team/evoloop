@@ -11,7 +11,6 @@ import shutil
 import threading
 from typing import cast
 
-
 from app.infrastructure.solidlsp.ls import SolidLanguageServer
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig
 from app.infrastructure.solidlsp.ls_utils import PlatformId, PlatformUtils

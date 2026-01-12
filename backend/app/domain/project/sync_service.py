@@ -1,13 +1,10 @@
-import logging
 import os
-import asyncio
-from typing import Optional
 
-from app.logging import logger
-from app.infrastructure.external.imagicbox import imagicbox_client
-from app.domain.codebase.indexing.service import IndexingService
 from app.domain.codebase.indexing.manager import indexing_manager
+from app.domain.codebase.indexing.service import IndexingService
 from app.domain.project.service import project_context_manager
+from app.infrastructure.external.evocloud import evocloud_client
+from app.logging import logger
 
 
 class ProjectSyncService:
@@ -42,45 +39,24 @@ class ProjectSyncService:
             if repo.project_id:
                 logger.info(f"[ProjectSync] Linked to existing Project ID {repo.project_id}")
             else:
-                logger.info(f"[ProjectSync] Created local record (Pending Cloud Sync)")
+                logger.info("[ProjectSync] Created local record (Pending Cloud Sync)")
 
         except Exception as e:
             logger.error(f"[ProjectSync] Failed to create local repository record: {e}")
             return
 
-        # 3. Cloud Sync (If not already linked)
+        # 3. Cloud Sync (Async + Retry via Celery)
         if not repo.project_id:
-            logger.info(f"[ProjectSync] Attempting to create project '{repo_name}' in Cloud...")
+            logger.info(f"[ProjectSync] Dispatching background sync for '{repo_name}'...")
+            from app.domain.project.sync_tasks import sync_project_to_cloud_task
+            
+            # Dispatch task
+            # We use apply_async to ensure it's queued
             try:
-                res = await imagicbox_client.create_project(
-                    name=repo_name,
-                    description=f"Imported from {path}",
-                    path=path
-                )
-
-                if res.get("code") == 0:
-                    # Cloud API returns {'project_id': <id>}
-                    new_pid = res["data"]["project_id"]
-                    logger.info(f"[ProjectSync] Cloud Creation Success! Project ID: {new_pid}")
-
-                    # Update Local Record
-                    async with self._indexing_service.session_factory() as session:
-                        r = await session.get(type(repo), repo.id)
-                        if r:
-                            r.project_id = new_pid
-                            r.sync_status = "SYNCED"
-                            session.add(r)
-                            await session.commit()
-                            # Update local var for next steps
-                            repo.project_id = new_pid
-                else:
-                    logger.error(f"[ProjectSync] Cloud Creation Failed: {res.get('message')}")
-                    # We remain in PENDING state. 
-                    # TODO: Queue for retry? For now, we just leave it. 
-                    # User might retry seamlessly or background job can pick it up.
+                sync_project_to_cloud_task.delay(repo.id)
+                logger.info(f"[ProjectSync] Sync task queued for Repo ID {repo.id}")
             except Exception as e:
-                logger.error(f"[ProjectSync] Cloud API Error: {e}")
-                # Remain PENDING.
+                logger.error(f"[ProjectSync] Failed to queue sync task: {e}")
 
         # 4. Start Indexing (Background/Celery)
         # We use run_indexing_background which dispatches to Celery if possible.
@@ -142,12 +118,12 @@ class ProjectSyncService:
             # 3. Update Cloud (Best Effort)
             if repo.project_id:
                 try:
-                    await imagicbox_client.update_project(
+                    await evocloud_client.update_project(
                         project_id=repo.project_id,
                         name=new_name,
                         path=dest_path
                     )
-                    logger.info(f"[ProjectSync] Cloud Project Updated.")
+                    logger.info("[ProjectSync] Cloud Project Updated.")
                 except Exception as e:
                     logger.error(f"[ProjectSync] Cloud Update Failed: {e}")
 
@@ -169,7 +145,7 @@ class ProjectSyncService:
         except Exception as e:
             logger.error(f"[ProjectSync] Move handling failed: {e}")
 
-    async def _resolve_existing_project_id(self, path: str) -> Optional[int]:
+    async def _resolve_existing_project_id(self, path: str) -> int | None:
         """Try to resolve Project ID from Context/Settings/Cache."""
         try:
             projects = await project_context_manager.scan_projects()

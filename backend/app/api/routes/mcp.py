@@ -1,18 +1,19 @@
-from typing import Any, List
+from typing import Any
 
 from fastapi import APIRouter, HTTPException
-from app.schemas.mcp import McpServerCreate, McpServerRead
+
 from app.infrastructure.mcp.client import mcp_client_manager
+from app.schemas.mcp import McpServerCreate
 
 router = APIRouter()
 
-@router.get("/servers", response_model=List[Any])
+@router.get("/servers", response_model=list[Any])
 async def list_mcp_servers():
     """
     List all registered MCP servers.
     """
     servers = await mcp_client_manager.list_servers()
-    # Ensure the response matches what frontend expects. 
+    # Ensure the response matches what frontend expects.
     # frontend wants: name, command, status, tools_count, args (optional)
     # backend list_servers returns list of dicts.
     return servers

@@ -4,7 +4,8 @@ Retry Utilities Module.
 Provides generic retry decorators and specific service health check helpers.
 """
 import logging
-from typing import Callable, TypeVar, Any
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from sqlalchemy import Engine
 from sqlmodel import Session, select
@@ -14,7 +15,6 @@ from tenacity import (
     retry,
     stop_after_attempt,
     wait_fixed,
-    RetryError
 )
 
 # Generic Type for callable

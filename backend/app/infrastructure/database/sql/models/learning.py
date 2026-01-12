@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import List, Optional
-from sqlalchemy import String, Integer, DateTime, Text, Boolean, Float, JSON
-from sqlalchemy.orm import Mapped, mapped_column
+
 from pgvector.sqlalchemy import Vector
+from sqlalchemy import JSON, DateTime, Float, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
@@ -34,25 +35,25 @@ class TraceEvent(Base):
     is_human_action: Mapped[bool] = mapped_column(default=False)  # True if action was performed by human, not agent
 
     # Visual Context (Phase 1)
-    screenshot_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)  # Path to screenshot taken at this moment
-    ui_element_info: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON: target element selector, text, bounds
+    screenshot_path: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Path to screenshot taken at this moment
+    ui_element_info: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON: target element selector, text, bounds
 
     # Feedback & Reward
-    reward: Mapped[Optional[float]] = mapped_column(Integer, nullable=True)  # Normalized reward if available
-    user_feedback: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # User correction/comment
+    reward: Mapped[float | None] = mapped_column(Integer, nullable=True)  # Normalized reward if available
+    user_feedback: Mapped[str | None] = mapped_column(Text, nullable=True)  # User correction/comment
 
     # Session Tracking
-    recording_session_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)  # Groups events in one recording session
+    recording_session_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)  # Groups events in one recording session
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     # New columns for compatibility with new refactors (Nullable)
-    session_id: Mapped[Optional[str]] = mapped_column(String(36), index=True, nullable=True)
-    timestamp: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    event_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    target_selector: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    target_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    payload: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    session_id: Mapped[str | None] = mapped_column(String(36), index=True, nullable=True)
+    timestamp: Mapped[float | None] = mapped_column(Float, nullable=True)
+    event_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    target_selector: Mapped[str | None] = mapped_column(Text, nullable=True)
+    target_text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class LearnedSkill(Base):
@@ -76,8 +77,8 @@ class LearnedSkill(Base):
     tools_used: Mapped[str] = mapped_column(Text, nullable=True)  # JSON list of tool names
 
     # Source Reference
-    source_thread_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    source_session_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    source_thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_session_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # Usage Statistics
     success_count: Mapped[int] = mapped_column(Integer, default=0)
@@ -89,8 +90,8 @@ class LearnedSkill(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
     # New fields compatibility
-    project_id: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
-    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536), nullable=True)
+    project_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
 
 
 class RouterTrainingData(Base):

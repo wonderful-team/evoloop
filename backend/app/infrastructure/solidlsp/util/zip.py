@@ -4,7 +4,6 @@ import os
 import sys
 import zipfile
 from pathlib import Path
-from typing import Optional
 
 log = logging.getLogger(__name__)
 
@@ -25,8 +24,8 @@ class SafeZipExtractor:
         archive_path: Path,
         extract_dir: Path,
         verbose: bool = True,
-        include_patterns: Optional[list[str]] = None,
-        exclude_patterns: Optional[list[str]] = None,
+        include_patterns: list[str] | None = None,
+        exclude_patterns: list[str] | None = None,
     ) -> None:
         """
         Initialize the SafeZipExtractor.

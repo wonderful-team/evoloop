@@ -1,5 +1,5 @@
-from langchain_core.tools import tool
 from app.core.tools.base import evoloop_tool
+
 
 @evoloop_tool
 # @tool removed
@@ -10,11 +10,11 @@ async def crawl_url(url: str) -> str:
     """
     try:
         from crawl4ai import AsyncWebCrawler
-        
+
         async with AsyncWebCrawler(verbose=True) as crawler:
             result = await crawler.arun(url=url)
             return result.markdown
-            
+
     except ImportError:
         return "Error: crawl4ai not installed."
     except Exception as e:
@@ -30,7 +30,7 @@ async def search_web(query: str) -> str:
     # Placeholder for actual search implementation (Google/DDG)
     # Since we don't have a verified search key in env, we'll try a basic request or mock it.
     # Ideally should use GoogleSerperAPIWrapper or similar if configured.
-    
+
     # Check for simple fallback
     try:
         from googlesearch import search
@@ -38,10 +38,10 @@ async def search_web(query: str) -> str:
         # advanced=True yields Result objects
         for result in search(query, num_results=5, advanced=True):
             results.append(f"Title: {result.title}\nURL: {result.url}\nDescription: {result.description}\n")
-        
+
         if not results:
             return "No results found."
-            
+
         return "\n---\n".join(results)
     except ImportError:
         return "Error: googlesearch-python not installed. Please install it or configure a search provider."

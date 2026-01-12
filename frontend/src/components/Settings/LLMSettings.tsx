@@ -37,6 +37,7 @@ const llmSchema = z.object({
   provider: z.string(),
   base_url: z.string().min(1, "Base URL is required"),
   model: z.string().min(1, "Model name is required"),
+  vision_model: z.string().optional(),
   api_key: z.string().optional(),
 })
 
@@ -58,6 +59,7 @@ export function LLMSettings() {
       provider: "openai",
       base_url: "",
       model: "",
+      vision_model: "",
       api_key: "",
     },
   })
@@ -76,6 +78,7 @@ export function LLMSettings() {
           provider: configMap.LLM_PROVIDER || "openai",
           base_url: configMap.LLM_BASE_URL || "",
           model: configMap.LLM_MODEL || "",
+          vision_model: configMap.VISION_MODEL || "gpt-4o",
           api_key: configMap.LLM_API_KEY || "",
         })
       } catch (error) {
@@ -153,6 +156,7 @@ export function LLMSettings() {
           provider: data.provider,
           base_url: data.base_url,
           model: data.model,
+          vision_model: data.vision_model,
           api_key: data.api_key,
         },
       })
@@ -248,6 +252,23 @@ export function LLMSettings() {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="vision_model"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Vision Model (Optional)</FormLabel>
+                  <FormControl>
+                    <Input placeholder="gpt-4o" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    Model used for image analysis (e.g. gpt-4o, claude-3-opus).
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

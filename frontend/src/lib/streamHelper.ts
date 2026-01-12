@@ -1,8 +1,10 @@
+import { v4 as uuidv4 } from "uuid"
 import { AgentService, OpenAPI } from "@/client"
 
 interface StreamChatParams {
   message: string
   conversation_id?: string // If undefined, new conversation
+  attachments?: any[]
 }
 
 /**
@@ -27,10 +29,9 @@ export const streamChat = async (
   // chatEndpoint returns `AgentChatEndpointResponse`.
 
   // For "new" conversation, usually frontend generates UUID.
-  // TODO: Fix deprecated usage of crypto.randomUUID
   let threadId = params.conversation_id
   if (!threadId || threadId === "new") {
-    threadId = crypto.randomUUID()
+    threadId = uuidv4()
   }
 
   // Call Chat Endpoint
@@ -39,6 +40,7 @@ export const streamChat = async (
     requestBody: {
       message: params.message,
       thread_id: threadId,
+      attachments: params.attachments
     },
   })
 

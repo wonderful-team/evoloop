@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod"
+import { Checkbox } from "@/components/ui/checkbox"
 import { useQueryClient } from "@tanstack/react-query"
 import { open } from "@tauri-apps/plugin-dialog"
 import { useEffect, useState } from "react"
@@ -36,6 +37,8 @@ import {
 const generalSettingsSchema = z.object({
   PROJECTS_ROOT: z.string().min(1, "Paths cannot be empty"),
   EVOLOOP_DEVICE_NAME: z.string().min(1, "Device name cannot be empty"),
+  INTENT_MIN_CONFIDENCE: z.string().optional(),
+  REQUIRE_PLAN_APPROVAL: z.boolean().default(true),
 })
 
 type GeneralSettingsValues = z.infer<typeof generalSettingsSchema>
@@ -48,6 +51,8 @@ export default function GeneralSettings() {
     defaultValues: {
       PROJECTS_ROOT: "",
       EVOLOOP_DEVICE_NAME: "",
+      INTENT_MIN_CONFIDENCE: "0.35",
+      REQUIRE_PLAN_APPROVAL: true,
     },
   })
 
@@ -63,6 +68,8 @@ export default function GeneralSettings() {
         form.reset({
           PROJECTS_ROOT: configMap.PROJECTS_ROOT || "",
           EVOLOOP_DEVICE_NAME: configMap.EVOLOOP_DEVICE_NAME || "",
+          INTENT_MIN_CONFIDENCE: configMap.INTENT_MIN_CONFIDENCE || "0.35",
+          REQUIRE_PLAN_APPROVAL: configMap.REQUIRE_PLAN_APPROVAL !== "false",
         })
 
         // Sync Language from Backend if exists
@@ -88,6 +95,18 @@ export default function GeneralSettings() {
         requestBody: {
           key: "EVOLOOP_DEVICE_NAME",
           value: data.EVOLOOP_DEVICE_NAME,
+        },
+      })
+      await SystemService.updateSystemConfig({
+        requestBody: {
+          key: "INTENT_MIN_CONFIDENCE",
+          value: data.INTENT_MIN_CONFIDENCE || "0.35",
+        },
+      })
+      await SystemService.updateSystemConfig({
+        requestBody: {
+          key: "REQUIRE_PLAN_APPROVAL",
+          value: String(data.REQUIRE_PLAN_APPROVAL),
         },
       })
       // Save Language Preference
@@ -198,6 +217,57 @@ export default function GeneralSettings() {
                   </FormItem>
                 )}
               />
+
+              <div className="space-y-4 rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <h3 className="text-base font-medium">Agent Behavior (HITL)</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Configure how the agent interacts with you.
+                  </p>
+                </div>
+
+                <div className="grid gap-6 md:grid-cols-2">
+                  <FormField
+                    control={form.control}
+                    name="INTENT_MIN_CONFIDENCE"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Intent Threshold (0.0 - 1.0)</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.05" min="0" max="1" placeholder="0.35" {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          Lower = Faster (More matching). Higher = Smarter (More LLM fallback). Default: 0.35
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="REQUIRE_PLAN_APPROVAL"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>
+                            Require Plan Approval
+                          </FormLabel>
+                          <FormDescription>
+                            If unchecked, the agent will auto-execute generated plans without waiting for your confirmation.
+                          </FormDescription>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+              </div>
 
               <div className="flex justify-end">
                 <Button type="submit" disabled={loading}>

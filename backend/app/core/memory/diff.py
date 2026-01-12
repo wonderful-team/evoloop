@@ -1,6 +1,5 @@
 import difflib
 import logging
-from typing import Dict, Optional, List, Any
 
 logger = logging.getLogger(__name__)
 
@@ -11,17 +10,17 @@ class DiffTracker:
     1. capture_snapshot(path): Read file before edit.
     2. compute_diff(path): Read file after edit, compare with snapshot.
     """
-    
+
     def __init__(self):
-        self._snapshots: Dict[str, str] = {}
-        
+        self._snapshots: dict[str, str] = {}
+
     def capture_snapshot(self, path: str):
         """
         Reads the current content of the file and stores it in memory.
         Call this BEFORE executing an edit tool.
         """
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 self._snapshots[path] = f.read()
             # logger.debug(f"Captured snapshot for {path} ({len(self._snapshots[path])} chars)")
         except FileNotFoundError:
@@ -38,19 +37,19 @@ class DiffTracker:
         """
         if path not in self._snapshots:
             return ""
-            
+
         old_content = self._snapshots.pop(path) # Consume snapshot
-        
+
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 new_content = f.read()
         except FileNotFoundError:
             # File deleted?
             new_content = ""
-            
+
         if old_content == new_content:
             return ""
-            
+
         # Compute Unified Diff
         diff = difflib.unified_diff(
             old_content.splitlines(keepends=True),
@@ -59,7 +58,7 @@ class DiffTracker:
             tofile=f"b/{path}",
             n=2 # Context lines
         )
-        
+
         diff_text = "".join(diff)
         return diff_text
 

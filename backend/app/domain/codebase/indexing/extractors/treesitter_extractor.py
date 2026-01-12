@@ -1,4 +1,10 @@
-from app.domain.codebase.indexing.base import BaseExtractor, Document, ExtractedEntity, ExtractedRelation, ExtractionResult
+from app.domain.codebase.indexing.base import (
+    BaseExtractor,
+    Document,
+    ExtractedEntity,
+    ExtractedRelation,
+    ExtractionResult,
+)
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
 from app.logging import logger
@@ -7,7 +13,7 @@ from app.logging import logger
 class TreeSitterExtractor(BaseExtractor):
     def __init__(self):
         # Parsers logic moved to ParserRegistry
-        pass  
+        pass
 
     async def extract(self, file_path: str, content: str, module_path: str = None) -> ExtractionResult:
         """
@@ -20,7 +26,7 @@ class TreeSitterExtractor(BaseExtractor):
                          If None, defaults to file_path (which might be absolute, less ideal).
         """
         extension = file_path.split(".")[-1]
-        
+
         # Default module_path to file_name if not provided, or full path
         if not module_path:
             module_path = file_path
@@ -32,7 +38,7 @@ class TreeSitterExtractor(BaseExtractor):
             current_chunk = []
             current_header = "Intro"
             start_line = 1
-            
+
             for i, line in enumerate(lines):
                 if line.strip().startswith("#"):
                     # Save previous chunk
@@ -49,14 +55,14 @@ class TreeSitterExtractor(BaseExtractor):
                             }
                         )
                         documents.append(doc)
-                    
+
                     # Start new chunk
                     current_header = line.strip().lstrip("#").strip()
                     current_chunk = [line]
                     start_line = i + 1
                 else:
                     current_chunk.append(line)
-            
+
             if current_chunk:
                 text = "\n".join(current_chunk)
                 doc = Document(
@@ -71,7 +77,7 @@ class TreeSitterExtractor(BaseExtractor):
                 )
                 documents.append(doc)
             return ExtractionResult(documents=documents, entities=[], relations=[])
-        
+
         parser_info = parser_registry.get_parser(extension)
         if not parser_info:
             logger.debug(f"No parser for extension {extension}, skipping structured extraction.")
@@ -90,7 +96,7 @@ class TreeSitterExtractor(BaseExtractor):
         if not query_data or "defs" not in query_data:
              logger.debug(f"No queries for language {lang_key}")
              return ExtractionResult(documents=[], entities=[], relations=[])
-        
+
         query_str = query_data["defs"]
         try:
             query = language.query(query_str)
@@ -100,7 +106,7 @@ class TreeSitterExtractor(BaseExtractor):
         except Exception as e:
             logger.warning(f"TreeSitter query failed: {e}")
             return ExtractionResult(documents=[], entities=[], relations=[])
-        
+
         # logger.debug(f"TreeSitter matches: {len(matches)}")
 
         documents = []
@@ -133,7 +139,7 @@ class TreeSitterExtractor(BaseExtractor):
 
                 for node in nodes:
                     # Capture Map for this specific node context
-                    
+
                     # We iterate capture_name because we care about the main definition node (function/class)
                     # "function" or "class" is the main anchor.
                     if capture_name in ["function", "class"]:
@@ -150,7 +156,7 @@ class TreeSitterExtractor(BaseExtractor):
 
                         # Extract name
                         name = "anonymous"
-                        
+
                         name_nodes = captured_nodes.get("name", [])
                         if not isinstance(name_nodes, list): name_nodes = [name_nodes]
 
@@ -162,30 +168,30 @@ class TreeSitterExtractor(BaseExtractor):
                         curr = node.parent
                         while curr:
                             # Heuristic: Check if parent is a Class Definition
-                            
+
                             c_type = curr.type
                             # Generic cover for class types
-                            if c_type in ["class_definition", "class_declaration", "class_specifier", "impl_item"]: 
+                            if c_type in ["class_definition", "class_declaration", "class_specifier", "impl_item"]:
                                 # Find name of this class
                                 class_name = None
                                 for child in curr.children:
                                     if child.type == "identifier" or child.type == "type_identifier" or child.type == "name":
                                         class_name = child.text.decode("utf8")
                                         break
-                                    
+
                                 # Try specific field "name"
                                 nam_child = curr.child_by_field_name("name")
                                 if nam_child:
                                     class_name = nam_child.text.decode("utf8")
-                                
+
                                 if class_name:
                                     fqn_parts.insert(0, class_name)
                                     # We assume one level of class nesting for now or keep going up
-                            
+
                             curr = curr.parent
-                        
+
                         local_identifier = ".".join(fqn_parts)
-                        
+
                         # Fix Go Methods (Receiver)
                         if lang_key == "go" and capture_name == "function" and node.type == "method_declaration":
                              receiver_node = node.child_by_field_name("receiver")
@@ -211,7 +217,7 @@ class TreeSitterExtractor(BaseExtractor):
                             }
                         )
                         documents.append(doc)
-                        
+
                         # Add Entity
                         entities.append(ExtractedEntity(
                             name=name,
@@ -222,7 +228,7 @@ class TreeSitterExtractor(BaseExtractor):
                             content=chunk_content,
                             metadata={"lang": lang_key}
                         ))
-                        
+
                         # --- RELATION EXTRACTION ---
                         # 1. Inheritance (Superclasses)
                         if capture_name == "class" and "superclasses" in captured_nodes:
@@ -247,14 +253,14 @@ class TreeSitterExtractor(BaseExtractor):
                          # In queries.py we have @module capture
                          module_nodes = captured_nodes.get("module", [])
                          if not isinstance(module_nodes, list): module_nodes = [module_nodes]
-                         
+
                          for m_node in module_nodes:
                              import_path = m_node.text.decode("utf8").strip("'\"") # strip quotes
                              if import_path:
                                  # Standard Import Relation
                                  relations.append(ExtractedRelation(
                                      source_full_name=module_path, # Link from FILE (Module Entity)
-                                     target_full_name=import_path, 
+                                     target_full_name=import_path,
                                      relation_type="imports",
                                      start_line=node.start_point[0] + 1
                                  ))

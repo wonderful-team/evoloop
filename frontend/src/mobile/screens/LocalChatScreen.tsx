@@ -22,6 +22,49 @@ export function LocalChatScreen() {
   const navigate = useNavigate()
   const initializedRef = useRef(false)
 
+  const handleSend = async (content: string, attachments: any[] = []) => {
+    // Optimistic UI
+    let displayContent = content
+    if (attachments.length > 0) {
+      const attachmentStrings = attachments
+        .map((att) => {
+          if (att.type === "image") return `[Image: ${att.url}]`
+          return `[File: ${att.url}]`
+        })
+        .join("\n")
+      displayContent =
+        attachmentStrings + (displayContent.trim() ? `\n${displayContent.trim()}` : "")
+    }
+
+    addMessage({
+      type: "user",
+      content: displayContent,
+      project_id: currentProject?.project_id,
+      timestamp: Date.now(),
+    })
+
+    try {
+      await DevicesService.sendCommand({
+        deviceId: Number(deviceId),
+        requestBody: {
+          command_type: "chat",
+          params: {
+            message: content,
+            attachments: attachments,
+            project_id: currentProject?.project_id,
+          },
+        },
+      })
+    } catch (e: any) {
+      toast.error(t("chat.local.sendFailed") + e.message)
+      addMessage({
+        type: "error",
+        content: t("chat.local.deliveryFailed") + e.message,
+        timestamp: Date.now(),
+      })
+    }
+  }
+
   // Handle initial message from Home Screen
   useEffect(() => {
     if (searchParams.initialMessage && !initializedRef.current) {
@@ -33,7 +76,7 @@ export function LocalChatScreen() {
         // navigate({ search: (prev: any) => ({ ...prev, initialMessage: undefined }) })
       }, 500)
     }
-  }, [searchParams.initialMessage, handleSend])
+  }, [searchParams.initialMessage])
 
   const { currentProject, isProjectInitialized } = useMobileStore()
   const { isConnected, messages, clearMessages, addMessage, setMessages } =
@@ -130,35 +173,7 @@ export function LocalChatScreen() {
     statusColor = "bg-red-500"
   }
 
-  const handleSend = async (content: string) => {
-    // Optimistic UI
-    addMessage({
-      type: "user",
-      content: content,
-      project_id: currentProject?.project_id,
-      timestamp: Date.now(),
-    })
 
-    try {
-      await DevicesService.sendCommand({
-        deviceId: Number(deviceId),
-        requestBody: {
-          command_type: "chat",
-          params: {
-            message: content,
-            project_id: currentProject?.project_id,
-          },
-        },
-      })
-    } catch (e: any) {
-      toast.error(t("chat.local.sendFailed") + e.message)
-      addMessage({
-        type: "error",
-        content: t("chat.local.deliveryFailed") + e.message,
-        timestamp: Date.now(),
-      })
-    }
-  }
 
   const displayMessages = messages.filter((m) => {
     if (!currentProject) return true

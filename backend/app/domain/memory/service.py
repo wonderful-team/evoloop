@@ -1,8 +1,8 @@
+
 from app.core.config import settings
+from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.logging import logger
-from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
-from typing import Optional
 
 
 class MemoryService:
@@ -19,7 +19,7 @@ class MemoryService:
             await session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (u:User) REQUIRE u.id IS UNIQUE")
             # Preference Constraints
             await session.run("CREATE CONSTRAINT IF NOT EXISTS FOR (p:Preference) REQUIRE p.key IS UNIQUE")
-            
+
             # Concept Constraints - Composite Key
             try:
                 await session.run("CREATE CONSTRAINT concept_unique IF NOT EXISTS FOR (c:Concept) REQUIRE (c.name, c.project_id) IS UNIQUE")
@@ -46,7 +46,7 @@ class MemoryService:
                 # For now, let's try to get a sample embedding to determine dim? Or trust the default.
                 # But CREATE INDEX requires fixed dim.
                 # Strategy: We only create if not exists. If dimension mismatch, user must use "Switch Model" which drops index.
-                
+
                 # Get configured embedder
                 embedder = EmbedderFactory.get_embedder()
                 # Dummy embedding to check dimension
@@ -97,9 +97,9 @@ class MemoryService:
         Add a preference. If project_id is provided, it's scoped to that project.
         """
         driver = await get_graph_db()
-        
+
         pid_val = project_id if project_id else 0
-        
+
         query = """
         MERGE (u:User {id: $user_id})
         MERGE (p:Preference {key: $key})
@@ -118,16 +118,16 @@ class MemoryService:
         Get merged preferences. Project-specific overrides Global.
         """
         driver = await get_graph_db()
-        
+
         target_pid = project_id if project_id else 0
-        
+
         query = """
         MATCH (u:User {id: $user_id})-[r:PREFERS]->(p:Preference)
         WHERE r.project_id = 0 OR r.project_id = $pid
         RETURN p.key as key, r.value as value, p.description as desc, r.project_id as pid
         ORDER BY r.project_id ASC
         """
-        
+
         async with driver.session() as session:
             result = await session.run(query, user_id=user_id, pid=target_pid)
             records = await result.data()
@@ -149,7 +149,7 @@ class MemoryService:
     async def add_concept(self, name: str, description: str, project_id: int, related_files: list[str] = None):
         driver = await get_graph_db()
         pid_val = project_id if project_id is not None else 0
-        
+
         # 1. Generate Embedding
         embedder = EmbedderFactory.get_embedder()
         try:
@@ -157,7 +157,7 @@ class MemoryService:
             embedding = await embedder.embed_query(f"{name}: {description}")
         except Exception as e:
             logger.error(f"Failed to generate embedding for concept {name}: {e}")
-            embedding = [] 
+            embedding = []
 
         # --- DEDUPLICATION LOGIC ---
         # Before creating, check if a semantically IDENTICAL concept exists.
@@ -166,7 +166,7 @@ class MemoryService:
             existing = await self.search_concepts_data(f"{name}: {description}", pid_val)
             # search_concepts_data usually returns top K. We need score.
             # Let's adjust search_concepts_data or write a specific check query here.
-            
+
             check_query = """
             CALL db.index.vector.queryNodes('concept_embeddings', 1, $embedding)
             YIELD node AS c, score
@@ -176,16 +176,16 @@ class MemoryService:
             async with driver.session() as session:
                 result = await session.run(check_query, embedding=embedding, pid=pid_val)
                 match = await result.single()
-                
+
                 if match:
                     existing_name = match["name"]
                     logger.info(f"Concept Deduplication: '{name}' is too similar to '{existing_name}' (Score {match['score']:.2f}). Merging/Updating.")
                     # We update the description of the EXISTING node to be the new one (latest info usually better?)
-                    # Or we skip? 
-                    # Let's MERGE strictly on name. If name is different but semantic is same, 
+                    # Or we skip?
+                    # Let's MERGE strictly on name. If name is different but semantic is same,
                     # we might have "Auth Token" vs "JWT".
                     # If we force name update, we might lose "JWT".
-                    # Strategy: If names are different, we treat as Alias? 
+                    # Strategy: If names are different, we treat as Alias?
                     # For simplicty: We Update the Description of the MATCHED node, but Keep the Name of the MATCHED node unless user explicitly wants rename.
                     # But wait, User might want to correct the name.
                     # Let's just MERGE based on NAME (Exact Match) first.
@@ -214,7 +214,7 @@ class MemoryService:
                     MERGE (c)-[:REFERENCES]->(f)
                     """
                     await session.run(file_query, name=name, pid=pid_val, path=file_path)
-        
+
         logger.info(f"Stored Concept (Vectorized): {name} (Project {pid_val})")
 
     async def search_concepts(self, query_text: str, project_id: int) -> str:
@@ -223,7 +223,7 @@ class MemoryService:
         Also traverses to return related file names.
         """
         driver = await get_graph_db()
-        
+
         # 1. Generate Query Embedding
         embedder = EmbedderFactory.get_embedder()
         try:
@@ -246,7 +246,7 @@ class MemoryService:
         """
 
         async with driver.session() as session:
-            # Fetch a bit more than limit to allow for post-filtering if needed, 
+            # Fetch a bit more than limit to allow for post-filtering if needed,
             # though WHERE clause inside YIELD usually works efficiently.
             result = await session.run(vector_cypher, embedding=query_embedding, pid=project_id, top_k=settings.MEMORY_SEARCH_LIMIT)
             records = await result.data()
@@ -262,9 +262,9 @@ class MemoryService:
                  # Just show basenames for brevity
                  basenames = [f.split('/')[-1] for f in r['files']]
                  files_str = f"\n  Related Files: {', '.join(basenames)}"
-            
+
             lines.append(f"- **{r['name']}** {scope} (Score: {r['score']:.2f}): {r['desc']}{files_str}")
-            
+
         return "\n".join(lines)
 
 
@@ -275,7 +275,7 @@ class MemoryService:
         driver = await get_graph_db()
         embedder = EmbedderFactory.get_embedder()
         query_embedding = await embedder.embed_query(query_text)
-        
+
         vector_cypher = """
         CALL db.index.vector.queryNodes('concept_embeddings', $top_k, $embedding)
         YIELD node AS c, score
@@ -295,7 +295,7 @@ class MemoryService:
         Relations: IS_A, DEPENDS_ON, RELATED_TO
         """
         driver = await get_graph_db()
-        
+
         valid_relations = ["IS_A", "DEPENDS_ON", "RELATED_TO", "PART_OF"]
         if relation not in valid_relations:
             logger.warning(f"Invalid relation type: {relation}")
@@ -306,15 +306,15 @@ class MemoryService:
         MATCH (t:Concept {{name: $tgt, project_id: $pid}})
         MERGE (s)-[:{relation}]->(t)
         """
-        
+
         async with driver.session() as session:
              await session.run(query, src=source_name, tgt=target_name, pid=project_id)
-        
+
         logger.info(f"Ontology Link: ({source_name})-[:{relation}]->({target_name})")
 
         async with driver.session() as session:
              await session.run(query, src=source_name, tgt=target_name, pid=project_id)
-        
+
         logger.info(f"Ontology Link: ({source_name})-[:{relation}]->({target_name})")
 
     async def get_directory_info(self, project_id: int, path: str) -> dict:
@@ -323,7 +323,7 @@ class MemoryService:
         Used by 'consult_architecture' tool.
         """
         driver = await get_graph_db()
-        
+
         # Normalize path: ensure no trailing slash unless root?
         # Graph paths in Phase 7 implementation: `path=dir_path`
         # If user asks for "app/core/", we should strip.
@@ -335,24 +335,24 @@ class MemoryService:
         MATCH (d:Directory {path: $path, project_id: $pid})
         RETURN d.description as summary
         """
-        
+
         sub_query = """
         MATCH (d:Directory {path: $path, project_id: $pid})-[:CONTAINS]->(sub:Directory)
         RETURN sub.path as path, sub.description as summary
         """
-        
+
         dep_query = """
         MATCH (d:Directory {path: $path, project_id: $pid})-[r:DEPENDS_ON]->(target:Directory)
         RETURN target.path as target, r.weight as weight
         """
-        
+
         info = {
             "path": norm_path,
             "summary": "No summary available (Directory not indexed or not found).",
             "sub_modules": [],
             "dependencies": []
         }
-        
+
         async with driver.session() as session:
             # Main Summary
             result = await session.run(query, path=norm_path, pid=project_id)
@@ -366,12 +366,12 @@ class MemoryService:
             result = await session.run(sub_query, path=norm_path, pid=project_id)
             subs = await result.data()
             info["sub_modules"] = [{"name": s["path"].split('/')[-1], "summary": s["summary"]} for s in subs]
-            
+
             # Dependencies
             result = await session.run(dep_query, path=norm_path, pid=project_id)
             deps = await result.data()
             info["dependencies"] = [{"target": d["target"], "weight": d["weight"]} for d in deps]
-            
+
         return info
 
     async def get_project_concepts(self, project_id: int) -> list[str]:
@@ -380,29 +380,29 @@ class MemoryService:
         """
         driver = await get_graph_db()
         pid_val = project_id if project_id else 0
-        
+
         query = """
         MATCH (c:Concept {project_id: $pid})
         RETURN c.name as name, c.description as description
         ORDER BY c.name
         """
-        
+
         async with driver.session() as session:
             result = await session.run(query, pid=pid_val)
             records = await result.data()
-            
+
         if not records:
              return []
-             
+
         return [f"{r['name']}: {r['description']}" for r in records]
 
-    async def store_episode(self, goal: str, result: str, plan_summary: str, error_msg: Optional[str], project_id: int):
+    async def store_episode(self, goal: str, result: str, plan_summary: str, error_msg: str | None, project_id: int):
         """
         Store a completed task execution as an Episode in the graph.
         """
         driver = await get_graph_db()
         pid_val = project_id if project_id else 0
-        
+
         # 1. Embed the Goal (This is what we search against later)
         embedder = EmbedderFactory.get_embedder()
         try:
@@ -414,7 +414,7 @@ class MemoryService:
         # 2. Create Episode Node
         import uuid
         episode_id = str(uuid.uuid4())
-        
+
         query = """
         CREATE (e:Episode {
             id: $id,
@@ -428,13 +428,26 @@ class MemoryService:
         })
         RETURN e
         """
-        
+
         async with driver.session() as session:
              await session.run(query, id=episode_id, goal=goal, result=result, plan=plan_summary, error=error_msg, pid=pid_val, embedding=embedding)
              logger.info(f"Stored Episode: {episode_id} (Result: {result})")
-             
-        # TODO Phase 2: Link Episode to Concepts used in the Plan? 
-        # For now, just storing the node is enough for RAG.
+
+        # 3. Link to Concepts (Heuristic / Knowledge Graph)
+        # We try to link this Episode to any existing Concepts mentioned in the goal or plan.
+        # This allows: "Show me failures related to 'Auth'"
+        # We use a fuzzy text search or simple HAS_STRING check in Cypher for efficiency.
+        link_query = """
+        MATCH (e:Episode {id: $id, project_id: $pid})
+        MATCH (c:Concept {project_id: $pid})
+        # Check if Concept Name appears in Goal or Plan
+        WHERE toLower($goal) CONTAINS toLower(c.name) OR toLower($plan) CONTAINS toLower(c.name)
+        MERGE (e)-[:RELATED_TO]->(c)
+        """
+        
+        async with driver.session() as session:
+             await session.run(link_query, id=episode_id, pid=pid_val, goal=goal, plan=plan_summary)
+             logger.info(f"Linked Episode {episode_id} to relevant Concepts.")
 
     async def find_similar_episodes(self, current_goal: str, project_id: int, top_k: int = 3) -> str:
         """
@@ -443,7 +456,7 @@ class MemoryService:
         """
         driver = await get_graph_db()
         embedder = EmbedderFactory.get_embedder()
-        
+
         try:
              query_embedding = await embedder.embed_query(current_goal)
         except Exception as e:
@@ -456,28 +469,28 @@ class MemoryService:
         WHERE (e.project_id = $pid OR e.project_id = 0)
         RETURN e.goal as goal, e.result as result, e.plan as plan, e.error as error, score
         """
-        
+
         async with driver.session() as session:
              result = await session.run(query, embedding=query_embedding, pid=project_id, top_k=top_k)
              records = await result.data()
-             
+
         if not records:
              return ""
-             
+
         lines = ["**Relevant Past Experiences:**"]
         for r in records:
              status = "FAILED" if r['error'] else "SUCCESS"
              # Only show if reasonable similarity
              if r['score'] < 0.75: continue
-             
+
              lines.append(f"- [{status}] Goal: {r['goal']}")
              if r['error']:
                  lines.append(f"  Error: {r['error']}")
              lines.append(f"  Plan: {r['plan']}")
              lines.append("---")
-             
+
         if len(lines) == 1: return "" # Nothing significant found
-        
+
         return "\n".join(lines)
 
 

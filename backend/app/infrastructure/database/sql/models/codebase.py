@@ -1,8 +1,10 @@
 from datetime import datetime
-from typing import List, Optional
-from sqlalchemy import String, Integer, ForeignKey, DateTime, Text
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from typing import Optional
+
 from pgvector.sqlalchemy import Vector
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
@@ -13,17 +15,17 @@ class Repository(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     # project_id is now a loose reference to the external project ID
     # We index it for faster lookups, but DO NOT enforce foreign key constraint to a local table
-    project_id: Mapped[Optional[int]] = mapped_column(Integer, index=True, nullable=True)
+    project_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
 
     # Sync Status: SYNCED, PENDING_CREATION, DISCONNECTED
     sync_status: Mapped[str] = mapped_column(String(50), default="SYNCED")
 
     name: Mapped[str] = mapped_column(String(255))
     url: Mapped[str] = mapped_column(String(1024))
-    local_path: Mapped[Optional[str]] = mapped_column(String(1024))
+    local_path: Mapped[str | None] = mapped_column(String(1024))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    files: Mapped[List["SourceFile"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
+    files: Mapped[list["SourceFile"]] = relationship(back_populates="repository", cascade="all, delete-orphan")
 
 
 class SourceFile(Base):
@@ -36,8 +38,8 @@ class SourceFile(Base):
     last_indexed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     repository: Mapped["Repository"] = relationship(back_populates="files")
-    chunks: Mapped[List["CodeChunk"]] = relationship(back_populates="source_file", cascade="all, delete-orphan")
-    entities: Mapped[List["CodeEntity"]] = relationship(back_populates="file", cascade="all, delete-orphan")
+    chunks: Mapped[list["CodeChunk"]] = relationship(back_populates="source_file", cascade="all, delete-orphan")
+    entities: Mapped[list["CodeEntity"]] = relationship(back_populates="file", cascade="all, delete-orphan")
 
 
 class CodeEntity(Base):
@@ -60,8 +62,8 @@ class CodeEntity(Base):
     file: Mapped["SourceFile"] = relationship(back_populates="entities")
 
     # Relationships
-    relations_from: Mapped[List["CodeRelation"]] = relationship("CodeRelation", foreign_keys="CodeRelation.source_entity_id", back_populates="source_entity", cascade="all, delete-orphan")
-    relations_to: Mapped[List["CodeRelation"]] = relationship("CodeRelation", foreign_keys="CodeRelation.target_entity_id", back_populates="target_entity", cascade="all, delete-orphan")
+    relations_from: Mapped[list["CodeRelation"]] = relationship("CodeRelation", foreign_keys="CodeRelation.source_entity_id", back_populates="source_entity", cascade="all, delete-orphan")
+    relations_to: Mapped[list["CodeRelation"]] = relationship("CodeRelation", foreign_keys="CodeRelation.target_entity_id", back_populates="target_entity", cascade="all, delete-orphan")
 
 
 class CodeRelation(Base):
@@ -70,8 +72,8 @@ class CodeRelation(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
 
     source_entity_id: Mapped[int] = mapped_column(ForeignKey("code_entities.id"))
-    target_entity_id: Mapped[Optional[int]] = mapped_column(ForeignKey("code_entities.id"), nullable=True)
-    target_name: Mapped[Optional[str]] = mapped_column(String(512), index=True)  # Unresolved target name
+    target_entity_id: Mapped[int | None] = mapped_column(ForeignKey("code_entities.id"), nullable=True)
+    target_name: Mapped[str | None] = mapped_column(String(512), index=True)  # Unresolved target name
 
     relation_type: Mapped[str] = mapped_column(String(50))  # calls, inherits, imports, defines
 
@@ -102,6 +104,6 @@ class CodeChunk(Base):
     # Vector Embedding (1536 dims for OpenAI, 768 for others - make it generic or config dependent?)
     # Using 1536 as default for generic OpenAI ada-002 compatibility, but pgvector allows any size.
     # Note: User should ensure embedding dimension matches this column.
-    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(1536))
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
 
     source_file: Mapped["SourceFile"] = relationship(back_populates="chunks")

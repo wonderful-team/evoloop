@@ -1,7 +1,28 @@
 from fastapi import APIRouter
-from app.api.routes import login, users, utils, agent, projects, mcp, files, conversations, member, memory, planning, symbols, system, devices, tools, stream, learning, resources, auth_proxy
-from app.core.config import settings
-from app.api.routes import tasks, project_modules
+
+from app.api.routes import (
+    agent,
+    auth_proxy,
+    conversations,
+    devices,
+    files,
+    learning,
+    login,
+    mcp,
+    member,
+    memory,
+    planning,
+    project_modules,
+    projects,
+    resources,
+    stream,
+    symbols,
+    system,
+    tasks,
+    tools,
+    users,
+    utils,
+)
 
 api_router = APIRouter()
 # Login handled by member center (proxied)

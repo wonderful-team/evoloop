@@ -1,14 +1,14 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 
 @dataclass
 class Document:
     content: str
-    metadata: Dict[str, Any]
-    id: Optional[str] = None
-    embedding: Optional[List[float]] = None
+    metadata: dict[str, Any]
+    id: str | None = None
+    embedding: list[float] | None = None
 
 
 @dataclass
@@ -18,8 +18,8 @@ class ExtractedEntity:
     full_name: str
     start_line: int
     end_line: int
-    content: Optional[str] = None
-    metadata: Dict[str, Any] = None
+    content: str | None = None
+    metadata: dict[str, Any] = None
 
 
 @dataclass
@@ -27,14 +27,14 @@ class ExtractedRelation:
     source_full_name: str
     target_full_name: str
     relation_type: str
-    start_line: Optional[int] = None
+    start_line: int | None = None
 
 
 @dataclass
 class ExtractionResult:
-    documents: List[Document]
-    entities: List[ExtractedEntity]
-    relations: List[ExtractedRelation]
+    documents: list[Document]
+    entities: list[ExtractedEntity]
+    relations: list[ExtractedRelation]
 
 
 class BaseExtractor(ABC):
@@ -56,9 +56,9 @@ class BaseEmbedder(ABC):
     """
 
     @abstractmethod
-    async def embed_documents(self, documents: List[str]) -> List[List[float]]:
+    async def embed_documents(self, documents: list[str]) -> list[list[float]]:
         ...
 
     @abstractmethod
-    async def embed_query(self, query: str) -> List[float]:
+    async def embed_query(self, query: str) -> list[float]:
         ...

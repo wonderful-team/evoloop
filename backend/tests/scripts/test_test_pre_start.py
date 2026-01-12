@@ -1,7 +1,5 @@
 from unittest.mock import MagicMock, patch
 
-from sqlmodel import select
-
 from app.tests_pre_start import init, logger
 
 

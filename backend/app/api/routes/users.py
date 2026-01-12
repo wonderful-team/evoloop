@@ -1,6 +1,7 @@
 from typing import Any
 
 from fastapi import APIRouter
+
 from app.api.deps import CurrentUser
 from app.models import UserPublic
 
@@ -11,6 +12,6 @@ def read_user_me(current_user: CurrentUser) -> Any:
     """
     Get current user.
     """
-    # The current_user is already populated by get_current_user dependency 
+    # The current_user is already populated by get_current_user dependency
     # which fetches data from Member Center
     return current_user

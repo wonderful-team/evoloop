@@ -9,7 +9,7 @@
 
 Start the local development environment with Docker Compose following the guide in [../development.md](../development.md).
 
-## General Workflow
+## General Process
 
 By default, the dependencies are managed with [uv](https://docs.astral.sh/uv/), go there and install it.
 
@@ -39,7 +39,7 @@ The setup is also already configured so you can run the tests through the VS Cod
 
 During development, you can change Docker Compose settings that will only affect the local development environment in the file `docker-compose.override.yml`.
 
-The changes to that file only affect the local development environment, not the production environment. So, you can add "temporary" changes that help the development workflow.
+The changes to that file only affect the local development environment, not the production environment. So, you can add "temporary" changes that help the development process.
 
 For example, the directory with the backend code is synchronized in the Docker container, copying the code you change live to the directory inside the container. That allows you to test your changes right away, without having to build the Docker image again. It should only be done during development, for production, you should build the Docker image with a recent version of the backend code. But during development, it allows you to iterate very fast.
 

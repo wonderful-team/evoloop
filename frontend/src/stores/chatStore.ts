@@ -41,7 +41,7 @@ interface ChatState {
     // storage/network actions
     setThread: (threadId: string, projectId: number) => Promise<void>
     fetchHistory: (threadId: string) => Promise<void>
-    sendMessage: (content: string) => Promise<void>
+    sendMessage: (content: string, attachments?: any[]) => Promise<void>
     stopAgent: () => Promise<void>
     resumeAgent: (userInput?: string) => Promise<void>
     clearContent: () => void
@@ -166,16 +166,28 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
     },
 
-    sendMessage: async (content) => {
+    sendMessage: async (content, attachments: any[] = []) => {
         const { threadId, projectId } = get()
-        if (!threadId || !content.trim()) return
+        if (!threadId || (!content.trim() && attachments.length === 0)) return
 
         // 1. Optimistic Update
         const tempId = Date.now()
+
+        // Construct display content for local optimistic UI (Markdown fallback)
+        let displayContent = content
+        if (attachments.length > 0) {
+            const attachmentLinks = attachments
+                .map((att) => att.type === 'image' ? `![Image](${att.url})` : `[File: ${att.url}]`)
+                .join("\n")
+            displayContent = displayContent
+                ? `${displayContent}\n${attachmentLinks}`
+                : attachmentLinks
+        }
+
         const newMessage: Message = {
             id: tempId,
             role: "user",
-            content: content,
+            content: displayContent,
         }
 
         set((state) => ({
@@ -187,9 +199,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
         try {
             await AgentService.chatEndpoint({
                 requestBody: {
-                    message: content,
+                    message: content, // Send raw text (backend handles merging)
                     thread_id: threadId,
                     project_id: projectId!,
+                    attachments: attachments // Pass structured attachments
                 },
             })
             // Success - we don't need to do anything, SSE "status: running" will confirm

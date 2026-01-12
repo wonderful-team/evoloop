@@ -15,9 +15,9 @@ def init_db(session: Session) -> None:
     # But if you don't want to use migrations, create
     # the tables un-commenting the next lines
     # from sqlmodel import SQLModel
-    
-    # from app.models import Item 
+
+    # from app.models import Item
     # SQLModel.metadata.create_all(engine)
-    
+
     # Users are managed by Member Center, no local initialization needed.
     pass

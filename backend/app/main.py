@@ -1,30 +1,30 @@
+import asyncio
+import os
+from contextlib import asynccontextmanager
+
 import sentry_sdk
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
-from starlette.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-from psycopg_pool import AsyncConnectionPool
+from fastapi.staticfiles import StaticFiles
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-import os
-import asyncio
+from psycopg_pool import AsyncConnectionPool
+from sqlalchemy import text
+from starlette.middleware.cors import CORSMiddleware
 
 from app.api.main import api_router
 from app.core.config import settings
-from app.logging import logger
-from fastapi.staticfiles import StaticFiles
 
 # EvoLoop Imports
-from app.core.workflows.graph_builder import GraphBuilder
+from app.core.engine.graph_builder import GraphBuilder
 from app.core.globals import set_graph
-from app.core.persistence import set_db_pool, set_checkpointer
-from app.domain.project.summarizer import project_summarizer
+from app.core.persistence import set_checkpointer, set_db_pool
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.project.service import project_context_manager
+from app.domain.project.summarizer import project_summarizer
 from app.domain.watchers import ProjectDiscoveryWatcher
+from app.infrastructure.database.sql.database import Base, engine
 from app.infrastructure.mcp.client import mcp_client_manager
-
-from app.infrastructure.database.sql.database import engine, Base
-from sqlalchemy import text
+from app.logging import logger
 
 
 @asynccontextmanager
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
     try:
         builder = GraphBuilder()
         # Path to the primary config
-        config_path = os.path.join(os.path.dirname(__file__), "core/workflows/config/agent_main.yaml")
+        config_path = os.path.join(os.path.dirname(__file__), "core/engine/config/agent_main.yaml")
         graph = builder.build(config_path, checkpointer=checkpointer)
         set_graph(graph)
         logger.info(f"Agent Graph built successfully from {config_path}")
@@ -102,14 +102,14 @@ async def lifespan(app: FastAPI):
         if os.path.exists(root_projects_dir):
             discovery_watcher = ProjectDiscoveryWatcher(root_projects_dir)
             discovery_watcher.start()
-            
+
             # 6.5 Startup Reconciliation
             # Catch up on offline changes (creates, deletes)
             try:
                 from app.domain.project.sync_service import project_sync_service
-                # Run reconciliation in background to not block startup significantly, 
+                # Run reconciliation in background to not block startup significantly,
                 # or await it if critical? Await is safer to ensure state consistency before accepting requests.
-                # However, for large folders, it might be slow. 
+                # However, for large folders, it might be slow.
                 # Given "Local-First" robustness, we can update state asynchronously.
                 # But let's await it for V1 safety.
                 print(f"DEBUG: Triggering reconcile_projects on {root_projects_dir}")
@@ -136,17 +136,20 @@ async def lifespan(app: FastAPI):
     # Restore session if token exists
 
     # Imports
-    from app.infrastructure.external.imagicbox import imagicbox_client
-    from app.infrastructure.evoloop_link.handler import handle_remote_command, handle_project_switch_event
+    from app.infrastructure.external.evocloud import evocloud_client
+    from app.infrastructure.external.evocloud.handler import (
+        handle_project_switch_event,
+        handle_remote_command,
+    )
 
     # Config Handlers
-    imagicbox_client.set_command_handler(handle_remote_command)
+    evocloud_client.set_command_handler(handle_remote_command)
 
     async def event_router(etype, edata):
         if etype == "project_switch":
             await handle_project_switch_event(edata)
 
-    imagicbox_client.set_event_handler(event_router)
+    evocloud_client.set_event_handler(event_router)
 
     # Try to load token from Redis to auto-connect
     evoloop_token = settings.IMAGICBOX_ACCESS_TOKEN  # Check config first
@@ -165,13 +168,13 @@ async def lifespan(app: FastAPI):
     if evoloop_token:
         try:
             # This will set the token on client and start the loop
-            await imagicbox_client.start_device_link(token=evoloop_token)
+            await evocloud_client.start_device_link(token=evoloop_token)
             logger.info("EvoLoop Link Client started in background.")
 
             # Fetch Current Project from Member Center
             try:
                 # Give it a small delay? No, http request is independent of WS.
-                res = await imagicbox_client.get_current_project()
+                res = await evocloud_client.get_current_project()
                 if res.get("code") == 0:
                     project_data = res.get("data", {})
                     cloud_path = project_data.get("external_path")
@@ -188,7 +191,7 @@ async def lifespan(app: FastAPI):
                         # We should RE-TRIGGER watcher if cloud differs.
 
                         project_id = project_data.get("project_id")
-                        
+
                         from app.domain.codebase.indexing.service import IndexingService
                         service = IndexingService()
                         repo_name = os.path.basename(cloud_path)
@@ -217,8 +220,8 @@ async def lifespan(app: FastAPI):
 
     # Stop EvoLoop Link
     try:
-        from app.infrastructure.external.imagicbox import imagicbox_client
-        await imagicbox_client.stop_device_link()
+        from app.infrastructure.external.evocloud import evocloud_client
+        await evocloud_client.stop_device_link()
     except Exception as e:
         logger.warning(f"Failed to stop EvoLoop Link: {e}")
 
@@ -227,7 +230,8 @@ async def lifespan(app: FastAPI):
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:
-    return f"{route.tags[0]}-{route.name}"
+    tag = route.tags[0] if route.tags else "default"
+    return f"{tag}-{route.name}"
 
 
 if settings.SENTRY_DSN and settings.ENVIRONMENT != "local":

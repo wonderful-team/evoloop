@@ -1,8 +1,10 @@
-import logging
 import json
-from typing import Any, Dict, Optional, Union
-from langchain_core.tools import BaseTool
+import logging
+from typing import Any
+
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import BaseTool
+
 from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
 
 logger = logging.getLogger(__name__)
@@ -12,14 +14,14 @@ class ToolExecutor:
     Service to execute tools with enhanced observability.
     Ensures that start/end events are logged to the frontend via EvoLoopCallbackHandler.
     """
-    
+
     def __init__(self):
         pass
 
     async def execute(
-        self, 
-        tool: BaseTool, 
-        args: Union[Dict[str, Any], str], 
+        self,
+        tool: BaseTool,
+        args: dict[str, Any] | str,
         config: RunnableConfig
     ) -> Any:
         """
@@ -32,8 +34,8 @@ class ToolExecutor:
                     However, we also manually trigger specific logs if the handler is found.
         """
         callbacks = config.get("callbacks", []) if config else []
-        evoloop_handler: Optional[EvoLoopCallbackHandler] = None
-        
+        evoloop_handler: EvoLoopCallbackHandler | None = None
+
         # Normalize callbacks to a list
         callback_list = []
         if isinstance(callbacks, list):
@@ -41,15 +43,15 @@ class ToolExecutor:
         elif hasattr(callbacks, "handlers"):
             # Handle AsyncCallbackManager/CallbackManager
             callback_list = callbacks.handlers
-            
+
         # Find EvoLoop handler to force-feed logs if needed
         for cb in callback_list:
             if isinstance(cb, EvoLoopCallbackHandler):
                 evoloop_handler = cb
                 break
-        
+
         tool_name = tool.name
-        
+
         # Helper to format input string
         input_str = json.dumps(args, ensure_ascii=False) if isinstance(args, dict) else str(args)
 
@@ -65,7 +67,7 @@ class ToolExecutor:
 
         # 2. Execute
         try:
-            # We assume the tool itself handles exceptions via @evoloop_tool, 
+            # We assume the tool itself handles exceptions via @evoloop_tool,
             # but we allow bubbling if raw execution
             output = await tool.ainvoke(args, config=config)
         except InterruptedError:
@@ -81,5 +83,5 @@ class ToolExecutor:
                 )
             except Exception as e:
                 logger.error(f"Failed to log tool end: {e}")
-                
+
         return output

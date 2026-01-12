@@ -1,7 +1,8 @@
 
-from typing import List, Optional
 import logging
-from langchain_core.messages import SystemMessage, HumanMessage
+
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from app.core.llm.factory import LLMFactory
 from app.domain.system.service import SystemConfigService
 
@@ -26,7 +27,7 @@ Return ONLY the new System Prompt text. Do not wrap in markdown blocks if not ne
 """
 
 class PromptOptimizer:
-    
+
     async def optimize(self, current_prompt: str, trace_summary: str, feedback: str, thread_id: str = None) -> str:
         """
         Reflects on the failure and returns a better prompt.
@@ -34,7 +35,7 @@ class PromptOptimizer:
         try:
              provider = await SystemConfigService.get_value("provider") or "openai"
              llm = LLMFactory.create_llm(provider=provider, smart=True)
-             
+
              user_content = f"""
 ## Current Prompt
 {current_prompt}
@@ -51,10 +52,10 @@ Please optimize the prompt to fix this.
                  SystemMessage(content=META_OPTIMIZER_PROMPT),
                  HumanMessage(content=user_content)
              ]
-             
+
              response = await llm.ainvoke(messages, config={"callbacks": []})
              new_prompt = response.content.strip()
-             
+
              # Basic cleanup
              if new_prompt.startswith("```"):
                  lines = new_prompt.splitlines()
@@ -62,9 +63,9 @@ Please optimize the prompt to fix this.
                  if lines[0].startswith("```"): lines = lines[1:]
                  if lines and lines[-1].startswith("```"): lines = lines[:-1]
                  new_prompt = "\n".join(lines).strip()
-                 
+
              logger.info(f"Optimized prompt based on feedback: {feedback}")
-             
+
              # Phase 6: Transparent Thought
              if thread_id:
                  try:
@@ -84,9 +85,9 @@ Please optimize the prompt to fix this.
                      )
                  except Exception:
                      pass
-                     
+
              return new_prompt
-             
+
         except Exception as e:
             logger.error(f"Prompt optimization failed: {e}")
             return current_prompt # Fallback

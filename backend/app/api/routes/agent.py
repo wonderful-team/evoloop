@@ -1,17 +1,18 @@
-from typing import Dict, Any, Optional, List, Annotated
-from fastapi import APIRouter, HTTPException, Depends, Header, BackgroundTasks
-from pydantic import BaseModel
-from langchain_core.messages import HumanMessage
+from typing import Annotated, Any
 
-from app.logging import logger, set_context
-from app.api.deps import CurrentUserOptional, verify_guest_access
-from app.core.monitoring.activity import activity_monitor
-from app.infrastructure.database.sql.models import Conversation, Message
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
+from langchain_core.messages import HumanMessage
+from pydantic import BaseModel
+
 from app.adapters import EventAdapter
-from app.infrastructure.database.sql.database import session_scope
+from app.api.deps import CurrentUserOptional, verify_guest_access
 
 # --- Background Worker ---
-from app.core.workflows.tasks import run_agent_background 
+from app.core.engine.tasks import run_agent_background
+from app.core.monitoring.activity import activity_monitor
+from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database.sql.models import Conversation, Message
+from app.logging import logger, set_context
 
 router = APIRouter()
 
@@ -20,20 +21,21 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     thread_id: str
     message: str
-    project_id: Optional[int] = 1
-    checkpoint_id: Optional[str] = None
+    project_id: int | None = 1
+    checkpoint_id: str | None = None
+    attachments: list[dict[str, Any]] | None = None # [{"url": "...", "type": "image"}]
 
 class WebhookRequest(BaseModel):
     source: str
     event_type: str
-    payload: Dict[str, Any]
-    thread_id: Optional[str] = None
+    payload: dict[str, Any]
+    thread_id: str | None = None
 
 # --- Endpoints ---
 
 @router.post("/chat", dependencies=[Depends(verify_guest_access)])
 async def chat_endpoint(
-    req: ChatRequest, 
+    req: ChatRequest,
     bg_tasks: BackgroundTasks, # Injected
     current_user: CurrentUserOptional, # Used for context if needed, though verified by deps
     x_guest_id: Annotated[str | None, Header()] = None
@@ -43,20 +45,49 @@ async def chat_endpoint(
     Guest Verification is handled by 'verify_guest_access' dependency.
     """
     set_context(thread_id=req.thread_id, project_id=req.project_id)
-    
+
     # 1. Construct input state
-    messages = [{"type": "human", "content": req.message}] # Simple serialization
-    
+    if req.attachments:
+        # Multimodal Message Construction
+        content_blocks = []
+
+        # Add text first? Or images first? Usually images then text for context.
+        # But text is usually the "prompt".
+        # Let's append text at the end or beginning.
+        # OpenAI recommends Images then Text? Or Text then Images?
+        # Actually it's flexible. Let's do Images, then Text.
+
+        for att in req.attachments:
+            if "url" in att:
+                content_blocks.append({
+                    "type": "image_url",
+                    "image_url": {"url": att["url"]}
+                })
+
+        # Add text block
+        if req.message:
+            content_blocks.append({
+                "type": "text",
+                "text": req.message
+            })
+
+        messages = [{"type": "human", "content": content_blocks}]
+    else:
+        # Standard Text Message
+        messages = [{"type": "human", "content": req.message}]
+
     inputs = {
-        "messages": messages, 
+        "messages": messages,
         "project_id": req.project_id,
         "checkpoint_id": req.checkpoint_id
     }
-    
+
     # Enable monitor
     goal = req.message[:50] + "..." if len(req.message) > 50 else req.message
+    if req.attachments:
+        goal = f"[Image] {goal}"
     await activity_monitor.start_run(req.thread_id, goal)
-    
+
     # 3. Upsert Conversation Record
     try:
         from datetime import datetime, timezone
@@ -71,7 +102,7 @@ async def chat_endpoint(
                 session.add(conversation)
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
-            
+
             # Log User Message (sequence_number=1 for first message in each run)
             user_msg = Message(
                 thread_id=req.thread_id,
@@ -84,14 +115,14 @@ async def chat_endpoint(
             session.add(user_msg)
             await session.flush() # Ensure FK consistency
             logger.info(f"Persisted user message for thread {req.thread_id}")
-            
+
     except Exception as e:
         logger.error(f"Failed to upsert logic: {e}")
         pass
-            
+
     # 2. Dispatch Background Task (Local)
     bg_tasks.add_task(run_agent_background, req.thread_id, inputs)
-            
+
     return {"status": "queued", "thread_id": req.thread_id}
 
 @router.post("/chat/stop")
@@ -105,17 +136,17 @@ async def stop_chat(req: ChatRequest):
 
 @router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
 async def retry_chat(
-    req: ChatRequest, 
+    req: ChatRequest,
     bg_tasks: BackgroundTasks
 ):
     """
     Retry the last user message.
     Rolls back history (deletes AI messages after last human msg) and restarts generation.
     """
-    from sqlalchemy import select, delete
-    
+    from sqlalchemy import delete, select
+
     retry_message_content = None
-    
+
     async with session_scope() as session:
         # 1. Find last human message
         stmt = (
@@ -127,13 +158,13 @@ async def retry_chat(
         )
         result = await session.execute(stmt)
         last_human_msg = result.scalar_one_or_none()
-        
+
         if not last_human_msg:
             raise HTTPException(status_code=404, detail="No human message found to retry")
-            
+
         retry_message_content = last_human_msg.content
         last_msg_id = last_human_msg.id
-        
+
         # 2. Delete all messages AFTER this human message
         del_stmt = (
             delete(Message)
@@ -142,29 +173,29 @@ async def retry_chat(
         )
         await session.execute(del_stmt)
         # Session commits automatically on exit context if no error
-        
+
         logger.info(f"Retrying thread {req.thread_id} from message {last_msg_id}")
 
     # 3. Setup Context
     set_context(thread_id=req.thread_id, project_id=req.project_id)
     await activity_monitor.start_run(req.thread_id, f"Retry: {retry_message_content[:50]}...")
-    
+
     # 4. Dispatch
     # Ensure inputs match normal chat flow
     inputs = {
-        "messages": [{"type": "human", "content": retry_message_content}], 
+        "messages": [{"type": "human", "content": retry_message_content}],
         "project_id": req.project_id,
         "is_retry": True # Flag for engine if needed (optional)
     }
-    
+
     bg_tasks.add_task(run_agent_background, req.thread_id, inputs)
-    
+
     return {"status": "queued", "thread_id": req.thread_id, "action": "retry"}
 
 
 class ResumeRequest(BaseModel):
     thread_id: str
-    user_input: Optional[str] = None  # Optional user response for HITL
+    user_input: str | None = None  # Optional user response for HITL
 
 
 @router.post("/chat/resume")
@@ -173,60 +204,60 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
     Resume a paused/interrupted graph execution.
     Used after Human-in-the-Loop interrupts where user provides input.
     """
+    from langchain_core.messages import HumanMessage
+
     from app.core.globals import get_graph
     from app.core.persistence import get_checkpointer
-    from langchain_core.messages import HumanMessage
-    
+
     graph = get_graph()
     checkpointer = get_checkpointer()
-    
+
     if not graph or not checkpointer:
         raise HTTPException(status_code=500, detail="Graph or Checkpointer not initialized")
-    
+
     # Config for resuming from checkpoint
     config = {
         "configurable": {
             "thread_id": req.thread_id
         }
     }
-    
+
     # Prepare input - if user provided input, add as message
     inputs = None
     if req.user_input:
         inputs = {"messages": [HumanMessage(content=req.user_input)]}
-    
+
     # Resume in background
     async def _resume_graph():
         from app.core.callbacks.transparent import TransparentCallbackHandler
-        from app.core.callbacks.database_logger import DatabaseCallbackHandler
         from app.core.exceptions import AgentCancelledException
-        
+
         callback = TransparentCallbackHandler(thread_id=req.thread_id)
-        
+
         try:
             # Clear any pending human request since we are resuming
             await activity_monitor.clear_human_request(req.thread_id)
             await activity_monitor.start_run(req.thread_id, "Resuming...")
-            
+
             resume_config = {
                 **config,
                 "callbacks": [callback]
             }
-            
+
             # Resume execution
             async for event in graph.astream(inputs, config=resume_config):
                 await activity_monitor.check_cancellation(req.thread_id)
-            
+
             await activity_monitor.end_run(req.thread_id, "done")
-            
+
         except AgentCancelledException:
             await activity_monitor.end_run(req.thread_id, "cancelled")
         except Exception as e:
             logger.error(f"Resume error for {req.thread_id}: {e}")
             await activity_monitor.end_run(req.thread_id, "failed")
-    
+
     bg_tasks.add_task(_resume_graph)
-    
+
     return {"status": "resuming", "thread_id": req.thread_id}
 
 @router.post("/webhook")
@@ -240,10 +271,10 @@ async def webhook_endpoint(
     messages = EventAdapter.adapt(req.source, req.event_type, req.payload)
     if not messages:
         raise HTTPException(status_code=400, detail="Could not adapt event")
-        
+
     tid = req.thread_id or f"{req.source}-{req.payload.get('id', 'gen')}"
     set_context(thread_id=tid)
-    
+
     if req.event_type == "project_switched":
         new_project = req.payload.get("new_project", {})
         new_path = new_project.get("path")
@@ -251,8 +282,9 @@ async def webhook_endpoint(
             from app.domain.project.service import project_context_manager
             project_context_manager.set_working_directory(tid, new_path)
             # Dispatch Indexing Task directly from here if needed
-            from app.domain.codebase.indexing.manager import indexing_manager
             import os
+
+            from app.domain.codebase.indexing.manager import indexing_manager
             repo_name = os.path.basename(new_path)
             from app.domain.codebase.indexing.service import IndexingService
             service = IndexingService()
@@ -269,7 +301,7 @@ async def webhook_endpoint(
              serialized_msgs.append({"type": "human", "content": str(m.content)})
 
     inputs = {"messages": serialized_msgs}
-    
+
     bg_tasks.add_task(run_agent_background, tid, inputs)
-    
+
     return {"status": "accepted", "thread_id": tid}

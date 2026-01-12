@@ -1,12 +1,10 @@
 
-import os
-import yaml
 import logging
-from typing import Dict, Any, List, Optional
+import os
+
 from langchain_core.tools import tool
-from langgraph.graph import StateGraph
-from app.core.workflows.graph_builder import GraphBuilder
-from app.infrastructure.database.sql.database import session_scope
+
+from app.core.engine.graph_builder import GraphBuilder
 
 logger = logging.getLogger("evoloop.orchestration")
 
@@ -15,7 +13,7 @@ AGENTS_DIR = os.path.join(os.path.dirname(__file__), "../workflows/config")
 
 class SkillRegistry:
     def __init__(self):
-        self._skills: Dict[str, str] = {} # name -> path
+        self._skills: dict[str, str] = {} # name -> path
         self.scan_skills()
 
     def scan_skills(self):
@@ -30,13 +28,13 @@ class SkillRegistry:
             if filename.endswith(".yaml") or filename.endswith(".yml"):
                 name = os.path.splitext(filename)[0]
                 self._skills[name] = os.path.join(AGENTS_DIR, filename)
-        
+
         logger.info(f"Loaded {len(self._skills)} skills: {list(self._skills.keys())}")
 
-    def get_skill_path(self, skill_name: str) -> Optional[str]:
+    def get_skill_path(self, skill_name: str) -> str | None:
         return self._skills.get(skill_name)
 
-    def list_skills(self) -> List[str]:
+    def list_skills(self) -> list[str]:
         return list(self._skills.keys())
 
 # Global Instance
@@ -57,24 +55,24 @@ async def delegate_task(skill_name: str, task_input: dict) -> dict:
         # Fallback: Rescan just in case
         _registry.scan_skills()
         config_path = _registry.get_skill_path(skill_name)
-        
+
     if not config_path:
         available = ", ".join(_registry.list_skills())
         return {"error": f"Skill '{skill_name}' not found. Available skills: {available}"}
 
     try:
         logger.info(f"Orchestrator delegating task to: {skill_name}")
-        
+
         # Build the agent graph on the fly
         builder = GraphBuilder()
         # We assume independent execution (no checkpointer shared for now, or maybe passing None)
         agent_app = builder.build(config_path)
-        
+
         # Execute
         # Note: 'task_input' must match the State Schema of the target agent.
         # Most universal agents use 'messages' and 'scratchpad'.
         result = await agent_app.ainvoke(task_input)
-        
+
         # We return the FINAL state.
         # The caller (Manager) must decide what to extract.
         return result

@@ -1,21 +1,25 @@
-from typing import Optional, Literal
 import os
+from typing import Literal
+
 from langchain_core.runnables import RunnableConfig
+
 from app.utils.process import run_command as utils_run_cmd
+
 from .utils import resolve_and_validate_path
 
+
 async def handle_list(
-    action: Literal['list', 'list_tree'], 
-    path: str, 
-    max_depth: int = 3, 
-    with_symbols: bool = False, 
-    config: Optional[RunnableConfig] = None
+    action: Literal['list', 'list_tree'],
+    path: str,
+    max_depth: int = 3,
+    with_symbols: bool = False,
+    config: RunnableConfig | None = None
 ) -> str:
     try:
         target_path = resolve_and_validate_path(path, config)
     except ValueError as e:
         return str(e)
-        
+
     if not os.path.exists(target_path):
           return f"Error: Path does not exist: {path}"
 
@@ -30,18 +34,18 @@ async def handle_list(
     elif action == 'list_tree':
         # Delegate to AnnotatedTreeGenerator
         from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
-        
+
         try:
              # Use provided max_depth and with_symbols
              generator = AnnotatedTreeGenerator(
-                 target_path, 
-                 max_depth=max_depth, 
+                 target_path,
+                 max_depth=max_depth,
                  with_symbols=with_symbols,
-                 file_limit=30 
+                 file_limit=30
              )
              tree_output = await generator.generate()
              return tree_output
         except Exception as e:
              return f"Error generating tree: {e}"
-    
+
     return f"Error: Unknown list action {action}"

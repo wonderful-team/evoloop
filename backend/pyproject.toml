@@ -62,6 +62,9 @@ dependencies = [
     "websockets>=13.0,<15.0",
     "pathspec>=0.12.0",
     "pyright>=1.1.408", # Runtime dependency for LSP tool
+    "torch==2.2.2",
+    "adaptive-classifier>=0.1.2",
+    "numpy<2",
 ]
 
 [tool.uv]
@@ -109,6 +112,13 @@ ignore = [
 [tool.ruff.lint.pyupgrade]
 # Preserve types, even if a file imports `from __future__ import annotations`.
 keep-runtime-typing = true
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["T201", "E501"]
+"scripts/**/*.py" = ["T201"]
+"verify_*.py" = ["T201"]
+"check_*.py" = ["T201"]
+"export_openapi.py" = ["T201"]
 
 [tool.coverage.run]
 source = ["app"]

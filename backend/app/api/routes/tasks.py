@@ -1,16 +1,17 @@
 import time
-from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, Query, Header, BackgroundTasks
-from pydantic import BaseModel
-from langchain_core.messages import HumanMessage
+from typing import Any
 
-from app.infrastructure.external.imagicbox import imagicbox_client
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
+from app.api.deps import TokenDep
+from pydantic import BaseModel
+
+from app.infrastructure.external.evocloud import evocloud_client
 from app.logging import logger
 
 router = APIRouter()
 
 # --- Helper ---
-def get_token(authorization: Optional[str] = Header(None)):
+def get_token(authorization: str | None = Header(None)):
     if not authorization:
         return None
     if authorization.startswith("Bearer "):
@@ -22,33 +23,33 @@ def get_token(authorization: Optional[str] = Header(None)):
 class TaskCreateRequest(BaseModel):
     project_id: int
     task_title: str
-    task_desc: Optional[str] = ""
+    task_desc: str | None = ""
     # Optional fields that match the AI Enhanced structure
     priority: int = 2
-    match_score: Optional[float] = None
-    relevance_analysis: Optional[str] = None
-    key_modules: Optional[Any] = None # List or Str
-    technical_challenges: Optional[Any] = None
-    implementation_complexity: Optional[str] = None
-    deliverables: Optional[Any] = None
+    match_score: float | None = None
+    relevance_analysis: str | None = None
+    key_modules: Any | None = None # List or Str
+    technical_challenges: Any | None = None
+    implementation_complexity: str | None = None
+    deliverables: Any | None = None
 
 class TaskUpdateRequest(BaseModel):
-    task_title: Optional[str] = None
-    task_desc: Optional[str] = None
-    priority: Optional[int] = None
-    status: Optional[int] = None
-    progress: Optional[int] = None
+    task_title: str | None = None
+    task_desc: str | None = None
+    priority: int | None = None
+    status: int | None = None
+    progress: int | None = None
     # AI fields are also updateable
-    match_score: Optional[float] = None
-    relevance_analysis: Optional[str] = None
-    key_modules: Optional[Any] = None
-    technical_challenges: Optional[Any] = None
-    implementation_complexity: Optional[str] = None
-    deliverables: Optional[Any] = None
+    match_score: float | None = None
+    relevance_analysis: str | None = None
+    key_modules: Any | None = None
+    technical_challenges: Any | None = None
+    implementation_complexity: str | None = None
+    deliverables: Any | None = None
 
 class TaskStatusUpdate(BaseModel):
     status: int
-    progress: Optional[int] = 0
+    progress: int | None = 0
 
 # --- Routes ---
 
@@ -57,107 +58,105 @@ async def get_project_tasks(
     project_id: int,
     page: int = 1,
     page_size: int = 50,
-    status: Optional[int] = None,
-    authorization: Optional[str] = Header(None)
+    status: int | None = None,
+    token: TokenDep = None
 ):
     """
     Get a list of tasks for a specific project.
     """
-    token = get_token(authorization)
-    res = await imagicbox_client.get_project_tasks(
-        project_id=project_id, 
-        page=page, 
-        page_size=page_size, 
+    res = await evocloud_client.get_project_tasks(
+        project_id=project_id,
+        page=page,
+        page_size=page_size,
         status=status,
         token=token
     )
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to get tasks"))
-    
+
     return res.get("data", {})
 
 @router.get("/{task_id}")
-async def get_task_detail(task_id: int, authorization: Optional[str] = Header(None)):
+async def get_task_detail(task_id: int, token: TokenDep):
     """
     Get details of a specific task.
     """
-    token = get_token(authorization)
-    res = await imagicbox_client.get_task_detail(task_id, token=token)
+    res = await evocloud_client.get_task_detail(task_id, token=token)
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to get task detail"))
-    
+
     return res.get("data", {})
 
 @router.post("/")
-async def create_task(req: TaskCreateRequest, authorization: Optional[str] = Header(None)):
+async def create_task(req: TaskCreateRequest, authorization: str | None = Header(None)):
     """
     Create a new task.
     """
     token = get_token(authorization)
     # Convert Pydantic model to dict, exclude None to let backend handle defaults
     data = req.model_dump(exclude_none=True)
-    
-    res = await imagicbox_client.create_task(data, token=token)
+
+    res = await evocloud_client.create_task(data, token=token)
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to create task"))
-    
+
     return res
 
 @router.put("/{task_id}")
-async def update_task(task_id: int, req: TaskUpdateRequest, authorization: Optional[str] = Header(None)):
+async def update_task(task_id: int, req: TaskUpdateRequest, authorization: str | None = Header(None)):
     """
     Update a task.
     """
     token = get_token(authorization)
     data = req.model_dump(exclude_none=True)
     data['task_id'] = task_id # Ensure ID is passed if needed by backend, though URL param usually sufficient for routing
-    
-    res = await imagicbox_client.update_task(task_id, data, token=token)
+
+    res = await evocloud_client.update_task(task_id, data, token=token)
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to update task"))
-    
+
     return res
 
 @router.delete("/{task_id}")
-async def delete_task(task_id: int, authorization: Optional[str] = Header(None)):
+async def delete_task(task_id: int, authorization: str | None = Header(None)):
     """
     Delete a task.
     """
     token = get_token(authorization)
-    res = await imagicbox_client.delete_task(task_id, token=token)
+    res = await evocloud_client.delete_task(task_id, token=token)
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to delete task"))
-    
+
     return res
 
 @router.put("/{task_id}/status")
-async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, authorization: Optional[str] = Header(None)):
+async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, authorization: str | None = Header(None)):
     """
     Update task status and progress.
     """
     token = get_token(authorization)
-    res = await imagicbox_client.update_task_status(task_id, req.status, req.progress, token=token)
+    res = await evocloud_client.update_task_status(task_id, req.status, req.progress, token=token)
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to update task status"))
-    
+
     return res
 
 @router.post("/{task_id}/execute")
 async def execute_task(
-    task_id: int, 
+    task_id: int,
     bg_tasks: BackgroundTasks,
-    authorization: Optional[str] = Header(None)
+    authorization: str | None = Header(None)
 ):
     """
     Trigger Autonomous Agent to execute the task.
     """
     token = get_token(authorization)
-    
+
     # 1. Fetch Task Detail
-    task_res = await imagicbox_client.get_task_detail(task_id, token=token)
+    task_res = await evocloud_client.get_task_detail(task_id, token=token)
     if task_res.get("code") != 0:
         raise HTTPException(status_code=400, detail="Failed to fetch task details")
-    
+
     task = task_res.get("data", {})
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -182,25 +181,26 @@ Remember to follow the project structure and coding standards.
     # 3. Generate Thread ID
     # Use task ID in thread ID to allow resuming/tracking specific to this task
     thread_id = f"task-{task_id}-{int(time.time())}"
-    
+
     # 4. Trigger Local Background Task
-    from app.core.workflows.tasks import run_agent_background
-    
+    from app.core.engine.tasks import run_agent_background
+
     # Construct Inputs (Serialized)
     # prompt is string.
     messages = [{"type": "human", "content": prompt}]
-    
+
     inputs = {
         "messages": messages,
-        "project_id": task.get("project_id", 1), 
+        "project_id": task.get("project_id", 1),
         "task_title": task.get("task_title")
     }
-    
+
     # --- PERSIST AUTOMATED USER MESSAGE ---
     # We must manually save the prompt as a user message so it appears in history.
+    from datetime import datetime, timezone
+
     from app.infrastructure.database.sql.database import session_scope
     from app.infrastructure.database.sql.models import Conversation, Message
-    from datetime import datetime, timezone
 
     try:
         async with session_scope() as session:
@@ -215,7 +215,7 @@ Remember to follow the project structure and coding standards.
                 session.add(conversation)
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
-            
+
             # Log User Message (The constructed prompt)
             user_msg = Message(
                 thread_id=thread_id,
@@ -230,9 +230,9 @@ Remember to follow the project structure and coding standards.
     except Exception as e:
         logger.error(f"Failed to persist task message {thread_id}: {e}")
     # --------------------------------------
-    
+
     bg_tasks.add_task(run_agent_background, thread_id, inputs)
-    
+
     return {
         "status": "queued",
         "thread_id": thread_id,

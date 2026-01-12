@@ -1,8 +1,6 @@
 import asyncio
 import logging
 import os
-from app.utils import json as json_utils
-from app.utils import file as file_utils
 
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -11,7 +9,9 @@ from app.celery_app import celery_app
 from app.core.llm.factory import LLMFactory
 from app.domain.memory.service import memory_service
 from app.domain.project.service import project_context_manager
-from app.infrastructure.external.imagicbox import imagicbox_client
+from app.infrastructure.external.evocloud import evocloud_client
+from app.utils import file as file_utils
+from app.utils import json as json_utils
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +24,9 @@ async def _summarize_project_logic(name: str, path: str):
     """
     # Import Monitor
     from app.core.monitoring.activity import activity_monitor
-    
+
     logger.info(f"[ProjectSummarizer] Analyzing {name}...")
-    
+
     # 0. Resolve Project ID Early (Used for Graph Lookup)
     project_id = 1 # Default
     try:
@@ -60,7 +60,7 @@ async def _summarize_project_logic(name: str, path: str):
             driver = await get_graph_db()
             async with driver.session() as session:
                 # Check for Root Directory Node
-                # Logic: path should match exactly. 
+                # Logic: path should match exactly.
                 # Note: DirectorySummarizer logic ensures path has no trailing slash usually, or normalized.
                 # We try exact match first.
                 query = """
@@ -80,7 +80,7 @@ async def _summarize_project_logic(name: str, path: str):
 
         # Re-initialize LLM chain here because this runs in a separate process
         llm = LLMFactory.create_llm(temperature=0.3)
-        
+
         prompt = ChatPromptTemplate.from_template("""
         You are a Technical Project Analyst. Analyze the following project information and generate a concise summary.
         
@@ -115,26 +115,26 @@ async def _summarize_project_logic(name: str, path: str):
         # 1. Gather Context (Files)
         from app.domain.codebase.filter import FileFilter
         f_filter = FileFilter()
-        
+
         files = []
         try:
             # files = [f for f in os.listdir(path) if not f.startswith(".")]
             for f in os.listdir(path):
-                if f.startswith("."): 
+                if f.startswith("."):
                     continue
                 full_p = os.path.join(path, f)
                 if f_filter.should_include(full_p):
                     files.append(f)
         except:
             pass
-        
+
         # Note: project_context_manager needs to be safe to use here.
         # It usually is just file reading.
         readme_content = project_context_manager._extract_description_from_readme(path)
-        
+
         # Update Status
         await activity_monitor.update_agent_state(sys_tid, "SUMMARIZING", "Project Analysis", "Generating Summary with LLM...")
-        
+
         # 2. Call LLM
         result = await chain.ainvoke({
             "name": name,
@@ -142,31 +142,31 @@ async def _summarize_project_logic(name: str, path: str):
             "readme": readme_content[:2000], # Give more context than the simple snippet
             "arch_summary": arch_summary[:5000] # Inject the deep summary
         })
-        
+
         # 3. Save Result
         meta_dir = os.path.join(path, ".evoloop")
         os.makedirs(meta_dir, exist_ok=True)
-        
+
         meta_file = os.path.join(meta_dir, "project.json")
         file_utils.write_file(meta_file, json_utils.dumps(result, indent=2))
-            
+
         logger.info(f"[ProjectSummarizer] Saved metadata for {name}: {result}")
 
         # 4. Upload to Member Center & Save Concepts
         concepts = result.get("concepts", [])
         description = result.get("description", "")
-        
+
         # Resolve Project ID via API Scan (Redundant but safe fallback if logic above failed? No we have early check.)
         # We can reuse project_id resolved above.
-        
+
         if project_id:
             logger.info(f"[ProjectSummarizer] Resolved Project ID {project_id} for {name}")
-            
+
             # Upload Summary
             if description:
                 try:
                     # This is an async call call now
-                    await imagicbox_client.update_project(project_id, description)
+                    await evocloud_client.update_project(project_id, description)
                     logger.info(f"[ProjectSummarizer] Uploaded summary for {name}")
                 except Exception as up_e:
                     logger.error(f"Failed to upload summary: {up_e}")
@@ -179,10 +179,10 @@ async def _summarize_project_logic(name: str, path: str):
             c_desc = c.get("description")
             if c_name and c_desc:
                 await memory_service.add_concept(name=c_name, description=c_desc, project_id=project_id, related_files=[path])
-                
+
         # Done
         await activity_monitor.end_run(sys_tid, "done")
-        
+
     except Exception as e:
         logger.error(f"[ProjectSummarizer] Failed to summarize {name}: {e}")
         await activity_monitor.end_run(sys_tid, "failed")
@@ -207,7 +207,7 @@ class ProjectSummarizer:
     """
     def __init__(self):
         self._processed = set()
-        
+
     async def start_worker(self):
         """Deprecated: Worker is now managed by Celery."""
         logger.info("[ProjectSummarizer] Worker is managed by Celery. No internal loop needed.")
@@ -219,13 +219,13 @@ class ProjectSummarizer:
         """Add a project to the processing queue (Celery)."""
         if path in self._processed:
             return
-            
+
         # Check if already has metadata
         meta_path = os.path.join(path, ".evoloop", "project.json")
         if os.path.exists(meta_path):
             self._processed.add(path)
             return
-        
+
         # Dispatch to Celery
         summarize_project_task.delay(name, path)
         self._processed.add(path) # Optimistically mark as processed

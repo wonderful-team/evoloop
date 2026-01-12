@@ -1,11 +1,13 @@
-import os
 import functools
-from typing import Optional, Any, Dict, Union
+import os
+
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool as langchain_tool
+
 from app.logging import get_context
 
-def get_working_directory(config: Optional[RunnableConfig] = None) -> str:
+
+def get_working_directory(config: RunnableConfig | None = None) -> str:
     """
     Extracts the working directory from the context or configuration.
     Prioritizes:
@@ -24,7 +26,7 @@ def get_working_directory(config: Optional[RunnableConfig] = None) -> str:
         wd = config["configurable"].get("working_directory")
         if wd:
             return wd
-            
+
     # Default
     return os.getcwd()
 
@@ -39,7 +41,7 @@ def evoloop_tool(func):
     def my_tool(args, config: RunnableConfig): ...
     """
     import inspect
-    
+
     if inspect.iscoroutinefunction(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
@@ -56,12 +58,12 @@ def evoloop_tool(func):
             except Exception as e:
                 # Log error
                 return f"Error: {str(e)}"
-    
+
     # Mark for Auto-Discovery on the wrapper function
     wrapper.is_evoloop_active = True
     wrapper.evoloop_module = func.__module__
 
     # Apply LangChain's @tool
     tool_instance = langchain_tool(wrapper)
-    
+
     return tool_instance

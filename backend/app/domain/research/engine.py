@@ -1,12 +1,10 @@
 import logging
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, ToolMessage, SystemMessage
-from langchain_core.prompts import PromptTemplate
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
-from app.core.prompts.deep_research import RESEARCH_PLAN_PROMPT, RESEARCH_UPDATE_PROMPT, RESEARCH_CONCLUSION_PROMPT
 from app.domain.tools.registry import get_all_tools
 
 logger = logging.getLogger(__name__)
@@ -23,15 +21,7 @@ class DeepResearchEngine:
     def __init__(self, llm: BaseChatModel, tools: list = None):
         self.llm = llm
         self.tools = tools
-        self._init_prompts()
 
-    def _init_prompts(self):
-        """Initialize PromptTemplates."""
-        # Clean placeholders: Ensure prompts are format-ready
-        self.plan_prompt_template = PromptTemplate.from_template(RESEARCH_PLAN_PROMPT)
-        # Note: RESEARCH_UPDATE_PROMPT expects {iteration}
-        self.update_prompt_template = PromptTemplate.from_template(RESEARCH_UPDATE_PROMPT)
-        self.conclusion_prompt_template = PromptTemplate.from_template(RESEARCH_CONCLUSION_PROMPT)
 
     async def run(self, topic: str, previous_history: list = None, max_iterations: int = settings.RESEARCH_MAX_ITERATIONS, config: RunnableConfig = None) -> str:
         """
@@ -49,42 +39,36 @@ class DeepResearchEngine:
         # Create a short topic identifier for logs (e.g. "Community Plugin...")
         topic_short = (topic[:30] + '..') if len(topic) > 30 else topic
         log_prefix = f"[{topic_short}]"
-        
+
         logger.info(f"{log_prefix} Starting Deep Research Engine.")
 
         # 1. Plan Phase
         logger.info(f"{log_prefix} Phase 1: Planning")
 
-        # Construct the planning prompt
-        # We inject the topic directly. If prompts have placeholders, use format.
-        
-        # Language Injection
-        from app.domain.system.service import SystemConfigService
-        user_lang = SystemConfigService.get_language_preference()
-        lang_msg = SystemMessage(content=f"LANGUAGE PROTOCOL (STRICT):\nUser Language: {user_lang}\nYou MUST write your plans, updates, and conclusions in {user_lang}.")
+        # Construct the planning prompt using Builder
+        from app.core.prompts.deep_research_builder import DeepResearchPromptBuilder
 
         # Context Formatting
         context_str = ""
         if previous_history:
-            # We summarize or format the history to avoid token explosion, 
-            # or just filter for vital info. For now, we append the text representation.
-            # We filter for only Human and AI messages to keep it clean.
+            # Filter for vital info
             relevant_msgs = [m for m in previous_history if isinstance(m, (HumanMessage, AIMessage, ToolMessage))]
-            # Limit to last 10 messages to stay focused
-            relevant_msgs = relevant_msgs[-10:]
-            
-            history_text = "\\n".join([f"{m.type}: {str(m.content)[:500]}" for m in relevant_msgs])
-            context_str = f"\\n\\nCONTEXT FROM PREVIOUS TURN:\\n{history_text}\\n"
+            relevant_msgs = relevant_msgs[-10:] # Limit to last 10 messages
+
+            history_text = "\n".join([f"{m.type}: {str(m.content)[:500]}" for m in relevant_msgs])
+            context_str = f"\n\nCONTEXT FROM PREVIOUS TURN:\n{history_text}\n"
+
+        # Build prompt with language injection handled internally
+        system_content = DeepResearchPromptBuilder.build_plan_prompt(context_str)
 
         messages = [
-            lang_msg,
-            SystemMessage(content=RESEARCH_PLAN_PROMPT),
-            HumanMessage(content=f"User Query: {topic}{context_str}")
+            SystemMessage(content=system_content),
+            HumanMessage(content=f"User Query: {topic}")
         ]
 
         response = await self.llm.ainvoke(messages, config=config)
         logs.append(f"### Iteration 1: Plan\n{response.content}")
-        
+
         # Log plan summary
         logger.info(f"{log_prefix} Plan Generated: {response.content[:200].replace(chr(10), ' ')}...")
 
@@ -103,21 +87,14 @@ class DeepResearchEngine:
             current_iteration += 1
             logger.info(f"{log_prefix} Phase 2: Iteration {current_iteration}")
 
-            # Prepare Update Prompt
+            # Prepare Update Prompt using Builder
             current_logs_str = "\n\n".join(logs)
 
-            try:
-                # Try formatting if the prompt has placeholders
-                update_system_content = self.update_prompt_template.format(iteration=current_iteration)
-            except KeyError:
-                # Fallback if no placeholder
-                update_system_content = RESEARCH_UPDATE_PROMPT
-
+            update_system_content = DeepResearchPromptBuilder.build_update_prompt(iteration=current_iteration)
             update_user_content = f"Topic: {topic}\n\nPrevious Research:\n{current_logs_str}\n\nPlease proceed with Iteration {current_iteration}."
 
             # Inner ReAct Loop
             step_messages = [
-                lang_msg,
                 SystemMessage(content=update_system_content),
                 HumanMessage(content=update_user_content)
             ]
@@ -165,7 +142,7 @@ class DeepResearchEngine:
 
                     # Truncate result for context window
                     result_str = str(result)
-                    
+
                     # Log result summary
                     res_log = result_str[:100].replace('\n', ' ') + "..." if len(result_str) > 100 else result_str.replace('\n', ' ')
                     logger.info(f"{log_prefix} Tool Output: {res_log}")
@@ -192,9 +169,10 @@ class DeepResearchEngine:
 
         conclusion_user_content = f"Topic: {topic}\n\nAll Findings:\n{current_logs_str}\n\nPlease provide the detailed Final Conclusion."
 
+        system_content = DeepResearchPromptBuilder.build_conclusion_prompt()
+
         final_messages = [
-            lang_msg,
-            SystemMessage(content=RESEARCH_CONCLUSION_PROMPT),
+            SystemMessage(content=system_content),
             HumanMessage(content=conclusion_user_content)
         ]
 

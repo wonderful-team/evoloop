@@ -8,18 +8,15 @@ import math
 import os
 import re
 from collections import Counter
-from typing import Dict, Optional, List, Union
 
 from app.constants import (
     CODE_QUALITY_THRESHOLDS,
-    LIKELY_COMPRESSED_CODE_DIRS,
     COMPRESSED_FILE_PATTERNS,
     LIKELY_COMPRESSED_CODE_DIRS,
-    COMPRESSED_FILE_PATTERNS,
     SOURCE_MAP_EXTENSIONS,
-    SUSPICIOUS_JS_PATTERNS
+    SUSPICIOUS_JS_PATTERNS,
 )
-from app.utils.file import is_text_file, is_encrypted_path, get_file_ext
+from app.utils.file import get_file_ext, is_encrypted_path, is_text_file
 
 
 class FileFilter:
@@ -30,7 +27,7 @@ class FileFilter:
         # Cache for file inclusion results
         self._file_inclusion_cache = {}
 
-    def parse_file(self, file_path: str) -> Dict:
+    def parse_file(self, file_path: str) -> dict:
         """Parse inclusion or exclusion file.
 
         The format for each line should be:
@@ -39,7 +36,7 @@ class FileFilter:
         file:my-file.py    for filenames
         dir:my-directory   for directories
         """
-        with open(file_path, "r") as f:
+        with open(file_path) as f:
             lines = f.readlines()
 
         parsed_data = {"ext": [], "file": [], "dir": []}
@@ -57,8 +54,8 @@ class FileFilter:
 
         return parsed_data
 
-    def should_include(self, file_path: str, inclusions: Optional[Dict] = None,
-                       exclusions: Optional[Dict] = None) -> bool:
+    def should_include(self, file_path: str, inclusions: dict | None = None,
+                       exclusions: dict | None = None) -> bool:
         """
         Check if a file should be included, using multi-dimensional checks for compression and encryption.
         
@@ -91,7 +88,7 @@ class FileFilter:
             # Add compression check here as well for default behavior
             if result:
                  result = not self._is_likely_compressed_file(file_path)
-                 
+
             self._file_inclusion_cache[cache_key] = result
             return result
 
@@ -108,7 +105,7 @@ class FileFilter:
                 self._file_inclusion_cache[cache_key] = False
                 return False
         except OSError:
-            pass 
+            pass
 
         # Check for compressed file - Fast check first
         if self._is_likely_compressed_file(file_path):
@@ -170,7 +167,7 @@ class FileFilter:
     def _check_compressed_content_sample(self, file_path: str) -> bool:
         """Simple sample check for compressed content."""
         try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(file_path, encoding='utf-8', errors='ignore') as f:
                 sample = f.read(1000)
 
             if not sample:
@@ -199,7 +196,7 @@ class FileFilter:
         """Detailed content analysis to identify compressed/obfuscated code."""
         try:
             sample_size = CODE_QUALITY_THRESHOLDS["sample_size"]
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(file_path, encoding='utf-8', errors='ignore') as f:
                 content = f.read(sample_size)
 
             if not content:
@@ -256,4 +253,4 @@ class FileFilter:
 
         except Exception as e:
             logging.debug(f"Error analyzing file {file_path}: {str(e)}")
-            return False 
+            return False

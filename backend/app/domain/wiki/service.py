@@ -40,7 +40,7 @@ class WikiService:
 
         try:
             full_path = source_file.repository.local_path + "/" + source_file.path
-            # Check if repo path is absolute or relative? 
+            # Check if repo path is absolute or relative?
             # In IndexingService: local_path=path.
 
             # Simple fallback if file read fails
@@ -48,7 +48,7 @@ class WikiService:
 
             import os
             if os.path.exists(full_path):
-                with open(full_path, "r") as f:
+                with open(full_path) as f:
                     lines = f.readlines()
                     # 1-based indexing in DB
                     start = max(0, entity.start_line - 1)

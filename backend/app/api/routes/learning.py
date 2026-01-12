@@ -3,25 +3,24 @@ Learning API Routes.
 Handles human-in-the-loop requests and imitation learning endpoints.
 """
 
-from typing import Any, Optional, List, Dict
-from fastapi import APIRouter, HTTPException
+import logging
+from typing import Any
+
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
+from app.core.config import settings
+from app.core.engine.tasks import run_agent_background
 from app.domain.tools.human_input import (
+    cancel_request,
+    cleanup_old_requests,
+    complete_request,
     get_all_pending_requests,
     get_pending_request,
-    complete_request,
-    cancel_request,
     get_pending_requests_for_thread,
-    cleanup_old_requests
 )
-from app.api.deps import verify_guest_access
-from app.core.config import settings
-from app.core.workflows.tasks import run_agent_background
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import Conversation, Message
-from fastapi import BackgroundTasks, Depends
-import logging
 
 logger = logging.getLogger("evoloop.learning")
 
@@ -35,17 +34,17 @@ class HumanInputRequestOut(BaseModel):
     thread_id: str
     request_type: str
     prompt: str
-    options: Optional[List[str]] = None
-    context: Optional[str] = None
-    default_value: Optional[str] = None
+    options: list[str] | None = None
+    context: str | None = None
+    default_value: str | None = None
     created_at: str
     status: str
 
 
 class ExecuteSkillRequest(BaseModel):
     thread_id: str
-    params: Dict[str, Any]
-    project_id: Optional[int] = 1
+    params: dict[str, Any]
+    project_id: int | None = 1
 
 
 class RespondRequest(BaseModel):
@@ -59,8 +58,8 @@ class RespondResponse(BaseModel):
 
 # ============ Endpoints ============
 
-@router.get("/human-requests", response_model=List[HumanInputRequestOut])
-def list_pending_requests(thread_id: Optional[str] = None):
+@router.get("/human-requests", response_model=list[HumanInputRequestOut])
+def list_pending_requests(thread_id: str | None = None):
     """
     Get all pending human input requests.
     Optionally filter by thread_id.
@@ -81,7 +80,7 @@ def list_pending_requests(thread_id: Optional[str] = None):
             )
             for req in requests
         ]
-    
+
     return get_all_pending_requests()
 
 
@@ -93,7 +92,7 @@ def get_request(request_id: str):
     request = get_pending_request(request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
-    
+
     return HumanInputRequestOut(
         id=request.id,
         thread_id=request.thread_id,
@@ -116,15 +115,15 @@ def respond_to_request(request_id: str, body: RespondRequest):
     request = get_pending_request(request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
-    
+
     if request.status != "pending":
         raise HTTPException(
-            status_code=400, 
+            status_code=400,
             detail=f"Request is not pending (status: {request.status})"
         )
-    
+
     success = complete_request(request_id, body.response)
-    
+
     if success:
         return RespondResponse(
             success=True,
@@ -143,15 +142,15 @@ def cancel_pending_request(request_id: str):
     request = get_pending_request(request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
-    
+
     if request.status != "pending":
         raise HTTPException(
             status_code=400,
             detail=f"Request is not pending (status: {request.status})"
         )
-    
+
     success = cancel_request(request_id)
-    
+
     if success:
         return RespondResponse(
             success=True,
@@ -173,9 +172,9 @@ def cleanup_requests(max_age_hours: int = 24):
 # ============ Trace Recording API (Phase 1) ============
 
 import json
-from uuid import uuid4
 from datetime import datetime
-from app.infrastructure.database.sql.database import session_scope
+from uuid import uuid4
+
 from app.infrastructure.database.sql.models import TraceEvent
 
 
@@ -183,15 +182,15 @@ class RecordedEvent(BaseModel):
     """Single recorded event from frontend."""
     timestamp: float  # Unix timestamp in ms
     event_type: str  # "click", "input", "message", "tool_result", "screenshot"
-    target_selector: Optional[str] = None  # CSS selector of target element
-    target_text: Optional[str] = None  # Text content of target element
-    payload: Optional[dict] = None  # Additional event data
-    screenshot_base64: Optional[str] = None  # Base64 encoded screenshot (optional)
+    target_selector: str | None = None  # CSS selector of target element
+    target_text: str | None = None  # Text content of target element
+    payload: dict | None = None  # Additional event data
+    screenshot_base64: str | None = None  # Base64 encoded screenshot (optional)
 
 
 class StartRecordingRequest(BaseModel):
     thread_id: str
-    task_name: Optional[str] = None
+    task_name: str | None = None
 
 
 class StartRecordingResponse(BaseModel):
@@ -202,7 +201,7 @@ class StartRecordingResponse(BaseModel):
 class RecordEventsRequest(BaseModel):
     session_id: str
     thread_id: str
-    events: List[RecordedEvent]
+    events: list[RecordedEvent]
 
 
 class StopRecordingResponse(BaseModel):
@@ -228,7 +227,7 @@ async def start_recording(body: StartRecordingRequest):
         "started_at": datetime.utcnow(),
         "event_count": 0
     }
-    
+
     return StartRecordingResponse(
         session_id=session_id,
         message=f"Recording session started for thread {body.thread_id}"
@@ -243,10 +242,10 @@ async def record_events(body: RecordEventsRequest):
     """
     if body.session_id not in _active_sessions:
         raise HTTPException(status_code=404, detail="Recording session not found")
-    
+
     session = _active_sessions[body.session_id]
     events_saved = 0
-    
+
     try:
         async with session_scope() as db:
             for idx, event in enumerate(body.events):
@@ -257,38 +256,38 @@ async def record_events(body: RecordEventsRequest):
                         "selector": event.target_selector,
                         "text": event.target_text
                     })
-                
+
                 # Handle screenshot if provided
                 screenshot_path = None
                 if event.screenshot_base64:
                     try:
                         import base64
                         import os
-                        
+
                         # Ensure upload directory exists
                         upload_dir = settings.SCREENSHOTS_DIR
                         os.makedirs(upload_dir, exist_ok=True)
-                        
+
                         # Generate unique filename
                         filename = f"{body.session_id}_{idx}_{int(event.timestamp)}.png"
                         file_path = os.path.join(upload_dir, filename)
-                        
+
                         # Decode and save
                         # Remove header if present (e.g. "data:image/png;base64,")
                         b64_data = event.screenshot_base64
                         if "," in b64_data:
                             b64_data = b64_data.split(",", 1)[1]
-                            
+
                         with open(file_path, "wb") as f:
                             f.write(base64.b64decode(b64_data))
-                            
+
                         # Store relative path
                         screenshot_path = os.path.relpath(file_path, os.getcwd())
                     except Exception as e:
-                        print(f"Failed to save screenshot: {e}")
+                        logger.warning(f"Failed to save screenshot: {e}")
                         # Don't fail the event recording, just skip screenshot
                         pass
-                
+
                 trace_event = TraceEvent(
                     thread_id=body.thread_id,
                     step_number=session["event_count"] + idx + 1,
@@ -300,7 +299,7 @@ async def record_events(body: RecordEventsRequest):
                     screenshot_path=screenshot_path,
                     ui_element_info=ui_info,
                     recording_session_id=body.session_id,
-                    
+
                     # New columns population
                     session_id=body.session_id,
                     timestamp=event.timestamp,
@@ -311,12 +310,12 @@ async def record_events(body: RecordEventsRequest):
                 )
                 db.add(trace_event)
                 events_saved += 1
-            
+
             session["event_count"] += events_saved
-    
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save events: {e}")
-    
+
     return RespondResponse(success=True, message=f"Recorded {events_saved} events")
 
 
@@ -327,9 +326,9 @@ async def stop_recording(session_id: str):
     """
     if session_id not in _active_sessions:
         raise HTTPException(status_code=404, detail="Recording session not found")
-    
+
     session = _active_sessions.pop(session_id)
-    
+
     return StopRecordingResponse(
         session_id=session_id,
         event_count=session["event_count"],
@@ -338,7 +337,7 @@ async def stop_recording(session_id: str):
 
 
 @router.get("/traces/sessions")
-async def list_recording_sessions(thread_id: Optional[str] = None):
+async def list_recording_sessions(thread_id: str | None = None):
     """
     List active recording sessions.
     """
@@ -357,21 +356,21 @@ async def list_recording_sessions(thread_id: Optional[str] = None):
 
 # ============ Skill Management API (Phase 2) ============
 
-from app.infrastructure.database.sql.models import LearnedSkill
 from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
+from app.infrastructure.database.sql.models import LearnedSkill
 
 
 class SynthesizeRequest(BaseModel):
     thread_id: str
-    session_id: Optional[str] = None
+    session_id: str | None = None
 
 
 class SkillResponse(BaseModel):
     id: int
     name: str
     description: str
-    trigger_patterns: List[str]
-    tools_used: List[str]
+    trigger_patterns: list[str]
+    tools_used: list[str]
     success_count: int
     failure_count: int
     is_active: bool
@@ -386,7 +385,7 @@ async def synthesize_skill(body: SynthesizeRequest):
     try:
         synthesizer = EnhancedWorkflowSynthesizer(body.thread_id, body.session_id)
         skill = await synthesizer.synthesize()
-        
+
         # Persist to database
         async with session_scope() as db:
             db_skill = LearnedSkill(
@@ -402,14 +401,14 @@ async def synthesize_skill(body: SynthesizeRequest):
             )
             db.add(db_skill)
             await db.flush()  # Get ID
-            
+
             return {
                 "success": True,
                 "skill_id": db_skill.id,
                 "skill_name": skill.name,
                 "skill_yaml": skill.to_yaml()
             }
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
 
@@ -421,15 +420,15 @@ async def list_skills(active_only: bool = True):
     """
     async with session_scope() as db:
         from sqlalchemy import select
-        
+
         stmt = select(LearnedSkill)
         if active_only:
             stmt = stmt.where(LearnedSkill.is_active == True)
         stmt = stmt.order_by(LearnedSkill.created_at.desc())
-        
+
         result = await db.execute(stmt)
         skills = result.scalars().all()
-        
+
         return {
             "skills": [
                 {
@@ -455,14 +454,14 @@ async def get_skill(skill_id: int):
     """
     async with session_scope() as db:
         from sqlalchemy import select
-        
+
         stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
         result = await db.execute(stmt)
         skill = result.scalar_one_or_none()
-        
+
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
-        
+
         return {
             "id": skill.id,
             "name": skill.name,
@@ -486,19 +485,19 @@ async def deactivate_skill(skill_id: int):
     Deactivate (soft delete) a skill.
     """
     async with session_scope() as db:
-        from sqlalchemy import select, update
-        
+        from sqlalchemy import update
+
         stmt = update(LearnedSkill).where(LearnedSkill.id == skill_id).values(is_active=False)
         await db.execute(stmt)
-        
+
     return {"success": True, "message": f"Skill {skill_id} deactivated"}
 
 
 class UpdateSkillRequest(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    trigger_patterns: Optional[List[str]] = None
-    parameters: Optional[List[Dict[str, Any]]] = None
+    name: str | None = None
+    description: str | None = None
+    trigger_patterns: list[str] | None = None
+    parameters: list[dict[str, Any]] | None = None
 
 
 @router.put("/skills/{skill_id}")
@@ -508,15 +507,15 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
     """
     async with session_scope() as db:
         from sqlalchemy import select
-        
+
         # 1. Get Skill
         stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
         result = await db.execute(stmt)
         skill = result.scalar_one_or_none()
-        
+
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
-            
+
         # 2. Update Fields
         if body.name:
             # Check uniqueness if name changed
@@ -526,22 +525,22 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
                 if existing:
                      raise HTTPException(status_code=400, detail=f"Skill name '{body.name}' already exists")
             skill.name = body.name
-            
+
         if body.description:
             skill.description = body.description
-            
+
         if body.trigger_patterns is not None:
             skill.trigger_patterns = json.dumps(body.trigger_patterns)
-            
+
         if body.parameters is not None:
              # Just dump the list of dicts directly
             skill.parameters = json.dumps(body.parameters)
 
         # 3. Commit (Automatic via session_scope exit, but we want to return updated data)
         await db.flush()
-        
+
         return {
-            "success": True, 
+            "success": True,
             "message": f"Skill {skill_id} updated",
             "skill": {
                 "id": skill.id,
@@ -555,7 +554,7 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
 
 @router.post("/skills/{skill_id}/execute")
 async def execute_skill(
-    skill_id: int, 
+    skill_id: int,
     body: ExecuteSkillRequest,
     bg_tasks: BackgroundTasks
 ):
@@ -569,7 +568,7 @@ async def execute_skill(
         skill = await db.get(LearnedSkill, skill_id)
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
-        
+
         # 2. Construct Directive Message
         # We format this as a user message to "prompt" the agent to run the skill.
         skill_name = skill.name
@@ -579,7 +578,7 @@ async def execute_skill(
             f"```json\n{params_str}\n```\n"
             f"Use the SkillExecutor to run this."
         )
-        
+
         # 3. Persist Message to History
         # Ensure conversation exists
         conversation = await db.get(Conversation, body.thread_id)
@@ -591,7 +590,7 @@ async def execute_skill(
                 title=f"Execute {skill_name}",
             )
              db.add(conversation)
-        
+
         # Add User Message
         user_msg = Message(
             thread_id=body.thread_id,
@@ -602,12 +601,12 @@ async def execute_skill(
         )
         db.add(user_msg)
         await db.flush()
-        
+
     # 4. Trigger Agent Loop
     inputs = {
         "messages": [{"type": "human", "content": directive}],
         "project_id": body.project_id
     }
     bg_tasks.add_task(run_agent_background, body.thread_id, inputs)
-    
+
     return {"success": True, "message": f"Skill execution queued for '{skill_name}'"}

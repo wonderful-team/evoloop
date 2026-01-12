@@ -34,7 +34,7 @@ export function DevicesScreen() {
     queryFn: async () => {
       const res: any = await DevicesService.getDevices()
       // Backend returns { code: 0, data: [...] } or just array?
-      // ImagicBoxClient.get_devices returns result of _request which returns response.json()
+      // EvoCloudClient.get_devices returns result of _request which returns response.json()
       // _request returns { code: ..., data: ... } usually for Member Center APIs.
       // Let's handle both cases validly
       if (Array.isArray(res)) return res

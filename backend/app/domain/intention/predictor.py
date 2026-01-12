@@ -1,17 +1,12 @@
 from typing import Literal
 
+from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
-from app.core.config import settings
-
-
-import json
-import os
-from langchain_core.output_parsers import JsonOutputParser
 from app.core.llm.factory import LLMFactory
 from app.core.monitoring.activity import activity_monitor
+
 
 class IntentionOutput(BaseModel):
     intent: Literal["browser", "computer", "mobile", "chat", "general"] = Field(
@@ -21,27 +16,28 @@ class IntentionOutput(BaseModel):
     refined_instruction: str = Field(description="The instruction optimized for the selected agent.")
 
 class IntentionPredictor:
-    
+
     async def _load_few_shots(self) -> str:
+        from sqlalchemy import select
+
         from app.infrastructure.database.sql.database import session_scope
         from app.infrastructure.database.sql.models.learning import RouterTrainingData
-        from sqlalchemy import select
-        
+
         try:
             async with session_scope() as session:
                 query = select(RouterTrainingData).where(RouterTrainingData.is_active == True).order_by(RouterTrainingData.id.desc()).limit(20)
                 result = await session.execute(query)
                 data = result.scalars().all()
-                
+
                 if not data:
                     return "No examples available."
-                    
+
                 examples = []
                 for item in data:
                     examples.append(f"- User: \"{item.instruction}\" -> Intent: {item.intent.upper()} (Reason: {item.reasoning})")
-                
+
                 return "\n".join(examples)
-        except Exception as e:
+        except Exception:
             # Fallback for DB errors
             return "No examples available."
 
@@ -49,16 +45,16 @@ class IntentionPredictor:
         # Dynamic LLM creation
         # Optimization: Use a faster model if possible (e.g. gpt-4o-mini)
         llm = LLMFactory.create_llm(temperature=0)
-        
+
         # We manually construct the parser and inject instructions
         parser = JsonOutputParser(pydantic_object=IntentionOutput)
-        
+
         # Override the prompt to be extremely explicit for the parser
         format_instructions = parser.get_format_instructions()
-        
+
         # Load Dynamic Examples (Async now)
         examples = await self._load_few_shots()
-        
+
         final_prompt = ChatPromptTemplate.from_template("""You are an expert intent classifier.
 Your goal is to route the user's request.
 
@@ -82,21 +78,21 @@ CRITICAL:
 
 User Request: {instruction}
 """)
-        
+
         chain = final_prompt | llm | parser
-        
+
         try:
             result = await chain.ainvoke(
                 {"instruction": instruction, "format_instructions": format_instructions, "examples": examples},
                 config={"callbacks": []}  # Disable global callbacks (streaming) for internal thought
             )
-            
+
             output = None
             if isinstance(result, dict):
                 output = IntentionOutput(**result)
             else:
                 output = result
-                
+
             # Phase 6: Side Channel for Transparent Thought
             if thread_id:
                 try:
@@ -113,11 +109,11 @@ User Request: {instruction}
                             "confidence": 0.95 # Proxy high confidence for success
                         }
                     )
-                except Exception as e:
+                except Exception:
                     pass # Non-blocking
-                    
+
             return output
-            
+
         except Exception:
             # Fallback for parsing errors
             return IntentionOutput(intent="general", reasoning="Error parsing intention", refined_instruction=instruction)
@@ -128,7 +124,7 @@ User Request: {instruction}
         """
         from app.infrastructure.database.sql.database import session_scope
         from app.infrastructure.database.sql.models.learning import RouterTrainingData
-        
+
         try:
             async with session_scope() as session:
                 new_example = RouterTrainingData(
@@ -140,7 +136,7 @@ User Request: {instruction}
                 )
                 session.add(new_example)
                 # Commit handled by context manager
-                
+
             return True
         except Exception as e:
             print(f"Failed to learn: {e}")

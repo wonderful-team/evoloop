@@ -1,14 +1,14 @@
 import os
 from datetime import datetime
-from typing import List, Optional
+
 
 class ReportGenerator:
     """
     Generates structured research reports in Markdown.
     """
-    
+
     @staticmethod
-    def generate_report(topic: str, conclusion: str, logs: List[str], metadata: Optional[dict] = None) -> str:
+    def generate_report(topic: str, conclusion: str, logs: list[str], metadata: dict | None = None) -> str:
         """
         Constructs a full research report.
         """
@@ -16,11 +16,11 @@ class ReportGenerator:
         meta_info = ""
         if metadata:
             meta_info = "\n".join([f"- **{k}**: {v}" for k, v in metadata.items()])
-        
+
         # Clean logs (optional)
         # Maybe collapse them or put them in an appendix
         logs_text = "\n\n".join(logs)
-        
+
         report = f"""# 🧠 Deep Research Report
 **Topic**: {topic}
 **Date**: {date_str}
@@ -54,10 +54,10 @@ class ReportGenerator:
         if not filename:
              timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
              filename = f"research_report_{timestamp}.md"
-        
+
         # Save to uploads or artifacts dir?
         # Let's say user's CWD
         with open(filename, "w", encoding="utf-8") as f:
             f.write(content)
-            
+
         return os.path.abspath(filename)

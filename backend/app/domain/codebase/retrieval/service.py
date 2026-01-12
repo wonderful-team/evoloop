@@ -1,20 +1,25 @@
-from typing import List, Dict, Any
+from typing import Any
 
 from sqlalchemy import select
 
 from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 from app.infrastructure.database.sql.database import AsyncSessionLocal
-from app.infrastructure.database.sql.models import CodeChunk, SourceFile, Repository, CodeEntity, CodeRelation
-
-
+from app.infrastructure.database.sql.models import (
+    CodeChunk,
+    CodeEntity,
+    CodeRelation,
+    Repository,
+    SourceFile,
+)
 from app.logging import get_context
+
 
 class RetrievalService:
     def __init__(self, embedder=None):
         self.session_factory = AsyncSessionLocal
         self.embedder = embedder or EmbedderFactory.get_embedder()
 
-    async def search(self, query: str, project_id: int = None, limit: int = 5) -> List[Dict[str, Any]]:
+    async def search(self, query: str, project_id: int = None, limit: int = 5) -> list[dict[str, Any]]:
         """
         Search for code chunks semantically similar to the query.
         """
@@ -53,21 +58,21 @@ class RetrievalService:
 
             return results
 
-    async def get_entity_relations(self, symbol_name: str, project_id: int = None) -> Dict[str, Any]:
+    async def get_entity_relations(self, symbol_name: str, project_id: int = None) -> dict[str, Any]:
         """
         Get relations (inheritance, calls) for a specific symbol.
         """
         pid = project_id or get_context().get("project_id")
-        
+
         async with self.session_factory() as session:
             # 1. Find the entity
             # Try exact match first, then ilike
             stmt = select(CodeEntity).where(CodeEntity.name == symbol_name)
-            
+
             # Filter by project if provided (requires join)
             if pid:
                 stmt = stmt.join(SourceFile).join(Repository).where(Repository.project_id == pid)
-            
+
             stmt = stmt.limit(1)
             result = await session.execute(stmt)
             entity = result.scalar_one_or_none()
@@ -80,21 +85,21 @@ class RetrievalService:
                 stmt = stmt.limit(1)
                 result = await session.execute(stmt)
                 entity = result.scalar_one_or_none()
-            
+
             if not entity:
                 return {"error": f"Symbol '{symbol_name}' not found."}
-            
+
             # 2. Find Outgoing Relations (This entity mentions others)
             # source_entity_id == entity.id
             # Join target entity to get names
-            
+
             # We need explicit aliases or just load generic
             # Relations where I am the source
             out_stmt = select(CodeRelation, CodeEntity).outerjoin(CodeEntity, CodeRelation.target_entity_id == CodeEntity.id)\
                         .where(CodeRelation.source_entity_id == entity.id)
-            
+
             out_rows = (await session.execute(out_stmt)).all()
-            
+
             outgoing = []
             for rel, target_ent in out_rows:
                 target_name = target_ent.full_name if target_ent else rel.target_name
@@ -104,14 +109,14 @@ class RetrievalService:
             # target_entity_id == entity.id
             in_stmt = select(CodeRelation, CodeEntity).join(CodeEntity, CodeRelation.source_entity_id == CodeEntity.id)\
                        .where(CodeRelation.target_entity_id == entity.id)
-            
+
             in_rows = (await session.execute(in_stmt)).all()
-            
+
             incoming = []
             for rel, source_ent in in_rows:
                 source_name = source_ent.full_name
                 incoming.append(f"{source_name} -> {rel.relation_type}")
-                
+
             return {
                 "symbol": entity.full_name,
                 "type": entity.type,

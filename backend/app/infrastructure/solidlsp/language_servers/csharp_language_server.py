@@ -16,12 +16,14 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, cast
 
-
 from app.infrastructure.solidlsp.ls import SolidLanguageServer
 from app.infrastructure.solidlsp.ls_config import LanguageServerConfig
 from app.infrastructure.solidlsp.ls_exceptions import SolidLSPException
 from app.infrastructure.solidlsp.ls_utils import PathUtils
-from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import InitializeParams, InitializeResult
+from app.infrastructure.solidlsp.lsp_protocol_handler.lsp_types import (
+    InitializeParams,
+    InitializeResult,
+)
 from app.infrastructure.solidlsp.lsp_protocol_handler.server import ProcessLaunchInfo
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
 from app.infrastructure.solidlsp.util.zip import SafeZipExtractor

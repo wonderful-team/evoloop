@@ -8,15 +8,14 @@ import os
 import platform
 import shutil
 import subprocess
-import uuid
 import time
+import uuid
 import zipfile
 from enum import Enum
 from pathlib import Path, PurePath
 
-import pathspec
-
 import charset_normalizer
+import pathspec
 import requests
 
 from app.infrastructure.solidlsp.ls_exceptions import SolidLSPException

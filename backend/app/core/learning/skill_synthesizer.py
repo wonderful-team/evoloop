@@ -11,15 +11,15 @@ Key Enhancements over Original:
 - Produces LearnedSkill configurations (not just Agent YAML)
 """
 
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field, asdict
-import json
 import logging
+from dataclasses import asdict, dataclass, field
+from typing import Any
+
 import yaml
-from app.core.learning.trace_parser import TraceParser, TraceSequence, ActionSource
+from langchain_core.messages import HumanMessage, SystemMessage
+
+from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.core.llm.factory import LLMFactory
-from app.domain.system.service import SystemConfigService
-from langchain_core.messages import SystemMessage, HumanMessage
 
 logger = logging.getLogger("evoloop.learning.synthesizer")
 
@@ -31,16 +31,16 @@ class SkillParameter:
     type: str = "string"
     description: str = ""
     required: bool = True
-    default: Optional[str] = None
+    default: str | None = None
 
 
 @dataclass
 class SkillStep:
     """A single step in a skill execution plan."""
     action: str  # Tool name or action type
-    args: Dict[str, Any] = field(default_factory=dict)
-    condition: Optional[str] = None  # Optional condition for this step
-    on_error: Optional[str] = None  # Error handling strategy
+    args: dict[str, Any] = field(default_factory=dict)
+    condition: str | None = None  # Optional condition for this step
+    on_error: str | None = None  # Error handling strategy
 
 
 @dataclass
@@ -51,21 +51,21 @@ class LearnedSkill:
     """
     name: str
     description: str
-    trigger_patterns: List[str] = field(default_factory=list)
-    parameters: List[SkillParameter] = field(default_factory=list)
-    preconditions: List[str] = field(default_factory=list)
-    steps: List[SkillStep] = field(default_factory=list)
-    
+    trigger_patterns: list[str] = field(default_factory=list)
+    parameters: list[SkillParameter] = field(default_factory=list)
+    preconditions: list[str] = field(default_factory=list)
+    steps: list[SkillStep] = field(default_factory=list)
+
     # Metadata
-    source_thread_id: Optional[str] = None
-    source_session_id: Optional[str] = None
-    tools_used: List[str] = field(default_factory=list)
-    
+    source_thread_id: str | None = None
+    source_session_id: str | None = None
+    tools_used: list[str] = field(default_factory=list)
+
     def to_yaml(self) -> str:
         """Convert to YAML for storage/display."""
         return yaml.dump(asdict(self), default_flow_style=False, allow_unicode=True)
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary."""
         return asdict(self)
 
@@ -125,39 +125,39 @@ class EnhancedWorkflowSynthesizer:
     """
     Enhanced synthesizer that uses TraceParser and produces LearnedSkill.
     """
-    
-    def __init__(self, thread_id: str, session_id: Optional[str] = None):
+
+    def __init__(self, thread_id: str, session_id: str | None = None):
         self.thread_id = thread_id
         self.session_id = session_id
         self.parser = TraceParser(thread_id, session_id)
-    
+
     async def synthesize(self) -> LearnedSkill:
         """
         Main entry point: Parse trace -> Analyze with LLM -> Return LearnedSkill.
         """
         # Step 1: Parse trace into structured sequence
         sequence = await self.parser.parse()
-        
+
         if not sequence.steps:
             raise ValueError(f"No trace data found for thread {self.thread_id}")
-        
+
         # Step 2: Convert to narrative for LLM
         narrative = self.parser.to_narrative(sequence)
         summary = sequence.summarize()
-        
+
         # Step 3: Call LLM to synthesize skill
         yaml_output = await self._generate_skill_yaml(narrative, summary)
-        
+
         # Step 4: Parse YAML to LearnedSkill
         skill = self._parse_skill_yaml(yaml_output, sequence)
-        
+
         return skill
-    
-    async def _generate_skill_yaml(self, narrative: str, summary: Dict) -> str:
+
+    async def _generate_skill_yaml(self, narrative: str, summary: dict) -> str:
         """Use LLM to generate skill YAML from trace narrative."""
         # Config is handled internally by LLMFactory
         llm = LLMFactory.create_llm()
-        
+
         prompt = SKILL_SYNTHESIS_PROMPT.format(
             trace_narrative=narrative,
             total_steps=summary["total_steps"],
@@ -165,23 +165,23 @@ class EnhancedWorkflowSynthesizer:
             agent_steps=summary["agent_steps"],
             tools_used=", ".join(summary["tools_used"]) if summary["tools_used"] else "None"
         )
-        
+
         messages = [
             SystemMessage(content=prompt),
             HumanMessage(content="Please analyze the trace and generate the skill YAML.")
         ]
-        
+
         response = await llm.ainvoke(messages, config={"callbacks": []})  # Internal thought, do not stream
         content = response.content
-        
+
         # Strip markdown fences
         if "```yaml" in content:
             content = content.split("```yaml")[1].split("```")[0].strip()
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
-        
+
         return content
-    
+
     def _parse_skill_yaml(self, yaml_str: str, sequence: TraceSequence) -> LearnedSkill:
         """Parse YAML string into LearnedSkill object."""
         try:
@@ -195,7 +195,7 @@ class EnhancedWorkflowSynthesizer:
                 source_thread_id=self.thread_id,
                 source_session_id=self.session_id
             )
-        
+
         # Extract parameters
         parameters = []
         for p in data.get("parameters", []):
@@ -206,7 +206,7 @@ class EnhancedWorkflowSynthesizer:
                     description=p.get("description", ""),
                     required=p.get("required", True)
                 ))
-        
+
         # Extract steps
         steps = []
         for s in data.get("steps", []):
@@ -217,7 +217,7 @@ class EnhancedWorkflowSynthesizer:
                     condition=s.get("condition"),
                     on_error=s.get("on_error")
                 ))
-        
+
         return LearnedSkill(
             name=data.get("name", "unnamed_skill"),
             description=data.get("description", ""),

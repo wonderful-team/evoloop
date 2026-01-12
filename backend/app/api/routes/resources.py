@@ -1,11 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends
-from pydantic import BaseModel, AnyHttpUrl
-from typing import List, Literal, Union
+import logging
+from typing import Literal
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
+
 from app.infrastructure.database.sql.database import get_db_session
 from app.infrastructure.database.sql.models import ProjectResource
-from app.utils.time import utcnow
-import logging
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/resources", tags=["resources"])
@@ -23,7 +24,7 @@ class ResourceResponse(BaseModel):
     content: str
     created_at: str
 
-@router.get("", response_model=List[ResourceResponse])
+@router.get("", response_model=list[ResourceResponse])
 async def list_resources(project_id: int):
     """List all pinned resources for a project."""
     try:
@@ -79,7 +80,7 @@ async def create_resource(project_id: int, req: ResourceCreate):
             session.add(resource)
             await session.commit()
             await session.refresh(resource)
-            
+
             return ResourceResponse(
                 id=resource.id,
                 project_id=resource.project_id,
@@ -101,10 +102,10 @@ async def delete_resource(project_id: int, resource_id: int):
             if not resource:
                 # Silent success if already gone
                 return {"status": "success", "id": resource_id}
-                
+
             if resource.project_id != project_id:
                 raise HTTPException(403, "Resource access denied")
-                
+
             await session.delete(resource)
             await session.commit()
             return {"status": "success", "id": resource_id}

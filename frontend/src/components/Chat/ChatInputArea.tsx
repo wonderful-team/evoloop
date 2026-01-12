@@ -9,7 +9,7 @@ import { type Attachment, AttachmentPreview } from "./AttachmentPreview"
 import { RecordingButton } from "./RecordingButton"
 
 interface ChatInputAreaProps {
-  onSend: (text: string) => void
+  onSend: (text: string, attachments?: any[]) => void
   onStop: () => void
   isAgentWorking: boolean
   isSending: boolean
@@ -36,18 +36,9 @@ export const ChatInputArea = memo(
     const handleSend = () => {
       if ((!inputValue.trim() && attachments.length === 0) || isSending) return
 
-      // Build final message with attachments appended
-      let finalMessage = inputValue
-      if (attachments.length > 0) {
-        const attachmentLinks = attachments
-          .map((att) => `[File: ${att.url}]`)
-          .join("\n")
-        finalMessage = finalMessage
-          ? `${finalMessage}\n${attachmentLinks}`
-          : attachmentLinks
-      }
-
-      onSend(finalMessage)
+      // Pass raw input and attachments directly to store/parent
+      // The store handles the optimistic display formatting and API payload construction
+      onSend(inputValue, attachments)
 
       // Clear state
       setInputValue("")
@@ -90,7 +81,7 @@ export const ChatInputArea = memo(
       } catch (error: any) {
         toast.error(
           t("chat.interface.uploadError") +
-            (error.message ? `: ${error.message}` : ""),
+          (error.message ? `: ${error.message}` : ""),
         )
         console.error(error)
       } finally {
@@ -120,8 +111,8 @@ export const ChatInputArea = memo(
                 placeholder={
                   currentProject
                     ? t("chat.interface.askProject", {
-                        project: currentProject.name,
-                      })
+                      project: currentProject.name,
+                    })
                     : t("chat.interface.selectProject")
                 }
                 disabled={!currentProject}
