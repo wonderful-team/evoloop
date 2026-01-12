@@ -22,6 +22,7 @@ fn greet(name: &str) -> String {
 }
 
 #[tauri::command]
+#[cfg(desktop)]
 async fn capture_screenshot() -> Result<String, String> {
     use std::io::Cursor;
     use base64::Engine as _;
@@ -43,6 +44,12 @@ async fn capture_screenshot() -> Result<String, String> {
     let base64_string = base64::engine::general_purpose::STANDARD.encode(&bytes);
 
     Ok(format!("data:image/png;base64,{}", base64_string))
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn capture_screenshot() -> Result<String, String> {
+    Err("Screen capture is not supported on mobile.".to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

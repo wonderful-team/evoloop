@@ -22,6 +22,7 @@ tauri-plugin-shell = "2"
 tauri-plugin-http = "2"
 tauri-plugin-stt = { git = "https://github.com/brenogonzaga/tauri-plugin-stt" }
 tauri-plugin-tts = { git = "https://github.com/brenogonzaga/tauri-plugin-tts" }
+[target.'cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))'.dependencies]
 xcap = "0.0.9" # Cross-platform screen capture
 base64 = "0.22" # For encoding images
 image = "0.25" # For image processing

@@ -28,11 +28,11 @@ class DeviceLinkManager:
         self.api = api
 
         # Config
-        self.ws_url = str(settings.IMAGICBOX_WS_URL)
+        self.ws_url = str(settings.EVOCLOUD_WS_URL)
 
         # Identity
-        db_device_name = SystemConfigService.get_value("IMAGICBOX_DEVICE_NAME")
-        self.device_name = settings.IMAGICBOX_DEVICE_NAME or db_device_name or f"{platform.node()}"
+        db_device_name = SystemConfigService.get_value("EVOCLOUD_DEVICE_NAME")
+        self.device_name = settings.EVOCLOUD_DEVICE_NAME or db_device_name or f"{platform.node()}"
         self.device_key = self._get_or_create_device_key()
 
         # State

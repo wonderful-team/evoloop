@@ -339,3 +339,179 @@ SUSPICIOUS_JS_PATTERNS = [
     r'\\u[0-9a-f]{4}'
 ]
 
+
+# ====================== RAG / Search Constants ======================
+# Search related
+DEFAULT_SEARCH_TOP_K = 10
+MAX_SEARCH_DEPTH = 3
+MIN_RELEVANCE_SCORE = 0.6
+
+# Chunking related
+DEFAULT_CHUNK_SIZE = 1000
+MAX_CHUNK_SIZE = 4000
+DEFAULT_CHUNK_OVERLAP = 200
+
+# Memory related
+MAX_SESSION_HISTORY = 20
+MEMORY_RELEVANCE_THRESHOLD = 0.75
+MAX_MEMORY_ITEMS = 1000
+
+
+# ====================== Workflow / Task Constants ======================
+TASK_TYPES = [
+    "code_generation",
+    "bug_fix",
+    "code_explanation",
+    "refactoring",
+    "architecture_analysis"
+]
+
+WORKFLOW_STATUS = [
+    "pending",
+    "running",
+    "completed",
+    "failed",
+    "cancelled"
+]
+
+
+# ====================== AI Model Capabilities ======================
+# Context Window Sizes (Tokens)
+CONTEXT_SIZES = {
+    "openai": {
+        "gpt-3.5-turbo": 16384,
+        "gpt-4": 8192,
+        "gpt-4-turbo": 128000,
+        "gpt-4o": 128000,
+        "default": 16384
+    },
+    "anthropic": {
+        "claude-instant-1": 100000,
+        "claude-2": 100000,
+        "claude-3-opus": 200000,
+        "claude-3-sonnet": 200000,
+        "claude-3-haiku": 200000,
+        "claude-3-5-sonnet": 200000,
+        "default": 100000
+    },
+    "dashscope": {
+        "qwen-turbo": 32000,
+        "qwen-plus": 32000,
+        "qwen-max": 1000000,
+        "default": 32000
+    },
+    "deepseek": {
+        "deepseek-chat": 64000,
+        "deepseek-coder": 64000,
+        "default": 64000
+    },
+    "local": {
+        "llama3": 8192,
+        "mistral": 8192,
+        "default": 4096
+    }
+}
+
+# Embedding Model Dimensions
+# Critical for Vector DB configuration
+EMBEDDING_DIMENSIONS = {
+    "openai": {
+        "text-embedding-ada-002": 1536,
+        "text-embedding-3-small": 1536,
+        "text-embedding-3-large": 3072,
+        "default": 1536
+    },
+    "dashscope": {
+        "text-embedding-v1": 1536,
+        "text-embedding-v2": 1536,
+        "text-embedding-v3": 1024,
+        "default": 1536
+    },
+    "cohere": {
+        "embed-english-v2.0": 4096,
+        "embed-multilingual-v2.0": 4096,
+        "embed-english-light-v2.0": 1024,
+        "embed-multilingual-light-v2.0": 1024,
+        "default": 4096
+    },
+    "huggingface": {
+        "sentence-transformers/all-mpnet-base-v2": 768,
+        "sentence-transformers/all-MiniLM-L6-v2": 384,
+        "sentence-transformers/paraphrase-multilingual-mpnet-base-v2": 768,
+        "BAAI/bge-large-en-v1.5": 1024,
+        "BAAI/bge-base-en-v1.5": 768,
+        "BAAI/bge-small-en-v1.5": 384,
+        "BAAI/bge-large-zh-v1.5": 1024,
+        "BAAI/bge-base-zh-v1.5": 768,
+        "default": 768
+    },
+    "anthropic": {
+        "claude-3-embedding": 3072,
+        "claude-2-embedding": 1536,
+        "default": 3072
+    },
+    "google": {
+        "textembedding-gecko": 768,
+        "textembedding-gecko-multilingual": 768,
+        "text-embedding-004": 768,
+        "embedding-001": 768,
+        "default": 768
+    },
+    "local": {
+        "all-MiniLM-L6-v2": 384,
+        "all-mpnet-base-v2": 768,
+        "e5-large-v2": 1024,
+        "bge-large": 1024,
+        "bge-small": 384,
+        "nomic-embed-text": 768,
+        "gte-large": 1024,
+        "gte-small": 384,
+        "default": 768
+    },
+    "default": 1536
+}
+
+# Max Tokens per Chunk (for Embedding)
+MAX_TOKENS_PER_CHUNK = {
+    "openai": {
+        "text-embedding-ada-002": 8192,
+        "text-embedding-3-small": 8192,
+        "text-embedding-3-large": 8192,
+        "default": 8192
+    },
+    "dashscope": {
+        "text-embedding-v1": 2048,
+        "text-embedding-v2": 2048,
+        "text-embedding-v3": 8192,
+        "default": 2048
+    },
+    "cohere": {
+        "embed-english-v2.0": 2048,
+        "embed-multilingual-v2.0": 2048,
+        "default": 2048
+    },
+    "huggingface": {
+        "sentence-transformers/all-mpnet-base-v2": 512,
+        "sentence-transformers/all-MiniLM-L6-v2": 512,
+        "sentence-transformers/paraphrase-multilingual-mpnet-base-v2": 512,
+        "BAAI/bge-large-en-v1.5": 512,
+        "BAAI/bge-base-en-v1.5": 512,
+        "BAAI/bge-small-en-v1.5": 512,
+        "BAAI/bge-large-zh-v1.5": 512,
+        "BAAI/bge-base-zh-v1.5": 512,
+        "default": 512
+    },
+    "local": {
+        "all-MiniLM-L6-v2": 512,
+        "all-mpnet-base-v2": 512,
+        "e5-large-v2": 1024,
+        "bge-large": 1024,
+        "bge-small": 512,
+        "nomic-embed-text": 1024,
+        "gte-large": 1024,
+        "gte-small": 512,
+        "default": 512
+    },
+    "default": 2048
+}
+

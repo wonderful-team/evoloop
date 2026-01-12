@@ -25,12 +25,12 @@ def init() -> None:
         logger.info(f"Seeding PROJECTS_ROOT from settings: {default_root}")
         SystemConfigService.set_value("PROJECTS_ROOT", default_root, "Root directory for project storage")
 
-    # 2. IMAGICBOX_DEVICE_NAME
-    if not SystemConfigService.get_value("IMAGICBOX_DEVICE_NAME"):
-        default_name = settings.IMAGICBOX_DEVICE_NAME
+    # 2. EVOCLOUD_DEVICE_NAME
+    if not SystemConfigService.get_value("EVOCLOUD_DEVICE_NAME"):
+        default_name = settings.EVOCLOUD_DEVICE_NAME
         if default_name:
-            logger.info(f"Seeding IMAGICBOX_DEVICE_NAME from settings: {default_name}")
-            SystemConfigService.set_value("IMAGICBOX_DEVICE_NAME", default_name, "Device identifier for EvoLoop Link")
+            logger.info(f"Seeding EVOCLOUD_DEVICE_NAME from settings: {default_name}")
+            SystemConfigService.set_value("EVOCLOUD_DEVICE_NAME", default_name, "Device identifier for EvoLoop Link")
 
     # 3. Embedding Configuration
     if not SystemConfigService.get_value("EMBEDDING_PROVIDER"):

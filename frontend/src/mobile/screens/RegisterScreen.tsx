@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { z } from "zod"
-import { AuthService } from "@/client/sdk.gen"
+import { AuthService } from "@/mobile/client"
 import { Logo } from "@/components/Common/Logo"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -77,6 +77,13 @@ export function RegisterScreen() {
   const [agreementContent, setAgreementContent] = useState<any>(null)
   const [showAgreement, setShowAgreement] = useState(false)
 
+  const refreshCaptcha = async () => {
+    try {
+      const res: any = await AuthService.getCaptcha({ id: captcha.id })
+      if (res?.img) setCaptcha(res)
+    } catch { }
+  }
+
   useEffect(() => {
     // Load configurations
     const loadConfigs = async () => {
@@ -105,7 +112,7 @@ export function RegisterScreen() {
       }
     }
     loadConfigs()
-  }, [refreshCaptcha])
+  }, [])
 
   // Countdown
   useEffect(() => {
@@ -115,13 +122,6 @@ export function RegisterScreen() {
     }
     return () => clearInterval(timer)
   }, [countdown])
-
-  const refreshCaptcha = async () => {
-    try {
-      const res: any = await AuthService.getCaptcha({ id: captcha.id })
-      if (res?.img) setCaptcha(res)
-    } catch {}
-  }
 
   const mobileForm = useForm<z.infer<typeof mobileRegSchema>>({
     resolver: zodResolver(mobileRegSchema),
@@ -141,92 +141,39 @@ export function RegisterScreen() {
 
   const handleSendCode = async () => {
     const mobile = mobileForm.getValues("mobile")
-    const vercode = mobileForm.getValues("vercode")
-
-    if (!mobile || mobile.length !== 11) {
-      mobileForm.setError("mobile", { message: t("auth.errors.invalidMobile") })
-      return
-    }
-    if (captchaConfig === 1 && !vercode) {
-      mobileForm.setError("vercode", {
-        message: t("auth.errors.captchaRequired"),
-      })
+    if (!mobile) {
+      mobileForm.setError("mobile", { message: t("auth.errors.mobileRequired") })
       return
     }
 
     try {
-      setIsLoading(true)
-      const res: any = await AuthService.sendMobileCode({
-        requestBody: {
-          mobile,
-          captcha_id: captcha.id,
-          captcha_code: vercode || "",
-          type: "register",
-        },
+      const res = await AuthService.sendMobileCode({
+        mobile,
+        captcha_id: captcha.id,
+        captcha_code: mobileForm.getValues("vercode"),
+        type: "register",
       })
-      if (res.key) {
+      if (res?.key) {
         setKey(res.key)
         setCountdown(60)
-        toast.success("Code sent!")
-      } else {
-        toast.error("Failed to send code")
-        refreshCaptcha()
+        toast.success(t("auth.success.codeSent"))
       }
     } catch (e: any) {
-      toast.error(e.message || "Error")
+      toast.error(e.message || t("auth.errors.errorSendingCode"))
       refreshCaptcha()
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  const onMobileSubmit = async (values: z.infer<typeof mobileRegSchema>) => {
-    if (!key) {
-      toast.error(t("auth.errors.sendCodeFirst"))
-      return
-    }
-
-    handleRegister(async () => {
-      const data: any = {
-        mobile: values.mobile,
-        key,
-        code: values.dynacode,
-      }
-      if (captchaConfig === 1) {
-        data.captcha_id = captcha.id
-        data.captcha_code = values.vercode
-      }
-      return await AuthService.registerMobile({ requestBody: data })
-    })
-  }
-
-  const onAccountSubmit = async (values: z.infer<typeof accountRegSchema>) => {
-    handleRegister(async () => {
-      const data: any = {
-        username: values.username,
-        password: values.password,
-      }
-      if (captchaConfig === 1) {
-        data.captcha_id = captcha.id
-        data.captcha_code = values.vercode
-      }
-      return await AuthService.registerUsername({ requestBody: data })
-    })
-  }
-
-  const handleRegister = async (apiCall: () => Promise<any>) => {
+  const handleRegister = async (promise: Promise<any>) => {
     setIsLoading(true)
     try {
-      const res = await apiCall()
-      if (res.token) {
+      const res = await promise
+      if (res?.token) {
         localStorage.setItem("evoloop_token", res.token)
-        if (res.member_id)
-          localStorage.setItem("evoloop_member_id", res.member_id.toString())
-        if (res.member_id)
-          localStorage.setItem("evoloop_member_id", res.member_id.toString())
-        toast.success(t("auth.success.register"))
-        // Check for rewards logic later?
-        navigate({ to: "/devices" as any })
+        toast.success(t("auth.success.registerSuccess"))
+        // Navigate to setup or dashboard
+        // Check if device binding is needed?
+        navigate({ to: "/" as any })
       } else {
         toast.error(t("auth.errors.registerFailed"))
         refreshCaptcha()
@@ -239,12 +186,39 @@ export function RegisterScreen() {
     }
   }
 
+  const onMobileSubmit = async (values: z.infer<typeof mobileRegSchema>) => {
+    if (!key) {
+      toast.error(t("auth.errors.sendCodeFirst"))
+      return
+    }
+
+    handleRegister(
+      AuthService.registerMobile({
+        mobile: values.mobile,
+        key,
+        code: values.dynacode,
+        // invite_code?
+      }),
+    )
+  }
+
+  const onAccountSubmit = async (values: z.infer<typeof accountRegSchema>) => {
+    handleRegister(
+      AuthService.registerUsername({
+        username: values.username,
+        password: values.password,
+        captcha_id: captcha.id,
+        captcha_code: values.vercode,
+      })
+    )
+  }
+
   const openAgreement = async () => {
     if (!agreementContent) {
       try {
         const res: any = await AuthService.getRegisterAgreement()
         setAgreementContent(res)
-      } catch {}
+      } catch { }
     }
     setShowAgreement(true)
   }

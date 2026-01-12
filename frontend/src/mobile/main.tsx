@@ -18,6 +18,10 @@ import "@/index.css"
 
 // Use the isolated route tree
 import { routeTree } from "./router"
+import { OpenAPI } from "@/client"
+
+// Configure API for Mobile (connects to Cloud)
+OpenAPI.BASE = import.meta.env.VITE_EVOCLOUD_API_URL || "https://mall.imagicbox.cn"
 
 // Error Handling (Simplified for Mobile)
 const handleApiError = (error: Error) => {

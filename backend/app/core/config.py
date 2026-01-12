@@ -139,17 +139,17 @@ class Settings(BaseSettings):
     PHONE_AGENT_DEVICE_ID: str | None = None
     PHONE_AGENT_LANG: Literal["cn", "en"] = "cn"
 
-    # ImagicBox API
-    IMAGICBOX_API_URL: str = Field("https://mall.imagicbox.cn", validation_alias="IMAGICBOX_API_URL")
-    IMAGICBOX_WS_URL: str = Field("wss://mall.imagicbox.cn/wss/", validation_alias="IMAGICBOX_WS_URL")
-    IMAGICBOX_API_KEY: str | None = Field(None, validation_alias="IMAGICBOX_API_KEY")
-    IMAGICBOX_API_SECRET: str | None = Field(None, validation_alias="IMAGICBOX_API_SECRET")
+    # EvoCloud API
+    EVOCLOUD_API_URL: str = Field("https://mall.imagicbox.cn", validation_alias="EVOCLOUD_API_URL")
+    EVOCLOUD_WS_URL: str = Field("wss://mall.imagicbox.cn/wss/", validation_alias="EVOCLOUD_WS_URL")
+    EVOCLOUD_API_KEY: str | None = Field(None, validation_alias="EVOCLOUD_API_KEY")
+    EVOCLOUD_API_SECRET: str | None = Field(None, validation_alias="EVOCLOUD_API_SECRET")
 
     # Client / Device Info
-    IMAGICBOX_ACCESS_TOKEN: str | None = Field(None, validation_alias="IMAGICBOX_ACCESS_TOKEN")
-    IMAGICBOX_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="IMAGICBOX_DEVICE_NAME")
+    EVOCLOUD_ACCESS_TOKEN: str | None = Field(None, validation_alias="EVOCLOUD_ACCESS_TOKEN")
+    EVOCLOUD_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
     # Project Management
-    IMAGICBOX_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="IMAGICBOX_DEVICE_NAME")
+    EVOCLOUD_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
     # Project Management
     # Logic to find default projects root:
     # 1. ~/项目 (Chinese optimized)

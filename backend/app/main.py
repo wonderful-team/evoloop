@@ -152,7 +152,7 @@ async def lifespan(app: FastAPI):
     evocloud_client.set_event_handler(event_router)
 
     # Try to load token from Redis to auto-connect
-    evoloop_token = settings.IMAGICBOX_ACCESS_TOKEN  # Check config first
+    evoloop_token = settings.EVOCLOUD_ACCESS_TOKEN  # Check config first
 
     if not evoloop_token:
         try:

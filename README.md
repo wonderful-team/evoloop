@@ -16,7 +16,7 @@ EvoLoop 是一个先进的**通用智能体系统**，旨在跨多个环境（We
   - **Browser**: 自动化 Web 交互 (基于 Playwright)。
   - **Desktop**: 控制本地桌面环境 (基于 Agent-S)。
   - **Mobile**: 通过 Tauri 管理移动端任务循环。
-- **☁️ EvoCloud 集成 (EvoCloud Integration)**: 内置 `ImagicBoxClient`，实现本地智能体与云端项目管理（任务、工时、预算）的实时同步，并支持通过 WebSocket 远程控制设备。
+- **☁️ EvoCloud 集成 (EvoCloud Integration)**: 内置 `EvoCloudClient`，实现本地智能体与云端项目管理（任务、工时、预算）的实时同步，并支持通过 WebSocket 远程控制设备。
 - **📚 深度代码理解 (Deep Code Understanding)**:
   - **Semantic Indexing**: 使用 **Neo4j** 和 **Tree-sitter** 对代码库进行语义索引。
   - **Architecture Inference**: 自动推断模块间的高层依赖关系（如 "Module A depends on Module B"），生成架构知识图谱。
@@ -92,7 +92,7 @@ edges:
 - **核心引擎**: FastAPI + LangGraph (Supervisor/Nodes Architecture)
 - **数据库**: PostgreSQL (关系型) + Neo4j (图数据库)
 - **队列**: Redis + Celery
-- **云连接**: ImagicBox Client (WebSocket + REST)
+- **云连接**: EvoCloud Client (WebSocket + REST)
 - **运行时**: Python 3.11 (由 `uv` 管理)
 
 ### 前端 (`/frontend`)
@@ -102,7 +102,7 @@ edges:
 
 ## ☁️ EvoCloud 架构 (Cloud Architecture)
 
-EvoLoop 不仅仅是一个本地 Agent，它通过 `ImagicBoxClient` 深度集成到企业级研发管理流中：
+EvoLoop 不仅仅是一个本地 Agent，它通过 `EvoCloudClient` 深度集成到企业级研发管理流中：
 
 1.  **项目同步 (Project Sync)**: 本地代码变更会自动追踪，并与云端项目任务 (Task/Feature) 关联。
 2.  **远程控制 (Device Link)**: 通过 WebSocket 长连接，云端 Supervisor 可以向本地 Agent 发送指令（如 "修复这个 Bug"），Agent 执行后自动上传日志和结果。

@@ -33,7 +33,7 @@ async def create_project_task(project_id: int | None = None, task_data: str = ""
         # Ensure project_id is set
         task_dict['project_id'] = pid
 
-        # Call ImagicBox Client (Business Logic) - Async
+        # Call EvoCloud Client (Business Logic) - Async
         response = await evocloud_client.create_task(data=task_dict)
 
         if response.get("code") == 0:

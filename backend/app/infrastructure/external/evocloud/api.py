@@ -17,14 +17,14 @@ logger = logging.getLogger(__name__)
 
 class EvoCloudAPI:
     """
-    REST API Wrapper for EvoCloud (formerly ImagicBox).
+    REST API Wrapper for EvoCloud.
     Handles auth, projects, tasks, and devices.
     """
 
     def __init__(self):
-        self.base_url = str(settings.IMAGICBOX_API_URL).rstrip('/')
-        self.api_key = settings.IMAGICBOX_API_KEY
-        self.api_secret = settings.IMAGICBOX_API_SECRET
+        self.base_url = str(settings.EVOCLOUD_API_URL).rstrip('/')
+        self.api_key = settings.EVOCLOUD_API_KEY
+        self.api_secret = settings.EVOCLOUD_API_SECRET
         self.timeout = 30.0
 
         self._user_token: str | None = None
@@ -60,8 +60,8 @@ class EvoCloudAPI:
 
     def _load_token(self):
         try:
-            if settings.IMAGICBOX_ACCESS_TOKEN:
-                self._user_token = settings.IMAGICBOX_ACCESS_TOKEN
+            if settings.EVOCLOUD_ACCESS_TOKEN:
+                self._user_token = settings.EVOCLOUD_ACCESS_TOKEN
                 return
 
             auth_file = os.path.join(os.getcwd(), ".evoloop", "auth.json")

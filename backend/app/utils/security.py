@@ -33,7 +33,7 @@ def get_password_hash(password: str) -> str:
 def generate_hmac_signature(secret: str, message: str, hash_alg=hashlib.sha256) -> str:
     """
     Generate HMAC signature for a message.
-    Used for API request signing (e.g. ImagicBox).
+    Used for API request signing (e.g. EvoCloud).
     """
     if not secret:
         return ""

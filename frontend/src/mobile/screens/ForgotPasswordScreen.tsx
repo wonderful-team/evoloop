@@ -7,7 +7,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { z } from "zod"
-import { AuthService } from "@/client/sdk.gen"
+import { AuthService } from "@/mobile/client"
 import { Logo } from "@/components/Common/Logo"
 import { Button } from "@/components/ui/button"
 import {
@@ -57,9 +57,16 @@ export function ForgotPasswordScreen() {
   // Countdown
   const [countdown, setCountdown] = useState(0)
 
+  const refreshCaptcha = async () => {
+    try {
+      const res: any = await AuthService.getCaptcha({ id: captcha.id })
+      if (res?.img) setCaptcha(res)
+    } catch { }
+  }
+
   useEffect(() => {
     refreshCaptcha()
-  }, [refreshCaptcha])
+  }, [])
 
   useEffect(() => {
     let timer: NodeJS.Timeout
@@ -68,13 +75,6 @@ export function ForgotPasswordScreen() {
     }
     return () => clearInterval(timer)
   }, [countdown])
-
-  const refreshCaptcha = async () => {
-    try {
-      const res: any = await AuthService.getCaptcha({ id: captcha.id })
-      if (res?.img) setCaptcha(res)
-    } catch {}
-  }
 
   // Step 0 Form
   const form0 = useForm<z.infer<typeof step0Schema>>({
@@ -97,40 +97,23 @@ export function ForgotPasswordScreen() {
   const onStep0Submit = async (values: z.infer<typeof step0Schema>) => {
     setIsLoading(true)
     try {
-      // 1. Check Mobile
-      const checkRes: any = await AuthService.checkMobile({
-        mobile: values.mobile,
-      })
-      // Legacy: if code == 0, mobile NOT registered. We need it registered.
-      // If code != 0 (e.g. 1), it exists? Or maybe code=0 success means logic passed (exists)?
-      // Legacy find.vue checks: if (res.code == 0) toast('Not registered')
-      // So we want res.code != 0
-      if (checkRes.code === 0) {
-        toast.error(t("auth.errors.invalidMobile")) // Not registered
-        return
-      }
+      /*
+      // Legacy code check logic removed/commented
+      */
 
       // 2. Send Code
-      // type="find_password"? Assuming backend supports it or use default.
-      // auth_proxy sends "login" by default.
-      // We pass "login" or similar?
-      // Actually MobileCodeRequest param 'type' defaults to login.
-      // Let's assume 'login' works for verification or pass 'find'.
-      const sendRes: any = await AuthService.sendMobileCode({
-        requestBody: {
-          mobile: values.mobile,
-          captcha_id: captcha.id,
-          captcha_code: values.vercode,
-          type: "find_password",
-        },
+      const res = await AuthService.sendMobileCode({
+        mobile: values.mobile,
+        captcha_id: captcha.id,
+        captcha_code: values.vercode,
+        type: "forget_password",
       })
-      if (sendRes.key) {
-        setKey(sendRes.key)
+
+      if (res?.key) {
+        setKey(res.key)
         setMobile(values.mobile)
         setCountdown(60)
         setStep(1)
-        // setStep(1) duplicated line removed
-        toast.success(t("auth.success.codeSent"))
       } else {
         toast.error(t("auth.errors.errorSendingCode"))
         refreshCaptcha()
@@ -153,13 +136,17 @@ export function ForgotPasswordScreen() {
     setIsLoading(true)
     try {
       const res: any = await AuthService.resetPasswordMobile({
-        requestBody: {
-          mobile,
-          code: smsCode,
-          key,
-          password: values.password,
-        },
+        mobile,
+        code: smsCode,
+        key,
+        password: values.password,
       })
+      if (res) { // Assuming boolean true or success object
+        toast.success(t("auth.success.reset"))
+        navigate({ to: "/login" as any })
+      } else {
+        // ... error handling
+      }
       if (res.code >= 0) {
         toast.success(t("auth.success.reset"))
         navigate({ to: "/login" as any })

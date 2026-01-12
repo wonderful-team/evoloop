@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { z } from "zod"
-import { AuthService, LoginService } from "@/client/sdk.gen"
+import { AuthService, LoginService } from "@/mobile/client"
 import { Logo } from "@/components/Common/Logo"
 import { Button } from "@/components/ui/button"
 import {
@@ -59,6 +59,13 @@ export function LoginScreen() {
   const [key, setKey] = useState("") // Key from sendMobileCode
   const [countdown, setCountdown] = useState(0)
 
+  const refreshCaptcha = async () => {
+    const res: any = await AuthService.getCaptcha({ id: captcha.id })
+    if (res?.img) {
+      setCaptcha(res)
+    }
+  }
+
   useEffect(() => {
     // Init config
     AuthService.getCaptchaConfig()
@@ -69,14 +76,7 @@ export function LoginScreen() {
         }
       })
       .catch(console.error)
-  }, [refreshCaptcha])
-
-  const refreshCaptcha = async () => {
-    const res: any = await AuthService.getCaptcha({ id: captcha.id })
-    if (res?.img) {
-      setCaptcha(res)
-    }
-  }
+  }, [])
 
   const accountForm = useForm<z.infer<typeof accountSchema>>({
     resolver: zodResolver(accountSchema),
@@ -107,12 +107,10 @@ export function LoginScreen() {
     try {
       setIsLoading(true)
       const res: any = await AuthService.sendMobileCode({
-        requestBody: {
-          mobile,
-          captcha_id: captcha.id,
-          captcha_code: vercode || "",
-          type: "login",
-        },
+        mobile,
+        captcha_id: captcha.id,
+        captcha_code: vercode || "",
+        type: "login",
       })
       if (res.key) {
         setKey(res.key)
@@ -138,9 +136,7 @@ export function LoginScreen() {
         password: values.password,
       }
       // Returns Token { access_token, token_type }
-      const res: any = await LoginService.loginAccessToken({
-        formData: formData as any,
-      })
+      const res: any = await LoginService.loginAccessToken(formData)
       // Normalize to { ...res, token: res.access_token } for handleLogin
       return { ...res, token: res.access_token }
     })
@@ -152,12 +148,11 @@ export function LoginScreen() {
       return
     }
     handleLogin(async () => {
+      // Direct call with flattened object
       return await AuthService.loginMobile({
-        requestBody: {
-          mobile: values.mobile,
-          key,
-          code: values.dynacode,
-        },
+        mobile: values.mobile,
+        key,
+        code: values.dynacode,
       })
     })
   }

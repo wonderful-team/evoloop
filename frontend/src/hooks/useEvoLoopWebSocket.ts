@@ -3,8 +3,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { DevicesService } from "@/client/sdk.gen"
 
-const WS_URL =
-  import.meta.env.VITE_EVOLOOP_WS_URL || "wss://mall.imagicbox.cn/wss/"
+const WS_URL = import.meta.env.VITE_EVOLOOP_WS_URL || "wss://mall.imagicbox.cn/wss/"
 
 export interface LogMessage {
   type: "thought" | "tool" | "output" | "error" | "user"

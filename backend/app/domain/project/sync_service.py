@@ -9,7 +9,7 @@ from app.logging import logger
 
 class ProjectSyncService:
     """
-    Service responsible for synchronizing local project state with the Cloud (ImagicBox).
+    Service responsible for synchronizing local project state with the Cloud (EvoCloud).
     Implements a "Local-First" strategy ensuring robustness against network failures.
     """
 
