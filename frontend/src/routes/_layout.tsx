@@ -1,8 +1,15 @@
 import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
+import { useState, useEffect } from "react"
 import { Footer } from "@/components/Common/Footer"
+import {
+  SpotlightTourProvider,
+  useTour,
+} from "@/components/Common/SpotlightTour"
+import { desktopTourSteps } from "@/components/Common/tourSteps"
 import AppSidebar from "@/components/Sidebar/AppSidebar"
-import InitializationCheck from "@/components/System/InitializationCheck"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { SetupWizard, useSetupRequired } from "@/components/Wizard"
+import useAuth from "@/hooks/useAuth"
 
 export const Route = createFileRoute("/_layout")({
   component: Layout,
@@ -12,21 +19,27 @@ export const Route = createFileRoute("/_layout")({
 function Layout() {
   const router = useRouterState()
   const pathname = router.location.pathname
+  const { user } = useAuth()
+  const { required: setupRequired, loading: setupLoading } = useSetupRequired()
+  const [showWizard, setShowWizard] = useState(false)
+
   const isFullWidth =
     pathname.includes("/chat") ||
     pathname.includes("/files") ||
     pathname.includes("/projects")
 
+  // Show wizard when setup is required
+  useEffect(() => {
+    if (!setupLoading && setupRequired && user) {
+      setShowWizard(true)
+    }
+  }, [setupRequired, setupLoading, user])
+
   return (
-    <InitializationCheck>
+    <SpotlightTourProvider steps={desktopTourSteps}>
       <SidebarProvider className={isFullWidth ? "h-svh overflow-hidden" : ""}>
         <AppSidebar />
         <SidebarInset>
-          {/*<header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b px-4 bg-background justify-between">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="-ml-1 text-muted-foreground" />
-            </div>
-          </header>*/}
           <main
             className={`flex-1 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8"}`}
           >
@@ -39,8 +52,15 @@ function Layout() {
           {!isFullWidth && <Footer />}
         </SidebarInset>
       </SidebarProvider>
-    </InitializationCheck>
+
+      {/* Setup Wizard */}
+      <SetupWizard open={showWizard} onOpenChange={setShowWizard} />
+    </SpotlightTourProvider>
   )
 }
 
+// Export hook for settings page to replay tour
+export { useTour }
+
 export default Layout
+

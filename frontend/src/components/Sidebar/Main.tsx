@@ -14,6 +14,8 @@ export type Item = {
   icon: LucideIcon
   title: string
   path: string
+  /** Optional data-tour attribute for onboarding spotlight */
+  dataTour?: string
 }
 
 interface MainProps {
@@ -39,7 +41,10 @@ export function Main({ items }: MainProps) {
             const isActive = currentPath === item.path
 
             return (
-              <SidebarMenuItem key={item.title}>
+              <SidebarMenuItem
+                key={item.title}
+                data-tour={item.dataTour}
+              >
                 <SidebarMenuButton
                   tooltip={item.title}
                   isActive={isActive}

@@ -93,6 +93,102 @@
       "subtitle": "点击输入框旁的图标，体验更多能力。<br />现在，开始您的 EvoLoop 之旅吧！"
     }
   },
+  "tour": {
+    "prev": "上一步",
+    "next": "下一步",
+    "finish": "开始使用",
+    "skip": "跳过引导",
+    "replayTitle": "重新播放引导",
+    "replayDesc": "再次查看产品功能介绍",
+    "step1": {
+      "title": "欢迎使用 EvoLoop",
+      "content": "您的智能开发助手已就绪。让我们花 1 分钟了解核心功能，帮助您快速上手。"
+    },
+    "step2": {
+      "title": "智能对话",
+      "content": "这是与 AI Agent 交互的主要入口。支持自然语言编程、代码生成、问题诊断等。Agent 会自动理解您的意图并执行相应操作。"
+    },
+    "step3": {
+      "title": "项目管理",
+      "content": "管理您的代码库项目。支持文件浏览、语义搜索、任务跟踪、甘特图进度等功能。项目会自动建立知识索引。"
+    },
+    "step4": {
+      "title": "扩展能力",
+      "content": "通过 MCP 协议连接外部工具服务（如 Git、数据库、搜索引擎），无限扩展 Agent 的能力边界。"
+    },
+    "step5": {
+      "title": "个性化配置",
+      "content": "配置 LLM 模型、API 密钥、界面主题等。首次使用请先配置您的 AI 模型，以获得最佳体验。"
+    },
+    "step6": {
+      "title": "对话历史",
+      "content": "在左侧边栏管理您的所有对话记录。可以新建、删除、搜索对话，随时回顾历史上下文。"
+    },
+    "step7": {
+      "title": "消息区域",
+      "content": "这里展示您与 Agent 的完整对话。Agent 的回复会实时流式显示，包括思考过程、执行步骤和最终结果。"
+    },
+    "step8": {
+      "title": "上下文面板",
+      "content": "右侧面板展示当前项目的上下文信息：置顶的文件资源、Agent 可用的工具列表等。帮助您了解 Agent 的工作环境。"
+    },
+    "step9": {
+      "title": "开始对话",
+      "content": "现在，试着输入您的第一条指令吧！例如：「帮我分析这个项目的架构」或「解释这个函数的作用」。支持上传图片和文件。"
+    }
+  },
+  "wizard": {
+    "title": "初始配置",
+    "description": "完成必要的系统配置",
+    "stepOf": "步骤 {{current}} / {{total}}",
+    "prev": "上一步",
+    "next": "下一步",
+    "saveSuccess": "配置已保存",
+    "saveError": "保存失败",
+    "welcome": {
+      "title": "欢迎使用 EvoLoop",
+      "subtitle": "您的智能开发助手即将就绪！只需 2 分钟完成以下配置，即可开始使用。",
+      "feature1": "配置 AI 模型连接",
+      "feature2": "设置项目存放目录",
+      "feature3": "开始智能编程之旅",
+      "start": "开始配置"
+    },
+    "llm": {
+      "title": "配置 AI 模型",
+      "subtitle": "选择并配置您的语言模型服务，这是 EvoLoop 的核心能力来源。",
+      "provider": "服务提供商",
+      "selectProvider": "选择提供商",
+      "baseUrl": "API 地址",
+      "model": "模型名称",
+      "apiKey": "API 密钥",
+      "optional": "可选",
+      "testConnection": "测试连接",
+      "testSuccess": "连接成功！模型响应正常。",
+      "testFailed": "连接失败，请检查配置",
+      "testError": "连接错误",
+      "testRequired": "请先测试连接以确保配置正确"
+    },
+    "projects": {
+      "title": "设置项目目录",
+      "subtitle": "选择您存放代码项目的根目录，EvoLoop 将扫描并索引其中的项目。",
+      "label": "项目根目录",
+      "browse": "浏览",
+      "browseError": "无法打开目录选择器",
+      "infoTitle": "EvoLoop 会做什么？",
+      "info1": "扫描目录下的代码项目",
+      "info2": "建立知识索引以提供智能帮助",
+      "info3": "所有数据保留在本地，不会上传",
+      "suggestions": "常用路径"
+    },
+    "completion": {
+      "title": "配置完成！",
+      "subtitle": "您已准备好使用 EvoLoop。接下来，让我们快速浏览一下产品功能。",
+      "chat": "智能对话",
+      "projects": "项目管理",
+      "ai": "AI 能力",
+      "start": "开始使用 EvoLoop"
+    }
+  },
   "help": {
     "title": "用户手册",
     "intro": {
@@ -531,7 +627,23 @@
       "success": "设置保存成功",
       "error": "保存设置失败",
       "loadError": "加载系统设置失败",
-      "browseError": "打开目录选择器失败"
+      "browseError": "打开目录选择器失败",
+      "agentBehavior": {
+        "title": "Agent 行为 (HITL)",
+        "description": "配置 Agent 与您交互的方式。"
+      },
+      "intentThreshold": {
+        "label": "意图阈值 (0.0 - 1.0)",
+        "description": "越低 = 越快（更多匹配）。越高 = 越智能（更多 LLM 兜底）。默认值: 0.35"
+      },
+      "planApproval": {
+        "label": "需要计划审批",
+        "description": "如果取消勾选，Agent 将自动执行生成的计划，无需等待您的确认。"
+      },
+      "validation": {
+        "pathRequired": "路径不能为空",
+        "deviceNameRequired": "设备名称不能为空"
+      }
     },
     "mcp": {
       "title": "MCP 服务器",

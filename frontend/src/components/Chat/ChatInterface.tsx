@@ -417,6 +417,7 @@ export function ChatInterface() {
               className="flex-1 overflow-y-auto p-4 min-h-0 scroll-smooth"
               ref={scrollRef}
               onScroll={handleScroll}
+              data-tour="chat-messages"
             >
               <div className="space-y-6 max-w-3xl mx-auto pb-4">
                 {/* Messages List */}
@@ -496,12 +497,14 @@ export function ChatInterface() {
               maxSize={40}
               className="min-w-[320px]"
             >
-              <ContextPanel
-                projectId={currentProject?.id}
-                activeThreadId={activeThreadId || ""}
-                autoSwitchToTab={undefined} // Disable auto-switch as we have Live Zone now
-                onClose={() => setShowContextPanel(false)}
-              />
+              <div data-tour="chat-context" className="h-full">
+                <ContextPanel
+                  projectId={currentProject?.id}
+                  activeThreadId={activeThreadId || ""}
+                  autoSwitchToTab={undefined} // Disable auto-switch as we have Live Zone now
+                  onClose={() => setShowContextPanel(false)}
+                />
+              </div>
             </ResizablePanel>
           </>
         )}

@@ -23,14 +23,39 @@ export function AppSidebar() {
   const { user: currentUser } = useAuth()
 
   const publicItems: Item[] = [
-    { icon: LayoutDashboard, title: t("sidebar.dashboard"), path: "/" },
-    { icon: MessageSquare, title: t("sidebar.chat"), path: "/chat" },
-    { icon: FolderOpen, title: t("sidebar.projects"), path: "/projects" },
+    {
+      icon: LayoutDashboard,
+      title: t("sidebar.dashboard"),
+      path: "/",
+      dataTour: "sidebar-dashboard",
+    },
+    {
+      icon: MessageSquare,
+      title: t("sidebar.chat"),
+      path: "/chat",
+      dataTour: "sidebar-chat",
+    },
+    {
+      icon: FolderOpen,
+      title: t("sidebar.projects"),
+      path: "/projects",
+      dataTour: "sidebar-projects",
+    },
   ]
 
   const authItems: Item[] = [
-    { icon: Server, title: t("sidebar.mcpServers"), path: "/mcp" },
-    { icon: Settings, title: t("sidebar.settings"), path: "/settings" },
+    {
+      icon: Server,
+      title: t("sidebar.mcpServers"),
+      path: "/mcp",
+      dataTour: "sidebar-mcp",
+    },
+    {
+      icon: Settings,
+      title: t("sidebar.settings"),
+      path: "/settings",
+      dataTour: "sidebar-settings",
+    },
   ]
 
   const items = currentUser ? [...publicItems, ...authItems] : publicItems
@@ -38,7 +63,10 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center justify-center py-2 h-12">
+        <div
+          className="flex items-center justify-center py-2 h-12"
+          data-tour="sidebar-logo"
+        >
           <Logo variant="responsive" />
         </div>
       </SidebarHeader>

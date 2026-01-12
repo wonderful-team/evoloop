@@ -91,7 +91,10 @@ export const ChatInputArea = memo(
     }
 
     return (
-      <div className="shrink-0 p-4 pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div
+        className="shrink-0 p-4 pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
+        data-tour="chat-input"
+      >
         <div className="w-full max-w-4xl mx-auto">
           <div className="bg-background rounded-2xl shadow-sm border border-input transition-all focus-within:ring-2 focus-within:ring-ring ring-offset-2 overflow-hidden">
             {/* Top: Attachment Preview */}

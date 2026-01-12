@@ -2,12 +2,14 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { Checkbox } from "@/components/ui/checkbox"
 import { useQueryClient } from "@tanstack/react-query"
 import { open } from "@tauri-apps/plugin-dialog"
+import { PlayCircle } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { z } from "zod"
 import { type SystemConfig, SystemService } from "@/client"
+import { useTour } from "@/components/Common/SpotlightTour"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -35,8 +37,8 @@ import {
 } from "@/components/ui/select"
 
 const generalSettingsSchema = z.object({
-  PROJECTS_ROOT: z.string().min(1, "Paths cannot be empty"),
-  EVOLOOP_DEVICE_NAME: z.string().min(1, "Device name cannot be empty"),
+  PROJECTS_ROOT: z.string().min(1),
+  EVOLOOP_DEVICE_NAME: z.string().min(1),
   INTENT_MIN_CONFIDENCE: z.string().optional(),
   REQUIRE_PLAN_APPROVAL: z.boolean().default(true),
 })
@@ -46,6 +48,7 @@ type GeneralSettingsValues = z.infer<typeof generalSettingsSchema>
 export default function GeneralSettings() {
   const { t, i18n } = useTranslation()
   const [loading, setLoading] = useState(false)
+  const { startTour } = useTour()
   const form = useForm<GeneralSettingsValues>({
     resolver: zodResolver(generalSettingsSchema),
     defaultValues: {
@@ -137,6 +140,12 @@ export default function GeneralSettings() {
     }
   }
 
+  const handleReplayTour = () => {
+    // Clear the storage to allow re-triggering
+    localStorage.removeItem("evoloop_desktop_tour_seen")
+    startTour()
+  }
+
   return (
     <div className="space-y-6">
       <Card>
@@ -220,9 +229,9 @@ export default function GeneralSettings() {
 
               <div className="space-y-4 rounded-lg border p-4">
                 <div className="space-y-0.5">
-                  <h3 className="text-base font-medium">Agent Behavior (HITL)</h3>
+                  <h3 className="text-base font-medium">{t("settings.general.agentBehavior.title")}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Configure how the agent interacts with you.
+                    {t("settings.general.agentBehavior.description")}
                   </p>
                 </div>
 
@@ -232,12 +241,12 @@ export default function GeneralSettings() {
                     name="INTENT_MIN_CONFIDENCE"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Intent Threshold (0.0 - 1.0)</FormLabel>
+                        <FormLabel>{t("settings.general.intentThreshold.label")}</FormLabel>
                         <FormControl>
                           <Input type="number" step="0.05" min="0" max="1" placeholder="0.35" {...field} />
                         </FormControl>
                         <FormDescription>
-                          Lower = Faster (More matching). Higher = Smarter (More LLM fallback). Default: 0.35
+                          {t("settings.general.intentThreshold.description")}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -257,10 +266,10 @@ export default function GeneralSettings() {
                         </FormControl>
                         <div className="space-y-1 leading-none">
                           <FormLabel>
-                            Require Plan Approval
+                            {t("settings.general.planApproval.label")}
                           </FormLabel>
                           <FormDescription>
-                            If unchecked, the agent will auto-execute generated plans without waiting for your confirmation.
+                            {t("settings.general.planApproval.description")}
                           </FormDescription>
                         </div>
                       </FormItem>
@@ -278,6 +287,21 @@ export default function GeneralSettings() {
           </Form>
         </CardContent>
       </Card>
+
+      {/* Replay Tour Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("tour.replayTitle")}</CardTitle>
+          <CardDescription>{t("tour.replayDesc")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button variant="outline" onClick={handleReplayTour}>
+            <PlayCircle className="mr-2 h-4 w-4" />
+            {t("tour.replayTitle")}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   )
 }
+

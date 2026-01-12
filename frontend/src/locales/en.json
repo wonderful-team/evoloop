@@ -98,6 +98,102 @@
       "subtitle": "Click icons near the input box to experience more capabilities.\nNow, start your EvoLoop journey!"
     }
   },
+  "tour": {
+    "prev": "Previous",
+    "next": "Next",
+    "finish": "Get Started",
+    "skip": "Skip Tour",
+    "replayTitle": "Replay Tour",
+    "replayDesc": "View the product feature introduction again",
+    "step1": {
+      "title": "Welcome to EvoLoop",
+      "content": "Your intelligent development assistant is ready. Let's take a minute to explore the core features and help you get started."
+    },
+    "step2": {
+      "title": "Intelligent Chat",
+      "content": "This is your main interface for interacting with the AI Agent. Supports natural language programming, code generation, problem diagnosis, and more. The Agent automatically understands your intent and executes actions."
+    },
+    "step3": {
+      "title": "Project Management",
+      "content": "Manage your codebase projects here. Features include file browsing, semantic search, task tracking, Gantt charts, and more. Projects are automatically indexed for knowledge."
+    },
+    "step4": {
+      "title": "Extend Capabilities",
+      "content": "Connect external tool services via MCP protocol (like Git, databases, search engines) to infinitely expand the Agent's capabilities."
+    },
+    "step5": {
+      "title": "Personalization",
+      "content": "Configure LLM models, API keys, themes, and more. First-time users should configure their AI model first for the best experience."
+    },
+    "step6": {
+      "title": "Chat History",
+      "content": "Manage all your conversations in the left sidebar. Create, delete, and search chats to revisit historical context anytime."
+    },
+    "step7": {
+      "title": "Message Area",
+      "content": "This displays your complete conversation with the Agent. Responses stream in real-time, including thinking process, execution steps, and final results."
+    },
+    "step8": {
+      "title": "Context Panel",
+      "content": "The right panel shows current project context: pinned file resources, available tools, and more. Helps you understand the Agent's working environment."
+    },
+    "step9": {
+      "title": "Start Chatting",
+      "content": "Now, try typing your first command! For example: 'Analyze this project's architecture' or 'Explain this function'. Image and file uploads are supported."
+    }
+  },
+  "wizard": {
+    "title": "Initial Setup",
+    "description": "Complete the necessary system configuration",
+    "stepOf": "Step {{current}} / {{total}}",
+    "prev": "Previous",
+    "next": "Next",
+    "saveSuccess": "Configuration saved",
+    "saveError": "Failed to save",
+    "welcome": {
+      "title": "Welcome to EvoLoop",
+      "subtitle": "Your intelligent development assistant is almost ready! Just 2 minutes to complete the setup.",
+      "feature1": "Configure AI model connection",
+      "feature2": "Set up projects directory",
+      "feature3": "Start your smart coding journey",
+      "start": "Get Started"
+    },
+    "llm": {
+      "title": "Configure AI Model",
+      "subtitle": "Select and configure your language model service — the core of EvoLoop's capabilities.",
+      "provider": "Service Provider",
+      "selectProvider": "Select a provider",
+      "baseUrl": "API URL",
+      "model": "Model Name",
+      "apiKey": "API Key",
+      "optional": "optional",
+      "testConnection": "Test Connection",
+      "testSuccess": "Connection successful! Model responded.",
+      "testFailed": "Connection failed, please check your configuration",
+      "testError": "Connection error",
+      "testRequired": "Please test the connection to ensure correct configuration"
+    },
+    "projects": {
+      "title": "Set Projects Directory",
+      "subtitle": "Choose your code projects root directory. EvoLoop will scan and index projects within.",
+      "label": "Projects Root",
+      "browse": "Browse",
+      "browseError": "Failed to open directory selector",
+      "infoTitle": "What will EvoLoop do?",
+      "info1": "Scan code projects in this directory",
+      "info2": "Build knowledge index for smart assistance",
+      "info3": "All data stays local, nothing uploaded",
+      "suggestions": "Common paths"
+    },
+    "completion": {
+      "title": "Setup Complete!",
+      "subtitle": "You're all set to use EvoLoop. Next, let's take a quick tour of the features.",
+      "chat": "Intelligent Chat",
+      "projects": "Project Management",
+      "ai": "AI Capabilities",
+      "start": "Start Using EvoLoop"
+    }
+  },
   "help": {
     "title": "User Manual",
     "intro": {
@@ -535,7 +631,23 @@
       "success": "Settings saved successfully",
       "error": "Failed to save settings",
       "loadError": "Failed to load system settings",
-      "browseError": "Failed to open directory selector"
+      "browseError": "Failed to open directory selector",
+      "agentBehavior": {
+        "title": "Agent Behavior (HITL)",
+        "description": "Configure how the agent interacts with you."
+      },
+      "intentThreshold": {
+        "label": "Intent Threshold (0.0 - 1.0)",
+        "description": "Lower = Faster (More matching). Higher = Smarter (More LLM fallback). Default: 0.35"
+      },
+      "planApproval": {
+        "label": "Require Plan Approval",
+        "description": "If unchecked, the agent will auto-execute generated plans without waiting for your confirmation."
+      },
+      "validation": {
+        "pathRequired": "Path cannot be empty",
+        "deviceNameRequired": "Device name cannot be empty"
+      }
     },
     "mcp": {
       "title": "MCP Servers",

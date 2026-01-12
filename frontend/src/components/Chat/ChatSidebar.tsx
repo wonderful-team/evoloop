@@ -30,7 +30,10 @@ export const ChatSidebar = memo(
     const { t } = useTranslation()
 
     return (
-      <div className="flex flex-col h-full border-r bg-muted/5">
+      <div
+        className="flex flex-col h-full border-r bg-muted/5"
+        data-tour="chat-sidebar"
+      >
         <div className="p-2 border-b bg-background shrink-0">
           <ProjectSwitcher />
         </div>
