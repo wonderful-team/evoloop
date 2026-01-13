@@ -8,7 +8,8 @@ celery_app = Celery(
     backend=settings.REDIS_URL,
     include=[
         "app.domain.codebase.indexing.tasks",
-        "app.domain.project.summarizer"
+        "app.domain.project.summarizer",
+        "app.domain.project.sync_tasks"
     ]
 )
 

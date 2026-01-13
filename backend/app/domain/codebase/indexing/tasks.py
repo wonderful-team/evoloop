@@ -17,12 +17,6 @@ def run_full_indexing_task(project_id: int, rebuild: bool = False):
     from app.core.monitoring.activity import activity_monitor
     sys_tid = f"sys:{project_id}:indexing"
 
-    # Run async logic in loop
-    loop = asyncio.get_event_loop()
-    if loop.is_closed():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
     async def _monitored_execution():
         try:
             await activity_monitor.start_run(sys_tid, "Full Codebase Indexing")
@@ -38,4 +32,4 @@ def run_full_indexing_task(project_id: int, rebuild: bool = False):
             logger.error(f"[Celery] Indexing Task Failed: {e}")
             await activity_monitor.end_run(sys_tid, "failed")
 
-    loop.run_until_complete(_monitored_execution())
+    asyncio.run(_monitored_execution())

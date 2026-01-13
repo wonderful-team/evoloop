@@ -61,9 +61,4 @@ def sync_project_to_cloud_task(self, repo_id: int):
                 raise e # Trigger Retry
 
     # Run the async loop
-    loop = asyncio.get_event_loop()
-    if loop.is_closed():
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-    loop.run_until_complete(_sync())
+    asyncio.run(_sync())
