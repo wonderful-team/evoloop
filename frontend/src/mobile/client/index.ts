@@ -259,7 +259,7 @@ export class AuthService {
      * Or ignore for now if not critical (used in ForgetPassword).
      * `ForgotPasswordScreen` uses `checkMobile`.
      */
-    public static async checkMobile(data: { mobile: string }): Promise<any> {
+    public static async checkMobile(_data: { mobile: string }): Promise<any> {
         // Placeholder /api/login/mobileExist or /api/register/mobileExist
         // If fail, just return true?
         try {

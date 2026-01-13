@@ -254,10 +254,9 @@ function FilesPage() {
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       components={{
-                        code({ node, className, children, ...props }) {
+                        code({ node: _node, className, children, ...props }) {
                           const match = /language-(\w+)/.exec(className || "")
                           return match ? (
-                            // @ts-expect-error
                             <SyntaxHighlighter
                               // @ts-expect-error
                               style={vscDarkPlus}

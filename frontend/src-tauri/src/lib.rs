@@ -131,25 +131,21 @@ pub fn run() {
              let shell = _app.shell();
 
              // Start Web Server
-             // uv run --directory ../backend fastapi run app/main.py --workers 4
-             let cmd = shell.command("uv")
-                 .args([
-                     "run",
-                     "--directory", "../backend",
-                     "fastapi", "run", "app/main.py", "--workers", "4"
-                 ]);
+             // Sidecar: evoloop-backend api
+             let cmd = shell.sidecar("evoloop-backend")
+                 .expect("failed to create sidecar command")
+                 .args(["api"]);
+                 
              if let Ok((_, child)) = cmd.spawn() {
                  state.children.lock().unwrap().push(child);
              }
 
              // Start Celery Worker
-             // uv run --directory ../backend celery -A app.celery_app worker -l info -P solo -Q celery
-             let cmd_celery = shell.command("uv")
-                 .args([
-                     "run",
-                     "--directory", "../backend",
-                     "celery", "-A", "app.celery_app", "worker", "-l", "info", "-P", "solo", "-Q", "celery"
-                 ]);
+             // Sidecar: evoloop-backend worker
+             let cmd_celery = shell.sidecar("evoloop-backend")
+                 .expect("failed to create sidecar command")
+                 .args(["worker"]);
+                 
              if let Ok((_, child)) = cmd_celery.spawn() {
                  state.children.lock().unwrap().push(child);
              }

@@ -58,15 +58,6 @@ export function CloudChatScreen() {
     }
   }, [conversationId, isNew, t])
 
-  // 2. Handle Initial Message
-  useEffect(() => {
-    if (searchParams.initialMessage && !initializedRef.current) {
-      initializedRef.current = true
-      setTimeout(() => {
-        handleSend(searchParams.initialMessage)
-      }, 100)
-    }
-  }, [searchParams.initialMessage, handleSend])
 
   // 3. Send Handler
   const handleSend = async (content: string) => {
@@ -196,6 +187,16 @@ export function CloudChatScreen() {
       }
     }
   }
+
+  // 2. Handle Initial Message
+  useEffect(() => {
+    if (searchParams.initialMessage && !initializedRef.current) {
+      initializedRef.current = true
+      setTimeout(() => {
+        handleSend(searchParams.initialMessage)
+      }, 100)
+    }
+  }, [searchParams.initialMessage, handleSend])
 
   // Header Logic
   const Header = (

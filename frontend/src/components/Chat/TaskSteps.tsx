@@ -3,7 +3,6 @@ import {
   ChevronDown,
   ChevronRight,
   Cpu,
-  LayoutList,
   Loader2,
   Sparkles,
   Terminal,

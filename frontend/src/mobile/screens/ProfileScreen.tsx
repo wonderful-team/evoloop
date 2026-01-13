@@ -49,7 +49,7 @@ function ProfileCancellation() {
   // Based on Membercancel.php logic, it returns info.
   // Let's assume typical: status 0/1 = pending.
 
-  const isPending = info?.status === 0 || info?.status === 1
+  const isPending = (info as any)?.status === 0 || (info as any)?.status === 1
 
   const handleApply = () => {
     if (window.confirm(t("profile.confirmDelete"))) {

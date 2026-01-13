@@ -19,7 +19,7 @@ const DeleteConfirmation = () => {
     useMemberCancellation("desktop")
 
   // Status check: 0 or 1 usually implies pending/audit in Niushop logic
-  const isPending = info && (info.status === 0 || info.status === 1)
+  const isPending = info && ((info as any).status === 0 || (info as any).status === 1)
 
   const handleAction = () => {
     if (isPending) {

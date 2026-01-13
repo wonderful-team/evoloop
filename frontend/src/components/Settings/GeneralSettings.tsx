@@ -50,7 +50,7 @@ export default function GeneralSettings() {
   const [loading, setLoading] = useState(false)
   const { startTour } = useTour()
   const form = useForm<GeneralSettingsValues>({
-    resolver: zodResolver(generalSettingsSchema),
+    resolver: zodResolver(generalSettingsSchema) as any,
     defaultValues: {
       PROJECTS_ROOT: "",
       EVOLOOP_DEVICE_NAME: "",

@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
 
-// @ts-expect-error
 export const Route = createFileRoute("/_layout/projects/$projectId/reports")({
   component: ReportsPage,
 })

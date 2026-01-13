@@ -49,7 +49,7 @@ export function DevicesScreen() {
   // Remove auto-logout effect to allow guest view
   // useEffect(() => { ... })
 
-  const onlineCount = devices?.filter((d) => d.status === 1).length || 0
+  const onlineCount = (devices as any[])?.filter((d: any) => d.status === 1).length || 0
 
   if (isGuest) {
     return (
@@ -104,9 +104,9 @@ export function DevicesScreen() {
             {isLoading
               ? t("devices.loading")
               : t("devices.statusFormat", {
-                  online: onlineCount,
-                  total: devices?.length || 0,
-                })}
+                online: onlineCount,
+                total: devices?.length || 0,
+              })}
           </p>
         </div>
       </div>
@@ -118,7 +118,7 @@ export function DevicesScreen() {
       ) : null}
 
       <div className="grid gap-3">
-        {devices?.map((device) => (
+        {(devices as any[])?.map((device: any) => (
           <Card
             key={device.device_id}
             className={`border-l-4 ${device.status === 1 ? "border-l-green-500" : "border-l-muted"} active:scale-95 transition-transform`}

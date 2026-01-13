@@ -2,7 +2,6 @@ import {
   Bot,
   Brain,
   ChevronDown,
-  ChevronRight,
   ChevronUp,
   Cpu,
   Database,
@@ -56,7 +55,6 @@ export const ContextPanel = memo(
     const tasks = useChatStore((s) => s.tasks)
     const artifacts = useChatStore((s) => s.artifacts)
     const status = useChatStore((s) => s.status)
-    const agentState = useChatStore((s) => s.agentState)
     const thoughts = useChatStore((s) => s.thoughts) || []
     const humanRequest = useChatStore((s) => s.humanRequest)
 
