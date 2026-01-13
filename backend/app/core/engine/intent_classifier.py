@@ -126,8 +126,7 @@ class IntentClassifier:
             min_confidence = float(conf_str) if conf_str else cls.MIN_CONFIDENCE
 
             model = cls.get_model()
-            prediction = model.predict(message)
-
+            
             # Prediction returns a list of tuples: [(label, confidence), ...]
             predictions = model.predict(message)
 

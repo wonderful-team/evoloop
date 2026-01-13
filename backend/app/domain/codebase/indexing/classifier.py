@@ -1,14 +1,15 @@
-
 import logging
 import os
 from enum import Enum
 
 logger = logging.getLogger(__name__)
 
+
 class ProjectType(Enum):
     SOFTWARE = "software"
     CONTENT = "content"
     UNKNOWN = "unknown"
+
 
 class ProjectClassifier:
     """
@@ -61,7 +62,7 @@ class ProjectClassifier:
                     _, ext = os.path.splitext(f)
                     if ext in self.CODE_EXTENSIONS:
                         code_file_count += 1
-                        if code_file_count >= 3: # Threshold
+                        if code_file_count >= 3:  # Threshold
                             logger.info(f"[Classifier] Classified {root_path} as SOFTWARE (Found code files)")
                             return ProjectType.SOFTWARE
 
@@ -71,6 +72,7 @@ class ProjectClassifier:
         except Exception as e:
             logger.error(f"Classification failed: {e}")
             return ProjectType.UNKNOWN
+
 
 # Global Instance
 project_classifier = ProjectClassifier()
