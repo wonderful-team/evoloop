@@ -109,7 +109,11 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = "sk-dummy-key-for-local-dev"
     OPENAI_BASE_URL: str = "http://localhost:1234/v1"
     OPENAI_MODEL_NAME: str = "gpt-4o"
-    EMBEDDING_MODEL_NAME: str = "text-embedding-v3" # Qwen / Aliyun Compatible
+    
+    # Embedding Configuration
+    EMBEDDING_PROVIDER: Literal["openai", "ollama", "dashscope", "huggingface", "local"] = "openai"
+    EMBEDDING_BASE_URL: str | None = None # Optional override
+    EMBEDDING_MODEL_NAME: str = "text-embedding-3-small" # Qwen / Aliyun Compatible
 
     ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None
@@ -148,8 +152,7 @@ class Settings(BaseSettings):
     # Client / Device Info
     EVOCLOUD_ACCESS_TOKEN: str | None = Field(None, validation_alias="EVOCLOUD_ACCESS_TOKEN")
     EVOCLOUD_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
-    # Project Management
-    EVOCLOUD_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
+
     # Project Management
     # Logic to find default projects root:
     # 1. ~/项目 (Chinese optimized)
@@ -170,9 +173,27 @@ class Settings(BaseSettings):
 
     PROJECTS_ROOT: str = Field(default_factory=_default_projects_root, validation_alias="PROJECTS_ROOT")
 
-    # Artifacts
-    BROWSER_ARTIFACTS_DIR: str = os.path.join(os.getcwd(), "uploads", "browser_artifacts")
-    SCREENSHOTS_DIR: str = os.path.join(os.getcwd(), "uploads", "screenshots")
+    # Artifacts (Relative to .gemini/evoloop in home dir for persistence, or subfolder of PROJECTS_ROOT?)
+    # Decision: Keep them in user app data dir to avoid cluttering projects root or ephemeral CWD.
+    @computed_field
+    @property
+    def APP_DATA_DIR(self) -> str:
+        """Centralized application data directory."""
+        return os.path.join(os.path.expanduser("~"), ".gemini", "evoloop")
+
+    @computed_field
+    @property
+    def BROWSER_ARTIFACTS_DIR(self) -> str:
+        path = os.path.join(self.APP_DATA_DIR, "artifacts", "browser")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    @computed_field
+    @property
+    def SCREENSHOTS_DIR(self) -> str:
+        path = os.path.join(self.APP_DATA_DIR, "artifacts", "screenshots")
+        os.makedirs(path, exist_ok=True)
+        return path
 
 
     # Logic Limits
