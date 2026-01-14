@@ -1,0 +1,998 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务依赖关系图</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+            overflow: auto;
+        }
+
+        .diagram-container {
+            width: 100%;
+            min-height: 100vh;
+            position: relative;
+            padding: 20px;
+        }
+
+        .controls {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .controls h3 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+            font-size: 16px;
+        }
+
+        .control-group {
+            margin-bottom: 15px;
+        }
+
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-size: 14px;
+        }
+
+        .control-group button {
+            width: 100%;
+            padding: 8px;
+            margin: 2px 0;
+            border: none;
+            border-radius: 5px;
+            background: #667eea;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .control-group button:hover {
+            background: #5a67d8;
+            transform: translateY(-1px);
+        }
+
+        .control-group button.active {
+            background: #48bb78;
+        }
+
+        .legend {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .legend h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+            font-size: 14px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .task-node {
+            position: absolute;
+            background: white;
+            border-radius: 12px;
+            padding: 15px 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 3px solid transparent;
+            min-width: 160px;
+            text-align: center;
+            z-index: 10;
+        }
+
+        .task-node:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+            z-index: 20;
+        }
+
+        .task-node.priority-high {
+            border-color: #ff4757;
+            background: linear-gradient(135deg, #fff, #ffe8e8);
+        }
+
+        .task-node.priority-medium {
+            border-color: #ffa502;
+            background: linear-gradient(135deg, #fff, #fff8e8);
+        }
+
+        .task-node.priority-low {
+            border-color: #2ed573;
+            background: linear-gradient(135deg, #fff, #e8fff8);
+        }
+
+        .task-node.status-completed {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            border-color: #28a745;
+        }
+
+        .task-node.status-in-progress {
+            background: linear-gradient(135deg, #cce5ff, #b8daff);
+            border-color: #007bff;
+        }
+
+        .task-node.status-pending {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border-color: #ffc107;
+        }
+
+        .task-title {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .task-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 10px;
+            font-size: 12px;
+        }
+
+        .task-priority {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+            color: white;
+        }
+
+        .priority-high {
+            background: #ff4757;
+        }
+
+        .priority-medium {
+            background: #ffa502;
+        }
+
+        .priority-low {
+            background: #2ed573;
+        }
+
+        .task-status {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            color: white;
+        }
+
+        .status-completed {
+            background: #28a745;
+        }
+
+        .status-in-progress {
+            background: #007bff;
+        }
+
+        .status-pending {
+            background: #ffc107;
+            color: #856404;
+        }
+
+        .dependency-line {
+            position: absolute;
+            background: #95a5a6;
+            z-index: 1;
+            transform-origin: left center;
+            height: 3px;
+            border-radius: 2px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .dependency-line::after {
+            content: '';
+            position: absolute;
+            right: -8px;
+            top: -5px;
+            width: 0;
+            height: 0;
+            border-left: 13px solid #95a5a6;
+            border-top: 8px solid transparent;
+            border-bottom: 8px solid transparent;
+        }
+
+        .dependency-line.highlighted {
+            background: #e74c3c;
+            box-shadow: 0 0 15px rgba(231, 76, 60, 0.5);
+        }
+
+        .dependency-line.highlighted::after {
+            border-left-color: #e74c3c;
+        }
+
+        .task-level-indicator {
+            position: absolute;
+            top: -8px;
+            left: -8px;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            border: 2px solid white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .info-panel {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            z-index: 2000;
+            display: none;
+            backdrop-filter: blur(10px);
+        }
+
+        .info-panel.show {
+            display: block;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.8);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        .info-panel h3 {
+            margin-bottom: 15px;
+            color: #2c3e50;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .info-content {
+            margin-bottom: 15px;
+        }
+
+        .info-item {
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 3px;
+        }
+
+        .info-value {
+            color: #2c3e50;
+        }
+
+        .close-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            transition: background 0.3s ease;
+        }
+
+        .close-btn:hover {
+            background: #5a67d8;
+        }
+
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1999;
+            display: none;
+        }
+
+        .overlay.show {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .controls {
+                top: 10px;
+                right: 10px;
+                padding: 10px;
+            }
+
+            .legend {
+                bottom: 10px;
+                left: 10px;
+                padding: 10px;
+            }
+
+            .task-node {
+                min-width: 140px;
+                padding: 12px 15px;
+            }
+
+            .task-title {
+                font-size: 13px;
+            }
+
+            .info-panel {
+                max-width: 90%;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="diagram-container" id="diagramContainer">
+            <!-- 任务节点将在这里动态生成 -->
+        </div>
+
+        <div class="controls">
+            <h3>🎛️ 控制面板</h3>
+            <div class="control-group">
+                <label>布局方式</label>
+                <button onclick="changeLayout('hierarchical')" class="layout-btn active" data-layout="hierarchical">🌳 层次布局</button>
+                <button onclick="changeLayout('radial')" class="layout-btn" data-layout="radial">☀️ 放射布局</button>
+                <button onclick="changeLayout('force')" class="layout-btn" data-layout="force">⚡ 力导向布局</button>
+            </div>
+            <div class="control-group">
+                <label>筛选条件</label>
+                <button onclick="filterTasks('all')" class="filter-btn active">全部任务</button>
+                <button onclick="filterTasks('high')">高优先级</button>
+                <button onclick="filterTasks('completed')">已完成</button>
+            </div>
+            <div class="control-group">
+                <label>交互操作</label>
+                <button onclick="highlightDependencies()">✨ 高亮依赖</button>
+                <button onclick="resetView()">🔄 重置视图</button>
+            </div>
+        </div>
+
+        <div class="legend">
+            <h4>📊 图例说明</h4>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ff4757;"></div>
+                <span>高优先级</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffa502;"></div>
+                <span>中优先级</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #2ed573;"></div>
+                <span>低优先级</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #28a745;"></div>
+                <span>已完成</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #007bff;"></div>
+                <span>进行中</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ffc107;"></div>
+                <span>待处理</span>
+            </div>
+        </div>
+
+        <div class="overlay" id="overlay" onclick="closeInfoPanel()"></div>
+        <div class="info-panel" id="infoPanel">
+            <h3 id="infoTitle">任务详情</h3>
+            <div class="info-content" id="infoContent">
+                <!-- 任务详情将在这里动态生成 -->
+            </div>
+            <button class="close-btn" onclick="closeInfoPanel()">关闭</button>
+        </div>
+    </div>
+
+    <script>
+        // 模拟任务数据
+        const tasks = [
+            {
+                id: 'task-001',
+                title: '用户登录模块',
+                description: '实现用户登录功能，包括手机号登录、微信登录等',
+                priority: 'high',
+                status: 'completed',
+                dependencies: [],
+                estimatedHours: 40,
+                assignee: '张三',
+                tags: ['前端', '后端', '认证']
+            },
+            {
+                id: 'task-002',
+                title: '数据库设计',
+                description: '设计系统数据库结构，包括用户表、订单表等',
+                priority: 'high',
+                status: 'completed',
+                dependencies: [],
+                estimatedHours: 30,
+                assignee: '李四',
+                tags: ['后端', '数据库']
+            },
+            {
+                id: 'task-003',
+                title: '用户注册模块',
+                description: '实现用户注册功能，支持多种注册方式',
+                priority: 'high',
+                status: 'completed',
+                dependencies: ['task-001', 'task-002'],
+                estimatedHours: 35,
+                assignee: '张三',
+                tags: ['前端', '后端', '认证']
+            },
+            {
+                id: 'task-004',
+                title: '商品管理模块',
+                description: '实现商品的增删改查功能',
+                priority: 'medium',
+                status: 'in-progress',
+                dependencies: ['task-001', 'task-002'],
+                estimatedHours: 50,
+                assignee: '王五',
+                tags: ['后端', '商品']
+            },
+            {
+                id: 'task-005',
+                title: '购物车功能',
+                description: '实现购物车添加、删除、修改功能',
+                priority: 'medium',
+                status: 'in-progress',
+                dependencies: ['task-004'],
+                estimatedHours: 45,
+                assignee: '赵六',
+                tags: ['后端', '购物车']
+            },
+            {
+                id: 'task-006',
+                title: '订单系统',
+                description: '实现订单创建、支付、状态管理功能',
+                priority: 'high',
+                status: 'pending',
+                dependencies: ['task-005'],
+                estimatedHours: 60,
+                assignee: '钱七',
+                tags: ['后端', '订单', '支付']
+            },
+            {
+                id: 'task-007',
+                title: '支付集成',
+                description: '集成微信支付、支付宝等支付方式',
+                priority: 'high',
+                status: 'pending',
+                dependencies: ['task-006'],
+                estimatedHours: 40,
+                assignee: '孙八',
+                tags: ['后端', '支付', '第三方']
+            },
+            {
+                id: 'task-008',
+                title: '用户权限管理',
+                description: '实现基于角色的权限控制系统',
+                priority: 'medium',
+                status: 'pending',
+                dependencies: ['task-001', 'task-003'],
+                estimatedHours: 35,
+                assignee: '周九',
+                tags: ['后端', '权限', '安全']
+            },
+            {
+                id: 'task-009',
+                title: '消息通知系统',
+                description: '实现系统消息推送功能',
+                priority: 'low',
+                status: 'pending',
+                dependencies: ['task-001'],
+                estimatedHours: 25,
+                assignee: '吴十',
+                tags: ['后端', '消息', '推送']
+            }
+        ];
+
+        let currentLayout = 'hierarchical';
+        let currentFilter = 'all';
+        let highlightedTasks = new Set();
+
+        // 初始化
+        function init() {
+            renderTasks();
+            renderDependencies();
+        }
+
+        // 渲染任务节点
+        function renderTasks() {
+            const container = document.getElementById('diagramContainer');
+            const existingNodes = container.querySelectorAll('.task-node');
+            existingNodes.forEach(node => node.remove());
+
+            const filteredTasks = filterTasksByStatus(tasks, currentFilter);
+
+            filteredTasks.forEach((task, index) => {
+                const node = createTaskNode(task, index);
+                container.appendChild(node);
+            });
+
+            updateLayout();
+        }
+
+        // 创建任务节点
+        function createTaskNode(task, index) {
+            const node = document.createElement('div');
+            node.className = `task-node priority-${task.priority} status-${task.status}`;
+            node.id = task.id;
+            node.innerHTML = `
+                <div class="task-level-indicator">${calculateTaskLevel(task) + 1}</div>
+                <div class="task-title">${task.title}</div>
+                <div class="task-meta">
+                    <span class="task-priority priority-${task.priority}">${getPriorityText(task.priority)}</span>
+                    <span class="task-status status-${task.status}">${getStatusText(task.status)}</span>
+                </div>
+            `;
+
+            node.onclick = () => showTaskInfo(task);
+            return node;
+        }
+
+        // 计算任务层级
+        function calculateTaskLevel(task) {
+            if (task.dependencies.length === 0) return 0;
+
+            let maxLevel = 0;
+            task.dependencies.forEach(depId => {
+                const depTask = tasks.find(t => t.id === depId);
+                if (depTask) {
+                    const level = calculateTaskLevel(depTask);
+                    maxLevel = Math.max(maxLevel, level + 1);
+                }
+            });
+
+            return maxLevel;
+        }
+
+        // 渲染依赖关系线
+        function renderDependencies() {
+            const container = document.getElementById('diagramContainer');
+            const existingLines = container.querySelectorAll('.dependency-line');
+            existingLines.forEach(line => line.remove());
+
+            tasks.forEach(task => {
+                task.dependencies.forEach(depId => {
+                    const line = createDependencyLine(depId, task.id);
+                    if (line) {
+                        container.appendChild(line);
+                    }
+                });
+            });
+        }
+
+        // 创建依赖关系线
+        function createDependencyLine(fromId, toId) {
+            const fromNode = document.getElementById(fromId);
+            const toNode = document.getElementById(toId);
+
+            if (!fromNode || !toNode) return null;
+
+            const fromRect = fromNode.getBoundingClientRect();
+            const toRect = toNode.getBoundingClientRect();
+            const containerRect = document.getElementById('diagramContainer').getBoundingClientRect();
+
+            const fromX = fromRect.right - containerRect.left;
+            const fromY = fromRect.top + fromRect.height / 2 - containerRect.top;
+            const toX = toRect.left - containerRect.left;
+            const toY = toRect.top + toRect.height / 2 - containerRect.top;
+
+            const length = Math.sqrt(Math.pow(toX - fromX, 2) + Math.pow(toY - fromY, 2));
+            const angle = Math.atan2(toY - fromY, toX - fromX) * 180 / Math.PI;
+
+            const line = document.createElement('div');
+            line.className = 'dependency-line';
+            line.style.width = `${length}px`;
+            line.style.left = `${fromX}px`;
+            line.style.top = `${fromY}px`;
+            line.style.transform = `rotate(${angle}deg)`;
+
+            if (highlightedTasks.has(fromId) || highlightedTasks.has(toId)) {
+                line.classList.add('highlighted');
+            }
+
+            return line;
+        }
+
+        // 更新布局
+        function updateLayout() {
+            const container = document.getElementById('diagramContainer');
+            const containerWidth = container.offsetWidth;
+            const containerHeight = container.offsetHeight;
+            const centerX = containerWidth / 2;
+            const centerY = containerHeight / 2;
+
+            const filteredTasks = filterTasksByStatus(tasks, currentFilter);
+
+            if (currentLayout === 'hierarchical') {
+                applyHierarchicalLayout(filteredTasks, containerWidth, containerHeight);
+            } else if (currentLayout === 'radial') {
+                applyRadialLayout(filteredTasks, centerX, centerY);
+            } else if (currentLayout === 'force') {
+                applyForceLayout(filteredTasks, containerWidth, containerHeight);
+            }
+
+            renderDependencies();
+        }
+
+        // 层次布局
+        function applyHierarchicalLayout(tasks, containerWidth, containerHeight) {
+            const levels = {};
+
+            tasks.forEach(task => {
+                const level = calculateTaskLevel(task);
+                if (!levels[level]) levels[level] = [];
+                levels[level].push(task);
+            });
+
+            const levelHeight = Math.min(150, containerHeight / (Object.keys(levels).length + 1));
+
+            Object.keys(levels).forEach(level => {
+                const tasksInLevel = levels[level];
+                const levelY = 100 + parseInt(level) * levelHeight;
+                const nodeWidth = 180;
+                const horizontalGap = 30;
+
+                const totalWidth = tasksInLevel.length * (nodeWidth + horizontalGap);
+                let startX = (containerWidth - totalWidth) / 2;
+
+                tasksInLevel.forEach((task, index) => {
+                    const node = document.getElementById(task.id);
+                    if (node) {
+                        const x = startX + index * (nodeWidth + horizontalGap);
+                        const y = levelY;
+                        node.style.left = `${x}px`;
+                        node.style.top = `${y}px`;
+                        node.style.position = 'absolute';
+                    }
+                });
+            });
+        }
+
+        // 放射布局
+        function applyRadialLayout(tasks, centerX, centerY) {
+            const levels = {};
+
+            tasks.forEach(task => {
+                const level = calculateTaskLevel(task);
+                if (!levels[level]) levels[level] = [];
+                levels[level].push(task);
+            });
+
+            Object.keys(levels).forEach((level, levelIndex) => {
+                const tasksInLevel = levels[level];
+                const radius = 100 + levelIndex * 100;
+                const angleStep = (2 * Math.PI) / tasksInLevel.length;
+
+                tasksInLevel.forEach((task, index) => {
+                    const angle = index * angleStep - Math.PI / 2;
+                    const x = centerX + radius * Math.cos(angle) - 90;
+                    const y = centerY + radius * Math.sin(angle) - 40;
+
+                    const node = document.getElementById(task.id);
+                    if (node) {
+                        node.style.left = `${x}px`;
+                        node.style.top = `${y}px`;
+                        node.style.position = 'absolute';
+                    }
+                });
+            });
+        }
+
+        // 力导向布局（简化版）
+        function applyForceLayout(tasks, containerWidth, containerHeight) {
+            const nodes = tasks.map(task => ({
+                task: task,
+                x: Math.random() * (containerWidth - 180) + 90,
+                y: Math.random() * (containerHeight - 100) + 50,
+                vx: 0,
+                vy: 0
+            }));
+
+            // 简单的力导向算法
+            for (let iteration = 0; iteration < 50; iteration++) {
+                // 排斥力
+                for (let i = 0; i < nodes.length; i++) {
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const dx = nodes[j].x - nodes[i].x;
+                        const dy = nodes[j].y - nodes[i].y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance < 200 && distance > 0) {
+                            const force = 100 / distance;
+                            const fx = (dx / distance) * force;
+                            const fy = (dy / distance) * force;
+
+                            nodes[i].vx -= fx;
+                            nodes[i].vy -= fy;
+                            nodes[j].vx += fx;
+                            nodes[j].vy += fy;
+                        }
+                    }
+                }
+
+                // 引力（基于依赖关系）
+                nodes.forEach(node => {
+                    node.task.dependencies.forEach(depId => {
+                        const depNode = nodes.find(n => n.task.id === depId);
+                        if (depNode) {
+                            const dx = depNode.x - node.x;
+                            const dy = depNode.y - node.y;
+                            const distance = Math.sqrt(dx * dx + dy * dy);
+
+                            if (distance > 150) {
+                                const force = (distance - 150) * 0.01;
+                                node.vx += (dx / distance) * force;
+                                node.vy += (dy / distance) * force;
+                            }
+                        }
+                    });
+                });
+
+                // 向中心的引力
+                nodes.forEach(node => {
+                    const dx = containerWidth / 2 - node.x;
+                    const dy = containerHeight / 2 - node.y;
+                    node.vx += dx * 0.001;
+                    node.vy += dy * 0.001;
+                });
+
+                // 更新位置
+                nodes.forEach(node => {
+                    node.x += node.vx;
+                    node.y += node.vy;
+                    node.vx *= 0.8; // 阻尼
+                    node.vy *= 0.8;
+
+                    // 边界约束
+                    node.x = Math.max(90, Math.min(containerWidth - 90, node.x));
+                    node.y = Math.max(50, Math.min(containerHeight - 50, node.y));
+
+                    const htmlNode = document.getElementById(node.task.id);
+                    if (htmlNode) {
+                        htmlNode.style.left = `${node.x - 90}px`;
+                        htmlNode.style.top = `${node.y - 40}px`;
+                        htmlNode.style.position = 'absolute';
+                    }
+                });
+            }
+        }
+
+        // 改变布局
+        function changeLayout(layout) {
+            currentLayout = layout;
+
+            // 更新按钮状态
+            document.querySelectorAll('.layout-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-layout="${layout}"]`).classList.add('active');
+
+            updateLayout();
+        }
+
+        // 筛选任务
+        function filterTasks(filter) {
+            currentFilter = filter;
+
+            // 更新按钮状态
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            renderTasks();
+        }
+
+        // 根据状态筛选任务
+        function filterTasksByStatus(tasks, filter) {
+            if (filter === 'all') return tasks;
+            if (filter === 'high') return tasks.filter(t => t.priority === 'high');
+            if (filter === 'completed') return tasks.filter(t => t.status === 'completed');
+            return tasks;
+        }
+
+        // 高亮依赖关系
+        function highlightDependencies() {
+            highlightedTasks.clear();
+            tasks.forEach(task => {
+                if (task.dependencies.length > 0 ||
+                    tasks.some(t => t.dependencies.includes(task.id))) {
+                    highlightedTasks.add(task.id);
+                }
+            });
+            renderDependencies();
+
+            // 高亮相关节点
+            setTimeout(() => {
+                highlightedTasks.forEach(taskId => {
+                    const node = document.getElementById(taskId);
+                    if (node) {
+                        node.style.transform = 'scale(1.1)';
+                        node.style.zIndex = '30';
+                    }
+                });
+            }, 100);
+        }
+
+        // 重置视图
+        function resetView() {
+            highlightedTasks.clear();
+            currentFilter = 'all';
+            renderTasks();
+
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector('.filter-btn').textContent = '全部任务';
+            document.querySelector('.filter-btn').classList.add('active');
+        }
+
+        // 显示任务详情
+        function showTaskInfo(task) {
+            const infoPanel = document.getElementById('infoPanel');
+            const overlay = document.getElementById('overlay');
+            const infoTitle = document.getElementById('infoTitle');
+            const infoContent = document.getElementById('infoContent');
+
+            infoTitle.textContent = task.title;
+            infoContent.innerHTML = `
+                <div class="info-item">
+                    <div class="info-label">📝 描述</div>
+                    <div class="info-value">${task.description}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">🎯 优先级</div>
+                    <div class="info-value">${getPriorityText(task.priority)}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">📊 状态</div>
+                    <div class="info-value">${getStatusText(task.status)}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">⏱️ 预估工时</div>
+                    <div class="info-value">${task.estimatedHours} 小时</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">👤 负责人</div>
+                    <div class="info-value">${task.assignee}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">🔗 依赖任务</div>
+                    <div class="info-value">
+                        ${task.dependencies.length > 0 ?
+                            task.dependencies.map(depId => {
+                                const depTask = tasks.find(t => t.id === depId);
+                                return depTask ? depTask.title : depId;
+                            }).join(', ') :
+                            '无依赖'
+                        }
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">🏷️ 标签</div>
+                    <div class="info-value">${task.tags.join(', ')}</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">📊 任务层级</div>
+                    <div class="info-value">第 ${calculateTaskLevel(task) + 1} 层</div>
+                </div>
+            `;
+
+            overlay.classList.add('show');
+            infoPanel.classList.add('show');
+        }
+
+        // 关闭信息面板
+        function closeInfoPanel() {
+            const infoPanel = document.getElementById('infoPanel');
+            const overlay = document.getElementById('overlay');
+
+            infoPanel.classList.remove('show');
+            overlay.classList.remove('show');
+        }
+
+        // 获取优先级文本
+        function getPriorityText(priority) {
+            const texts = {
+                'high': '高优先级',
+                'medium': '中优先级',
+                'low': '低优先级'
+            };
+            return texts[priority] || priority;
+        }
+
+        // 获取状态文本
+        function getStatusText(status) {
+            const texts = {
+                'completed': '已完成',
+                'in_progress': '进行中',
+                'pending': '待处理'
+            };
+            return texts[status] || status;
+        }
+
+        // 页面加载完成后初始化
+        window.addEventListener('load', init);
+
+        // 窗口大小改变时重新布局
+        window.addEventListener('resize', () => {
+            setTimeout(updateLayout, 100);
+        });
+    </script>
+</body>
+</html>

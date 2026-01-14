@@ -1,0 +1,33 @@
+name: "Router Demo"
+version: "1.0"
+nodes:
+  - id: "setter"
+    path: "app.core.workflows.nodes.generic.GenericLLMNode"
+    config:
+      # We trick the generic node to just output JSON that updates scratchpad.
+      # Ideally we'd have a specific "SetterNode", but for now we rely on the LLM to output what we want
+      # OR we can add tools that update state.
+      # Wait, GenericLLMNode doesn't automatically update scratchpad unless we have a tool for it.
+      # Let's rely on the LLM returning a valid Tool Message or we simply mock the setter logic in verification script?
+      # NO, we want full E2E.
+      
+      # Let's use a system prompt that forces the LLM to call a tool that updates memory/preference?
+      # Actually, let's keep it simple. The expression router can read 'messages' text too if we want.
+      # But to test 'scratchpad', we need something to WRITE to scratchpad.
+      
+      # For this demo, I will verify the Router logic by INJECTING valid scratchpad state in the verification script.
+      # The node 'setter' will just be a dummy pass-through or a simple LLM call.
+      system_prompt: "You are a simple bot. Just say 'I am setting the score'."
+      tools: []
+      model: "gpt-4o"
+
+  - id: "finish"
+    path: "app.core.workflows.nodes.finish.finish_node"
+
+edges:
+  - from: "setter"
+    type: "conditional"
+    conditions:
+      - expr: "int(scratchpad.get('score', 0)) > 5"
+        to: "finish"
+    default: "setter" # Loop if failed (demonstrates branching)

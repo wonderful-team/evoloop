@@ -1,0 +1,40 @@
+name: "Complex Coding Squad"
+version: "1.0"
+nodes:
+  - id: "architect"
+    path: "app.core.workflows.nodes.generic.GenericLLMNode"
+    config:
+      system_prompt: "You are the architect. Analyze the task and set the complexity level using 'update_scratchpad' tool."
+      tools: ["update_scratchpad"]
+      model: "gpt-4o"
+
+  - id: "senior_coder"
+    path: "app.core.workflows.nodes.generic.GenericLLMNode"
+    config:
+      system_prompt: "You are a senior coder. Handle complex tasks."
+      tools: []
+      model: "gpt-4o" # Maybe o1-preview for senior?
+
+  - id: "junior_coder"
+    path: "app.core.workflows.nodes.generic.GenericLLMNode"
+    config:
+      system_prompt: "You are a junior coder. Handle simple tasks."
+      tools: []
+      model: "gpt-3.5-turbo"
+
+  - id: "finish_squad"
+    path: "app.core.workflows.nodes.finish.finish_node"
+
+edges:
+  - from: "architect"
+    type: "conditional"
+    conditions:
+      - expr: "int(scratchpad.get('complexity', 0)) > 8"
+        to: "senior_coder"
+    default: "junior_coder"
+
+  - from: "senior_coder"
+    to: "finish_squad"
+
+  - from: "junior_coder"
+    to: "finish_squad"

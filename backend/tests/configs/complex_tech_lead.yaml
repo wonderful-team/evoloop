@@ -1,0 +1,22 @@
+name: "Tech Lead Manager"
+version: "1.0"
+nodes:
+  - id: "tech_lead"
+    path: "app.core.workflows.nodes.generic.GenericLLMNode"
+    config:
+      system_prompt: "You are the Tech Lead. Delegate to the coding squad."
+      tools: []
+      model: "gpt-4o"
+
+  - id: "coding_squad"
+    type: "subgraph"
+    subgraph_config: "complex_coding_squad.yaml"
+
+  - id: "finish"
+    path: "app.core.workflows.nodes.finish.finish_node"
+
+edges:
+  - from: "tech_lead"
+    to: "coding_squad"
+  - from: "coding_squad"
+    to: "finish"
