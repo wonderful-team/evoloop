@@ -24,31 +24,33 @@ def get_last_human_message(messages: list) -> str | None:
 
 def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
     """
-    Ensure no ToolMessage is orphaned (without preceding AIMessage with tool_calls).
-    If found, insert a dummy AIMessage to satisfy API requirements.
-    
-    Args:
-        messages: List of messages to repair
-        
-    Returns:
-        Repaired message list with no orphaned ToolMessages
+    Ensure the message history is valid for strict LLM APIs (like Anthropic/GLM).
+    1. No orphaned ToolMessages (must have preceding AIMessage with tool_calls).
+    2. No consecutive messages of same role (Human->Human, AI->AI).
+    3. No empty content allowed.
     """
     repaired = []
 
     for msg in messages:
+        # Check for empty content
+        if not msg.content and not isinstance(msg, (ToolMessage, AIMessage)):  
+            # AI/Tool messages can have tool_calls instead of content
+            continue
+            
+        if isinstance(msg, AIMessage) and not msg.content and not msg.tool_calls:
+             continue
+
         if isinstance(msg, ToolMessage):
-            # Check if previous message has matching tool_call
+            # 1. Orphan Check
             is_orphaned = True
             if repaired:
                 last = repaired[-1]
                 if isinstance(last, AIMessage) and last.tool_calls:
-                    # Check ID match
                     ids = [tc['id'] for tc in last.tool_calls]
                     if msg.tool_call_id in ids:
                         is_orphaned = False
 
             if is_orphaned:
-                # Insert Dummy AIMessage
                 dummy = AIMessage(
                     content="Executing tool...",
                     tool_calls=[{
@@ -58,7 +60,20 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
                     }]
                 )
                 repaired.append(dummy)
-
+            
+            repaired.append(msg)
+            continue
+            
+        # 2. Strict Role Alternation (Merge consecutive same-role)
+        if repaired:
+            last = repaired[-1]
+            if type(last) == type(msg) and isinstance(msg, (HumanMessage, AIMessage)):
+                # Merge content
+                new_content = f"{last.content}\n\n{msg.content}"
+                # Update last message in place
+                last.content = new_content
+                continue
+        
         repaired.append(msg)
 
     return repaired

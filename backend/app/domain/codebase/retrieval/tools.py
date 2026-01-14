@@ -66,3 +66,19 @@ async def search_codebase(query: str, project_id: int | None = None) -> str:
         return f"Error searching codebase: {str(e)}"
 
     return "\n\n---\n\n".join(output_parts)
+
+
+from app.domain.codebase.retrieval.graph_explorer import graph_explorer
+
+@tool
+async def query_graph_natural_language(question: str, project_id: int) -> str:
+    """
+    Explore the codebase knowledge graph using natural language.
+    Useful for architectural questions, finding relationships, or understanding data flow.
+    Example: "Which functions depend on the User class?" or "How is the project structured?"
+    
+    Args:
+        question: The natural language question to ask.
+        project_id: The ID of the project to query.
+    """
+    return await graph_explorer.query(question, project_id)

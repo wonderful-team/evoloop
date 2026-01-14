@@ -16,14 +16,24 @@ class LLMConfigService:
         """
         try:
             # Create temporary LLM
-            # We assume OpenAI compatible for now (provider check can expand later)
-            llm = ChatOpenAI(
-                api_key=api_key or "dummy",
-                base_url=base_url,
-                model=model,
-                temperature=0,
-                max_tokens=5
-            )
+            if provider == "anthropic" or "api/anthropic" in (base_url or ""):
+                from langchain_anthropic import ChatAnthropic
+                llm = ChatAnthropic(
+                    api_key=api_key,
+                    base_url=base_url,
+                    model=model,
+                    temperature=0,
+                    max_tokens=5
+                )
+            else:
+                # We assume OpenAI compatible for now (provider check can expand later)
+                llm = ChatOpenAI(
+                    api_key=api_key or "dummy",
+                    base_url=base_url,
+                    model=model,
+                    temperature=0,
+                    max_tokens=5
+                )
 
             # Test invocation
             # Use invoke instead of predict for modern LangChain

@@ -132,8 +132,16 @@ class AgentEngine:
         """Core ReAct Loop Logic."""
 
 
+        # Filter out old SystemMessages from history to avoid duplication/interleaving errors
+        # (Especially critical for Anthropic which forbids multiple system messages)
+        history_messages = [m for m in messages if not isinstance(m, SystemMessage)]
+
         # Always prepend System Prompt
-        loop_messages = [SystemMessage(content=system_prompt)] + messages
+        loop_messages = [SystemMessage(content=system_prompt)] + history_messages
+
+        if not history_messages:
+            logger.warning("[AgentEngine] No history messages (only System Prompt). Skipping LLM call to prevent API errors.")
+            return {"messages": []}
 
         logger.debug(f"--- [AgentEngine] System Prompt (First 500 chars) ---\n{system_prompt[:500]}...\n-----------------------------------------------------")
 

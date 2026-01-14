@@ -15,6 +15,14 @@ class AutoDiscoveryRegistry:
         self._tools: list[BaseTool] = []
         self._scanned_packages = set()
 
+    def register(self, tool: BaseTool):
+        """
+        Manually register a tool.
+        """
+        if tool not in self._tools:
+            self._tools.append(tool)
+            logger.debug(f"Manually registered tool: {tool.name}")
+
     def scan(self, package_name: str):
         """
         Recursively scan a package for tools.

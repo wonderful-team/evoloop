@@ -106,6 +106,12 @@ export function LLMSettings() {
         "https://dashscope.aliyuncs.com/compatible-mode/v1",
       )
       form.setValue("model", "qwen-max")
+    } else if (val === "zhipu") {
+      form.setValue("base_url", "https://open.bigmodel.cn/api/paas/v4/")
+      form.setValue("model", "glm-4")
+    } else if (val === "anthropic") {
+      form.setValue("base_url", "https://open.bigmodel.cn/api/anthropic")
+      form.setValue("model", "glm-4")
     } else if (val === "deepseek") {
       form.setValue("base_url", "https://api.deepseek.com/v1")
       form.setValue("model", "deepseek-chat")
@@ -206,6 +212,8 @@ export function LLMSettings() {
                     </FormControl>
                     <SelectContent>
                       <SelectItem value="openai">OpenAI</SelectItem>
+                      <SelectItem value="zhipu">Zhipu AI (GLM-4)</SelectItem>
+                      <SelectItem value="anthropic">Zhipu AI (Claude Protocol)</SelectItem>
                       <SelectItem value="qwen">
                         Qwen / DashScope (Aliyun)
                       </SelectItem>

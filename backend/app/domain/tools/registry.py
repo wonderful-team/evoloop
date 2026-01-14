@@ -12,6 +12,11 @@ REGISTRY = AutoDiscoveryRegistry()
 # This will find any function decorated with @evoloop_tool in app.domain.tools.**
 REGISTRY.scan("app.domain.tools")
 
+# Manual Registration for Domain Tools outside app.domain.tools
+from app.domain.codebase.retrieval.tools import query_graph_natural_language, search_codebase
+REGISTRY.register(query_graph_natural_language)
+REGISTRY.register(search_codebase) # Ensure this is registered too if not already
+
 
 def get_all_tools() -> list[BaseTool]:
     """
@@ -51,7 +56,8 @@ def get_coder_tools() -> list[BaseTool]:
         "manage_git",
         "manage_memory",
         "consult_lsp",
-        "run_command"
+        "run_command",
+        "query_graph_natural_language"
     ]
     return get_tools_by_names(tool_names) + mcp_client_manager.get_tools()
 

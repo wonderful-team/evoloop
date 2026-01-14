@@ -31,6 +31,19 @@ class LLMFactory:
         logger = logging.getLogger(__name__)
         logger.info(f"LLM Config - Provider: {db_provider}, Base URL: {base_url}, Model: {final_model}")
 
+        # Anthropic / Claude Protocol Support
+        if db_provider == "anthropic" or "api/anthropic" in (base_url or ""):
+            from langchain_anthropic import ChatAnthropic
+            
+            return ChatAnthropic(
+                api_key=api_key,
+                base_url=base_url,
+                model_name=final_model,
+                temperature=temperature,
+                streaming=False  # Disable streaming to prevent httpx.ResponseNotRead on errors
+            )
+
+        # Default: OpenAI Compatible (Adaptive)
         return AdaptiveChatOpenAI(
             api_key=api_key,
             base_url=base_url,

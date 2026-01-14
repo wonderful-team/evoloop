@@ -130,7 +130,11 @@ class TesterNode:
         final_prompt = [SystemMessage(content=instruction)] + history[1:]
 
         try:
-            return await structured_llm.ainvoke(final_prompt, config={"callbacks": []})
+            result = await structured_llm.ainvoke(final_prompt, config={"callbacks": []})
+            if result is None:
+                 logger.warning("[TesterNode] LLM returned None for analysis.")
+                 return TestAnalysis(status="FAIL", summary="LLM Verification Failed (Empty Response)", root_cause="LLM Output Error", fix_suggestion="Check LLM logs")
+            return result
         except Exception as e:
             return TestAnalysis(status="FAIL", summary=f"Error analyzing tests: {e}", root_cause="LLM Error", fix_suggestion="Check logs")
 

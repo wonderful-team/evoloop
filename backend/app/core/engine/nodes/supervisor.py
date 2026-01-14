@@ -122,6 +122,9 @@ class SupervisorNode:
         llm = LLMFactory.create_llm()
         project_id = state.get("project_id", 1)
         messages = list(state.get("messages", []))
+        if not messages:
+            logger.warning("[Supervisor] No messages found in state. Exiting.")
+            return {"next_node": "finish"}
 
         # Emit initial status
         await self._emit_status(config, "Analyzing context...")
@@ -188,7 +191,7 @@ class SupervisorNode:
         # 1. Intent Classification
         try:
             from app.core.engine.intent_classifier import IntentClassifier
-            fast_route = IntentClassifier.classify(last_human_msg)
+            fast_route = await IntentClassifier.classify(last_human_msg)
             if fast_route:
                 logger.info(f"[Supervisor] ⚡ Fast-Track routing to '{fast_route}'")
                 return {

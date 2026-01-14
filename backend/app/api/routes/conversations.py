@@ -190,7 +190,7 @@ async def delete_conversation(thread_id: str):
         async with db_pool.connection() as conn:
             async with conn.cursor() as cur:
                 await cur.execute("DELETE FROM checkpoints WHERE thread_id = %s", (thread_id,))
-                await cur.execute("DELETE FROM checkpoints_writes WHERE thread_id = %s", (thread_id,))
+                await cur.execute("DELETE FROM checkpoint_writes WHERE thread_id = %s", (thread_id,))
 
         # 2. Delete Thread Metadata & Logs
         async with get_db_session() as session:

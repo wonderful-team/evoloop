@@ -37,7 +37,16 @@ Keep responses concise and friendly.
     # Or just pass all. Let's pass all but maybe we should compress if too long.
     # For now, pass all.
 
-    response = await chain.ainvoke(state, config=config)
+    # Filter out existing System Messages from history + Repair
+    from langchain_core.messages import SystemMessage
+    from app.core.engine.message_utils import repair_message_history
+    
+    raw_messages = list(state.get("messages", []))
+    history_messages = [m for m in raw_messages if not isinstance(m, SystemMessage)]
+    cleaned_messages = repair_message_history(history_messages)
+
+    # Invoke with ONLY cleaned history (System prompt is in chain)
+    response = await chain.ainvoke({"messages": cleaned_messages}, config=config)
 
     return {
         "messages": [response],
