@@ -177,7 +177,8 @@ cd backend
 uv sync
 source .venv/bin/activate
 # 启动 Web 服务
-fastapi run --reload app/main.py
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+# fastapi run --reload app/main.py
 ```
 
 **启动 Celery Worker (研究/异步任务必需):**
@@ -188,7 +189,7 @@ source .venv/bin/activate
 # 使用脚本运行 (推荐)
 ./scripts/start_worker.sh
 # 或者手动运行
-# celery -A app.celery_app worker -l info -P solo -Q celery
+uv run celery -A app.celery_app worker -l info -P solo -Q celery
 ```
 
 ### 4. 启动客户端 (Run Client)

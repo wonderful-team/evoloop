@@ -8,3 +8,6 @@ node_modules/
 /frontend/.tanstack/tmp/
 /backend/.idea/
 /.idea/
+/backend/dist/
+/backend/logs/
+/frontend/.tanstack/

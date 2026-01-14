@@ -65,9 +65,10 @@ pub fn run() {
 
     let builder = builder.setup(|_app| {
         #[cfg(mobile)]
-        
-        
-        // ... existing desktop setup ...
+        {
+            // Mobile setup if needed
+        }
+
         #[cfg(desktop)]
         {
              let service_state = AppServiceState {
@@ -86,7 +87,11 @@ pub fn run() {
              let menu = Menu::with_items(_app, &[&show_i, &quit_i])?;
      
              let icon_bytes = include_bytes!("../icons/32x32.png");
-             let icon = Image::from_bytes(icon_bytes).expect("failed to load tray icon");
+             let image_buffer = image::load_from_memory(icon_bytes)
+                .expect("failed to load tray icon")
+                .to_rgba8();
+             let (width, height) = image_buffer.dimensions();
+             let icon = Image::new(&image_buffer, width, height);
 
              let tray = TrayIconBuilder::with_id("tray")
                  .menu(&menu)
@@ -96,8 +101,8 @@ pub fn run() {
                  .on_menu_event(|app, event| match event.id.as_ref() {
                      "quit" => {
                          let state = app.state::<AppServiceState>();
-                         let children = state.children.lock().unwrap();
-                         for child in children.iter() {
+                         let mut children = state.children.lock().unwrap();
+                         while let Some(child) = children.pop() {
                             let _ = child.kill();
                          }
                          app.exit(0);
@@ -136,8 +141,30 @@ pub fn run() {
                  .expect("failed to create sidecar command")
                  .args(["api"]);
                  
-             if let Ok((_, child)) = cmd.spawn() {
+             if let Ok((mut rx, child)) = cmd.spawn() {
                  state.children.lock().unwrap().push(child);
+                 
+                 let app_handle = _app.handle().clone();
+                 tauri::async_runtime::spawn(async move {
+                     use tauri_plugin_shell::process::CommandEvent;
+                     use tauri::Emitter;
+
+                     while let Some(event) = rx.recv().await {
+                         match event {
+                             CommandEvent::Stdout(line) => {
+                                 let text = String::from_utf8_lossy(&line).to_string();
+                                 println!("[API] {}", text);
+                                 let _ = app_handle.emit("backend-log", text);
+                             }
+                             CommandEvent::Stderr(line) => {
+                                 let text = String::from_utf8_lossy(&line).to_string();
+                                 eprintln!("[API ERR] {}", text);
+                                 let _ = app_handle.emit("backend-log", text);
+                             }
+                             _ => {}
+                         }
+                     }
+                 });
              }
 
              // Start Celery Worker
@@ -146,8 +173,30 @@ pub fn run() {
                  .expect("failed to create sidecar command")
                  .args(["worker"]);
                  
-             if let Ok((_, child)) = cmd_celery.spawn() {
+             if let Ok((mut rx, child)) = cmd_celery.spawn() {
                  state.children.lock().unwrap().push(child);
+                 
+                 let app_handle = _app.handle().clone();
+                 tauri::async_runtime::spawn(async move {
+                     use tauri_plugin_shell::process::CommandEvent;
+                     use tauri::Emitter;
+                     
+                     while let Some(event) = rx.recv().await {
+                         match event {
+                             CommandEvent::Stdout(line) => {
+                                 let text = String::from_utf8_lossy(&line).to_string();
+                                 println!("[WORKER] {}", text);
+                                 let _ = app_handle.emit("backend-log", text);
+                             }
+                             CommandEvent::Stderr(line) => {
+                                 let text = String::from_utf8_lossy(&line).to_string();
+                                 eprintln!("[WORKER ERR] {}", text);
+                                 let _ = app_handle.emit("backend-log", text);
+                             }
+                             _ => {}
+                         }
+                     }
+                 });
              }
         }
         Ok(())
@@ -184,6 +233,14 @@ pub fn run() {
                 let _ = window.show();
                 let _ = window.set_focus();
             }
+        }
+        #[cfg(desktop)]
+        tauri::RunEvent::Exit => {
+             let state = app_handle.state::<AppServiceState>();
+             let mut children = state.children.lock().unwrap();
+             while let Some(child) = children.pop() {
+                let _ = child.kill();
+             }
         }
         _ => {}
     });
