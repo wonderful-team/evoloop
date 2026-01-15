@@ -246,9 +246,8 @@ class TestManageGit:
         from app.domain.tools.facades import manage_git
         
         result = await manage_git.ainvoke({
-            "action": "status",
-            "path": git_repo
-        })
+            "action": "status"
+        }, config={"configurable": {"working_directory": git_repo}})
         
         assert "clean" in result.lower() or "nothing" in result.lower() or "status" in result.lower()
 
@@ -263,9 +262,8 @@ class TestManageGit:
         from app.domain.tools.facades import manage_git
         
         result = await manage_git.ainvoke({
-            "action": "diff",
-            "path": git_repo
-        })
+            "action": "diff"
+        }, config={"configurable": {"working_directory": git_repo}})
         
         assert "New content" in result or "diff" in result.lower()
 
@@ -283,9 +281,8 @@ class TestManageGit:
         
         result = await manage_git.ainvoke({
             "action": "commit",
-            "argument": "Add new file",
-            "path": git_repo
-        })
+            "argument": "Add new file"
+        }, config={"configurable": {"working_directory": git_repo}})
         
         assert "commit" in result.lower() or "Add new file" in result
 
@@ -296,9 +293,8 @@ class TestManageGit:
         from app.domain.tools.facades import manage_git
         
         result = await manage_git.ainvoke({
-            "action": "log",
-            "path": git_repo
-        })
+            "action": "log"
+        }, config={"configurable": {"working_directory": git_repo}})
         
         assert "Initial commit" in result
 
@@ -310,9 +306,8 @@ class TestManageGit:
         
         result = await manage_git.ainvoke({
             "action": "create_branch",
-            "argument": "feature/new",
-            "path": git_repo
-        })
+            "argument": "feature/new"
+        }, config={"configurable": {"working_directory": git_repo}})
         
         # Check branch was created
         branches = os.popen(f"cd {git_repo} && git branch").read()
