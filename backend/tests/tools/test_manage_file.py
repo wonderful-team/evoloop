@@ -39,7 +39,7 @@ class TestManageFileRead:
 
     # MF-009: List Directory Tree
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Requires config setup for working directory")
+    @pytest.mark.skip(reason="AnnotatedTreeGenerator returns empty string in test env - needs investigation")
     async def test_mf_009_list_tree(self, temp_project_with_files):
         """Test listing directory tree."""
         from app.domain.tools.files.dispatcher import manage_file
@@ -48,7 +48,7 @@ class TestManageFileRead:
             "action": "list_tree",
             "path": temp_project_with_files,
             "max_depth": 2
-        })
+        }, config={"configurable": {"working_directory": temp_project_with_files}})
         
         assert "README.md" in result or "main.py" in result or temp_project_with_files in result
 
