@@ -33,6 +33,17 @@ class LLMFactory:
 
         # Anthropic / Claude Protocol Support
         if db_provider == "anthropic" or "api/anthropic" in (base_url or ""):
+            # Check for Zhipu GLM-4 (requires response patching)
+            if "bigmodel.cn" in (base_url or ""):
+                from app.core.llm.zhipu_adapter import ZhipuChatAnthropic
+                return ZhipuChatAnthropic(
+                    api_key=api_key,
+                    base_url=base_url,
+                    model_name=final_model,
+                    temperature=temperature,
+                    streaming=False
+                )
+
             from langchain_anthropic import ChatAnthropic
             
             return ChatAnthropic(
