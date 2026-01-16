@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 @tool
-async def run_shell_command(command: str) -> str:
+async def run_command(command: str) -> str:
     """
     Run a shell command (e.g., 'pytest', 'npm install').
     
@@ -27,15 +27,16 @@ async def run_shell_command(command: str) -> str:
     # For this local assistant, we assume trust.
 
     ctx = get_context()
-    # cwd = ctx.get("working_directory") # TerminalManager handles its own CWD
+    # cwd = ctx.get("working_directory") 
 
     try:
-        from app.domain.terminal.manager import terminal_manager
-
-        # Run via Terminal Manager (Stateful)
-        # Wrap in thread to avoid blocking loop since subprocess.run is sync
+        from app.domain.sandbox.factory import SandboxFactory
+        
+        sandbox = SandboxFactory.get_sandbox()
+        
+        # Run via Sandbox
         stdout, stderr, returncode = await asyncio.to_thread(
-            terminal_manager.run_command,
+            sandbox.run_command,
             command
         )
 
@@ -53,5 +54,3 @@ async def run_shell_command(command: str) -> str:
     except Exception as e:
         return f"Execution Error: {str(e)}"
 
-# Alias for consistent naming in prompts
-run_command = run_shell_command
