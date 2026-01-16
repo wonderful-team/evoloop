@@ -6,6 +6,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
+import os
+
+from app.constants import EMBEDDING_DIMENSIONS
+
+EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIMENSIONS", EMBEDDING_DIMENSIONS["default"]))
 
 
 class TraceEvent(Base):
@@ -91,7 +96,7 @@ class LearnedSkill(Base):
 
     # New fields compatibility
     project_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
 
 
 class RouterTrainingData(Base):

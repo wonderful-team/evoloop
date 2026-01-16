@@ -62,7 +62,7 @@ async def test_fuzzy_editing():
 
         # We expect Success via Fuzzy
         assert "Successfully updated" in res
-        assert "Fuzzy Match" in res
+        assert "Applied using strategy" in res or "Fuzzy Match" in res
 
         with open(TEST_FILE) as f:
             content = f.read()

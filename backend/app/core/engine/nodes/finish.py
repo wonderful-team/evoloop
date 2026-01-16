@@ -24,10 +24,19 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     # We check if there are any tool calls related to file modification in history.
     has_code_changes = False
 
-    # Simple heuristic: check recent tool history in state
+    # Expanded file operation keywords to detect code changes
+    CODE_CHANGE_KEYWORDS = [
+        "write_file", "replace_file", "edit_file",
+        "create_file", "delete_file", "patch_file",
+        "save_file", "update_file", "modify_file",
+        "git_commit", "apply_diff", "insert_code"
+    ]
+
+    # Check recent tool history in state
     tool_history = state.get("tool_history", [])
     for sig in tool_history:
-        if "write_file" in sig or "replace_file" in sig or "edit_file" in sig:
+        sig_lower = sig.lower() if sig else ""
+        if any(kw in sig_lower for kw in CODE_CHANGE_KEYWORDS):
             has_code_changes = True
             break
 

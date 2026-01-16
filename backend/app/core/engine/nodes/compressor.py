@@ -45,18 +45,41 @@ async def compress_history_delta(messages: list[BaseMessage], keep_last: int = 1
     from app.domain.system.service import SystemConfigService
     user_lang = SystemConfigService.get_language_preference()
 
-    prompt = f"""Summarize the following conversation history concisely.
-    Retain key decisions, active tasks, and file context.
-    
-    CONVERSATION:
-    {conversation_text}
-    
-    LANGUAGE PROTOCOL:
-    User Language: {user_lang}
-    You MUST write the summary in {user_lang}.
-    
-    SUMMARY:
-    """
+    prompt = f"""You are a Context Compression Expert for a software development assistant.
+
+TASK: Compress the following conversation while preserving ALL critical information.
+
+=== MANDATORY RETENTION LIST ===
+You MUST preserve and include in your summary:
+1. All file paths and directory structures mentioned
+2. All variable names, function names, and class names
+3. Specific configurations (ports, API keys, database names, URLs)
+4. User preferences and explicit decisions
+5. Error messages and their solutions
+6. Unresolved questions or pending tasks
+7. Tool results and their key outputs
+
+=== FORBIDDEN TO LOSE ===
+These MUST appear VERBATIM in your summary if mentioned:
+- UUIDs, IDs, or unique identifiers
+- Exact code snippets (if under 100 characters)
+- URLs and API endpoints
+- Version numbers and dependencies
+- Authentication tokens or secrets (redacted)
+
+=== CONVERSATION ===
+{conversation_text}
+
+=== OUTPUT FORMAT ===
+Write a structured summary in {user_lang}:
+
+**[Critical Context]** Key files, configs, and identifiers
+**[Decisions Made]** User choices and preferences
+**[Pending Tasks]** Unfinished work or open questions
+**[Technical Details]** Code patterns, errors, solutions
+
+SUMMARY:
+"""
 
     try:
         summary_response = await llm.ainvoke(prompt, config={"callbacks": []})  # Internal thought, do not stream

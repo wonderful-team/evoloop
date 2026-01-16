@@ -1,7 +1,9 @@
 import os
 import subprocess
 
+from typing import Annotated
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import InjectedToolArg
 
 from app.core.tools import evoloop_tool, get_working_directory
 from app.utils.file import read_file_content as utils_read_file
@@ -11,7 +13,7 @@ from app.utils.process import run_command
 
 
 @evoloop_tool
-def list_files(path: str = ".", recursive: bool = False, config: RunnableConfig = None) -> str:
+def list_files(path: str = ".", recursive: bool = False, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
     """
     List files in a directory.
     By default is non-recursive. Set recursive=True for deep listing (careful with large projects).
@@ -34,7 +36,7 @@ def list_files(path: str = ".", recursive: bool = False, config: RunnableConfig 
     return res.stdout[:2000]
 
 @evoloop_tool
-def read_file(path: str, start_line: int | None = None, end_line: int | None = None, config: RunnableConfig = None) -> str:
+def read_file(path: str, start_line: int | None = None, end_line: int | None = None, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
     """
     Read the contents of a file. Supports optional line range reading.
     Line numbers are 1-based.
@@ -49,7 +51,7 @@ def read_file(path: str, start_line: int | None = None, end_line: int | None = N
     return content
 
 @evoloop_tool
-def edit_file(path: str, target: str, replacement: str, config: RunnableConfig = None) -> str:
+def edit_file(path: str, target: str, replacement: str, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
     """
     Edit a file by replacing a specific target snippet with a replacement.
     Efficient for making changes without re-writing the whole document.
@@ -83,7 +85,7 @@ def edit_file(path: str, target: str, replacement: str, config: RunnableConfig =
     return f"Successfully edited {path}"
 
 @evoloop_tool
-def grep_files(pattern: str, path: str = ".", case_insensitive: bool = False, config: RunnableConfig = None) -> str:
+def grep_files(pattern: str, path: str = ".", case_insensitive: bool = False, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
     """
     Search for a text pattern in files using 'grep -r'.
     Useful for finding all usages of a function, class, or variable.
@@ -116,7 +118,7 @@ def grep_files(pattern: str, path: str = ".", case_insensitive: bool = False, co
     return output[:3000]
 
 @evoloop_tool
-def write_file_content(path: str, content: str, config: RunnableConfig = None) -> str:
+def write_file_content(path: str, content: str, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
     """
     Write content to a file.
     """

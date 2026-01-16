@@ -30,10 +30,10 @@ class IntentClassifier:
         "computer_executor": "Desktop automation: clicking, typing, screenshots, opening local apps.",
         "mobile_executor": "Mobile device automation: swiping, tapping, installing apps.",
         "documenter": "Writing documentation, wikis, READMEs, or explaining project structure.",
-        "coder": "Writing code, fixing bugs, refactoring, implementing features.",
+        "coder": "Writing code for FINALIZED plans, performing specific refactors, or fixing simple bugs.",
         "deep_researcher": "Deep research, market analysis, learning about concepts.",
         "planner": "Planning system architecture, database design, or task breakdown.",
-        "requirement_analyst": "Analyzing requirements for new apps or systems."
+        "requirement_analyst": "Analyzing requirements for new apps, OR requests to ADD NEW FEATURES (before coding)."
     }
 
     # Minimum confidence is less relevant for LLM generation unless we ask for probability,

@@ -8,6 +8,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
+from app.constants import EMBEDDING_DIMENSIONS
+import os
+
+# Get embedding dimension from env, default to 1536 (OpenAI standard)
+EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIMENSIONS", EMBEDDING_DIMENSIONS["default"]))
+
 
 class Repository(Base):
     __tablename__ = "repositories"
@@ -101,9 +107,8 @@ class CodeChunk(Base):
     end_line: Mapped[int] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)
 
-    # Vector Embedding (1536 dims for OpenAI, 768 for others - make it generic or config dependent?)
-    # Using 1536 as default for generic OpenAI ada-002 compatibility, but pgvector allows any size.
-    # Note: User should ensure embedding dimension matches this column.
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
+    # Vector Embedding
+    # Using configured dimension (default 1536 for OpenAI)
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
 
     source_file: Mapped["SourceFile"] = relationship(back_populates="chunks")

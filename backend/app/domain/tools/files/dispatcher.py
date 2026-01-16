@@ -1,6 +1,7 @@
-from typing import Literal
+from typing import Literal, Annotated
 
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import InjectedToolArg
 
 from app.core.tools import evoloop_tool
 
@@ -22,7 +23,7 @@ async def manage_file(
     allow_multiple: bool = False,  # Phase 14: Fuzzy Edit
     max_depth: int = 3,
     with_symbols: bool = False,
-    config: RunnableConfig | None = None
+    config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
     Unified File Management Tool.

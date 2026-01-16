@@ -170,7 +170,14 @@ async def planner_node(state: AgentState, config: RunnableConfig):
         if plan_finalized:
             break
 
-        if "handing off" in response.content.lower() or "ready for supervisor" in response.content.lower():
+        # Helper to extract text from content (which might be list or string)
+        content_text = response.content
+        if isinstance(content_text, list):
+            content_text = " ".join([str(b.get("text", "")) for b in content_text if isinstance(b, dict) and "text" in b])
+        elif not isinstance(content_text, str):
+            content_text = str(content_text)
+
+        if "handing off" in content_text.lower() or "ready for supervisor" in content_text.lower():
             break
 
     return {

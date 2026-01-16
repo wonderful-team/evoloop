@@ -6,6 +6,7 @@ from typing import AsyncGenerator, Generator
 from unittest.mock import MagicMock, AsyncMock, patch
 
 from tests.config import config, get_auth_headers
+from app.main import app
 
 
 # ============ HTTP Client Fixtures ============
@@ -23,9 +24,11 @@ def sync_client() -> Generator[httpx.Client, None, None]:
 
 @pytest.fixture
 async def async_client() -> AsyncGenerator[httpx.AsyncClient, None]:
-    """Asynchronous HTTP client for API tests."""
+    """Asynchronous HTTP client for API tests (In-Process)."""
+    transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(
-        base_url=config.API_BASE_URL,
+        transport=transport,
+        base_url="http://test",
         headers=get_auth_headers(),
         timeout=config.API_TIMEOUT
     ) as client:
@@ -83,8 +86,12 @@ def mock_llm():
 @pytest.fixture
 def mock_redis():
     """Mock Redis for unit tests."""
-    import fakeredis.aioredis
-    return fakeredis.aioredis.FakeRedis()
+    mock = MagicMock()
+    mock.pubsub.return_value.subscribe = AsyncMock()
+    # Ensure standard methods like get/set return coroutines if awaited
+    mock.get = AsyncMock(return_value=None)
+    mock.set = AsyncMock()
+    return mock
 
 
 # ============ Project Context Fixtures ============

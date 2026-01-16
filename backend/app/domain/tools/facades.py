@@ -1,6 +1,7 @@
-from typing import Literal
+from typing import Literal, Annotated
 
 from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import InjectedToolArg
 
 from app.core.tools import evoloop_tool
 from app.domain.codebase.analysis.tools import find_definition
@@ -37,7 +38,7 @@ async def manage_file_read_only(
     file_limit: int = 50,
     start_line: int | None = None,
     end_line: int | None = None,
-    config: RunnableConfig | None = None
+    config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
     [READ-ONLY] Use this tool to explore the filesystem. You CANNOT write or modify files.
@@ -65,7 +66,7 @@ async def manage_file_docs_only(
     path: str | None = None,
     content: str | None = None,
     target: str | None = None,
-    config: RunnableConfig | None = None
+    config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
     [DOCS-ONLY] Use this tool to write documentation (.md, .txt) ONLY. 
@@ -93,7 +94,7 @@ async def explore_codebase(
     action: Literal['search_symbol', 'search_text', 'semantic_code_search', 'analyze_impact'],
     query: str,
     scope_path: str | None = None, # Optional file pattern or path
-    config: RunnableConfig | None = None
+    config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
     Unified Codebase Exploration Tool.
@@ -132,7 +133,7 @@ async def explore_codebase(
 def manage_git(
     action: Literal['status', 'diff', 'commit', 'log', 'create_branch'],
     argument: str | None = None, # message for commit, branch name, etc.
-    config: RunnableConfig | None = None
+    config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
     Unified Git Operations.
@@ -162,7 +163,7 @@ async def manage_memory(
     action: Literal['save_preference', 'retrieve_preferences', 'add_concept', 'search_concepts'],
     key: str | None = None, # concept name or pref key
     value: str | None = None, # description or pref value
-    config: RunnableConfig | None = None
+    config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
     Unified Memory Management.

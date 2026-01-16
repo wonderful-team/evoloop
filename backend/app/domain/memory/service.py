@@ -217,10 +217,15 @@ class MemoryService:
 
         logger.info(f"Stored Concept (Vectorized): {name} (Project {pid_val})")
 
-    async def search_concepts(self, query_text: str, project_id: int) -> str:
+    async def search_concepts(self, query_text: str, project_id: int, min_score: float = 0.7) -> str:
         """
         Semantic Search for Concepts using Vector Index.
         Also traverses to return related file names.
+        
+        Args:
+            query_text: The search query
+            project_id: Project context for filtering
+            min_score: Minimum similarity score (0-1) to include results. Default 0.7.
         """
         driver = await get_graph_db()
 
@@ -232,12 +237,12 @@ class MemoryService:
              logger.error(f"Embedding failed: {e}")
              return f"Error searching concepts: {e}"
 
-        # 2. Vector Search Cypher
-        # We query the index, then filter by Project ID
+        # 2. Vector Search Cypher with score filtering
+        # We query the index, then filter by Project ID and minimum score
         vector_cypher = """
         CALL db.index.vector.queryNodes('concept_embeddings', $top_k, $embedding)
         YIELD node AS c, score
-        WHERE (c.project_id = $pid OR c.project_id = 0)
+        WHERE (c.project_id = $pid OR c.project_id = 0) AND score >= $min_score
         
         // Optional: GraphRAG - Fetch connected files
         OPTIONAL MATCH (c)-[:REFERENCES]->(f:File)
@@ -248,7 +253,13 @@ class MemoryService:
         async with driver.session() as session:
             # Fetch a bit more than limit to allow for post-filtering if needed,
             # though WHERE clause inside YIELD usually works efficiently.
-            result = await session.run(vector_cypher, embedding=query_embedding, pid=project_id, top_k=settings.MEMORY_SEARCH_LIMIT)
+            result = await session.run(
+                vector_cypher, 
+                embedding=query_embedding, 
+                pid=project_id, 
+                top_k=settings.MEMORY_SEARCH_LIMIT,
+                min_score=min_score
+            )
             records = await result.data()
 
         if not records:

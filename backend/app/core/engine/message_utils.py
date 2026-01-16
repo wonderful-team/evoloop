@@ -4,7 +4,7 @@ Shared message utilities for agent nodes.
 Contains common functions for message processing, history repair, and extraction.
 """
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage, SystemMessage
 
 
 def get_last_human_message(messages: list) -> str | None:
@@ -75,6 +75,16 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
                 continue
         
         repaired.append(msg)
+
+    # 3. Ensure Conversation Starts with Human (for strict APIs like Zhipu/Anthropic)
+    # Find first non-System message
+    non_system_indices = [i for i, m in enumerate(repaired) if not isinstance(m, SystemMessage)]
+    if non_system_indices:
+        first_idx = non_system_indices[0]
+        first_msg = repaired[first_idx]
+        if isinstance(first_msg, AIMessage):
+            # Prepend dummy Human Message to satisfy "User must start" rule
+            repaired.insert(first_idx, HumanMessage(content="...continuing conversation context..."))
 
     return repaired
 

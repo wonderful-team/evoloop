@@ -6,6 +6,15 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
+import os
+
+# Get embedding dimension from env, default to 1536 (OpenAI standard)
+# Local models (Nomic) use 768
+from app.constants import EMBEDDING_DIMENSIONS
+
+# Get embedding dimension from env, default to 1536 (OpenAI standard)
+# Local models (Nomic) use 768
+EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIMENSIONS", EMBEDDING_DIMENSIONS["default"]))
 
 
 class Job(Base):
@@ -44,7 +53,7 @@ class Tool(Base):
     category: Mapped[str | None] = mapped_column(String(100), index=True)
 
     # Vector Embedding
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
 
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 

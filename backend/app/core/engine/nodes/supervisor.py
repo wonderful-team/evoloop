@@ -51,11 +51,13 @@ SUPERVISOR_SYSTEM_TEMPLATE = """You are the Supervisor of an elite coding team.
        
        **DEEP PLANNING (For Complex Tasks)**:
        - IF the request involves multiple files, architecture changes, or new features -> Route to `planner`.
+       - IF the user wants to CHANGE/ADD requirements -> Route to `requirement_analyst` (DO NOT code yet).
        
     3. **STRICT DELEGATION PROTOCOL (MANAGER ROLE)**:
        - You are a **MANAGER**, not an Expert Coder.
        - **DO NOT WRITE APPLICATION CODE** (.php, .py, .ts, etc.) yourself.
        - **ALWAYS DELEGATE** implementation to the `coder` node.
+       - **NO PLAN = NO CODE**: If `current_plan` is empty or "No plan yet", YOU MUST NOT route to `coder`. Route to `planner` or `requirement_analyst` instead.
 
     4. **Active Learning (Self-Evolution)**:
        - If user states a preference (e.g., "Use pytest"), call `save_preference`.
@@ -255,8 +257,20 @@ class SupervisorNode:
         last_msg = messages[-1].content if messages and isinstance(messages[-1].content, str) else ""
         query_context += f" {last_msg}"
 
+        # Dynamic k value based on task complexity
+        # Simple Q&A: fewer tools, Complex tasks: more tools
+        complexity_indicators = ["implement", "build", "create", "refactor", "design", "architect"]
+        simple_indicators = ["what", "how", "why", "explain", "?"]
+        
+        k_value = 10  # Default
+        last_msg_lower = last_msg.lower()
+        if any(ind in last_msg_lower for ind in complexity_indicators):
+            k_value = 20  # Complex tasks need more tools
+        elif any(ind in last_msg_lower for ind in simple_indicators) and len(last_msg) < 100:
+            k_value = 5   # Simple Q&A needs fewer tools
+        
         # Retrieve relevant tools
-        retrieved_tools = await tool_retriever.retrieve(query_context, k=15)
+        retrieved_tools = await tool_retriever.retrieve(query_context, k=k_value)
         tool_dict = {t.name: t for t in core_tools + retrieved_tools}
         tools = list(tool_dict.values())
 
