@@ -112,6 +112,21 @@ export const ChatRequestSchema = {
                 }
             ],
             title: 'Checkpoint Id'
+        },
+        attachments: {
+            anyOf: [
+                {
+                    items: {
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Attachments'
         }
     },
     type: 'object',
@@ -230,6 +245,11 @@ export const CreateProjectRequestSchema = {
         name: {
             type: 'string',
             title: 'Name'
+        },
+        description: {
+            type: 'string',
+            title: 'Description',
+            default: ''
         }
     },
     type: 'object',
@@ -472,6 +492,18 @@ export const LLMConfigRequestSchema = {
             title: 'Model',
             description: 'Model Name'
         },
+        vision_model: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Vision Model',
+            description: 'Vision Model Name (e.g. gpt-4o)'
+        },
         api_key: {
             anyOf: [
                 {
@@ -658,31 +690,6 @@ export const MessageItemSchema = {
     title: 'MessageItem'
 } as const;
 
-export const MobileCodeRequestSchema = {
-    properties: {
-        mobile: {
-            type: 'string',
-            title: 'Mobile'
-        },
-        captcha_id: {
-            type: 'string',
-            title: 'Captcha Id'
-        },
-        captcha_code: {
-            type: 'string',
-            title: 'Captcha Code'
-        },
-        type: {
-            type: 'string',
-            title: 'Type',
-            default: 'login'
-        }
-    },
-    type: 'object',
-    required: ['mobile', 'captcha_id', 'captcha_code'],
-    title: 'MobileCodeRequest'
-} as const;
-
 export const OpenFileRequestSchema = {
     properties: {
         path: {
@@ -804,86 +811,6 @@ export const ReferenceItemSchema = {
     title: 'ReferenceItem'
 } as const;
 
-export const RegisterMobileRequestSchema = {
-    properties: {
-        mobile: {
-            type: 'string',
-            title: 'Mobile'
-        },
-        key: {
-            type: 'string',
-            title: 'Key'
-        },
-        code: {
-            type: 'string',
-            title: 'Code'
-        },
-        captcha_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Captcha Id'
-        },
-        captcha_code: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Captcha Code'
-        }
-    },
-    type: 'object',
-    required: ['mobile', 'key', 'code'],
-    title: 'RegisterMobileRequest'
-} as const;
-
-export const RegisterUsernameRequestSchema = {
-    properties: {
-        username: {
-            type: 'string',
-            title: 'Username'
-        },
-        password: {
-            type: 'string',
-            title: 'Password'
-        },
-        captcha_id: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Captcha Id'
-        },
-        captcha_code: {
-            anyOf: [
-                {
-                    type: 'string'
-                },
-                {
-                    type: 'null'
-                }
-            ],
-            title: 'Captcha Code'
-        }
-    },
-    type: 'object',
-    required: ['username', 'password'],
-    title: 'RegisterUsernameRequest'
-} as const;
-
 export const RenameRequestSchema = {
     properties: {
         title: {
@@ -894,30 +821,6 @@ export const RenameRequestSchema = {
     type: 'object',
     required: ['title'],
     title: 'RenameRequest'
-} as const;
-
-export const ResetPasswordMobileRequestSchema = {
-    properties: {
-        mobile: {
-            type: 'string',
-            title: 'Mobile'
-        },
-        key: {
-            type: 'string',
-            title: 'Key'
-        },
-        code: {
-            type: 'string',
-            title: 'Code'
-        },
-        password: {
-            type: 'string',
-            title: 'Password'
-        }
-    },
-    type: 'object',
-    required: ['mobile', 'key', 'code', 'password'],
-    title: 'ResetPasswordMobileRequest'
 } as const;
 
 export const ResourceCreateSchema = {
@@ -1475,6 +1378,250 @@ export const TimesheetQuickAddRequestSchema = {
     type: 'object',
     required: ['project_id', 'hours', 'description'],
     title: 'TimesheetQuickAddRequest'
+} as const;
+
+export const TodoCreateSchema = {
+    properties: {
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        priority: {
+            '$ref': '#/components/schemas/TodoPriority',
+            default: 'medium'
+        },
+        category: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Category'
+        },
+        due_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Due Date'
+        },
+        source_conversation_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Conversation Id'
+        },
+        source_message_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Message Id'
+        }
+    },
+    type: 'object',
+    required: ['title'],
+    title: 'TodoCreate'
+} as const;
+
+export const TodoPrioritySchema = {
+    type: 'string',
+    enum: ['low', 'medium', 'high'],
+    title: 'TodoPriority'
+} as const;
+
+export const TodoResponseSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        status: {
+            '$ref': '#/components/schemas/TodoStatus'
+        },
+        priority: {
+            '$ref': '#/components/schemas/TodoPriority'
+        },
+        category: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Category'
+        },
+        due_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Due Date'
+        },
+        source_conversation_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Conversation Id'
+        },
+        source_message_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Source Message Id'
+        },
+        created_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Created At'
+        },
+        updated_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Updated At'
+        }
+    },
+    type: 'object',
+    required: ['id', 'title', 'description', 'status', 'priority', 'category', 'due_date', 'source_conversation_id', 'source_message_id', 'created_at', 'updated_at'],
+    title: 'TodoResponse'
+} as const;
+
+export const TodoStatusSchema = {
+    type: 'string',
+    enum: ['pending', 'completed', 'cancelled'],
+    title: 'TodoStatus'
+} as const;
+
+export const TodoUpdateSchema = {
+    properties: {
+        title: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Title'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        status: {
+            anyOf: [
+                {
+                    '$ref': '#/components/schemas/TodoStatus'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        priority: {
+            anyOf: [
+                {
+                    '$ref': '#/components/schemas/TodoPriority'
+                },
+                {
+                    type: 'null'
+                }
+            ]
+        },
+        category: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Category'
+        },
+        due_date: {
+            anyOf: [
+                {
+                    type: 'string',
+                    format: 'date-time'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Due Date'
+        }
+    },
+    type: 'object',
+    title: 'TodoUpdate'
 } as const;
 
 export const TokenSchema = {

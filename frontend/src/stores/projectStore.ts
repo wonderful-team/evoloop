@@ -71,7 +71,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       if (token) {
         // Logged In: Fetch from Cloud (synced list)
         // Use OpenAPI client which handles token automatically via OpenAPI.TOKEN
-        const resp: any = await ProjectsService.listProjects()
+        const resp: any = await ProjectsService.getProjects()
 
         // Normalize Cloud Response (ProjectsListProjectsResponse)
         // The generated type says 'unknown', but usually it's list of projects or { list: [] }
@@ -92,7 +92,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         }
       } else {
         // Guest / Not Logged In: Scan Local Folders
-        const resp: any = await ProjectsService.listProjects()
+        const resp: any = await ProjectsService.getProjects()
         // Normalize Local Response ({ projects: [...] })
         if (resp.projects && Array.isArray(resp.projects)) {
           rawList = resp.projects

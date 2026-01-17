@@ -58,7 +58,7 @@ export function SkillEditorDialog({
             try {
                 parameters = JSON.parse(formData.parameters_json)
             } catch (e) {
-                toast.error("Invalid Parameters JSON")
+                toast.error(t("learning.editor.invalidJson"))
                 setLoading(false)
                 return
             }
@@ -91,15 +91,15 @@ export function SkillEditorDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                    <DialogTitle>Edit Skill: {skill.name}</DialogTitle>
+                    <DialogTitle>{t("learning.editor.title", { name: skill.name })}</DialogTitle>
                     <DialogDescription>
-                        Modify the skill definition. Be careful with Parameters JSON.
+                        {t("learning.editor.description")}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="grid gap-4 py-4">
                     <div className="grid gap-2">
-                        <Label htmlFor="name">Skill Name</Label>
+                        <Label htmlFor="name">{t("learning.editor.skillName")}</Label>
                         <Input
                             id="name"
                             value={formData.name}
@@ -110,7 +110,7 @@ export function SkillEditorDialog({
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="description">Description</Label>
+                        <Label htmlFor="description">{t("learning.editor.skillDescription")}</Label>
                         <Textarea
                             id="description"
                             value={formData.description}
@@ -122,7 +122,7 @@ export function SkillEditorDialog({
 
                     <div className="grid gap-2">
                         <Label htmlFor="triggers">
-                            Trigger Patterns (Comma separated)
+                            {t("learning.editor.triggerPatterns")}
                         </Label>
                         <Textarea
                             id="triggers"
@@ -133,12 +133,12 @@ export function SkillEditorDialog({
                             placeholder="e.g. check system health, uptime check"
                         />
                         <p className="text-xs text-muted-foreground">
-                            Phrases that will auto-suggest this skill.
+                            {t("learning.editor.triggerHelp")}
                         </p>
                     </div>
 
                     <div className="grid gap-2">
-                        <Label htmlFor="params">Parameters (JSON Schema)</Label>
+                        <Label htmlFor="params">{t("learning.editor.parameters")}</Label>
                         <Textarea
                             id="params"
                             className="font-mono text-xs"
@@ -157,7 +157,7 @@ export function SkillEditorDialog({
                         onClick={() => onOpenChange(false)}
                         disabled={loading}
                     >
-                        Cancel
+                        {t("common.cancel")}
                     </Button>
                     <Button onClick={handleSave} disabled={loading}>
                         {loading ? (
@@ -165,7 +165,7 @@ export function SkillEditorDialog({
                         ) : (
                             <Save className="mr-2 h-4 w-4" />
                         )}
-                        Save Changes
+                        {t("learning.editor.saveChanges")}
                     </Button>
                 </DialogFooter>
             </DialogContent>

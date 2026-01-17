@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AgentChatEndpointData, AgentChatEndpointResponse, AgentStopChatData, AgentStopChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementResponse, AuthSendMobileCodeData, AuthSendMobileCodeResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthGetGlobalConfigResponse, AuthResetPasswordMobileData, AuthResetPasswordMobileResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRenameConversationData, ConversationsRenameConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, DevicesGetDevicesData, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesSearchFilesData, FilesSearchFilesResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningRecordEventsData, LearningRecordEventsResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeactivateSkillData, LearningDeactivateSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, MemberLoginData, MemberLoginResponse, MemberStatusResponse, MemberLogoutResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationApplyResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectsListProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemConfigData, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemResetKnowledgeBaseData, SystemResetKnowledgeBaseResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UsersReadUserMeData, UsersReadUserMeResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse } from './types.gen';
+import type { AgentChatEndpointData, AgentChatEndpointResponse, AgentStopChatData, AgentStopChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementResponse, AuthSendSmsData, AuthSendSmsResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthResetPasswordData, AuthResetPasswordResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRenameConversationData, ConversationsRenameConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesSearchFilesData, FilesSearchFilesResponse, FilesSearchFilesByNameData, FilesSearchFilesByNameResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningRecordEventsData, LearningRecordEventsResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeactivateSkillData, LearningDeactivateSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, MemberLoginData, MemberLoginResponse, MemberStatusResponse, MemberLogoutResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectsGetProjectsData, ProjectsGetProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemHealthCheckResponse, SystemGetEvolutionStatusResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemResetKnowledgeBaseResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, TodosCreateTodoData, TodosCreateTodoResponse, TodosListTodosData, TodosListTodosResponse, TodosGetTodoData, TodosGetTodoResponse, TodosUpdateTodoData, TodosUpdateTodoResponse, TodosDeleteTodoData, TodosDeleteTodoResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UsersReadUserMeResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse, UtilsGetAiConfigResponse } from './types.gen';
 
 export class AgentService {
     /**
@@ -15,7 +15,6 @@ export class AgentService {
      * @param data.guestId
      * @param data.token
      * @param data.xGuestId
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -24,8 +23,7 @@ export class AgentService {
             method: 'POST',
             url: '/api/v1/chat',
             headers: {
-                'x-guest-id': data.xGuestId,
-                authorization: data.authorization
+                'x-guest-id': data.xGuestId
             },
             query: {
                 guest_id: data.guestId,
@@ -38,7 +36,7 @@ export class AgentService {
             }
         });
     }
-    
+
     /**
      * Stop Chat
      * Stop the current generation for a thread.
@@ -58,7 +56,7 @@ export class AgentService {
             }
         });
     }
-    
+
     /**
      * Retry Chat
      * Retry the last user message.
@@ -68,7 +66,6 @@ export class AgentService {
      * @param data.guestId
      * @param data.token
      * @param data.xGuestId
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -77,8 +74,7 @@ export class AgentService {
             method: 'POST',
             url: '/api/v1/chat/retry',
             headers: {
-                'x-guest-id': data.xGuestId,
-                authorization: data.authorization
+                'x-guest-id': data.xGuestId
             },
             query: {
                 guest_id: data.guestId,
@@ -91,7 +87,7 @@ export class AgentService {
             }
         });
     }
-    
+
     /**
      * Resume Chat
      * Resume a paused/interrupted graph execution.
@@ -112,7 +108,7 @@ export class AgentService {
             }
         });
     }
-    
+
     /**
      * Webhook Endpoint
      * Entry point for External Events (Local BG Task).
@@ -143,32 +139,32 @@ export class AuthService {
      */
     public static getCaptchaConfig(): CancelablePromise<AuthGetCaptchaConfigResponse> {
         return __request(OpenAPI, {
-            method: 'GET',
+            method: 'POST',
             url: '/api/v1/auth/captcha/config'
         });
     }
-    
+
     /**
      * Get Captcha
      * Get Captcha Image
      * @param data The data for the request.
-     * @param data.id
+     * @param data.captchaId
      * @returns unknown Successful Response
      * @throws ApiError
      */
-    public static getCaptcha(data: AuthGetCaptchaData = {}): CancelablePromise<AuthGetCaptchaResponse> {
+    public static getCaptcha(data: AuthGetCaptchaData): CancelablePromise<AuthGetCaptchaResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/auth/captcha/get',
-            query: {
-                id: data.id
+            url: '/api/v1/auth/captcha/{captcha_id}',
+            path: {
+                captcha_id: data.captchaId
             },
             errors: {
                 422: 'Validation Error'
             }
         });
     }
-    
+
     /**
      * Get Register Config
      * Get Registration Config
@@ -181,7 +177,7 @@ export class AuthService {
             url: '/api/v1/auth/register/config'
         });
     }
-    
+
     /**
      * Get Register Agreement
      * Get Registration Agreement
@@ -194,16 +190,16 @@ export class AuthService {
             url: '/api/v1/auth/register/agreement'
         });
     }
-    
+
     /**
-     * Send Mobile Code
+     * Send Sms
      * Send Mobile Verification Code
      * @param data The data for the request.
      * @param data.requestBody
      * @returns unknown Successful Response
      * @throws ApiError
      */
-    public static sendMobileCode(data: AuthSendMobileCodeData): CancelablePromise<AuthSendMobileCodeResponse> {
+    public static sendSms(data: AuthSendSmsData): CancelablePromise<AuthSendSmsResponse> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/auth/sms/send',
@@ -214,7 +210,7 @@ export class AuthService {
             }
         });
     }
-    
+
     /**
      * Register Mobile
      * Register with Mobile
@@ -234,7 +230,7 @@ export class AuthService {
             }
         });
     }
-    
+
     /**
      * Register Username
      * Register with Username/Password
@@ -246,7 +242,7 @@ export class AuthService {
     public static registerUsername(data: AuthRegisterUsernameData): CancelablePromise<AuthRegisterUsernameResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/auth/register/account',
+            url: '/api/v1/auth/register/username',
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -254,7 +250,7 @@ export class AuthService {
             }
         });
     }
-    
+
     /**
      * Login Mobile
      * Login with Mobile Code
@@ -274,50 +270,36 @@ export class AuthService {
             }
         });
     }
-    
+
     /**
      * Check Mobile
      * Check if mobile is registered
      * @param data The data for the request.
-     * @param data.mobile
+     * @param data.requestBody
      * @returns unknown Successful Response
      * @throws ApiError
      */
     public static checkMobile(data: AuthCheckMobileData): CancelablePromise<AuthCheckMobileResponse> {
         return __request(OpenAPI, {
-            method: 'GET',
+            method: 'POST',
             url: '/api/v1/auth/mobile/check',
-            query: {
-                mobile: data.mobile
-            },
+            body: data.requestBody,
+            mediaType: 'application/json',
             errors: {
                 422: 'Validation Error'
             }
         });
     }
-    
+
     /**
-     * Get Global Config
-     * Get global config (servicer info etc)
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static getGlobalConfig(): CancelablePromise<AuthGetGlobalConfigResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/auth/config/global'
-        });
-    }
-    
-    /**
-     * Reset Password Mobile
+     * Reset Password
      * Reset password with Mobile Code
      * @param data The data for the request.
      * @param data.requestBody
      * @returns unknown Successful Response
      * @throws ApiError
      */
-    public static resetPasswordMobile(data: AuthResetPasswordMobileData): CancelablePromise<AuthResetPasswordMobileResponse> {
+    public static resetPassword(data: AuthResetPasswordData): CancelablePromise<AuthResetPasswordResponse> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/auth/password/reset/mobile',
@@ -351,7 +333,7 @@ export class ConversationsService {
             }
         });
     }
-    
+
     /**
      * Get Conversation Messages
      * Get message history for a thread from the persistent SQL log.
@@ -373,7 +355,7 @@ export class ConversationsService {
             }
         });
     }
-    
+
     /**
      * Search Conversations
      * Full-text search on message logs.
@@ -396,7 +378,7 @@ export class ConversationsService {
             }
         });
     }
-    
+
     /**
      * Rename Conversation
      * Rename a conversation.
@@ -420,7 +402,7 @@ export class ConversationsService {
             }
         });
     }
-    
+
     /**
      * Delete Conversation
      * Delete a conversation history and its checkpoints.
@@ -441,7 +423,7 @@ export class ConversationsService {
             }
         });
     }
-    
+
     /**
      * Get Thread Activity
      * Get real-time activity/status for a thread run.
@@ -462,7 +444,7 @@ export class ConversationsService {
             }
         });
     }
-    
+
     /**
      * Rewind Conversation
      * Rewind the conversation to the previous state (Undo last step).
@@ -489,36 +471,22 @@ export class DevicesService {
     /**
      * Get Devices
      * List devices connected to account
-     * @param data The data for the request.
-     * @param data.token
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
-    public static getDevices(data: DevicesGetDevicesData = {}): CancelablePromise<DevicesGetDevicesResponse> {
+    public static getDevices(): CancelablePromise<DevicesGetDevicesResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/devices/',
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
-            errors: {
-                422: 'Validation Error'
-            }
+            url: '/api/v1/devices/'
         });
     }
-    
+
     /**
      * Send Command
      * Send remote command
      * @param data The data for the request.
      * @param data.deviceId
      * @param data.requestBody
-     * @param data.token
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -529,12 +497,6 @@ export class DevicesService {
             path: {
                 device_id: data.deviceId
             },
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -542,7 +504,7 @@ export class DevicesService {
             }
         });
     }
-    
+
     /**
      * Get Recent Logs
      * Get recent logs from device
@@ -550,8 +512,6 @@ export class DevicesService {
      * @param data.deviceId
      * @param data.limit
      * @param data.projectId
-     * @param data.token
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -562,20 +522,16 @@ export class DevicesService {
             path: {
                 device_id: data.deviceId
             },
-            headers: {
-                authorization: data.authorization
-            },
             query: {
                 limit: data.limit,
-                project_id: data.projectId,
-                token: data.token
+                project_id: data.projectId
             },
             errors: {
                 422: 'Validation Error'
             }
         });
     }
-    
+
     /**
      * Search Logs
      * Search logs
@@ -584,8 +540,6 @@ export class DevicesService {
      * @param data.query
      * @param data.limit
      * @param data.projectId
-     * @param data.token
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -596,29 +550,23 @@ export class DevicesService {
             path: {
                 device_id: data.deviceId
             },
-            headers: {
-                authorization: data.authorization
-            },
             query: {
                 query: data.query,
                 limit: data.limit,
-                project_id: data.projectId,
-                token: data.token
+                project_id: data.projectId
             },
             errors: {
                 422: 'Validation Error'
             }
         });
     }
-    
+
     /**
      * Bind Client
      * Bind mobile client to device
      * @param data The data for the request.
      * @param data.deviceId
      * @param data.requestBody
-     * @param data.token
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -629,12 +577,6 @@ export class DevicesService {
             path: {
                 device_id: data.deviceId
             },
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -642,14 +584,12 @@ export class DevicesService {
             }
         });
     }
-    
+
     /**
      * Bind Current Device
      * Bind a client_id (e.g. mobile) to this device
      * @param data The data for the request.
      * @param data.requestBody
-     * @param data.token
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -657,12 +597,6 @@ export class DevicesService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/devices/bind',
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -703,7 +637,7 @@ export class FilesService {
             }
         });
     }
-    
+
     /**
      * Create File
      * Create or overwrite a file.
@@ -727,7 +661,7 @@ export class FilesService {
             }
         });
     }
-    
+
     /**
      * Get File Content
      * Read file content.
@@ -752,7 +686,7 @@ export class FilesService {
             }
         });
     }
-    
+
     /**
      * Get Raw File
      * Get raw file content (for previewing images, PDFs, etc).
@@ -777,7 +711,7 @@ export class FilesService {
             }
         });
     }
-    
+
     /**
      * Open File
      * Open file in system default application.
@@ -801,7 +735,7 @@ export class FilesService {
             }
         });
     }
-    
+
     /**
      * Upload File
      * Upload a file to project's 'uploads' directory.
@@ -826,7 +760,7 @@ export class FilesService {
             }
         });
     }
-    
+
     /**
      * Search Files
      * Search for text content within project files (simple grep).
@@ -840,6 +774,31 @@ export class FilesService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/files/projects/{project_id}/files/search',
+            path: {
+                project_id: data.projectId
+            },
+            query: {
+                q: data.q
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+
+    /**
+     * Search Files By Name
+     * Search for file NAMES (not content).
+     * @param data The data for the request.
+     * @param data.projectId
+     * @param data.q
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static searchFilesByName(data: FilesSearchFilesByNameData): CancelablePromise<FilesSearchFilesByNameResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/files/projects/{project_id}/files/search_name',
             path: {
                 project_id: data.projectId
             },
@@ -875,7 +834,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Get Request
      * Get a specific human input request by ID.
@@ -896,7 +855,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Respond To Request
      * Submit a response to a pending human input request.
@@ -921,7 +880,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Cancel Pending Request
      * Cancel a pending human input request.
@@ -943,7 +902,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Cleanup Requests
      * Clean up old completed/cancelled requests.
@@ -964,7 +923,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Start Recording
      * Start a new recording session for imitation learning.
@@ -985,7 +944,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Record Events
      * Record a batch of UI events from the frontend ActionRecorder.
@@ -1006,7 +965,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Stop Recording
      * Stop a recording session.
@@ -1027,7 +986,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * List Recording Sessions
      * List active recording sessions.
@@ -1048,7 +1007,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Synthesize Skill
      * Synthesize a new skill from a trace sequence.
@@ -1069,7 +1028,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * List Skills
      * List all learned skills.
@@ -1090,7 +1049,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Get Skill
      * Get full details of a specific skill.
@@ -1111,7 +1070,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Deactivate Skill
      * Deactivate (soft delete) a skill.
@@ -1132,7 +1091,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Update Skill
      * Update a learned skill.
@@ -1156,7 +1115,7 @@ export class LearningService {
             }
         });
     }
-    
+
     /**
      * Execute Skill
      * Execute a skill by injecting a directive into the agent's conversation.
@@ -1218,7 +1177,7 @@ export class McpService {
             url: '/api/v1/mcp/servers'
         });
     }
-    
+
     /**
      * Add Mcp Server
      * Register and connect a new MCP server.
@@ -1238,7 +1197,7 @@ export class McpService {
             }
         });
     }
-    
+
     /**
      * Delete Mcp Server
      * Remove an MCP server.
@@ -1280,7 +1239,7 @@ export class MemberService {
             }
         });
     }
-    
+
     /**
      * Status
      * @returns unknown Successful Response
@@ -1292,7 +1251,7 @@ export class MemberService {
             url: '/api/v1/member/status'
         });
     }
-    
+
     /**
      * Logout
      * @returns unknown Successful Response
@@ -1304,40 +1263,37 @@ export class MemberService {
             url: '/api/v1/member/logout'
         });
     }
-    
+
     /**
      * Get Cancellation Info
-     * Get cancellation status and info
      * @returns unknown Successful Response
      * @throws ApiError
      */
     public static getCancellationInfo(): CancelablePromise<MemberGetCancellationInfoResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/member/cancellation'
+            url: '/api/v1/member/cancellation/info'
         });
     }
-    
+
     /**
      * Apply Cancellation
-     * Apply for cancellation
      * @returns unknown Successful Response
      * @throws ApiError
      */
     public static applyCancellation(): CancelablePromise<MemberApplyCancellationResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/member/cancellation'
+            url: '/api/v1/member/cancellation/apply'
         });
     }
-    
+
     /**
-     * Cancel Cancellation Apply
-     * Cancel existing cancellation request
+     * Cancel Cancellation
      * @returns unknown Successful Response
      * @throws ApiError
      */
-    public static cancelCancellationApply(): CancelablePromise<MemberCancelCancellationApplyResponse> {
+    public static cancelCancellation(): CancelablePromise<MemberCancelCancellationResponse> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/member/cancellation/cancel'
@@ -1366,7 +1322,7 @@ export class MemoryService {
             }
         });
     }
-    
+
     /**
      * Add Concept
      * Manually add a concept/memory.
@@ -1390,7 +1346,7 @@ export class MemoryService {
             }
         });
     }
-    
+
     /**
      * Search Memory
      * Search memory concepts.
@@ -1445,7 +1401,6 @@ export class ProjectModulesService {
      * @param data.projectId
      * @param data.page
      * @param data.pageSize
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -1453,9 +1408,6 @@ export class ProjectModulesService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/project-modules/budget/list',
-            headers: {
-                authorization: data.authorization
-            },
             query: {
                 project_id: data.projectId,
                 page: data.page,
@@ -1466,12 +1418,11 @@ export class ProjectModulesService {
             }
         });
     }
-    
+
     /**
      * Get Budget Overview
      * @param data The data for the request.
      * @param data.projectId
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -1479,9 +1430,6 @@ export class ProjectModulesService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/project-modules/budget/overview',
-            headers: {
-                authorization: data.authorization
-            },
             query: {
                 project_id: data.projectId
             },
@@ -1490,7 +1438,7 @@ export class ProjectModulesService {
             }
         });
     }
-    
+
     /**
      * Get Timesheet List
      * @param data The data for the request.
@@ -1518,7 +1466,7 @@ export class ProjectModulesService {
             }
         });
     }
-    
+
     /**
      * Quick Add Timesheet
      * @param data The data for the request.
@@ -1541,7 +1489,7 @@ export class ProjectModulesService {
             }
         });
     }
-    
+
     /**
      * Get Project Statistics
      * @param data The data for the request.
@@ -1569,18 +1517,27 @@ export class ProjectModulesService {
 
 export class ProjectsService {
     /**
-     * List Projects
-     * List all available projects in the configured root directory.
+     * Get Projects
+     * @param data The data for the request.
+     * @param data.page
+     * @param data.pageSize
      * @returns unknown Successful Response
      * @throws ApiError
      */
-    public static listProjects(): CancelablePromise<ProjectsListProjectsResponse> {
+    public static getProjects(data: ProjectsGetProjectsData = {}): CancelablePromise<ProjectsGetProjectsResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/projects/'
+            url: '/api/v1/projects/',
+            query: {
+                page: data.page,
+                page_size: data.pageSize
+            },
+            errors: {
+                422: 'Validation Error'
+            }
         });
     }
-    
+
     /**
      * Create Project
      * Create a new project directory and sync to Member Center.
@@ -1600,10 +1557,11 @@ export class ProjectsService {
             }
         });
     }
-    
+
     /**
      * Get Current Project
-     * Get current project from Member Center
+     * Get current project from Cloud (User's focus on Web/Mobile).
+     * Also returns Local Focus if configured.
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -1613,7 +1571,7 @@ export class ProjectsService {
             url: '/api/v1/projects/current'
         });
     }
-    
+
     /**
      * Get Project Status
      * Get real-time status of system tasks (Indexing, Summarization) for a project.
@@ -1634,7 +1592,7 @@ export class ProjectsService {
             }
         });
     }
-    
+
     /**
      * Delete Project
      * Delete a project (Unlink from Member Center).
@@ -1655,7 +1613,7 @@ export class ProjectsService {
             }
         });
     }
-    
+
     /**
      * Run Indexing Endpoint
      * Trigger full indexing for a project (Celery Dispatch).
@@ -1698,7 +1656,7 @@ export class ResourcesService {
             }
         });
     }
-    
+
     /**
      * Create Resource
      * Add a new resource (Pin a file or add a link).
@@ -1722,7 +1680,7 @@ export class ResourcesService {
             }
         });
     }
-    
+
     /**
      * Delete Resource
      * Remove a resource.
@@ -1757,7 +1715,6 @@ export class StreamService {
      * @param data.guestId
      * @param data.token
      * @param data.xGuestId
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -1769,8 +1726,7 @@ export class StreamService {
                 thread_id: data.threadId
             },
             headers: {
-                'x-guest-id': data.xGuestId,
-                authorization: data.authorization
+                'x-guest-id': data.xGuestId
             },
             query: {
                 guest_id: data.guestId,
@@ -1812,7 +1768,7 @@ export class SymbolsService {
             }
         });
     }
-    
+
     /**
      * Generate Symbol Wiki
      * Generate on-demand Wiki documentation for a specific symbol.
@@ -1840,34 +1796,20 @@ export class SymbolsService {
 export class SystemService {
     /**
      * Get System Config
-     * @param data The data for the request.
-     * @param data.token
-     * @param data.authorization
      * @returns SystemConfig Successful Response
      * @throws ApiError
      */
-    public static getSystemConfig(data: SystemGetSystemConfigData = {}): CancelablePromise<SystemGetSystemConfigResponse> {
+    public static getSystemConfig(): CancelablePromise<SystemGetSystemConfigResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/system/config',
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
-            errors: {
-                422: 'Validation Error'
-            }
+            url: '/api/v1/system/config'
         });
     }
-    
+
     /**
      * Update System Config
      * @param data The data for the request.
      * @param data.requestBody
-     * @param data.token
-     * @param data.authorization
      * @returns SystemConfig Successful Response
      * @throws ApiError
      */
@@ -1875,12 +1817,6 @@ export class SystemService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/system/config',
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -1888,14 +1824,37 @@ export class SystemService {
             }
         });
     }
-    
+
+    /**
+     * Health Check
+     * Simple health check for startup probing.
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static healthCheck(): CancelablePromise<SystemHealthCheckResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/system/health'
+        });
+    }
+
+    /**
+     * Get Evolution Status
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getEvolutionStatus(): CancelablePromise<SystemGetEvolutionStatusResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/system/evolution-status'
+        });
+    }
+
     /**
      * Test Embedding Connection
      * Validate connection to embedding provider.
      * @param data The data for the request.
      * @param data.requestBody
-     * @param data.token
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -1903,12 +1862,6 @@ export class SystemService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/system/embedding/test',
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -1916,14 +1869,12 @@ export class SystemService {
             }
         });
     }
-    
+
     /**
      * Apply Embedding Config
      * Apply new embedding config. THIS IS DESTRUCTIVE (Resets Vector DB).
      * @param data The data for the request.
      * @param data.requestBody
-     * @param data.token
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -1931,12 +1882,6 @@ export class SystemService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/system/embedding/apply',
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -1944,14 +1889,12 @@ export class SystemService {
             }
         });
     }
-    
+
     /**
      * Test Llm Connection
      * Validate connection to LLM provider.
      * @param data The data for the request.
      * @param data.requestBody
-     * @param data.token
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -1959,12 +1902,6 @@ export class SystemService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/system/llm/test',
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -1972,14 +1909,12 @@ export class SystemService {
             }
         });
     }
-    
+
     /**
      * Apply Llm Config
      * Apply new LLM config.
      * @param data The data for the request.
      * @param data.requestBody
-     * @param data.token
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -1987,12 +1922,6 @@ export class SystemService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/system/llm/apply',
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
             body: data.requestBody,
             mediaType: 'application/json',
             errors: {
@@ -2000,29 +1929,17 @@ export class SystemService {
             }
         });
     }
-    
+
     /**
      * Reset Knowledge Base
      * [DANGER] Wipe the entire Knowledge Base (Neo4j + Postgres Index).
-     * @param data The data for the request.
-     * @param data.token
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
-    public static resetKnowledgeBase(data: SystemResetKnowledgeBaseData = {}): CancelablePromise<SystemResetKnowledgeBaseResponse> {
+    public static resetKnowledgeBase(): CancelablePromise<SystemResetKnowledgeBaseResponse> {
         return __request(OpenAPI, {
             method: 'POST',
-            url: '/api/v1/system/reset-knowledge',
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
-            errors: {
-                422: 'Validation Error'
-            }
+            url: '/api/v1/system/reset-knowledge'
         });
     }
 }
@@ -2036,7 +1953,6 @@ export class TasksService {
      * @param data.page
      * @param data.pageSize
      * @param data.status
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -2044,9 +1960,6 @@ export class TasksService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/tasks/',
-            headers: {
-                authorization: data.authorization
-            },
             query: {
                 project_id: data.projectId,
                 page: data.page,
@@ -2058,7 +1971,7 @@ export class TasksService {
             }
         });
     }
-    
+
     /**
      * Create Task
      * Create a new task.
@@ -2082,13 +1995,12 @@ export class TasksService {
             }
         });
     }
-    
+
     /**
      * Get Task Detail
      * Get details of a specific task.
      * @param data The data for the request.
      * @param data.taskId
-     * @param data.authorization
      * @returns unknown Successful Response
      * @throws ApiError
      */
@@ -2099,15 +2011,12 @@ export class TasksService {
             path: {
                 task_id: data.taskId
             },
-            headers: {
-                authorization: data.authorization
-            },
             errors: {
                 422: 'Validation Error'
             }
         });
     }
-    
+
     /**
      * Update Task
      * Update a task.
@@ -2135,7 +2044,7 @@ export class TasksService {
             }
         });
     }
-    
+
     /**
      * Delete Task
      * Delete a task.
@@ -2160,7 +2069,7 @@ export class TasksService {
             }
         });
     }
-    
+
     /**
      * Update Task Status Endpoint
      * Update task status and progress.
@@ -2188,7 +2097,7 @@ export class TasksService {
             }
         });
     }
-    
+
     /**
      * Execute Task
      * Trigger Autonomous Agent to execute the task.
@@ -2215,6 +2124,114 @@ export class TasksService {
     }
 }
 
+export class TodosService {
+    /**
+     * Create Todo
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns TodoResponse Successful Response
+     * @throws ApiError
+     */
+    public static createTodo(data: TodosCreateTodoData): CancelablePromise<TodosCreateTodoResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/todos/',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+
+    /**
+     * List Todos
+     * @param data The data for the request.
+     * @param data.status
+     * @param data.limit
+     * @param data.offset
+     * @returns TodoResponse Successful Response
+     * @throws ApiError
+     */
+    public static listTodos(data: TodosListTodosData = {}): CancelablePromise<TodosListTodosResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/todos/',
+            query: {
+                status: data.status,
+                limit: data.limit,
+                offset: data.offset
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+
+    /**
+     * Get Todo
+     * @param data The data for the request.
+     * @param data.todoId
+     * @returns TodoResponse Successful Response
+     * @throws ApiError
+     */
+    public static getTodo(data: TodosGetTodoData): CancelablePromise<TodosGetTodoResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/todos/{todo_id}',
+            path: {
+                todo_id: data.todoId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+
+    /**
+     * Update Todo
+     * @param data The data for the request.
+     * @param data.todoId
+     * @param data.requestBody
+     * @returns TodoResponse Successful Response
+     * @throws ApiError
+     */
+    public static updateTodo(data: TodosUpdateTodoData): CancelablePromise<TodosUpdateTodoResponse> {
+        return __request(OpenAPI, {
+            method: 'PATCH',
+            url: '/api/v1/todos/{todo_id}',
+            path: {
+                todo_id: data.todoId
+            },
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+
+    /**
+     * Delete Todo
+     * @param data The data for the request.
+     * @param data.todoId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static deleteTodo(data: TodosDeleteTodoData): CancelablePromise<TodosDeleteTodoResponse> {
+        return __request(OpenAPI, {
+            method: 'DELETE',
+            url: '/api/v1/todos/{todo_id}',
+            path: {
+                todo_id: data.todoId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+}
+
 export class ToolsService {
     /**
      * List Runtime Tools
@@ -2228,7 +2245,7 @@ export class ToolsService {
             url: '/api/v1/tools/runtime'
         });
     }
-    
+
     /**
      * List All Tools
      * List ALL available tools (Static + Runtime).
@@ -2247,25 +2264,13 @@ export class UsersService {
     /**
      * Read User Me
      * Get current user.
-     * @param data The data for the request.
-     * @param data.token
-     * @param data.authorization
      * @returns UserPublic Successful Response
      * @throws ApiError
      */
-    public static readUserMe(data: UsersReadUserMeData = {}): CancelablePromise<UsersReadUserMeResponse> {
+    public static readUserMe(): CancelablePromise<UsersReadUserMeResponse> {
         return __request(OpenAPI, {
             method: 'GET',
-            url: '/api/v1/users/me',
-            headers: {
-                authorization: data.authorization
-            },
-            query: {
-                token: data.token
-            },
-            errors: {
-                422: 'Validation Error'
-            }
+            url: '/api/v1/users/me'
         });
     }
 }
@@ -2282,7 +2287,7 @@ export class UtilsService {
             url: '/api/v1/utils/health-check/'
         });
     }
-    
+
     /**
      * Get Evoloop Status
      * @returns unknown Successful Response
@@ -2292,6 +2297,19 @@ export class UtilsService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/utils/evoloop-status'
+        });
+    }
+
+    /**
+     * Get Ai Config
+     * Get global AI config (Models, Prices)
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getAiConfig(): CancelablePromise<UtilsGetAiConfigResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/utils/ai/config'
         });
     }
 }

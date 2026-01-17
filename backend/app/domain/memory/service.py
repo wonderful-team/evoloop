@@ -451,7 +451,7 @@ class MemoryService:
         link_query = """
         MATCH (e:Episode {id: $id, project_id: $pid})
         MATCH (c:Concept {project_id: $pid})
-        # Check if Concept Name appears in Goal or Plan
+        // Check if Concept Name appears in Goal or Plan
         WHERE toLower($goal) CONTAINS toLower(c.name) OR toLower($plan) CONTAINS toLower(c.name)
         MERGE (e)-[:RELATED_TO]->(c)
         """

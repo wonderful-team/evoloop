@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { listen } from "@tauri-apps/api/event"
 import { Loader2 } from "lucide-react"
 
@@ -7,6 +8,7 @@ interface StartupScreenProps {
 }
 
 export default function StartupScreen({ onReady }: StartupScreenProps) {
+    const { t } = useTranslation()
     const [logs, setLogs] = useState<string[]>([])
     const logContainerRef = useRef<HTMLDivElement>(null)
     const [isHealthy, setIsHealthy] = useState(false)
@@ -20,19 +22,32 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
 
     // Listen for logs
     useEffect(() => {
-        const unlisten = listen<string>("backend-log", (event) => {
-            setLogs((prev) => [...prev, event.payload])
-        })
+        let unlistenFn: (() => void) | undefined
+
+        const setupListener = async () => {
+            try {
+                // Check if we are in a Tauri environment to avoid errors in browser
+                // In Tauri v2, window.__TAURI_INTERNALS__ is the indicator
+                if (typeof window !== "undefined" && (window as any).__TAURI_INTERNALS__) {
+                    unlistenFn = await listen<string>("backend-log", (event) => {
+                        setLogs((prev) => [...prev, event.payload])
+                    })
+                }
+            } catch (e) {
+                console.warn("Tauri event listener failed (likely running in browser):", e)
+            }
+        }
+
+        setupListener()
 
         return () => {
-            unlisten.then((f) => f())
+            if (unlistenFn) unlistenFn()
         }
     }, [])
 
     // Poll for health
     useEffect(() => {
         let intervalId: NodeJS.Timeout
-        let attempts = 0
 
         const checkHealth = async () => {
             try {
@@ -68,7 +83,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight">EvoLoop</h1>
                         <p className="text-sm text-zinc-400">
-                            {isHealthy ? "Backend Ready! Launching..." : "Initializing System Services..."}
+                            {isHealthy ? t("startup.backendReady") : t("startup.initializing")}
                         </p>
                     </div>
                 </div>
@@ -89,7 +104,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
                         className="h-64 overflow-y-auto p-4 font-mono text-xs text-zinc-300 space-y-1 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent"
                     >
                         {logs.length === 0 && (
-                            <span className="text-zinc-600 italic">Waiting for backend logs...</span>
+                            <span className="text-zinc-600 italic">{t("startup.waitingLogs")}</span>
                         )}
                         {logs.map((log, i) => (
                             <div key={i} className="break-all whitespace-pre-wrap border-l-2 border-transparent hover:border-zinc-700 pl-2 transition-colors">
@@ -101,7 +116,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
                         ))}
                         {isHealthy && (
                             <div className="text-green-400 font-bold mt-2">
-                                ✓ System checks passed. Ready.
+                                {t("startup.systemCheckPassed")}
                             </div>
                         )}
                     </div>

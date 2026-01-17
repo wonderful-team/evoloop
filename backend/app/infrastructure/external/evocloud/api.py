@@ -192,7 +192,7 @@ class EvoCloudAPI:
         return await self.request("GET", "/projectmanage/api/task/projectTasks", params=p, token=token)
 
     async def get_task_detail(self, task_id: int, token=None) -> dict:
-        return await self.request("GET", "/projectmanage/api/task/detail/{task_id}", token=token)
+        return await self.request("GET", f"/projectmanage/api/task/detail/{task_id}", token=token)
 
     async def create_task(self, data: dict, token=None) -> dict:
         return await self.request("POST", "/projectmanage/api/task/create", data=data, token=token)

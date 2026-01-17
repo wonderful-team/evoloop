@@ -22,7 +22,9 @@ export type ChatRequest = {
     message: string;
     project_id?: (number | null);
     checkpoint_id?: (string | null);
-    attachments?: (Array<{ [key: string]: any }> | null);
+    attachments?: (Array<{
+        [key: string]: unknown;
+    }> | null);
 };
 
 export type ConceptCreate = {
@@ -51,6 +53,7 @@ export type CreateFileRequest = {
 
 export type CreateProjectRequest = {
     name: string;
+    description?: string;
 };
 
 export type EmbeddingConfigRequest = {
@@ -124,7 +127,7 @@ export type LLMConfigRequest = {
      */
     model: string;
     /**
-     * Vision Model Name (Optional)
+     * Vision Model Name (e.g. gpt-4o)
      */
     vision_model?: (string | null);
     api_key?: (string | null);
@@ -164,13 +167,6 @@ export type MessageItem = {
     references?: Array<ReferenceItem>;
 };
 
-export type MobileCodeRequest = {
-    mobile: string;
-    captcha_id: string;
-    captcha_code: string;
-    type?: string;
-};
-
 export type OpenFileRequest = {
     path: string;
 };
@@ -202,30 +198,8 @@ export type ReferenceItem = {
     target_name: string;
 };
 
-export type RegisterMobileRequest = {
-    mobile: string;
-    key: string;
-    code: string;
-    captcha_id?: (string | null);
-    captcha_code?: (string | null);
-};
-
-export type RegisterUsernameRequest = {
-    username: string;
-    password: string;
-    captcha_id?: (string | null);
-    captcha_code?: (string | null);
-};
-
 export type RenameRequest = {
     title: string;
-};
-
-export type ResetPasswordMobileRequest = {
-    mobile: string;
-    key: string;
-    code: string;
-    password: string;
 };
 
 export type ResourceCreate = {
@@ -346,6 +320,43 @@ export type TimesheetQuickAddRequest = {
     work_type?: (string | null);
 };
 
+export type TodoCreate = {
+    title: string;
+    description?: (string | null);
+    priority?: TodoPriority;
+    category?: (string | null);
+    due_date?: (string | null);
+    source_conversation_id?: (string | null);
+    source_message_id?: (string | null);
+};
+
+export type TodoPriority = 'low' | 'medium' | 'high';
+
+export type TodoResponse = {
+    id: string;
+    title: string;
+    description: (string | null);
+    status: TodoStatus;
+    priority: TodoPriority;
+    category: (string | null);
+    due_date: (string | null);
+    source_conversation_id: (string | null);
+    source_message_id: (string | null);
+    created_at: string;
+    updated_at: string;
+};
+
+export type TodoStatus = 'pending' | 'completed' | 'cancelled';
+
+export type TodoUpdate = {
+    title?: (string | null);
+    description?: (string | null);
+    status?: (TodoStatus | null);
+    priority?: (TodoPriority | null);
+    category?: (string | null);
+    due_date?: (string | null);
+};
+
 export type Token = {
     access_token: string;
     token_type?: string;
@@ -393,7 +404,6 @@ export type WebhookRequest = {
 };
 
 export type AgentChatEndpointData = {
-    authorization?: (string | null);
     guestId?: (string | null);
     requestBody: ChatRequest;
     token?: (string | null);
@@ -409,7 +419,6 @@ export type AgentStopChatData = {
 export type AgentStopChatResponse = (unknown);
 
 export type AgentRetryChatData = {
-    authorization?: (string | null);
     guestId?: (string | null);
     requestBody: ChatRequest;
     token?: (string | null);
@@ -433,7 +442,7 @@ export type AgentWebhookEndpointResponse = (unknown);
 export type AuthGetCaptchaConfigResponse = (unknown);
 
 export type AuthGetCaptchaData = {
-    id?: (string | null);
+    captchaId: string;
 };
 
 export type AuthGetCaptchaResponse = (unknown);
@@ -442,20 +451,26 @@ export type AuthGetRegisterConfigResponse = (unknown);
 
 export type AuthGetRegisterAgreementResponse = (unknown);
 
-export type AuthSendMobileCodeData = {
-    requestBody: MobileCodeRequest;
+export type AuthSendSmsData = {
+    requestBody: {
+        [key: string]: unknown;
+    };
 };
 
-export type AuthSendMobileCodeResponse = (unknown);
+export type AuthSendSmsResponse = (unknown);
 
 export type AuthRegisterMobileData = {
-    requestBody: RegisterMobileRequest;
+    requestBody: {
+        [key: string]: unknown;
+    };
 };
 
 export type AuthRegisterMobileResponse = (unknown);
 
 export type AuthRegisterUsernameData = {
-    requestBody: RegisterUsernameRequest;
+    requestBody: {
+        [key: string]: unknown;
+    };
 };
 
 export type AuthRegisterUsernameResponse = (unknown);
@@ -467,18 +482,20 @@ export type AuthLoginMobileData = {
 export type AuthLoginMobileResponse = (unknown);
 
 export type AuthCheckMobileData = {
-    mobile: string;
+    requestBody: {
+        [key: string]: unknown;
+    };
 };
 
 export type AuthCheckMobileResponse = (unknown);
 
-export type AuthGetGlobalConfigResponse = (unknown);
-
-export type AuthResetPasswordMobileData = {
-    requestBody: ResetPasswordMobileRequest;
+export type AuthResetPasswordData = {
+    requestBody: {
+        [key: string]: unknown;
+    };
 };
 
-export type AuthResetPasswordMobileResponse = (unknown);
+export type AuthResetPasswordResponse = (unknown);
 
 export type ConversationsListConversationsData = {
     projectId?: (number | null);
@@ -524,56 +541,41 @@ export type ConversationsRewindConversationData = {
 
 export type ConversationsRewindConversationResponse = (RewindResponse);
 
-export type DevicesGetDevicesData = {
-    authorization?: (string | null);
-    token?: (string | null);
-};
-
 export type DevicesGetDevicesResponse = (unknown);
 
 export type DevicesSendCommandData = {
-    authorization?: (string | null);
     deviceId: number;
     requestBody: SendCommandRequest;
-    token?: (string | null);
 };
 
 export type DevicesSendCommandResponse = (unknown);
 
 export type DevicesGetRecentLogsData = {
-    authorization?: (string | null);
     deviceId: number;
     limit?: number;
     projectId?: (number | null);
-    token?: (string | null);
 };
 
 export type DevicesGetRecentLogsResponse = (unknown);
 
 export type DevicesSearchLogsData = {
-    authorization?: (string | null);
     deviceId: number;
     limit?: number;
     projectId?: (number | null);
     query: string;
-    token?: (string | null);
 };
 
 export type DevicesSearchLogsResponse = (unknown);
 
 export type DevicesBindClientData = {
-    authorization?: (string | null);
     deviceId: number;
     requestBody: BindClientRequest;
-    token?: (string | null);
 };
 
 export type DevicesBindClientResponse = (unknown);
 
 export type DevicesBindCurrentDeviceData = {
-    authorization?: (string | null);
     requestBody: BindClientRequest;
-    token?: (string | null);
 };
 
 export type DevicesBindCurrentDeviceResponse = (unknown);
@@ -627,6 +629,17 @@ export type FilesSearchFilesData = {
 
 export type FilesSearchFilesResponse = (Array<{
     [key: string]: unknown;
+}>);
+
+export type FilesSearchFilesByNameData = {
+    projectId: number;
+    q: string;
+};
+
+export type FilesSearchFilesByNameResponse = (Array<{
+    name: string;
+    path: string;
+    type: string;
 }>);
 
 export type LearningListPendingRequestsData = {
@@ -756,7 +769,7 @@ export type MemberGetCancellationInfoResponse = (unknown);
 
 export type MemberApplyCancellationResponse = (unknown);
 
-export type MemberCancelCancellationApplyResponse = (unknown);
+export type MemberCancelCancellationResponse = (unknown);
 
 export type MemoryListConceptsData = {
     projectId: number;
@@ -785,7 +798,6 @@ export type PlanningGetPlanData = {
 export type PlanningGetPlanResponse = (unknown);
 
 export type ProjectModulesGetBudgetListData = {
-    authorization?: (string | null);
     page?: number;
     pageSize?: number;
     projectId: number;
@@ -794,7 +806,6 @@ export type ProjectModulesGetBudgetListData = {
 export type ProjectModulesGetBudgetListResponse = (unknown);
 
 export type ProjectModulesGetBudgetOverviewData = {
-    authorization?: (string | null);
     projectId: number;
 };
 
@@ -823,7 +834,12 @@ export type ProjectModulesGetProjectStatisticsData = {
 
 export type ProjectModulesGetProjectStatisticsResponse = (unknown);
 
-export type ProjectsListProjectsResponse = (unknown);
+export type ProjectsGetProjectsData = {
+    page?: number;
+    pageSize?: number;
+};
+
+export type ProjectsGetProjectsResponse = (unknown);
 
 export type ProjectsCreateProjectData = {
     requestBody: CreateProjectRequest;
@@ -872,7 +888,6 @@ export type ResourcesDeleteResourceData = {
 export type ResourcesDeleteResourceResponse = (unknown);
 
 export type StreamStreamChatData = {
-    authorization?: (string | null);
     guestId?: (string | null);
     threadId: string;
     token?: (string | null);
@@ -905,62 +920,45 @@ export type SymbolsGenerateSymbolWikiData = {
 
 export type SymbolsGenerateSymbolWikiResponse = (unknown);
 
-export type SystemGetSystemConfigData = {
-    authorization?: (string | null);
-    token?: (string | null);
-};
-
 export type SystemGetSystemConfigResponse = (Array<SystemConfig>);
 
 export type SystemUpdateSystemConfigData = {
-    authorization?: (string | null);
     requestBody: SystemConfig;
-    token?: (string | null);
 };
 
 export type SystemUpdateSystemConfigResponse = (SystemConfig);
 
+export type SystemHealthCheckResponse = (unknown);
+
+export type SystemGetEvolutionStatusResponse = (unknown);
+
 export type SystemTestEmbeddingConnectionData = {
-    authorization?: (string | null);
     requestBody: EmbeddingConfigRequest;
-    token?: (string | null);
 };
 
 export type SystemTestEmbeddingConnectionResponse = (unknown);
 
 export type SystemApplyEmbeddingConfigData = {
-    authorization?: (string | null);
     requestBody: EmbeddingConfigRequest;
-    token?: (string | null);
 };
 
 export type SystemApplyEmbeddingConfigResponse = (unknown);
 
 export type SystemTestLlmConnectionData = {
-    authorization?: (string | null);
     requestBody: LLMConfigRequest;
-    token?: (string | null);
 };
 
 export type SystemTestLlmConnectionResponse = (unknown);
 
 export type SystemApplyLlmConfigData = {
-    authorization?: (string | null);
     requestBody: LLMConfigRequest;
-    token?: (string | null);
 };
 
 export type SystemApplyLlmConfigResponse = (unknown);
 
-export type SystemResetKnowledgeBaseData = {
-    authorization?: (string | null);
-    token?: (string | null);
-};
-
 export type SystemResetKnowledgeBaseResponse = (unknown);
 
 export type TasksGetProjectTasksData = {
-    authorization?: (string | null);
     page?: number;
     pageSize?: number;
     projectId: number;
@@ -977,7 +975,6 @@ export type TasksCreateTaskData = {
 export type TasksCreateTaskResponse = (unknown);
 
 export type TasksGetTaskDetailData = {
-    authorization?: (string | null);
     taskId: number;
 };
 
@@ -1013,6 +1010,39 @@ export type TasksExecuteTaskData = {
 
 export type TasksExecuteTaskResponse = (unknown);
 
+export type TodosCreateTodoData = {
+    requestBody: TodoCreate;
+};
+
+export type TodosCreateTodoResponse = (TodoResponse);
+
+export type TodosListTodosData = {
+    limit?: number;
+    offset?: number;
+    status?: (TodoStatus | null);
+};
+
+export type TodosListTodosResponse = (Array<TodoResponse>);
+
+export type TodosGetTodoData = {
+    todoId: string;
+};
+
+export type TodosGetTodoResponse = (TodoResponse);
+
+export type TodosUpdateTodoData = {
+    requestBody: TodoUpdate;
+    todoId: string;
+};
+
+export type TodosUpdateTodoResponse = (TodoResponse);
+
+export type TodosDeleteTodoData = {
+    todoId: string;
+};
+
+export type TodosDeleteTodoResponse = (unknown);
+
 export type ToolsListRuntimeToolsResponse = (Array<{
     [key: string]: unknown;
 }>);
@@ -1021,13 +1051,10 @@ export type ToolsListAllToolsResponse = (Array<{
     [key: string]: unknown;
 }>);
 
-export type UsersReadUserMeData = {
-    authorization?: (string | null);
-    token?: (string | null);
-};
-
 export type UsersReadUserMeResponse = (UserPublic);
 
 export type UtilsHealthCheckResponse = (boolean);
 
 export type UtilsGetEvoloopStatusResponse = (unknown);
+
+export type UtilsGetAiConfigResponse = (unknown);

@@ -36,16 +36,14 @@ export const TaskList: React.FC = () => {
   // Memoize columns to prevent re-renders, pass t
   const columns = React.useMemo(() => getColumns(t), [t])
 
-  const fetchTasks = async () => {
+  const fetchTasks = React.useCallback(async () => {
     if (!projectId) return
     setIsLoading(true)
     try {
-      const token = localStorage.getItem("access_token")
       const res: any = await TasksService.getProjectTasks({
         projectId: parseInt(projectId, 10),
-        page: 1,
-        pageSize: 100,
-        authorization: token,
+        pageSize: 50,
+        status: undefined,
       })
       // Support different response structures
       if (res?.list) {
@@ -61,7 +59,7 @@ export const TaskList: React.FC = () => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [projectId, t])
 
   useEffect(() => {
     fetchTasks()

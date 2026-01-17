@@ -18,31 +18,31 @@ import { useWizard } from "../WizardContext"
 const PROVIDERS = [
     {
         value: "openai",
-        label: "OpenAI",
+        label: "wizard.llm.providers.openai",
         baseUrl: "https://api.openai.com/v1",
         model: "gpt-4o",
     },
     {
         value: "qwen",
-        label: "Qwen / DashScope (阿里云)",
+        label: "wizard.llm.providers.qwen",
         baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
         model: "qwen-max",
     },
     {
         value: "deepseek",
-        label: "DeepSeek",
+        label: "wizard.llm.providers.deepseek",
         baseUrl: "https://api.deepseek.com/v1",
         model: "deepseek-chat",
     },
     {
         value: "ollama",
-        label: "Ollama (本地)",
+        label: "wizard.llm.providers.ollama",
         baseUrl: "http://localhost:11434/v1",
         model: "llama3",
     },
     {
         value: "generic",
-        label: "LMStudio / 通用 (OpenAI 兼容)",
+        label: "wizard.llm.providers.generic",
         baseUrl: "http://localhost:1234/v1",
         model: "local-model",
     },
@@ -147,7 +147,7 @@ export function LLMConfigStep() {
                         <SelectContent>
                             {PROVIDERS.map((p) => (
                                 <SelectItem key={p.value} value={p.value}>
-                                    {p.label}
+                                    {t(p.label)}
                                 </SelectItem>
                             ))}
                         </SelectContent>

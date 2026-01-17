@@ -75,5 +75,6 @@ def get_supervisor_tools() -> list[BaseTool]:
         "search_concepts",  # Semantic search (read-only)
         "request_human_input",  # HITL - pause for user input
         "analyze_image",  # Vision Perception
+        "manage_todo",  # User Todo/Reminders
     ]
     return get_tools_by_names(tool_names)

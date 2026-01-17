@@ -120,9 +120,7 @@ async def update_step_status(plan_id: str, step_id: str, status: str, result: st
         result: Optional result description.
         execution_run_id: Optional ID of the current agent run executing this step.
     """
-    from app.domain.planning.models import (
-        PlanStep,  # Ensure this is correct import or use app.infrastructure.database.sql.models
-    )
+    # Removed invalid import from domain.planning.models
     from app.infrastructure.database.sql.database import session_scope
 
     # Use the shared models from infrastructure to match session definition

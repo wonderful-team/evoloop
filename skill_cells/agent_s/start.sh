@@ -1,13 +1,17 @@
 #!/bin/bash
 
 # Start Xvfb in background
-Xvfb :99 -screen 0 1920x1080x24 &
+Xvfb :99 -ac -screen 0 1920x1080x24 &
 xvfb_pid=$!
 
 echo "Started Xvfb (PID: $xvfb_pid)"
 
+# Create dummy Xauthority to satisfy Xlib
+touch /root/.Xauthority
+export XAUTHORITY=/root/.Xauthority
+
 # Wait for Xvfb to be ready
-sleep 1
+sleep 2
 
 # Start MCP Server
 # Using explicit host 0.0.0.0 is crucial for Docker

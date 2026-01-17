@@ -40,7 +40,10 @@
     "submit": "提交",
     "success": "成功",
     "url": "网址",
-    "yes": "是"
+    "yes": "是",
+    "next": "下一页",
+    "previous": "上一页",
+    "morePages": "更多页面"
   },
   "toast": {
     "success": "成功!",
@@ -51,8 +54,14 @@
     "dashboard": "仪表盘",
     "chat": "对话",
     "projects": "项目",
+    "todos": "待办",
     "mcpServers": "MCP 服务器",
-    "settings": "设置"
+    "settings": "设置",
+    "collapse": "收起侧边栏",
+    "open": "展开侧边栏",
+    "toggle": "切换侧边栏",
+    "mobileTitle": "侧边栏",
+    "mobileDescription": "显示移动端侧边栏。"
   },
   "footer": {
     "copyright": "Full Stack FastAPI Template"
@@ -166,7 +175,14 @@
       "testSuccess": "连接成功！模型响应正常。",
       "testFailed": "连接失败，请检查配置",
       "testError": "连接错误",
-      "testRequired": "请先测试连接以确保配置正确"
+      "testRequired": "请先测试连接以确保配置正确",
+      "providers": {
+        "openai": "OpenAI",
+        "qwen": "Qwen / DashScope (阿里云)",
+        "deepseek": "DeepSeek",
+        "ollama": "Ollama (本地)",
+        "generic": "LMStudio / 通用 (OpenAI 兼容)"
+      }
     },
     "projects": {
       "title": "设置项目目录",
@@ -260,6 +276,8 @@
       "title": "注册",
       "desktopTitle": "创建新账户",
       "fullName": "全名",
+      "email": "邮箱",
+      "emailPlaceholder": "user@example.com",
       "mobilePlaceholder": "手机号",
       "navBack": "返回",
       "tabMobile": "手机注册",
@@ -293,6 +311,26 @@
       "submit": "重置密码",
       "back": "返回",
       "restart": "重新获取"
+    },
+    "recover": {
+      "title": "找回密码",
+      "email": "邮箱",
+      "emailPlaceholder": "user@example.com",
+      "submit": "继续",
+      "rememberPassword": "记起密码了？",
+      "login": "登录",
+      "success": "密码重置邮件已发送",
+      "notImplemented": "SDK 未实现密码找回功能"
+    },
+    "reset": {
+      "title": "重置密码",
+      "newPassword": "新密码",
+      "confirmPassword": "确认密码",
+      "submit": "重置密码",
+      "rememberPassword": "记起密码了？",
+      "login": "登录",
+      "success": "密码更新成功",
+      "notImplemented": "SDK 未实现密码更新功能"
     },
     "errors": {
       "invalidEmail": "无效的电子邮件地址",
@@ -426,7 +464,8 @@
         "high": "高",
         "normal": "普通",
         "low": "低"
-      }
+      },
+      "executeTaskPrefix": "执行任务："
     },
     "gantt": {
       "title": "时间轴 & 甘特图",
@@ -584,7 +623,10 @@
     "unknown": "未知",
     "tasks": "任务",
     "lastSync": "上次同步",
-    "never": "从未"
+    "never": "从未",
+    "indexing": "索引中",
+    "analyzing": "分析中",
+    "indexingTooltip": "索引中..."
   },
   "tabs": {
     "cloud": "云端",
@@ -766,6 +808,18 @@
     "namePlaceholder": "例如 git",
     "commandPlaceholder": "例如 uvx",
     "argsPlaceholder": "例如 mcp-server-git .",
+    "envLabel": "环境变量",
+    "envKeyPlaceholder": "键 (例如 GITHUB_TOKEN)",
+    "envValuePlaceholder": "值",
+    "addEnv": "添加变量",
+    "cancel": "取消",
+    "submit": "保存服务器",
+    "successAdded": "MCP 服务器添加成功",
+    "successUpdated": "MCP 服务器更新成功",
+    "deleteTitle": "删除服务器",
+    "deleteDesc": "您确定要删除此 MCP 服务器吗？",
+    "deleteConfirm": "删除",
+    "deleteSuccess": "MCP 服务器删除成功",
     "save": "保存更改",
     "add": "添加服务器",
     "successAdd": "MCP 服务器添加成功",
@@ -777,10 +831,37 @@
       "name": "名称",
       "status": "状态",
       "tools": "工具",
-      "command": "命令"
+      "command": "命令",
+      "toolsCount": "{{count}} 个工具",
+      "unknown": "未知"
     },
+    "delete": "删除",
     "serverTitle": "EvoLoop MCP 服务器",
     "serverInstruction": "要在其他工具（如 Claude Desktop）中使用 EvoLoop 作为 MCP 服务器，请使用以下命令进行配置："
+  },
+  "system": {
+    "initializationTitle": "需要系统集成",
+    "initializationDesc": "请配置以下系统设置以继续。"
+  },
+  "startup": {
+    "backendReady": "后端就绪！正在启动...",
+    "initializing": "正在初始化系统服务...",
+    "waitingLogs": "等待后端日志...",
+    "systemCheckPassed": "✓ 系统检查通过。就绪。"
+  },
+  "pending": {
+    "items": {
+      "id": "ID",
+      "title": "标题",
+      "description": "描述"
+    },
+    "users": {
+      "fullName": "全名",
+      "email": "邮箱",
+      "role": "角色",
+      "status": "状态"
+    },
+    "actions": "操作"
   },
   "chat": {
     "limitReached": "今日对话次数已耗尽",
@@ -795,6 +876,18 @@
       "resume": "继续",
       "addInput": "添加指令",
       "cancel": "取消"
+    },
+    "status": {
+      "working": "工作中...",
+      "busy": "忙碌"
+    },
+    "modes": {
+      "PLANNING": "规划中",
+      "RESEARCHING": "研究中",
+      "DEEP_RESEARCH": "深度研究",
+      "CODING": "编码中",
+      "REVIEWING": "审查中",
+      "VERIFICATION": "验证中"
     },
     "artifacts": {
       "title": "生成的文件",
@@ -835,10 +928,6 @@
     "resourceRemoved": "资源已移除",
     "linkAdded": "链接已添加",
     "linkFailed": "添加链接失败",
-    "steps": {
-      "collapsedSummary": "{{count}} 个已完成步骤...",
-      "hideHistory": "隐藏历史"
-    },
     "sidebar": {
       "tabChats": "对话",
       "tabFiles": "文件",
@@ -857,29 +946,38 @@
       "sendFailed": "发送指令失败：",
       "deliveryFailed": "消息投递失败："
     },
+    "steps": {
+      "collapsedSummary": "{{count}} 个已完成步骤...",
+      "hideHistory": "隐藏历史",
+      "execution": "执行",
+      "steps": "步",
+      "initializingPhase": "正在初始化阶段..."
+    },
     "interface": {
+      "inputHint": "按 Enter 发送，Shift + Enter 换行",
+      "startPrompt": "开始一个新的对话...",
       "errorSend": "发送消息失败",
       "learnedFromChat": "从对话中学习",
-      "exportSuccess": "对话导出成功",
-      "startPrompt": "开始一个新的对话...",
+      "exportSuccess": "聊天记录导出成功",
       "thinking": "思考中...",
       "deepResearching": "深度研究中...",
       "copy": "复制",
-      "memorize": "记忆",
+      "memorize": "记住",
       "export": "导出",
       "rewind": "回溯",
       "thinkingProcess": "推理过程",
       "retry": "重试",
-      "retrying": "正在从最后一条用户消息重试...",
-      "retryFailed": "重试失败",
-      "agentWorking": "Agent正在工作... 请在侧边栏查看详情 →",
+      "retrying": "正在从上一条用户消息重试...",
+      "retryFailed": "重试失败，请重试",
+      "agentWorking": "Agent 正在工作... 请在侧边栏查看详情 →",
       "stop": "停止生成",
       "askProject": "询问 {{project}}...",
       "selectProject": "选择一个项目开始对话",
       "footer": "EvoLoop AI 助手",
       "uploadSuccess": "文件上传成功",
-      "uploadError": "文件上传失败",
-      "exportPrompt": "输入文件路径 (例如 docs/notes.md):"
+      "uploadError": "上传失败",
+      "exportPrompt": "输入保存聊天记录的文件路径:",
+      "quote": "引用"
     },
     "input": {
       "waitUpload": "请等待文件上传完成",
@@ -981,6 +1079,37 @@
     "viewDetails": "查看详情",
     "deactivate": "停用",
     "confirmDeactivate": "确定要停用此技能吗？",
+    "runSkill": "运行技能",
+    "toolsCount": "{{count}} 个工具",
+    "successCount": "{{count}} 次成功",
+    "stats": "统计",
+    "successExecutions": "成功执行",
+    "created": "创建于",
+    "synthesisDate": "合成日期",
+    "na": "暂无",
+    "table": {
+      "name": "名称",
+      "type": "类型",
+      "description": "描述"
+    },
+    "execution": {
+      "title": "运行技能：{{name}}",
+      "description": "配置参数以运行此技能。",
+      "noParams": "无需参数。",
+      "runNow": "立即运行",
+      "starting": "正在启动..."
+    },
+    "editor": {
+      "title": "编辑技能：{{name}}",
+      "description": "修改技能定义。请小心处理 JSON 参数。",
+      "skillName": "技能名称",
+      "skillDescription": "描述",
+      "triggerPatterns": "触发模式（逗号分隔）",
+      "triggerHelp": "自动建议此技能的短语。",
+      "parameters": "参数（JSON Schema）",
+      "invalidJson": "无效的参数 JSON",
+      "saveChanges": "保存更改"
+    },
     "triggerPatterns": "触发模式",
     "parameters": "参数",
     "steps": "步骤",
@@ -1037,5 +1166,64 @@
       "active": "活跃",
       "manage": "管理集成"
     }
+  },
+  "todos": {
+    "title": "待办",
+    "list": "列表",
+    "calendar": "日历",
+    "filters": "筛选",
+    "status": {
+      "title": "状态",
+      "all": "全部",
+      "pending": "待办",
+      "completed": "已完成"
+    },
+    "priority": {
+      "title": "优先级",
+      "all": "全部优先级",
+      "high": "高",
+      "medium": "中",
+      "low": "低"
+    },
+    "category": {
+      "title": "分类",
+      "all": "全部分类"
+    },
+    "sort": {
+      "newest": "最新",
+      "priority": "优先级",
+      "dueDate": "截止日期"
+    },
+    "create": {
+      "placeholder": "有什么需要做的？",
+      "add": "添加",
+      "setDate": "设置日期",
+      "categoryPlaceholder": "分类",
+      "priorityPlaceholder": "优先级",
+      "success": "任务已创建",
+      "error": "创建任务失败"
+    },
+    "update": {
+      "success": "任务已更新",
+      "error": "更新任务失败"
+    },
+    "delete": {
+      "success": "任务已删除",
+      "error": "删除任务失败"
+    },
+    "empty": {
+      "loading": "加载中...",
+      "noFilterMatch": "没有符合当前筛选条件的任务。",
+      "noActive": "暂无待办任务。请在上方添加！"
+    },
+    "headers": {
+      "allTasks": "所有任务",
+      "pendingTasks": "待办任务",
+      "completedTasks": "已完成任务"
+    },
+    "noDueDate": "无截止日期",
+    "jumpToChat": "跳转对话",
+    "execute": "立即执行",
+    "refresh": "刷新"
   }
 }

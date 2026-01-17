@@ -9,14 +9,19 @@ import os
 import platform
 from typing import Any, Literal
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, SystemMessage
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
 from app.core.engine import AgentEngine
 from app.core.engine.state import AgentState
+from app.core.engine import AgentEngine
+from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
+from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database.sql.models.todo import TodoItem, TodoStatus, TodoPriority
+from sqlalchemy import select, or_
 
 logger = logging.getLogger(__name__)
 
@@ -297,9 +302,36 @@ class SupervisorNode:
 
         # 4. Build System Info
         user_lang = SystemConfigService.get_language_preference()
-        sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}"
+        
+        # 5. Inject Cognitive Todo Context
+        todo_context = ""
+        try:
+            async with session_scope() as session:
+                # Query: Pending AND (High Priority OR Overdue) AND (Global OR Current Project)
+                from datetime import datetime
+                query = select(TodoItem).where(
+                    TodoItem.status == TodoStatus.PENDING,
+                    or_(
+                        TodoItem.priority == TodoPriority.HIGH,
+                        TodoItem.due_date < datetime.now()
+                    )
+                ).limit(5) # Limit to 5 max to avoid context bloat
+                
+                # If project isolation is strict, add project_id check
+                # query = query.where(or_(TodoItem.project_id == project_id, TodoItem.project_id == None))
+                
+                result = await session.execute(query)
+                urgent_todos = result.scalars().all()
+                
+                if urgent_todos:
+                    todo_list = "\n".join([f"- [URGENT] {t.title} (Due: {t.due_date})" for t in urgent_todos])
+                    todo_context = f"\n\n🔥 URGENT TASKS (Cognitive Injection):\n{todo_list}\n(You can use 'manage_todo' to check details or mark as done)"
+        except Exception as e:
+            logger.warning(f"Failed to load todo context: {e}")
 
-        logger.info(f"[Supervisor] 📂 Context: Tree {len(project_structure)} chars, Concepts {len(project_concepts)} chars")
+        sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}{todo_context}"
+
+        logger.info(f"[Supervisor] 📂 Context: Tree {len(project_structure)} chars, Concepts {len(project_concepts)} chars, Todos {len(todo_context)} chars")
 
         return {
             "tools": tools,
@@ -404,7 +436,12 @@ class SupervisorNode:
         decision = None
         next_node = "deep_researcher"
         try:
-            raw = await chain.ainvoke(state, config=routing_config)
+            # Filter out SystemMessages from history to avoid duplication/protocol errors
+            history_msgs = [m for m in messages if not isinstance(m, SystemMessage)]
+            invoke_input = state.copy() 
+            invoke_input["messages"] = history_msgs
+
+            raw = await chain.ainvoke(invoke_input, config=routing_config)
             decision = RoutingDecision(**raw)
             next_node = decision.next_node
         except InterruptedError:

@@ -63,8 +63,8 @@ export const ProjectOverview: React.FC = () => {
         const tasksData = (await TasksService.getProjectTasks({
           projectId: parseInt(projectId, 10),
           page: 1,
-          pageSize: 5,
-          authorization: token,
+          pageSize: 5, // Top 5 recent
+          status: 1, // Pending
         })) as any
         if (tasksData.code === 0) {
           setRecentTasks(tasksData.data.list || [])
@@ -107,13 +107,13 @@ export const ProjectOverview: React.FC = () => {
           )}
           {(currentProject?.summarization_status === "running" ||
             currentProject?.summarization_status === "SUMMARIZING") && (
-            <Badge
-              variant="secondary"
-              className="bg-purple-100 text-purple-700 gap-1"
-            >
-              <ListTodo className="h-3.5 w-3.5 animate-pulse" /> Analyzing
-            </Badge>
-          )}
+              <Badge
+                variant="secondary"
+                className="bg-purple-100 text-purple-700 gap-1"
+              >
+                <ListTodo className="h-3.5 w-3.5 animate-pulse" /> Analyzing
+              </Badge>
+            )}
         </div>
       </div>
 

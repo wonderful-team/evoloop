@@ -7,6 +7,7 @@ import {
   RotateCcw,
   Save,
   User,
+  Quote,
 } from "lucide-react"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
@@ -58,10 +59,11 @@ interface ChatMessageItemProps {
   onExport?: (text: string) => void
   onRewind?: () => void
   onRetry?: () => void
+  onQuote?: () => void
 }
 
 const ChatMessageItem = memo(
-  ({ msg, onAddToMemory, onExport, onRewind, onRetry }: ChatMessageItemProps) => {
+  ({ msg, onAddToMemory, onExport, onRewind, onRetry, onQuote }: ChatMessageItemProps) => {
     const { t } = useTranslation()
 
     // Hide intermediate tool outputs and system prompts from main chat
@@ -269,6 +271,13 @@ const ChatMessageItem = memo(
                       <DropdownMenuItem onClick={() => onRewind()}>
                         <RotateCcw className="mr-2 h-4 w-4" />{" "}
                         {t("chat.interface.rewind")}
+                      </DropdownMenuItem>
+                    )}
+                    {/* Quote Action */}
+                    {onQuote && (
+                      <DropdownMenuItem onClick={() => onQuote()}>
+                        <Quote className="mr-2 h-4 w-4" />{" "}
+                        {t("chat.interface.quote", "Quote")}
                       </DropdownMenuItem>
                     )}
                     {/* Retry Action for AI Messages (Regenerate) */}

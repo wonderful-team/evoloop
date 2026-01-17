@@ -40,7 +40,7 @@ export function MobileProjectSwitcher({
       // Only fetch list if empty? Or always refresh? Always refresh is safer.
       try {
         // Fetch list
-        const listRes: any = await ProjectsService.listProjects()
+        const listRes: any = await ProjectsService.getProjects()
 
         if (!isMounted) return
 

@@ -29,13 +29,11 @@ export const GanttChart: React.FC = () => {
     if (!projectId) return
     setIsLoading(true)
     try {
-      const token = localStorage.getItem("access_token")
       // Re-using fetch logic
       const res: any = await TasksService.getProjectTasks({
         projectId: parseInt(projectId, 10),
-        page: 1,
         pageSize: 100,
-        authorization: token,
+        status: undefined, // Assuming statusFilter is not defined yet, using undefined for now
       })
       let list: Task[] = []
       if (res?.list) list = res.list

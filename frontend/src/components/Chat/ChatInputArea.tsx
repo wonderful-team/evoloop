@@ -1,11 +1,12 @@
 import { BookOpen, Loader2, Paperclip, Send, Square } from "lucide-react"
-import { memo, useState } from "react"
+import { memo, useState, useRef, forwardRef, useImperativeHandle } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { FilesService } from "@/client/sdk.gen"
 import { SkillLibraryDialog } from "@/components/Learning/SkillLibraryDialog"
 import { Button } from "../ui/button"
 import { type Attachment, AttachmentPreview } from "./AttachmentPreview"
+import { ReferencePicker, type ReferenceItem } from "./ReferencePicker"
 import { RecordingButton } from "./RecordingButton"
 
 interface ChatInputAreaProps {
@@ -18,20 +19,29 @@ interface ChatInputAreaProps {
   activeThreadId?: string
 }
 
+export interface ChatInputAreaHandle {
+  addReference: (item: ReferenceItem) => void
+  setInput: (text: string) => void
+}
+
 export const ChatInputArea = memo(
-  ({
-    onSend,
-    onStop,
-    isAgentWorking,
-    isSending,
-    isStopPending,
-    currentProject,
-    activeThreadId,
-  }: ChatInputAreaProps) => {
+  forwardRef<ChatInputAreaHandle, ChatInputAreaProps>((
+    {
+      onSend,
+      onStop,
+      isAgentWorking,
+      isSending,
+      isStopPending,
+      currentProject,
+      activeThreadId,
+    }, ref) => {
     const { t } = useTranslation()
     const [inputValue, setInputValue] = useState("")
     const [isUploading, setIsUploading] = useState(false)
     const [attachments, setAttachments] = useState<Attachment[]>([])
+
+    const [showPicker, setShowPicker] = useState(false)
+    const textareaRef = useRef<HTMLTextAreaElement>(null)
 
     const handleSend = () => {
       if ((!inputValue.trim() && attachments.length === 0) || isSending) return
@@ -46,9 +56,23 @@ export const ChatInputArea = memo(
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === "@") {
+        setShowPicker(true)
+      }
+
       if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault()
-        handleSend()
+        if (showPicker) {
+          // If picker is open, let it handle Enter (if we had keyboard nav), 
+          // but for now preventing send if picker is open might be annoying if they just want to type @.
+          // Let's assume picker handles its own keys or closes on outside click.
+          // Ideally we prevent send if they are navigating the picker.
+          // For MVP, just send.
+          e.preventDefault()
+          handleSend()
+        } else {
+          e.preventDefault()
+          handleSend()
+        }
       }
     }
 
@@ -90,13 +114,81 @@ export const ChatInputArea = memo(
       }
     }
 
+    const handleSelectReference = (item: ReferenceItem) => {
+      // Insert text at cursor
+      const textarea = textareaRef.current
+      if (textarea) {
+        const start = textarea.selectionStart
+        const end = textarea.selectionEnd
+        const text = inputValue
+        const before = text.substring(0, start)
+        const after = text.substring(end)
+
+        // Only add space if needed
+        const prefix = before.endsWith(" ") ? "" : " "
+        const suffix = after.startsWith(" ") ? "" : " "
+
+        const newText = before + prefix + `@${item.name}` + suffix + after
+        setInputValue(newText)
+
+        // Add to attachments
+        const newAtt: Attachment = {
+          id: crypto.randomUUID(),
+          url: item.id,
+          name: item.name,
+          type: item.type === 'file' ? 'file' : 'reference',
+        }
+        if (item.type === 'message') {
+          newAtt.type = 'message'
+        }
+
+        setAttachments(prev => {
+          // Avoid duplicates
+          if (prev.some(a => a.url === newAtt.url)) return prev
+          return [...prev, newAtt]
+        })
+
+        // Restore focus
+        setTimeout(() => {
+          textarea.focus()
+          // Update cursor position ???
+        }, 0)
+      }
+      setShowPicker(false)
+    }
+
+    useImperativeHandle(ref, () => ({
+      addReference: (item: ReferenceItem) => {
+        handleSelectReference(item)
+      },
+      setInput: (text: string) => {
+        setInputValue(text)
+      }
+    }))
+
     return (
       <div
         className="shrink-0 p-4 pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
         data-tour="chat-input"
       >
-        <div className="w-full max-w-4xl mx-auto">
-          <div className="bg-background rounded-2xl shadow-sm border border-input transition-all focus-within:ring-2 focus-within:ring-ring ring-offset-2 overflow-hidden">
+        <div className="w-full max-w-4xl mx-auto relative">
+          {/* Reference Picker Popover */}
+          {showPicker && currentProject && (
+            <div className="absolute bottom-full left-0 mb-2 z-50">
+              <ReferencePicker
+                projectId={currentProject.id!}
+                onSelect={handleSelectReference}
+                onClose={() => setShowPicker(false)}
+              />
+              {/* Click outside backdrop */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setShowPicker(false)}
+              />
+            </div>
+          )}
+
+          <div className="bg-background rounded-2xl shadow-sm border border-input transition-all focus-within:ring-2 focus-within:ring-ring ring-offset-2 overflow-hidden relative z-50">
             {/* Top: Attachment Preview */}
             <AttachmentPreview
               attachments={attachments}
@@ -108,6 +200,7 @@ export const ChatInputArea = memo(
             {/* Middle: Text Area */}
             <div className="px-3 py-2">
               <textarea
+                ref={textareaRef}
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
@@ -228,12 +321,12 @@ export const ChatInputArea = memo(
 
           {/* Hint Text */}
           <div className="text-[10px] text-center mt-2 text-muted-foreground/60 select-none">
-            Enter to send, Shift + Enter for new line
+            {t("chat.interface.inputHint")}
           </div>
         </div>
       </div>
     )
-  },
+  })
 )
 
 ChatInputArea.displayName = "ChatInputArea"

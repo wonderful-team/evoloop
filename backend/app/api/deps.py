@@ -10,10 +10,15 @@ from app.core.db import engine
 from app.logging import logger
 from app.models import User
 
+from datetime import datetime
+import redis.asyncio as redis
+from app.infrastructure.external.evocloud import evocloud_client
+
 
 def get_db() -> Generator[Session, None, None]:
     with Session(engine) as session:
         yield session
+
 
 SessionDep = Annotated[Session, Depends(get_db)]
 
@@ -24,6 +29,7 @@ oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/l
 TokenDep = Annotated[str, Depends(oauth2_scheme)]
 TokenDepOptional = Annotated[str | None, Depends(oauth2_scheme_optional)]
 
+
 async def get_current_user(token: TokenDep) -> User:
     try:
         from app.infrastructure.external.evocloud import evocloud_client
@@ -32,14 +38,14 @@ async def get_current_user(token: TokenDep) -> User:
         result = await evocloud_client.get_user_info(token)
 
         if result.get("code") != 0:
-             # Map error
-             error_msg = result.get("message", "Validation failed")
-             if "token" in error_msg.lower() or result.get("code") in [-1, 401]:
-                 raise HTTPException(
+            # Map error
+            error_msg = result.get("message", "Validation failed")
+            if "token" in error_msg.lower() or result.get("code") in [-1, 401]:
+                raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid token or expired session",
                 )
-             raise HTTPException(status_code=400, detail=error_msg)
+            raise HTTPException(status_code=400, detail=error_msg)
 
         user_data = result.get("data", {})
 
@@ -50,7 +56,7 @@ async def get_current_user(token: TokenDep) -> User:
         user = User.model_validate(user_data)
 
         if not user.is_active:
-             raise HTTPException(status_code=400, detail="Inactive user")
+            raise HTTPException(status_code=400, detail="Inactive user")
 
         return user
     except HTTPException as e:
@@ -62,7 +68,9 @@ async def get_current_user(token: TokenDep) -> User:
             detail=f"Could not validate credentials: {str(e)}",
         )
 
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
 
 async def get_current_user_optional(token: TokenDepOptional) -> User | None:
     if not token:
@@ -85,21 +93,15 @@ async def get_current_user_optional(token: TokenDepOptional) -> User | None:
     except Exception:
         return None
 
+
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
-
-# --- Guest Verification Logic (Extracted from agent.py) ---
-from datetime import datetime
-
-import redis.asyncio as redis
-
-from app.infrastructure.external.evocloud import evocloud_client
 
 
 async def verify_guest_access(
     current_user: CurrentUserOptional,
     x_guest_id: Annotated[str | None, Header()] = None,
-    guest_id: str | None = None, # Added for Query Param support
-    token: str | None = None     # Added for Query Param Token Support (SSE)
+    guest_id: str | None = None,  # Added for Query Param support
+    token: str | None = None  # Added for Query Param Token Support (SSE)
 ) -> None:
     """
     Middleware-like dependency to verify guest access limits.
@@ -112,7 +114,6 @@ async def verify_guest_access(
         try:
             # We must import inside function to avoid circular imports layout if any, 
             # though get_current_user_optional imports it too.
-            from app.infrastructure.external.evocloud import evocloud_client
             result = await evocloud_client.get_user_info(token)
             if result.get("code") == 0:
                 user_data = result.get("data", {})
@@ -120,7 +121,7 @@ async def verify_guest_access(
                     # It's a valid user, so we consider them authenticated.
                     # We don't strictly need to construct the User object unless downstream needs it,
                     # but this function just returns None on success.
-                    return 
+                    return
         except Exception:
             # Token invalid, fall through to guest check
             pass
@@ -142,7 +143,7 @@ async def verify_guest_access(
         try:
             # Async call to global config
             config_res = await evocloud_client.get_ai_global_config()
-            limit = 10 # Default
+            limit = 10  # Default
             if config_res and config_res.get("code") == 0:
                 limit = int(config_res.get("data", {}).get("guest_daily_limit", 10))
         except Exception as e:
@@ -159,7 +160,7 @@ async def verify_guest_access(
         async with redis_client:
             current_usage = await redis_client.incr(key)
             if current_usage == 1:
-                await redis_client.expire(key, 86400) # 24h
+                await redis_client.expire(key, 86400)  # 24h
 
         if current_usage > limit:
             raise HTTPException(

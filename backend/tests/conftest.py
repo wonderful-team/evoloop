@@ -33,6 +33,7 @@ async def async_client() -> AsyncGenerator[httpx.AsyncClient, None]:
         timeout=config.API_TIMEOUT
     ) as client:
         yield client
+        await client.aclose()
 
 
 # ============ SSE Client Fixture ============
@@ -48,6 +49,7 @@ async def sse_client():
         timeout=httpx.Timeout(config.SSE_TIMEOUT)
     ) as client:
         yield client
+        await client.aclose()
 
 
 # ============ Database Fixtures ============

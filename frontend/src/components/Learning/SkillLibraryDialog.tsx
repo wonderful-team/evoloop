@@ -140,7 +140,7 @@ export function SkillLibraryDialog({
                         variant="ghost"
                         className="absolute right-1 top-1 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:text-green-600 hover:bg-green-100"
                         onClick={(e) => handleRunClick(skill, e)}
-                        title="Run Skill"
+                        title={t("learning.runSkill")}
                       >
                         <Play size={12} fill="currentColor" />
                       </Button>
@@ -150,7 +150,7 @@ export function SkillLibraryDialog({
                       </div>
                       <div className="flex gap-2 mt-2">
                         <Badge variant="secondary" className="text-[10px] h-5">
-                          {skill.tools_used.length} tools
+                          {t("learning.toolsCount", { count: skill.tools_used.length })}
                         </Badge>
                         <Badge
                           variant={
@@ -158,7 +158,7 @@ export function SkillLibraryDialog({
                           }
                           className="text-[10px] h-5"
                         >
-                          {skill.success_count} success
+                          {t("learning.successCount", { count: skill.success_count })}
                         </Badge>
                       </div>
                     </div>
@@ -247,9 +247,9 @@ export function SkillLibraryDialog({
                             <Table>
                               <TableHeader>
                                 <TableRow>
-                                  <TableHead>Name</TableHead>
-                                  <TableHead>Type</TableHead>
-                                  <TableHead>Description</TableHead>
+                                  <TableHead>{t("learning.table.name")}</TableHead>
+                                  <TableHead>{t("learning.table.type")}</TableHead>
+                                  <TableHead>{t("learning.table.description")}</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -274,7 +274,7 @@ export function SkillLibraryDialog({
                       <Card>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Stats
+                            {t("learning.stats")}
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -282,14 +282,14 @@ export function SkillLibraryDialog({
                             {selectedSkill.success_count}
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Success executions
+                            {t("learning.successExecutions")}
                           </p>
                         </CardContent>
                       </Card>
                       <Card>
                         <CardHeader className="pb-2">
                           <CardTitle className="text-sm font-medium text-muted-foreground">
-                            Created
+                            {t("learning.created")}
                           </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -298,10 +298,10 @@ export function SkillLibraryDialog({
                               ? new Date(
                                 selectedSkill.created_at,
                               ).toLocaleDateString()
-                              : "N/A"}
+                              : t("learning.na")}
                           </div>
                           <p className="text-xs text-muted-foreground">
-                            Synthesis date
+                            {t("learning.synthesisDate")}
                           </p>
                         </CardContent>
                       </Card>

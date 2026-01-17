@@ -3,6 +3,7 @@ import logging
 from sqlalchemy import text
 from sqlmodel import Session, select
 
+from app.core.config import settings
 from app.core.db import engine
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.system.service import SystemConfigService
@@ -29,7 +30,8 @@ class EmbeddingConfigService:
 
             embedder = None
             if provider in ["openai", "generic", "qwen"]:
-                embedder = GenericOpenAIEmbedder(api_key=api_key or "dummy", base_url=base_url, model=model)
+                # Use settings dimensions or provider default
+                embedder = GenericOpenAIEmbedder(api_key=api_key or "dummy", base_url=base_url, model=model, dimensions=settings.EMBEDDING_DIMENSIONS)
             elif provider == "ollama":
                 embedder = OllamaEmbedder(base_url=base_url, model=model)
             else:
@@ -154,7 +156,7 @@ class EmbeddingConfigService:
         if provider == "ollama":
             embedder = OllamaEmbedder(base_url, model)
         else:
-            embedder = GenericOpenAIEmbedder(api_key or "dummy", base_url, model)
+            embedder = GenericOpenAIEmbedder(api_key or "dummy", base_url, model, dimensions=settings.EMBEDDING_DIMENSIONS)
 
         async with driver.session() as session:
             # Fetch all concepts

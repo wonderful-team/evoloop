@@ -147,10 +147,10 @@ export function SkillExecutionDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Play className="h-4 w-4 text-green-500" />
-            Run Skill: {skill.name}
+            {t("learning.execution.title", { name: skill.name })}
           </DialogTitle>
           <DialogDescription>
-            {skill.description || "Configure parameters to run this skill."}
+            {skill.description || t("learning.execution.description")}
           </DialogDescription>
         </DialogHeader>
 
@@ -184,7 +184,7 @@ export function SkillExecutionDialog({
             ))
           ) : (
             <div className="text-center text-muted-foreground text-sm italic py-4">
-              No parameters required.
+              {t("learning.execution.noParams")}
             </div>
           )}
         </div>
@@ -195,7 +195,7 @@ export function SkillExecutionDialog({
             onClick={() => onOpenChange(false)}
             disabled={executing}
           >
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button
             onClick={handleExecute}
@@ -205,12 +205,12 @@ export function SkillExecutionDialog({
             {executing ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Starting...
+                {t("learning.execution.starting")}
               </>
             ) : (
               <>
                 <Play className="mr-2 h-4 w-4" fill="currentColor" />
-                Run Now
+                {t("learning.execution.runNow")}
               </>
             )}
           </Button>

@@ -10,7 +10,7 @@ from app.infrastructure.external.evocloud import evocloud_client
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.logging import logger
 
-router = APIRouter()
+router = APIRouter(tags=["projects"])
 
 class IndexingRequest(BaseModel):
     project_id: int

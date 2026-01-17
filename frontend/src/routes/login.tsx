@@ -48,7 +48,7 @@ export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
       {
-        title: "Log In - FastAPI Cloud",
+        title: "Log In - EvoCloud",
       },
     ],
   }),
@@ -76,10 +76,7 @@ function Login() {
   return (
     <AuthLayout>
       <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="flex flex-col gap-6"
-        >
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-6">
           <div className="flex flex-col items-center gap-2 text-center">
             <h1 className="text-2xl font-bold">
               {t("auth.login.desktopTitle")}

@@ -117,6 +117,7 @@ class Settings(BaseSettings):
     EMBEDDING_PROVIDER: Literal["openai", "ollama", "dashscope", "huggingface", "local"] = "openai"
     EMBEDDING_BASE_URL: str | None = None # Optional override
     EMBEDDING_MODEL_NAME: str = "text-embedding-3-small" # Qwen / Aliyun Compatible
+    EMBEDDING_DIMENSIONS: int = 768 # Nomic / Local Default
 
     ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None
@@ -203,7 +204,7 @@ class Settings(BaseSettings):
     MEMORY_SEARCH_LIMIT: int = 5
     RESEARCH_MAX_ITERATIONS: int = 5
     TREE_VIEW_MAX_LINES: int = 1500
-    RECURSION_LIMIT: int = 50  # Default LangGraph recursion limit
+    RECURSION_LIMIT: int = 100  # Default LangGraph recursion limit
 
     # Meta-Evolution
     ENABLE_SELF_EVOLUTION: bool = False # Dangerous! Requires sandbox.

@@ -17,7 +17,8 @@ depends_on = None
 
 def upgrade():
     # Add sequence_number column to messages table
-    op.add_column('messages', sa.Column('sequence_number', sa.Integer(), nullable=True))
+    # op.add_column('messages', sa.Column('sequence_number', sa.Integer(), nullable=True))
+    pass
 
 
 def downgrade():

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import type React from "react"
 import { useEffect, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { type SystemConfig, SystemService } from "@/client"
 import GeneralSettings from "@/components/Settings/GeneralSettings"
 import {
@@ -17,6 +18,7 @@ export default function InitializationCheck({
 }: {
   children: React.ReactNode
 }) {
+  const { t } = useTranslation()
   const { user } = useAuth()
   const [open, setOpen] = useState(false)
 
@@ -29,9 +31,9 @@ export default function InitializationCheck({
   useEffect(() => {
     if (!isLoading && config) {
       const configMap: Record<string, string> = {}
-      ;(config as unknown as SystemConfig[]).forEach((item) => {
-        configMap[item.key] = item.value
-      })
+        ; (config as unknown as SystemConfig[]).forEach((item) => {
+          configMap[item.key] = item.value
+        })
 
       // Check if critical configs are missing
       const missingProjectsRoot = !configMap.PROJECTS_ROOT
@@ -54,9 +56,9 @@ export default function InitializationCheck({
       <AlertDialog open={open}>
         <AlertDialogContent className="max-w-3xl">
           <AlertDialogHeader>
-            <AlertDialogTitle>System Integration Required</AlertDialogTitle>
+            <AlertDialogTitle>{t("system.initializationTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Please configure the following system settings to proceed.
+              {t("system.initializationDesc")}
             </AlertDialogDescription>
           </AlertDialogHeader>
 

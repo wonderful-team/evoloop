@@ -4,6 +4,7 @@ import {
   MessageSquare,
   Server,
   Settings,
+  ListTodo,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { SidebarAppearance } from "@/components/Common/Appearance"
@@ -40,6 +41,12 @@ export function AppSidebar() {
       title: t("sidebar.projects"),
       path: "/projects",
       dataTour: "sidebar-projects",
+    },
+    {
+      icon: ListTodo,
+      title: t("sidebar.todos"),
+      path: "/todos",
+      dataTour: "sidebar-todos",
     },
   ]
 

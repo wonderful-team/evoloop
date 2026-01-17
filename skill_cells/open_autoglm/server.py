@@ -25,7 +25,7 @@ except ImportError as e:
     # Continue to allow server to start, but methods will fail
     PhoneAgent = None
 
-mcp = FastMCP("Open-AutoGLM Service")
+mcp = FastMCP("Open-AutoGLM Service", host="0.0.0.0")
 
 class MobileService:
     def __init__(self):

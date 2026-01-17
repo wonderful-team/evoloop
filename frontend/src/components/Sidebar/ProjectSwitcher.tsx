@@ -74,7 +74,7 @@ export function ProjectSwitcher() {
                 variant="secondary"
                 className="ml-2 h-5 text-[10px] px-1.5 font-normal bg-blue-100 text-blue-700 hidden sm:inline-flex gap-1"
               >
-                <RefreshCw className="h-3 w-3 animate-spin" /> Indexing
+                <RefreshCw className="h-3 w-3 animate-spin" /> {t("projectSwitcher.indexing")}
               </Badge>
             ) : currentProject?.summarization_status === "running" ||
               currentProject?.summarization_status === "SUMMARIZING" ? (
@@ -82,7 +82,7 @@ export function ProjectSwitcher() {
                 variant="secondary"
                 className="ml-2 h-5 text-[10px] px-1.5 font-normal bg-purple-100 text-purple-700 hidden sm:inline-flex gap-1"
               >
-                <ListTodo className="h-3 w-3 animate-pulse" /> Analyzing
+                <ListTodo className="h-3 w-3 animate-pulse" /> {t("projectSwitcher.analyzing")}
               </Badge>
             ) : (
               currentProject?.status_text && (
@@ -158,7 +158,7 @@ export function ProjectSwitcher() {
                           </Badge>
                           {project.indexing_status === "indexing" && (
                             <div
-                              title="Indexing..."
+                              title={t("projectSwitcher.indexingTooltip")}
                               className="text-blue-500 animate-spin"
                             >
                               <RefreshCw className="h-3.5 w-3.5" />

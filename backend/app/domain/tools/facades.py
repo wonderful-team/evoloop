@@ -62,7 +62,7 @@ async def manage_file_read_only(
 
 @evoloop_tool
 async def manage_file_docs_only(
-    action: Literal['list_tree', 'read', 'create', 'update_block'],
+    action: Literal['list_tree', 'read', 'create', 'update_block'] = 'list_tree',
     path: str | None = None,
     content: str | None = None,
     target: str | None = None,
@@ -160,7 +160,7 @@ def manage_git(
 
 @evoloop_tool
 async def manage_memory(
-    action: Literal['save_preference', 'retrieve_preferences', 'add_concept', 'search_concepts'],
+    action: Literal['save_preference', 'retrieve_preferences', 'add_concept', 'search_concepts'] = 'retrieve_preferences',
     key: str | None = None, # concept name or pref key
     value: str | None = None, # description or pref value
     config: Annotated[RunnableConfig, InjectedToolArg] = None

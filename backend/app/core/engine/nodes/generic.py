@@ -6,6 +6,7 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
 from app.core.engine.middleware import context_aware
+from app.core.engine.message_utils import smart_window_slice
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
@@ -51,7 +52,7 @@ async def generic_node(state: AgentState, config: RunnableConfig, node_config: d
     user_lang = context.get("user_preferences", "en")
     system_msg = f"{cfg.system_prompt}\n\nUser Language Preference: {user_lang}"
 
-    loop_messages = [SystemMessage(content=system_msg)] + messages[-10:] # Context Window
+    loop_messages = [SystemMessage(content=system_msg)] + smart_window_slice(messages, window_size=10)
 
     # 5. ReAct Loop (Simplified)
     # We allow up to 3 turns of tool usage

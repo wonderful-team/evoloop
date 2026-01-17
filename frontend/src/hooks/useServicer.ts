@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { AuthService } from "@/client/sdk.gen"
+import { UtilsService } from "@/client/sdk.gen"
 import useCustomToast from "./useCustomToast"
 
 type Platform = "mobile" | "desktop"
@@ -10,7 +10,7 @@ export const useServicer = (platform: Platform = "desktop") => {
   const { data: config, isLoading } = useQuery({
     queryKey: ["servicerConfig"],
     queryFn: async () => {
-      const res = await AuthService.getGlobalConfig()
+      const res = await UtilsService.getAiConfig()
       return res as any
     },
     staleTime: 1000 * 60 * 60, // 1 hour

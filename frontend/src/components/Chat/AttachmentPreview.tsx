@@ -1,11 +1,11 @@
-import { FileText, Image as ImageIcon, X } from "lucide-react"
+import { FileText, Image as ImageIcon, X, MessageSquare, Link } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 export interface Attachment {
   id: string
   url: string
   name: string
-  type: "image" | "file"
+  type: "image" | "file" | "reference" | "message"
 }
 
 interface AttachmentPreviewProps {
@@ -26,6 +26,10 @@ export function AttachmentPreview({
           <div className="flex items-center gap-2 px-3 py-2 bg-muted/40 border rounded-lg text-xs max-w-[200px]">
             {att.type === "image" ? (
               <ImageIcon className="w-4 h-4 text-purple-500 shrink-0" />
+            ) : att.type === "message" ? (
+              <MessageSquare className="w-4 h-4 text-green-500 shrink-0" />
+            ) : att.type === "reference" ? (
+              <Link className="w-4 h-4 text-orange-500 shrink-0" />
             ) : (
               <FileText className="w-4 h-4 text-blue-500 shrink-0" />
             )}

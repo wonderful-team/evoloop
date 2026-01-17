@@ -62,11 +62,9 @@ import { Button } from "@/components/ui/button"
 
 const ResetKnowledgeConfirmation = () => {
   const { t } = useTranslation()
-  const token = localStorage.getItem("access_token")
 
   const mutation = useMutation({
-    mutationFn: () =>
-      SystemService.resetKnowledgeBase({ authorization: `Bearer ${token}` }),
+    mutationFn: () => SystemService.resetKnowledgeBase(),
     onSuccess: () => {
       toast.success(
         t(

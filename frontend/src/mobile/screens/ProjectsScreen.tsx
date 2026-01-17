@@ -23,7 +23,7 @@ export function ProjectsScreen() {
   const { data, isLoading } = useQuery({
     queryKey: ["evoloop", "projects"],
     queryFn: async () => {
-      const res = (await ProjectsService.listProjects()) as any
+      const res = (await ProjectsService.getProjects()) as any
       return res
     },
     enabled: !!token,

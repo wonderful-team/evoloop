@@ -17,8 +17,8 @@ COPY src/ ./src/
 # Install dependencies
 # Open-AutoGLM requires some packages.
 # We also install 'mcp' and 'uvicorn' for the wrapper.
-RUN pip install --no-cache-dir ./src
-RUN pip install --no-cache-dir mcp uvicorn[standard]
+RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir ./src
+RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir mcp uvicorn[standard]
 
 # Copy server code
 COPY server.py .

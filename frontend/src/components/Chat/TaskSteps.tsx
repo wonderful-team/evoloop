@@ -37,8 +37,10 @@ interface TaskStepsProps {
   tasks: TaskItem[]
 }
 
+import { useTranslation } from "react-i18next"
+
 // New Helper: Group flat list into Phases
-function groupTasks(tasks: TaskItem[]): TaskGroup[] {
+function groupTasks(tasks: TaskItem[], t: any): TaskGroup[] {
   const groups: TaskGroup[] = []
   let currentGroup: TaskGroup | null = null
 
@@ -62,7 +64,7 @@ function groupTasks(tasks: TaskItem[]): TaskGroup[] {
         // Create implicit group if none exists
         currentGroup = {
           id: "g-start",
-          title: "Execution",
+          title: t("chat.steps.execution", "Execution"),
           status: "running",
           tasks: [],
           isImplicit: true,
@@ -143,6 +145,7 @@ const TaskNodeItem = memo(({ task }: { task: TaskItem }) => {
 TaskNodeItem.displayName = "TaskNodeItem"
 
 const TaskGroupItem = memo(({ group }: { group: TaskGroup }) => {
+  const { t } = useTranslation()
   // Auto-Folding Logic:
   // Open if status is 'running' OR it's the very last group (often active).
   // Closed if status is 'done'.
@@ -176,7 +179,7 @@ const TaskGroupItem = memo(({ group }: { group: TaskGroup }) => {
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
-                {group.tasks.length} steps
+                {group.tasks.length} {t("chat.steps.steps", "steps")}
               </span>
               {isOpen ? (
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -192,7 +195,7 @@ const TaskGroupItem = memo(({ group }: { group: TaskGroup }) => {
         <div className="p-2 pt-0 flex flex-col gap-1 mt-1">
           {group.tasks.length === 0 && (
             <div className="text-xs text-muted-foreground italic pl-8 py-2">
-              Initializing phase...
+              {t("chat.steps.initializingPhase", "Initializing phase...")}
             </div>
           )}
           {group.tasks.map(task => (
@@ -207,7 +210,8 @@ TaskGroupItem.displayName = "TaskGroupItem"
 
 
 export function TaskSteps({ tasks }: TaskStepsProps) {
-  const groups = useMemo(() => groupTasks(tasks || []), [tasks])
+  const { t } = useTranslation()
+  const groups = useMemo(() => groupTasks(tasks || [], t), [tasks, t])
 
   if (!tasks || tasks.length === 0) return null
 

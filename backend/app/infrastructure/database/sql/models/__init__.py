@@ -10,6 +10,7 @@ from .persistence import (
 )
 from .planning import Plan, PlanStep
 from .system import Job, McpServer, ProjectResource, Tool
+from .todo import TodoItem, TodoPriority, TodoStatus
 
 __all__ = [
     "Repository", "SourceFile", "CodeEntity", "CodeRelation", "CodeChunk",
@@ -18,5 +19,6 @@ __all__ = [
     "Job", "Tool", "McpServer", "ProjectResource",
     "TraceEvent", "LearnedSkill",
     "MemoryConcept",
-    "Checkpoint", "CheckpointWrite", "CheckpointBlob", "CheckpointMigration"
+    "Checkpoint", "CheckpointWrite", "CheckpointBlob", "CheckpointMigration",
+    "TodoItem", "TodoPriority", "TodoStatus"
 ]

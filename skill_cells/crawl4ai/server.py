@@ -21,7 +21,7 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("crawl4ai_server")
 
-mcp = FastMCP("Crawl4AI Service")
+mcp = FastMCP("Crawl4AI Service", host="0.0.0.0")
 
 @mcp.tool()
 async def crawl_url(url: str, include_links: bool = False, css_selector: str = None) -> str:

@@ -38,104 +38,96 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         pass
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> Any:
-        if not response.generations:
-            return
+        try:
+            if not response.generations:
+                return
 
-        generation = response.generations[0][0]
-        message = generation.message # type: ignore
-        content = message.content or ""
+            generation = response.generations[0][0]
+            message = generation.message # type: ignore
+            content = message.content or ""
+            
+            # Handle Multimodal/List content (e.g. Anthropic/Zhipu structured output)
+            if isinstance(content, list):
+                # Extract text elements
+                text_parts = []
+                for item in content:
+                    if isinstance(item, dict):
+                        if item.get("type") == "text":
+                            text_parts.append(item.get("text", ""))
+                        elif item.get("type") == "tool_use":
+                            pass 
+                    elif isinstance(item, str):
+                        text_parts.append(item)
+                content = "".join(text_parts)
+            
+            # Defensive: Ensure content is string
+            if not isinstance(content, str):
+                content = str(content)
 
-        # 1. Parse Thinking
-        import re
-        thinking = None
-        think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
-        if think_match:
-            thinking = think_match.group(1).strip()
-            content = content.replace(think_match.group(0), "").strip()
+            # 1. Parse Thinking
+            import re
+            thinking = None
+            think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
+            if think_match:
+                thinking = think_match.group(1).strip()
+                content = content.replace(think_match.group(0), "").strip()
 
-        # 2. Enhance with Tool Summaries
-        if hasattr(message, "tool_calls") and message.tool_calls:
-            summaries = []
-            for tc in message.tool_calls:
-                summaries.append(self._get_tool_summary(tc))
+            # 2. Enhance with Tool Summaries
+            if hasattr(message, "tool_calls") and message.tool_calls:
+                summaries = []
+                for tc in message.tool_calls:
+                    summaries.append(self._get_tool_summary(tc))
 
-            if summaries:
-                summary_block = "**Action:**\n" + "\n".join([f"- {s}" for s in summaries])
-                if content:
-                    content = f"{content}\n\n{summary_block}"
-                else:
-                    content = summary_block
-
-        # 3. Detect and Format JSON (Supervisor/Router Outputs)
-        import json
-        if content and content.strip().startswith("{") and content.strip().endswith("}"):
-            try:
-                data = json.loads(content)
-                # Case A: Routing Decision
-                if "next_node" in data:
-                    node = data.get("next_node")
-                    parallel = data.get("parallel_research_tasks")
-                    if node == "finish":
-                         # INTERCEPT: Update Cloud Status instead of logging message
-                         # thread_id format: task-{task_id}-{timestamp}
-                         import re
-                         task_match = re.search(r"task-(\d+)-", self.thread_id)
-                         if task_match:
-                             task_id = int(task_match.group(1))
-                             # STATUS_COMPLETED = 3, Progress = 100
-                             await evocloud_client.update_task_status(task_id, 3, 100)
-                             # Suppress local message logging
-                             return
-                        #  content = "✅ **Task Completed.**"
-                    elif node == "map_research" and parallel:
-                         tasks_str = ", ".join([f"`{t}`" for t in parallel])
-                         content = f"**Decision:** Researching multiple topics in parallel: {tasks_str}"
+                if summaries:
+                    summary_block = "**Action:**\n" + "\n".join([f"- {s}" for s in summaries])
+                    if content:
+                        content = f"{content}\n\n{summary_block}"
                     else:
-                         content = f"**Decision:** Routing to **{node}**."
+                        content = summary_block
 
-                # Case B: Intent Analysis (from legacy or other nodes)
-                elif "intent" in data and "reasoning" in data:
-                    intent = data.get("intent")
-                    reasoning = data.get("reasoning")
-                    refined = data.get("refined_instruction")
+            # 3. Detect and Format JSON (Supervisor/Router Outputs)
+            import json
+            if content and content.strip().startswith("{") and content.strip().endswith("}"):
+                try:
+                    data = json.loads(content)
+                    # Case A: Routing Decision
+                    if "next_node" in data:
+                        node = data.get("next_node")
+                        parallel = data.get("parallel_research_tasks")
+                        if node == "finish":
+                             # INTERCEPT: Update Cloud Status instead of logging message
+                             # thread_id format: task-{task_id}-{timestamp}
+                             import re
+                             task_match = re.search(r"task-(\d+)-", self.thread_id)
+                             if task_match:
+                                 task_id = int(task_match.group(1))
+                                 if evocloud_client:
+                                    import asyncio
+                                    asyncio.create_task(evocloud_client.update_task_status(task_id, 3, 100))
+                             
+                             return # Do not log 'finish' JSON to chat
+                        
+                        # Case B: Other JSON
+                        # Convert to nicely formatted text
+                        content = f"**Decision:** Route to `{node}`"
+                        if parallel:
+                            content += f"\n**Analysis:** {parallel}"
+                except Exception:
+                    pass
 
-                    md = f"**Analysis:** {reasoning}\n"
-                    md += f"**Intent:** `{intent}`"
-                    if refined:
-                        md += f"\n**Refined Goal:** {refined}"
+            # Persist to DB
+            tool_calls = getattr(message, "tool_calls", None)
+            await self._save_log(
+                role="assistant",
+                content=content,
+                thinking=thinking,
+                tool_calls=tool_calls
+            )
+                
+        except Exception as e:
+            # Swallow errors in logging to prevent crashing the flow
+            print(f"Error in DatabaseCallbackHandler: {e}") 
 
-                    # Fix: Move this internal analysis to 'thinking' so it's collapsed in UI
-                    # instead of showing as a main bubble.
-                    # Fix: Keep a summary in content so it's not empty
-                    thinking = md
-                    if not content or content.strip().startswith("{"):
-                         content = f"🤔 **Thinking Process:**\n{reasoning}\n\n(See Thinking tab for details)"
-
-
-            except json.JSONDecodeError:
-                pass # Not JSON, ignore
-
-        # 3. Save if we have content or thinking
-        if content or thinking:
-             # Phase 9: Extract References from tool calls
-             references = []
-             tool_calls_data = None
-
-             if hasattr(message, "tool_calls") and message.tool_calls:
-                 tool_calls_data = [tc for tc in message.tool_calls] # Copy list
-                 for tc in message.tool_calls:
-                     ref = self._extract_reference(tc)
-                     if ref:
-                         references.append(ref)
-
-             # Determine Role: If pure tool call (no text content), log as 'tool' to hide from UI
-             # But if mixed (Text + Action), keep as 'ai'
-             log_role = "ai"
-             original_text_content = generation.message.content or ""
-             if not original_text_content.strip() and hasattr(message, "tool_calls") and message.tool_calls:
-                 log_role = "tool"
-
-             await self._save_log(log_role, content, thinking=thinking, references=references, tool_calls=tool_calls_data)
 
     def _get_tool_summary(self, tool_call: dict) -> str:
         """Generate a user-friendly summary of what a tool is doing."""

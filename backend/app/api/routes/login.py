@@ -15,7 +15,7 @@ from app.models import Token
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(tags=["login"])
 
 @router.post("/login/access-token")
 async def login_access_token(

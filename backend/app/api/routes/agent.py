@@ -11,7 +11,7 @@ from app.api.deps import CurrentUserOptional, verify_guest_access
 from app.core.engine.tasks import run_agent_background
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import Conversation, Message
+from app.infrastructure.database.sql.models import Conversation, Message, MessageReference
 from app.logging import logger, set_context
 
 router = APIRouter()
@@ -46,16 +46,34 @@ async def chat_endpoint(
     """
     set_context(thread_id=req.thread_id, project_id=req.project_id)
 
+    # 0. Context Injection (Phase 9)
+    # If referencing messages, fetch content and append to input
+    if req.attachments:
+        try:
+            from app.infrastructure.database.sql.database import session_scope
+            from app.infrastructure.database.sql.models import Message
+            async with session_scope() as session:
+                for att in req.attachments:
+                    if att.get("type") == "message" and att.get("id"):
+                         # Fetch message content
+                         try:
+                             msg_id = int(att["id"])
+                             ref_msg = await session.get(Message, msg_id)
+                             if ref_msg and ref_msg.content:
+                                 # Append to user message for context
+                                 # Use XML-like quoting or Markdown blockquote
+                                 snippet = ref_msg.content[:500] + "..." if len(ref_msg.content) > 500 else ref_msg.content
+                                 req.message += f"\n\n> Quoted Message ({att.get('name', 'Reference')}):\n{snippet}\n"
+                         except (ValueError, TypeError):
+                             logger.warning(f"Invalid message reference ID: {att.get('id')}")
+                             continue
+        except Exception as e:
+            logger.warning(f"Failed to inject reference context: {e}")
+
     # 1. Construct input state
     if req.attachments:
         # Multimodal Message Construction
         content_blocks = []
-
-        # Add text first? Or images first? Usually images then text for context.
-        # But text is usually the "prompt".
-        # Let's append text at the end or beginning.
-        # OpenAI recommends Images then Text? Or Text then Images?
-        # Actually it's flexible. Let's do Images, then Text.
 
         for att in req.attachments:
             if "url" in att:
@@ -115,6 +133,31 @@ async def chat_endpoint(
             session.add(user_msg)
             await session.flush() # Ensure FK consistency
             logger.info(f"Persisted user message for thread {req.thread_id}")
+
+            # 4. Upsert References (Phase 9)
+            if req.attachments:
+                import uuid
+                for att in req.attachments:
+                    # att structure: {type: 'file'|'image'|'message', url?: string, id?: string, name?: string}
+                    ref_type = att.get("type", "file")
+                    target_id = att.get("url") or att.get("id") or "unknown"
+                    target_name = att.get("name") or target_id
+                    
+                    # Special handling for message references
+                    if ref_type == 'message':
+                        # target_id should be the message ID
+                        pass
+
+                    ref = MessageReference(
+                        id=str(uuid.uuid4()),
+                        message_id=user_msg.id,
+                        type=ref_type,
+                        target_id=str(target_id),
+                        target_name=str(target_name)
+                    )
+                    session.add(ref)
+                
+                logger.info(f"Persisted {len(req.attachments)} references for msg {user_msg.id}")
 
     except Exception as e:
         logger.error(f"Failed to upsert logic: {e}")

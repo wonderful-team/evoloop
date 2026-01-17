@@ -19,6 +19,7 @@ from app.api.routes import (
     symbols,
     system,
     tasks,
+    todos,
     tools,
     users,
     utils,
@@ -47,7 +48,8 @@ api_router.include_router(system.router)
 api_router.include_router(resources.router)
 
 # Project Management Modules (Proxy)
-api_router.include_router(tasks.router, prefix="/tasks", tags=["tasks"])
+api_router.include_router(tasks.router, prefix="/tasks")
+api_router.include_router(todos.router, prefix="/todos", tags=["todos"])
 api_router.include_router(project_modules.router, prefix="/project-modules", tags=["project-modules"])
 
 # Learning & Human-in-Loop (Phase 0.2)

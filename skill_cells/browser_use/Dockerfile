@@ -15,8 +15,8 @@ COPY src/ ./src/
 # Install dependencies from src
 # Using pip to install the package in editable mode or just install deps
 # We also need mcp, uvicorn, etc.
-RUN pip install --no-cache-dir ./src
-RUN pip install --no-cache-dir mcp uvicorn[standard] langchain-openai
+RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir ./src
+RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir mcp uvicorn[standard] langchain-openai
 
 # Copy server code
 COPY server.py .

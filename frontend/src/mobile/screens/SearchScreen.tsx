@@ -70,7 +70,7 @@ export function SearchScreen() {
   const { data: projectsData } = useQuery({
     queryKey: ["evoloop", "projects"],
     queryFn: async () => {
-      const res: any = await ProjectsService.listProjects()
+      const res: any = await ProjectsService.getProjects()
       return res // normalize in 'projects' below
     },
   })

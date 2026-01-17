@@ -7,7 +7,7 @@ from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from app.core.engine.message_utils import repair_message_history
+from app.core.engine.message_utils import repair_message_history, smart_window_slice
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.core.prompts.tester_builder import TesterPromptBuilder
@@ -48,8 +48,9 @@ class TesterNode:
         system_msg = TesterPromptBuilder.build_system_prompt()
 
         # 2. Construct Loop Context
-        # We take last 5 messages + System Prompt
-        raw_context = [SystemMessage(content=system_msg)] + messages[-5:]
+        # We use smart_window_slice to keep User Goal + Recent Context
+        windowed_messages = smart_window_slice(messages, window_size=5)
+        raw_context = [SystemMessage(content=system_msg)] + windowed_messages
         loop_messages = repair_message_history(raw_context)
 
         cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()

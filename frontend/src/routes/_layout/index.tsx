@@ -61,7 +61,7 @@ function Dashboard() {
   // 2. Fetch Projects
   const { data: projectsData, isLoading: isProjectsLoading } = useQuery({
     queryKey: ["projects"],
-    queryFn: () => ProjectsService.listProjects(),
+    queryFn: () => ProjectsService.getProjects(),
   })
   // Cast to any because generated type is unknown
   const projects = (projectsData as any)?.projects || []

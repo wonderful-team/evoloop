@@ -12,11 +12,12 @@ WORKDIR /app
 # Copy Source
 COPY src/ ./src/
 
-# Install dependencies from src
-# We specifically use the requirements from src to ensure compatibility
-# Plus mcp and uvicorn for the server
-RUN pip install --no-cache-dir ./src
-RUN pip install --no-cache-dir mcp uvicorn[standard] 
+# Copy and install explicit comprehensive requirements
+COPY requirements_final.txt .
+RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir -r requirements_final.txt
+
+# Install the package itself
+RUN pip install -i https://pypi.tuna.tsinghua.edu.cn/simple --no-cache-dir --no-deps ./src 
 
 # Copy server code
 COPY server.py .

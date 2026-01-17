@@ -63,6 +63,6 @@ system_info: {system_info}
 - If unsure, default to "deep_researcher"
 """),
             ("placeholder", "{messages}"),
-            ("system", "Analyze the conversation above. Output ONLY the JSON object:"),
+            ("human", "Analyze the conversation above. Output ONLY the JSON object:"),
         ])
 

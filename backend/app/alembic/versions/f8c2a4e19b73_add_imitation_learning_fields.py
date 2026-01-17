@@ -20,14 +20,16 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # Add new columns for imitation learning
-    op.add_column('trace_events', sa.Column('is_human_action', sa.Boolean(), nullable=False, server_default='false'))
-    op.add_column('trace_events', sa.Column('screenshot_path', sa.String(500), nullable=True))
-    op.add_column('trace_events', sa.Column('ui_element_info', sa.Text(), nullable=True))
-    op.add_column('trace_events', sa.Column('user_feedback', sa.Text(), nullable=True))
-    op.add_column('trace_events', sa.Column('recording_session_id', sa.String(255), nullable=True))
+    # op.add_column('trace_events', sa.Column('is_human_action', sa.Boolean(), nullable=False, server_default='false'))
+    # op.add_column('trace_events', sa.Column('action_correction', sa.Text(), nullable=True))
+    # op.add_column('trace_events', sa.Column('human_feedback', sa.Text(), nullable=True))
+    pass
+    # op.add_column('trace_events', sa.Column('user_feedback', sa.Text(), nullable=True))
+    # op.add_column('trace_events', sa.Column('recording_session_id', sa.String(255), nullable=True))
     
     # Add index for recording_session_id for fast session queries
-    op.create_index(op.f('ix_trace_events_recording_session_id'), 'trace_events', ['recording_session_id'], unique=False)
+    # op.create_index(op.f('ix_trace_events_recording_session_id'), 'trace_events', ['recording_session_id'], unique=False)
+    pass
 
 
 def downgrade() -> None:

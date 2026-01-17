@@ -177,7 +177,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         let displayContent = content
         if (attachments.length > 0) {
             const attachmentLinks = attachments
-                .map((att) => att.type === 'image' ? `![Image](${att.url})` : `[File: ${att.url}]`)
+                .map((att) => att.type === 'image' ? `![Image](${att.url})` : `[${att.type === 'message' ? 'Message' : 'File'}: ${att.name || att.url}]`)
                 .join("\n")
             displayContent = displayContent
                 ? `${displayContent}\n${attachmentLinks}`

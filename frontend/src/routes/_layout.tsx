@@ -26,7 +26,8 @@ function Layout() {
   const isFullWidth =
     pathname.includes("/chat") ||
     pathname.includes("/files") ||
-    pathname.includes("/projects")
+    pathname.includes("/projects") ||
+    pathname.includes("/todos")
 
   // Show wizard when setup is required
   useEffect(() => {
@@ -40,20 +41,16 @@ function Layout() {
       <SidebarProvider className={isFullWidth ? "h-svh overflow-hidden" : ""}>
         <AppSidebar />
         <SidebarInset>
-          <main
-            className={`flex-1 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8"}`}
-          >
-            <div
-              className={isFullWidth ? "h-full w-full" : "mx-auto max-w-7xl"}
-            >
+          <main className={`flex-1 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8"}`}>
+            <div className={isFullWidth ? "h-full w-full" : "mx-auto max-w-7xl"}>
               <Outlet />
             </div>
           </main>
+
           {!isFullWidth && <Footer />}
         </SidebarInset>
       </SidebarProvider>
 
-      {/* Setup Wizard */}
       <SetupWizard open={showWizard} onOpenChange={setShowWizard} />
     </SpotlightTourProvider>
   )

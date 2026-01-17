@@ -49,10 +49,8 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
     console.log("Loading task detail for id:", id)
     setLoading(true)
     try {
-      const token = localStorage.getItem("access_token")
       const res = (await TasksService.getTaskDetail({
         taskId: id,
-        authorization: token,
       })) as any
       console.log("Task detail response:", res)
       if (res.code === 0) {

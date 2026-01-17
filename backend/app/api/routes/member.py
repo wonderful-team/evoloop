@@ -5,7 +5,7 @@ from app.api.deps import TokenDep
 
 from app.infrastructure.external.evocloud import evocloud_client
 
-router = APIRouter()
+router = APIRouter(tags=["member"])
 
 class LoginRequest(BaseModel):
     username: str

@@ -355,3 +355,77 @@ async def search_files(project_id: int, q: str):
         logger.error(f"Search failed: {e}")
 
     return results
+
+@router.get("/search_name", response_model=list[dict])
+async def search_files_by_name(project_id: int, q: str):
+    """
+    Search for file NAMES (not content).
+    Much faster for "Quick Open" or "Reference" features.
+    """
+    if not q or len(q.strip()) < 1:
+        return []
+
+    project = await project_context_manager.get_project_by_id(project_id)
+    if not project:
+         raise HTTPException(status_code=404, detail="Project not found")
+
+    root_path = project.get("path")
+    if not root_path or not os.path.exists(root_path):
+        return []
+
+    results = []
+    try:
+        # Use find or fd to search filenames
+        from app.utils.process import run_async_command
+        
+        # Using 'find' for portability, though 'fd' is better if installed.
+        # Let's stick to standard find or simple python walk if not too big.
+        # Python walk is safer for no-dependency.
+        
+        # Simple Python walk for now (safer than shell injection risks with find if not careful)
+        # But for large repos, walk is slow? 
+        # Actually for 10k files python walk is instant (ms). 
+        # 100k files might take 1s.
+        
+        q_lower = q.lower()
+        count = 0
+        from app.constants import BLACKLIST_DIRS
+        IGNORE_DIRS = set(BLACKLIST_DIRS).union({'.idea', '.vscode', '.DS_Store', 'dist', 'build', '.git', '__pycache__', 'node_modules'})
+
+        for root, dirs, files in os.walk(root_path):
+            # Prune ignored dirs
+            dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not d.startswith('.')]
+            
+            for file in files:
+                if q_lower in file.lower():
+                    # Match!
+                    full_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(full_path, root_path)
+                    
+                    results.append({
+                        "name": file,
+                        "path": rel_path,
+                        "type": "file"
+                    })
+                    count += 1
+                    if count >= 20: # Limit results
+                        return results
+            
+            # Also match directories?
+            for d in dirs:
+                 if q_lower in d.lower():
+                    full_path = os.path.join(root, d)
+                    rel_path = os.path.relpath(full_path, root_path)
+                    results.append({
+                        "name": d,
+                        "path": rel_path,
+                        "type": "directory"
+                    })
+                    count += 1
+                    if count >= 20:
+                        return results
+
+    except Exception as e:
+        logger.error(f"File name search failed: {e}")
+
+    return results

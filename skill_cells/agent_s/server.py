@@ -27,7 +27,8 @@ except ImportError as e:
     sys.exit(1)
 
 # Initialize MCP Server
-mcp = FastMCP("Agent-S Service")
+mcp = FastMCP("Agent-S Service", host="0.0.0.0")
+mcp.settings.host = "0.0.0.0"
 
 class AgentService:
     def __init__(self):

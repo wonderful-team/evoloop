@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from app.infrastructure.external.evocloud import evocloud_client
 from app.logging import logger
 
-router = APIRouter()
+router = APIRouter(tags=["tasks"])
 
 # --- Helper ---
 def get_token(authorization: str | None = Header(None)):

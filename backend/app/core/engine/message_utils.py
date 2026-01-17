@@ -124,5 +124,14 @@ def smart_window_slice(messages: list[BaseMessage], window_size: int = 30) -> li
     while start_index > 0 and isinstance(messages[start_index], ToolMessage):
             start_index -= 1
 
-    return messages[start_index:]
+    # Slice
+    sliced_msgs = messages[start_index:]
+
+    # Enhance: Preserve the First Human Message (User Goal) if it was sliced out
+    # This ensures Supervisor keeps the original context/intent.
+    first_human_msg = next((m for m in messages if isinstance(m, HumanMessage)), None)
+    if first_human_msg and first_human_msg not in sliced_msgs:
+        sliced_msgs.insert(0, first_human_msg)
+
+    return sliced_msgs
 

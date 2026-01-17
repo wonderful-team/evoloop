@@ -13,7 +13,7 @@ export const useMemberCancellation = (platform: Platform = "desktop") => {
   const api = {
     getInfo: MemberService.getCancellationInfo,
     apply: MemberService.applyCancellation,
-    cancel: MemberService.cancelCancellationApply,
+    cancel: MemberService.cancelCancellation,
   }
 
   const { data: info, isLoading } = useQuery({

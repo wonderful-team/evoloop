@@ -1,6 +1,6 @@
 import logging
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.state import AgentState
@@ -99,7 +99,15 @@ async def finish_node(state: AgentState, config: RunnableConfig):
 
     final_msg = "\n".join(summary_parts)
 
-    # 4. Sync Trace to Episode Graph (Graph Memory)
+    # 4. Proactive Todo Check (The "Meeting Minutes" Strategy)
+    try:
+        todo_notice = await _check_proactive_todos(state, config)
+        if todo_notice:
+            final_msg += f"\n\n{todo_notice}"
+    except Exception as e:
+        logger.warning(f"Proactive todo check failed: {e}")
+
+    # 5. Sync Trace to Episode Graph (Graph Memory)
     try:
         from app.core.learning.trace_recorder import sync_thread_to_graph
         thread_id = config.get("configurable", {}).get("thread_id", None)
@@ -116,6 +124,72 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     return {
         "messages": [AIMessage(content=final_msg)]
     }
+
+async def _check_proactive_todos(state: AgentState, config: RunnableConfig) -> str | None:
+    """
+    Analyze the conversation to see if any todos should be created proactively.
+    Acts like a "Meeting Minutes" summarizer.
+    """
+    messages = state.get("messages", [])
+    if not messages: return None
+
+    # Heuristic Check: Removed per user feedback.
+    # We now trust the LLM to analyze the context directly for every finish state.
+    # This ensures we catch implied tasks in any language without hardcoded keywords.
+    content_blob = "\n".join([m.content for m in messages[-5:] if isinstance(m, (HumanMessage, AIMessage))])
+
+    # LLM Analysis
+    try:
+        from app.domain.tools.manage_todo import manage_todo
+        from langchain_core.pydantic_v1 import BaseModel, Field
+
+        class ProactiveTodo(BaseModel):
+            should_create: bool = Field(description="Whether a todo should be created.")
+            title: str | None = Field(description="Title of the todo.")
+            due_date: str | None = Field(description="Due date in relative format (e.g. '1 hour') or ISO.")
+            reason: str | None = Field(description="Why this todo is needed.")
+
+        llm = LLMFactory.create_llm(temperature=0)
+        structured = llm.with_structured_output(ProactiveTodo)
+        
+        system_prompt = """You are a Proactive Assistant. 
+Analyze the recent conversation. Did the user or agent mention a task that needs to be done LATER, or is currently running and needs checking?
+Examples: "I'm deploying...", "Run tests (takes 30m)", "Remind me to check logs".
+Ignore if:
+1. The task is already completed.
+2. It's just a general statement or chitchat (e.g. "Thanks", "Goodbye").
+3. The user explicitly said they will handle it themselves without needing a reminder.
+
+If yes, extract the todo details. due_date should be relative (e.g. '30 mins') if implied."""
+
+        result = await structured.ainvoke([
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=f"Conversation History:\n{content_blob}")
+        ])
+        
+        if result and result.should_create and result.title:
+            logger.info(f"Proactive Todo Identified: {result.title} ({result.due_date})")
+            
+            # Execute Tool
+            # We must use .ainvoke because it is a StructuredTool
+            response = await manage_todo.ainvoke(
+                {
+                    "action": "add",
+                    "title": result.title,
+                    "due_date": result.due_date,
+                    "category": "proactive",
+                    "priority": "medium",
+                    "description": f"Auto-created from context: {result.reason}"
+                },
+                config=config 
+            )
+            
+            return f"📝 **Proactive Reminder**: I've added a todo: '{result.title}' ({result.due_date or 'No date'})."
+            
+    except Exception as e:
+        logger.warning(f"Error in proactive todo analysis: {e}")
+    
+    return None
 
 async def _harvest_report_concepts(report_text: str, project_id: int) -> list[str]:
     """
