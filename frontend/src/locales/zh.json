@@ -954,11 +954,13 @@
       "initializingPhase": "正在初始化阶段..."
     },
     "interface": {
+      "inputDisabled": "请回复上方的待处理请求...",
       "inputHint": "按 Enter 发送，Shift + Enter 换行",
-      "startPrompt": "开始一个新的对话...",
+      "startPrompt": "开启新对话或选择下方任务。",
       "errorSend": "发送消息失败",
+      "welcome": "今天有什么可以帮您？",
       "learnedFromChat": "从对话中学习",
-      "exportSuccess": "聊天记录导出成功",
+      "exportSuccess": "导出成功",
       "thinking": "思考中...",
       "deepResearching": "深度研究中...",
       "copy": "复制",
@@ -1014,6 +1016,8 @@
       "tabKnowledge": "知识库",
       "tabTools": "工具",
       "tabResources": "资源",
+      "groupContext": "上下文",
+      "groupSystem": "系统",
       "memoryTitle": "记忆概念",
       "noConcepts": "未找到记忆概念。",
       "planTitle": "活跃计划",
@@ -1046,6 +1050,12 @@
       "noFiles": "没有找到文件。",
       "linkAdded": "链接已添加",
       "linkFailed": "添加链接失败",
+      "starter": {
+        "analyze": "分析当前代码库结构",
+        "plan": "制定新的实施计划",
+        "tasks": "目前有哪些待办任务？",
+        "help": "帮助我理解这个项目"
+      },
       "resourceRemoved": "资源已移除",
       "addMemory": {
         "title": "添加记忆",

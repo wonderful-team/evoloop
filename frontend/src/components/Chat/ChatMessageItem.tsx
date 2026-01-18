@@ -5,7 +5,6 @@ import {
   Copy,
   MoreHorizontal,
   RotateCcw,
-  Save,
   User,
   Quote,
 } from "lucide-react"
@@ -26,6 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 import { Button } from "../ui/button"
 import { TestReportCard } from "./Artifacts/TestReportCard"
 import { MessageContent } from "./MessageContent"
+import { TaskSteps } from "./TaskSteps"
 import { SourcesFooter } from "./SourcesFooter"
 
 export interface Message {
@@ -55,15 +55,16 @@ export interface Message {
 
 interface ChatMessageItemProps {
   msg: Message
+  isGrouped?: boolean
+  showAvatar?: boolean
   onAddToMemory?: (text: string) => void
-  onExport?: (text: string) => void
   onRewind?: () => void
   onRetry?: () => void
   onQuote?: () => void
 }
 
 const ChatMessageItem = memo(
-  ({ msg, onAddToMemory, onExport, onRewind, onRetry, onQuote }: ChatMessageItemProps) => {
+  ({ msg, isGrouped, showAvatar, onAddToMemory, onRewind, onRetry, onQuote }: ChatMessageItemProps) => {
     const { t } = useTranslation()
 
     // Hide intermediate tool outputs and system prompts from main chat
@@ -74,15 +75,21 @@ const ChatMessageItem = memo(
     return (
       <div
         data-run-id={msg.run_id}
-        className={`group relative flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"} items-start mb-4`}
+        className={`group relative flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"} items-start ${isGrouped ? "mb-1" : "mb-6"}`}
       >
         {msg.role === "ai" && (
-          <Avatar className="h-8 w-8 mt-1 shrink-0">
-            <AvatarImage src="/bot-avatar.png" />
-            <AvatarFallback>
-              <Bot size={16} />
-            </AvatarFallback>
-          </Avatar>
+          <div className="shrink-0 w-8 flex flex-col items-center">
+            {showAvatar ? (
+              <Avatar className="h-8 w-8 mt-1">
+                <AvatarImage src="/bot-avatar.png" />
+                <AvatarFallback>
+                  <Bot size={16} />
+                </AvatarFallback>
+              </Avatar>
+            ) : (
+              <div className="w-8" /> // Spacer for alignment
+            )}
+          </div>
         )}
 
         <div className={`relative max-w-[85%]`}>
@@ -132,51 +139,11 @@ const ChatMessageItem = memo(
               )
             })()}
 
-            {/* Phase 6: Historical Task Steps */}
+            {/* Phase 6: Historical Task Steps (Unified Component) */}
             {msg.tasks_snapshot && msg.tasks_snapshot.length > 0 && (
-              <Collapsible defaultOpen={false} className="w-full">
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 p-0 text-muted-foreground hover:bg-transparent flex items-center gap-1 text-xs"
-                  >
-                    <ChevronDown size={12} />
-                    <span className="italic">
-                      {
-                        msg.tasks_snapshot.filter((t) => t.status === "done")
-                          .length
-                      }
-                      /{msg.tasks_snapshot.length} steps
-                    </span>
-                  </Button>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-md mb-2 border-l-2 border-primary/20">
-                  <ul className="space-y-1">
-                    {msg.tasks_snapshot.map((t) => (
-                      <li key={t.id} className="flex items-center gap-2">
-                        <span
-                          className={
-                            t.status === "done"
-                              ? "text-green-500"
-                              : t.status === "failed"
-                                ? "text-red-500"
-                                : "text-muted-foreground"
-                          }
-                        >
-                          •
-                        </span>
-                        <span>{t.name}</span>
-                        {t.time && (
-                          <span className="text-muted-foreground/60">
-                            ({t.time})
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                </CollapsibleContent>
-              </Collapsible>
+              <div className="mb-2 w-full">
+                <TaskSteps tasks={msg.tasks_snapshot as any} />
+              </div>
             )}
 
             {/* Sources Footer */}
@@ -233,8 +200,21 @@ const ChatMessageItem = memo(
 
           {/* Message Actions */}
           <div
-            className={`absolute -top-2 ${msg.role === "user" ? "-left-10" : "-right-10"} opacity-0 group-hover:opacity-100 transition-opacity`}
+            className={`absolute -top-2 ${msg.role === "user" ? "-left-10" : "-right-10"} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1`}
           >
+            {/* Exposed Retry Button for AI */}
+            {onRetry && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-full bg-background border shadow-sm text-muted-foreground hover:text-foreground"
+                onClick={() => onRetry()}
+                title={t("chat.interface.retry", "Retry")}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            )}
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -261,12 +241,6 @@ const ChatMessageItem = memo(
                         {t("chat.interface.memorize")}
                       </DropdownMenuItem>
                     )}
-                    {onExport && (
-                      <DropdownMenuItem onClick={() => onExport(msg.content)}>
-                        <Save className="mr-2 h-4 w-4" />{" "}
-                        {t("chat.interface.export")}
-                      </DropdownMenuItem>
-                    )}
                     {onRewind && (
                       <DropdownMenuItem onClick={() => onRewind()}>
                         <RotateCcw className="mr-2 h-4 w-4" />{" "}
@@ -280,13 +254,6 @@ const ChatMessageItem = memo(
                         {t("chat.interface.quote", "Quote")}
                       </DropdownMenuItem>
                     )}
-                    {/* Retry Action for AI Messages (Regenerate) */}
-                    {onRetry && (
-                      <DropdownMenuItem onClick={() => onRetry()}>
-                        <RotateCcw className="mr-2 h-4 w-4" />{" "}
-                        {t("chat.interface.retry", "Retry")}
-                      </DropdownMenuItem>
-                    )}
                   </>
                 )}
               </DropdownMenuContent>
@@ -295,11 +262,17 @@ const ChatMessageItem = memo(
         </div>
 
         {msg.role === "user" && (
-          <Avatar className="h-8 w-8 mt-1 shrink-0">
-            <AvatarFallback>
-              <User size={16} />
-            </AvatarFallback>
-          </Avatar>
+          <div className="shrink-0 w-8 flex flex-col items-center">
+            {showAvatar ? (
+              <Avatar className="h-8 w-8 mt-1">
+                <AvatarFallback>
+                  <User size={16} />
+                </AvatarFallback>
+              </Avatar>
+            ) : (
+              <div className="w-8" /> // Spacer
+            )}
+          </div>
         )}
 
         {/* Timestamp */}

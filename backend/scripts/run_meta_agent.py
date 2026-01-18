@@ -10,7 +10,7 @@ backend_dir = os.path.dirname(current_dir)
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
-from app.core.workflows.graph_builder import GraphBuilder
+from app.core.engine.graph_builder import GraphBuilder
 
 
 async def run_meta_agent():
@@ -73,6 +73,7 @@ async def run_meta_agent():
                     print("✅ [ContextPruner] pruned old tool context!")
 
     print("--- [Meta Agent] Execution Finished ---")
+
 
 if __name__ == "__main__":
     asyncio.run(run_meta_agent())

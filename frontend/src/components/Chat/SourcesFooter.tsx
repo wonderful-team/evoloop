@@ -1,4 +1,11 @@
-import { ChevronDown } from "lucide-react"
+import {
+    ChevronDown,
+    Brain,
+    FileText,
+    Search,
+    Terminal,
+    BookOpen
+} from "lucide-react"
 import { memo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "../ui/button"
@@ -31,15 +38,15 @@ export const SourcesFooter = memo(({ references, maxVisible = 3 }: SourcesFooter
     const getIcon = (type: string) => {
         switch (type) {
             case "memory":
-                return "🧠"
+                return <Brain size={14} className="text-amber-500" />
             case "file":
-                return "📄"
+                return <FileText size={14} className="text-blue-500" />
             case "search":
-                return "🔍"
+                return <Search size={14} className="text-purple-500" />
             case "tool":
-                return "🔧"
+                return <Terminal size={14} className="text-slate-500" />
             default:
-                return "📚"
+                return <BookOpen size={14} className="text-muted-foreground" />
         }
     }
 

@@ -47,10 +47,20 @@ class ToolRetriever:
 
                 self.tools_map[tool.name] = tool
 
-                # Create semantic signature
+                # Create semantic signature (Phase 18: Added atomic file tools)
                 signature = f"Tool: {tool.name}\nDescription: {tool.description}"
                 if tool.name == "manage_file":
                     signature += "\nKeywords: read write create delete move copy mkdir list file folder directory filesystem update edit"
+                elif tool.name == "read_file":
+                    signature += "\nKeywords: read view file content text open"
+                elif tool.name == "write_file":
+                    signature += "\nKeywords: write create save file new content"
+                elif tool.name == "edit_file":
+                    signature += "\nKeywords: edit modify update replace change code refactor"
+                elif tool.name == "list_files":
+                    signature += "\nKeywords: list tree directory folder structure explore browse"
+                elif tool.name == "file_system":
+                    signature += "\nKeywords: mkdir delete remove move rename filesystem operations"
                 elif tool.name == "explore_codebase":
                     signature += "\nKeywords: search find grep definition reference usage call graph navigation symbol class function"
                 elif tool.name == "run_command":

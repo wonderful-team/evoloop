@@ -5,6 +5,7 @@ export interface ChatConnectionCallbacks {
     onToken: (token: string) => void;
     onActivity: (activity: any) => void;
     onHumanRequest: (request: any) => void;
+    onMessage: (message: any) => void; // Phase 11
     onError: (error: string) => void;
 }
 
@@ -129,6 +130,16 @@ export class ChatConnection {
                 this.callbacks?.onActivity(data);
             } catch (err) {
                 console.error("[ChatConnection] Failed to parse activity", err);
+            }
+        });
+
+        // Phase 11: Real-time Message Sync
+        sse.addEventListener("message", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onMessage(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse message", err);
             }
         });
 

@@ -5,10 +5,12 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
+from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
+
 
 # Re-use DeepResearcher logic but wrapped for documentation purpose
 # Or we can just include the "Deep Research" loop inside here if we want tighter control.
@@ -27,7 +29,6 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     """
     import json
 
-
     # Check for pending plan in hitl_state
     hitl = state.get("hitl_state")
     pending_plan_json = hitl.get("context", {}).get("wiki_plan") if hitl else None
@@ -43,16 +44,18 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
         messages = state.get("messages", [])
         last_msg = messages[-1]
 
+        last_content_str = get_message_text(last_msg)
+
         is_approved = False
         if isinstance(last_msg, HumanMessage):
-             # Simple heuristic for "Yes"
-             if "yes" in last_msg.content.lower() or "approve" in last_msg.content.lower() or "ok" in last_msg.content.lower():
-                 is_approved = True
+            # Simple heuristic for "Yes"
+            if "yes" in last_content_str.lower() or "approve" in last_content_str.lower() or "ok" in last_content_str.lower():
+                is_approved = True
 
         if not is_approved:
             # Maybe they said "No" or "Change X".
             # For "No", we abort.
-            if "no" in last_msg.content.lower() and len(last_msg.content) < 10:
+            if "no" in last_content_str.lower() and len(last_content_str) < 10:
                 return {
                     "messages": [AIMessage(content="Documentation plan cancelled by user.")],
                     "hitl_state": None  # Clear HITL state

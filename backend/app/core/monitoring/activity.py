@@ -28,9 +28,9 @@ class ActivityMonitor:
             return redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
 
         if loop in self._clients:
-             client = self._clients[loop]
-             # Check if closed? Redis client doesn't expose is_closed easily, but we trust it.
-             return client
+            client = self._clients[loop]
+            # Check if closed? Redis client doesn't expose is_closed easily, but we trust it.
+            return client
 
         # New Client for this loop
         client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
@@ -39,27 +39,27 @@ class ActivityMonitor:
 
     @property
     def client(self) -> redis.Redis:
-         # Deprecated property access, but kept for backward compat if synchronous?
-         # But all usages are `await self.client...` which is wrong if client is property returning object.
-         # Actually usages are `await self.client.hset(...)`.
-         # We need to change usages to `client = await self.get_client(); await client.hset(...)`
-         # OR make `client` property return a proxy?
-         # Simpler: The usages are `self.client.hset`. `self.client` returns the Redis object.
-         # If I change `client` to a method, I break all calls.
-         # BUT `client` property cannot be async.
-         # AND `asyncio.get_running_loop()` works inside property if called from async function? Yes.
+        # Deprecated property access, but kept for backward compat if synchronous?
+        # But all usages are `await self.client...` which is wrong if client is property returning object.
+        # Actually usages are `await self.client.hset(...)`.
+        # We need to change usages to `client = await self.get_client(); await client.hset(...)`
+        # OR make `client` property return a proxy?
+        # Simpler: The usages are `self.client.hset`. `self.client` returns the Redis object.
+        # If I change `client` to a method, I break all calls.
+        # BUT `client` property cannot be async.
+        # AND `asyncio.get_running_loop()` works inside property if called from async function? Yes.
 
-         # Let's try to keep property but make it smart.
-         try:
+        # Let's try to keep property but make it smart.
+        try:
             loop = asyncio.get_running_loop()
             if loop not in self._clients:
                 self._clients[loop] = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
             return self._clients[loop]
-         except RuntimeError:
-             # If no loop running, return a default/global one?
-             if self._global_client is None:
-                 self._global_client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
-             return self._global_client
+        except RuntimeError:
+            # If no loop running, return a default/global one?
+            if self._global_client is None:
+                self._global_client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+            return self._global_client
 
     @classmethod
     def get_instance(cls):
@@ -109,17 +109,17 @@ class ActivityMonitor:
                     t["status"] = "cancelled" if final_status == "cancelled" else "done"
                     modified = True
             if modified:
-                 await self.client.hset(key, "tasks", json.dumps(tasks))
+                await self.client.hset(key, "tasks", json.dumps(tasks))
 
-                 # Publish update events for modified tasks
-                 # Simplification: Just publish the end-run status for now or iterate
-                 # Iterate to be precise
-                 for t in tasks:
-                     if t["status"] in ["done", "cancelled"] and t.get("start_time"): # It was running
-                          await self.client.publish(
-                              f"chat:{thread_id}:events",
-                              TaskEvent(action="update", id=t["id"], data={"status": t["status"]}).json()
-                          )
+                # Publish update events for modified tasks
+                # Simplification: Just publish the end-run status for now or iterate
+                # Iterate to be precise
+                for t in tasks:
+                    if t["status"] in ["done", "cancelled"] and t.get("start_time"):  # It was running
+                        await self.client.publish(
+                            f"chat:{thread_id}:events",
+                            TaskEvent(action="update", id=t["id"], data={"status": t["status"]}).json()
+                        )
 
         # Publish Status Change
         await self.client.publish(
@@ -175,7 +175,7 @@ class ActivityMonitor:
             # We don't delete the key, just clear the field and set status to running
             await self.client.hset(key, mapping={
                 "status": "running",
-                "human_request": "", # Clear it
+                "human_request": "",  # Clear it
                 "interrupt_reason": "",
                 "updated_at": time.time()
             })
@@ -203,8 +203,7 @@ class ActivityMonitor:
         if await self.client.exists(key):
             await self.client.hset(key, "active_memories", json.dumps([]))
 
-
-    async def add_task(self, thread_id: str, name: str, task_type="node"):
+    async def add_task(self, thread_id: str, name: str, task_type="node", parent_id: int = None):
         key = f"activity:{thread_id}"
 
         # Use a lock to prevent Race Conditions on the JSON list
@@ -229,6 +228,7 @@ class ActivityMonitor:
                     "name": name,
                     "status": "running",
                     "type": task_type,
+                    "parent_id": parent_id,
                     "start_time": time.time(),
                     "time": "0s"
                 }
@@ -407,6 +407,7 @@ class ActivityMonitor:
                 status_map[thread_ids[i]] = "unknown"
 
         return status_map
+
 
 # Global Instance
 activity_monitor = ActivityMonitor.get_instance()

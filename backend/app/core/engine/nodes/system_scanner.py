@@ -4,6 +4,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from sqlalchemy import func, select
 
+from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.infrastructure.database.sql.database import session_scope
@@ -103,9 +104,10 @@ async def system_scanner_node(state: AgentState, config: RunnableConfig):
     """
 
     response = await llm.ainvoke([SystemMessage(content=prompt)])
+    response_content = get_message_text(response)
 
     return {
-        "messages": [AIMessage(content=f"🩺 Health Scan Complete.\n\n{response.content}")],
-        "evolution_report": response.content,
+        "messages": [AIMessage(content=f"🩺 Health Scan Complete.\n\n{response_content}")],
+        "evolution_report": response_content,
         "next_node": "evolution_planner"  # Signal to proceed
     }

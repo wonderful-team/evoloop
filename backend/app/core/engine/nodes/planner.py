@@ -1,8 +1,11 @@
+from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
 
+from app.core.engine import repair_message_history
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
+from app.core.engine.message_utils import get_message_text
 from app.core.tools.executor import ToolExecutor
 from app.domain.planning.tools import (
     analyze_feasibility,
@@ -45,10 +48,11 @@ System Info: {system_info}
     ("placeholder", "{messages}"),
 ])
 
+
 async def planner_node(state: AgentState, config: RunnableConfig):
     import logging
     logger = logging.getLogger(__name__)
-    llm = LLMFactory.create_llm(temperature=0.2) # Low temp for standardized planning
+    llm = LLMFactory.create_llm(temperature=0.2)  # Low temp for standardized planning
 
     project_id = state.get("project_id", 1)
 
@@ -76,7 +80,6 @@ async def planner_node(state: AgentState, config: RunnableConfig):
     current_plan_json = state.get("structured_plan")
     current_plan_display = PlanManager.format_plan_for_prompt(current_plan_json)
 
-
     # 2. Retrieve Past Episodes (Graph-RAG) - Episodic Memory
     past_episodes = ""
     try:
@@ -85,9 +88,8 @@ async def planner_node(state: AgentState, config: RunnableConfig):
         # Determine Goal from Context (Last Human Message)
         user_goal = "General planning"
         for m in reversed(list(state.get("messages", []))):
-            from langchain_core.messages import HumanMessage
             if isinstance(m, HumanMessage):
-                user_goal = m.content
+                user_goal = get_message_text(m)
                 break
 
         past_episodes = await memory_service.find_similar_episodes(user_goal, project_id)
@@ -118,8 +120,12 @@ async def planner_node(state: AgentState, config: RunnableConfig):
     chain = prompt | llm_with_tools
 
     # Filter SystemMessages to avoid duplication/protocol errors (Fix 5.0)
-    from langchain_core.messages import SystemMessage
-    messages = [m for m in state.get("messages", []) if not isinstance(m, SystemMessage)]
+
+    # 1. Filter out SystemMessages
+    raw_messages = [m for m in state.get("messages", []) if not isinstance(m, SystemMessage)]
+    # 2. Repair history (inject dummy AIMessages if ToolMessages are orphaned)
+    messages = repair_message_history(raw_messages)
+
     new_messages = []
 
     # We allow a small loop for "Propose -> Analyze -> Finalize"
@@ -146,18 +152,18 @@ async def planner_node(state: AgentState, config: RunnableConfig):
                 elif tool_name == "analyze_feasibility":
                     tool_func = analyze_feasibility
                 elif tool_name == "update_step_status":
-                     tool_func = update_step_status
+                    tool_func = update_step_status
 
                 if tool_func:
                     content = await executor.execute(tool_func, tool_args, config=config)
 
                     # Update State if Plan Created/Updated
                     if tool_name == "create_plan":
-                         try:
+                        try:
                             # Content is JSON string from tool
                             state["structured_plan"] = str(content)
                             state["current_plan"] = PlanManager.format_plan_for_prompt(str(content))
-                         except:
+                        except:
                             pass
                 else:
                     content = f"Error: Tool {tool_name} not found."
@@ -173,11 +179,7 @@ async def planner_node(state: AgentState, config: RunnableConfig):
             break
 
         # Helper to extract text from content (which might be list or string)
-        content_text = response.content
-        if isinstance(content_text, list):
-            content_text = " ".join([str(b.get("text", "")) for b in content_text if isinstance(b, dict) and "text" in b])
-        elif not isinstance(content_text, str):
-            content_text = str(content_text)
+        content_text = get_message_text(response)
 
         if "handing off" in content_text.lower() or "ready for supervisor" in content_text.lower():
             break

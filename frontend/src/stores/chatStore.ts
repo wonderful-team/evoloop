@@ -51,6 +51,7 @@ interface ChatState {
     _appendToken: (tokens: string) => void
     _setActivitySnapshot: (snapshot: any) => void
     _setHumanRequest: (request: any) => void
+    _appendMessage: (msg: any) => void // Phase 11
     _setError: (error: string) => void
 }
 
@@ -104,6 +105,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             onToken: (token: string) => get()._appendToken(token),
             onActivity: (snapshot: any) => get()._setActivitySnapshot(snapshot),
             onHumanRequest: (req: any) => get()._setHumanRequest(req),
+            onMessage: (msg: any) => get()._appendMessage(msg),
             onError: (error: string) => get()._setError(error),
         })
 
@@ -356,6 +358,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 }))
             }
         }
+    },
+
+    _appendMessage: (rawMsg: any) => {
+        const { messages, threadId } = get()
+        if (!rawMsg || !threadId) return
+
+        // 1. Format
+        const newMsg: Message = {
+            id: rawMsg.id,
+            role: rawMsg.role === "human" ? "user" : (rawMsg.role || "ai"),
+            originalType: rawMsg.type,
+            content: rawMsg.content || "",
+            thinking: rawMsg.thinking,
+            timestamp: rawMsg.created_at || new Date().toISOString(),
+            tasks_snapshot: rawMsg.tasks_snapshot,
+        }
+
+        // 2. Deduplicate
+        if (messages.some(m => m.id === newMsg.id)) return
+
+        // 3. Append & Clear Stream
+        // We assume that if a message event arrives, it replaces the current streaming content.
+        set(state => ({
+            messages: [...state.messages, newMsg],
+            streamedContent: "" // Commit the stream
+        }))
     },
 
     _setError: (error: string) => {

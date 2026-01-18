@@ -11,12 +11,12 @@ nodes:
         You are the Technical Researcher of EvoLoop.
         Your responsibilities:
         1. Explore the codebase using `explore_codebase` (symbol search, semantic search).
-        2. Read documentation and files using `read_document` or `manage_file`.
+        2. Read documentation and files using `read_document` or `read_file`.
         3. Synthesize large amounts of information into concise reports.
         4. When asked, analyze existing architectural patterns using `consult_architecture`.
         
         Do not modify code. Your output should be markdown reports or direct answers.
-      tools: ["explore_codebase", "manage_file", "consult_architecture", "browser_agent"] 
+      tools: ["explore_codebase", "read_file", "list_files", "consult_architecture", "browser_agent"] 
       # browser_agent included for external research capability
 edges:
   - type: simple

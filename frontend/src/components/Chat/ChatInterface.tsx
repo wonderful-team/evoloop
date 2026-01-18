@@ -1,158 +1,41 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { ArrowDown, Bot, Brain, ChevronDown, Loader2 } from "lucide-react"
-import { memo, useCallback, useEffect, useRef, useState } from "react"
+import { ArrowDown, Brain } from "lucide-react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import {
   AgentService,
   ConversationsService,
-  FilesService,
   MemoryService,
 } from "@/client"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
 
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { useChatStore } from "@/stores/chatStore"
 import { useProjectStore } from "@/stores/projectStore"
-import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 import { Button } from "../ui/button"
-import { ArtifactsList } from "./Artifacts/ArtifactsList"
 import { ChatInputArea, type ChatInputAreaHandle } from "./ChatInputArea"
-import { ChatMessageItem } from "./ChatMessageItem"
+import { MessageList } from "./MessageList"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
-import { MessageContent } from "./MessageContent"
-import { TaskSteps } from "./TaskSteps"
+import { BreadcrumbStatus } from "./BreadcrumbStatus"
 
-import { HITLBanner } from "./HITLBanner"
 
-const CompositeAIBubble = memo(() => {
-  const streamedContent = useChatStore((s) => s.streamedContent)
-  const tasks = useChatStore((s) => s.tasks)
-  const artifacts = useChatStore((s) => s.artifacts)
-  const status = useChatStore((s) => s.status)
-
-  // Only show when there's activity (streaming content, running tasks, or artifacts)
-  const hasContent =
-    streamedContent || tasks.some((t) => t.status === "running") || artifacts.length > 0
-  if (!hasContent && status === "idle") return null
-
-  return (
-    <div className="flex gap-3 justify-start items-start mb-4">
-      <Avatar className="h-8 w-8 mt-1 shrink-0">
-        <AvatarImage src="/bot-avatar.png" />
-        <AvatarFallback>
-          <Bot size={16} />
-        </AvatarFallback>
-      </Avatar>
-      <div className="flex-1 max-w-[80%]">
-        {/* Collapsible Task Steps - Embedded within message bubble context */}
-        {tasks.length > 0 && (
-          <Collapsible defaultOpen={true} className="mb-2">
-            <CollapsibleTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-6 p-0 text-muted-foreground hover:bg-transparent flex items-center gap-1 text-xs"
-              >
-                <Loader2
-                  size={12}
-                  className={status === "running" ? "animate-spin" : ""}
-                />
-                <span className="italic">
-                  {tasks.filter((t) => t.status === "done").length}/
-                  {tasks.length} steps
-                </span>
-                <ChevronDown size={12} className="opacity-50" />
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-1">
-              <TaskSteps tasks={tasks} />
-            </CollapsibleContent>
-          </Collapsible>
-        )}
-
-        {/* Artifacts List */}
-        {artifacts.length > 0 && <ArtifactsList artifacts={artifacts} />}
-
-        {/* Streaming Content */}
-        {streamedContent && (
-          <div className="rounded-lg px-4 py-3 bg-muted text-foreground text-sm leading-relaxed shadow-sm overflow-hidden">
-            <MessageContent content={streamedContent} />
-          </div>
-        )}
-
-        {/* Blinking Cursor (when running but no content yet) */}
-        {!streamedContent && status === "running" && (
-          <div className="rounded-lg px-4 py-3 bg-muted text-foreground text-sm leading-relaxed shadow-sm">
-            <span className="inline-block w-1.5 h-4 bg-primary align-middle animate-pulse" />
-          </div>
-        )}
-      </div>
-    </div>
-  )
-})
-CompositeAIBubble.displayName = "CompositeAIBubble"
-
-const StatusIndicator = memo(() => {
-  const { t } = useTranslation()
-  const status = useChatStore((s) => s.status)
-  const tasks = useChatStore((s) => s.tasks)
-  const agentState = useChatStore((s) => s.agentState)
-
-  if (status !== "running" && status !== "SUMMARIZING") return null
-
-  // Find active task name (fallback if no high-level state)
-  const runningTask = tasks.find((t: any) => t.status === "running")
-  // Prefer Agent State (High Level) > Running Task (Low Level) > Default
-  const displayTask = agentState?.task_name || runningTask?.name || t("chat.status.working")
-  // Translate mode: agentState.mode is usually uppercase e.g. "PLANNING"
-  const rawMode = agentState?.mode
-  const displayMode = rawMode
-    ? t(`chat.modes.${rawMode.replace(" ", "_")}`, rawMode) // Fallback to rawMode if key missing
-    : t("chat.status.busy")
-
-  const getModeColor = (mode: string) => {
-    switch (mode.toUpperCase()) {
-      case 'PLANNING': return 'text-purple-600 bg-purple-100/50 dark:bg-purple-900/20'
-      case 'RESEARCHING':
-      case 'DEEP RESEARCH': return 'text-blue-600 bg-blue-100/50 dark:bg-blue-900/20'
-      case 'CODING': return 'text-amber-600 bg-amber-100/50 dark:bg-amber-900/20'
-      case 'REVIEWING': return 'text-pink-600 bg-pink-100/50 dark:bg-pink-900/20'
-      default: return 'text-muted-foreground bg-muted'
-    }
-  }
-
-  return (
-    <div className="flex items-center gap-3 pl-11 mb-4 animate-in fade-in duration-300">
-      <div className="relative">
-        <Loader2 size={16} className="animate-spin text-primary" />
-      </div>
-
-      <div className="flex items-center gap-2 overflow-hidden">
-        {agentState && (
-          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${getModeColor(displayMode)}`}>
-            {displayMode}
-          </span>
-        )}
-        <span className="text-sm text-muted-foreground truncate animate-pulse selection:bg-transparent">
-          {displayTask}
-        </span>
-      </div>
-    </div>
-  )
-})
-StatusIndicator.displayName = "StatusIndicator"
 
 export function ChatInterface() {
+
   const { t } = useTranslation()
   const { currentProject } = useProjectStore()
   const projectId = currentProject?.id
@@ -165,6 +48,7 @@ export function ChatInterface() {
   const status = useChatStore((s) => s.status)
   const tasks = useChatStore((s) => s.tasks)
   const streamedContent = useChatStore((s) => s.streamedContent)
+  // Props required for components
   const setThread = useChatStore((s) => s.setThread)
   const sendMessage = useChatStore((s) => s.sendMessage)
   const stopAgent = useChatStore((s) => s.stopAgent)
@@ -315,13 +199,18 @@ export function ChatInterface() {
   // --- Side Effect Mutations (Keep here or move to store if generic) ---
   // These are specific to message item actions
 
+  // Memory Dialog State
+  const [isMemoryDialogOpen, setIsMemoryDialogOpen] = useState(false)
+  const [memoryContent, setMemoryContent] = useState("")
+  const [memoryName, setMemoryName] = useState("")
+
   const addToMemoryMutation = useMutation({
-    mutationFn: async (text: string) => {
+    mutationFn: async ({ text, name }: { text: string; name: string }) => {
       if (!projectId) throw new Error("No project")
       return MemoryService.addConcept({
         projectId,
         requestBody: {
-          name: t("chat.interface.learnedFromChat"),
+          name: name || t("chat.interface.learnedFromChat"),
           description: text,
           related_files: [],
         },
@@ -330,24 +219,12 @@ export function ChatInterface() {
     onSuccess: () => {
       toast.success("Added to Memory")
       queryClient.invalidateQueries({ queryKey: ["projectMemory"] })
+      setIsMemoryDialogOpen(false)
+      setMemoryName("")
     },
   })
 
-  const exportFileMutation = useMutation({
-    mutationFn: async (text: string) => {
-      if (!projectId) throw new Error("No project")
-      const path = prompt(
-        t("chat.interface.exportPrompt"),
-        "docs/chat-export.md",
-      )
-      if (!path) return Promise.reject("Cancelled")
-      return FilesService.createFile({
-        projectId,
-        requestBody: { path, content: text },
-      })
-    },
-    onSuccess: () => toast.success(t("chat.interface.exportSuccess")),
-  })
+
 
   const rewindMutation = useMutation({
     mutationFn: () =>
@@ -437,7 +314,7 @@ export function ChatInterface() {
     const handleScrollToRun = (e: CustomEvent<{ runId: string }>) => {
       const runId = e.detail.runId
       // Find DOM element within scroll container
-      const el = scrollRef.current?.querySelector(`[data-run-id="${runId}"]`)
+      const el = scrollRef.current?.querySelector(`[data - run - id= "${runId}"]`)
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "start" })
         // Visual indicator
@@ -498,8 +375,8 @@ export function ChatInterface() {
               </div>
             )}
 
-            {/* HITL Banner - Top of chat area when agent is waiting */}
-            <HITLBanner />
+            {/* Breadcrumb Status */}
+            <BreadcrumbStatus />
 
             <div
               className="flex-1 overflow-y-auto p-4 min-h-0 scroll-smooth"
@@ -508,43 +385,20 @@ export function ChatInterface() {
               data-tour="chat-messages"
             >
               <div className="space-y-6 max-w-3xl mx-auto pb-4">
-                {/* Messages List */}
-                {messages.length === 0 && (
-                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground mt-20">
-                    <Bot size={48} className="mb-4 opacity-20" />
-                    <p>{t("chat.interface.startPrompt")}</p>
-                  </div>
-                )}
+                <MessageList
+                  messages={messages}
+                  isAgentWorking={status === "running"}
+                  onAddToMemory={(txt) => {
+                    setMemoryContent(txt)
+                    setIsMemoryDialogOpen(true)
+                  }}
+                  onRewind={() => rewindMutation.mutate()}
+                  onRetry={() => retryMutation.mutate()}
+                  onQuote={(msg) => handleQuoteMessage(msg)}
+                  onStarterClick={(text) => sendMessage(text)}
+                />
 
-                {messages.map((msg) => (
-                  <ChatMessageItem
-                    key={msg.id}
-                    msg={msg}
-                    onAddToMemory={(txt) => addToMemoryMutation.mutate(txt)}
-                    onExport={(txt) => exportFileMutation.mutate(txt)}
-                    onRewind={() => rewindMutation.mutate()}
-                    onRetry={() => retryMutation.mutate()}
-                    onQuote={() => handleQuoteMessage(msg)}
-                  />
-                ))}
 
-                {/* Agent Canvas now handles live content - status indicator inline for reference */}
-                {status === "running" && (
-                  <div className="flex gap-3 justify-start items-start mb-4 max-w-3xl mx-auto animate-in fade-in">
-                    <Avatar className="h-8 w-8 mt-1 shrink-0">
-                      <AvatarImage src="/bot-avatar.png" />
-                      <AvatarFallback>
-                        <Bot size={16} />
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex items-center gap-2 py-2">
-                      <Loader2 size={14} className="animate-spin text-primary" />
-                      <span className="text-sm text-muted-foreground italic">
-                        {t("chat.interface.agentWorking", "Agent is working... See details in the side panel →")}
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -574,6 +428,7 @@ export function ChatInterface() {
               isStopPending={false} // Immediate
               currentProject={currentProject}
               activeThreadId={activeThreadId || undefined}
+              disabled={status === "interrupted"}
             />
           </div>
         </ResizablePanel>
@@ -599,6 +454,44 @@ export function ChatInterface() {
           </>
         )}
       </ResizablePanelGroup>
+
+      {/* Memory Dialog */}
+      <Dialog open={isMemoryDialogOpen} onOpenChange={setIsMemoryDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>{t("chat.interface.memorizeConfirm", "Memorize Concept")}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                {t("chat.interface.conceptName", "Name")}
+              </Label>
+              <Input
+                id="name"
+                value={memoryName}
+                onChange={(e) => setMemoryName(e.target.value)}
+                placeholder="e.g. Project Architecture"
+                className="col-span-3"
+                autoFocus
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Content</Label>
+              <div className="col-span-3 text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded">
+                {memoryContent}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsMemoryDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => addToMemoryMutation.mutate({ text: memoryContent, name: memoryName })}>
+              {t("chat.interface.save", "Save")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

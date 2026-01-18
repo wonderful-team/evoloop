@@ -1,99 +1,66 @@
+import os
 from typing import Literal, Annotated
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
-from app.core.tools import evoloop_tool
+from app.core.tools import evoloop_tool, get_working_directory
 from app.domain.codebase.analysis.tools import find_definition
 from app.domain.codebase.retrieval.tools import search_codebase
 
 # ... (Delegate imports removed as they are now in actions)
 # Import the new dispatched tool
-from app.domain.tools.files.dispatcher import manage_file
-from app.domain.tools.git import (
-    git_commit,
-    git_create_branch,
-    git_diff,
-    git_history,
-    git_status,
-)
-from app.domain.tools.memory import (
-    add_concept,
-    get_user_preferences,
-    save_preference,
-    search_concepts,
-)
+from app.utils.file import write_file_contents as utils_write_file
+from app.infrastructure.filesystem.tool import grep_files, edit_file
 
-# Imports for delegation
-# Imports for delegation
-from app.infrastructure.filesystem.tool import grep_files
+# Import delegated tools
+from app.domain.tools.memory import save_preference, get_user_preferences, add_concept, search_concepts
+from app.domain.tools.git import git_status, git_diff, git_commit, git_history, git_create_branch
 
 
 @evoloop_tool
-async def manage_file_read_only(
-    action: Literal['list_tree', 'read'],
-    path: str | None = None,
-    recursive: bool = False,
-    depth: int = 2,
-    file_limit: int = 50,
-    start_line: int | None = None,
-    end_line: int | None = None,
+async def write_document(
+    path: str,
+    content: str,
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
-    [READ-ONLY] Use this tool to explore the filesystem. You CANNOT write or modify files.
+    [DOCS-ONLY] Write documentation files (.md, .txt, .json, .yaml, .csv) ONLY.
     """
-    # Force safe actions
-    if action not in ['list_tree', 'read']:
-         return f"Error: Action '{action}' is not allowed in Read-Only mode."
+    valid_exts = ['.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.html', '.htm', '.css', '.xml', '.rst', '.toml', '.ini', '.log']
+    if not any(path.endswith(ext) for ext in valid_exts):
+        return f"Error: Permission Denied. You may only write to {valid_exts}. For code changes, route to Coder."
 
-    # Validation Fix: Default path to current directory if None for list_tree
-    safe_path = path if path is not None else "."
+    root = get_working_directory(config)
+    target_path = os.path.abspath(os.path.join(root, path))
 
-    return await manage_file.ainvoke({
-        "action": action,
-        "path": safe_path,
-        "recursive": recursive,
-        "depth": depth,
-        "file_limit": file_limit,
-        "start_line": start_line,
-        "end_line": end_line
-    }, config=config)
+    utils_write_file(content, target_path)
+    return f"Successfully wrote documentation to {path}"
+
 
 @evoloop_tool
-async def manage_file_docs_only(
-    action: Literal['list_tree', 'read', 'create', 'update_block'] = 'list_tree',
-    path: str | None = None,
-    content: str | None = None,
-    target: str | None = None,
+async def edit_document(
+    path: str,
+    target: str,
+    replacement: str,
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
-    [DOCS-ONLY] Use this tool to write documentation (.md, .txt) ONLY. 
-    You CANNOT modify code files (.py, .php, etc).
+    [DOCS-ONLY] Edit documentation files (.md, .txt, .json, .yaml, .csv) ONLY.
     """
-    # 1. Extension Check
-    if action in ['create', 'update_block', 'write']:
-        if not path: return "Error: Path is required for write actions."
-        valid_exts = ['.md', '.txt', '.json', '.yaml', '.yml', '.csv']
-        if not any(path.endswith(ext) for ext in valid_exts):
-             return f"Error: Permission Denied. You may only write to {valid_exts}. For code changes, route to Coder."
+    valid_exts = ['.md', '.txt', '.json', '.yaml', '.yml', '.csv', '.html', '.htm', '.css', '.xml', '.rst', '.toml', '.ini', '.log']
+    if not any(path.endswith(ext) for ext in valid_exts):
+        return f"Error: Permission Denied. You may only edit {valid_exts}. For code changes, route to Coder."
 
-    # 2. Proxy to real tool
-    return await manage_file.ainvoke({
-        "action": action,
-        "path": path,
-        "content": content,
-        "target": target
-    }, config=config)
-
+    # Reuse generic edit tool logic or implement simple replace
+    return await edit_file.ainvoke({"path": path, "target": target, "replacement": replacement}, config=config)
 
 
 @evoloop_tool
 async def explore_codebase(
     action: Literal['search_symbol', 'search_text', 'semantic_code_search', 'analyze_impact'],
     query: str,
-    scope_path: str | None = None, # Optional file pattern or path
+    scope_path: str | None = None,  # Optional file pattern or path
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
@@ -132,7 +99,7 @@ async def explore_codebase(
 @evoloop_tool
 def manage_git(
     action: Literal['status', 'diff', 'commit', 'log', 'create_branch'],
-    argument: str | None = None, # message for commit, branch name, etc.
+    argument: str | None = None,  # message for commit, branch name, etc.
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
@@ -161,8 +128,8 @@ def manage_git(
 @evoloop_tool
 async def manage_memory(
     action: Literal['save_preference', 'retrieve_preferences', 'add_concept', 'search_concepts'] = 'retrieve_preferences',
-    key: str | None = None, # concept name or pref key
-    value: str | None = None, # description or pref value
+    key: str | None = None,  # concept name or pref key
+    value: str | None = None,  # description or pref value
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
@@ -229,4 +196,3 @@ async def consult_architecture(path: str = ""):
             output.append(f"- Depends on `{dep['target']}` (Weight: {dep['weight']})")
 
     return "\n".join(output)
-

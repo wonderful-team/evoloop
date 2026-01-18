@@ -19,16 +19,23 @@ async def handle_read(path: str, start_line: int | None = None, end_line: int | 
         return await read_document.ainvoke({"file_path": path}, config=config)
 
     if not os.path.exists(target_path):
-         # Smart Error Handling
-         parent_dir = os.path.dirname(target_path)
-         if os.path.exists(parent_dir):
-             try:
-                 siblings = os.listdir(parent_dir)
-                 siblings_str = ", ".join(siblings[:20])
-                 return f"Error: File '{path}' not found. Did you mean one of these in the same directory? [{siblings_str}]"
-             except:
-                 pass
-         return f"Error: File not found: {path}"
+        # Smart Error Handling
+        parent_dir = os.path.dirname(target_path)
+        if os.path.exists(parent_dir):
+            try:
+                siblings = os.listdir(parent_dir)
+                siblings_info = []
+                for s in siblings[:20]:
+                    full_s = os.path.join(parent_dir, s)
+                    if os.path.isdir(full_s):
+                        siblings_info.append(f"{s}/")
+                    else:
+                        siblings_info.append(s)
+                siblings_str = ", ".join(siblings_info)
+                return f"Error: File '{path}' not found. Did you mean one of these in the same directory? [{siblings_str}]"
+            except:
+                pass
+        return f"Error: File not found: {path}"
 
     try:
         file_content, _ = utils_read_file(target_path, start_line, end_line)

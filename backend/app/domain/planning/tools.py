@@ -6,6 +6,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
+from sqlalchemy import delete, select
 
 from app.logging import get_context
 
@@ -113,21 +114,32 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
 
     try:
         async with session_scope() as session:
-            # 1. Clean up old active plans for this thread (Optional: Archive them)
-            # For now, we just create a new one.
-            # future: update old ones to 'archived'
+            # 1. Clean up old active plans for this thread OR Reuse current one
+            stmt = select(DBPlan).where(DBPlan.thread_id == thread_id)
+            result = await session.execute(stmt)
+            existing_plan = result.scalar_one_or_none()
+
+            if existing_plan:
+                logger.info(f"Existing plan found plan_id={existing_plan.id} for thread={thread_id}. Updating.")
+                plan_id = existing_plan.id
+                existing_plan.title = title
+                existing_plan.status = "active"
+                
+                # Delete old steps for this plan to overwrite with new ones (simplest approach for 'create_plan')
+                # Alternatively we could soft-delete or archive, but 'create_plan' implies a fresh start.
+                await session.execute(delete(DBPlanStep).where(DBPlanStep.plan_id == plan_id))
+            else:
+                # 2. Create Plan
+                plan_id = gen_uuid()
+                new_plan = DBPlan(
+                    id=plan_id,
+                    thread_id=thread_id,
+                    title=title,
+                    status="active"
+                )
+                session.add(new_plan)
             
-            # 2. Create Plan
-            plan_id = gen_uuid()
-            new_plan = DBPlan(
-                id=plan_id,
-                thread_id=thread_id,
-                title=title,
-                status="active"
-            )
-            session.add(new_plan)
-            
-            # 3. Create Steps
+            # 3. Create Steps (Common for both paths)
             db_steps = []
             for idx, step_title in enumerate(steps):
                 step_id = gen_uuid()

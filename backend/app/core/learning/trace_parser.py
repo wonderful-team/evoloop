@@ -122,10 +122,14 @@ class TraceParser:
         "llm_output": ActionCategory.DECISION,
     }
 
-    # Tool-specific category overrides
+    # Tool-specific category overrides (Phase 18: Added atomic file tools)
     TOOL_CATEGORY_MAP = {
         "read_file": ActionCategory.QUERY,
-        "manage_file": ActionCategory.EDIT,
+        "write_file": ActionCategory.EDIT,
+        "edit_file": ActionCategory.EDIT,
+        "list_files": ActionCategory.QUERY,
+        "file_system": ActionCategory.EDIT,
+        "manage_file": ActionCategory.EDIT,  # Legacy
         "search_codebase": ActionCategory.QUERY,
         "search_web": ActionCategory.QUERY,
         "bash": ActionCategory.COMMAND,

@@ -7,10 +7,12 @@ from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
 
+
 class AutoDiscoveryRegistry:
     """
     Registry that automatically scans packages for tools marked with @evoloop_tool.
     """
+
     def __init__(self):
         self._tools: list[BaseTool] = []
         self._scanned_packages = set()
@@ -82,6 +84,7 @@ class AutoDiscoveryRegistry:
         """
         return list(self._tools)
 
+
 def get_node_tools(node_role: str) -> list[BaseTool]:
     """
     Get tools customized for a specific agent node (RBAC).
@@ -101,28 +104,35 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
     from app.domain.tools.facades import (
         consult_architecture,
         explore_codebase,
-        grep_files,
-        manage_file,
-        manage_file_docs_only,
-        manage_file_read_only,
+        write_document,
+        edit_document,
         manage_git,
         manage_memory,
     )
-    try:
-        from app.domain.research.tools import search_web
-    except ImportError:
-         search_web = None
+    # Phase 18: New Atomic File Tools
+    from app.domain.tools.files import (
+        read_file,
+        write_file,
+        edit_file,
+        list_files,
+        file_system,
+    )
+    from app.domain.tools.human_input import request_approval
+    from app.domain.research.tools import search_web
+    from app.infrastructure.filesystem.tool import grep_files
 
     # Core Tools everyone gets (Read-Only)
     common_read = [explore_codebase, grep_files]
 
     if node_role == "supervisor":
-        # Supervisor: Read + Plan + Docs + Memory + Git (Read)
+        # Supervisor: Read + Plan + Docs + Memory + Git (Read) + HITL
         tools = [
-            manage_file_read_only, manage_file_docs_only,
+            read_file,
+            list_files,
             manage_memory,
-            create_plan, update_step_status, analyze_feasibility, # Plan Tools
+            create_plan, update_step_status, analyze_feasibility,  # Plan Tools
             consult_architecture,
+            request_approval,  # Supervisor needs HITL for plan confirmation
             *common_read
         ]
 
@@ -136,22 +146,28 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
         return tools
 
     elif node_role == "coder":
-        # Coder: Full Write + LSP + Git + Memory
+        # Coder: Full Write + LSP + Git + Memory + HITL (Phase 18: Atomic Tools)
         return [
-            manage_file, # Full Power
+            read_file,
+            write_file,
+            edit_file,
+            list_files,
+            file_system,
             consult_lsp,
             manage_git,
             manage_memory,
             consult_architecture,
+            request_approval,  # HITL for high-risk operations
             *common_read
         ]
 
     elif node_role == "planner":
-        # Planner: Read Only + Planning Tools
+        # Planner: Read Only + Planning Tools + HITL
         return [
-            manage_file_read_only,
+            read_file, list_files,
             create_plan, update_step_status, analyze_feasibility,
             consult_architecture,
+            request_approval,  # HITL for complex plans
             *common_read
         ]
 
@@ -159,7 +175,7 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
         # Researcher: Read Only + Web Search + Crawler + Memory
         from app.domain.research.tools import crawl_url
         tools = [
-            manage_file_read_only,
+            read_file, list_files,
             manage_memory,
             crawl_url,
             *common_read
@@ -170,19 +186,25 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
     elif node_role == "requirement_analyst":
         # Requirement Analyst: Read + Docs
         return [
-            manage_file_read_only, manage_file_docs_only,
+            read_file,
+            list_files,
+            write_document,
+            edit_document,
             manage_memory,
             *common_read
         ]
 
     elif node_role == "tester":
-        # Tester: Read + Write Tests (Full for now, could be restricted to tests/) + Run Command
-        # Need to import run_command if it exists
+        # Tester: Read + Write Tests (Phase 18: Atomic Tools)
         return [
-            manage_file, # Needs to write tests
+            read_file,
+            write_file,
+            edit_file,
+            list_files,
             manage_memory,
             *common_read
         ]
 
-    # Fallback to safe defaults
-    return [manage_file_read_only]
+    # Fallback to safe defaults (read-only)
+    return [read_file, list_files]
+

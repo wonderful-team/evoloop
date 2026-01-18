@@ -16,7 +16,7 @@ nodes:
         4. Produce detailed Implementation Plans for Engineers.
         
         Do not write implementation code yourself unless it is a critical prototype. Focus on the 'Why' and 'How'.
-      tools: ["consult_architecture", "manage_file", "manage_memory", "explore_codebase"]
+      tools: ["consult_architecture", "read_file", "list_files", "manage_memory", "explore_codebase"]
 edges:
   - type: simple
     from: architect_node

@@ -1,24 +1,20 @@
 """
-Supervisor Node - Refactored as Class
+Supervisor Node - ReAct Architecture
 
 The Supervisor is the decision-making hub of the EvoLoop system.
-It analyzes user input, routes to specialized nodes, and orchestrates the workflow.
+It analyzes user input, routes to specialized nodes via the route_to tool.
 """
 import logging
 import os
 import platform
-from typing import Any, Literal
+from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, SystemMessage
-from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.runnables import RunnableConfig
-from pydantic import BaseModel, Field
 
 from app.core.engine import AgentEngine
+from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
-from app.core.engine import AgentEngine
-from app.core.engine.state import AgentState
-from app.core.llm.factory import LLMFactory
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models.todo import TodoItem, TodoStatus, TodoPriority
 from sqlalchemy import select, or_
@@ -30,89 +26,11 @@ def get_last_human_message(messages: list) -> str | None:
     """Extract the last human message content from a message list."""
     for msg in reversed(messages):
         if isinstance(msg, HumanMessage):
-            return msg.content
+            return get_message_text(msg)
     return None
 
 
-SUPERVISOR_SYSTEM_TEMPLATE = """You are the Supervisor of an elite coding team.
-    
-    **MISSION**: Your goal is to PREPARE the workspace for specialized workers (Coder, Deep Researcher). You do not write code yourself; you Analyze, Plan, and Route.
-
-    **WORKFLOW PHASES**:
-    1. **Explore**: If uncertain, use `manage_file` to inspect the directory tree or read critical documents.
-
-    **CRITICAL PROTOCOL**:
-    1. **Context First**: 
-       - If you are unsure about the file structure, call `manage_file_read_only(action='list_tree')` FIRST.
-       - If user mentions a file/doc, call `manage_file_read_only(action='read')` IMMEDIATELY.
-
-    2. **Explicit Planning (MANDATORY)**:
-       - **ACTIVE PLAN**: {active_plan_context}
-       - You MUST follow the active plan if one exists.
-       - If `current_plan` is empty or "No plan yet", AND no active plan in DB, YOU MUST NOT route to `coder`. Route to `planner` instead.
-       
-       **FAST TRACK PROTOCOL (For Simple Tasks OR Wiki)**:
-       - IF the request is simple (e.g., "Fix typo") OR is about "Wiki/Documentation" generation, DO NOT explore or plan.
-       - IMMEDIATE ACTION: Reply "Proceeding to specialized agent." (This stops the tool loop and enables routing).
-       - DO NOT call `manage_file` or `create_plan`.
-       
-       **DEEP PLANNING (For Complex Tasks)**:
-       - IF the request involves multiple files, architecture changes, or new features -> Route to `planner`.
-       - IF the user's request is AMBIGUOUS -> Route to `chat` (Clarification Protocol).
-       
-    3. **STRICT DELEGATION PROTOCOL (MANAGER ROLE)**:
-       - You are a **MANAGER**, not an Expert Coder.
-       - **DO NOT WRITE APPLICATION CODE** (.php, .py, .ts, etc.) yourself.
-       - **ALWAYS DELEGATE** implementation to the `coder` node.
-       - **NO PLAN = NO CODE**: If `current_plan` is empty or "No plan yet", YOU MUST NOT route to `coder`. Route to `planner` instead.
-
-    4. **Active Learning (Self-Evolution)**:
-       - If user states a preference (e.g., "Use pytest"), call `save_preference`.
-
-    5. **Language Protocol**:
-       - User Language: {user_lang}
-       - Communicate in this language, BUT **KEEP COMMAND SIGNALS IN ENGLISH**.
-       
-    **EXIT / HANDOFF STRATEGY**:
-    - **To Coder**: When you have a solid, feasible plan -> Output EXACTLY: "Plan verified. Ready for Coder."
-    - **To Researcher**: Output EXACTLY: "Need more research on X."
-    - **Direct Reply**: For simple questions -> Output the answer text directly.
-
-    **Dynamic HITL Protocol**:
-    - Use `request_human_input` if ambiguous or risky. System will pause.
-
-    **Think Before Action**:
-    - **CHECK HISTORY**: Before calling ANY tool, check if you have just performed this action.
-    - **AVOID REDUNDANCY**: If you have already read a file or searched a query and received a valid result, DO NOT repeat it.
-    
-    Current Plan: {current_plan}
-    Project ID: {project_id}
-    Iteration: {iteration_count}
-    System Info: {system_info}
-    
-    Follow protocol: Explore -> Plan -> Handoff. Do not code directly.
-    """
-
-
-class RoutingDecision(BaseModel):
-    """Decision on the next step in the workflow."""
-    next_node: Literal[
-        "planner", "coder", "deep_researcher", "documenter", "finish", "map_research",
-        "chat", "browser_executor", "computer_executor", "mobile_executor"
-    ] = Field(description="The next worker node to route to. Default to 'finish' if done.")
-
-    parallel_research_tasks: list[str] | None = Field(
-        default=None,
-        description="List of topics to research in parallel. REQUIRED if next_node is 'map_research'."
-    )
-    tool_profile: Literal["GENERAL", "DEVOPS", "RESEARCH"] | None = Field(
-        default="GENERAL",
-        description="The tool profile to activate for the Coder."
-    )
-    retrieval_query: str | None = Field(
-        default=None,
-        description="Optional keywords to retrieve specialized tools from database."
-    )
+# Note: Prompt construction logic moved to SupervisorPromptBuilder
 
 
 class SupervisorNode:
@@ -127,8 +45,7 @@ class SupervisorNode:
     """
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> dict[str, Any]:
-        """Main entry point for the Supervisor node."""
-        llm = LLMFactory.create_llm()
+        """Main entry point for the Supervisor node (ReAct Architecture)."""
         project_id = state.get("project_id", 1)
         messages = list(state.get("messages", []))
         if not messages:
@@ -138,7 +55,7 @@ class SupervisorNode:
         # Emit initial status
         await self._emit_status(config, "Analyzing context...")
 
-        # Phase 0: Context Compression
+        # Phase 0: Context Compression (optional optimization)
         compression_result = await self._try_compression(state)
         if compression_result:
             return compression_result
@@ -151,17 +68,83 @@ class SupervisorNode:
         # Phase 2: Build Context
         context = await self._build_context(state, config, messages, project_id)
 
-        # Phase 3: LLM Planning (via AgentEngine)
-        engine_result = await self._run_planning(state, config, context, project_id)
-        messages.extend(engine_result.get("messages", []))
+        # Phase 3: Single ReAct Loop with route_to tool (Core Change)
+        # Import route_to tool and add to tools list
+        from app.domain.tools.routing import route_to
+        tools = context["tools"] + [route_to]
 
-        # Phase 4: Check for special conditions (HITL, research report)
-        special_result = self._check_special_conditions(state, messages, engine_result)
-        if special_result:
-            return special_result
+        # Use Builder for unified prompt construction
+        from app.core.prompts.supervisor_builder import SupervisorPromptBuilder
+        prompt_builder = SupervisorPromptBuilder(
+            project_id=project_id,
+            active_plan_context=context["active_plan_context"],
+            iteration_count=context["iteration_count"],
+            sys_info=context["sys_info"],
+            context=context
+        )
+        dynamic_prompt = prompt_builder.build(config)
 
-        # Phase 5: Make Routing Decision
-        return await self._make_routing_decision(state, config, messages, context, engine_result)
+        engine_result = await AgentEngine.run_node(
+            state=state,
+            config=config,
+            system_prompt=dynamic_prompt,
+            tools=tools,
+            max_steps=15,  # Increased since routing is now part of the loop
+            name="Supervisor"
+        )
+
+        # Phase 4: Handle routing result
+        routing_target = engine_result.get("_routing_target")
+
+        if routing_target:
+            # LLM explicitly called route_to - use its decision
+            logger.info(f"[Supervisor] ✅ ReAct routing to: {routing_target}")
+
+            # Solution C: Track visited nodes in scratchpad for loop detection
+            existing_scratchpad = state.get("scratchpad", {})
+            visited_nodes = existing_scratchpad.get("visited_nodes", [])
+            if routing_target not in visited_nodes:
+                visited_nodes = visited_nodes + [routing_target]  # Immutable append
+
+            # Phase 21: Extract Context Handoff
+            routing_reason = engine_result.get("_routing_reason", "")
+            routing_context = engine_result.get("_routing_context", {})  # <--- NEW: Capture context
+
+            return {
+                "messages": engine_result.get("messages", []),
+                "next_node": routing_target,
+                "current_plan": state.get("current_plan"),
+                "structured_plan": state.get("structured_plan"),  # Propagate plan for prompt builder
+                "scratchpad": {
+                    **existing_scratchpad,
+                    "last_supervisor_route": routing_target,
+                    "route_reason": routing_reason,
+                    "handoff_context": routing_context,  # <--- NEW: Persist context
+                    "visited_nodes": visited_nodes
+                }
+            }
+
+        # Phase 5: Fallback - LLM did not call route_to
+        # Check if it gave a direct text answer (should go to finish)
+        new_messages = engine_result.get("messages", [])
+        if new_messages:
+            last_msg = new_messages[-1]
+            if isinstance(last_msg, AIMessage) and not getattr(last_msg, 'tool_calls', None):
+                # Pure text response = consider task complete
+                logger.info("[Supervisor] 🏁 Text response without routing - finishing.")
+                return {
+                    "messages": new_messages,
+                    "next_node": "finish",
+                    "current_plan": state.get("current_plan")
+                }
+
+        # Ultimate fallback: default to deep_researcher
+        logger.warning("[Supervisor] ⚠️ No routing signal and no text response - defaulting to deep_researcher")
+        return {
+            "messages": new_messages,
+            "next_node": "deep_researcher",
+            "current_plan": state.get("current_plan")
+        }
 
     async def _emit_status(self, config: RunnableConfig, status: str):
         """Emit status update for UI responsiveness."""
@@ -195,7 +178,7 @@ class SupervisorNode:
         # If the last message was AI/Tool, we must let the Supervisor LLM decide the next step (Slow Path).
         current_msgs = state.get("messages", [])
         if not current_msgs or not isinstance(current_msgs[-1], HumanMessage):
-             return None
+            return None
         last_human_msg = get_last_human_message(current_msgs)
 
         if not last_human_msg:
@@ -218,35 +201,26 @@ class SupervisorNode:
         # 2. Skill Matching
         if not state.get("skill_execution_attempted"):
             try:
-                from app.core.learning.skill_executor import (
-                    SkillExecutor,
-                    skill_matcher,
-                )
-                from app.domain.tools.registry import get_supervisor_tools
-                from app.infrastructure.mcp.client import mcp_client_manager
+                # Dynamic import for runtime matching
+                from app.core.learning.skill_executor import skill_matcher
 
                 thread_id = config.get("configurable", {}).get("thread_id", "unknown")
                 match = await skill_matcher.match(last_human_msg, threshold=0.7, thread_id=thread_id)
 
                 if match:
                     logger.info(f"🎯 Skill Match: '{match.skill_name}' ({match.confidence:.2f})")
-                    core_tools = get_supervisor_tools()
-                    mcp_tools = mcp_client_manager.get_tools()
-                    tool_registry = {t.name: t for t in core_tools + mcp_tools}
-
-                    executor = SkillExecutor(config)
-                    success, result = await executor.execute_skill(
-                        match.skill_id, match.extracted_params, tool_registry
-                    )
-
-                    content = f"✅ Executed skill '{match.skill_name}':\n{result}" if success else f"⚠️ Skill failed:\n{result}"
                     return {
-                        "messages": [AIMessage(content=content)],
-                        "next_node": "finish",
-                        "skill_execution_attempted": True
+                        "next_node": "supervisor",  # Re-route to self to execute skill tool
+                        # We return messages with ToolCall so the next step executes it
+                        "messages": [AIMessage(content="", tool_calls=[{
+                            "name": match.skill_name,
+                            "args": match.parameters,
+                            "id": "skill_call_" + match.skill_name
+                        }])],
+                        "skill_execution_attempted": True  # Mark as attempted to prevent loop
                     }
-            except Exception as e:
-                logger.warning(f"Skill matching failed: {e}")
+            except Exception:
+                pass
 
         return None
 
@@ -265,21 +239,21 @@ class SupervisorNode:
 
         # Build query context
         query_context = state.get("task_status", "General task")
-        last_msg = messages[-1].content if messages and isinstance(messages[-1].content, str) else ""
+        last_msg = get_message_text(messages[-1]) if messages else ""
         query_context += f" {last_msg}"
 
         # Dynamic k value based on task complexity
         # Simple Q&A: fewer tools, Complex tasks: more tools
         complexity_indicators = ["implement", "build", "create", "refactor", "design", "architect"]
         simple_indicators = ["what", "how", "why", "explain", "?"]
-        
+
         k_value = 10  # Default
         last_msg_lower = last_msg.lower()
         if any(ind in last_msg_lower for ind in complexity_indicators):
             k_value = 20  # Complex tasks need more tools
         elif any(ind in last_msg_lower for ind in simple_indicators) and len(last_msg) < 100:
-            k_value = 5   # Simple Q&A needs fewer tools
-        
+            k_value = 5  # Simple Q&A needs fewer tools
+
         # Retrieve relevant tools
         retrieved_tools = await tool_retriever.retrieve(query_context, k=k_value)
         tool_dict = {t.name: t for t in core_tools + retrieved_tools}
@@ -308,7 +282,7 @@ class SupervisorNode:
 
         # 4. Build System Info
         user_lang = SystemConfigService.get_language_preference()
-        
+
         # 5. Inject Cognitive Todo Context
         todo_context = ""
         try:
@@ -321,14 +295,14 @@ class SupervisorNode:
                         TodoItem.priority == TodoPriority.HIGH,
                         TodoItem.due_date < datetime.now()
                     )
-                ).limit(5) # Limit to 5 max to avoid context bloat
-                
+                ).limit(5)  # Limit to 5 max to avoid context bloat
+
                 # If project isolation is strict, add project_id check
                 # query = query.where(or_(TodoItem.project_id == project_id, TodoItem.project_id == None))
-                
+
                 result = await session.execute(query)
                 urgent_todos = result.scalars().all()
-                
+
                 if urgent_todos:
                     todo_list = "\n".join([f"- [URGENT] {t.title} (Due: {t.due_date})" for t in urgent_todos])
                     todo_context = f"\n\n🔥 URGENT TASKS (Cognitive Injection):\n{todo_list}\n(You can use 'manage_todo' to check details or mark as done)"
@@ -341,32 +315,35 @@ class SupervisorNode:
             async with session_scope() as session:
                 from app.infrastructure.database.sql.models.planning import Plan, PlanStep
                 thread_id = config.get("configurable", {}).get("thread_id")
-                
+
                 if thread_id:
                     # Find Plan
                     stmt = select(Plan).where(Plan.thread_id == thread_id, Plan.status == "active")
                     res = await session.execute(stmt)
                     db_plan = res.scalars().first()
-                    
+
                     if db_plan:
                         # Find Steps
                         stmt_steps = select(PlanStep).where(PlanStep.plan_id == db_plan.id).order_by(PlanStep.order)
                         res_steps = await session.execute(stmt_steps)
                         steps = res_steps.scalars().all()
-                        
+
                         # Format
                         steps_str = ""
                         active_step_found = False
                         for s in steps:
                             marker = "[ ]"
-                            if s.status == "completed": marker = "[x]"
-                            elif s.status == "in_progress": marker = "[>] (CURRENT)"
-                            elif s.status == "failed": marker = "[!]"
-                            
+                            if s.status == "completed":
+                                marker = "[x]"
+                            elif s.status == "in_progress":
+                                marker = "[>] (CURRENT)"
+                            elif s.status == "failed":
+                                marker = "[!]"
+
                             steps_str += f"\n{marker} {s.title}"
                             if s.status == "in_progress":
                                 active_step_found = True
-                        
+
                         active_plan_context = f"PLAN: {db_plan.title}\nSTEPS:{steps_str}"
                         if active_step_found:
                             active_plan_context += "\n\n-> FOCUS: Execute the [>] CURRENT step."
@@ -375,7 +352,22 @@ class SupervisorNode:
         except Exception as e:
             logger.warning(f"Failed to load active plan: {e}")
 
-        sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}{todo_context}"
+        # 6. Inject Active Plan Context (DB)
+        active_plan_context = "No active plan found. Please create one if the task is complex."
+
+        # 7. ATTENTION GUIDANCE PROTOCOL (Phase 21)
+        protocol_prompt = """
+### ATTENTION GUIDANCE PROTOCOL (CRITICAL)
+You act as the **SCOUT** for the Coder/Tester. They are blind until you guide them.
+When you call `route_to(target='coder', ...)` or `route_to(target='tester', ...)`:
+1. **Consult the File Tree** above.
+2. Identify 1-3 files that are CRITICAL for the task.
+3. Pass them in the `context` argument: `context={"focus_paths": ["src/main.py", "tests/test_main.py"]}`.
+
+**DO NOT** make the Coder guess where the code is. Point to it.
+"""
+
+        sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}{todo_context}\n{protocol_prompt}"
 
         logger.info(f"[Supervisor] 📂 Context: Tree {len(project_structure)} chars, Concepts {len(project_concepts)} chars, Todos {len(todo_context)} chars")
 
@@ -387,174 +379,6 @@ class SupervisorNode:
             "current_plan": state.get("current_plan", "No plan yet."),
             "active_plan_context": active_plan_context,
             "iteration_count": state.get("iteration_count", 0)
-        }
-
-    async def _run_planning(self, state: AgentState, config: RunnableConfig,
-                           context: dict[str, Any], project_id: int) -> dict[str, Any]:
-        """Run LLM planning via AgentEngine."""
-        dynamic_prompt = SUPERVISOR_SYSTEM_TEMPLATE.format(
-            project_id=project_id,
-            current_plan=context["current_plan"],
-            active_plan_context=context["active_plan_context"],
-            iteration_count=context["iteration_count"],
-            system_info=context["sys_info"],
-            user_lang=context["user_lang"]
-        )
-
-        return await AgentEngine.run_node(
-            state=state,
-            config=config,
-            system_prompt=dynamic_prompt,
-            tools=context["tools"],
-            max_steps=10,
-            name="Supervisor"
-        )
-
-    def _check_special_conditions(self, state: AgentState, messages: list,
-                                  engine_result: dict[str, Any]) -> dict[str, Any] | None:
-        """Check for special conditions that require immediate return."""
-        new_messages = engine_result.get("messages", [])
-
-        # Check for Deep Research Report
-        if messages and isinstance(messages[-1], AIMessage):
-            content = messages[-1].content
-            if any(x in content for x in ["Full Research Report", "Detailed Conclusion", "# Final Conclusion"]):
-                logger.info("Supervisor detected Research Report. Routing to FINISH.")
-                return {
-                    "next_node": "finish",
-                    "messages": new_messages,
-                    "current_plan": state.get("current_plan"),
-                    "parallel_research_tasks": []
-                }
-
-        # Check for HITL State
-        hitl = state.get("hitl_state")
-        if hitl:
-            last_msg = messages[-1] if messages else None
-            if isinstance(last_msg, HumanMessage):
-                resume_node = hitl.get("resume_node", "supervisor")
-                logger.info(f"HITL Active + Human Input -> Resuming '{resume_node}'.")
-                return {
-                    "next_node": resume_node,
-                    "messages": new_messages,
-                    "current_plan": state.get("current_plan"),
-                }
-            else:
-                logger.info("HITL Active + No Human Input -> Waiting (finish).")
-                return {
-                    "next_node": "finish",
-                    "messages": new_messages,
-                    "current_plan": state.get("current_plan"),
-                }
-
-        # Check for Human Input Request
-        if messages and isinstance(messages[-1], ToolMessage):
-            if messages[-1].name in ["request_human_input", "request_approval"]:
-                logger.info("Human Input requested. Creating interrupt point (finish).")
-                return {
-                    "next_node": "finish",
-                    "messages": new_messages,
-                    "current_plan": state.get("current_plan"),
-                }
-
-        return None
-
-    async def _make_routing_decision(self, state: AgentState, config: RunnableConfig,
-                                     messages: list, context: dict[str, Any],
-                                     engine_result: dict[str, Any]) -> dict[str, Any]:
-        """Make final routing decision via LLM."""
-        llm = LLMFactory.create_llm()
-        new_messages = engine_result.get("messages", [])
-
-        parser = JsonOutputParser(pydantic_object=RoutingDecision)
-        format_instructions = parser.get_format_instructions()
-
-        from app.core.prompts.supervisor_builder import SupervisorPromptBuilder
-        routing_prompt = SupervisorPromptBuilder.build_routing_prompt(format_instructions)
-
-        chain = routing_prompt.partial(
-            system_info=context["sys_info"],
-            format_instructions=format_instructions
-        ) | llm | parser
-
-        # Execute routing decision (hide from user)
-        routing_config = config.copy() if config else {}
-        routing_config["callbacks"] = []
-
-        # 1. Heuristic Override: Check for Explicit "Ready" signals in the last AI message
-        # 1. Heuristic Override: Check for Explicit "Ready" signals in the last AI message
-        # Fix 2.0: Iterate backwards to find the last actual AIMessage, ignoring trailing ToolMessages
-        last_ai_msg = None
-        for m in reversed(messages):
-            if isinstance(m, AIMessage):
-                last_ai_msg = m
-                break
-        
-        if last_ai_msg and isinstance(last_ai_msg.content, str):
-            content = last_ai_msg.content
-            if "Ready for Coder" in content or "Plan verified" in content:
-                logger.info("[Supervisor] 🚀 Heuristic Override: Detected 'Ready for Coder'. Force routing to 'coder'.")
-                return {
-                    "next_node": "coder",
-                    "messages": new_messages,
-                    "current_plan": state.get("current_plan"),
-                    "active_tool_profile": "GENERAL"
-                }
-
-        # 2. Heuristic Override: Loop Detection (Identical AI Messages)
-        # Check if the last 3 AI messages have identical content (excluding tools)
-        ai_msgs = [m for m in reversed(messages) if isinstance(m, AIMessage) and isinstance(m.content, str) and len(m.content) > 20]
-        if len(ai_msgs) >= 3:
-            # Check for near-identical content (first 100 chars) to catch minor variations
-            c1 = ai_msgs[0].content.strip()[:100]
-            c2 = ai_msgs[1].content.strip()[:100]
-            c3 = ai_msgs[2].content.strip()[:100]
-            
-            if c1 == c2 == c3:
-                 logger.warning("[Supervisor] 🔄 Loop Detected (Identical Messages). Force routing to 'finish' (to stop cost).")
-                 return {
-                    "next_node": "finish",
-                    "messages": new_messages + [AIMessage(content="⚠️ System paused due to detected message loop.")],
-                    "current_plan": state.get("current_plan")
-                 }
-
-        decision = None
-        next_node = "deep_researcher"
-        try:
-            # Filter out SystemMessages from history to avoid duplication/protocol errors
-            history_msgs = [m for m in messages if not isinstance(m, SystemMessage)]
-            invoke_input = state.copy() 
-            invoke_input["messages"] = history_msgs
-
-            raw = await chain.ainvoke(invoke_input, config=routing_config)
-            decision = RoutingDecision(**raw)
-            next_node = decision.next_node
-        except InterruptedError:
-            raise
-        except Exception as e:
-            logger.warning(f"Routing decision failed: {e}")
-
-        # Handle map_research fallback
-        parallel_tasks = []
-        if decision:
-            if next_node == "map_research" and not decision.parallel_research_tasks:
-                next_node = "deep_researcher"
-            parallel_tasks = decision.parallel_research_tasks or []
-
-        profile = decision.tool_profile if decision else "GENERAL"
-        query = decision.retrieval_query if decision else None
-
-        logger.info(f"[Supervisor] 🚦 Routing: {next_node} (Profile: {profile})")
-
-        return {
-            "next_node": next_node,
-            "messages": new_messages,
-            "current_plan": state.get("current_plan"),
-            "structured_plan": state.get("structured_plan"),
-            "parallel_research_tasks": parallel_tasks,
-            "active_tool_profile": profile,
-            "tool_retrieval_query": query,
-            "scratchpad": {"last_supervisor_route": next_node}
         }
 
 

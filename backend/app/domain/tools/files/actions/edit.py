@@ -11,8 +11,9 @@ async def handle_edit(path: str, target: str | None = None, content: str | None 
     if not target and not content: return "Error: 'target' and 'content' (replacement) required for update_block."
 
     # Safety Check: Target Uniqueness
-    if len(target) < 10 or len(target.splitlines()) < 2:
-        return "Error: Target block is too short or ambiguous (must be > 10 chars and > 1 line). Please provide more context(surrounding lines) to ensure unique match."
+    # Relaxed for single-line edits
+    if len(target.strip()) < 3:
+        return "Error: Target block is too short (must be > 2 chars). Please provide surrounding context if replacing a very short string."
 
     try:
         target_path = resolve_and_validate_path(path, config)

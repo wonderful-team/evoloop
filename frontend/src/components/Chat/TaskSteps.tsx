@@ -20,6 +20,7 @@ export interface TaskItem {
   name: string
   status: "running" | "done" | "failed" | "cancelled"
   type: "node" | "tool" | "ai" | "skill"
+  parent_id?: number // Phase 18: Link to phase
   time: string
   details?: string
 }
@@ -39,54 +40,87 @@ interface TaskStepsProps {
 
 import { useTranslation } from "react-i18next"
 
-// New Helper: Group flat list into Phases
+// Replaces legacy assumption-based grouping with direct parent_id hierarchy
 function groupTasks(tasks: TaskItem[], t: any): TaskGroup[] {
   const groups: TaskGroup[] = []
-  let currentGroup: TaskGroup | null = null
 
-  tasks.forEach((task) => {
-    // 1. Is this a Phase Header? (Type='node' or name like "► ...")
-    // We treating 'node' type as phase headers now based on backend change
-    const isHeader = task.type === "node" || task.name.startsWith("►")
+  // 1. Separate Headers (Phases) and Children
+  // Headers are explicitly marked as "node" with friendly names OR we can use the "parent_id" linking
+  // In the new system, headers are tasks where type="node" (usually) and they are parents.
 
-    if (isHeader) {
-      // Start new group
-      currentGroup = {
-        id: `g-${task.id}`,
-        title: task.name.replace("► ", "").replace("Phase: ", ""), // Clean up
-        status: task.status, // Initially use header status
-        tasks: [],
+  // Strategy: 
+  // - Find tasks that ARE parents (id referenced by others) OR are explicit phase headers
+  // - Group others under them
+
+  const headerMap = new Map<number, TaskItem>()
+  const childrenMap = new Map<number, TaskItem[]>() // parent_id -> tasks
+  const orphans: TaskItem[] = []
+
+  // First pass: Organize by parent_id
+  tasks.forEach(task => {
+    if (task.parent_id) {
+      if (!childrenMap.has(task.parent_id)) {
+        childrenMap.set(task.parent_id, [])
       }
-      groups.push(currentGroup)
+      childrenMap.get(task.parent_id)?.push(task)
     } else {
-      // It's a step (tool/thought)
-      if (!currentGroup) {
-        // Create implicit group if none exists
-        currentGroup = {
-          id: "g-start",
-          title: t("chat.steps.execution", "Execution"),
-          status: "running",
-          tasks: [],
-          isImplicit: true,
-        }
-        groups.push(currentGroup)
-      }
-
-      // Add to current group
-      currentGroup.tasks.push(task)
-
-      // Update Group Status: if ANY child is running, group is running
-      if (task.status === "running") {
-        currentGroup.status = "running"
-      } else if (task.status === "failed") {
-        currentGroup.status = "failed"
+      // Potential Header (or Orphan)
+      // We consider it a header if it starts with "►" (Phase marker from backend)
+      if (task.name.startsWith("►") || task.type === "node") {
+        headerMap.set(task.id, task)
+      } else {
+        orphans.push(task)
       }
     }
   })
 
-  // Final Pass: Logic consistency
-  // If a group has no running tasks, but header is running, it's running.
-  // If header is done, but has running tasks? (Shouldn happen in linear log).
+  // 2. Create Groups from Headers
+  headerMap.forEach((header, id) => {
+    const children = childrenMap.get(id) || []
+
+    // determine group status based on children + header
+    let status = header.status
+    if (status === "running" && children.some(c => c.status === "failed")) {
+      // If header says running but a child failed? usually header will update eventually.
+      // Keep header status as truth.
+    }
+
+    groups.push({
+      id: `g-${header.id}`,
+      title: header.name.replace("► ", "").replace("Phase: ", ""),
+      status: status,
+      tasks: children,
+      isImplicit: false
+    })
+  })
+
+  // 3. Handle Orphans (Implicit "Execution" Phase)
+  if (orphans.length > 0) {
+    // Check if we already have an "Execution" group? No, implicit is unique.
+    // Grouping orphans together allows handling legacy events or untracked tools
+    const implicitGroup: TaskGroup = {
+      id: "g-implicit",
+      title: t("chat.steps.execution", "Execution"), // "执行阶段"
+      status: orphans.some(t => t.status === "running") ? "running" : "done",
+      tasks: orphans,
+      isImplicit: true
+    }
+    // Put implicit group at the place where the first orphan appeared? 
+    // Or at bottom? Time-based sorting usually prefers implicit stuff to flow naturally.
+    // For now, simpler to append.
+    groups.push(implicitGroup)
+  }
+
+  // 4. Sort Groups by ID (assuming ID is roughly chronological)
+  // Headers usually created sequentially.
+  // Implicit group ID is string, maybe put it based on first orphan ID?
+  groups.sort((a, b) => {
+    const getOrder = (g: TaskGroup) => {
+      if (g.isImplicit && g.tasks.length > 0) return g.tasks[0].id
+      return parseInt(g.id.replace("g-", "")) || 999999
+    }
+    return getOrder(a) - getOrder(b)
+  })
 
   return groups
 }

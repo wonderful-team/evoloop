@@ -2,6 +2,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
 
+from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.logging import logger
@@ -55,9 +56,8 @@ async def meta_reviewer_node(state: AgentState, config: RunnableConfig):
 
     response = await chain.ainvoke({}, config=config)
 
-    # We rely on the LLM to include the header now, which means the standard callback handler
     # will log it nicely, and we don't need manual persistence or manual prefixing.
-    advice = response.content
+    advice = get_message_text(response)
 
     return {
         "messages": [AIMessage(content=advice)],

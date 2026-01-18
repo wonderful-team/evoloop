@@ -1,3 +1,5 @@
+import asyncio
+import json
 from typing import Any
 from uuid import UUID
 
@@ -15,6 +17,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     Callback Handler that logs user-friendly messages to the database.
     Acts as a View Layer sanitizer.
     """
+
     def __init__(self, thread_id: str, project_id: int, start_sequence: int = 0, run_id: str = None):
         self.thread_id = thread_id
         self.project_id = project_id
@@ -43,9 +46,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 return
 
             generation = response.generations[0][0]
-            message = generation.message # type: ignore
+            message = generation.message  # type: ignore
             content = message.content or ""
-            
+
             # Handle Multimodal/List content (e.g. Anthropic/Zhipu structured output)
             if isinstance(content, list):
                 # Extract text elements
@@ -55,11 +58,11 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                         if item.get("type") == "text":
                             text_parts.append(item.get("text", ""))
                         elif item.get("type") == "tool_use":
-                            pass 
+                            pass
                     elif isinstance(item, str):
                         text_parts.append(item)
                 content = "".join(text_parts)
-            
+
             # Defensive: Ensure content is string
             if not isinstance(content, str):
                 content = str(content)
@@ -86,7 +89,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                         content = summary_block
 
             # 3. Detect and Format JSON (Supervisor/Router Outputs)
-            import json
             if content and content.strip().startswith("{") and content.strip().endswith("}"):
                 try:
                     data = json.loads(content)
@@ -95,18 +97,17 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                         node = data.get("next_node")
                         parallel = data.get("parallel_research_tasks")
                         if node == "finish":
-                             # INTERCEPT: Update Cloud Status instead of logging message
-                             # thread_id format: task-{task_id}-{timestamp}
-                             import re
-                             task_match = re.search(r"task-(\d+)-", self.thread_id)
-                             if task_match:
-                                 task_id = int(task_match.group(1))
-                                 if evocloud_client:
-                                    import asyncio
+                            # INTERCEPT: Update Cloud Status instead of logging message
+                            # thread_id format: task-{task_id}-{timestamp}
+                            import re
+                            task_match = re.search(r"task-(\d+)-", self.thread_id)
+                            if task_match:
+                                task_id = int(task_match.group(1))
+                                if evocloud_client:
                                     asyncio.create_task(evocloud_client.update_task_status(task_id, 3, 100))
-                             
-                             return # Do not log 'finish' JSON to chat
-                        
+
+                            return  # Do not log 'finish' JSON to chat
+
                         # Case B: Other JSON
                         # Convert to nicely formatted text
                         content = f"**Decision:** Route to `{node}`"
@@ -123,18 +124,34 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 thinking=thinking,
                 tool_calls=tool_calls
             )
-                
+
         except Exception as e:
             # Swallow errors in logging to prevent crashing the flow
-            print(f"Error in DatabaseCallbackHandler: {e}") 
-
+            print(f"Error in DatabaseCallbackHandler: {e}")
 
     def _get_tool_summary(self, tool_call: dict) -> str:
         """Generate a user-friendly summary of what a tool is doing."""
         tool_name = tool_call.get("name", "tool")
         tool_input = tool_call.get("args", {})
 
-        if tool_name == "manage_file":
+        # Phase 18: Support new atomic file tools
+        if tool_name == "read_file":
+            path = tool_input.get("path", "file")
+            return f"Reading '{path}'"
+        elif tool_name == "write_file":
+            path = tool_input.get("path", "file")
+            return f"Writing to '{path}'"
+        elif tool_name == "edit_file":
+            path = tool_input.get("path", "file")
+            return f"Editing '{path}'"
+        elif tool_name == "list_files":
+            path = tool_input.get("path", "directory")
+            return f"Listing '{path}'"
+        elif tool_name == "file_system":
+            action = tool_input.get("action", "operate")
+            path = tool_input.get("path", "path")
+            return f"{action.capitalize()} '{path}'"
+        elif tool_name == "manage_file":
             action = tool_input.get("action", "access")
             path = tool_input.get("path", "file")
             return f"{action.replace('_', ' ').capitalize()} '{path}'"
@@ -152,18 +169,19 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         t_args = tool_call.get("args", {})
 
         try:
-            if t_name in ["read_document", "read_file", "view_file", "manage_file"]:
-                 path = t_args.get("file_path") or t_args.get("AbsolutePath") or t_args.get("url") or t_args.get("path") or "unknown"
-                 name = path.split("/")[-1]
-                 return {"type": "file", "target_id": path, "target_name": name}
+            # Phase 18: Support new atomic file tools
+            if t_name in ["read_document", "read_file", "view_file", "manage_file", "list_files", "write_file", "edit_file"]:
+                path = t_args.get("file_path") or t_args.get("AbsolutePath") or t_args.get("url") or t_args.get("path") or "unknown"
+                name = path.split("/")[-1]
+                return {"type": "file", "target_id": path, "target_name": name}
 
             elif t_name in ["search_codebase", "grep_search", "find_by_name"]:
-                 query = t_args.get("query") or t_args.get("Pattern") or "unknown"
-                 return {"type": "knowledge", "target_id": query, "target_name": f"Search: {query}"}
+                query = t_args.get("query") or t_args.get("Pattern") or "unknown"
+                return {"type": "knowledge", "target_id": query, "target_name": f"Search: {query}"}
 
-            elif t_name == "read_memory_item": # Hypothetical tool for memory
-                 mem_id = t_args.get("id", "unknown")
-                 return {"type": "memory", "target_id": mem_id, "target_name": "Memory Item"}
+            elif t_name == "read_memory_item":  # Hypothetical tool for memory
+                mem_id = t_args.get("id", "unknown")
+                return {"type": "memory", "target_id": mem_id, "target_name": "Memory Item"}
 
             return None
         except:
@@ -182,7 +200,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         # Used for history and debugging
         await self._save_log(role="tool", content=str(output), status="completed", tool_output=str(output))
 
-    async def _save_log(self, role: str, content: str, thinking: str = None, status: str = "completed", references: list[dict] = None, tool_calls: list = None, tool_output: str = None):
+    async def _save_log(self, role: str, content: str, thinking: str = None, status: str = "completed",
+                        references: list[dict] = None, tool_calls: list = None, tool_output: str = None):
         if not content and not thinking and not tool_calls:
             return
 
@@ -203,84 +222,92 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         self._last_logged_time = current_time
 
         try:
-             self._sequence_counter += 1
-             async with session_scope() as session:
-                 # Phase 4: Threading - Find parent (Last message in thread)
-                 # Ideally we should pass parent_id explicitly, but for now linear threading is fine.
-                 from sqlalchemy import desc, select
-                 parent_id = None
-                 stmt = (
-                     select(Message.id)
-                     .where(Message.thread_id == self.thread_id)
-                     .order_by(desc(Message.sequence_number))
-                     .limit(1)
-                 )
-                 result = await session.execute(stmt)
-                 parent_id = result.scalar_one_or_none()
+            self._sequence_counter += 1
+            async with session_scope() as session:
+                # Phase 4: Threading - Find parent (Last message in thread)
+                # Ideally we should pass parent_id explicitly, but for now linear threading is fine.
+                from sqlalchemy import desc, select
+                parent_id = None
+                stmt = (
+                    select(Message.id)
+                    .where(Message.thread_id == self.thread_id)
+                    .order_by(desc(Message.sequence_number))
+                    .limit(1)
+                )
+                result = await session.execute(stmt)
+                parent_id = result.scalar_one_or_none()
 
-                 log = Message(
-                     thread_id=self.thread_id,
-                     project_id=self.project_id,
-                     role=role,
-                     content=content,
-                     thinking=thinking,
-                     sequence_number=self._sequence_counter,
-                     # Phase 3: Message-Run Association
-                     run_id=self.run_id,
-                     status=status,
-                     # Phase 4: Threading
-                     parent_id=parent_id,
-                     # Tool Data
-                     tool_calls=tool_calls,
-                     tool_output=tool_output
-                 )
-                 session.add(log)
-                 session.add(log)
-                 await session.flush() # Get ID
+                log = Message(
+                    thread_id=self.thread_id,
+                    project_id=self.project_id,
+                    role=role,
+                    content=content,
+                    thinking=thinking,
+                    sequence_number=self._sequence_counter,
+                    # Phase 3: Message-Run Association
+                    run_id=self.run_id,
+                    status=status,
+                    # Phase 4: Threading
+                    parent_id=parent_id,
+                    # Tool Data
+                    tool_calls=tool_calls,
+                    tool_output=tool_output
+                )
+                session.add(log)
+                await session.flush()  # Get ID
 
-                 # Phase 11: Real-time History Sync
-                 from app.schemas.events import MessageEvent
-                 try:
-                     # Access activity_monitor lazily to avoid circular imports at module level
-                     from app.core.monitoring.activity import activity_monitor
-                     
-                     # Serialize minimal data needed for frontend append
-                     msg_data = {
-                         "id": str(log.id),
-                         "role": log.role,
-                         "content": log.content,
-                         # "created_at": log.created_at.isoformat() if log.created_at else None, # Created_at might be None until commit?
-                         # Use current time if None?
-                         "thinking": log.thinking,
-                         "type": "text" 
-                     }
-                     
-                     # Fire and forget
-                     if activity_monitor and hasattr(activity_monitor, "client"):
-                         await activity_monitor.client.publish(
-                              f"chat:{self.thread_id}:events",
-                              MessageEvent(data=msg_data).json()
-                         )
-                 except Exception:
-                     pass
+                # Phase 11: Real-time History Sync
+                from app.schemas.events import MessageEvent
+                try:
+                    # Access activity_monitor lazily to avoid circular imports at module level
+                    from app.core.monitoring.activity import activity_monitor
 
-                 # Phase 9: Save References
-                 if references:
-                     from app.infrastructure.database.sql.models import MessageReference
-                     for ref in references:
-                         mr = MessageReference(
-                             id=str(UUID(int=hash(f"{log.id}-{ref['target_id']}-{time.time()}") & ((1<<128)-1))), # Pseudo UUID
-                             message_id=log.id,
-                             type=ref["type"],
-                             target_id=ref["target_id"],
-                             target_name=ref["target_name"]
-                         )
-                         session.add(mr)
+                    # Serialize minimal data needed for frontend append
+                    msg_data = {
+                        "id": str(log.id),
+                        "role": log.role,
+                        "content": log.content,
+                        # "created_at": log.created_at.isoformat() if log.created_at else None, # Created_at might be None until commit?
+                        # Use current time if None?
+                        "thinking": log.thinking,
+                        "type": "text"
+                    }
 
-                 # session_scope commits automatically
-        except Exception:
-            # logger.error(f"Failed to log message: {e}")
-            pass
+                    # Fire and forget
+                    if activity_monitor and hasattr(activity_monitor, "client"):
+                        await activity_monitor.client.publish(
+                            f"chat:{self.thread_id}:events",
+                            MessageEvent(data=msg_data).json()
+                        )
+                except Exception:
+                    pass
+
+                # Phase 9: Save References
+                if references:
+                    from app.infrastructure.database.sql.models import MessageReference
+                    for ref in references:
+                        mr = MessageReference(
+                            id=str(UUID(int=hash(f"{log.id}-{ref['target_id']}-{time.time()}") & ((1 << 128) - 1))),
+                            # Pseudo UUID
+                            message_id=log.id,
+                            type=ref["type"],
+                            target_id=ref["target_id"],
+                            target_name=ref["target_name"]
+                        )
+                        session.add(mr)
+
+                # session_scope commits automatically
+        except Exception as e:
+            # Phase 18 Fix: Log error explicitly. Do not swallow fatal DB errors silently, 
+            # although we might still want to avoid crashing the whole agent if just logging fails?
+            # Actually, if logging fails, we lose history. It's critical.
+            # But crashing the agent mid-thought is also bad. 
+            # Let's log ERROR and re-raise if it's a connection issue? 
+            # For now, just logging ERROR is better than silent 'pass'.
+            import logging
+            logging.getLogger(__name__).error(f"CRITICAL: Failed to persist message log: {e}", exc_info=True)
+            # We don't re-raise to avoid killing the agent execution loop, 
+            # but this error will now be visible in logs.
 
     async def snapshot_tasks_to_last_message(self, tasks: list):
         """

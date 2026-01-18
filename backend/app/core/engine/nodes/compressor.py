@@ -1,5 +1,6 @@
 from langchain_core.messages import BaseMessage, RemoveMessage, SystemMessage
 
+from app.core.engine.message_utils import get_message_text
 from app.core.llm.factory import LLMFactory
 
 import logging
@@ -32,7 +33,7 @@ async def compress_history_delta(messages: list[BaseMessage], keep_last: int = 1
     conversation_text = ""
     for msg in to_summarize:
         role = msg.type
-        content = str(msg.content)
+        content = get_message_text(msg)
         if len(content) > 2000:
             content = content[:2000] + "...[TRUNCATED]"
         conversation_text += f"{role}: {content}\n"
@@ -83,7 +84,7 @@ SUMMARY:
 
     try:
         summary_response = await llm.ainvoke(prompt, config={"callbacks": []})  # Internal thought, do not stream
-        summary_text = summary_response.content
+        summary_text = get_message_text(summary_response)
 
         delta = []
 

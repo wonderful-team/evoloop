@@ -953,11 +953,13 @@
       "initializingPhase": "Initializing phase..."
     },
     "interface": {
+      "inputDisabled": "Please respond to the active request above...",
       "inputHint": "Enter to send, Shift + Enter for new line",
       "errorSend": "Failed to send message",
+      "welcome": "How can I help you today?",
       "learnedFromChat": "Learned from chat",
       "exportSuccess": "Chat exported successfully",
-      "startPrompt": "Start a new conversation...",
+      "startPrompt": "Start a new conversation or choose a task below.",
       "thinking": "Thinking...",
       "deepResearching": "Deep Researching...",
       "copy": "Copy",
@@ -1018,8 +1020,10 @@
       "tabPlan": "Plan",
       "tabState": "State",
       "tabKowledge": "Knowledge",
-      "tabTools": "Tools",
+      "tabKnowledge": "Knowledge",
       "tabResources": "Resources",
+      "groupContext": "Context",
+      "groupSystem": "System",
       "memoryTitle": "Memory Concepts",
       "noConcepts": "No memory concepts found.",
       "planTitle": "Active Plan",
@@ -1052,6 +1056,12 @@
       "noFiles": "No files found.",
       "linkAdded": "Link added",
       "linkFailed": "Failed to add link",
+      "starter": {
+        "analyze": "Analyze current codebase structure",
+        "plan": "Create a new implementation plan",
+        "tasks": "What tasks are currently pending?",
+        "help": "Help me understand this project"
+      },
       "resourceRemoved": "Resource removed",
       "addMemory": {
         "title": "Add Memory",

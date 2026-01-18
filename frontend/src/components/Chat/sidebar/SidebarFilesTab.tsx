@@ -1,3 +1,4 @@
+import { toast } from "sonner"
 import { FileTree } from "@/components/Files/FileTree"
 
 interface SidebarFilesTabProps {
@@ -11,7 +12,10 @@ export function SidebarFilesTab({ projectId }: SidebarFilesTabProps) {
         {projectId && (
           <FileTree
             projectId={projectId}
-            onSelectFile={(file) => console.log(file)}
+            onSelectFile={(file) => {
+              navigator.clipboard.writeText(file.path)
+              toast.success(`Copied path: ${file.path}`)
+            }}
           />
         )}
       </div>

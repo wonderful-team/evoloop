@@ -116,7 +116,7 @@ class AgentEngine:
         """Inject language preference if missing."""
         user_lang = SystemConfigService.get_language_preference()
         if "User Language Preference:" not in system_prompt:
-             return system_prompt + f"\n\nUser Language Preference: {user_lang}\nCommunicate in this language."
+            return system_prompt + f"\n\nUser Language Preference: {user_lang}\nCommunicate in this language."
         return system_prompt
 
     @staticmethod
@@ -130,7 +130,6 @@ class AgentEngine:
         name: str
     ) -> dict[str, Any]:
         """Core ReAct Loop Logic."""
-
 
         # Filter out old SystemMessages from history to avoid duplication/interleaving errors
         # (Especially critical for Anthropic which forbids multiple system messages)
@@ -149,7 +148,7 @@ class AgentEngine:
         local_tool_history = []
 
         for i in range(max_steps):
-            logger.info(f"--- {name} Loop Step {i+1} ---")
+            logger.info(f"--- {name} Loop Step {i + 1} ---")
 
             # Invoke LLM
             response = await llm_with_tools.ainvoke(loop_messages, config=config)
@@ -165,6 +164,22 @@ class AgentEngine:
                 logger.info(f"[{name}] 🏁 Finished with text response.")
                 break
 
+            # ★ ReAct Routing: Check for route_to tool call
+            for tc in response.tool_calls:
+                if tc["name"] == "route_to":
+                    target = tc["args"].get("target", "finish")
+                    reason = tc["args"].get("reason", "")
+                    context = tc["args"].get("context", {})  # <--- NEW
+                    logger.info(f"[{name}] 🚀 Routing Signal: → {target} ({reason}) | Ctx: {len(context) if context else 0} keys")
+
+                    # Return immediately with routing information
+                    return {
+                        "messages": new_messages + [response],
+                        "_routing_target": target,
+                        "_routing_reason": reason,
+                        "_routing_context": context  # <--- NEW
+                    }
+
             # Execute Tools
             for tool_call in response.tool_calls:
                 tool_name = tool_call["name"]
@@ -173,9 +188,10 @@ class AgentEngine:
 
                 logger.info(f"[{name}] 🛠️ Call: {tool_name} | Args: {json.dumps(tool_args)}")
 
-                # Check duplication
+                # Check duplication (Phase 18: Exclude all file write tools from dedup)
                 tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
-                if tool_sig in local_tool_history and tool_name != "manage_file":
+                file_write_tools = ["manage_file", "write_file", "edit_file", "file_system"]
+                if tool_sig in local_tool_history and tool_name not in file_write_tools:
                     content = f"⚠️ SYSTEM ALERT: You have ALREADY executed `{tool_name}` with these exact arguments. Stop."
                     logger.warning(f"[{name}] 🛑 Prevented duplicate tool: {tool_sig}")
                 else:
@@ -190,12 +206,18 @@ class AgentEngine:
                             snapshot_path = None
                             from app.core.memory.diff import diff_tracker
 
-                            if tool_name == "manage_file" and isinstance(tool_args, dict):
-                                arg_path = tool_args.get("absolute_path")
+                            # Phase 18: Track diffs for atomic file tools
+                            if tool_name in ["write_file", "edit_file"] and isinstance(tool_args, dict):
+                                arg_path = tool_args.get("path")
+                                if arg_path:
+                                    snapshot_path = arg_path
+                                    diff_tracker.capture_snapshot(snapshot_path)
+                            elif tool_name == "manage_file" and isinstance(tool_args, dict):
+                                arg_path = tool_args.get("absolute_path") or tool_args.get("path")
                                 action = tool_args.get("action")
-                                if arg_path and action in ["create", "update_block", "write"]:
-                                     snapshot_path = arg_path
-                                     diff_tracker.capture_snapshot(snapshot_path)
+                                if arg_path and action in ["create", "update_block", "write", "overwrite"]:
+                                    snapshot_path = arg_path
+                                    diff_tracker.capture_snapshot(snapshot_path)
 
                             # Execute Tool
                             content = await executor.execute(tool, tool_args, config=config)

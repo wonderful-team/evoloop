@@ -11,9 +11,16 @@ from app.domain.memory.service import memory_service
 # Expose Facades via MCP
 from app.domain.tools.facades import (
     explore_codebase,
-    manage_file,
     manage_git,
     manage_memory,
+)
+# Phase 18: Import new atomic file tools
+from app.domain.tools.files import (
+    read_file,
+    write_file,
+    edit_file,
+    list_files,
+    file_system,
 )
 from app.utils import json as json_utils
 
@@ -30,31 +37,72 @@ def _truncate(text: str, max_chars: int = 20000) -> str:
     return text[:max_chars] + f"\n... [Truncated. Total length: {len(text)} chars. Use specific tools to read more.]"
 
 
+# Phase 18: Atomic File Tools for MCP
 @mcp.tool()
-def manage_file_ops(
-    action: str,
-    path: str,
-    content: str = None,
-    target: str = None,
-    start_line: int = None,
-    end_line: int = None
-) -> str:
-    """
-    Unified File Management. 
-    Actions: 'read', 'create', 'update_block', 'overwrite', 'list'.
-    """
+async def read_file_ops(path: str, start_line: int = None, end_line: int = None) -> str:
+    """Read a file's contents. Optionally specify line range."""
     try:
-        # Map args. invoke expects dict.
-        return _truncate(manage_file.invoke({
-            "action": action,
+        return _truncate(await read_file.ainvoke({
             "path": path,
-            "content": content,
-            "target": target,
             "start_line": start_line,
             "end_line": end_line
         }))
     except Exception as e:
         return f"Error: {e}"
+
+
+@mcp.tool()
+async def write_file_ops(path: str, content: str, overwrite: bool = False) -> str:
+    """Create a new file or overwrite an existing file."""
+    try:
+        return await write_file.ainvoke({
+            "path": path,
+            "content": content,
+            "overwrite": overwrite
+        })
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+async def edit_file_ops(path: str, target: str, replacement: str, allow_multiple: bool = False) -> str:
+    """Edit a file by replacing a specific text block."""
+    try:
+        return await edit_file.ainvoke({
+            "path": path,
+            "target": target,
+            "replacement": replacement,
+            "allow_multiple": allow_multiple
+        })
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+async def list_files_ops(path: str, depth: int = 3, tree: bool = True) -> str:
+    """List files in a directory. Use tree=True for annotated tree view."""
+    try:
+        return _truncate(await list_files.ainvoke({
+            "path": path,
+            "depth": depth,
+            "tree": tree
+        }))
+    except Exception as e:
+        return f"Error: {e}"
+
+
+@mcp.tool()
+async def file_system_ops(action: str, path: str, destination: str = None) -> str:
+    """File system operations: mkdir, delete, move."""
+    try:
+        return await file_system.ainvoke({
+            "action": action,
+            "path": path,
+            "destination": destination
+        })
+    except Exception as e:
+        return f"Error: {e}"
+
 
 @mcp.tool()
 async def explore_codebase_ops(

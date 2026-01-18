@@ -1,37 +1,23 @@
 import {
-  Bot,
   Brain,
-  ChevronDown,
-  ChevronUp,
   Cpu,
   Database,
-  Layers,
   LayoutDashboard,
   Loader2,
   Map as MapIcon,
-  Wrench,
   X,
 } from "lucide-react"
 import { memo, useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { KnowledgeTab } from "./context/KnowledgeTab"
 // Import Tab Components
-import { MemoryTab } from "./context/MemoryTab"
 import { PlanTab } from "./context/PlanTab"
-import { ResourcesTab } from "./context/ResourcesTab"
-import { StateTab } from "./context/StateTab"
-import { ToolsTab } from "./context/ToolsTab"
+import { ContextGroupTab } from "./context/ContextGroupTab"
+import { SystemGroupTab } from "./context/SystemGroupTab"
+
 // Import Agent Features
 import { useChatStore } from "@/stores/chatStore"
-import { cn } from "@/lib/utils"
-import { ThoughtCard } from "./ThoughtCard"
-import { TaskSteps } from "./TaskSteps"
-import { ArtifactsList } from "./Artifacts/ArtifactsList"
-import { MessageContent } from "./MessageContent"
-import { HumanRequestCard } from "./HumanRequestCard"
-import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface ContextPanelProps {
   projectId?: number
@@ -42,43 +28,39 @@ interface ContextPanelProps {
 
 /**
  * AgentWorkstation (formerly ContextPanel)
- * Integrates "Live Agent Execution" (Top) and "Static Context" (Bottom)
+ * Dashboard for Project Context, Plans, and System State.
  */
 export const ContextPanel = memo(
   ({ projectId, activeThreadId, autoSwitchToTab, onClose }: ContextPanelProps) => {
     const { t } = useTranslation()
-    const [activeTab, setActiveTab] = useState("memory")
-    const [isLiveZoneExpanded, setIsLiveZoneExpanded] = useState(true)
+    const [activeTab, setActiveTab] = useState("context")
 
-    // --- Store Selectors (from AgentCanvas) ---
-    const streamedContent = useChatStore((s) => s.streamedContent)
-    const tasks = useChatStore((s) => s.tasks)
-    const artifacts = useChatStore((s) => s.artifacts)
+    // --- Store Selectors ---
     const status = useChatStore((s) => s.status)
-    const thoughts = useChatStore((s) => s.thoughts) || []
-    const humanRequest = useChatStore((s) => s.humanRequest)
 
     // Determine if Agent is active
     const isAgentActive = status === "running" || status === "interrupted" || status === "SUMMARIZING"
 
-    // Auto-expand Live Zone when agent starts working
-    useEffect(() => {
-      if (isAgentActive) {
-        setIsLiveZoneExpanded(true)
-      }
-    }, [isAgentActive])
-
     // Phase 5: Auto-switch Tab
     useEffect(() => {
       if (autoSwitchToTab) {
-        setActiveTab(autoSwitchToTab)
+        // Map old tab names to new groups if needed, or assume backend sends group name?
+        // Assuming autoSwitch might send 'plan'.
+        // If it sends 'memory'/'knowledge', map to 'context'.
+        if (["memory", "knowledge", "resources"].includes(autoSwitchToTab)) {
+          setActiveTab("context")
+        } else if (["state", "tools"].includes(autoSwitchToTab)) {
+          setActiveTab("system")
+        } else {
+          setActiveTab(autoSwitchToTab)
+        }
       }
     }, [autoSwitchToTab])
 
-    // Default to 'memory' if no auto-switch
+    // Default to 'context' if no auto-switch
     useEffect(() => {
       if (!autoSwitchToTab) {
-        setActiveTab("memory")
+        setActiveTab("context") // Primary view
       }
     }, [autoSwitchToTab])
 
@@ -115,153 +97,40 @@ export const ContextPanel = memo(
           )}
         </div>
 
-        {/* TOP ZONE: Live Agent Activity (Collapsible) */}
-        {(thoughts.length > 0 || isAgentActive || humanRequest) && (
-          <div className="border-b transition-all duration-300 ease-in-out flex flex-col max-h-[50%] shrink-0">
-            {/* Zone Header / Toggle */}
-            <div
-              className={cn(
-                "flex items-center justify-between px-3 py-2 bg-muted/20 cursor-pointer hover:bg-muted/40 transition-colors",
-                isLiveZoneExpanded && "border-b"
-              )}
-              onClick={() => setIsLiveZoneExpanded(!isLiveZoneExpanded)}
-            >
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                <Bot size={12} />
-                {t("chat.canvas.title", "Live Activity")}
-                {status === "interrupted" && <span className="text-amber-500 font-bold ml-1">({t("chat.canvas.waiting", "WAITING INPUT")})</span>}
-              </div>
-              {isLiveZoneExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </div>
-
-            {/* Live Content Area */}
-            {isLiveZoneExpanded && (
-              <ScrollArea className="flex-1 bg-muted/5 min-h-[150px]">
-                <div className="p-3 space-y-4">
-                  {/* HITL Request Card */}
-                  {humanRequest && status === "interrupted" && (
-                    <HumanRequestCard request={humanRequest} />
-                  )}
-
-                  {/* Streamed Output (Current Response) */}
-                  {streamedContent && (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">{t("chat.canvas.response", "Response")}</h4>
-                      <div className="rounded-md px-3 py-2 bg-background border text-xs leading-relaxed max-h-[200px] overflow-y-auto">
-                        <MessageContent content={streamedContent} />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Active Thoughts */}
-                  {thoughts.length > 0 && (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">{t("chat.canvas.thoughts", "Thoughts")}</h4>
-                      {thoughts.slice(-3).reverse().map(thought => (
-                        <ThoughtCard key={thought.id} thought={thought} />
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Task Pipeline */}
-                  {tasks.length > 0 && (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">{t("chat.canvas.plan", "Action Plan")}</h4>
-                      <div className="pl-1">
-                        <TaskSteps tasks={tasks} />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Artifacts */}
-                  {artifacts.length > 0 && (
-                    <div className="space-y-1">
-                      <h4 className="text-[10px] font-medium text-muted-foreground/70 uppercase">{t("chat.canvas.artifacts", "Artifacts")}</h4>
-                      <ArtifactsList artifacts={artifacts} />
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            )}
-          </div>
-        )}
-
-        {/* BOTTOM ZONE: Static Context Tabs */}
+        {/* STATIC CONTEXT TABS (Full Height) */}
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
           className="flex-1 flex flex-col min-h-0"
         >
-          <div className="px-1 pt-2 shrink-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-            <TabsList className="flex flex-wrap h-auto w-full gap-1 bg-transparent justify-start">
-              <TabsTrigger
-                value="memory"
-                title={t("chat.context.tabMemory")}
-                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted"
-              >
-                <Brain className="h-4 w-4" />
+          <div className="p-2 border-b bg-muted/10 shrink-0">
+            <TabsList className="w-full grid grid-cols-3">
+              <TabsTrigger value="context" className="text-xs">
+                <Database className="h-3.5 w-3.5 mr-1.5" />
+                {t("chat.context.groupContext", "Context")}
               </TabsTrigger>
-              <TabsTrigger
-                value="plan"
-                title={t("chat.context.tabPlan")}
-                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted"
-              >
-                <MapIcon className="h-4 w-4" />
+              <TabsTrigger value="plan" className="text-xs">
+                <MapIcon className="h-3.5 w-3.5 mr-1.5" />
+                {t("chat.context.tabPlan", "Plan")}
               </TabsTrigger>
-              <TabsTrigger
-                value="state"
-                title={t("chat.context.tabState")}
-                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted"
-              >
-                <Cpu className="h-4 w-4" />
-              </TabsTrigger>
-              <TabsTrigger
-                value="tools"
-                title={t("chat.context.tabTools")}
-                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted hidden sm:flex"
-              >
-                <Wrench className="h-4 w-4" />
-              </TabsTrigger>
-              <TabsTrigger
-                value="knowledge"
-                title={t("chat.context.tabKnowledge")}
-                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted"
-              >
-                <Database className="h-4 w-4" />
-              </TabsTrigger>
-              <TabsTrigger
-                value="resources"
-                title={t("chat.context.tabResources")}
-                className="flex-1 min-w-[2rem] px-2 py-1.5 text-xs data-[state=active]:bg-muted"
-              >
-                <Layers className="h-4 w-4" />
+              <TabsTrigger value="system" className="text-xs">
+                <Cpu className="h-3.5 w-3.5 mr-1.5" />
+                {t("chat.context.groupSystem", "System")}
               </TabsTrigger>
             </TabsList>
           </div>
 
           <div className="flex-1 overflow-hidden relative">
-            <TabsContent value="memory" className="h-full m-0">
-              <MemoryTab projectId={projectId} />
+            <TabsContent value="context" className="h-full m-0 data-[state=inactive]:hidden">
+              <ContextGroupTab projectId={projectId} />
             </TabsContent>
 
-            <TabsContent value="plan" className="h-full m-0">
+            <TabsContent value="plan" className="h-full m-0 data-[state=inactive]:hidden">
               <PlanTab activeThreadId={activeThreadId} />
             </TabsContent>
 
-            <TabsContent value="state" className="h-full m-0">
-              <StateTab activeThreadId={activeThreadId} />
-            </TabsContent>
-
-            <TabsContent value="tools" className="h-full m-0">
-              <ToolsTab />
-            </TabsContent>
-
-            <TabsContent value="knowledge" className="h-full m-0">
-              <KnowledgeTab projectId={projectId} />
-            </TabsContent>
-
-            <TabsContent value="resources" className="h-full m-0">
-              <ResourcesTab projectId={projectId} />
+            <TabsContent value="system" className="h-full m-0 data-[state=inactive]:hidden">
+              <SystemGroupTab activeThreadId={activeThreadId} />
             </TabsContent>
           </div>
         </Tabs>

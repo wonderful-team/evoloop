@@ -45,6 +45,9 @@ def evoloop_tool(func):
     if inspect.iscoroutinefunction(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
+            # Debug: Log raw inputs
+            from app.logging import logger
+            logger.info(f"🔧 Tool [{func.__name__}] Invoked - Args: {args}, Kwargs: {kwargs}")
             try:
                 return await func(*args, **kwargs)
             except Exception as e:
@@ -53,6 +56,9 @@ def evoloop_tool(func):
     else:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            # Debug: Log raw inputs
+            from app.logging import logger
+            logger.info(f"🔧 Tool [{func.__name__}] Invoked - Args: {args}, Kwargs: {kwargs}")
             try:
                 return func(*args, **kwargs)
             except Exception as e:
@@ -65,5 +71,8 @@ def evoloop_tool(func):
 
     # Apply LangChain's @tool
     tool_instance = langchain_tool(wrapper)
+    
+    # Enable error handling to return validation errors as text to the Agent
+    tool_instance.handle_tool_error = True
 
     return tool_instance

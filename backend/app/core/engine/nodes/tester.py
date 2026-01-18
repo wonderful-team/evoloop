@@ -17,6 +17,7 @@ from app.domain.testing.parser import TestParser
 
 logger = logging.getLogger(__name__)
 
+
 # Define Structured Output
 class TestAnalysis(BaseModel):
     status: str = Field(description="PASS or FAIL")
@@ -45,7 +46,26 @@ class TesterNode:
         messages = state["messages"]
 
         # 1. Build System Prompt
-        system_msg = TesterPromptBuilder.build_system_prompt()
+        # 1a. Generate Project Structure (Context Injection)
+        cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
+        project_structure = "Tree not available"
+        try:
+            from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+            generator = AnnotatedTreeGenerator(cwd, max_depth=3, with_symbols=False, file_limit=30)
+            project_structure = await generator.generate()
+        except Exception:
+            pass
+
+        system_msg = TesterPromptBuilder.build_system_prompt(project_structure=project_structure[:5000])
+
+        # 1b. ATTENTION GUIDANCE HYDRATION (Phase 21)
+        scratchpad = state.get("scratchpad", {})
+        handoff_context = scratchpad.get("handoff_context", {})
+        cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
+
+        hydration_prompt = await self._hydrate_context(handoff_context, cwd)
+        if hydration_prompt:
+            system_msg += f"\n\n{hydration_prompt}"
 
         # 2. Construct Loop Context
         # We use smart_window_slice to keep User Goal + Recent Context
@@ -83,7 +103,7 @@ class TesterNode:
                     # This logic is unique to Tester, hard to put in generic engine without hooks.
                     result = self._handle_test_report(result, cwd)
                 else:
-                     result = f"Error: Tool {tool_name} not found"
+                    result = f"Error: Tool {tool_name} not found"
 
                 # Create Tool Message
                 loop_messages.append(ToolMessage(content=str(result), tool_call_id=tool_id, name=tool_name))
@@ -128,13 +148,16 @@ class TesterNode:
         structured_llm = self.llm.with_structured_output(TestAnalysis)
 
         instruction = TesterPromptBuilder.build_structured_output_prompt()
-        final_prompt = [SystemMessage(content=instruction)] + history[1:]
+
+        # Phase 18 Fix: Filter out all SystemMessages to avoid "multiple non-consecutive system messages" error
+        non_system_history = [msg for msg in history if not isinstance(msg, SystemMessage)]
+        final_prompt = [SystemMessage(content=instruction)] + non_system_history
 
         try:
             result = await structured_llm.ainvoke(final_prompt, config={"callbacks": []})
             if result is None:
-                 logger.warning("[TesterNode] LLM returned None for analysis.")
-                 return TestAnalysis(status="FAIL", summary="LLM Verification Failed (Empty Response)", root_cause="LLM Output Error", fix_suggestion="Check LLM logs")
+                logger.warning("[TesterNode] LLM returned None for analysis.")
+                return TestAnalysis(status="FAIL", summary="LLM Verification Failed (Empty Response)", root_cause="LLM Output Error", fix_suggestion="Check LLM logs")
             return result
         except Exception as e:
             return TestAnalysis(status="FAIL", summary=f"Error analyzing tests: {e}", root_cause="LLM Error", fix_suggestion="Check logs")
@@ -154,7 +177,45 @@ class TesterNode:
         }
         return json.dumps(artifact, ensure_ascii=False)
 
+    async def _hydrate_context(self, context: dict, cwd: str) -> str:
+        """
+        Hydrate context pointers into actual content.
+        Protocol: Attention Guidance (Phase 21).
+        """
+        output = []
+        focus_paths = context.get("focus_paths", [])
+
+        if not focus_paths:
+            return ""
+
+        output.append("### SUPERVISOR HANDOFF CONTEXT (ATTENTION GUIDANCE)")
+        output.append(f"The Supervisor has identified {len(focus_paths)} focus files for you. I have pre-read them:")
+
+        for rel_path in focus_paths:
+            try:
+                # Sanitize path
+                full_path = os.path.join(cwd, rel_path)
+                if not os.path.exists(full_path):
+                    output.append(f"- [MISSING] {rel_path} (Supervisor pointed to non-existent file)")
+                    continue
+
+                # Check size
+                size = os.path.getsize(full_path)
+                if size > 20_000:  # 20KB limit for auto-read
+                    output.append(f"- [SKIPPED] {rel_path} (Too large {size}b - Read manually if needed)")
+                    continue
+
+                # Read content
+                with open(full_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                output.append(f"\n--- FILE: {rel_path} ---\n{content}\n--- END OF FILE ---\n")
+
+            except Exception as e:
+                output.append(f"- [ERROR] {rel_path}: {e}")
+
+        return "\n".join(output) + "\n"
+
 
 # Legacy function entry point for Graph
 tester_node = TesterNode()
-

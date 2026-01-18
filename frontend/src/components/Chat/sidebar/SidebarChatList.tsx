@@ -71,9 +71,9 @@ export function SidebarChatList({
   return (
     <div className="flex flex-col h-full bg-background border-r">
       {/* Search Input */}
-      <div className="p-2 pb-0">
+      <div className="p-3 sticky top-0 bg-background/95 backdrop-blur z-10 border-b">
         <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
             placeholder={t(
@@ -82,8 +82,16 @@ export function SidebarChatList({
             )}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-8 text-sm"
+            className="pl-9 h-9 text-sm bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors shadow-sm"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded-full hover:bg-muted"
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
       </div>
 

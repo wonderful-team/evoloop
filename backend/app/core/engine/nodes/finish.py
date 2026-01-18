@@ -2,13 +2,16 @@ import logging
 
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from pydantic import BaseModel, Field
 
+from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.domain.memory.service import memory_service
 from app.domain.tools.learner import ExtractionResult, harvest_knowledge
 
 logger = logging.getLogger(__name__)
+
 
 async def finish_node(state: AgentState, config: RunnableConfig):
     """
@@ -54,10 +57,10 @@ async def finish_node(state: AgentState, config: RunnableConfig):
 
             # Simple parse to display
             if "Harvested Concepts:" in result_str:
-                 lines = result_str.split('\n')
-                 for line in lines:
-                     if line.strip().startswith("- "):
-                         harvested_concepts.append(line.strip()[2:])
+                lines = result_str.split('\n')
+                for line in lines:
+                    if line.strip().startswith("- "):
+                        harvested_concepts.append(line.strip()[2:])
 
         except Exception as e:
             logger.warning(f"Auto-harvest code failed: {e}")
@@ -65,13 +68,11 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     # 2. Harvest Research Report
     messages = state.get("messages", [])
     if messages and isinstance(messages[-1], AIMessage):
-        content = messages[-1].content
+        content = get_message_text(messages[-1])
         if "Full Research Report" in content or "# Final Conclusion" in content:
             logger.info("Detected Research Report. Harvesting concepts from text...")
             new_concepts = await _harvest_report_concepts(content, state.get("project_id", 1))
             harvested_concepts.extend(new_concepts)
-
-
 
     # 0. Language Preference
     from app.domain.system.service import SystemConfigService
@@ -90,7 +91,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
         unique_concepts = list(set(harvested_concepts))
         summary_parts.append(harvest_title)
         for c in unique_concepts:
-             summary_parts.append(f"- {c}")
+            summary_parts.append(f"- {c}")
 
     if has_code_changes or harvested_concepts:
         summary_parts.append(footer)
@@ -114,16 +115,17 @@ async def finish_node(state: AgentState, config: RunnableConfig):
         project_id = state.get("project_id", 1)
 
         if thread_id:
-             logger.info(f"Syncing thread {thread_id} to Episode Graph...")
-             await sync_thread_to_graph(thread_id, project_id)
+            logger.info(f"Syncing thread {thread_id} to Episode Graph...")
+            await sync_thread_to_graph(thread_id, project_id)
         else:
-             logger.warning("No thread_id found in config, skipping Episode Sync.")
+            logger.warning("No thread_id found in config, skipping Episode Sync.")
     except Exception as e:
         logger.error(f"Failed to sync episode to graph: {e}")
 
     return {
         "messages": [AIMessage(content=final_msg)]
     }
+
 
 async def _check_proactive_todos(state: AgentState, config: RunnableConfig) -> str | None:
     """
@@ -136,12 +138,11 @@ async def _check_proactive_todos(state: AgentState, config: RunnableConfig) -> s
     # Heuristic Check: Removed per user feedback.
     # We now trust the LLM to analyze the context directly for every finish state.
     # This ensures we catch implied tasks in any language without hardcoded keywords.
-    content_blob = "\n".join([m.content for m in messages[-5:] if isinstance(m, (HumanMessage, AIMessage))])
+    content_blob = "\n".join([get_message_text(m) for m in messages[-5:] if isinstance(m, (HumanMessage, AIMessage))])
 
     # LLM Analysis
     try:
         from app.domain.tools.manage_todo import manage_todo
-        from langchain_core.pydantic_v1 import BaseModel, Field
 
         class ProactiveTodo(BaseModel):
             should_create: bool = Field(description="Whether a todo should be created.")
@@ -151,7 +152,7 @@ async def _check_proactive_todos(state: AgentState, config: RunnableConfig) -> s
 
         llm = LLMFactory.create_llm(temperature=0)
         structured = llm.with_structured_output(ProactiveTodo)
-        
+
         system_prompt = """You are a Proactive Assistant. 
 Analyze the recent conversation. Did the user or agent mention a task that needs to be done LATER, or is currently running and needs checking?
 Examples: "I'm deploying...", "Run tests (takes 30m)", "Remind me to check logs".
@@ -166,10 +167,10 @@ If yes, extract the todo details. due_date should be relative (e.g. '30 mins') i
             SystemMessage(content=system_prompt),
             HumanMessage(content=f"Conversation History:\n{content_blob}")
         ])
-        
+
         if result and result.should_create and result.title:
             logger.info(f"Proactive Todo Identified: {result.title} ({result.due_date})")
-            
+
             # Execute Tool
             # We must use .ainvoke because it is a StructuredTool
             response = await manage_todo.ainvoke(
@@ -181,15 +182,16 @@ If yes, extract the todo details. due_date should be relative (e.g. '30 mins') i
                     "priority": "medium",
                     "description": f"Auto-created from context: {result.reason}"
                 },
-                config=config 
+                config=config
             )
-            
+
             return f"📝 **Proactive Reminder**: I've added a todo: '{result.title}' ({result.due_date or 'No date'})."
-            
+
     except Exception as e:
         logger.warning(f"Error in proactive todo analysis: {e}")
-    
+
     return None
+
 
 async def _harvest_report_concepts(report_text: str, project_id: int) -> list[str]:
     """

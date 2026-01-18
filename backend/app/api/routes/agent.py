@@ -1,4 +1,5 @@
 from typing import Annotated, Any
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from langchain_core.messages import HumanMessage
@@ -16,6 +17,7 @@ from app.logging import logger, set_context
 
 router = APIRouter()
 
+
 # --- Models ---
 
 class ChatRequest(BaseModel):
@@ -23,7 +25,8 @@ class ChatRequest(BaseModel):
     message: str
     project_id: int | None = 1
     checkpoint_id: str | None = None
-    attachments: list[dict[str, Any]] | None = None # [{"url": "...", "type": "image"}]
+    attachments: list[dict[str, Any]] | None = None  # [{"url": "...", "type": "image"}]
+
 
 class WebhookRequest(BaseModel):
     source: str
@@ -31,13 +34,14 @@ class WebhookRequest(BaseModel):
     payload: dict[str, Any]
     thread_id: str | None = None
 
+
 # --- Endpoints ---
 
 @router.post("/chat", dependencies=[Depends(verify_guest_access)])
 async def chat_endpoint(
     req: ChatRequest,
-    bg_tasks: BackgroundTasks, # Injected
-    current_user: CurrentUserOptional, # Used for context if needed, though verified by deps
+    bg_tasks: BackgroundTasks,  # Injected
+    current_user: CurrentUserOptional,  # Used for context if needed, though verified by deps
     x_guest_id: Annotated[str | None, Header()] = None
 ):
     """
@@ -50,23 +54,21 @@ async def chat_endpoint(
     # If referencing messages, fetch content and append to input
     if req.attachments:
         try:
-            from app.infrastructure.database.sql.database import session_scope
-            from app.infrastructure.database.sql.models import Message
             async with session_scope() as session:
                 for att in req.attachments:
                     if att.get("type") == "message" and att.get("id"):
-                         # Fetch message content
-                         try:
-                             msg_id = int(att["id"])
-                             ref_msg = await session.get(Message, msg_id)
-                             if ref_msg and ref_msg.content:
-                                 # Append to user message for context
-                                 # Use XML-like quoting or Markdown blockquote
-                                 snippet = ref_msg.content[:500] + "..." if len(ref_msg.content) > 500 else ref_msg.content
-                                 req.message += f"\n\n> Quoted Message ({att.get('name', 'Reference')}):\n{snippet}\n"
-                         except (ValueError, TypeError):
-                             logger.warning(f"Invalid message reference ID: {att.get('id')}")
-                             continue
+                        # Fetch message content
+                        try:
+                            msg_id = int(att["id"])
+                            ref_msg = await session.get(Message, msg_id)
+                            if ref_msg and ref_msg.content:
+                                # Append to user message for context
+                                # Use XML-like quoting or Markdown blockquote
+                                snippet = ref_msg.content[:500] + "..." if len(ref_msg.content) > 500 else ref_msg.content
+                                req.message += f"\n\n> Quoted Message ({att.get('name', 'Reference')}):\n{snippet}\n"
+                        except (ValueError, TypeError):
+                            logger.warning(f"Invalid message reference ID: {att.get('id')}")
+                            continue
         except Exception as e:
             logger.warning(f"Failed to inject reference context: {e}")
 
@@ -108,7 +110,6 @@ async def chat_endpoint(
 
     # 3. Upsert Conversation Record
     try:
-        from datetime import datetime, timezone
         async with session_scope() as session:
             conversation = await session.get(Conversation, req.thread_id)
             if not conversation:
@@ -121,20 +122,25 @@ async def chat_endpoint(
             else:
                 conversation.updated_at = datetime.now(timezone.utc)
 
-            # Log User Message (sequence_number=1 for first message in each run)
+            # 4. Upsert User Message with Correct Sequence
+            # We need to find the next sequence number (max + 1) to maintain order
+            from sqlalchemy import func, select
+            stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == req.thread_id)
+            max_seq = (await session.execute(stmt)).scalar() or 0
+
             user_msg = Message(
                 thread_id=req.thread_id,
                 project_id=req.project_id,
                 role="human",
                 content=req.message,
                 thinking=None,
-                sequence_number=1
+                sequence_number=max_seq + 1
             )
             session.add(user_msg)
-            await session.flush() # Ensure FK consistency
-            logger.info(f"Persisted user message for thread {req.thread_id}")
+            await session.flush()  # Ensure FK consistency
+            logger.info(f"Persisted user message for thread {req.thread_id} (seq={user_msg.sequence_number})")
 
-            # 4. Upsert References (Phase 9)
+            # 5. Upsert References (Phase 9)
             if req.attachments:
                 import uuid
                 for att in req.attachments:
@@ -142,10 +148,9 @@ async def chat_endpoint(
                     ref_type = att.get("type", "file")
                     target_id = att.get("url") or att.get("id") or "unknown"
                     target_name = att.get("name") or target_id
-                    
+
                     # Special handling for message references
                     if ref_type == 'message':
-                        # target_id should be the message ID
                         pass
 
                     ref = MessageReference(
@@ -156,17 +161,19 @@ async def chat_endpoint(
                         target_name=str(target_name)
                     )
                     session.add(ref)
-                
+
                 logger.info(f"Persisted {len(req.attachments)} references for msg {user_msg.id}")
 
     except Exception as e:
         logger.error(f"Failed to upsert logic: {e}")
-        pass
+        # Phase 18 Fix: Do not silence DB errors. If persistence fails, the user needs to know.
+        raise HTTPException(status_code=500, detail=f"Failed to save message: {str(e)}")
 
     # 2. Dispatch Background Task (Local)
     bg_tasks.add_task(run_agent_background, req.thread_id, inputs)
 
     return {"status": "queued", "thread_id": req.thread_id}
+
 
 @router.post("/chat/stop")
 async def stop_chat(req: ChatRequest):
@@ -178,10 +185,7 @@ async def stop_chat(req: ChatRequest):
 
 
 @router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
-async def retry_chat(
-    req: ChatRequest,
-    bg_tasks: BackgroundTasks
-):
+async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
     """
     Retry the last user message.
     Rolls back history (deletes AI messages after last human msg) and restarts generation.
@@ -228,7 +232,7 @@ async def retry_chat(
     inputs = {
         "messages": [{"type": "human", "content": retry_message_content}],
         "project_id": req.project_id,
-        "is_retry": True # Flag for engine if needed (optional)
+        "is_retry": True  # Flag for engine if needed (optional)
     }
 
     bg_tasks.add_task(run_agent_background, req.thread_id, inputs)
@@ -270,6 +274,34 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
     if req.user_input:
         inputs = {"messages": [HumanMessage(content=req.user_input)]}
 
+        # PERSISTENCE FIX: Save user confirmation to history
+        try:
+            async with session_scope() as session:
+                conversation = await session.get(Conversation, req.thread_id)
+                if conversation:
+                    conversation.updated_at = datetime.now(timezone.utc)
+
+                    # We need to find the next sequence number (max + 1)
+                    # For simplicity/speed, we might skip sequence check or query it.
+                    # Given sequence_number is mapped but not strict, we can default or query.
+                    # Let's do a quick query for correctness.
+                    from sqlalchemy import func, select
+                    stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == req.thread_id)
+                    max_seq = (await session.execute(stmt)).scalar() or 0
+
+                    user_msg = Message(
+                        thread_id=req.thread_id,
+                        project_id=conversation.project_id,
+                        role="human",
+                        content=req.user_input,
+                        sequence_number=max_seq + 1
+                    )
+                    session.add(user_msg)
+                    logger.info(f"Persisted RESUME message for thread {req.thread_id}")
+        except Exception as e:
+            logger.error(f"Failed to persist resume message: {e}")
+            # Non-blocking, continue resume flow
+
     # Resume in background
     async def _resume_graph():
         from app.core.callbacks.transparent import TransparentCallbackHandler
@@ -303,11 +335,9 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
 
     return {"status": "resuming", "thread_id": req.thread_id}
 
+
 @router.post("/webhook")
-async def webhook_endpoint(
-    req: WebhookRequest,
-    bg_tasks: BackgroundTasks
-):
+async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
     """
     Entry point for External Events (Local BG Task).
     """
@@ -338,10 +368,10 @@ async def webhook_endpoint(
     # Serialization for Webhook messages
     serialized_msgs = []
     for m in messages:
-         if isinstance(m, HumanMessage):
-             serialized_msgs.append({"type": "human", "content": m.content})
-         else:
-             serialized_msgs.append({"type": "human", "content": str(m.content)})
+        if isinstance(m, HumanMessage):
+            serialized_msgs.append({"type": "human", "content": m.content})
+        else:
+            serialized_msgs.append({"type": "human", "content": str(m.content)})
 
     inputs = {"messages": serialized_msgs}
 

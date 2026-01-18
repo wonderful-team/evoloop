@@ -48,10 +48,14 @@ def get_coder_tools() -> list[BaseTool]:
     """
     Return standard tools for the Coder agent.
     """
-    # We define the *names* of the tools needed, decoupling from import paths
+    # Phase 18: Using atomic file tools instead of manage_file
     tool_names = [
         "consult_architecture",
-        "manage_file",
+        "read_file",
+        "write_file",
+        "edit_file",
+        "list_files",
+        "file_system",
         "explore_codebase",
         "manage_git",
         "manage_memory",

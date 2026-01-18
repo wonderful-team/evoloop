@@ -17,6 +17,7 @@ interface ChatInputAreaProps {
   isStopPending: boolean
   currentProject: { id?: number; name: string } | null | undefined
   activeThreadId?: string
+  disabled?: boolean
 }
 
 export interface ChatInputAreaHandle {
@@ -34,6 +35,7 @@ export const ChatInputArea = memo(
       isStopPending,
       currentProject,
       activeThreadId,
+      disabled,
     }, ref) => {
     const { t } = useTranslation()
     const [inputValue, setInputValue] = useState("")
@@ -43,12 +45,22 @@ export const ChatInputArea = memo(
     const [showPicker, setShowPicker] = useState(false)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
 
+    // History state
+    const [history, setHistory] = useState<string[]>([])
+    const [historyIndex, setHistoryIndex] = useState(-1) // -1: New Input, 0: Most recent history
+
     const handleSend = () => {
       if ((!inputValue.trim() && attachments.length === 0) || isSending) return
 
       // Pass raw input and attachments directly to store/parent
       // The store handles the optimistic display formatting and API payload construction
       onSend(inputValue, attachments)
+
+      // Add to history (Newest first)
+      if (inputValue.trim()) {
+        setHistory(prev => [inputValue, ...prev])
+      }
+      setHistoryIndex(-1)
 
       // Clear state
       setInputValue("")
@@ -62,16 +74,42 @@ export const ChatInputArea = memo(
 
       if (e.key === "Enter" && !e.shiftKey) {
         if (showPicker) {
-          // If picker is open, let it handle Enter (if we had keyboard nav), 
-          // but for now preventing send if picker is open might be annoying if they just want to type @.
-          // Let's assume picker handles its own keys or closes on outside click.
-          // Ideally we prevent send if they are navigating the picker.
-          // For MVP, just send.
           e.preventDefault()
           handleSend()
         } else {
           e.preventDefault()
           handleSend()
+        }
+      }
+
+      // History Traversal (Up/Down)
+      // Only trigger if input is empty OR we are currently traversing history
+      // This prevents interrupting multiline editing
+      if ((inputValue === "" || historyIndex !== -1) && !e.shiftKey) {
+        if (e.key === "ArrowUp") {
+          e.preventDefault()
+          const nextIndex = historyIndex + 1
+          if (nextIndex < history.length) {
+            setHistoryIndex(nextIndex)
+            setInputValue(history[nextIndex])
+            // Move cursor to end?
+            setTimeout(() => {
+              if (textareaRef.current) {
+                textareaRef.current.selectionStart = textareaRef.current.value.length
+                textareaRef.current.selectionEnd = textareaRef.current.value.length
+              }
+            }, 0)
+          }
+        } else if (e.key === "ArrowDown") {
+          e.preventDefault()
+          const nextIndex = historyIndex - 1
+          if (nextIndex >= 0) {
+            setHistoryIndex(nextIndex)
+            setInputValue(history[nextIndex])
+          } else {
+            setHistoryIndex(-1)
+            setInputValue("")
+          }
         }
       }
     }
@@ -205,13 +243,15 @@ export const ChatInputArea = memo(
                 onChange={(e) => setInputValue(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={
-                  currentProject
-                    ? t("chat.interface.askProject", {
-                      project: currentProject.name,
-                    })
-                    : t("chat.interface.selectProject")
+                  disabled
+                    ? t("chat.interface.inputDisabled", "Please respond to the active request above...")
+                    : currentProject
+                      ? t("chat.interface.askProject", {
+                        project: currentProject.name,
+                      })
+                      : t("chat.interface.selectProject")
                 }
-                disabled={!currentProject}
+                disabled={!currentProject || disabled}
                 className="flex w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-muted-foreground resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-[50px] max-h-[300px]"
                 rows={1}
                 style={{ height: "auto", minHeight: "50px" }}

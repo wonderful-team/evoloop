@@ -49,6 +49,25 @@ Past Experience:
 **Language**:
 - User Language: {user_lang}
 - Write plan titles and steps in {user_lang}.
+
+**HITL Protocol (Human-in-the-Loop)**:
+For plans that involve SIGNIFICANT CHANGES, you SHOULD call `request_approval` before finalizing:
+- Major architecture refactoring (affecting >10 files)
+- Adding new external dependencies (especially paid services)
+- Breaking changes to existing public APIs
+- Database schema migrations that could affect data
+
+Example:
+```
+await request_approval(
+    action_description="Propose major refactor of auth module (15 files)",
+    risk_level="high",
+    details="This plan will refactor the entire authentication layer...",
+    consequences="May require 2-3 days of implementation and testing"
+)
+```
+
+If approved, proceed with `create_plan`. If rejected, ask for clarification.
 """
 
     def _get_user_language(self) -> str:

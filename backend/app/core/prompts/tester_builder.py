@@ -5,7 +5,7 @@ class TesterPromptBuilder:
     """Builder for Tester Node prompts with dynamic context injection."""
 
     @staticmethod
-    def build_system_prompt(user_preferences: str | None = None) -> str:
+    def build_system_prompt(project_structure: str = "", user_preferences: str | None = None) -> str:
         """
         Builds the system prompt for the QA/Tester agent.
         Includes language preference injection.
@@ -14,6 +14,10 @@ class TesterPromptBuilder:
 
         base_prompt = f"""You are a Senior QA Engineer.
 The Coder has just written/modified code. Your job is to VERIFY it.
+
+### PROJECT STRUCTURE
+You have visibility of the file system:
+{project_structure}
 
 Tools:
 - run_command(command): Run tests (e.g., `pytest`, `python -m ...`).

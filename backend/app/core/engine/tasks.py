@@ -18,7 +18,7 @@ from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import Conversation
+from app.infrastructure.database.sql.models import Conversation, Message
 from app.infrastructure.external.evocloud import evocloud_client
 from app.logging import logger
 
@@ -225,14 +225,19 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
 
     # Persist Error
     try:
-        from app.infrastructure.database.sql.models import Message
+        from sqlalchemy import func, select
         async with session_scope() as session:
+            # Get next sequence
+            stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
+            max_seq = (await session.execute(stmt)).scalar() or 0
+            
             error_msg = Message(
                 thread_id=thread_id,
                 project_id=project_id,
                 role="ai",
                 content=f"❌ **System Error**: Agent execution failed.\n\nError Details:\n> {str(e)}\n\nPlease try again or contact support.",
-                thinking=""
+                thinking="",
+                sequence_number=max_seq + 1
             )
             session.add(error_msg)
     except Exception as db_e:

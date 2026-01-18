@@ -51,7 +51,7 @@ export function PlanTab({ activeThreadId }: PlanTabProps) {
         <span className="text-[10px] uppercase font-bold text-muted-foreground/50">
           {planStatus === "no_graph"
             ? t("chat.context.statusOffline")
-            : planStatus === "no_state"
+            : (planStatus === "no_state" || planStatus === "no_plan")
               ? t("chat.context.statusIdle")
               : t("chat.context.statusActive")}
         </span>
@@ -84,19 +84,19 @@ export function PlanTab({ activeThreadId }: PlanTabProps) {
                     }
                   }}
                   className={`relative pl-4 border-l-2 transition-colors ${step.status === "completed"
-                      ? "border-primary"
-                      : step.status === "in_progress"
-                        ? "border-yellow-500"
-                        : "border-muted"
+                    ? "border-primary"
+                    : step.status === "in_progress"
+                      ? "border-yellow-500"
+                      : "border-muted"
                     } ${step.execution_run_id ? "cursor-pointer hover:bg-muted/10 pr-2 rounded-r" : ""}`}
                 >
                   <div className="text-xs font-medium flex items-center gap-2">
                     <span
                       className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${step.status === "completed"
-                          ? "bg-primary text-primary-foreground"
-                          : step.status === "in_progress"
-                            ? "bg-yellow-500 text-white"
-                            : "bg-muted text-muted-foreground"
+                        ? "bg-primary text-primary-foreground"
+                        : step.status === "in_progress"
+                          ? "bg-yellow-500 text-white"
+                          : "bg-muted text-muted-foreground"
                         }`}
                     >
                       {idx + 1}
