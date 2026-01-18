@@ -8,51 +8,56 @@ router = APIRouter(prefix="/conversations/{thread_id}/plan", tags=["planning"])
 @router.get("")
 async def get_plan(thread_id: str):
     """
-    Get the current execution plan from the agent state.
+    Get the current active execution plan for the thread from the Database.
+    Targeting persistent storage instead of transient AgentState.
     """
-    graph = get_graph()
-    if not graph:
-        # If no graph (e.g. server restart), returns distinct status
-        return {"status": "no_graph", "plan": None}
-
     try:
-        config = {"configurable": {"thread_id": thread_id}}
-        state = await graph.aget_state(config)
+        from app.infrastructure.database.sql.database import session_scope
+        from app.infrastructure.database.sql.models.planning import Plan, PlanStep
+        from sqlalchemy import select
 
-        if not state.values:
-            return {"status": "no_state", "plan": None}
+        async with session_scope() as session:
+            # 1. Fetch Active Plan
+            stmt = select(Plan).where(Plan.thread_id == thread_id, Plan.status == "active")
+            res = await session.execute(stmt)
+            db_plan = res.scalars().first()
 
-        # Extract Plan from state
-        # We prefer 'structured_plan' (JSON string) if available,
-        # otherwise fallback to 'current_plan' (text)
-        structured_plan_str = state.values.get("structured_plan")
-        current_plan_text = state.values.get("current_plan")
+            if not db_plan:
+                # If no active plan, check for completed ones? 
+                # For now, just return "no_graph" equivalent or "no_plan"
+                return {"status": "no_plan", "plan": None}
 
-        plan_data = None
-        if structured_plan_str:
-            try:
-                import json
-                plan_data = json.loads(structured_plan_str)
-            except Exception as e:
-                logger.warning(f"Failed to parse structured_plan: {e}")
+            # 2. Fetch Steps
+            stmt_steps = select(PlanStep).where(PlanStep.plan_id == db_plan.id).order_by(PlanStep.order)
+            res_steps = await session.execute(stmt_steps)
+            steps = res_steps.scalars().all()
 
-        # If no structured plan, we might construct a dummy one from text or just return text?
-        # Frontend expects { title, steps: [] }
-        # If we only have text, we return it as description?
-        # For now, let's return whatever we have.
-
-        return {
-            "status": "success",
-            "plan": plan_data,
-            "text_summary": current_plan_text,
-            "state": {
-                "scratchpad": state.values.get("scratchpad"),
-                "project_id": state.values.get("project_id"),
-                "working_directory": state.values.get("working_directory"),
-                "last_node": state.next, # graph.aget_state returns Checkpoint tuple, state.next is standard
-                "snapshot_time": state.created_at
+            # 3. Construct Response
+            plan_data = {
+                "id": db_plan.id,
+                "title": db_plan.title,
+                "steps": [
+                    {
+                        "id": s.id,
+                        "title": s.title,
+                        "status": s.status,
+                        "result": s.result, # Optional field for step output summary
+                        # "execution_run_id": s.execution_run_id # If we have this linkage
+                    } for s in steps
+                ],
+                "current_step_id": None
             }
-        }
+            
+            # Find current step
+            current_step = next((s for s in steps if s.status == "in_progress"), None)
+            if current_step:
+                plan_data["current_step_id"] = current_step.id
+
+            return {
+                "status": "success",
+                "plan": plan_data, # Frontend expects this nested 'plan' object
+                "generated_at": db_plan.created_at.isoformat() if db_plan.created_at else None
+            }
 
     except Exception as e:
         logger.error(f"Failed to get plan for {thread_id}: {e}")

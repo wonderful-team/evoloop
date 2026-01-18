@@ -47,7 +47,9 @@ SUPERVISOR_SYSTEM_TEMPLATE = """You are the Supervisor of an elite coding team.
        - If user mentions a file/doc, call `manage_file_read_only(action='read')` IMMEDIATELY.
 
     2. **Explicit Planning (MANDATORY)**:
-       - You MUST have a plan (`current_plan`) before delegating to Coder.
+       - **ACTIVE PLAN**: {active_plan_context}
+       - You MUST follow the active plan if one exists.
+       - If `current_plan` is empty or "No plan yet", AND no active plan in DB, YOU MUST NOT route to `coder`. Route to `planner` instead.
        
        **FAST TRACK PROTOCOL (For Simple Tasks OR Wiki)**:
        - IF the request is simple (e.g., "Fix typo") OR is about "Wiki/Documentation" generation, DO NOT explore or plan.
@@ -56,13 +58,13 @@ SUPERVISOR_SYSTEM_TEMPLATE = """You are the Supervisor of an elite coding team.
        
        **DEEP PLANNING (For Complex Tasks)**:
        - IF the request involves multiple files, architecture changes, or new features -> Route to `planner`.
-       - IF the user wants to CHANGE/ADD requirements -> Route to `requirement_analyst` (DO NOT code yet).
+       - IF the user's request is AMBIGUOUS -> Route to `chat` (Clarification Protocol).
        
     3. **STRICT DELEGATION PROTOCOL (MANAGER ROLE)**:
        - You are a **MANAGER**, not an Expert Coder.
        - **DO NOT WRITE APPLICATION CODE** (.php, .py, .ts, etc.) yourself.
        - **ALWAYS DELEGATE** implementation to the `coder` node.
-       - **NO PLAN = NO CODE**: If `current_plan` is empty or "No plan yet", YOU MUST NOT route to `coder`. Route to `planner` or `requirement_analyst` instead.
+       - **NO PLAN = NO CODE**: If `current_plan` is empty or "No plan yet", YOU MUST NOT route to `coder`. Route to `planner` instead.
 
     4. **Active Learning (Self-Evolution)**:
        - If user states a preference (e.g., "Use pytest"), call `save_preference`.
@@ -96,7 +98,7 @@ class RoutingDecision(BaseModel):
     """Decision on the next step in the workflow."""
     next_node: Literal[
         "planner", "coder", "deep_researcher", "documenter", "finish", "map_research",
-        "requirement_analyst", "chat", "browser_executor", "computer_executor", "mobile_executor"
+        "chat", "browser_executor", "computer_executor", "mobile_executor"
     ] = Field(description="The next worker node to route to. Default to 'finish' if done.")
 
     parallel_research_tasks: list[str] | None = Field(
@@ -189,7 +191,11 @@ class SupervisorNode:
 
     async def _try_fast_path(self, state: AgentState, config: RunnableConfig) -> dict[str, Any] | None:
         """Try fast-path routing via IntentClassifier and SkillMatcher."""
+        # Prevent Fast Path Loop: Only fast-track if the VERY LAST message was from Human.
+        # If the last message was AI/Tool, we must let the Supervisor LLM decide the next step (Slow Path).
         current_msgs = state.get("messages", [])
+        if not current_msgs or not isinstance(current_msgs[-1], HumanMessage):
+             return None
         last_human_msg = get_last_human_message(current_msgs)
 
         if not last_human_msg:
@@ -329,6 +335,46 @@ class SupervisorNode:
         except Exception as e:
             logger.warning(f"Failed to load todo context: {e}")
 
+        # 6. Inject Active Plan Context (DB)
+        active_plan_context = "No active plan found. Please create one if the task is complex."
+        try:
+            async with session_scope() as session:
+                from app.infrastructure.database.sql.models.planning import Plan, PlanStep
+                thread_id = config.get("configurable", {}).get("thread_id")
+                
+                if thread_id:
+                    # Find Plan
+                    stmt = select(Plan).where(Plan.thread_id == thread_id, Plan.status == "active")
+                    res = await session.execute(stmt)
+                    db_plan = res.scalars().first()
+                    
+                    if db_plan:
+                        # Find Steps
+                        stmt_steps = select(PlanStep).where(PlanStep.plan_id == db_plan.id).order_by(PlanStep.order)
+                        res_steps = await session.execute(stmt_steps)
+                        steps = res_steps.scalars().all()
+                        
+                        # Format
+                        steps_str = ""
+                        active_step_found = False
+                        for s in steps:
+                            marker = "[ ]"
+                            if s.status == "completed": marker = "[x]"
+                            elif s.status == "in_progress": marker = "[>] (CURRENT)"
+                            elif s.status == "failed": marker = "[!]"
+                            
+                            steps_str += f"\n{marker} {s.title}"
+                            if s.status == "in_progress":
+                                active_step_found = True
+                        
+                        active_plan_context = f"PLAN: {db_plan.title}\nSTEPS:{steps_str}"
+                        if active_step_found:
+                            active_plan_context += "\n\n-> FOCUS: Execute the [>] CURRENT step."
+                        else:
+                            active_plan_context += "\n\n-> ACTION: Mark the next step as in_progress."
+        except Exception as e:
+            logger.warning(f"Failed to load active plan: {e}")
+
         sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}{todo_context}"
 
         logger.info(f"[Supervisor] 📂 Context: Tree {len(project_structure)} chars, Concepts {len(project_concepts)} chars, Todos {len(todo_context)} chars")
@@ -339,6 +385,7 @@ class SupervisorNode:
             "user_lang": user_lang,
             "cwd": cwd,
             "current_plan": state.get("current_plan", "No plan yet."),
+            "active_plan_context": active_plan_context,
             "iteration_count": state.get("iteration_count", 0)
         }
 
@@ -348,6 +395,7 @@ class SupervisorNode:
         dynamic_prompt = SUPERVISOR_SYSTEM_TEMPLATE.format(
             project_id=project_id,
             current_plan=context["current_plan"],
+            active_plan_context=context["active_plan_context"],
             iteration_count=context["iteration_count"],
             system_info=context["sys_info"],
             user_lang=context["user_lang"]
@@ -432,6 +480,43 @@ class SupervisorNode:
         # Execute routing decision (hide from user)
         routing_config = config.copy() if config else {}
         routing_config["callbacks"] = []
+
+        # 1. Heuristic Override: Check for Explicit "Ready" signals in the last AI message
+        # 1. Heuristic Override: Check for Explicit "Ready" signals in the last AI message
+        # Fix 2.0: Iterate backwards to find the last actual AIMessage, ignoring trailing ToolMessages
+        last_ai_msg = None
+        for m in reversed(messages):
+            if isinstance(m, AIMessage):
+                last_ai_msg = m
+                break
+        
+        if last_ai_msg and isinstance(last_ai_msg.content, str):
+            content = last_ai_msg.content
+            if "Ready for Coder" in content or "Plan verified" in content:
+                logger.info("[Supervisor] 🚀 Heuristic Override: Detected 'Ready for Coder'. Force routing to 'coder'.")
+                return {
+                    "next_node": "coder",
+                    "messages": new_messages,
+                    "current_plan": state.get("current_plan"),
+                    "active_tool_profile": "GENERAL"
+                }
+
+        # 2. Heuristic Override: Loop Detection (Identical AI Messages)
+        # Check if the last 3 AI messages have identical content (excluding tools)
+        ai_msgs = [m for m in reversed(messages) if isinstance(m, AIMessage) and isinstance(m.content, str) and len(m.content) > 20]
+        if len(ai_msgs) >= 3:
+            # Check for near-identical content (first 100 chars) to catch minor variations
+            c1 = ai_msgs[0].content.strip()[:100]
+            c2 = ai_msgs[1].content.strip()[:100]
+            c3 = ai_msgs[2].content.strip()[:100]
+            
+            if c1 == c2 == c3:
+                 logger.warning("[Supervisor] 🔄 Loop Detected (Identical Messages). Force routing to 'finish' (to stop cost).")
+                 return {
+                    "next_node": "finish",
+                    "messages": new_messages + [AIMessage(content="⚠️ System paused due to detected message loop.")],
+                    "current_plan": state.get("current_plan")
+                 }
 
         decision = None
         next_node = "deep_researcher"

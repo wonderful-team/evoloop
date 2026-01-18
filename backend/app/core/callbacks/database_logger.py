@@ -235,7 +235,34 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                      tool_output=tool_output
                  )
                  session.add(log)
+                 session.add(log)
                  await session.flush() # Get ID
+
+                 # Phase 11: Real-time History Sync
+                 from app.schemas.events import MessageEvent
+                 try:
+                     # Access activity_monitor lazily to avoid circular imports at module level
+                     from app.core.monitoring.activity import activity_monitor
+                     
+                     # Serialize minimal data needed for frontend append
+                     msg_data = {
+                         "id": str(log.id),
+                         "role": log.role,
+                         "content": log.content,
+                         # "created_at": log.created_at.isoformat() if log.created_at else None, # Created_at might be None until commit?
+                         # Use current time if None?
+                         "thinking": log.thinking,
+                         "type": "text" 
+                     }
+                     
+                     # Fire and forget
+                     if activity_monitor and hasattr(activity_monitor, "client"):
+                         await activity_monitor.client.publish(
+                              f"chat:{self.thread_id}:events",
+                              MessageEvent(data=msg_data).json()
+                         )
+                 except Exception:
+                     pass
 
                  # Phase 9: Save References
                  if references:

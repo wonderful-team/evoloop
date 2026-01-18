@@ -117,7 +117,9 @@ async def planner_node(state: AgentState, config: RunnableConfig):
 
     chain = prompt | llm_with_tools
 
-    messages = list(state.get("messages", []))
+    # Filter SystemMessages to avoid duplication/protocol errors (Fix 5.0)
+    from langchain_core.messages import SystemMessage
+    messages = [m for m in state.get("messages", []) if not isinstance(m, SystemMessage)]
     new_messages = []
 
     # We allow a small loop for "Propose -> Analyze -> Finalize"

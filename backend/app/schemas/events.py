@@ -37,5 +37,11 @@ class StatusEvent(EventBase):
     type: Literal["status"] = "status"
     status: str
 
+# --- Message Events ---
+class MessageEvent(EventBase):
+    type: Literal["message"] = "message"
+    action: Literal["create"] = "create"
+    data: dict[str, Any]  # Serialized Message model
+
 # Union type for easy parsing if needed
-StreamEvent = Union[TaskEvent, ArtifactEvent, AgentStateEvent, TokenEvent, StatusEvent]
+StreamEvent = Union[TaskEvent, ArtifactEvent, AgentStateEvent, TokenEvent, StatusEvent, MessageEvent]

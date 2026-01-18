@@ -33,7 +33,6 @@ class IntentClassifier:
         "coder": "Writing code for FINALIZED plans, performing specific refactors, or fixing simple bugs.",
         "deep_researcher": "Deep research, market analysis, learning about concepts.",
         "planner": "Planning system architecture, database design, or task breakdown.",
-        "requirement_analyst": "Analyzing requirements for new apps, OR requests to ADD NEW FEATURES (before coding)."
     }
 
     # Minimum confidence is less relevant for LLM generation unless we ask for probability,
@@ -67,7 +66,7 @@ Rules:
             response = await llm.ainvoke([
                 SystemMessage(content=system_prompt), 
                 HumanMessage(content=message)
-            ])
+            ], config={"callbacks": []})
             
             predicted_label = response.content.strip().replace("'", "").replace('"', "")
             

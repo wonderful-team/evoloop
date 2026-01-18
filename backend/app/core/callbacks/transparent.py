@@ -313,14 +313,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 # 1. Update the original node task to 'done'
                 await self.monitor.update_task(self.thread_id, task_id, "done")
 
-                # 2. Emit an "Exiting" milestone to trigger frontend stack pop
-                exit_name = f"Exiting [{node_name}]"
-                # Add task first (defaults to running)
-                exit_id = await self.monitor.add_task(self.thread_id, exit_name, "node")
-                # Immediately mark done
-                if exit_id:
-                     await self.monitor.update_task(self.thread_id, exit_id, "done")
-
             del self._active_nodes[run_id]
 
     async def on_chain_error(self, error: BaseException, **kwargs: Any) -> None:
@@ -331,12 +323,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             if self.thread_id and self.monitor:
                 # 1. Update the original node task to 'failed'
                 await self.monitor.update_task(self.thread_id, task_id, "failed", details=str(error))
-
-                # 2. Emit an "Exiting" milestone with 'failed' status
-                exit_name = f"Exiting [{node_name}]"
-                exit_id = await self.monitor.add_task(self.thread_id, exit_name, "node")
-                if exit_id:
-                     await self.monitor.update_task(self.thread_id, exit_id, "failed")
 
             del self._active_nodes[run_id]
 

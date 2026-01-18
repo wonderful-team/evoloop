@@ -94,19 +94,78 @@ class PlanningTool(BaseTool):
 
 
 @tool
-def create_plan(title: str, steps: list[str]):
+async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> str:
     """
-    Create a detailed plan for the task.
+    Create a detailed plan for the task and persist it to the database.
     Args:
         title: The main goal.
         steps: A list of step descriptions.
     """
-    plan_steps = [Step(title=t) for t in steps]
-    plan = Plan(title=title, steps=plan_steps)
-    if plan_steps:
-        plan.current_step_id = plan_steps[0].id
-        plan_steps[0].status = "in_progress"
-    return plan.model_dump_json()
+    # Imports inside to avoid circular dependencies during initial load
+    from app.infrastructure.database.sql.database import session_scope
+    from app.infrastructure.database.sql.models.planning import Plan as DBPlan, PlanStep as DBPlanStep
+    from app.infrastructure.database.sql.models import Conversation
+    from app.utils.id import gen_uuid
+
+    thread_id = config.get("configurable", {}).get("thread_id")
+    if not thread_id:
+        return json.dumps({"error": "Missing thread_id in config"})
+
+    try:
+        async with session_scope() as session:
+            # 1. Clean up old active plans for this thread (Optional: Archive them)
+            # For now, we just create a new one.
+            # future: update old ones to 'archived'
+            
+            # 2. Create Plan
+            plan_id = gen_uuid()
+            new_plan = DBPlan(
+                id=plan_id,
+                thread_id=thread_id,
+                title=title,
+                status="active"
+            )
+            session.add(new_plan)
+            
+            # 3. Create Steps
+            db_steps = []
+            for idx, step_title in enumerate(steps):
+                step_id = gen_uuid()
+                status = "in_progress" if idx == 0 else "pending"
+                
+                db_step = DBPlanStep(
+                    id=step_id,
+                    plan_id=plan_id,
+                    title=step_title,
+                    status=status,
+                    order=idx
+                )
+                session.add(db_step)
+                db_steps.append(db_step)
+            
+            # Commit happens on exit
+            
+            # 4. Construct Return Object (Pydantic-like for Planner state)
+            # We return the structure matching domain.planning.models.Plan
+            # But populated with the DB IDs so future tools can reference them.
+            
+            return json.dumps({
+                "id": plan_id,
+                "title": title,
+                "steps": [
+                    {
+                        "id": s.id,
+                        "title": s.title,
+                        "status": s.status
+                    } for s in db_steps
+                ],
+                "current_step_id": db_steps[0].id if db_steps else None,
+                "is_complete": False
+            }, ensure_ascii=False)
+
+    except Exception as e:
+        logger.error(f"Failed to create plan in DB: {e}")
+        return json.dumps({"error": str(e)})
 
 
 @tool
