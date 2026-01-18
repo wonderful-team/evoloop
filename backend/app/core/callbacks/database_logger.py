@@ -18,11 +18,12 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     Acts as a View Layer sanitizer.
     """
 
-    def __init__(self, thread_id: str, project_id: int, start_sequence: int = 0, run_id: str = None):
+    def __init__(self, thread_id: str, project_id: int, start_sequence: int = 0, run_id: str = None, trace_handler = None):
         self.thread_id = thread_id
         self.project_id = project_id
         self.run_id = run_id  # Phase 3: Associate messages with runs
         self._sequence_counter = start_sequence  # Track message order within thread
+        self._trace_handler = trace_handler  # Phase 25: Link to TraceCallbackHandler for message_id propagation
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         pass
@@ -75,18 +76,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 thinking = think_match.group(1).strip()
                 content = content.replace(think_match.group(0), "").strip()
 
-            # 2. Enhance with Tool Summaries
-            if hasattr(message, "tool_calls") and message.tool_calls:
-                summaries = []
-                for tc in message.tool_calls:
-                    summaries.append(self._get_tool_summary(tc))
+            # Phase 25: Removed tool summary injection - AgentProcess component now handles tool display
 
-                if summaries:
-                    summary_block = "**Action:**\n" + "\n".join([f"- {s}" for s in summaries])
-                    if content:
-                        content = f"{content}\n\n{summary_block}"
-                    else:
-                        content = summary_block
 
             # 3. Detect and Format JSON (Supervisor/Router Outputs)
             if content and content.strip().startswith("{") and content.strip().endswith("}"):
@@ -116,14 +107,18 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 except Exception:
                     pass
 
-            # Persist to DB
+            # Persist to DB and get message ID
             tool_calls = getattr(message, "tool_calls", None)
-            await self._save_log(
+            message_id = await self._save_log(
                 role="assistant",
                 content=content,
                 thinking=thinking,
                 tool_calls=tool_calls
             )
+            
+            # Phase 25: Update TraceCallbackHandler's message_id for subsequent tool events
+            if message_id and self._trace_handler and tool_calls:
+                self._trace_handler.message_id = message_id
 
         except Exception as e:
             # Swallow errors in logging to prevent crashing the flow
@@ -187,7 +182,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         except:
             return None
 
-    # Implement on_tool_end to capture tool outputs
+    # Phase 25: Tool output is now captured by TraceCallbackHandler.
+    # Removed: on_tool_end._save_log to avoid redundant storage in messages table.
     async def on_tool_end(
         self,
         output: str,
@@ -196,9 +192,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         parent_run_id: UUID | None = None,
         **kwargs: Any,
     ) -> Any:
-        # Capture tool output
-        # Used for history and debugging
-        await self._save_log(role="tool", content=str(output), status="completed", tool_output=str(output))
+        # No longer saving tool outputs to messages table.
+        # TraceCallbackHandler handles this via trace_events table.
+        pass
 
     async def _save_log(self, role: str, content: str, thinking: str = None, status: str = "completed",
                         references: list[dict] = None, tool_calls: list = None, tool_output: str = None):
@@ -270,7 +266,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                         # "created_at": log.created_at.isoformat() if log.created_at else None, # Created_at might be None until commit?
                         # Use current time if None?
                         "thinking": log.thinking,
-                        "type": "text"
+                        "type": "text",
+                        "tool_calls": log.tool_calls  # Phase 24: Support Frontend Folding
                     }
 
                     # Fire and forget

@@ -1,16 +1,17 @@
-
 import json
 import logging
 from typing import Any
+from uuid import UUID
 
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
-from sqlalchemy import select
+from sqlalchemy import select, update
 
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import TraceEvent
 
 logger = logging.getLogger("evoloop.learning")
+
 
 class TraceCallbackHandler(AsyncCallbackHandler):
     """
@@ -19,13 +20,21 @@ class TraceCallbackHandler(AsyncCallbackHandler):
     1. Node Entry (State)
     2. Tool Usage (Action)
     3. User Intervention (Correction)
+    
+    Phase 25: Also captures tool output and links to parent AI message.
     """
 
-    def __init__(self, thread_id: str):
+    def __init__(self, thread_id: str, message_id: int = None):
         self.thread_id = thread_id
         self.step_counter = 0
         self.current_node = "unknown"
         self._last_state_snapshot = {}
+
+        # Phase 25: Link to AI message
+        self.message_id = message_id
+
+        # Phase 25: Track run_id -> trace_event_id for updating output
+        self._run_to_event: dict[str, int] = {}
 
     async def on_chain_start(
         self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any
@@ -54,32 +63,36 @@ class TraceCallbackHandler(AsyncCallbackHandler):
             except Exception as e:
                 logger.error(f"Failed to record node start: {e}")
 
-    async def on_tool_end(self, output: str, **kwargs: Any) -> None:
-        """Capture Tool Output as Environment Feedback."""
-        # We need to know WHICH tool was called.
-        # on_tool_start gives serialized info, but on_tool_end only gives output.
-        # We rely on the linear execution assumption for now or look at run_id if we tracked it.
-        # Simplification: Just log the output.
-
-        # NOTE: We can't easily link to the specific tool call args here without tracking run_id.
-        # But for Imitation Learning, we mostly care about "Start Tool" (Action) and "End Tool" (Observation).
-        # We'll rely on on_tool_start for the action.
-        pass
-
     async def on_tool_start(
-        self, serialized: dict[str, Any], input_str: str, **kwargs: Any
+        self, serialized: dict[str, Any], input_str: str, *, run_id: UUID, **kwargs: Any
     ) -> None:
         """Capture Tool Usage (The Agent's Action)."""
         tool_name = serialized.get("name")
         try:
-             args = json.loads(input_str)
+            args = json.loads(input_str)
         except:
-             args = {"raw": input_str}
+            args = {"raw": input_str}
 
-        await self._save_event(
+        event_id = await self._save_event(
             action_type="tool_call",
             payload={"name": tool_name, "args": args},
-            snapshot=self._last_state_snapshot # Action conditioned on LAST seen state
+            snapshot=self._last_state_snapshot  # Action conditioned on LAST seen state
+        )
+
+        # Phase 25: Track tool name for output event
+        if run_id:
+            self._run_to_event[str(run_id)] = tool_name
+
+    async def on_tool_end(self, output: str, *, run_id: UUID, **kwargs: Any) -> None:
+        """Phase 25: Create a new TraceEvent for tool output."""
+        run_key = str(run_id)
+        tool_name = self._run_to_event.pop(run_key, "unknown")
+
+        # Create a separate event for tool output
+        await self._save_event(
+            action_type="tool_output",
+            payload={"name": tool_name, "output": str(output)[:10000]},  # Truncate large outputs
+            snapshot={}  # No state snapshot needed for output
         )
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
@@ -96,20 +109,25 @@ class TraceCallbackHandler(AsyncCallbackHandler):
             snapshot=self._last_state_snapshot
         )
 
-    async def _save_event(self, action_type: str, payload: dict, snapshot: dict):
+    async def _save_event(self, action_type: str, payload: dict, snapshot: dict) -> int | None:
+        """Save trace event and return its ID."""
         try:
             async with session_scope() as session:
                 event = TraceEvent(
                     thread_id=self.thread_id,
                     step_number=self.step_counter,
                     node_name=self.current_node,
-                    state_snapshot=json.dumps(snapshot, default=str), # Handle datetimes
+                    state_snapshot=json.dumps(snapshot, default=str),  # Handle datetimes
                     action_type=action_type,
-                    action_payload=json.dumps(payload, default=str)
+                    action_payload=json.dumps(payload, default=str),
+                    message_id=self.message_id  # Phase 25: Link to AI message
                 )
                 session.add(event)
+                await session.flush()  # Get ID
+                return event.id
         except Exception as e:
             logger.error(f"Failed to save trace event: {e}")
+            return None
 
     def _sanitize_snapshot(self, state: dict) -> dict:
         """Clean up state for storage (remove huge lists, tokens, etc)."""
@@ -156,9 +174,9 @@ async def sync_thread_to_graph(thread_id: str, project_id: int):
         snapshot = json.loads(first_event.state_snapshot)
         msgs = snapshot.get("messages", [])
         if msgs and isinstance(msgs[0], dict) and msgs[0].get("type") == "human":
-             goal = msgs[0].get("content")
-        elif msgs and hasattr(msgs[0], 'content'): # if pickle/object
-             goal = msgs[0].content
+            goal = msgs[0].get("content")
+        elif msgs and hasattr(msgs[0], 'content'):  # if pickle/object
+            goal = msgs[0].content
     except:
         pass
 
@@ -168,10 +186,10 @@ async def sync_thread_to_graph(thread_id: str, project_id: int):
         result = "Success"
         # Try to extract final output
         try:
-             payload = json.loads(last_event.action_payload)
-             # finish node output usually in messages
+            payload = json.loads(last_event.action_payload)
+            # finish node output usually in messages
         except:
-             pass
+            pass
     else:
         # If ended not in finish, maybe error?
         pass
@@ -189,10 +207,9 @@ async def sync_thread_to_graph(thread_id: str, project_id: int):
 
     # 3. Store to Graph
     await memory_service.store_episode(
-        goal=goal[:2000], # Limit size
+        goal=goal[:2000],  # Limit size
         result=result,
         plan_summary=plan_snapshot[:5000],
         error_msg=error,
         project_id=project_id
     )
-

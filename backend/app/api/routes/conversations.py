@@ -1,18 +1,21 @@
+import json
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from langchain_core.messages import HumanMessage, RemoveMessage
 from pydantic import BaseModel
 from sqlalchemy import delete, select
+from sqlalchemy.orm import selectinload
 
 from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
 from app.core.persistence import get_db_pool
 from app.infrastructure.database.sql.database import get_db_session
-from app.infrastructure.database.sql.models import Conversation, Message
+from app.infrastructure.database.sql.models import Conversation, Message, TraceEvent
 from app.logging import logger
 
 router = APIRouter()
+
 
 # --- Schemas ---
 
@@ -23,8 +26,10 @@ class SearchResult(BaseModel):
     created_at: str
     match_snippet: str | None = None
 
+
 class RenameRequest(BaseModel):
     title: str
+
 
 class ConversationListItem(BaseModel):
     thread_id: str
@@ -33,11 +38,22 @@ class ConversationListItem(BaseModel):
     updated_at: datetime | None
     status: str = "idle"
 
+
 class ReferenceItem(BaseModel):
     id: str
     type: str
     target_id: str
     target_name: str
+
+
+class ToolStep(BaseModel):
+    id: str
+    tool: str
+    input: dict | str
+    output: str
+    status: str = "success"
+    duration: float | None = None
+
 
 class MessageItem(BaseModel):
     id: str
@@ -47,8 +63,10 @@ class MessageItem(BaseModel):
     created_at: str | None
     tasks_snapshot: list[dict] | None = None  # Phase 6: Historical task steps
     run_id: str | None = None  # Phase 8: Deep Linking
-    parent_id: int | None = None # Phase 8: Threading
-    references: list[ReferenceItem] = [] # Phase 9: Persistent References
+    parent_id: int | None = None  # Phase 8: Threading
+    references: list[ReferenceItem] = []  # Phase 9: Persistent References
+    steps: list[ToolStep] = []  # Phase 24: Tool Execution Steps
+
 
 class RewindResponse(BaseModel):
     status: str
@@ -83,50 +101,129 @@ async def list_conversations(project_id: int | None = None):
             ) for c in conversations
         ]
 
+
 @router.get("/{thread_id}/messages", response_model=list[MessageItem])
 async def get_conversation_messages(thread_id: str):
     """
     Get message history for a thread from the persistent SQL log.
     Includes tasks_snapshot for historical task visualization.
+    
+    Phase 25: Tool steps are now sourced from trace_events table, not messages.
     """
     try:
-        from sqlalchemy.orm import selectinload
         async with get_db_session() as session:
-            # Optimize: Eager load references
+            # 1. Fetch all messages (excluding tool messages now)
             stmt = (
                 select(Message)
                 .where(Message.thread_id == thread_id)
+                .where(Message.role != "tool")  # Phase 25: No longer have tool messages
                 .options(selectinload(Message.references))
                 .order_by(Message.id.asc())
             )
             result = await session.execute(stmt)
             db_messages = result.scalars().all()
 
-            return [
-                MessageItem(
-                    id=str(m.id),
-                    type=m.role,
-                    content=m.content,
-                    thinking=m.thinking,
-                    created_at=m.created_at.isoformat() if m.created_at else None,
-                    tasks_snapshot=m.tasks_snapshot,
-                    run_id=m.run_id,
-                    parent_id=m.parent_id,
-                    references=[
-                        ReferenceItem(
-                            id=ref.id,
-                            type=ref.type,
-                            target_id=ref.target_id,
-                            target_name=ref.target_name
-                        ) for ref in m.references
-                    ] if m.references else []
+            # 2. Build message ID list for AI messages
+            ai_message_ids = [m.id for m in db_messages if m.role in ("ai", "assistant")]
+
+            # 3. Fetch all trace_events for these AI messages (both tool_call and tool_output)
+            tool_events_by_msg: dict[int, list] = {}
+            tool_outputs_by_msg: dict[int, list] = {}  # Separate list for outputs
+
+            if ai_message_ids:
+                trace_stmt = (
+                    select(TraceEvent)
+                    .where(TraceEvent.message_id.in_(ai_message_ids))
+                    .where(TraceEvent.action_type.in_(["tool_call", "tool_output"]))
+                    .order_by(TraceEvent.step_number)
                 )
-                for m in db_messages
-            ]
+                trace_result = await session.execute(trace_stmt)
+
+                for event in trace_result.scalars().all():
+                    # Parse action_payload
+                    try:
+                        payload = json.loads(event.action_payload) if isinstance(event.action_payload, str) else event.action_payload
+                    except:
+                        payload = {}
+
+                    if event.action_type == "tool_call":
+                        if event.message_id not in tool_events_by_msg:
+                            tool_events_by_msg[event.message_id] = []
+                        tool_events_by_msg[event.message_id].append({
+                            "id": str(event.id),
+                            "tool": payload.get("name", "unknown"),
+                            "input": payload.get("args", {}),
+                            "output": "",  # Will be filled from tool_output event
+                            "status": "success"
+                        })
+                    elif event.action_type == "tool_output":
+                        if event.message_id not in tool_outputs_by_msg:
+                            tool_outputs_by_msg[event.message_id] = []
+                        tool_outputs_by_msg[event.message_id].append(payload.get("output", ""))
+
+                # Merge outputs into tool_call steps (FIFO matching)
+                for msg_id, steps in tool_events_by_msg.items():
+                    outputs = tool_outputs_by_msg.get(msg_id, [])
+                    for i, step in enumerate(steps):
+                        if i < len(outputs):
+                            step["output"] = outputs[i]
+                    # Convert to ToolStep
+                    tool_events_by_msg[msg_id] = [
+                        ToolStep(**step) for step in steps
+                    ]
+
+            # 4. Build final items
+            final_items = []
+            for m in db_messages:
+                # Parse References
+                refs = [
+                    ReferenceItem(
+                        id=ref.id,
+                        type=ref.type,
+                        target_id=ref.target_id,
+                        target_name=ref.target_name
+                    ) for ref in m.references
+                ] if m.references else []
+
+                if m.role == "human":
+                    item = MessageItem(
+                        id=str(m.id),
+                        type="human",
+                        content=m.content,
+                        thinking=m.thinking,
+                        created_at=m.created_at.isoformat() if m.created_at else None,
+                        tasks_snapshot=m.tasks_snapshot,
+                        run_id=m.run_id,
+                        parent_id=m.parent_id,
+                        references=refs,
+                        steps=[]
+                    )
+                    final_items.append(item)
+
+                elif m.role == "ai" or m.role == "assistant":
+                    # Get steps from trace_events
+                    steps = tool_events_by_msg.get(m.id, [])
+
+                    item = MessageItem(
+                        id=str(m.id),
+                        type="ai",  # Normalize to "ai" for frontend
+                        content=m.content,
+                        thinking=m.thinking,
+                        created_at=m.created_at.isoformat() if m.created_at else None,
+                        tasks_snapshot=m.tasks_snapshot,
+                        run_id=m.run_id,
+                        parent_id=m.parent_id,
+                        references=refs,
+                        steps=steps
+                    )
+                    final_items.append(item)
+
+            return final_items
 
     except Exception as e:
         logger.error(f"Failed to fetch history for {thread_id}: {e}")
         return []
+
 
 @router.get("/search", response_model=list[SearchResult])
 async def search_conversations(q: str, project_id: int | None = None):
@@ -158,6 +255,7 @@ async def search_conversations(q: str, project_id: int | None = None):
             for log in logs
         ]
 
+
 @router.patch("/{thread_id}")
 async def rename_conversation(thread_id: str, req: RenameRequest):
     """
@@ -173,10 +271,12 @@ async def rename_conversation(thread_id: str, req: RenameRequest):
 
     return {"status": "updated", "thread_id": thread_id, "title": req.title}
 
+
 @router.get("/{thread_id}/activity")
 async def get_thread_activity(thread_id: str):
     """Get real-time activity/status for a thread run."""
     return await activity_monitor.get_activity(thread_id)
+
 
 @router.delete("/{thread_id}")
 async def delete_conversation(thread_id: str):
@@ -207,6 +307,7 @@ async def delete_conversation(thread_id: str):
     except Exception as e:
         logger.error(f"Failed to delete conversation: {e}")
         raise HTTPException(500, str(e))
+
 
 @router.post("/{thread_id}/rewind", response_model=RewindResponse)
 async def rewind_conversation(thread_id: str):

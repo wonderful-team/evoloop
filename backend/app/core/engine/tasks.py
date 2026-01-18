@@ -136,8 +136,19 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             logger.warning(f"Failed to fetch max sequence number: {e}")
 
         # Initialize Handlers
+        # Phase 25: Create TraceCallbackHandler and pass to DatabaseCallbackHandler
+        from app.core.learning.trace_recorder import TraceCallbackHandler
+        trace_callback = TraceCallbackHandler(thread_id=thread_id)
+        
         callback = TransparentCallbackHandler(thread_id=thread_id)
-        db_callback = DatabaseCallbackHandler(thread_id=thread_id, project_id=project_id, start_sequence=start_seq, run_id=thread_id)
+        db_callback = DatabaseCallbackHandler(
+            thread_id=thread_id, 
+            project_id=project_id, 
+            start_sequence=start_seq, 
+            run_id=thread_id,
+            trace_handler=trace_callback  # Phase 25: Link for message_id propagation
+        )
+
 
         # 5. Execution
         await activity_monitor.start_run(thread_id)
@@ -150,8 +161,9 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         inputs["project_concepts"] = concepts_text
 
         try:
-            callbacks = [callback, db_callback]
+            callbacks = [callback, db_callback, trace_callback]  # Phase 25: Include trace_callback
             callbacks.append(EvoLoopCallbackHandler(evocloud_client, thread_id, command_id=evoloop_command_id))
+
 
             config["callbacks"] = callbacks
             config["recursion_limit"] = settings.RECURSION_LIMIT

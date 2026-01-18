@@ -59,6 +59,9 @@ class TraceEvent(Base):
     target_selector: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    
+    # Phase 25: Link to parent AI message for tool step aggregation
+    message_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
 
 
 class LearnedSkill(Base):
