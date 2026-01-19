@@ -23,9 +23,6 @@
         },
         "deep_research": {
             "protocol": "\n<language_protocol>\nUser Language: {user_lang}\n请务必使用中文（{user_lang}）编写你的计划、更新和结论。\n</language_protocol>\n",
-            "plan_guidelines": "\n<guidelines>\n- 这是针对用户问题进行多轮深度研究的**第一次迭代**\n- 请以 \"## 研究计划\" 开头\n- 概述你调查此特定主题的方法\n- 如果主题涉及特定文件或功能，请仅关注该文件或功能\n- 明确说明你正在研究的主题，以保持专注\n- 确定需要研究的关键方面\n- 基于现有信息和工具输出提供初步发现\n- 以 \"## 下一步\" 结尾，指明下一次迭代将调查的内容\n- 暂不要提供最终结论 —— 这只是研究的开始\n- 除非直接相关，否则不要包含一般性的仓库信息\n- 你的研究必须直接针对原始问题\n- 绝不要只回答 \"继续研究\" —— 必须提供实质性的研究发现\n</guidelines>\n",
-            "update_guidelines": "\n<guidelines>\n- 仔细回顾对话历史，了解目前已研究的内容\n- 你的回复必须建立在之前的研究迭代之上 —— 不要重复已涵盖的信息\n- 找出与此特定主题相关的差距或需要进一步探索的领域\n- 在本次迭代中集中深入调查这一特定方面\n- 请以 \"## 研究进展 {iteration}\" 开头\n- 清楚解释你在本次迭代中正在调查的内容\n- 提供之前迭代中未涵盖的新见解\n- 如果这是第 3 或第 4 次迭代，请为下一次的最终结论做准备\n- 除非直接与查询相关，否则不要包含一般性的仓库信息\n- 专注于正在研究的特定主题\n- 绝不要只回答 \"继续研究\" —— 必须提供实质性的研究发现\n- 你的研究必须直接针对原始问题\n</guidelines>\n",
-            "conclusion_guidelines": "\n<guidelines>\n- 这是研究过程的最后一次迭代\n- 仔细回顾整个对话历史，了解所有之前的发现\n- 将所有迭代的发现综合成一个全面的结论\n- 请以 \"## 最终结论\" 开头\n- 你的结论必须直接回答原始问题\n- 严格专注于特定主题 —— 不要偏离到相关主题\n- 包含与主题相关的具体代码引用和实现细节\n- 强调最重要的发现和见解\n- 对原始问题提供完整确切的回答\n- 除非直接相关，否则不要包含一般性的仓库信息\n- 专注于正在研究的特定主题\n- 绝不要回答 \"继续研究\" —— 必须提供完整的结论\n- 确保你的结论建立在之前的关键发现之上并引用它们\n</guidelines>\n",
             "error_no_topic": "错误：未提供研究主题。",
             "error_failed": "深度研究过程中出错：{error}"
         },
@@ -98,7 +95,9 @@
             "screenshot": "截图",
             "user_feedback": "用户反馈",
             "yes": "是",
-            "no": "否"
+            "no": "否",
+            "header_template": "# 任务追踪：{name}\n\n**线程 ID**: {thread_id}\n**总步骤数**: {total_steps}\n**人工干预**: {has_human}\n\n## 执行步骤\n",
+            "step_template": "### 步骤 {number} {icon} [{category}]\n- **动作**: `{action_name}`\n{args_section}{ui_section}{feedback_section}\n"
         },
         "evoloop_logger": {
             "thinking": "思考中...",
@@ -127,7 +126,13 @@
         "domain_tools": {
             "learning": {
                 "success": "成功从线程 {thread} 学习到技能 '{name}'。\n描述：{desc}\n触发器：{triggers}",
-                "failed": "学习技能失败：{error}"
+                "failed": "学习技能失败：{error}",
+                "synthesis": {
+                    "instruction": "分析此追踪记录并生成 Agent YAML：\n\n{trace_text}"
+                },
+                "skill_synthesis": {
+                    "instruction": "请分析此追踪记录并生成技能 YAML。"
+                }
             },
             "learner": {
                 "no_git": "未找到 Git 仓库。跳过基于代码的知识挖掘。",
@@ -153,7 +158,9 @@
                 "action": "**操作**: {action}",
                 "details": "**详情**:\n{details}",
                 "consequences": "**潜在后果**:\n{conseq}",
-                "error_options": "错误：当输入类型为 'choice' 时必须提供 'options'"
+                "error_options": "错误：当输入类型为 'choice' 时必须提供 'options'",
+                "request_template": "\n## ⏸️ 请求用户输入\n\n**请求 ID**: `{id}`\n**类型**: {type}\n**提示**: {prompt}{context_section}{options_section}{default_section}\n\n---\n⚠️ **工作流已暂停**。等待用户响应。\n前端将显示此请求并收集用户输入。\n",
+                "approval_template": "\n## 🔐 需要批准\n\n**请求 ID**: `{id}`\n{approval_context}\n---\n⚠️ **工作流已暂停**。等待用户批准。\n请回复 APPROVE 或 REJECT。\n"
             },
             "manage_todo": {
                 "error_title": "错误：添加待办事项必须提供 'title'。",
@@ -180,7 +187,8 @@
                 "summary_header": "## 📝 AI 提供的执行摘要",
                 "log_header": "## 🔬 研究过程日志",
                 "log_details": "<summary>点击查看研究步骤验证</summary>",
-                "footer": "*由 EvoLoop 深度研究引擎生成*"
+                "footer": "*由 EvoLoop 深度研究引擎生成*",
+                "template": "# 🧠 深度研究报告\n**主题**: {topic}\n**日期**: {date}\n{meta_info}\n\n---\n\n## 📝 AI 提供的执行摘要\n{conclusion}\n\n---\n\n## 🔬 研究过程日志\n<details>\n<summary>点击查看研究步骤验证</summary>\n\n{logs_text}\n\n</details>\n\n---\n*由 EvoLoop 深度研究引擎生成*\n"
             },
             "wiki": {
                 "source_unavailable": "(源代码不可用)",

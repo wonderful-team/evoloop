@@ -190,28 +190,25 @@ async def request_human_input(
 
     # Format response for the agent
     # The actual waiting/response handling is done by the frontend + API layer
-    response_text = f"""
-## ⏸️ Human Input Requested
-
-**Request ID**: `{request.id}`
-**Type**: {input_type}
-**Prompt**: {prompt}
-"""
-
+    context_section = ""
     if context:
-        response_text += f"\n**Context**: {context}\n"
+        context_section = f"\n{i18n.get('prompts.domain_tools.human_input.context', context=context)}"
 
+    options_section = ""
     if options:
-        response_text += f"\n**Options**: {', '.join(options)}\n"
+        options_section = f"\n{i18n.get('prompts.domain_tools.human_input.options', options=', '.join(options))}"
 
+    default_section = ""
     if default_value:
-        response_text += f"\n**Default**: {default_value}\n"
+        default_section = f"\n{i18n.get('prompts.domain_tools.human_input.default', default=default_value)}"
 
-    response_text += """
----
-⚠️ **Workflow paused**. Waiting for user response.
-The frontend will display this request and collect user input.
-"""
+    response_text = i18n.get("prompts.domain_tools.human_input.request_template",
+                             id=request.id,
+                             type=input_type,
+                             prompt=prompt,
+                             context_section=context_section,
+                             options_section=options_section,
+                             default_section=default_section)
 
     logger.info(f"Human input requested: {prompt[:50]}...")
 
@@ -289,15 +286,9 @@ async def request_approval(
         default_value="REJECTED"  # Default to safe option
     )
 
-    response_text = f"""
-## 🔐 Approval Required
-
-**Request ID**: `{request.id}`
-{approval_context}
----
-⚠️ **Workflow paused**. Awaiting user approval.
-Please respond with APPROVE or REJECT.
-"""
+    response_text = i18n.get("prompts.domain_tools.human_input.approval_template",
+                             id=request.id,
+                             approval_context=approval_context)
 
     logger.info(f"Approval requested for: {action_description[:50]}... (Risk: {risk_level})")
 

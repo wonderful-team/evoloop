@@ -1,7 +1,7 @@
 import logging
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
@@ -22,8 +22,13 @@ class DeepResearchEngine:
         self.llm = llm
         self.tools = tools
 
-
-    async def run(self, topic: str, previous_history: list = None, max_iterations: int = settings.RESEARCH_MAX_ITERATIONS, config: RunnableConfig = None) -> str:
+    async def run(
+        self,
+        topic: str,
+        previous_history: list = None,
+        max_iterations: int = settings.RESEARCH_MAX_ITERATIONS,
+        config: RunnableConfig = None
+    ) -> str:
         """
         Run the full Deep Research process on a topic.
         
@@ -53,7 +58,7 @@ class DeepResearchEngine:
         if previous_history:
             # Filter for vital info
             relevant_msgs = [m for m in previous_history if isinstance(m, (HumanMessage, AIMessage, ToolMessage))]
-            relevant_msgs = relevant_msgs[-10:] # Limit to last 10 messages
+            relevant_msgs = relevant_msgs[-10:]  # Limit to last 10 messages
 
             history_text = "\n".join([f"{m.type}: {str(m.content)[:500]}" for m in relevant_msgs])
             context_str = f"\n\nCONTEXT FROM PREVIOUS TURN:\n{history_text}\n"

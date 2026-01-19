@@ -23,9 +23,6 @@
         },
         "deep_research": {
             "protocol": "\n<language_protocol>\nUser Language: {user_lang}\nYou MUST write your plans, updates, and conclusions in {user_lang}.\n</language_protocol>\n",
-            "plan_guidelines": "\n<guidelines>\n- This is the **first iteration** of a multi-turn research process focused EXCLUSIVELY on the user's query\n- Start your response with \"## Research Plan\"\n- Outline your approach to investigating this specific topic\n- If the topic is about a specific file or feature, focus ONLY on that file or feature\n- Clearly state the specific topic you're researching to maintain focus\n- Identify the key aspects you'll need to research\n- Provide initial findings based on the information available AND tool outputs\n- End with \"## Next Steps\" indicating what you'll investigate in the next iteration\n- Do NOT provide a final conclusion yet - this is just the beginning of the research\n- Do NOT include general repository information unless directly relevant\n- Your research MUST directly address the original question\n- NEVER respond with just \"Continue the research\" - always provide substantive research findings\n</guidelines>\n",
-            "update_guidelines": "\n<guidelines>\n- CAREFULLY review the conversation history to understand what has been researched so far\n- Your response MUST build on previous research iterations - do not repeat information already covered\n- Identify gaps or areas that need further exploration related to this specific topic\n- Focus on one specific aspect that needs deeper investigation in this iteration\n- Start your response with \"## Research Update {iteration}\"\n- Clearly explain what you're investigating in this iteration\n- Provide new insights that weren't covered in previous iterations\n- If this is Iteration 3 or 4, prepare for a final conclusion in the next iteration\n- Do NOT include general repository information unless directly relevant to the query\n- Focus EXCLUSIVELY on the specific topic being researched\n- NEVER respond with just \"Continue the research\" - always provide substantive research findings\n- Your research MUST directly address the original question\n</guidelines>\n",
-            "conclusion_guidelines": "\n<guidelines>\n- This is the final iteration of the research process\n- CAREFULLY review the entire conversation history to understand all previous findings\n- Synthesize ALL findings from previous iterations into a comprehensive conclusion\n- Start with \"## Final Conclusion\"\n- Your conclusion MUST directly address the original question\n- Stay STRICTLY focused on the specific topic - do not drift to related topics\n- Include specific code references and implementation details related to the topic\n- Highlight the most important discoveries and insights\n- Provide a complete and definitive answer to the original question\n- Do NOT include general repository information unless directly relevant\n- Focus exclusively on the specific topic being researched\n- NEVER respond with \"Continue the research\" - always provide a complete conclusion\n- Ensure your conclusion builds on and references key findings from previous iterations\n</guidelines>\n",
             "error_no_topic": "Error: No research topic provided.",
             "error_failed": "Error during deep research: {error}"
         },
@@ -98,7 +95,9 @@
             "screenshot": "Screenshot",
             "user_feedback": "User Feedback",
             "yes": "Yes",
-            "no": "No"
+            "no": "No",
+            "header_template": "# Task Trace: {name}\n\n**Thread ID**: {thread_id}\n**Total Steps**: {total_steps}\n**Human Intervention**: {has_human}\n\n## Steps\n",
+            "step_template": "### Step {number} {icon} [{category}]\n- **Action**: `{action_name}`\n{args_section}{ui_section}{feedback_section}\n"
         },
         "evoloop_logger": {
             "thinking": "Thinking...",
@@ -127,7 +126,13 @@
         "domain_tools": {
             "learning": {
                 "success": "Successfully learned skill '{name}' from thread {thread}.\nDescription: {desc}\nTriggers: {triggers}",
-                "failed": "Failed to learn skill: {error}"
+                "failed": "Failed to learn skill: {error}",
+                "synthesis": {
+                    "instruction": "Analyze this trace and generate the Agent YAML:\n\n{trace_text}"
+                },
+                "skill_synthesis": {
+                    "instruction": "Please analyze the trace and generate the skill YAML."
+                }
             },
             "learner": {
                 "no_git": "No Git repository found. Skipping code-based knowledge harvesting.",
@@ -153,7 +158,9 @@
                 "action": "**Action**: {action}",
                 "details": "**Details**:\n{details}",
                 "consequences": "**Potential Consequences**:\n{conseq}",
-                "error_options": "Error: 'options' must be provided when input_type is 'choice'"
+                "error_options": "Error: 'options' must be provided when input_type is 'choice'",
+                "request_template": "\n## ⏸️ Human Input Requested\n\n**Request ID**: `{id}`\n**Type**: {type}\n**Prompt**: {prompt}{context_section}{options_section}{default_section}\n\n---\n⚠️ **Workflow paused**. Waiting for user response.\nThe frontend will display this request and collect user input.\n",
+                "approval_template": "\n## 🔐 Approval Required\n\n**Request ID**: `{id}`\n{approval_context}\n---\n⚠️ **Workflow paused**. Awaiting user approval.\nPlease respond with APPROVE or REJECT.\n"
             },
             "manage_todo": {
                 "error_title": "Error: 'title' is required for adding a todo.",
@@ -180,7 +187,8 @@
                 "summary_header": "## 📝 Executive Summary provided by AI",
                 "log_header": "## 🔬 Research Process Log",
                 "log_details": "<summary>Click to verify research steps</summary>",
-                "footer": "*Generated by EvoLoop Deep Research Engine*"
+                "footer": "*Generated by EvoLoop Deep Research Engine*",
+                "template": "# 🧠 Deep Research Report\n**Topic**: {topic}\n**Date**: {date}\n{meta_info}\n\n---\n\n## 📝 Executive Summary provided by AI\n{conclusion}\n\n---\n\n## 🔬 Research Process Log\n<details>\n<summary>Click to verify research steps</summary>\n\n{logs_text}\n\n</details>\n\n---\n*Generated by EvoLoop Deep Research Engine*\n"
             },
             "wiki": {
                 "source_unavailable": "(Source code not available)",
