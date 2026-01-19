@@ -1,3 +1,4 @@
+from app.i18n.service import i18n
 from app.domain.system.service import SystemConfigService
 
 

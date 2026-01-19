@@ -11,6 +11,7 @@ from uuid import uuid4
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
+from app.i18n.service import i18n
 from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger("evoloop.tools.human_input")
@@ -175,7 +176,7 @@ async def request_human_input(
 
     # Validate choice options
     if input_type == "choice" and not options:
-        return "Error: 'options' must be provided when input_type is 'choice'"
+        return i18n.get("prompts.domain_tools.human_input.error_options")
 
     # Create the request
     request = create_request(

@@ -1,6 +1,8 @@
 import os
 from datetime import datetime
 
+from app.i18n.service import i18n
+
 
 class ReportGenerator:
     """

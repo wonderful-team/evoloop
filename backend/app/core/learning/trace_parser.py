@@ -18,6 +18,7 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import TraceEvent
 

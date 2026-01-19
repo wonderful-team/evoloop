@@ -12,10 +12,10 @@ Key Enhancements over Original:
 """
 
 import logging
+import yaml
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.i18n.service import i18n
