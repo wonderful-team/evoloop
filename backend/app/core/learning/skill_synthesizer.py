@@ -18,6 +18,7 @@ from typing import Any
 import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from app.i18n.service import i18n
 from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.core.llm.factory import LLMFactory
 

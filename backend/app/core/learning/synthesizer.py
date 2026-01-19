@@ -5,6 +5,7 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 from sqlalchemy import select
 
+from app.i18n.service import i18n
 from app.core.llm.factory import LLMFactory
 from app.domain.system.service import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
@@ -42,6 +43,7 @@ nodes:
 3. **Tool Selection**: Only include tools that were actually used or clearly needed.
 4. **Valid YAML**: Output ONLY valid YAML code block.
 """
+
 
 class WorkflowSynthesizer:
 

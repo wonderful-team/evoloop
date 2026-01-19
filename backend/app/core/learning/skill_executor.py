@@ -17,7 +17,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from sqlalchemy import select
 
+from app.i18n.service import i18n
 from app.core.llm.factory import LLMFactory
+from app.core.monitoring.activity import activity_monitor
 from app.core.tools.executor import ToolExecutor
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import LearnedSkill as LearnedSkillModel
@@ -174,13 +176,12 @@ Output ONLY the JSON, no explanation."""
 
                 # Phase 6: Transparent Thought
                 if thread_id:
-                    from app.core.monitoring.activity import activity_monitor
                     try:
                         await activity_monitor.update_agent_state(
                             thread_id=thread_id,
                             mode="SKILL",
-                            task_name="Skill Matching",
-                            task_status=f"Identified Skill: {match.skill_name}",
+                            task_name=i18n.get("prompts.skill_executor.task_matching"),
+                            task_status=i18n.get("prompts.skill_executor.status_identified", name=match.skill_name),
                             details={
                                 "type": "thought",
                                 "thought_type": "skill_match",
@@ -229,24 +230,22 @@ class SkillExecutor:
         async with session_scope() as db:
             skill = await db.get(LearnedSkillModel, skill_id)
             if not skill:
-                return False, f"Skill {skill_id} not found"
+                return False, i18n.get("prompts.skill_executor.skill_not_found", id=skill_id)
 
         try:
             steps = json.loads(skill.steps) if skill.steps else []
         except:
-            return False, "Failed to parse skill steps"
+            return False, i18n.get("prompts.skill_executor.parse_failed")
 
         logger.info(f"Executing skill '{skill.name}' with {len(steps)} steps")
 
         # Notify Activity Monitor
-        from app.core.monitoring.activity import activity_monitor
         thread_id = self.config.get("configurable", {}).get("thread_id")
-        skill_task_id = None
-
+        skill_step_id = None
         if thread_id:
-            skill_task_id = await activity_monitor.add_task(
+            skill_step_id = await activity_monitor.add_step(
                 thread_id,
-                f"Executing Skill: {skill.name}",
+                i18n.get("prompts.skill_executor.task_executing", name=skill.name),
                 "skill"
             )
 
@@ -281,15 +280,15 @@ class SkillExecutor:
                     if len(output_str) > 2000:
                         output_str = output_str[:2000] + "... (truncated)"
 
-                    results.append(f"Step {i+1} ({action}): Success\nOutput: {output_str}")
+                    results.append(i18n.get("prompts.skill_executor.step_success", i=i+1, action=action, output=output_str))
                     logger.info(f"Step {i+1} ({action}) completed")
                 except Exception as e:
                     previous_result = f"Error: {e}"
-                    results.append(f"Step {i+1} ({action}): Failed - {e}")
+                    results.append(i18n.get("prompts.skill_executor.step_failed", i=i+1, action=action, error=e))
                     logger.error(f"Step {i+1} ({action}) failed: {e}")
             else:
                 logger.warning(f"Tool '{action}' not found in registry, skipping")
-                results.append(f"Step {i+1} ({action}): Skipped - tool not found")
+                results.append(i18n.get("prompts.skill_executor.step_skipped", i=i+1, action=action))
 
         # Update usage stats
         async with session_scope() as db:
@@ -305,9 +304,9 @@ class SkillExecutor:
         success = not any("Failed" in r for r in results)
         summary = "\n".join(results)
 
-        if thread_id and skill_task_id:
+        if thread_id and skill_step_id:
             status = "done" if success else "failed"
-            await activity_monitor.update_task(thread_id, skill_task_id, status, details=summary)
+            await activity_monitor.update_step(thread_id, skill_step_id, status, details=summary)
 
         return success, summary
 
