@@ -180,6 +180,33 @@ export const ConceptResponseSchema = {
     title: 'ConceptResponse'
 } as const;
 
+export const ConceptWithEpisodeCountSchema = {
+    properties: {
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        episode_count: {
+            type: 'integer',
+            title: 'Episode Count'
+        }
+    },
+    type: 'object',
+    required: ['name', 'description', 'episode_count'],
+    title: 'ConceptWithEpisodeCount'
+} as const;
+
 export const ConversationListItemSchema = {
     properties: {
         thread_id: {
@@ -250,10 +277,14 @@ export const CreateProjectRequestSchema = {
             type: 'string',
             title: 'Description',
             default: ''
+        },
+        path: {
+            type: 'string',
+            title: 'Path'
         }
     },
     type: 'object',
-    required: ['name'],
+    required: ['name', 'path'],
     title: 'CreateProjectRequest'
 } as const;
 
@@ -300,6 +331,55 @@ export const EmbeddingConfigRequestSchema = {
     type: 'object',
     required: ['provider', 'base_url', 'model'],
     title: 'EmbeddingConfigRequest'
+} as const;
+
+export const EpisodeResponseSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        goal: {
+            type: 'string',
+            title: 'Goal'
+        },
+        result: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Result'
+        },
+        error: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Error'
+        },
+        timestamp: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Timestamp'
+        }
+    },
+    type: 'object',
+    required: ['id', 'goal', 'result', 'error', 'timestamp'],
+    title: 'EpisodeResponse'
 } as const;
 
 export const ExecuteSkillRequestSchema = {
@@ -682,6 +762,14 @@ export const MessageItemSchema = {
             },
             type: 'array',
             title: 'References',
+            default: []
+        },
+        steps: {
+            items: {
+                '$ref': '#/components/schemas/ToolStep'
+            },
+            type: 'array',
+            title: 'Steps',
             default: []
         }
     },
@@ -1445,6 +1533,17 @@ export const TodoCreateSchema = {
                 }
             ],
             title: 'Source Message Id'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
         }
     },
     type: 'object',
@@ -1530,6 +1629,17 @@ export const TodoResponseSchema = {
             ],
             title: 'Source Message Id'
         },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
+        },
         created_at: {
             type: 'string',
             format: 'date-time',
@@ -1542,7 +1652,7 @@ export const TodoResponseSchema = {
         }
     },
     type: 'object',
-    required: ['id', 'title', 'description', 'status', 'priority', 'category', 'due_date', 'source_conversation_id', 'source_message_id', 'created_at', 'updated_at'],
+    required: ['id', 'title', 'description', 'status', 'priority', 'category', 'due_date', 'source_conversation_id', 'source_message_id', 'project_id', 'created_at', 'updated_at'],
     title: 'TodoResponse'
 } as const;
 
@@ -1618,6 +1728,17 @@ export const TodoUpdateSchema = {
                 }
             ],
             title: 'Due Date'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id'
         }
     },
     type: 'object',
@@ -1639,6 +1760,54 @@ export const TokenSchema = {
     type: 'object',
     required: ['access_token'],
     title: 'Token'
+} as const;
+
+export const ToolStepSchema = {
+    properties: {
+        id: {
+            type: 'string',
+            title: 'Id'
+        },
+        tool: {
+            type: 'string',
+            title: 'Tool'
+        },
+        input: {
+            anyOf: [
+                {
+                    additionalProperties: true,
+                    type: 'object'
+                },
+                {
+                    type: 'string'
+                }
+            ],
+            title: 'Input'
+        },
+        output: {
+            type: 'string',
+            title: 'Output'
+        },
+        status: {
+            type: 'string',
+            title: 'Status',
+            default: 'success'
+        },
+        duration: {
+            anyOf: [
+                {
+                    type: 'number'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Duration'
+        }
+    },
+    type: 'object',
+    required: ['id', 'tool', 'input', 'output'],
+    title: 'ToolStep'
 } as const;
 
 export const UpdateSkillRequestSchema = {

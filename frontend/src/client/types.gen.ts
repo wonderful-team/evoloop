@@ -23,8 +23,8 @@ export type ChatRequest = {
     project_id?: (number | null);
     checkpoint_id?: (string | null);
     attachments?: (Array<{
-        [key: string]: unknown;
-    }> | null);
+    [key: string]: unknown;
+}> | null);
 };
 
 export type ConceptCreate = {
@@ -36,6 +36,12 @@ export type ConceptCreate = {
 export type ConceptResponse = {
     name: string;
     description: string;
+};
+
+export type ConceptWithEpisodeCount = {
+    name: string;
+    description: (string | null);
+    episode_count: number;
 };
 
 export type ConversationListItem = {
@@ -54,6 +60,7 @@ export type CreateFileRequest = {
 export type CreateProjectRequest = {
     name: string;
     description?: string;
+    path: string;
 };
 
 export type EmbeddingConfigRequest = {
@@ -71,6 +78,14 @@ export type EmbeddingConfigRequest = {
     model: string;
     api_key?: (string | null);
     project_id?: (number | null);
+};
+
+export type EpisodeResponse = {
+    id: string;
+    goal: string;
+    result: (string | null);
+    error: (string | null);
+    timestamp: (number | null);
 };
 
 export type ExecuteSkillRequest = {
@@ -149,8 +164,8 @@ export type McpServerCreate = {
     command: string;
     args?: (Array<(string)> | null);
     env?: ({
-        [key: string]: (string);
-    } | null);
+    [key: string]: (string);
+} | null);
 };
 
 export type MessageItem = {
@@ -160,11 +175,12 @@ export type MessageItem = {
     thinking: (string | null);
     created_at: (string | null);
     tasks_snapshot?: (Array<{
-        [key: string]: unknown;
-    }> | null);
+    [key: string]: unknown;
+}> | null);
     run_id?: (string | null);
     parent_id?: (number | null);
     references?: Array<ReferenceItem>;
+    steps?: Array<ToolStep>;
 };
 
 export type OpenFileRequest = {
@@ -180,8 +196,8 @@ export type RecordedEvent = {
     target_selector?: (string | null);
     target_text?: (string | null);
     payload?: ({
-        [key: string]: unknown;
-    } | null);
+    [key: string]: unknown;
+} | null);
     screenshot_base64?: (string | null);
 };
 
@@ -328,6 +344,7 @@ export type TodoCreate = {
     due_date?: (string | null);
     source_conversation_id?: (string | null);
     source_message_id?: (string | null);
+    project_id?: (number | null);
 };
 
 export type TodoPriority = 'low' | 'medium' | 'high';
@@ -342,6 +359,7 @@ export type TodoResponse = {
     due_date: (string | null);
     source_conversation_id: (string | null);
     source_message_id: (string | null);
+    project_id: (number | null);
     created_at: string;
     updated_at: string;
 };
@@ -355,6 +373,7 @@ export type TodoUpdate = {
     priority?: (TodoPriority | null);
     category?: (string | null);
     due_date?: (string | null);
+    project_id?: (number | null);
 };
 
 export type Token = {
@@ -362,13 +381,24 @@ export type Token = {
     token_type?: string;
 };
 
+export type ToolStep = {
+    id: string;
+    tool: string;
+    input: ({
+    [key: string]: unknown;
+} | string);
+    output: string;
+    status?: string;
+    duration?: (number | null);
+};
+
 export type UpdateSkillRequest = {
     name?: (string | null);
     description?: (string | null);
     trigger_patterns?: (Array<(string)> | null);
     parameters?: (Array<{
-        [key: string]: unknown;
-    }> | null);
+    [key: string]: unknown;
+}> | null);
 };
 
 export type UserPublic = {
@@ -637,9 +667,7 @@ export type FilesSearchFilesByNameData = {
 };
 
 export type FilesSearchFilesByNameResponse = (Array<{
-    name: string;
-    path: string;
-    type: string;
+    [key: string]: unknown;
 }>);
 
 export type LearningListPendingRequestsData = {
@@ -784,12 +812,27 @@ export type MemoryAddConceptData = {
 
 export type MemoryAddConceptResponse = (unknown);
 
+export type MemoryListConceptsWithCountsData = {
+    limit?: number;
+    projectId: number;
+};
+
+export type MemoryListConceptsWithCountsResponse = (Array<ConceptWithEpisodeCount>);
+
 export type MemorySearchMemoryData = {
     projectId: number;
     q: string;
 };
 
 export type MemorySearchMemoryResponse = (Array<ConceptResponse>);
+
+export type MemoryGetEpisodesByConceptData = {
+    concept: string;
+    limit?: number;
+    projectId: number;
+};
+
+export type MemoryGetEpisodesByConceptResponse = (Array<EpisodeResponse>);
 
 export type PlanningGetPlanData = {
     threadId: string;
@@ -1019,6 +1062,7 @@ export type TodosCreateTodoResponse = (TodoResponse);
 export type TodosListTodosData = {
     limit?: number;
     offset?: number;
+    projectId?: (number | null);
     status?: (TodoStatus | null);
 };
 

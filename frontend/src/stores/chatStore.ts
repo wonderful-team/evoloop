@@ -4,6 +4,7 @@ import { AgentService, ConversationsService } from "@/client"
 import { ChatConnection } from "@/lib/ChatConnection"
 import type { Message } from "@/components/Chat/ChatMessageItem"
 import type { TaskItem as TaskStep } from "@/components/Chat/TaskSteps"
+import type { AgentProcessStep } from "@/components/Chat/AgentProcess"
 
 interface ChatState {
     // --- Data ---
@@ -150,6 +151,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     thinking: m.thinking,
                     timestamp: m.created_at,
                     tasks_snapshot: m.tasks_snapshot, // Phase 6: Historical tasks
+                    steps: m.steps || [], // Phase 24: Tool Execution Steps
                 }))
                 // Filter out empty messages AND 'tool' messages (which cause chat bubble explosion)
                 .filter((m: any) => (m.content || m.thinking) && m.originalType !== "tool")
@@ -364,15 +366,77 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const { messages, threadId } = get()
         if (!rawMsg || !threadId) return
 
+        // Phase 24: Tool Message Folding (Real-Time)
+        if (rawMsg.role === "tool" || rawMsg.type === "tool") {
+            // 1. Find last AI message (scan backwards)
+            let aiMsgIndex = -1
+            for (let i = messages.length - 1; i >= 0; i--) {
+                const r = messages[i].role as string
+                if (r === "ai" || r === "assistant") {
+                    aiMsgIndex = i
+                    break
+                }
+            }
+
+            if (aiMsgIndex !== -1) {
+                const aiMsg = messages[aiMsgIndex]
+                const existingSteps = aiMsg.steps || []
+
+                // 2. Match with tool_calls (If available from AI message event)
+                let toolName = "Unknown Tool"
+                let toolInput = {}
+
+                // FIFO Matching Logic
+                if (aiMsg.tool_calls && Array.isArray(aiMsg.tool_calls)) {
+                    // The index of the new step corresponds to the number of existing steps
+                    // (Assuming 1-to-1 sequential execution)
+                    const stepIndex = existingSteps.length
+                    if (stepIndex < aiMsg.tool_calls.length) {
+                        const call = aiMsg.tool_calls[stepIndex]
+                        toolName = call.name || "Tool"
+                        toolInput = call.args || {}
+                    }
+                }
+
+                const newStep: AgentProcessStep = {
+                    id: rawMsg.id || `step-${Date.now()}`,
+                    tool: toolName,
+                    input: toolInput,
+                    output: rawMsg.content || "",
+                    status: "success",
+                    duration: 0
+                }
+
+                // 3. Update AI Message Immutably
+                const newAiMsg = {
+                    ...aiMsg,
+                    // If this was the streaming message, also clear potential thinking state if strictly needed, 
+                    // but usually tool output comes after thinking is done.
+                    steps: [...existingSteps, newStep]
+                }
+
+                // Replace in list
+                const newMessages = [...messages]
+                newMessages[aiMsgIndex] = newAiMsg
+
+                set({ messages: newMessages, streamedContent: "" })
+                return
+            }
+            // If orphaned, ignore (fold hidden)
+            return
+        }
+
         // 1. Format
         const newMsg: Message = {
             id: rawMsg.id,
-            role: rawMsg.role === "human" ? "user" : (rawMsg.role || "ai"),
+            role: (rawMsg.role === "human" || rawMsg.role === "user") ? "user" : "ai",
             originalType: rawMsg.type,
             content: rawMsg.content || "",
             thinking: rawMsg.thinking,
             timestamp: rawMsg.created_at || new Date().toISOString(),
             tasks_snapshot: rawMsg.tasks_snapshot,
+            tool_calls: rawMsg.tool_calls, // Phase 24: Capture for matching
+            steps: [], // Initialize empty
         }
 
         // 2. Deduplicate

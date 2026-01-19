@@ -27,6 +27,8 @@ import { TestReportCard } from "./Artifacts/TestReportCard"
 import { MessageContent } from "./MessageContent"
 import { TaskSteps } from "./TaskSteps"
 import { SourcesFooter } from "./SourcesFooter"
+import { AgentProcess, AgentProcessStep } from "./AgentProcess"
+
 
 export interface Message {
   id: number | string
@@ -42,6 +44,7 @@ export interface Message {
     target_id: string
     target_name: string
   }>
+  originalType?: string // Kept for filtering
   tasks_snapshot?: Array<{
     // Phase 6: Historical task steps
     id: number
@@ -51,6 +54,8 @@ export interface Message {
     time?: string
     details?: string
   }>
+  steps?: AgentProcessStep[] // Phase 24: Tool Execution Steps
+  tool_calls?: any[] // Phase 24: For Real-Time matching
 }
 
 interface ChatMessageItemProps {
@@ -139,7 +144,10 @@ const ChatMessageItem = memo(
               )
             })()}
 
-            {/* Phase 6: Historical Task Steps (Unified Component) */}
+            {/* Tool Execution Process (Collapsible) */}
+
+
+            {/* Historical Task Steps (Unified Component) */}
             {msg.tasks_snapshot && msg.tasks_snapshot.length > 0 && (
               <div className="mb-2 w-full">
                 <TaskSteps tasks={msg.tasks_snapshot as any} />
@@ -158,10 +166,9 @@ const ChatMessageItem = memo(
             )}
 
             {/* Main Content */}
-            {(msg.content || !msg.thinking) && (
-              <div
-                className={`rounded-lg px-4 py-3 text-sm leading-relaxed ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}
-              >
+            {(msg.content || !msg.thinking || (msg.steps && msg.steps.length > 0)) && (
+              <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+
                 {(() => {
                   // Artifact Detection
                   if (msg.role === "ai") {
@@ -192,7 +199,20 @@ const ChatMessageItem = memo(
                   }
 
                   // Standard Markdown Render
-                  return <MessageContent content={cleanContent} />
+                  return (
+                    <div className="flex flex-col gap-2">
+                      <MessageContent content={cleanContent} />
+                      {/* Tool Execution Process (Collapsible) - Embedded at bottom */}
+                      {msg.steps && msg.steps.length > 0 && (
+                        <div className="mt-2">
+                          <AgentProcess
+                            steps={msg.steps}
+                            isStreaming={msg.steps.some((s) => s.status === "running")}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
                 })()}
               </div>
             )}
@@ -303,7 +323,8 @@ const ChatMessageItem = memo(
     return (
       prevProps.msg.id === nextProps.msg.id &&
       prevProps.msg.content === nextProps.msg.content &&
-      prevProps.msg.thinking === nextProps.msg.thinking
+      prevProps.msg.thinking === nextProps.msg.thinking &&
+      prevProps.msg.steps === nextProps.msg.steps
     )
   },
 )

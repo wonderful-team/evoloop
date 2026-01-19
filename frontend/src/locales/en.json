@@ -952,6 +952,16 @@
       "steps": "steps",
       "initializingPhase": "Initializing phase..."
     },
+    "process": {
+      "executing": "Executing: {{tool}}...",
+      "summary": "Processed {{count}} Steps",
+      "show": "Show",
+      "hide": "Hide",
+      "path": "Path: {{path}}",
+      "query": "Query: {{query}}",
+      "command": "Cmd: {{command}}",
+      "truncated": "... (truncated)"
+    },
     "interface": {
       "inputDisabled": "Please respond to the active request above...",
       "inputHint": "Enter to send, Shift + Enter for new line",

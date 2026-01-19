@@ -953,6 +953,16 @@
       "steps": "步",
       "initializingPhase": "正在初始化阶段..."
     },
+    "process": {
+      "executing": "执行中: {{tool}}...",
+      "summary": "已执行 {{count}} 个步骤",
+      "show": "展开详情",
+      "hide": "收起详情",
+      "path": "路径: {{path}}",
+      "query": "查询: {{query}}",
+      "command": "命令: {{command}}",
+      "truncated": "... (已截断)"
+    },
     "interface": {
       "inputDisabled": "请回复上方的待处理请求...",
       "inputHint": "按 Enter 发送，Shift + Enter 换行",
