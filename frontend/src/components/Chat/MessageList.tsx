@@ -70,7 +70,7 @@ export function MessageList({
     }, [messages.length, isAgentWorking]) // Scroll on new messages
 
     return (
-        <div className="flex-1 overflow-y-auto p-4 min-h-0 scroll-smooth" ref={scrollRef}>
+        <div className="flex-1 overflow-y-auto min-h-0 scroll-smooth" ref={scrollRef}>
             <div className="space-y-2 max-w-3xl mx-auto pb-4">
 
                 {/* Empty State */}
@@ -81,21 +81,21 @@ export function MessageList({
                         <p className="text-sm opacity-60 mb-8">{t("chat.interface.startPrompt", "Start a new conversation or choose a task below.")}</p>
 
                         <div className="grid grid-cols-2 gap-3 w-full max-w-md">
-                            <Button variant="outline" className="h-auto py-3 justify-start gap-3 bg-muted/30 hover:bg-muted/60" onClick={() => onStarterClick?.(t("chat.starter.analyze", "Analyze current codebase structure"))}>
+                            <Button variant="outline" className="h-auto py-3 justify-start gap-3 bg-muted/30 hover:bg-muted/60" onClick={() => onStarterClick?.(t("chat.context.starter.analyze", "Analyze current codebase structure"))}>
                                 <div className="p-2 bg-blue-500/10 rounded-full shrink-0"><Search size={16} className="text-blue-500" /></div>
-                                <div className="flex flex-col items-start"><span className="text-sm font-medium">Analyze Codebase</span><span className="text-[10px] text-muted-foreground opacity-70">Explore architecture & files</span></div>
+                                <div className="flex flex-col items-start"><span className="text-sm font-medium">{t("chat.context.starter.analyzeLabel", "Analyze Codebase")}</span><span className="text-[10px] text-muted-foreground opacity-70">{t("chat.context.starter.analyzeDesc", "Explore architecture & files")}</span></div>
                             </Button>
-                            <Button variant="outline" className="h-auto py-3 justify-start gap-3 bg-muted/30 hover:bg-muted/60" onClick={() => onStarterClick?.(t("chat.starter.plan", "Create a new implementation plan"))}>
+                            <Button variant="outline" className="h-auto py-3 justify-start gap-3 bg-muted/30 hover:bg-muted/60" onClick={() => onStarterClick?.(t("chat.context.starter.plan", "Create a new implementation plan"))}>
                                 <div className="p-2 bg-purple-500/10 rounded-full shrink-0"><FileText size={16} className="text-purple-500" /></div>
-                                <div className="flex flex-col items-start"><span className="text-sm font-medium">Create Plan</span><span className="text-[10px] text-muted-foreground opacity-70">Draft a roadmap for changes</span></div>
+                                <div className="flex flex-col items-start"><span className="text-sm font-medium">{t("chat.context.starter.planLabel", "Create Plan")}</span><span className="text-[10px] text-muted-foreground opacity-70">{t("chat.context.starter.planDesc", "Draft a roadmap for changes")}</span></div>
                             </Button>
-                            <Button variant="outline" className="h-auto py-3 justify-start gap-3 bg-muted/30 hover:bg-muted/60" onClick={() => onStarterClick?.(t("chat.starter.tasks", "What tasks are currently pending?"))}>
+                            <Button variant="outline" className="h-auto py-3 justify-start gap-3 bg-muted/30 hover:bg-muted/60" onClick={() => onStarterClick?.(t("chat.context.starter.tasks", "What tasks are currently pending?"))}>
                                 <div className="p-2 bg-green-500/10 rounded-full shrink-0"><ListTodo size={16} className="text-green-500" /></div>
-                                <div className="flex flex-col items-start"><span className="text-sm font-medium">Check Tasks</span><span className="text-[10px] text-muted-foreground opacity-70">Review active todo items</span></div>
+                                <div className="flex flex-col items-start"><span className="text-sm font-medium">{t("chat.context.starter.tasksLabel", "Check Tasks")}</span><span className="text-[10px] text-muted-foreground opacity-70">{t("chat.context.starter.tasksDesc", "Review active todo items")}</span></div>
                             </Button>
-                            <Button variant="outline" className="h-auto py-3 justify-start gap-3 bg-muted/30 hover:bg-muted/60" onClick={() => onStarterClick?.(t("chat.starter.help", "Help me understand this project"))}>
+                            <Button variant="outline" className="h-auto py-3 justify-start gap-3 bg-muted/30 hover:bg-muted/60" onClick={() => onStarterClick?.(t("chat.context.starter.help", "Help me understand this project"))}>
                                 <div className="p-2 bg-amber-500/10 rounded-full shrink-0"><HelpCircle size={16} className="text-amber-500" /></div>
-                                <div className="flex flex-col items-start"><span className="text-sm font-medium">Project Help</span><span className="text-[10px] text-muted-foreground opacity-70">Get guidance on the system</span></div>
+                                <div className="flex flex-col items-start"><span className="text-sm font-medium">{t("chat.context.starter.helpLabel", "Project Help")}</span><span className="text-[10px] text-muted-foreground opacity-70">{t("chat.context.starter.helpDesc", "Get guidance on the system")}</span></div>
                             </Button>
                         </div>
                     </div>

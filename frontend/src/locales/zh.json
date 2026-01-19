@@ -1062,9 +1062,17 @@
       "linkFailed": "添加链接失败",
       "starter": {
         "analyze": "分析当前代码库结构",
+        "analyzeLabel": "分析代码库",
+        "analyzeDesc": "探索架构与文件",
         "plan": "制定新的实施计划",
+        "planLabel": "创建计划",
+        "planDesc": "草拟变更路线图",
         "tasks": "目前有哪些待办任务？",
-        "help": "帮助我理解这个项目"
+        "tasksLabel": "检查任务",
+        "tasksDesc": "查看活跃待办事项",
+        "help": "帮助我理解这个项目",
+        "helpLabel": "项目帮助",
+        "helpDesc": "获取系统使用指引"
       },
       "resourceRemoved": "资源已移除",
       "addMemory": {

@@ -78,10 +78,7 @@ const ChatMessageItem = memo(
     }
 
     return (
-      <div
-        data-run-id={msg.run_id}
-        className={`group relative flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"} items-start ${isGrouped ? "mb-1" : "mb-6"}`}
-      >
+      <div data-run-id={msg.run_id} className={`group relative flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"} items-start ${isGrouped ? "mb-1" : "mb-1"}`}>
         {msg.role === "ai" && (
           <div className="shrink-0 w-8 flex flex-col items-center">
             {showAvatar ? (
@@ -97,7 +94,7 @@ const ChatMessageItem = memo(
           </div>
         )}
 
-        <div className={`relative max-w-[85%]`}>
+        <div className={`relative flex-1 max-w-full`}>
           <div className="flex flex-col gap-1">
 
             {/* Reasoning/Thinking Block (Historical or Streaming) */}
@@ -145,8 +142,6 @@ const ChatMessageItem = memo(
             })()}
 
             {/* Tool Execution Process (Collapsible) */}
-
-
             {/* Historical Task Steps (Unified Component) */}
             {msg.tasks_snapshot && msg.tasks_snapshot.length > 0 && (
               <div className="mb-2 w-full">
@@ -219,9 +214,7 @@ const ChatMessageItem = memo(
           </div>
 
           {/* Message Actions */}
-          <div
-            className={`absolute -top-2 ${msg.role === "user" ? "-left-10" : "-right-10"} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1`}
-          >
+          <div className={`absolute ${msg.role === "user" ? "left-2 top-2" : "right-2 top-2"} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1`}>
             {/* Exposed Retry Button for AI */}
             {onRetry && (
               <Button
@@ -297,9 +290,7 @@ const ChatMessageItem = memo(
 
         {/* Timestamp */}
         {msg.timestamp && (
-          <div
-            className={`absolute -bottom-4 ${msg.role === "user" ? "right-0" : "left-10"} text-[10px] text-muted-foreground/60`}
-          >
+          <div className={`absolute -bottom-0 ${msg.role === "user" ? "right-0" : "left-0"} text-[10px] text-muted-foreground/60`}>
             {new Date(msg.timestamp).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",

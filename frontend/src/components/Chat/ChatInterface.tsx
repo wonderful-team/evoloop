@@ -379,7 +379,7 @@ export function ChatInterface() {
             <BreadcrumbStatus />
 
             <div
-              className="flex-1 overflow-y-auto p-4 min-h-0 scroll-smooth"
+              className="flex-1 overflow-y-auto min-h-0 scroll-smooth"
               ref={scrollRef}
               onScroll={handleScroll}
               data-tour="chat-messages"

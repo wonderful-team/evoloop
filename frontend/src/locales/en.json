@@ -1068,9 +1068,17 @@
       "linkFailed": "Failed to add link",
       "starter": {
         "analyze": "Analyze current codebase structure",
+        "analyzeLabel": "Analyze Codebase",
+        "analyzeDesc": "Explore architecture & files",
         "plan": "Create a new implementation plan",
+        "planLabel": "Create Plan",
+        "planDesc": "Draft a roadmap for changes",
         "tasks": "What tasks are currently pending?",
-        "help": "Help me understand this project"
+        "tasksLabel": "Check Tasks",
+        "tasksDesc": "Review active todo items",
+        "help": "Help me understand this project",
+        "helpLabel": "Project Help",
+        "helpDesc": "Get guidance on the system"
       },
       "resourceRemoved": "Resource removed",
       "addMemory": {
