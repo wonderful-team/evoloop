@@ -1,3 +1,4 @@
+from app.i18n.service import i18n
 from app.domain.system.service import SystemConfigService
 
 
@@ -43,5 +44,8 @@ Output a JSON object with a "pages" key:
 
     @staticmethod
     def build_page_generation_prompt(topic: str, filename: str) -> str:
-        user_lang = SystemConfigService.get_language_preference()
-        return f"Write a comprehensive documentation page about: {topic}. This is for the file {filename}.\n\nIMPORTANT: Write the documentation content in {user_lang}."
+        return i18n.get(
+            "prompts.documenter.page_generation",
+            topic=topic,
+            filename=filename
+        )

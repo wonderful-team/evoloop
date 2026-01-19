@@ -1,6 +1,7 @@
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.i18n.service import i18n
 from app.core.config import settings
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
@@ -41,7 +42,7 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
         # In parallel mode, topic MUST be passed.
         # Fallback to last message is dangerous if running multiple instances.
         return {
-            "messages": [AIMessage(content="Error: No research topic provided.")],
+            "messages": [AIMessage(content=i18n.get("prompts.deep_research.error_no_topic"))],
             "next_node": "supervisor"
         }
 
@@ -66,6 +67,6 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
     except Exception as e:
         logger.error(f"Deep Research Failed: {e}")
         return {
-            "messages": [AIMessage(content=f"Error during deep research: {e}")],
+            "messages": [AIMessage(content=i18n.get("prompts.deep_research.error_failed", error=str(e)))],
             "next_node": "supervisor"
         }

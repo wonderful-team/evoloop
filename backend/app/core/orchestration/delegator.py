@@ -1,15 +1,16 @@
-
 import logging
 import os
 
 from langchain_core.tools import tool
 
+from app.i18n.service import i18n
 from app.core.engine.graph_builder import GraphBuilder
 
 logger = logging.getLogger("evoloop.orchestration")
 
 # Standard location for Agent Configs
 AGENTS_DIR = os.path.join(os.path.dirname(__file__), "../workflows/config")
+
 
 class SkillRegistry:
     def __init__(self):
@@ -58,7 +59,7 @@ async def delegate_task(skill_name: str, task_input: dict) -> dict:
 
     if not config_path:
         available = ", ".join(_registry.list_skills())
-        return {"error": f"Skill '{skill_name}' not found. Available skills: {available}"}
+        return {"error": i18n.get("prompts.orchestration.skill_not_found", name=skill_name, available=available)}
 
     try:
         logger.info(f"Orchestrator delegating task to: {skill_name}")
@@ -79,11 +80,12 @@ async def delegate_task(skill_name: str, task_input: dict) -> dict:
 
     except Exception as e:
         logger.error(f"Delegation failed: {e}")
-        return {"error": f"Delegation to {skill_name} failed: {str(e)}"}
+        return {"error": i18n.get("prompts.orchestration.delegation_failed", name=skill_name, error=str(e))}
+
 
 def find_skills(query: str) -> str:
     """
     Helper for the LLM to know what skills exist.
     """
     # Simple list for now. Could be semantic search later.
-    return f"Available Agent Skills: {', '.join(_registry.list_skills())}"
+    return i18n.get("prompts.orchestration.available_skills", skills=', '.join(_registry.list_skills()))

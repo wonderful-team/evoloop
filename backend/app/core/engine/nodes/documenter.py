@@ -1,13 +1,19 @@
+import json
 import logging
 import os
+import uuid
+
+from datetime import datetime
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.i18n.service import i18n
 from app.core.config import settings
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
+from app.domain.research.engine import DeepResearchEngine
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +33,6 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     Phase 1: Analyzes project structure -> Generates Plan -> Requests Approval.
     Phase 2: Resumes -> Checks Approval -> Generates Content.
     """
-    import json
-
     # Check for pending plan in hitl_state
     hitl = state.get("hitl_state")
     pending_plan_json = hitl.get("context", {}).get("wiki_plan") if hitl else None
@@ -57,7 +61,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
             # For "No", we abort.
             if "no" in last_content_str.lower() and len(last_content_str) < 10:
                 return {
-                    "messages": [AIMessage(content="Documentation plan cancelled by user.")],
+                    "messages": [AIMessage(content=i18n.get("prompts.documenter.plan_cancelled"))],
                     "hitl_state": None  # Clear HITL state
                 }
             # Non-approval treated as re-plan request - fall through to Phase 1
@@ -69,11 +73,16 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
                 plan_data = json.loads(pending_plan_json)
                 pages = plan_data
             except:
-                return {"messages": [AIMessage(content="Error loading pending plan. Please try again.")], "hitl_state": None}
+                return {"messages": [AIMessage(content=i18n.get("prompts.documenter.error_loading_plan"))], "hitl_state": None}
+
+            # ... (lines 75-248 kept conceptually, just targeting the edit below)
+            # We need to jump to the auto-execution loop replacement.
+            # Since replace_file_content targets a contiguous block, I will target the except block first.
+
+# Wait, I cannot target two disjoint blocks in one replace_file_content call unless I use multi_replace.
+# I will use multi_replace for this file.
 
             # 3. Generate Pages (Iterative Deep Research)
-            from app.domain.research.engine import DeepResearchEngine
-
             # Initialize Engine
             llm = LLMFactory.create_llm()
             engine = DeepResearchEngine(llm)
@@ -82,10 +91,6 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
             os.makedirs(docs_dir, exist_ok=True)
 
             generated_pages = []
-
-            # Language Preference
-            from app.domain.system.service import SystemConfigService
-            user_lang = SystemConfigService.get_language_preference()
 
             for page in pages:
                 filename = page.get('filename')
@@ -99,9 +104,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
                 try:
                     # Trigger Deep Research Loop
                     # Use Builder for prompt
-                    from app.core.prompts.documenter_builder import (
-                        DocumenterPromptBuilder,
-                    )
+                    from app.core.prompts.documenter_builder import DocumenterPromptBuilder
                     prompt_content = DocumenterPromptBuilder.build_page_generation_prompt(topic, filename)
 
                     content = await engine.run(topic=prompt_content, max_iterations=3, config=config)
@@ -117,7 +120,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
                     logger.error(f"Failed to generate {filename}: {e}")
                     generated_pages.append(f"{filename} (FAILED: {e})")
 
-            msg_content = "Wiki Generation Complete.\nPages created:\n" + "\n".join(generated_pages)
+            msg_content = i18n.get("prompts.documenter.success", pages="\n".join(generated_pages))
 
             return {
                 "messages": [AIMessage(content=msg_content)],
@@ -175,7 +178,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
 
         # Generate Approval Message
         plan_summary = "\n".join([f"- **{p['filename']}**: {p['topic']}" for p in pages])
-        approval_msg = f"I have designed the following Wiki structure based on your project:\n\n{plan_summary}\n\nDo you want me to proceed with generating these files?"
+        approval_msg = i18n.get("prompts.documenter.approval_request", plan_summary=plan_summary)
 
         # Trigger Approval Tool... UNLESS configured to skip
         from app.domain.tools.human_input import request_approval
@@ -202,8 +205,6 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
             }, config=config)
 
             # Return state with HITL (wiki_plan stored in context)
-            import uuid
-            from datetime import datetime
             return {
                 "messages": [
                     AIMessage(content=approval_msg),
@@ -236,7 +237,6 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
             # It duplicates the logic from lines 100-147 but ensures immediate execution.
 
             # Copy-paste verified safe logic for now:
-            from app.domain.research.engine import DeepResearchEngine
             llm = LLMFactory.create_llm()
             engine = DeepResearchEngine(llm)
             docs_dir = os.path.join(settings.PROJECTS_ROOT, "docs", "wiki")
@@ -249,7 +249,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
                 fname = page['filename']
                 topic = page['topic']
                 try:
-                    prompt_content = f"Write documentation for {fname}: {topic}. Lang: {user_lang}."
+                    prompt_content = DocumenterPromptBuilder.build_page_generation_prompt(topic, fname)
                     content = await engine.run(topic=prompt_content, max_iterations=3, config=config)
                     with open(os.path.join(docs_dir, fname), "w", encoding="utf-8") as f:
                         f.write(content)
@@ -257,7 +257,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
                 except Exception as e:
                     generated_pages.append(f"{fname} (Err: {e})")
 
-            msg_content = "Wiki Auto-Generated (Autonomous Mode).\nPages:\n" + "\n".join(generated_pages)
+            msg_content = i18n.get("prompts.documenter.success", pages="\n".join(generated_pages))
             return {
                 "messages": [AIMessage(content=msg_content)],
                 "hitl_state": None  # Clear any residual state
@@ -266,5 +266,5 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     except Exception as e:
         logger.error(f"Failed to parse documentation plan: {e}")
         return {
-            "messages": [AIMessage(content=f"Error planning documentation: {e}")]
+            "messages": [AIMessage(content=i18n.get("prompts.documenter.error", error=str(e)))]
         }

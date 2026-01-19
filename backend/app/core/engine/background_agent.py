@@ -2,6 +2,7 @@ import asyncio
 import logging
 from typing import Any
 
+from sqlalchemy import func, select
 # from celery import shared_task # Removed Celery
 from langchain_core.messages import BaseMessage, HumanMessage
 
@@ -80,11 +81,6 @@ async def _ensure_conversation_in_db(thread_id: str, project_id: int, inputs: di
         logger.error(f"Failed to ensure conversation {thread_id}: {e}")
 
 
-# Graph
-
-logger = logging.getLogger(__name__)
-
-
 async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
     """
     Background Task Logic (FastAPI BackgroundTasks).
@@ -123,9 +119,6 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         # Get Start Sequence
         start_seq = 0
         try:
-            from sqlalchemy import func, select
-
-            from app.infrastructure.database.sql.models import Message
             async with session_scope() as session:
                 stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
                 result = await session.execute(stmt)
@@ -136,19 +129,8 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             logger.warning(f"Failed to fetch max sequence number: {e}")
 
         # Initialize Handlers
-        # Phase 25: Create TraceCallbackHandler and pass to DatabaseCallbackHandler
-        from app.core.learning.trace_recorder import TraceCallbackHandler
-        trace_callback = TraceCallbackHandler(thread_id=thread_id)
-        
         callback = TransparentCallbackHandler(thread_id=thread_id)
-        db_callback = DatabaseCallbackHandler(
-            thread_id=thread_id, 
-            project_id=project_id, 
-            start_sequence=start_seq, 
-            run_id=thread_id,
-            trace_handler=trace_callback  # Phase 25: Link for message_id propagation
-        )
-
+        db_callback = DatabaseCallbackHandler(thread_id=thread_id, project_id=project_id, start_sequence=start_seq, run_id=thread_id)
 
         # 5. Execution
         await activity_monitor.start_run(thread_id)
@@ -161,9 +143,8 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         inputs["project_concepts"] = concepts_text
 
         try:
-            callbacks = [callback, db_callback, trace_callback]  # Phase 25: Include trace_callback
+            callbacks = [callback, db_callback]
             callbacks.append(EvoLoopCallbackHandler(evocloud_client, thread_id, command_id=evoloop_command_id))
-
 
             config["callbacks"] = callbacks
             config["recursion_limit"] = settings.RECURSION_LIMIT
@@ -179,9 +160,9 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
 
             # Snapshot & Finish
             activity_data = await activity_monitor.get_activity(thread_id)
-            tasks_snapshot = activity_data.get("tasks", [])
-            if tasks_snapshot:
-                await db_callback.snapshot_tasks_to_last_message(tasks_snapshot)
+            steps_snapshot = activity_data.get("steps", [])
+            if steps_snapshot:
+                await db_callback.snapshot_steps_to_last_message(steps_snapshot)
 
             await activity_monitor.end_run(thread_id, "done")
 
@@ -237,7 +218,6 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
 
     # Persist Error
     try:
-        from sqlalchemy import func, select
         async with session_scope() as session:
             # Get next sequence
             stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)

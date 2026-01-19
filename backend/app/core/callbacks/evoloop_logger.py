@@ -3,6 +3,8 @@ from typing import Any
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
+from app.i18n.service import i18n
+
 
 class EvoLoopCallbackHandler(AsyncCallbackHandler):
     """
@@ -21,7 +23,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
         await self.client.upload_log(
             thread_id=self.thread_id,
             log_type="thought",
-            content="Thinking...",
+            content=i18n.get("prompts.evoloop_logger.thinking"),
             command_id=self.command_id
         )
 
@@ -46,7 +48,12 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
             )
 
     async def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> Any:
-        tool_name = serialized.get("name") if serialized else "Unknown Tool"
+        # Ignore events with missing tool name to prevent "Unknown Tool" ghosts
+        # caused by duplicate callbacks (e.g. from ToolExecutor vs internal invocation)
+        if not serialized or not serialized.get("name"):
+            return
+
+        tool_name = serialized.get("name")
         self.current_tool_name = tool_name
         self.current_tool_path = None
 
@@ -89,7 +96,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
         await self.client.upload_log(
             thread_id=self.thread_id,
             log_type="tool",
-            content=f"Running {tool_name}...\nInput: {input_str[:200]}",
+            content=i18n.get("prompts.evoloop_logger.running_tool", tool=tool_name, input=input_str[:200]),
             command_id=self.command_id
         )
 
@@ -105,14 +112,14 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
             lines = output.split('\n')
             count = len(lines)
             if not output: count = 0
-            content_to_log = f"File: {self.current_tool_path} (Lines: {count})"
+            content_to_log = i18n.get("prompts.evoloop_logger.file_output", path=self.current_tool_path, count=count)
 
         # 1. Truncate for other large outputs (e.g. search results, huge diffs)
         # If the output is huge, we assume it's file content.
         elif len(output) > 500:
             lines = output.split('\n')
             if len(lines) > 20:
-                content_to_log = f"{output[:300]}\n...\n[Truncated {len(lines)} lines / {len(output)} chars]"
+                content_to_log = i18n.get("prompts.evoloop_logger.truncated_output", preview=output[:300], lines=len(lines), chars=len(output))
 
         await self.client.upload_log(
             thread_id=self.thread_id,

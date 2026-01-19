@@ -5,7 +5,10 @@ from langchain_core.messages import BaseMessage
 from langchain_core.outputs import ChatResult
 from langchain_openai import ChatOpenAI
 
+from app.i18n.service import i18n
+
 logger = logging.getLogger(__name__)
+
 
 class AdaptiveChatOpenAI(ChatOpenAI):
     """
@@ -93,7 +96,7 @@ class AdaptiveChatOpenAI(ChatOpenAI):
             RunnablePassthrough,
         )
 
-        prompt = PromptTemplate.from_template("请简要总结以下内容：\n{input}")
+        prompt = PromptTemplate.from_template(i18n.get("prompts.adaptive_llm.summarize_prompt"))
         chain = (
             RunnablePassthrough.assign(prompt=prompt)
             | RunnableLambda(lambda x: x['prompt'].format(input=x['input']))

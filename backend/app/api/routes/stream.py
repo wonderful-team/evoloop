@@ -39,13 +39,13 @@ async def stream_chat(thread_id: str):
                     "active_memories": activity.get("active_memories", []),
                     "verification": activity.get("verification", {}),
                     "status": activity.get("status", "unknown"),
-                    "human_request": activity.get("human_request") # Include here
+                    "human_request": activity.get("human_request")  # Include here
                 }
                 yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
 
                 # Check Human Request immediately
                 if activity.get("human_request"):
-                     yield f"event: human_request\ndata: {json.dumps(activity['human_request'])}\n\n"
+                    yield f"event: human_request\ndata: {json.dumps(activity['human_request'])}\n\n"
 
             # 2. Subscribe to Redis Channel
             client = await activity_monitor.get_client()
@@ -59,7 +59,7 @@ async def stream_chat(thread_id: str):
 
                 if message and message["type"] == "message":
                     # Raw event JSON from backend
-                    raw_data = message["data"] # This is a string (JSON)
+                    raw_data = message["data"]  # This is a string (JSON)
 
                     try:
                         # We parse it just to route it correctly if needed, or forward directly
@@ -87,43 +87,43 @@ async def stream_chat(thread_id: str):
 
                         # Let's verify if Token is handled
                         if event_type == "token":
-                             # Token events in ActivityMonitor are not actually published separately yet?
-                             # Wait, look at TransparentCallbackHandler.
-                             # It calls monitor.update_task... which publishes 'task' update.
-                             # It does NOT publish 'token' event specifically.
-                             # Ah, `monitor.update_task` sends `TaskEvent(action="update")`.
-                             # The `details` field contains the text? No, `details` is full text.
-                             pass
+                            # Token events in ActivityMonitor are not actually published separately yet?
+                            # Wait, look at TransparentCallbackHandler.
+                            # It calls monitor.update_task... which publishes 'task' update.
+                            # It does NOT publish 'token' event specifically.
+                            # Ah, `monitor.update_task` sends `TaskEvent(action="update")`.
+                            # The `details` field contains the text? No, `details` is full text.
+                            pass
 
                         # -- HYBRID ADAPTER --
                         # Trigger full Snapshot emit on structural change
-                        state_changing_events = ["task", "artifact", "state", "status"]
+                        state_changing_events = ["step", "task", "artifact", "state", "status"]
                         if event_type in state_changing_events:
-                             # Re-fetch full activity (Fast, local redis)
-                             # This implementation is "Push-Triggered Broadcast"
-                             current = await activity_monitor.get_activity(thread_id)
-                             snapshot = {
+                            # Re-fetch full activity (Fast, local redis)
+                            # This implementation is "Push-Triggered Broadcast"
+                            current = await activity_monitor.get_activity(thread_id)
+                            snapshot = {
                                 "tasks": current.get("tasks", []),
                                 "artifacts": current.get("artifacts", []),
                                 "agent_state": current.get("agent_state", {}),
                                 "active_memories": current.get("active_memories", []),
                                 "verification": current.get("verification", {}),
                                 "status": current.get("status", "unknown")
-                             }
-                             yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
+                            }
+                            yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
 
-                             if event_type == "status":
-                                 yield f"event: status\ndata: {json.dumps({'status': current['status']})}\n\n"
+                            if event_type == "status":
+                                yield f"event: status\ndata: {json.dumps({'status': current['status']})}\n\n"
 
                         # Forward Token Logic Direct from Event
                         if event_type == "token":
-                             content = event_data.get("content")
-                             if content:
-                                 yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
+                            content = event_data.get("content")
+                            if content:
+                                yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
 
                         # Phase 11: Forward Message Event
                         if event_type == "message":
-                             yield f"event: message\ndata: {json.dumps(event_data.get('data'))}\n\n"
+                            yield f"event: message\ndata: {json.dumps(event_data.get('data'))}\n\n"
 
                     except Exception as e:
                         logger.error(f"Error processing pubsub message: {e}")

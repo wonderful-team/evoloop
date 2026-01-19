@@ -1,6 +1,7 @@
 
 from langchain_core.runnables import RunnableConfig
 
+from app.i18n.service import i18n
 from app.core.tools import get_working_directory
 from app.utils.file import resolve_path
 
@@ -18,10 +19,10 @@ def resolve_and_validate_path(path: str, config: RunnableConfig | None = None) -
     target_path = resolve_path(path, base_path=root)
 
     if not target_path: # Could not resolve
-         raise ValueError(f"Error: Could not resolve path: {path}")
+        raise ValueError(i18n.get("prompts.domain_tools.files.resolve_error", path=path))
 
     # Security Check: Prevent breaking out of working directory
     if not str(target_path).startswith(str(root)):
-        raise ValueError(f"Error: Security Violation. Path '{path}' is outside the working directory '{root}'. Please use relative paths.")
+        raise ValueError(i18n.get("prompts.domain_tools.files.security_violation", path=path, root=root))
 
     return target_path

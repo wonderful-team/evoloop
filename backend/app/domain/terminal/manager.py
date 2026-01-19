@@ -2,7 +2,10 @@ import logging
 import os
 import subprocess
 
+from app.i18n.service import i18n
+
 logger = logging.getLogger(__name__)
+
 
 class TerminalManager:
     """
@@ -56,7 +59,7 @@ class TerminalManager:
             return stdout, stderr, returncode
 
         except subprocess.TimeoutExpired:
-            return "", "Command timed out.", 124
+            return "", i18n.get("prompts.domain_tools.terminal.timeout"), 124
         except Exception as e:
             return "", str(e), 1
 
@@ -66,9 +69,9 @@ class TerminalManager:
 
         if os.path.isdir(new_path):
             self.cwd = new_path
-            return f"Changed directory to {self.cwd}", "", 0
+            return i18n.get("prompts.domain_tools.terminal.cd_success", path=self.cwd), "", 0
         else:
-            return "", f"Directory not found: {path} (resolved to {new_path})", 1
+            return "", i18n.get("prompts.domain_tools.terminal.cd_error", path=path, resolved=new_path), 1
 
     def _handle_export(self, command: str) -> tuple[str, str, int]:
         # export KEY=VALUE
@@ -79,8 +82,10 @@ class TerminalManager:
             # Remove quotes
             value = value.strip("'").strip('"')
             self.env[key] = value
-            return f"Exported {key}", "", 0
-        return "", "Invalid export syntax", 1
+            return i18n.get("prompts.domain_tools.terminal.export_success", key=key), "", 0
+
+        return "", i18n.get("prompts.domain_tools.terminal.export_error"), 1
+
 
 # Global singleton
 terminal_manager = TerminalManager()

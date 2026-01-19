@@ -1,4 +1,3 @@
-
 from app.core.config import settings
 from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 from app.infrastructure.database.graph.driver import get_graph_db
@@ -33,7 +32,6 @@ class MemoryService:
             except Exception as e:
                 logger.warning(f"Failed to create composite constraint for CodeEntity: {e}")
 
-
             # Vector Index for Concepts
             # Syntax for Neo4j 5.x+
             # IF NOT EXISTS is supported in newer versions.
@@ -51,26 +49,83 @@ class MemoryService:
                 embedder = EmbedderFactory.get_embedder()
                 # Dummy embedding to check dimension
                 vec = await embedder.embed_query("dim_check")
-                dim = len(vec)
+                target_dim = len(vec)
+                logger.info(f"MemoryService: Configured Embedder Dimension: {target_dim}")
+
+                # Check existing index dimension if it exists
+                # Using YIELD to be explicit about what we want
+                try:
+                    index_check = await session.run(
+                        "SHOW INDEXES YIELD name, options WHERE name = 'concept_embeddings'")
+                    record = await index_check.single()
+
+                    should_recreate = False
+                    if record:
+                        logger.info(f"MemoryService: Found existing index 'concept_embeddings'. Checking dimensions...")
+                        # Parse existing options to check dimension
+                        try:
+                            # Record is compliant with dict access
+                            options = record["options"]
+                            # options is often a map like {'indexConfig': {'vector.similarity_function': 'cosine', 'vector.dimensions': 1536}}
+                            idx_config = options.get("indexConfig", {})
+                            current_dim = idx_config.get("vector.dimensions")
+
+                            logger.info(f"MemoryService: Existing Index Dimension: {current_dim}")
+
+                            if current_dim and int(current_dim) != target_dim:
+                                logger.warning(
+                                    f"Vector Index dimension mismatch! Index: {current_dim}, Config: {target_dim}. Recreating index...")
+                                should_recreate = True
+                            else:
+                                logger.info("MemoryService: Index dimension matches.")
+                        except Exception as e:
+                            logger.warning(
+                                f"Failed to parse existing index options keys: {e}. Record keys: {record.keys()}")
+                    else:
+                        logger.info("MemoryService: Index 'concept_embeddings' not found via SHOW INDEXES.")
+
+                    if should_recreate:
+                        logger.info("MemoryService: Dropping old index...")
+                        await session.run("DROP INDEX concept_embeddings IF EXISTS")
+                        # Also drop episode index if concept one was wrong, likely created together
+                        await session.run("DROP INDEX episode_embeddings IF EXISTS")
+
+                except Exception as e:
+                    logger.error(f"Error checking/dropping index: {e}")
 
                 await session.run(f"""
                     CREATE VECTOR INDEX concept_embeddings IF NOT EXISTS
                     FOR (c:Concept)
                     ON (c.embedding)
                     OPTIONS {{indexConfig: {{
-                        `vector.dimensions`: {dim},
+                        `vector.dimensions`: {target_dim},
                         `vector.similarity_function`: 'cosine'
                     }}}}
                 """)
+
+                # Same for Episode embeddings if used
+                await session.run(f"""
+                     CREATE VECTOR INDEX episode_embeddings IF NOT EXISTS
+                     FOR (e:Episode)
+                     ON (e.embedding)
+                     OPTIONS {{indexConfig: {{
+                        `vector.dimensions`: {target_dim},
+                        `vector.similarity_function`: 'cosine'
+                     }}}}
+                """)
+                logger.info("MemoryService: Vector Indexes initialized.")
+
+            except Exception as e:
+                logger.error(f"Failed to initialize Vector Index: {e}")
                 logger.info(f"Vector Index 'concept_embeddings' ensured (dim={dim}).")
             except Exception as e:
                 logger.warning(f"Failed to create Vector Index: {e}")
 
             # Episode Constraints
             try:
-                 await session.run("CREATE CONSTRAINT episode_unique IF NOT EXISTS FOR (e:Episode) REQUIRE e.id IS UNIQUE")
+                await session.run("CREATE CONSTRAINT episode_unique IF NOT EXISTS FOR (e:Episode) REQUIRE e.id IS UNIQUE")
             except Exception as e:
-                 logger.warning(f"Failed to create Episode constraint: {e}")
+                logger.warning(f"Failed to create Episode constraint: {e}")
 
             # Vector Index for Episodes (Features: Goal)
             try:
@@ -232,10 +287,10 @@ class MemoryService:
         # 1. Generate Query Embedding
         embedder = EmbedderFactory.get_embedder()
         try:
-             query_embedding = await embedder.embed_query(query_text)
+            query_embedding = await embedder.embed_query(query_text)
         except Exception as e:
-             logger.error(f"Embedding failed: {e}")
-             return f"Error searching concepts: {e}"
+            logger.error(f"Embedding failed: {e}")
+            return f"Error searching concepts: {e}"
 
         # 2. Vector Search Cypher with score filtering
         # We query the index, then filter by Project ID and minimum score
@@ -254,9 +309,9 @@ class MemoryService:
             # Fetch a bit more than limit to allow for post-filtering if needed,
             # though WHERE clause inside YIELD usually works efficiently.
             result = await session.run(
-                vector_cypher, 
-                embedding=query_embedding, 
-                pid=project_id, 
+                vector_cypher,
+                embedding=query_embedding,
+                pid=project_id,
                 top_k=settings.MEMORY_SEARCH_LIMIT,
                 min_score=min_score
             )
@@ -270,14 +325,13 @@ class MemoryService:
             scope = "[Global]" if r['pid'] == 0 else ""
             files_str = ""
             if r['files']:
-                 # Just show basenames for brevity
-                 basenames = [f.split('/')[-1] for f in r['files']]
-                 files_str = f"\n  Related Files: {', '.join(basenames)}"
+                # Just show basenames for brevity
+                basenames = [f.split('/')[-1] for f in r['files']]
+                files_str = f"\n  Related Files: {', '.join(basenames)}"
 
             lines.append(f"- **{r['name']}** {scope} (Score: {r['score']:.2f}): {r['desc']}{files_str}")
 
         return "\n".join(lines)
-
 
     async def search_concepts_data(self, query_text: str, project_id: int) -> list[dict]:
         """
@@ -298,8 +352,6 @@ class MemoryService:
             records = await result.data()
         return records
 
-
-
     async def link_concepts(self, source_name: str, target_name: str, relation: str, project_id: int):
         """
         Create a semantic relationship between two concepts.
@@ -319,12 +371,12 @@ class MemoryService:
         """
 
         async with driver.session() as session:
-             await session.run(query, src=source_name, tgt=target_name, pid=project_id)
+            await session.run(query, src=source_name, tgt=target_name, pid=project_id)
 
         logger.info(f"Ontology Link: ({source_name})-[:{relation}]->({target_name})")
 
         async with driver.session() as session:
-             await session.run(query, src=source_name, tgt=target_name, pid=project_id)
+            await session.run(query, src=source_name, tgt=target_name, pid=project_id)
 
         logger.info(f"Ontology Link: ({source_name})-[:{relation}]->({target_name})")
 
@@ -339,8 +391,8 @@ class MemoryService:
         # Graph paths in Phase 7 implementation: `path=dir_path`
         # If user asks for "app/core/", we should strip.
         norm_path = path.rstrip('/')
-        if not norm_path and path: # if was just "/"
-             pass # keep empty
+        if not norm_path and path:  # if was just "/"
+            pass  # keep empty
 
         query = """
         MATCH (d:Directory {path: $path, project_id: $pid})
@@ -371,7 +423,7 @@ class MemoryService:
             if record:
                 info["summary"] = record["summary"]
             else:
-                return info # Return empty info if not found
+                return info  # Return empty info if not found
 
             # Sub-modules
             result = await session.run(sub_query, path=norm_path, pid=project_id)
@@ -403,13 +455,14 @@ class MemoryService:
             records = await result.data()
 
         if not records:
-             return []
+            return []
 
         return [f"{r['name']}: {r['description']}" for r in records]
 
-    async def store_episode(self, goal: str, result: str, plan_summary: str, error_msg: str | None, project_id: int):
+    async def store_episode(self, goal: str, result: str, plan_summary: str, error_msg: str | None, project_id: int) -> str | None:
         """
         Store a completed task execution as an Episode in the graph.
+        Returns the episode_id for downstream linking.
         """
         driver = await get_graph_db()
         pid_val = project_id if project_id else 0
@@ -417,10 +470,10 @@ class MemoryService:
         # 1. Embed the Goal (This is what we search against later)
         embedder = EmbedderFactory.get_embedder()
         try:
-             embedding = await embedder.embed_query(goal)
+            embedding = await embedder.embed_query(goal)
         except Exception as e:
-             logger.error(f"Failed to embed episode goal: {e}")
-             return
+            logger.error(f"Failed to embed episode goal: {e}")
+            return None
 
         # 2. Create Episode Node
         import uuid
@@ -441,8 +494,8 @@ class MemoryService:
         """
 
         async with driver.session() as session:
-             await session.run(query, id=episode_id, goal=goal, result=result, plan=plan_summary, error=error_msg, pid=pid_val, embedding=embedding)
-             logger.info(f"Stored Episode: {episode_id} (Result: {result})")
+            await session.run(query, id=episode_id, goal=goal, result=result, plan=plan_summary, error=error_msg, pid=pid_val, embedding=embedding)
+            logger.info(f"Stored Episode: {episode_id} (Result: {result})")
 
         # 3. Link to Concepts (Heuristic / Knowledge Graph)
         # We try to link this Episode to any existing Concepts mentioned in the goal or plan.
@@ -455,10 +508,36 @@ class MemoryService:
         WHERE toLower($goal) CONTAINS toLower(c.name) OR toLower($plan) CONTAINS toLower(c.name)
         MERGE (e)-[:RELATED_TO]->(c)
         """
-        
+
         async with driver.session() as session:
-             await session.run(link_query, id=episode_id, pid=pid_val, goal=goal, plan=plan_summary)
-             logger.info(f"Linked Episode {episode_id} to relevant Concepts.")
+            await session.run(link_query, id=episode_id, pid=pid_val, goal=goal, plan=plan_summary)
+            logger.info(f"Linked Episode {episode_id} to relevant Concepts.")
+
+        return episode_id
+
+    async def link_episode_to_concepts(self, episode_id: str, concept_names: list[str], project_id: int):
+        """
+        Explicitly link an Episode to specific Concepts by name.
+        This creates RELATED_TO edges for concepts harvested during the session.
+        """
+        if not concept_names:
+            return
+
+        driver = await get_graph_db()
+        pid_val = project_id if project_id else 0
+
+        link_query = """
+        MATCH (e:Episode {id: $episode_id, project_id: $pid})
+        MATCH (c:Concept {name: $concept_name, project_id: $pid})
+        MERGE (e)-[:RELATED_TO]->(c)
+        """
+
+        async with driver.session() as session:
+            for name in concept_names:
+                try:
+                    await session.run(link_query, episode_id=episode_id, concept_name=name, pid=pid_val)
+                except Exception as e:
+                    logger.warning(f"Failed to link Episode to Concept {name}: {e}")
 
     async def find_similar_episodes(self, current_goal: str, project_id: int, top_k: int = 3) -> str:
         """
@@ -469,10 +548,10 @@ class MemoryService:
         embedder = EmbedderFactory.get_embedder()
 
         try:
-             query_embedding = await embedder.embed_query(current_goal)
+            query_embedding = await embedder.embed_query(current_goal)
         except Exception as e:
-             logger.error(f"Failed to embed goal for search: {e}")
-             return ""
+            logger.error(f"Failed to embed goal for search: {e}")
+            return ""
 
         query = """
         CALL db.index.vector.queryNodes('episode_embeddings', $top_k, $embedding)
@@ -482,28 +561,76 @@ class MemoryService:
         """
 
         async with driver.session() as session:
-             result = await session.run(query, embedding=query_embedding, pid=project_id, top_k=top_k)
-             records = await result.data()
+            result = await session.run(query, embedding=query_embedding, pid=project_id, top_k=top_k)
+            records = await result.data()
 
         if not records:
-             return ""
+            return ""
 
         lines = ["**Relevant Past Experiences:**"]
         for r in records:
-             status = "FAILED" if r['error'] else "SUCCESS"
-             # Only show if reasonable similarity
-             if r['score'] < 0.75: continue
+            status = "FAILED" if r['error'] else "SUCCESS"
+            # Only show if reasonable similarity
+            if r['score'] < 0.75: continue
 
-             lines.append(f"- [{status}] Goal: {r['goal']}")
-             if r['error']:
-                 lines.append(f"  Error: {r['error']}")
-             lines.append(f"  Plan: {r['plan']}")
-             lines.append("---")
+            lines.append(f"- [{status}] Goal: {r['goal']}")
+            if r['error']:
+                lines.append(f"  Error: {r['error']}")
+            lines.append(f"  Plan: {r['plan']}")
+            lines.append("---")
 
-        if len(lines) == 1: return "" # Nothing significant found
+        if len(lines) == 1: return ""  # Nothing significant found
 
         return "\n".join(lines)
 
+    async def find_episodes_by_concept(self, concept_name: str, project_id: int, limit: int = 10) -> list[dict]:
+        """
+        Find Episodes linked to a specific Concept via RELATED_TO edge.
+        Useful for tracing history related to a specific technology or pattern.
+        """
+        driver = await get_graph_db()
+        pid_val = project_id if project_id else 0
+
+        query = """
+        MATCH (c:Concept {name: $name, project_id: $pid})<-[:RELATED_TO]-(e:Episode)
+        RETURN e.id as id, e.goal as goal, e.result as result, e.error as error, e.timestamp as timestamp
+        ORDER BY e.timestamp DESC
+        LIMIT $limit
+        """
+
+        try:
+            async with driver.session() as session:
+                result = await session.run(query, name=concept_name, pid=pid_val, limit=limit)
+                records = await result.data()
+                return records
+        except Exception as e:
+            logger.error(f"Failed to find episodes by concept: {e}")
+            return []
+
+    async def list_concepts(self, project_id: int, limit: int = 50) -> list[dict]:
+        """
+        List all Concepts for a project.
+        Returns concept name, description, and count of related episodes.
+        """
+        driver = await get_graph_db()
+        pid_val = project_id if project_id else 0
+
+        query = """
+        MATCH (c:Concept {project_id: $pid})
+        OPTIONAL MATCH (c)<-[:RELATED_TO]-(e:Episode)
+        RETURN c.name as name, c.description as description, count(e) as episode_count
+        ORDER BY episode_count DESC, c.name
+        LIMIT $limit
+        """
+
+        try:
+            async with driver.session() as session:
+                result = await session.run(query, pid=pid_val, limit=limit)
+                records = await result.data()
+                return records
+        except Exception as e:
+            logger.error(f"Failed to list concepts: {e}")
+            return []
+
 
 memory_service = MemoryService()
-

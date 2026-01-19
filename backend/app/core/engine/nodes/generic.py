@@ -5,6 +5,7 @@ from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
+from app.i18n.service import i18n
 from app.core.engine.middleware import context_aware
 from app.core.engine.message_utils import smart_window_slice
 from app.core.engine.state import AgentState
@@ -14,11 +15,13 @@ from app.domain.tools.registry import get_tools_by_names
 
 logger = logging.getLogger(__name__)
 
+
 class GenericNodeConfig(BaseModel):
     system_prompt: str
     tools: list[str] = []
     model: str = None
     temperature: float = 0.7
+
 
 @context_aware(inject=["user_preferences"])
 async def generic_node(state: AgentState, config: RunnableConfig, node_config: dict[str, Any] = None, context: dict = None):
@@ -101,9 +104,9 @@ async def generic_node(state: AgentState, config: RunnableConfig, node_config: d
                         state_updates["scratchpad"][key] = val
 
                 except Exception as e:
-                    result = f"Error executing tool {tool_name}: {e}"
+                    result = i18n.get("prompts.common.tool_execution_error", name=tool_name, error=str(e))
             else:
-                result = f"Error: Tool {tool_name} not found in configuration."
+                result = i18n.get("prompts.common.tool_not_found", name=tool_name)
 
             loop_messages.append(ToolMessage(content=str(result), tool_call_id=tool_id))
 

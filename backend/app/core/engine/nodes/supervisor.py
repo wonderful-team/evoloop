@@ -12,6 +12,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.i18n.service import i18n
 from app.core.engine import AgentEngine
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
@@ -53,7 +54,7 @@ class SupervisorNode:
             return {"next_node": "finish"}
 
         # Emit initial status
-        await self._emit_status(config, "Analyzing context...")
+        await self._emit_status(config, i18n.get("prompts.supervisor.status_analyzing"))
 
         # Phase 0: Context Compression (optional optimization)
         compression_result = await self._try_compression(state)
@@ -310,7 +311,7 @@ class SupervisorNode:
             logger.warning(f"Failed to load todo context: {e}")
 
         # 6. Inject Active Plan Context (DB)
-        active_plan_context = "No active plan found. Please create one if the task is complex."
+        active_plan_context = i18n.get("prompts.supervisor.no_active_plan")
         try:
             async with session_scope() as session:
                 from app.infrastructure.database.sql.models.planning import Plan, PlanStep
@@ -351,9 +352,6 @@ class SupervisorNode:
                             active_plan_context += "\n\n-> ACTION: Mark the next step as in_progress."
         except Exception as e:
             logger.warning(f"Failed to load active plan: {e}")
-
-        # 6. Inject Active Plan Context (DB)
-        active_plan_context = "No active plan found. Please create one if the task is complex."
 
         # 7. ATTENTION GUIDANCE PROTOCOL (Phase 21)
         protocol_prompt = """

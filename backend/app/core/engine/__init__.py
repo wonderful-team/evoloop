@@ -246,5 +246,6 @@ class AgentEngine:
                 new_messages.append(tool_msg)
 
         return {
-            "messages": new_messages
+            "messages": new_messages,
+            "tool_history": local_tool_history  # For finish node knowledge harvesting
         }

@@ -37,7 +37,7 @@ class Message(Base):
     # Phase 3: Message-Run Association
     run_id: Mapped[str | None] = mapped_column(String(255), index=True)  # Associate with a specific execution run
     status: Mapped[str | None] = mapped_column(String(50))  # pending, streaming, completed, failed, waiting_human
-    tasks_snapshot: Mapped[list[dict] | None] = mapped_column(JSON)  # Embedded task steps at completion
+    steps_snapshot: Mapped[list[dict] | None] = mapped_column(JSON)  # Embedded task steps at completion
 
     # Phase 4: Threading
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), nullable=True)

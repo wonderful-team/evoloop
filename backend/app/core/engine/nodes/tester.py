@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
+from app.i18n.service import i18n
 from app.core.engine.message_utils import repair_message_history, smart_window_slice
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
@@ -130,9 +131,9 @@ class TesterNode:
                 if not parsed_report.is_pass:
                     # Format failures for LLM
                     fail_txt = "\n".join([f"FAIL: {f.name}\nMsg: {f.message}\nTrace: {f.stack_trace[:500]}..." for f in parsed_report.failed_cases])
-                    report_analysis = f"TEST REPORT PARSED:\nFailed: {parsed_report.failures}\nDetails:\n{fail_txt}"
+                    report_analysis = i18n.get("prompts.tester.report_header", failures=parsed_report.failures, details=fail_txt)
                 else:
-                    report_analysis = "TEST REPORT: ALL PASSED."
+                    report_analysis = i18n.get("prompts.tester.report_pass")
 
                 tool_output = f"{tool_output}\n\n{report_analysis}"
 
@@ -188,21 +189,21 @@ class TesterNode:
         if not focus_paths:
             return ""
 
-        output.append("### SUPERVISOR HANDOFF CONTEXT (ATTENTION GUIDANCE)")
-        output.append(f"The Supervisor has identified {len(focus_paths)} focus files for you. I have pre-read them:")
+        output.append(i18n.get("prompts.tester.handoff_header"))
+        output.append(i18n.get("prompts.tester.handoff_msg", count=len(focus_paths)))
 
         for rel_path in focus_paths:
             try:
                 # Sanitize path
                 full_path = os.path.join(cwd, rel_path)
                 if not os.path.exists(full_path):
-                    output.append(f"- [MISSING] {rel_path} (Supervisor pointed to non-existent file)")
+                    output.append(i18n.get("prompts.tester.file_missing", path=rel_path))
                     continue
 
                 # Check size
                 size = os.path.getsize(full_path)
                 if size > 20_000:  # 20KB limit for auto-read
-                    output.append(f"- [SKIPPED] {rel_path} (Too large {size}b - Read manually if needed)")
+                    output.append(i18n.get("prompts.tester.file_skipped", path=rel_path, size=size))
                     continue
 
                 # Read content

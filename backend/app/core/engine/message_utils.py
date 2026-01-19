@@ -6,6 +6,8 @@ Contains common functions for message processing, history repair, and extraction
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage, SystemMessage
 
+from app.i18n.service import i18n
+
 
 def get_message_text(message: BaseMessage | str) -> str:
     """
@@ -73,7 +75,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
 
             if is_orphaned:
                 dummy = AIMessage(
-                    content="Executing tool...",
+                    content=i18n.get("prompts.core_utils.orphaned_tool"),
                     tool_calls=[{
                         "id": msg.tool_call_id,
                         "name": msg.name or "unknown_tool",
@@ -105,7 +107,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
         first_msg = repaired[first_idx]
         if isinstance(first_msg, AIMessage):
             # Prepend dummy Human Message to satisfy "User must start" rule
-            repaired.insert(first_idx, HumanMessage(content="...continuing conversation context..."))
+            repaired.insert(first_idx, HumanMessage(content=i18n.get("prompts.core_utils.conversation_continuation")))
 
     return repaired
 

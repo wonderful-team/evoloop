@@ -2,6 +2,7 @@ import os
 
 from langchain_core.runnables import RunnableConfig
 
+from app.i18n.service import i18n
 from app.domain.tools.document_reader import read_document
 from app.utils.file import read_file_content as utils_read_file
 
@@ -32,13 +33,13 @@ async def handle_read(path: str, start_line: int | None = None, end_line: int | 
                     else:
                         siblings_info.append(s)
                 siblings_str = ", ".join(siblings_info)
-                return f"Error: File '{path}' not found. Did you mean one of these in the same directory? [{siblings_str}]"
+                return i18n.get("prompts.domain_tools.files.read_not_found_suggest", path=path, siblings=siblings_str)
             except:
                 pass
-        return f"Error: File not found: {path}"
+        return i18n.get("prompts.domain_tools.files.read_not_found", path=path)
 
     try:
         file_content, _ = utils_read_file(target_path, start_line, end_line)
         return file_content
     except Exception as e:
-        return f"Error reading file: {e}"
+        return i18n.get("prompts.domain_tools.files.read_error", error=str(e))

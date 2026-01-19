@@ -1,9 +1,11 @@
 import logging
+import os
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.i18n.service import i18n
 from app.core.llm.factory import LLMFactory
 from app.infrastructure.database.sql.models import CodeEntity, SourceFile
 
@@ -46,7 +48,6 @@ class WikiService:
             # Simple fallback if file read fails
             code_snippet = f"# Code for {entity.full_name}"
 
-            import os
             if os.path.exists(full_path):
                 with open(full_path) as f:
                     lines = f.readlines()
@@ -56,26 +57,17 @@ class WikiService:
                     code_snippet = "".join(lines[start:end])
         except Exception as e:
             logger.warning(f"Could not read source for wiki gen: {e}")
-            code_snippet = "(Source code not available)"
+            code_snippet = i18n.get("prompts.domain_tools.wiki.source_unavailable")
 
         # 2. Prompt LLM
-        prompt = f"""
-You are a technical documentation expert. Write a comprehensive documentation section for the following code entity.
-
-Entity: {entity.name} ({entity.type})
-File: {source_file.path}
-
-Code:
-```{entity.metadata.get('lang', '')}
-{code_snippet}
-```
-
-Format:
-- **Overview**: What does this do?
-- **Usage**: How to use it?
-- **Details**: Key logic or algorithms.
-- Markdown format.
-"""
+        prompt = i18n.get(
+            "prompts.wiki.doc_generation",
+            entity_name=entity.name,
+            entity_type=entity.type,
+            file_path=source_file.path,
+            lang=entity.metadata.get('lang', ''),
+            code_snippet=code_snippet
+        )
         messages = [
             SystemMessage(content="You generate clear, concise technical documentation."),
             HumanMessage(content=prompt)

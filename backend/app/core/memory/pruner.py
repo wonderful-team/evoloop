@@ -1,5 +1,7 @@
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 
+from app.i18n.service import i18n
+
 
 class ContextPruner:
     """
@@ -11,7 +13,7 @@ class ContextPruner:
 
     # Constants
     PRUNE_PROTECT_TOKENS = 30000  # Start pruning if history > 30k chars (~7k tokens) - Adjust based on model
-    MIN_TURNS_TO_KEEP = 2         # Keep last 2 user/assistant turns intact
+    MIN_TURNS_TO_KEEP = 2  # Keep last 2 user/assistant turns intact
 
     @staticmethod
     def prune_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
@@ -48,14 +50,13 @@ class ContextPruner:
             if i < protected_index and isinstance(msg, ToolMessage):
                 # Check if it's already pruned?
                 if str(msg.content) == "[Pruned Tool Output]":
-                     pruned_messages.append(msg)
-                     continue
+                    pruned_messages.append(msg)
+                    continue
 
                 # Prune it!
-                # We create a new instance to avoid mutating the original object if it matters
                 # But typically we want to return a new list
                 pruned_msg = ToolMessage(
-                    content="[Pruned Tool Output: Old tool execution result removed to save context]",
+                    content=i18n.get("prompts.memory.pruned_output"),
                     tool_call_id=msg.tool_call_id,
                     name=msg.name,
                     additional_kwargs={"original_length": len(str(msg.content))}

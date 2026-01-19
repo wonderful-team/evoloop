@@ -7,6 +7,8 @@ from langchain_core.tools import InjectedToolArg
 from app.core.tools import evoloop_tool, get_working_directory
 from app.domain.codebase.analysis.tools import find_definition
 from app.domain.codebase.retrieval.tools import search_codebase
+from app.domain.memory.service import memory_service
+from app.utils.context import get_context
 
 # ... (Delegate imports removed as they are now in actions)
 # Import the new dispatched tool
@@ -127,13 +129,20 @@ def manage_git(
 
 @evoloop_tool
 async def manage_memory(
-    action: Literal['save_preference', 'retrieve_preferences', 'add_concept', 'search_concepts'] = 'retrieve_preferences',
+    action: Literal['save_preference', 'retrieve_preferences', 'add_concept', 'search_concepts', 'find_related_episodes'] = 'retrieve_preferences',
     key: str | None = None,  # concept name or pref key
     value: str | None = None,  # description or pref value
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
     Unified Memory Management.
+    
+    Actions:
+    - save_preference: Save a user preference (key=name, value=preference)
+    - retrieve_preferences: Get all user preferences
+    - add_concept: Add a knowledge concept (key=name, value=description)
+    - search_concepts: Search for concepts (key=query)
+    - find_related_episodes: Find historical tasks related to a concept (key=concept_name)
     """
     # Assuming user_id is handled implicitly or 'user_default'
     user_id = "user_default"
@@ -153,10 +162,22 @@ async def manage_memory(
         if not key: return "Error: key (query) required."
         return await search_concepts.ainvoke({"query": key}, config=config)
 
+    elif action == 'find_related_episodes':
+        if not key: return "Error: key (concept_name) required."
+        ctx = get_context()
+        project_id = ctx.get("project_id", 1)
+        episodes = await memory_service.find_episodes_by_concept(key, project_id)
+        if not episodes:
+            return f"No historical episodes found related to '{key}'."
+        lines = [f"**Historical Tasks Related to '{key}':**"]
+        for ep in episodes:
+            status = "FAILED" if ep.get('error') else "SUCCESS"
+            lines.append(f"- [{status}] {ep.get('goal', 'Unknown')}")
+            if ep.get('result'):
+                lines.append(f"  Result: {ep.get('result')[:100]}...")
+        return "\n".join(lines)
+
     return f"Error: Unknown action '{action}'"
-
-
-from app.utils.context import get_context
 
 
 @evoloop_tool
@@ -174,8 +195,6 @@ async def consult_architecture(path: str = ""):
 
     if not project_id:
         return "Error: No active project context."
-
-    from app.domain.memory.service import memory_service
 
     info = await memory_service.get_directory_info(project_id, path)
 

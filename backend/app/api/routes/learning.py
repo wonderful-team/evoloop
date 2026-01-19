@@ -10,7 +10,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
 
 from app.core.config import settings
-from app.core.engine.tasks import run_agent_background
+from app.core.engine.background_agent import run_agent_background
 from app.domain.tools.human_input import (
     cancel_request,
     cleanup_old_requests,

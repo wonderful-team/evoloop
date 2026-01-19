@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 from typing import Any
 from uuid import UUID
 
@@ -7,6 +8,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 
+from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import Message
 from app.infrastructure.external.evocloud import evocloud_client
@@ -18,12 +20,11 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     Acts as a View Layer sanitizer.
     """
 
-    def __init__(self, thread_id: str, project_id: int, start_sequence: int = 0, run_id: str = None, trace_handler = None):
+    def __init__(self, thread_id: str, project_id: int, start_sequence: int = 0, run_id: str = None):
         self.thread_id = thread_id
         self.project_id = project_id
         self.run_id = run_id  # Phase 3: Associate messages with runs
         self._sequence_counter = start_sequence  # Track message order within thread
-        self._trace_handler = trace_handler  # Phase 25: Link to TraceCallbackHandler for message_id propagation
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         pass
@@ -69,17 +70,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 content = str(content)
 
             # 1. Parse Thinking
-            import re
             thinking = None
             think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
             if think_match:
                 thinking = think_match.group(1).strip()
                 content = content.replace(think_match.group(0), "").strip()
 
-            # Phase 25: Removed tool summary injection - AgentProcess component now handles tool display
-
-
-            # 3. Detect and Format JSON (Supervisor/Router Outputs)
+            # 2. Detect and Format JSON (Supervisor/Router Outputs)
             if content and content.strip().startswith("{") and content.strip().endswith("}"):
                 try:
                     data = json.loads(content)
@@ -90,7 +87,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                         if node == "finish":
                             # INTERCEPT: Update Cloud Status instead of logging message
                             # thread_id format: task-{task_id}-{timestamp}
-                            import re
                             task_match = re.search(r"task-(\d+)-", self.thread_id)
                             if task_match:
                                 task_id = int(task_match.group(1))
@@ -101,24 +97,20 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
                         # Case B: Other JSON
                         # Convert to nicely formatted text
-                        content = f"**Decision:** Route to `{node}`"
+                        content = i18n.get("prompts.database_logger.decision", node=node)
                         if parallel:
-                            content += f"\n**Analysis:** {parallel}"
+                            content += i18n.get("prompts.database_logger.analysis", analysis=parallel)
                 except Exception:
                     pass
 
-            # Persist to DB and get message ID
+            # Persist to DB
             tool_calls = getattr(message, "tool_calls", None)
-            message_id = await self._save_log(
+            await self._save_log(
                 role="assistant",
                 content=content,
                 thinking=thinking,
                 tool_calls=tool_calls
             )
-            
-            # Phase 25: Update TraceCallbackHandler's message_id for subsequent tool events
-            if message_id and self._trace_handler and tool_calls:
-                self._trace_handler.message_id = message_id
 
         except Exception as e:
             # Swallow errors in logging to prevent crashing the flow
@@ -132,31 +124,31 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         # Phase 18: Support new atomic file tools
         if tool_name == "read_file":
             path = tool_input.get("path", "file")
-            return f"Reading '{path}'"
+            return i18n.get("prompts.database_logger.tool_summary.read_file", path=path)
         elif tool_name == "write_file":
             path = tool_input.get("path", "file")
-            return f"Writing to '{path}'"
+            return i18n.get("prompts.database_logger.tool_summary.write_file", path=path)
         elif tool_name == "edit_file":
             path = tool_input.get("path", "file")
-            return f"Editing '{path}'"
+            return i18n.get("prompts.database_logger.tool_summary.edit_file", path=path)
         elif tool_name == "list_files":
             path = tool_input.get("path", "directory")
-            return f"Listing '{path}'"
+            return i18n.get("prompts.database_logger.tool_summary.list_files", path=path)
         elif tool_name == "file_system":
             action = tool_input.get("action", "operate")
             path = tool_input.get("path", "path")
-            return f"{action.capitalize()} '{path}'"
+            return i18n.get("prompts.database_logger.tool_summary.operate_file", action=action.capitalize(), path=path)
         elif tool_name == "manage_file":
             action = tool_input.get("action", "access")
             path = tool_input.get("path", "file")
-            return f"{action.replace('_', ' ').capitalize()} '{path}'"
+            return i18n.get("prompts.database_logger.tool_summary.manage_file", action=action.replace('_', ' ').capitalize(), path=path)
         elif tool_name == "search_codebase":
             query = tool_input.get("query", "")
-            return f"Searching code for '{query}'"
+            return i18n.get("prompts.database_logger.tool_summary.search_code", query=query)
         elif tool_name == "request_human_input":
-            return f"Asking user: {tool_input.get('prompt', '')}"
+            return i18n.get("prompts.database_logger.tool_summary.ask_user", prompt=tool_input.get('prompt', ''))
 
-        return f"Running {tool_name}"
+        return i18n.get("prompts.database_logger.tool_summary.default", tool=tool_name)
 
     def _extract_reference(self, tool_call: dict) -> dict | None:
         """Extract structure reference data from tool call"""
@@ -172,18 +164,17 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
             elif t_name in ["search_codebase", "grep_search", "find_by_name"]:
                 query = t_args.get("query") or t_args.get("Pattern") or "unknown"
-                return {"type": "knowledge", "target_id": query, "target_name": f"Search: {query}"}
+                return {"type": "knowledge", "target_id": query, "target_name": i18n.get("prompts.database_logger.ref_search", query=query)}
 
             elif t_name == "read_memory_item":  # Hypothetical tool for memory
                 mem_id = t_args.get("id", "unknown")
-                return {"type": "memory", "target_id": mem_id, "target_name": "Memory Item"}
+                return {"type": "memory", "target_id": mem_id, "target_name": i18n.get("prompts.database_logger.ref_memory")}
 
             return None
         except:
             return None
 
-    # Phase 25: Tool output is now captured by TraceCallbackHandler.
-    # Removed: on_tool_end._save_log to avoid redundant storage in messages table.
+    # Implement on_tool_end to capture tool outputs
     async def on_tool_end(
         self,
         output: str,
@@ -192,9 +183,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         parent_run_id: UUID | None = None,
         **kwargs: Any,
     ) -> Any:
-        # No longer saving tool outputs to messages table.
-        # TraceCallbackHandler handles this via trace_events table.
-        pass
+        # Capture tool output
+        # Used for history and debugging
+        await self._save_log(role="tool", content=str(output), status="completed", tool_output=str(output))
 
     async def _save_log(self, role: str, content: str, thinking: str = None, status: str = "completed",
                         references: list[dict] = None, tool_calls: list = None, tool_output: str = None):
@@ -306,12 +297,12 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             # We don't re-raise to avoid killing the agent execution loop, 
             # but this error will now be visible in logs.
 
-    async def snapshot_tasks_to_last_message(self, tasks: list):
+    async def snapshot_steps_to_last_message(self, steps: list):
         """
-        Phase 6: Persist task steps to the last AI message for historical rendering.
+        Phase 6: Persist executed steps to the last AI message for historical rendering.
         Called when a run completes (done/failed/cancelled).
         """
-        if not tasks:
+        if not steps:
             return
 
         try:
@@ -331,8 +322,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 last_msg = result.scalar_one_or_none()
 
                 if last_msg:
-                    # Serialize tasks (strip non-essential fields like start_time)
-                    serialized_tasks = [
+                    # Serialize steps (strip non-essential fields like start_time)
+                    serialized_steps = [
                         {
                             "id": t.get("id"),
                             "name": t.get("name"),
@@ -341,9 +332,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                             "time": t.get("time"),
                             "details": t.get("details")
                         }
-                        for t in tasks
+                        for t in steps
                     ]
-                    last_msg.tasks_snapshot = serialized_tasks
+                    last_msg.steps_snapshot = serialized_steps
                     # session commits on exit
         except Exception:
             # Non-critical - don't crash the run

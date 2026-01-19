@@ -9,7 +9,7 @@ from app.adapters import EventAdapter
 from app.api.deps import CurrentUserOptional, verify_guest_access
 
 # --- Background Worker ---
-from app.core.engine.tasks import run_agent_background
+from app.core.engine.background_agent import run_agent_background
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import Conversation, Message, MessageReference

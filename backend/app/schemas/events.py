@@ -7,19 +7,22 @@ from pydantic import BaseModel, Field
 class EventBase(BaseModel):
     timestamp: float = Field(default_factory=time.time)
 
-# --- Task Events ---
-class TaskEvent(EventBase):
-    type: Literal["task"] = "task"
+
+# --- Step Events (formerly Task Events) ---
+class StepEvent(EventBase):
+    type: Literal["step"] = "step"
     action: Literal["create", "update"]
     id: int
     data: dict[str, Any]  # The delta or full object
+
 
 # --- Artifact Events ---
 class ArtifactEvent(EventBase):
     type: Literal["artifact"] = "artifact"
     action: Literal["create", "update"]
-    name: str = "" # Usually keyed by name or ID, let's assume we pass enough info
+    name: str = ""  # Usually keyed by name or ID, let's assume we pass enough info
     data: dict[str, Any]
+
 
 # --- Agent State Events ---
 class AgentStateEvent(EventBase):
@@ -27,15 +30,18 @@ class AgentStateEvent(EventBase):
     action: Literal["update"] = "update"
     data: dict[str, Any]
 
+
 # --- Token Events (for consistency, though usually raw) ---
 class TokenEvent(EventBase):
     type: Literal["token"] = "token"
     content: str
 
+
 # --- Error/Status Events ---
 class StatusEvent(EventBase):
     type: Literal["status"] = "status"
     status: str
+
 
 # --- Message Events ---
 class MessageEvent(EventBase):
@@ -43,5 +49,6 @@ class MessageEvent(EventBase):
     action: Literal["create"] = "create"
     data: dict[str, Any]  # Serialized Message model
 
+
 # Union type for easy parsing if needed
-StreamEvent = Union[TaskEvent, ArtifactEvent, AgentStateEvent, TokenEvent, StatusEvent, MessageEvent]
+StreamEvent = Union[StepEvent, ArtifactEvent, AgentStateEvent, TokenEvent, StatusEvent, MessageEvent]

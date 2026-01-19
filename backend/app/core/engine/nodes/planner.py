@@ -2,6 +2,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
 
+from app.i18n.service import i18n
 from app.core.engine import repair_message_history
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
@@ -166,7 +167,7 @@ async def planner_node(state: AgentState, config: RunnableConfig):
                         except:
                             pass
                 else:
-                    content = f"Error: Tool {tool_name} not found."
+                    content = i18n.get("prompts.common.tool_not_found", name=tool_name)
 
                 from langchain_core.messages import ToolMessage
                 tool_msg = ToolMessage(content=str(content), tool_call_id=tool_call["id"], name=tool_name)

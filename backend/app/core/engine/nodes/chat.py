@@ -1,9 +1,12 @@
 from typing import Any
 
+from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableConfig
 
+from app.i18n.service import i18n
 from app.core.engine.state import AgentState
+from app.core.engine.message_utils import repair_message_history
 from app.core.llm.factory import LLMFactory
 
 
@@ -27,6 +30,8 @@ Your goal is to engage in helpful, friendly conversation with the user.
 If the user asks for coding tasks, technical help, or file operations that you cannot handle in this mode, kindly suggest: "I can help with that! Let me switch to my technical workspace." (But for now, just answer generally).
 
 Keep responses concise and friendly.
+
+{lang_instruction}
 """),
         MessagesPlaceholder(variable_name="messages"),
     ])
@@ -38,15 +43,22 @@ Keep responses concise and friendly.
     # For now, pass all.
 
     # Filter out existing System Messages from history + Repair
-    from langchain_core.messages import SystemMessage
-    from app.core.engine.message_utils import repair_message_history
-    
     raw_messages = list(state.get("messages", []))
     history_messages = [m for m in raw_messages if not isinstance(m, SystemMessage)]
     cleaned_messages = repair_message_history(history_messages)
 
+    # Language preference
+    from app.domain.system.service import SystemConfigService
+    user_lang = SystemConfigService.get_language_preference()
+
     # Invoke with ONLY cleaned history (System prompt is in chain)
-    response = await chain.ainvoke({"messages": cleaned_messages}, config=config)
+    response = await chain.ainvoke(
+        {
+            "messages": cleaned_messages, 
+            "lang_instruction": i18n.get("prompts.chat.lang_instruction", language=user_lang)
+        }, 
+        config=config
+    )
 
     return {
         "messages": [response],

@@ -1,9 +1,10 @@
-from app.core.llm.factory import LLMFactory
-
-
 import logging
 
+from app.i18n.service import i18n
+from app.core.llm.factory import LLMFactory
+
 logger = logging.getLogger(__name__)
+
 
 class MemorySummarizer:
     async def summarize(self, text: str) -> str:
@@ -15,4 +16,4 @@ class MemorySummarizer:
         except Exception as e:
             # 处理异常
             logger.error(f"Error during summarization: {e}")
-            return "无法生成摘要，请稍后重试。"
+            return i18n.get("prompts.memory.summarizer_error")

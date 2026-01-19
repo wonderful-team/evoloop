@@ -1,3 +1,7 @@
+"""
+Project Tasks API Routes.
+Handles CRUD for Project Tasks (Tickets/Requirements).
+"""
 import time
 from typing import Any
 
@@ -10,6 +14,7 @@ from app.logging import logger
 
 router = APIRouter(tags=["tasks"])
 
+
 # --- Helper ---
 def get_token(authorization: str | None = Header(None)):
     if not authorization:
@@ -17,6 +22,7 @@ def get_token(authorization: str | None = Header(None)):
     if authorization.startswith("Bearer "):
         return authorization.replace("Bearer ", "")
     return authorization
+
 
 # --- Pydantic Models for Request Body ---
 
@@ -28,10 +34,11 @@ class TaskCreateRequest(BaseModel):
     priority: int = 2
     match_score: float | None = None
     relevance_analysis: str | None = None
-    key_modules: Any | None = None # List or Str
+    key_modules: Any | None = None  # List or Str
     technical_challenges: Any | None = None
     implementation_complexity: str | None = None
     deliverables: Any | None = None
+
 
 class TaskUpdateRequest(BaseModel):
     task_title: str | None = None
@@ -47,9 +54,11 @@ class TaskUpdateRequest(BaseModel):
     implementation_complexity: str | None = None
     deliverables: Any | None = None
 
+
 class TaskStatusUpdate(BaseModel):
     status: int
     progress: int | None = 0
+
 
 # --- Routes ---
 
@@ -76,6 +85,7 @@ async def get_project_tasks(
 
     return res.get("data", {})
 
+
 @router.get("/{task_id}")
 async def get_task_detail(task_id: int, token: TokenDep):
     """
@@ -86,6 +96,7 @@ async def get_task_detail(task_id: int, token: TokenDep):
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to get task detail"))
 
     return res.get("data", {})
+
 
 @router.post("/")
 async def create_task(req: TaskCreateRequest, authorization: str | None = Header(None)):
@@ -102,6 +113,7 @@ async def create_task(req: TaskCreateRequest, authorization: str | None = Header
 
     return res
 
+
 @router.put("/{task_id}")
 async def update_task(task_id: int, req: TaskUpdateRequest, authorization: str | None = Header(None)):
     """
@@ -109,13 +121,14 @@ async def update_task(task_id: int, req: TaskUpdateRequest, authorization: str |
     """
     token = get_token(authorization)
     data = req.model_dump(exclude_none=True)
-    data['task_id'] = task_id # Ensure ID is passed if needed by backend, though URL param usually sufficient for routing
+    data['task_id'] = task_id  # Ensure ID is passed if needed by backend, though URL param usually sufficient for routing
 
     res = await evocloud_client.update_task(task_id, data, token=token)
     if res.get("code") != 0:
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to update task"))
 
     return res
+
 
 @router.delete("/{task_id}")
 async def delete_task(task_id: int, authorization: str | None = Header(None)):
@@ -129,6 +142,7 @@ async def delete_task(task_id: int, authorization: str | None = Header(None)):
 
     return res
 
+
 @router.put("/{task_id}/status")
 async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, authorization: str | None = Header(None)):
     """
@@ -140,6 +154,7 @@ async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, autho
         raise HTTPException(status_code=400, detail=res.get("message", "Failed to update task status"))
 
     return res
+
 
 @router.post("/{task_id}/execute")
 async def execute_task(
@@ -163,27 +178,24 @@ async def execute_task(
 
     # 2. Construct Prompt
     # Format the task information into a clear instruction for the agent
-    prompt = f"""
-**Objective**: Implement the following task.
-**Title**: {task.get('task_title')}
-**Description**: {task.get('task_desc')}
+    from app.i18n.service import i18n
 
-**Context & Constraints**:
-- **Key Modules**: {task.get('key_modules_list', [])}
-- **Technical Challenges**: {task.get('technical_challenges_list', [])}
-- **Deliverables**: {task.get('deliverables_list', [])}
-- **Implementation Complexity**: {task.get('implementation_complexity', 'Unknown')}
-
-Please analyze the requirements, plan the changes, and execute the implementation.
-Remember to follow the project structure and coding standards.
-"""
+    prompt = i18n.get(
+        "prompts.tasks.execution_instruction",
+        title=task.get('task_title'),
+        desc=task.get('task_desc'),
+        key_modules=task.get('key_modules_list', []),
+        tech_challenges=task.get('technical_challenges_list', []),
+        deliverables=task.get('deliverables_list', []),
+        complexity=task.get('implementation_complexity', 'Unknown')
+    )
 
     # 3. Generate Thread ID
     # Use task ID in thread ID to allow resuming/tracking specific to this task
     thread_id = f"task-{task_id}-{int(time.time())}"
 
     # 4. Trigger Local Background Task
-    from app.core.engine.tasks import run_agent_background
+    from app.core.engine.background_agent import run_agent_background
 
     # Construct Inputs (Serialized)
     # prompt is string.
@@ -225,7 +237,7 @@ Remember to follow the project structure and coding standards.
                 thinking=None
             )
             session.add(user_msg)
-            await session.flush() # Ensure it lands
+            await session.flush()  # Ensure it lands
             logger.info(f"Persisted task trigger message for thread {thread_id}")
     except Exception as e:
         logger.error(f"Failed to persist task message {thread_id}: {e}")

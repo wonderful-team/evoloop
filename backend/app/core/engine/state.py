@@ -79,3 +79,6 @@ class AgentState(TypedDict):
     # Wiki plan is stored in hitl_state.context["wiki_plan"]
     hitl_state: HITLState | None
 
+    # Tool History (for finish node knowledge harvesting)
+    tool_history: Annotated[list[str], operator.add]
+

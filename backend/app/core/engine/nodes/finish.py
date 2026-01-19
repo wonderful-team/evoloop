@@ -1,233 +1,247 @@
 import logging
+import os
 
 from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from app.core.engine.message_utils import get_message_text
+from app.i18n.service import i18n
+from app.core.engine.message_utils import get_message_text, smart_window_slice
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.domain.memory.service import memory_service
-from app.domain.tools.learner import ExtractionResult, harvest_knowledge
 
 logger = logging.getLogger(__name__)
 
 
+class HarvestedConcept(BaseModel):
+    name: str = Field(description="Name of the concept, technology, or pattern")
+    description: str = Field(description="Concise description of what it is and how it was used")
+
+
+class ProactiveTodo(BaseModel):
+    should_create: bool = Field(description="Whether a todo should be created")
+    title: str | None = Field(description="Title of the todo")
+    due_date: str | None = Field(description="Due date in relative format (e.g. '1 hour') or ISO")
+    reason: str | None = Field(description="Why this todo is needed")
+
+
+class SessionConclusion(BaseModel):
+    """Unified output for finish node - combines summary, knowledge harvesting, and todo detection."""
+    summary: str = Field(description="Human-readable summary of what was accomplished in this session")
+    harvested_concepts: list[HarvestedConcept] = Field(
+        default_factory=list,
+        description="Key concepts, patterns, or decisions worth remembering for future tasks"
+    )
+    proactive_todo: ProactiveTodo | None = Field(
+        default=None,
+        description="A todo item if any follow-up action was mentioned"
+    )
+
+
 async def finish_node(state: AgentState, config: RunnableConfig):
     """
-    Finalize the workflow.
-    Automatically harvests knowledge from:
-    1. Code Changes (if any)
-    2. Deep Research Reports (if any)
+    Finalize the workflow with unified SessionConclusion.
+    
+    Single LLM call produces:
+    1. Human-readable summary (returned to user)
+    2. Harvested concepts (stored in Neo4j)
+    3. Proactive todo (created if applicable)
     """
-    logger.info("Nodes: Finish - Finalizing and Harvesting Knowledge")
+    logger.info("Nodes: Finish - Generating Session Conclusion")
 
-    # 1. Harvest Code Changes
-    # Only if we suspect code was modified.
-    # We check if there are any tool calls related to file modification in history.
-    has_code_changes = False
-
-    # Expanded file operation keywords to detect code changes
-    CODE_CHANGE_KEYWORDS = [
-        "write_file", "replace_file", "edit_file",
-        "create_file", "delete_file", "patch_file",
-        "save_file", "update_file", "modify_file",
-        "git_commit", "apply_diff", "insert_code"
-    ]
-
-    # Check recent tool history in state
-    tool_history = state.get("tool_history", [])
-    for sig in tool_history:
-        sig_lower = sig.lower() if sig else ""
-        if any(kw in sig_lower for kw in CODE_CHANGE_KEYWORDS):
-            has_code_changes = True
-            break
-
-    # Track harvested items for the summary
-    harvested_concepts = []
-
-    if has_code_changes:
-        logger.info("Detected code changes. Attempting to harvest knowledge...")
-        try:
-            # We use a lower-level invocation or parse specific output if possible
-            # But the tool returns a string. We might need to refactor learner to return struct if we want structured summary here.
-            # For now, we trust the logs or just generic message.
-            # actually, let's just run it.
-            result_str = await harvest_knowledge.ainvoke({"lookback": 1}, config=config)
-
-            # Simple parse to display
-            if "Harvested Concepts:" in result_str:
-                lines = result_str.split('\n')
-                for line in lines:
-                    if line.strip().startswith("- "):
-                        harvested_concepts.append(line.strip()[2:])
-
-        except Exception as e:
-            logger.warning(f"Auto-harvest code failed: {e}")
-
-    # 2. Harvest Research Report
+    # 1. Collect Context
     messages = state.get("messages", [])
-    if messages and isinstance(messages[-1], AIMessage):
-        content = get_message_text(messages[-1])
-        if "Full Research Report" in content or "# Final Conclusion" in content:
-            logger.info("Detected Research Report. Harvesting concepts from text...")
-            new_concepts = await _harvest_report_concepts(content, state.get("project_id", 1))
-            harvested_concepts.extend(new_concepts)
+    tool_history = state.get("tool_history", [])
+    project_id = state.get("project_id", 1)
+    current_plan = state.get("current_plan", "")
 
-    # 0. Language Preference
+    # Language preference
     from app.domain.system.service import SystemConfigService
     user_lang = SystemConfigService.get_language_preference()
 
-    is_cn = "Chinese" in user_lang or "zh" in user_lang.lower()
+    # 2. Build Context Summary
+    recent_history = smart_window_slice(messages, window_size=15)
+    
+    # Tool history summary (for context enrichment)
+    tool_summary = "None"
+    if tool_history:
+        # Extract unique tool names for summary
+        unique_tools = list(set([sig.split(":")[0] for sig in tool_history if ":" in sig]))
+        tool_summary = ", ".join(unique_tools) if unique_tools else "None"
 
-    # 3. Generate Final Debrief
-    title = "✅ **Task Completed**" if not is_cn else "✅ **任务已完成**"
-    harvest_title = "\n🧠 **Brain Update (Knowledge Harvested):**" if not is_cn else "\n🧠 **大脑更新 (知识收割):**"
-    footer = "\nI have recorded these insights to my long-term memory for future use." if not is_cn else "\n我已经将这些见解记录到长期记忆中，供未来使用。"
-
-    summary_parts = [title]
-
-    if harvested_concepts:
-        unique_concepts = list(set(harvested_concepts))
-        summary_parts.append(harvest_title)
-        for c in unique_concepts:
-            summary_parts.append(f"- {c}")
-
-    if has_code_changes or harvested_concepts:
-        summary_parts.append(footer)
-    else:
-        pass
-
-    final_msg = "\n".join(summary_parts)
-
-    # 4. Proactive Todo Check (The "Meeting Minutes" Strategy)
-    try:
-        todo_notice = await _check_proactive_todos(state, config)
-        if todo_notice:
-            final_msg += f"\n\n{todo_notice}"
-    except Exception as e:
-        logger.warning(f"Proactive todo check failed: {e}")
-
-    # 5. Sync Trace to Episode Graph (Graph Memory)
-    try:
-        from app.core.learning.trace_recorder import sync_thread_to_graph
-        thread_id = config.get("configurable", {}).get("thread_id", None)
-        project_id = state.get("project_id", 1)
-
-        if thread_id:
-            logger.info(f"Syncing thread {thread_id} to Episode Graph...")
-            await sync_thread_to_graph(thread_id, project_id)
-        else:
-            logger.warning("No thread_id found in config, skipping Episode Sync.")
-    except Exception as e:
-        logger.error(f"Failed to sync episode to graph: {e}")
-
-    return {
-        "messages": [AIMessage(content=final_msg)]
-    }
-
-
-async def _check_proactive_todos(state: AgentState, config: RunnableConfig) -> str | None:
-    """
-    Analyze the conversation to see if any todos should be created proactively.
-    Acts like a "Meeting Minutes" summarizer.
-    """
-    messages = state.get("messages", [])
-    if not messages: return None
-
-    # Heuristic Check: Removed per user feedback.
-    # We now trust the LLM to analyze the context directly for every finish state.
-    # This ensures we catch implied tasks in any language without hardcoded keywords.
-    content_blob = "\n".join([get_message_text(m) for m in messages[-5:] if isinstance(m, (HumanMessage, AIMessage))])
-
-    # LLM Analysis
-    try:
-        from app.domain.tools.manage_todo import manage_todo
-
-        class ProactiveTodo(BaseModel):
-            should_create: bool = Field(description="Whether a todo should be created.")
-            title: str | None = Field(description="Title of the todo.")
-            due_date: str | None = Field(description="Due date in relative format (e.g. '1 hour') or ISO.")
-            reason: str | None = Field(description="Why this todo is needed.")
-
-        llm = LLMFactory.create_llm(temperature=0)
-        structured = llm.with_structured_output(ProactiveTodo)
-
-        system_prompt = """You are a Proactive Assistant. 
-Analyze the recent conversation. Did the user or agent mention a task that needs to be done LATER, or is currently running and needs checking?
-Examples: "I'm deploying...", "Run tests (takes 30m)", "Remind me to check logs".
-Ignore if:
-1. The task is already completed.
-2. It's just a general statement or chitchat (e.g. "Thanks", "Goodbye").
-3. The user explicitly said they will handle it themselves without needing a reminder.
-
-If yes, extract the todo details. due_date should be relative (e.g. '30 mins') if implied."""
-
-        result = await structured.ainvoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=f"Conversation History:\n{content_blob}")
-        ])
-
-        if result and result.should_create and result.title:
-            logger.info(f"Proactive Todo Identified: {result.title} ({result.due_date})")
-
-            # Execute Tool
-            # We must use .ainvoke because it is a StructuredTool
-            response = await manage_todo.ainvoke(
-                {
-                    "action": "add",
-                    "title": result.title,
-                    "due_date": result.due_date,
-                    "category": "proactive",
-                    "priority": "medium",
-                    "description": f"Auto-created from context: {result.reason}"
-                },
-                config=config
+    # Optional: Git diff context (if available)
+    git_context = ""
+    cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
+    if os.path.exists(os.path.join(cwd, ".git")):
+        try:
+            import subprocess
+            result = subprocess.run(
+                ["git", "diff", "HEAD", "--stat"],
+                cwd=cwd,
+                capture_output=True,
+                text=True,
+                timeout=5
             )
+            if result.stdout.strip():
+                git_context = f"\n**Git Changes (Uncommitted):**\n```\n{result.stdout[:500]}\n```"
+        except Exception:
+            pass
 
-            return f"📝 **Proactive Reminder**: I've added a todo: '{result.title}' ({result.due_date or 'No date'})."
+    # 3. Unified Prompt
+    conclusion_prompt = f"""You are the EvoLoop Session Analyst.
+The user's task has been completed. Analyze the conversation and provide a structured conclusion.
 
-    except Exception as e:
-        logger.warning(f"Error in proactive todo analysis: {e}")
+**User Language Preference**: {user_lang}
 
-    return None
+**Task Plan (if any)**: {current_plan[:1000] if current_plan else "No formal plan"}
 
+**Tools Used**: {tool_summary}
+{git_context}
 
-async def _harvest_report_concepts(report_text: str, project_id: int) -> list[str]:
-    """
-    Extract concepts from a text report. Returns list of concept names.
-    """
-    harvested = []
+### Instructions
+
+1. **summary**: Write a concise, professional summary of what was accomplished.
+   - Use the user's preferred language ({user_lang})
+   - Mention key actions taken and outcomes
+   - Use Markdown formatting with bullet points if appropriate
+
+2. **harvested_concepts**: Extract up to 5 concepts worth remembering:
+   - Technologies, patterns, or architecture decisions used
+   - Domain-specific terms or configurations
+   - NOT generic programming terms (like "function", "variable")
+   - Each concept needs a name and description
+
+3. **proactive_todo**: If the conversation mentioned any follow-up tasks:
+   - "I'll deploy this later", "Check the logs in 30 minutes", etc.
+   - Set should_create=true only if a real action is needed later
+   - Ignore completed tasks or generic statements
+
+Analyze the conversation and respond with the SessionConclusion structure.
+"""
+
+    # 4. Single LLM Call with Structured Output
+    llm = LLMFactory.create_llm(temperature=0.3)
+    structured_llm = llm.with_structured_output(SessionConclusion)
+
+    messages_for_analysis = [SystemMessage(content=conclusion_prompt)] + recent_history
+
     try:
-        if len(report_text) > 15000:
-            report_text = report_text[:15000] + "..."
+        conclusion = await structured_llm.ainvoke(messages_for_analysis, config={"callbacks": []})
+    except Exception as e:
+        logger.error(f"Failed to generate SessionConclusion: {e}")
+        # Fallback to simple response
+        return {
+            "messages": [AIMessage(content="✅ Task completed.")]
+        }
 
-        llm = LLMFactory.create_llm()
-        structured_llm = llm.with_structured_output(ExtractionResult)
+    if not conclusion:
+        logger.warning("LLM returned None for SessionConclusion")
+        return {
+            "messages": [AIMessage(content="✅ Task completed.")]
+        }
 
-        prompt = f"""You are a Knowledge Engineer.
-        Extract "Domain Concepts", "Architecture Decisions", or "Key Findings" from the following Research Report.
-        
-        Report:
-        {report_text}
-        
-        Extract up to 5 most important concepts worth remembering for this project.
-        """
+    # 5. Process Results
 
-        result = await structured_llm.ainvoke([SystemMessage(content=prompt)], config={"callbacks": []})
-
-        if result and result.concepts:
-            for concept in result.concepts:
+    # 5a. Store harvested concepts in Neo4j
+    if conclusion.harvested_concepts:
+        for concept in conclusion.harvested_concepts:
+            try:
                 await memory_service.add_concept(
                     name=concept.name,
                     description=concept.description,
                     project_id=project_id,
                     related_files=[]
                 )
-                harvested.append(concept.name)
-            logger.info(f"Harvested {len(result.concepts)} concepts from report.")
+                logger.info(f"Harvested concept: {concept.name}")
+            except Exception as e:
+                logger.warning(f"Failed to store concept {concept.name}: {e}")
 
+    # 5b. Create proactive todo if needed
+    todo_notice = ""
+    if conclusion.proactive_todo and conclusion.proactive_todo.should_create and conclusion.proactive_todo.title:
+        try:
+            from app.domain.tools.manage_todo import manage_todo
+            await manage_todo.ainvoke(
+                {
+                    "action": "add",
+                    "title": conclusion.proactive_todo.title,
+                    "due_date": conclusion.proactive_todo.due_date,
+                    "category": "proactive",
+                    "priority": "medium",
+                    "description": f"Auto-created: {conclusion.proactive_todo.reason}"
+                },
+                config=config
+            )
+            todo_notice = i18n.get(
+                "prompts.finish.proactive_reminder",
+                title=conclusion.proactive_todo.title
+            )
+            logger.info(f"Created proactive todo: {conclusion.proactive_todo.title}")
+        except Exception as e:
+            logger.warning(f"Failed to create proactive todo: {e}")
+
+    # 5c. Build final message
+    final_summary = conclusion.summary
+    
+    # Append harvested concepts notice if any
+    if conclusion.harvested_concepts:
+        concept_names = [c.name for c in conclusion.harvested_concepts]
+        final_summary += i18n.get(
+            "prompts.finish.brain_update",
+            count=len(concept_names),
+            concepts=', '.join(concept_names)
+        )
+    
+    # Append todo notice if created
+    if todo_notice:
+        final_summary += todo_notice
+
+    # 6. Sync Trace to Episode Graph
+    try:
+        from app.core.learning.trace_recorder import sync_thread_to_graph
+        thread_id = config.get("configurable", {}).get("thread_id", None)
+
+        if thread_id:
+            logger.info(f"Syncing thread {thread_id} to Episode Graph...")
+            
+            # Extract goal from first HumanMessage
+            first_goal = None
+            for msg in messages:
+                if isinstance(msg, HumanMessage):
+                    first_goal = get_message_text(msg)[:2000]
+                    break
+            
+            # Extract concept names for linking
+            concept_names = [c.name for c in conclusion.harvested_concepts] if conclusion.harvested_concepts else []
+            
+            await sync_thread_to_graph(
+                thread_id=thread_id, 
+                project_id=project_id,
+                goal=first_goal,
+                result_summary=conclusion.summary,
+                concept_names=concept_names
+            )
     except Exception as e:
-        logger.error(f"Failed to harvest report: {e}")
+        logger.error(f"Failed to sync episode to graph: {e}")
 
-    return harvested
+    # Return the summary as a regular AIMessage (will be logged by DatabaseCallbackHandler)
+    # Note: Since this is manual AIMessage, it needs to be invoked via LLM for persistence
+    # We'll create a simple pass-through for the summary
+    
+    # Use LLM to "echo" the summary so it gets captured by callback
+    echo_llm = LLMFactory.create_llm(temperature=0)
+    echo_prompt = f"Return the following text EXACTLY as-is, with no modifications:\n\n{final_summary}"
+    
+    try:
+        final_response = await echo_llm.ainvoke(
+            [SystemMessage(content=echo_prompt)],
+            config=config
+        )
+    except Exception:
+        # Fallback if echo fails
+        final_response = AIMessage(content=final_summary)
+
+    return {
+        "messages": [final_response]
+    }

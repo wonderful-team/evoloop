@@ -4,6 +4,7 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from sqlalchemy import func, select
 
+from app.i18n.service import i18n
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
@@ -49,7 +50,7 @@ async def system_scanner_node(state: AgentState, config: RunnableConfig):
         intervention_count = result.scalar()
 
         if intervention_count > 0:
-            health_report.append(f"⚠️ High Failure Rate: Meta-Reviewer intervened {intervention_count} times in the last 24h.")
+            health_report.append(i18n.get("prompts.system_scanner.high_failure_rate", count=intervention_count))
 
         # 2. Advanced Graph Pattern Matching (Evolution V1)
         # Find Concepts that are frequently associated with FAILED episodes in the last 24h.
@@ -73,13 +74,13 @@ async def system_scanner_node(state: AgentState, config: RunnableConfig):
             for r in records:
                 concept = r["concept"]
                 count = r["failures"]
-                if count >= 2: # Threshold
-                     health_report.append(f"⚠️ Recurring Failure Pattern: Concept '{concept}' has failed {count} times recently.")
+                if count >= 2:  # Threshold
+                    health_report.append(i18n.get("prompts.system_scanner.recurring_failure", concept=concept, count=count))
 
     # 3. Analyze Report
     if not health_report:
         return {
-            "messages": [AIMessage(content="✅ System Healthy. No evolutionary pressure detected.")],
+            "messages": [AIMessage(content=i18n.get("prompts.system_scanner.healthy"))],
             "next_node": "finish"  # Or specific end for evolution graph
         }
 
@@ -107,7 +108,7 @@ async def system_scanner_node(state: AgentState, config: RunnableConfig):
     response_content = get_message_text(response)
 
     return {
-        "messages": [AIMessage(content=f"🩺 Health Scan Complete.\n\n{response_content}")],
+        "messages": [AIMessage(content=i18n.get("prompts.system_scanner.complete", report=response_content))],
         "evolution_report": response_content,
         "next_node": "evolution_planner"  # Signal to proceed
     }

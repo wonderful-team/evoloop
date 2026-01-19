@@ -6,7 +6,7 @@ from typing import Any
 import redis.asyncio as redis
 
 from app.core.config import settings
-from app.schemas.events import AgentStateEvent, ArtifactEvent, StatusEvent, TaskEvent
+from app.schemas.events import AgentStateEvent, ArtifactEvent, StatusEvent, StepEvent
 
 
 class ActivityMonitor:
@@ -75,7 +75,7 @@ class ActivityMonitor:
             "main_goal": main_goal,
             "agent_state": json.dumps({}),
             "verification": json.dumps({}),
-            "tasks": json.dumps([]),
+            "steps": json.dumps([]),
             "artifacts": json.dumps([]),
             "active_memories": json.dumps([]),  # Phase 7: Track active memory references
             "updated_at": now
@@ -99,26 +99,26 @@ class ActivityMonitor:
             "updated_at": time.time()
         })
 
-        # Mark running tasks as done/cancelled
-        tasks_json = await self.client.hget(key, "tasks")
-        if tasks_json:
-            tasks = json.loads(tasks_json)
+        # Mark running steps as done/cancelled
+        steps_json = await self.client.hget(key, "steps")
+        if steps_json:
+            steps = json.loads(steps_json)
             modified = False
-            for t in tasks:
+            for t in steps:
                 if t["status"] == "running":
                     t["status"] = "cancelled" if final_status == "cancelled" else "done"
                     modified = True
             if modified:
-                await self.client.hset(key, "tasks", json.dumps(tasks))
+                await self.client.hset(key, "steps", json.dumps(steps))
 
-                # Publish update events for modified tasks
+                # Publish update events for modified steps
                 # Simplification: Just publish the end-run status for now or iterate
                 # Iterate to be precise
-                for t in tasks:
+                for t in steps:
                     if t["status"] in ["done", "cancelled"] and t.get("start_time"):  # It was running
                         await self.client.publish(
                             f"chat:{thread_id}:events",
-                            TaskEvent(action="update", id=t["id"], data={"status": t["status"]}).json()
+                            StepEvent(action="update", id=t["id"], data={"status": t["status"]}).json()
                         )
 
         # Publish Status Change
@@ -203,7 +203,7 @@ class ActivityMonitor:
         if await self.client.exists(key):
             await self.client.hset(key, "active_memories", json.dumps([]))
 
-    async def add_task(self, thread_id: str, name: str, task_type="node", parent_id: int = None):
+    async def add_step(self, thread_id: str, name: str, step_type="node", parent_id: int = None):
         key = f"activity:{thread_id}"
 
         # Use a lock to prevent Race Conditions on the JSON list
@@ -216,67 +216,67 @@ class ActivityMonitor:
                 if not await self.client.exists(key):
                     return None
 
-                tasks_json = await self.client.hget(key, "tasks")
-                tasks = json.loads(tasks_json) if tasks_json else []
+                steps_json = await self.client.hget(key, "steps")
+                steps = json.loads(steps_json) if steps_json else []
 
                 if not name:
                     return None
 
-                task_id = len(tasks) + 1
-                new_task = {
-                    "id": task_id,
+                step_id = len(steps) + 1
+                new_step = {
+                    "id": step_id,
                     "name": name,
                     "status": "running",
-                    "type": task_type,
+                    "type": step_type,
                     "parent_id": parent_id,
                     "start_time": time.time(),
                     "time": "0s"
                 }
-                tasks.append(new_task)
+                steps.append(new_step)
 
                 await self.client.hset(key, mapping={
-                    "tasks": json.dumps(tasks),
+                    "steps": json.dumps(steps),
                     "updated_at": time.time()
                 })
 
                 # Publish Event
                 await self.client.publish(
                     f"chat:{thread_id}:events",
-                    TaskEvent(action="create", id=task_id, data=new_task).json()
+                    StepEvent(action="create", id=step_id, data=new_step).json()
                 )
 
-                return task_id
+                return step_id
         except Exception:
             # logger.error(f"Failed to add task: {e}")
             return None
 
-    async def update_task(self, thread_id: str, task_id: int, status: str, details: str = None):
+    async def update_step(self, thread_id: str, step_id: int, status: str, details: str = None):
         key = f"activity:{thread_id}"
         lock_key = f"lock:{key}"
 
         try:
             async with self.client.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
                 # We need to fetch, modify, save.
-                tasks_json = await self.client.hget(key, "tasks")
-                if not tasks_json: return
+                steps_json = await self.client.hget(key, "steps")
+                if not steps_json: return
 
-                tasks = json.loads(tasks_json)
+                steps = json.loads(steps_json)
                 modified = False
 
-                for task in tasks:
-                    if task["id"] == task_id:
-                        task["status"] = status
+                for step in steps:
+                    if step["id"] == step_id:
+                        step["status"] = status
                         if details:
-                            task["details"] = details
+                            step["details"] = details
                         if status in ["done", "failed"]:
-                            duration = time.time() - task["start_time"]
-                            task["time"] = f"{duration:.2f}s"
+                            duration = time.time() - step["start_time"]
+                            step["time"] = f"{duration:.2f}s"
                         modified = True
                         break
 
                 if modified:
                     await self.client.hset(key, mapping={
-                        "tasks": json.dumps(tasks),
+                        "steps": json.dumps(steps),
                         "updated_at": time.time()
                     })
 
@@ -286,7 +286,7 @@ class ActivityMonitor:
                     if details: update_data["details"] = details
                     await self.client.publish(
                         f"chat:{thread_id}:events",
-                        TaskEvent(action="update", id=task_id, data=update_data).json()
+                        StepEvent(action="update", id=step_id, data=update_data).json()
                     )
         except Exception:
             pass
@@ -360,7 +360,7 @@ class ActivityMonitor:
 
         # Parse JSON fields
         try:
-            tasks = json.loads(data.get("tasks", "[]"))
+            steps = json.loads(data.get("steps", "[]"))
             artifacts = json.loads(data.get("artifacts", "[]"))
             agent_state = json.loads(data.get("agent_state", "{}"))
             verification = json.loads(data.get("verification", "{}"))
@@ -369,7 +369,7 @@ class ActivityMonitor:
             human_request_raw = data.get("human_request")
             human_request = json.loads(human_request_raw) if human_request_raw else None
         except:
-            tasks = []
+            steps = []
             artifacts = []
             agent_state = {}
             verification = {}
@@ -380,7 +380,7 @@ class ActivityMonitor:
             "status": data.get("status", "unknown"),
             "main_goal": data.get("main_goal", ""),
             "updated_at": float(data.get("updated_at", 0)),
-            "tasks": tasks,
+            "steps": steps,
             "artifacts": artifacts,
             "agent_state": agent_state,
             "verification": verification,

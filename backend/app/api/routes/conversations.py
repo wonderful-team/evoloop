@@ -106,76 +106,28 @@ async def list_conversations(project_id: int | None = None):
 async def get_conversation_messages(thread_id: str):
     """
     Get message history for a thread from the persistent SQL log.
-    Includes tasks_snapshot for historical task visualization.
-    
-    Phase 25: Tool steps are now sourced from trace_events table, not messages.
+    Includes tasks_snapshot (now steps_snapshot) for historical task visualization.
     """
     try:
         async with get_db_session() as session:
-            # 1. Fetch all messages (excluding tool messages now)
+            # Optimize: Eager load references
             stmt = (
                 select(Message)
                 .where(Message.thread_id == thread_id)
-                .where(Message.role != "tool")  # Phase 25: No longer have tool messages
                 .options(selectinload(Message.references))
                 .order_by(Message.id.asc())
             )
             result = await session.execute(stmt)
             db_messages = result.scalars().all()
 
-            # 2. Build message ID list for AI messages
-            ai_message_ids = [m.id for m in db_messages if m.role in ("ai", "assistant")]
-
-            # 3. Fetch all trace_events for these AI messages (both tool_call and tool_output)
-            tool_events_by_msg: dict[int, list] = {}
-            tool_outputs_by_msg: dict[int, list] = {}  # Separate list for outputs
-
-            if ai_message_ids:
-                trace_stmt = (
-                    select(TraceEvent)
-                    .where(TraceEvent.message_id.in_(ai_message_ids))
-                    .where(TraceEvent.action_type.in_(["tool_call", "tool_output"]))
-                    .order_by(TraceEvent.step_number)
-                )
-                trace_result = await session.execute(trace_stmt)
-
-                for event in trace_result.scalars().all():
-                    # Parse action_payload
-                    try:
-                        payload = json.loads(event.action_payload) if isinstance(event.action_payload, str) else event.action_payload
-                    except:
-                        payload = {}
-
-                    if event.action_type == "tool_call":
-                        if event.message_id not in tool_events_by_msg:
-                            tool_events_by_msg[event.message_id] = []
-                        tool_events_by_msg[event.message_id].append({
-                            "id": str(event.id),
-                            "tool": payload.get("name", "unknown"),
-                            "input": payload.get("args", {}),
-                            "output": "",  # Will be filled from tool_output event
-                            "status": "success"
-                        })
-                    elif event.action_type == "tool_output":
-                        if event.message_id not in tool_outputs_by_msg:
-                            tool_outputs_by_msg[event.message_id] = []
-                        tool_outputs_by_msg[event.message_id].append(payload.get("output", ""))
-
-                # Merge outputs into tool_call steps (FIFO matching)
-                for msg_id, steps in tool_events_by_msg.items():
-                    outputs = tool_outputs_by_msg.get(msg_id, [])
-                    for i, step in enumerate(steps):
-                        if i < len(outputs):
-                            step["output"] = outputs[i]
-                    # Convert to ToolStep
-                    tool_events_by_msg[msg_id] = [
-                        ToolStep(**step) for step in steps
-                    ]
-
-            # 4. Build final items
+            # Phase 24: Server-Side Tool Folding
+            # We aggregate 'tool' messages into the 'steps' of the preceding 'ai' message.
             final_items = []
+            last_ai_item: MessageItem | None = None
+            pending_tool_calls = []  # FIFO queue of (id, name, args) derived from AI message
+
             for m in db_messages:
-                # Parse References
+                # 1. Parse References (Common)
                 refs = [
                     ReferenceItem(
                         id=ref.id,
@@ -185,6 +137,7 @@ async def get_conversation_messages(thread_id: str):
                     ) for ref in m.references
                 ] if m.references else []
 
+                # 2. Handle Message Types
                 if m.role == "human":
                     item = MessageItem(
                         id=str(m.id),
@@ -192,31 +145,59 @@ async def get_conversation_messages(thread_id: str):
                         content=m.content,
                         thinking=m.thinking,
                         created_at=m.created_at.isoformat() if m.created_at else None,
-                        tasks_snapshot=m.tasks_snapshot,
+                        tasks_snapshot=m.steps_snapshot,
                         run_id=m.run_id,
                         parent_id=m.parent_id,
                         references=refs,
                         steps=[]
                     )
                     final_items.append(item)
+                    last_ai_item = None
+                    pending_tool_calls = []
 
                 elif m.role == "ai" or m.role == "assistant":
-                    # Get steps from trace_events
-                    steps = tool_events_by_msg.get(m.id, [])
-
                     item = MessageItem(
                         id=str(m.id),
                         type="ai",  # Normalize to "ai" for frontend
                         content=m.content,
                         thinking=m.thinking,
                         created_at=m.created_at.isoformat() if m.created_at else None,
-                        tasks_snapshot=m.tasks_snapshot,
+                        tasks_snapshot=m.steps_snapshot,
                         run_id=m.run_id,
                         parent_id=m.parent_id,
                         references=refs,
-                        steps=steps
+                        steps=[]
                     )
+
+                    # Store as potential parent for subsequent tool outputs
                     final_items.append(item)
+                    last_ai_item = item
+
+                    # Parse tool calls to create linking queue
+                    if m.tool_calls:
+                        # tool_calls is a list of dicts: [{id, name, args}, ...]
+                        # We copy it to consume as we find tool outputs
+                        pending_tool_calls = list(m.tool_calls) if isinstance(m.tool_calls, list) else []
+
+                elif m.role == "tool":
+                    # Fold into last AI message if available
+                    if last_ai_item and pending_tool_calls:
+                        # Match FIFO (Assuming Sequential Execution)
+                        call_info = pending_tool_calls.pop(0)
+
+                        step = ToolStep(
+                            id=call_info.get("id", "unknown"),
+                            tool=call_info.get("name", "unknown"),
+                            input=call_info.get("args", {}),
+                            output=m.tool_output or m.content or "",  # Prefer tool_output column
+                            status="success"
+                        )
+                        last_ai_item.steps.append(step)
+                    else:
+                        # Orphaned tool message or mismatch
+                        # For now, we HIDE it to prevent clutter, as per requirement.
+                        # If strict debugging is needed, valid tool messages should have a parent.
+                        pass
 
             return final_items
 

@@ -1,5 +1,7 @@
 import json
+import time
 
+from app.i18n.service import i18n
 from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
 from app.core.tools.base import evoloop_tool
 from app.infrastructure.database.sql.database import session_scope
@@ -46,7 +48,7 @@ async def learn_skill_from_trace(thread_id: str, session_id: str | None = None) 
             db.add(new_skill)
             # Commit happens automatically on exit of session_scope
 
-        return f"Successfully learned skill '{skill_data.name}' from thread {thread_id}.\nDescription: {skill_data.description}\nTriggers: {skill_data.trigger_patterns}"
+        return i18n.get("prompts.domain_tools.learning.success", name=skill_data.name, thread=thread_id, desc=skill_data.description, triggers=skill_data.trigger_patterns)
 
     except Exception as e:
-        return f"Failed to learn skill: {str(e)}"
+        return i18n.get("prompts.domain_tools.learning.failed", error=str(e))

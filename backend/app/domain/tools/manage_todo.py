@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
+from app.i18n.service import i18n
 from app.core.tools import evoloop_tool
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models.todo import TodoItem, TodoStatus, TodoPriority
@@ -14,17 +15,17 @@ from sqlalchemy import select, desc
 
 @evoloop_tool
 async def manage_todo(
-        action: Literal['add', 'list', 'update', 'delete'],
-        title: str | None = None,
-        description: str | None = None,
-        priority: Literal['low', 'medium', 'high'] = 'medium',
-        category: str | None = None,
-        due_date: str | None = None,
-        # For list/update/delete
-        status: Literal['pending', 'completed', 'cancelled'] | None = None,
-        todo_id: str | None = None,
-        project_id: int | None = None,
-        config: Annotated[RunnableConfig, InjectedToolArg] = None
+    action: Literal['add', 'list', 'update', 'delete'],
+    title: str | None = None,
+    description: str | None = None,
+    priority: Literal['low', 'medium', 'high'] = 'medium',
+    category: str | None = None,
+    due_date: str | None = None,
+    # For list/update/delete
+    status: Literal['pending', 'completed', 'cancelled'] | None = None,
+    todo_id: str | None = None,
+    project_id: int | None = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
     Manage user Todo/Reminders items.
@@ -50,7 +51,7 @@ async def manage_todo(
     async with session_scope() as session:
         if action == 'add':
             if not title:
-                return "Error: 'title' is required for adding a todo."
+                return i18n.get("prompts.domain_tools.manage_todo.error_title")
 
             # Parse relative time logic
             parsed_due_date = None
@@ -77,7 +78,7 @@ async def manage_todo(
                         parsed_due_date = now + timedelta(days=1)
 
                     if not parsed_due_date:
-                        return f"Error: Could not parse due_date '{due_date}'. Please use ISO format or simple 'X hours/mins'."
+                        return i18n.get("prompts.domain_tools.manage_todo.error_due_date", date=due_date)
 
             todo = TodoItem(
                 title=title,
@@ -93,7 +94,7 @@ async def manage_todo(
             )
             session.add(todo)
             await session.commit()
-            return f"Todo created: [{todo.priority.value.upper()}] {todo.title} (ID: {todo.id})"
+            return i18n.get("prompts.domain_tools.manage_todo.success_add", priority=todo.priority.value.upper(), title=todo.title, id=todo.id)
 
         elif action == 'list':
             query = select(TodoItem).order_by(desc(TodoItem.created_at))
@@ -106,18 +107,18 @@ async def manage_todo(
             todos = result.scalars().all()
 
             if not todos:
-                return "No todos found."
+                return i18n.get("prompts.domain_tools.manage_todo.no_todos")
 
             return "\n".join([f"- [{t.status.value}] {t.title} (ID: {t.id}, Due: {t.due_date})" for t in todos])
 
         elif action == 'update':
             if not todo_id:
-                return "Error: 'todo_id' is required for update."
+                return i18n.get("prompts.domain_tools.manage_todo.error_id", action="update")
 
             result = await session.execute(select(TodoItem).where(TodoItem.id == todo_id))
             todo = result.scalar_one_or_none()
             if not todo:
-                return f"Error: Todo {todo_id} not found."
+                return i18n.get("prompts.domain_tools.manage_todo.error_not_found", id=todo_id)
 
             if status: todo.status = TodoStatus(status)
             if title: todo.title = title
@@ -131,18 +132,18 @@ async def manage_todo(
                     pass
 
             await session.commit()
-            return f"Todo {todo_id} updated."
+            return i18n.get("prompts.domain_tools.manage_todo.success_update", id=todo_id)
 
         elif action == 'delete':
             if not todo_id:
-                return "Error: 'todo_id' is required for delete."
+                return i18n.get("prompts.domain_tools.manage_todo.error_id", action="delete")
             result = await session.execute(select(TodoItem).where(TodoItem.id == todo_id))
             todo = result.scalar_one_or_none()
             if not todo:
-                return f"Error: Todo {todo_id} not found."
+                return i18n.get("prompts.domain_tools.manage_todo.error_not_found", id=todo_id)
 
             await session.delete(todo)
             await session.commit()
-            return f"Todo {todo_id} deleted."
+            return i18n.get("prompts.domain_tools.manage_todo.success_delete", id=todo_id)
 
-    return "Error: Unknown action."
+    return i18n.get("prompts.domain_tools.manage_todo.error_action")

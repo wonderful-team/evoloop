@@ -43,7 +43,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             # Only start a "Thinking..." task if no LLM is currently active for this handler
             if self.active_llm_run_id is None:
                 self.active_llm_run_id = kwargs.get("run_id")
-                self.current_task_id = await self.monitor.add_task(self.thread_id, "Thinking...", "ai")
+                self.current_task_id = await self.monitor.add_step(self.thread_id, "Thinking...", "ai")
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
         # Avoid logging every token to file!
@@ -82,7 +82,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                         self._publish_buffer = ""
 
                         # Also update the task detail in Redis only on these intervals
-                        await self.monitor.update_task(
+                        await self.monitor.update_step(
                             self.thread_id,
                             self.current_task_id,
                             "running",
@@ -111,7 +111,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if self.thread_id and self.current_task_id and self.monitor:
             # Only close if the ending run is the one that started the task
             if run_id == self.active_llm_run_id:
-                await self.monitor.update_task(self.thread_id, self.current_task_id, "done")
+                await self.monitor.update_step(self.thread_id, self.current_task_id, "done")
                 self.current_task_id = None
                 self.active_llm_run_id = None
                 self._current_stream_buffer = ""
@@ -123,7 +123,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         run_id = kwargs.get("run_id")
         if self.thread_id and self.current_task_id and self.monitor:
             if run_id == self.active_llm_run_id:
-                await self.monitor.update_task(self.thread_id, self.current_task_id, "failed", details=str(error))
+                await self.monitor.update_step(self.thread_id, self.current_task_id, "failed", details=str(error))
                 self.current_task_id = None
                 self.active_llm_run_id = None
                 self._current_stream_buffer = ""
@@ -143,7 +143,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             # Phase 18: Link to Parent Phase
             parent_id = getattr(self, "_current_phase_task_id", None)
 
-            task_id = await self.monitor.add_task(self.thread_id, tool_name, "tool", parent_id=parent_id)
+            task_id = await self.monitor.add_step(self.thread_id, tool_name, "tool", parent_id=parent_id)
             self.current_task_id = task_id
 
         # Try to extract file path for read operations
@@ -240,12 +240,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 except:
                     pass
 
-            self.current_task_id = await self.monitor.add_task(self.thread_id, friendly_name, "tool")
+            self.current_task_id = await self.monitor.add_step(self.thread_id, friendly_name, "tool")
 
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Run when tool ends running."""
         if self.thread_id and self.current_task_id:
-            await self.monitor.update_task(self.thread_id, self.current_task_id, "done")
+            await self.monitor.update_step(self.thread_id, self.current_task_id, "done")
             self.current_task_id = None
 
         # Standard Log Output
@@ -308,7 +308,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             if should_log:
                 run_id = kwargs.get("run_id")
                 # We mark it as 'running' so it shows as the active phase
-                task_id = await self.monitor.add_task(self.thread_id, friendly_name, "node")
+                task_id = await self.monitor.add_step(self.thread_id, friendly_name, "node")
                 self._active_nodes[run_id] = (task_id, node_name)
 
                 # Phase 18: Track active Phase ID for child tasks
@@ -321,7 +321,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             task_id, node_name = self._active_nodes[run_id]
             if self.thread_id and self.monitor:
                 # 1. Update the original node task to 'done'
-                await self.monitor.update_task(self.thread_id, task_id, "done")
+                await self.monitor.update_step(self.thread_id, task_id, "done")
 
                 # Phase 18: Clear active Phase ID if it matches
                 if getattr(self, "_current_phase_task_id", None) == task_id:
@@ -336,7 +336,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             task_id, node_name = self._active_nodes[run_id]
             if self.thread_id and self.monitor:
                 # 1. Update the original node task to 'failed'
-                await self.monitor.update_task(self.thread_id, task_id, "failed", details=str(error))
+                await self.monitor.update_step(self.thread_id, task_id, "failed", details=str(error))
 
             del self._active_nodes[run_id]
 

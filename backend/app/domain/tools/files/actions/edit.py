@@ -2,18 +2,20 @@ import os
 
 from langchain_core.runnables import RunnableConfig
 
+from app.i18n.service import i18n
 from app.utils.file import write_file_contents as utils_write_file
 
 from .utils import resolve_and_validate_path
 
 
 async def handle_edit(path: str, target: str | None = None, content: str | None = None, allow_multiple: bool = False, config: RunnableConfig | None = None) -> str:
-    if not target and not content: return "Error: 'target' and 'content' (replacement) required for update_block."
+    if not target and not content:
+        return i18n.get("prompts.domain_tools.files.edit_args_required")
 
     # Safety Check: Target Uniqueness
     # Relaxed for single-line edits
     if len(target.strip()) < 3:
-        return "Error: Target block is too short (must be > 2 chars). Please provide surrounding context if replacing a very short string."
+        return i18n.get("prompts.domain_tools.files.edit_target_short")
 
     try:
         target_path = resolve_and_validate_path(path, config)
@@ -21,7 +23,7 @@ async def handle_edit(path: str, target: str | None = None, content: str | None 
         return str(e)
 
     if not os.path.exists(target_path):
-        return f"Error: File not found: {path}"
+        return i18n.get("prompts.domain_tools.files.edit_not_found", path=path)
 
     try:
         with open(target_path, encoding="utf-8") as f:
@@ -32,7 +34,7 @@ async def handle_edit(path: str, target: str | None = None, content: str | None 
             # Fall through to Fuzzy
             pass
         elif count > 1 and not allow_multiple:
-            return f"Error: Target snippet found {count} times. Please include more context to make it unique."
+            return i18n.get("prompts.domain_tools.files.edit_multiple_found", count=count)
         else:
             # Strict Success
             if allow_multiple:
@@ -41,7 +43,7 @@ async def handle_edit(path: str, target: str | None = None, content: str | None 
                 new_content = file_content.replace(target, content, 1)
 
             utils_write_file(new_content, target_path)
-            return f"Successfully updated {path}"
+            return i18n.get("prompts.domain_tools.files.edit_success", path=path)
 
         # 2. Try Fuzzy Fallback (Robust Edit Engine)
         from app.domain.tools.utils.editing.engine import EditEngine
@@ -49,9 +51,9 @@ async def handle_edit(path: str, target: str | None = None, content: str | None 
         success, new_content, log = EditEngine.apply_replacement(file_content, target, content, replace_all=allow_multiple)
         if success:
             utils_write_file(new_content, target_path)
-            return f"Successfully updated {path}\n(Note: {log})"
+            return i18n.get("prompts.domain_tools.files.edit_success_log", path=path, log=log)
 
-        return f"Error: Target snippet not found (Strict). Robust Fallback Failed: {log}"
+        return i18n.get("prompts.domain_tools.files.edit_fallback_failed", log=log)
 
     except Exception as e:
-        return f"Error during update: {e}"
+        return i18n.get("prompts.domain_tools.files.edit_error", error=str(e))

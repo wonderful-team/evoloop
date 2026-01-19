@@ -5,6 +5,7 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
+from app.i18n.service import i18n
 from app.core.llm.factory import LLMFactory
 from app.domain.memory.service import memory_service
 from app.logging import get_context, logger
@@ -15,8 +16,10 @@ class Concept(BaseModel):
     description: str = Field(description="Concise description of what it is and how it is used in this project")
     related_files: list[str] = Field(description="List of file paths related to this concept", default_factory=list)
 
+
 class ExtractionResult(BaseModel):
     concepts: list[Concept] = Field(description="List of extracted concepts")
+
 
 HARVEST_PROMPT = """You are a Knowledge Engineer.
 Analyze the following code changes (git diff) and extract new "Domain Concepts", "Architecture Patterns", or "Important Decisions".
@@ -34,34 +37,40 @@ Output a JSON object.
 """
 
 @tool
-async def harvest_knowledge(lookback: int = 1):
+async def harvest_knowledge():
     """
-    Analyze recent changes (git history) to extract and save new Knowledge Concepts.
+    Analyze uncommitted changes (working directory) to extract and save new Knowledge Concepts.
     Call this at the end of a task to 'learn' from the work done.
     
-    Args:
-        lookback: Number of commits to analyze (default: 1).
+    Works with both staged and unstaged changes in the working directory.
     """
     ctx = get_context()
     project_id = ctx.get("project_id", 1)
     cwd = ctx.get("working_directory") or os.getcwd()
 
-    # 1. Get Git Diff
+    # 0. Check if Git repo exists
+    git_dir = os.path.join(cwd, ".git")
+    if not os.path.exists(git_dir):
+        return i18n.get("prompts.domain_tools.learner.no_git")
+
+    # 1. Get Git Diff (working directory vs HEAD)
     try:
-        # Get diff of last N commits
-        cmd = ["git", "diff", f"HEAD~{lookback}", "HEAD"]
-        process = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, check=True)
+        # Compare working directory against HEAD (captures uncommitted changes)
+        cmd = ["git", "diff", "HEAD"]
+        process = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=10)
         diff_text = process.stdout
 
         if not diff_text.strip():
-            return "No changes found in the last commit to harvest."
+            return i18n.get("prompts.domain_tools.learner.no_changes")
 
         # Limit diff size to avoid context overflow
         if len(diff_text) > 10000:
             diff_text = diff_text[:10000] + "\n...(truncated)"
 
+    except subprocess.TimeoutExpired:
+        return i18n.get("prompts.domain_tools.learner.git_timeout")
     except Exception as e:
-        return f"Failed to read git history: {e}"
+        return i18n.get("prompts.domain_tools.learner.git_error", error=str(e))
 
     # 2. Extract Concepts using LLM
     llm = LLMFactory.create_llm()
@@ -78,11 +87,11 @@ async def harvest_knowledge(lookback: int = 1):
         ], config={"callbacks": []})
     except Exception as e:
         logger.error(f"Harvest extraction failed: {e}")
-        return f"Error extracting concepts: {e}"
+        return i18n.get("prompts.domain_tools.learner.extract_error", error=str(e))
 
     # 3. Save to Memory
     saved_count = 0
-    response_lines = ["Harvested Concepts:"]
+    response_lines = [i18n.get("prompts.domain_tools.learner.harvested_header")]
 
     if result and result.concepts:
         for concept in result.concepts:
@@ -97,6 +106,6 @@ async def harvest_knowledge(lookback: int = 1):
             response_lines.append(f"- {concept.name}")
 
     if saved_count == 0:
-        return "No new concepts identified."
+        return i18n.get("prompts.domain_tools.learner.no_concepts")
 
     return "\n".join(response_lines)

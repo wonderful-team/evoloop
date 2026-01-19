@@ -1,12 +1,12 @@
 import json
 import logging
 from typing import Any
-from uuid import UUID
 
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
-from sqlalchemy import select, update
+from sqlalchemy import select
 
+from app.domain.memory.service import memory_service
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import TraceEvent
 
@@ -20,21 +20,13 @@ class TraceCallbackHandler(AsyncCallbackHandler):
     1. Node Entry (State)
     2. Tool Usage (Action)
     3. User Intervention (Correction)
-    
-    Phase 25: Also captures tool output and links to parent AI message.
     """
 
-    def __init__(self, thread_id: str, message_id: int = None):
+    def __init__(self, thread_id: str):
         self.thread_id = thread_id
         self.step_counter = 0
         self.current_node = "unknown"
         self._last_state_snapshot = {}
-
-        # Phase 25: Link to AI message
-        self.message_id = message_id
-
-        # Phase 25: Track run_id -> trace_event_id for updating output
-        self._run_to_event: dict[str, int] = {}
 
     async def on_chain_start(
         self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any
@@ -63,8 +55,20 @@ class TraceCallbackHandler(AsyncCallbackHandler):
             except Exception as e:
                 logger.error(f"Failed to record node start: {e}")
 
+    async def on_tool_end(self, output: str, **kwargs: Any) -> None:
+        """Capture Tool Output as Environment Feedback."""
+        # We need to know WHICH tool was called.
+        # on_tool_start gives serialized info, but on_tool_end only gives output.
+        # We rely on the linear execution assumption for now or look at run_id if we tracked it.
+        # Simplification: Just log the output.
+
+        # NOTE: We can't easily link to the specific tool call args here without tracking run_id.
+        # But for Imitation Learning, we mostly care about "Start Tool" (Action) and "End Tool" (Observation).
+        # We'll rely on on_tool_start for the action.
+        pass
+
     async def on_tool_start(
-        self, serialized: dict[str, Any], input_str: str, *, run_id: UUID, **kwargs: Any
+        self, serialized: dict[str, Any], input_str: str, **kwargs: Any
     ) -> None:
         """Capture Tool Usage (The Agent's Action)."""
         tool_name = serialized.get("name")
@@ -73,26 +77,10 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         except:
             args = {"raw": input_str}
 
-        event_id = await self._save_event(
+        await self._save_event(
             action_type="tool_call",
             payload={"name": tool_name, "args": args},
-            snapshot=self._last_state_snapshot  # Action conditioned on LAST seen state
-        )
-
-        # Phase 25: Track tool name for output event
-        if run_id:
-            self._run_to_event[str(run_id)] = tool_name
-
-    async def on_tool_end(self, output: str, *, run_id: UUID, **kwargs: Any) -> None:
-        """Phase 25: Create a new TraceEvent for tool output."""
-        run_key = str(run_id)
-        tool_name = self._run_to_event.pop(run_key, "unknown")
-
-        # Create a separate event for tool output
-        await self._save_event(
-            action_type="tool_output",
-            payload={"name": tool_name, "output": str(output)[:10000]},  # Truncate large outputs
-            snapshot={}  # No state snapshot needed for output
+            snapshot=self._last_state_snapshot # Action conditioned on LAST seen state
         )
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
@@ -109,25 +97,20 @@ class TraceCallbackHandler(AsyncCallbackHandler):
             snapshot=self._last_state_snapshot
         )
 
-    async def _save_event(self, action_type: str, payload: dict, snapshot: dict) -> int | None:
-        """Save trace event and return its ID."""
+    async def _save_event(self, action_type: str, payload: dict, snapshot: dict):
         try:
             async with session_scope() as session:
                 event = TraceEvent(
                     thread_id=self.thread_id,
                     step_number=self.step_counter,
                     node_name=self.current_node,
-                    state_snapshot=json.dumps(snapshot, default=str),  # Handle datetimes
+                    state_snapshot=json.dumps(snapshot, default=str), # Handle datetimes
                     action_type=action_type,
-                    action_payload=json.dumps(payload, default=str),
-                    message_id=self.message_id  # Phase 25: Link to AI message
+                    action_payload=json.dumps(payload, default=str)
                 )
                 session.add(event)
-                await session.flush()  # Get ID
-                return event.id
         except Exception as e:
             logger.error(f"Failed to save trace event: {e}")
-            return None
 
     def _sanitize_snapshot(self, state: dict) -> dict:
         """Clean up state for storage (remove huge lists, tokens, etc)."""
@@ -143,14 +126,25 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         return clean
 
 
-async def sync_thread_to_graph(thread_id: str, project_id: int):
+async def sync_thread_to_graph(
+    thread_id: str, 
+    project_id: int,
+    goal: str = None,
+    result_summary: str = None,
+    concept_names: list[str] = None
+):
     """
     Syncs the completed thread's trace from SQL to Neo4j as an Episode.
     This creates the 'Episodic Memory'.
+    
+    Args:
+        thread_id: The conversation thread ID
+        project_id: Project context
+        goal: User's original goal (from first HumanMessage)
+        result_summary: Session summary from SessionConclusion
+        concept_names: List of harvested concept names to link
     """
-    from app.domain.memory.service import memory_service
-
-    # 1. Fetch Trace
+    # 1. Fetch Trace (for fallback extraction if params not provided)
     events = []
     async with session_scope() as session:
         stmt = select(TraceEvent).where(TraceEvent.thread_id == thread_id).order_by(TraceEvent.step_number)
@@ -161,55 +155,55 @@ async def sync_thread_to_graph(thread_id: str, project_id: int):
         logger.warning(f"No trace events found for thread {thread_id}, skipping graph sync.")
         return
 
-    # 2. Extract Metadata (Heuristic)
-    goal = "Unknown Task"
-    result = "Terminated"
+    # 2. Extract/Fallback Metadata
+    final_goal = goal or "Unknown Task"
+    final_result = result_summary or "Completed"
     error = None
     plan_snapshot = "No plan recorded"
 
-    # Try to find goal from first user message or first state
-    try:
-        first_event = events[0]
-        # simplified extraction. Ideally we parse the messages in the snapshot.
-        snapshot = json.loads(first_event.state_snapshot)
-        msgs = snapshot.get("messages", [])
-        if msgs and isinstance(msgs[0], dict) and msgs[0].get("type") == "human":
-            goal = msgs[0].get("content")
-        elif msgs and hasattr(msgs[0], 'content'):  # if pickle/object
-            goal = msgs[0].content
-    except:
-        pass
-
-    # Is result success or failure?
-    last_event = events[-1]
-    if last_event.node_name == "finish":
-        result = "Success"
-        # Try to extract final output
+    # Fallback: If goal not provided, try to extract from first event
+    if not goal:
         try:
-            payload = json.loads(last_event.action_payload)
-            # finish node output usually in messages
-        except:
+            first_event = events[0]
+            snapshot = json.loads(first_event.state_snapshot)
+            msgs = snapshot.get("messages", [])
+            if msgs and isinstance(msgs[0], dict) and msgs[0].get("type") == "human":
+                final_goal = msgs[0].get("content", "Unknown Task")
+        except Exception:
             pass
-    else:
-        # If ended not in finish, maybe error?
-        pass
 
-    # Extract Plan
-    # Look for the last event with a "current_plan" in snapshot
+    # Determine success/failure from last node
+    last_event = events[-1]
+    if last_event.node_name != "finish":
+        error = f"Ended at {last_event.node_name} instead of finish"
+
+    # Extract Plan from state snapshots
     for e in reversed(events):
         try:
             snap = json.loads(e.state_snapshot)
             if snap.get("current_plan"):
                 plan_snapshot = snap.get("current_plan")
                 break
-        except:
+        except Exception:
             continue
 
-    # 3. Store to Graph
-    await memory_service.store_episode(
-        goal=goal[:2000],  # Limit size
-        result=result,
+    # 3. Store Episode to Graph
+    episode_id = await memory_service.store_episode(
+        goal=final_goal[:2000],
+        result=final_result[:2000] if final_result else "Success",
         plan_summary=plan_snapshot[:5000],
         error_msg=error,
         project_id=project_id
     )
+
+    # 4. Link Episode to Concepts (NEW)
+    if concept_names and episode_id:
+        try:
+            await memory_service.link_episode_to_concepts(
+                episode_id=episode_id,
+                concept_names=concept_names,
+                project_id=project_id
+            )
+            logger.info(f"Linked Episode {episode_id} to {len(concept_names)} concepts")
+        except Exception as e:
+            logger.warning(f"Failed to link Episode to Concepts: {e}")
