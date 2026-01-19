@@ -54,8 +54,8 @@ def chat(message, thread_id, project_id, token):
                     if m["type"] == "ai":
                         ai_reply = m
                         print(f"\n[AI]: {m['content']}")
-                        if m.get('tasks_snapshot'):
-                            print(f"[Tasks Snapshot]: {len(m['tasks_snapshot'])} items")
+                        if m.get('steps_snapshot'):
+                            print(f"[Steps Snapshot]: {len(m['steps_snapshot'])} items")
 
                 if ai_reply:
                     return # Done

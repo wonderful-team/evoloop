@@ -14,8 +14,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
+import { useTranslation } from "react-i18next"
 
-export interface TaskItem {
+export interface StepItem {
   id: number
   name: string
   status: "running" | "done" | "failed" | "cancelled"
@@ -25,51 +26,41 @@ export interface TaskItem {
   details?: string
 }
 
-// A Group is a collection of tasks under a header (Phase)
-interface TaskGroup {
+// A Group is a collection of steps under a header (Phase)
+interface StepGroup {
   id: string
   title: string
-  status: string // derived from children (running if any running, done if all done)
-  tasks: TaskItem[] // The actual steps in this phase
-  isImplicit?: boolean // If true, didn't have a header task
+  status: string // derived from children
+  steps: StepItem[] // The actual steps in this phase
+  isImplicit?: boolean // If true, didn't have a header step
 }
 
-interface TaskStepsProps {
-  tasks: TaskItem[]
+interface ExecutionStepsProps {
+  steps: StepItem[]
 }
-
-import { useTranslation } from "react-i18next"
 
 // Replaces legacy assumption-based grouping with direct parent_id hierarchy
-function groupTasks(tasks: TaskItem[], t: any): TaskGroup[] {
-  const groups: TaskGroup[] = []
+function groupSteps(steps: StepItem[], t: any): StepGroup[] {
+  const groups: StepGroup[] = []
 
   // 1. Separate Headers (Phases) and Children
-  // Headers are explicitly marked as "node" with friendly names OR we can use the "parent_id" linking
-  // In the new system, headers are tasks where type="node" (usually) and they are parents.
-
-  // Strategy: 
-  // - Find tasks that ARE parents (id referenced by others) OR are explicit phase headers
-  // - Group others under them
-
-  const headerMap = new Map<number, TaskItem>()
-  const childrenMap = new Map<number, TaskItem[]>() // parent_id -> tasks
-  const orphans: TaskItem[] = []
+  const headerMap = new Map<number, StepItem>()
+  const childrenMap = new Map<number, StepItem[]>() // parent_id -> steps
+  const orphans: StepItem[] = []
 
   // First pass: Organize by parent_id
-  tasks.forEach(task => {
-    if (task.parent_id) {
-      if (!childrenMap.has(task.parent_id)) {
-        childrenMap.set(task.parent_id, [])
+  steps.forEach(step => {
+    if (step.parent_id) {
+      if (!childrenMap.has(step.parent_id)) {
+        childrenMap.set(step.parent_id, [])
       }
-      childrenMap.get(task.parent_id)?.push(task)
+      childrenMap.get(step.parent_id)?.push(step)
     } else {
       // Potential Header (or Orphan)
-      // We consider it a header if it starts with "►" (Phase marker from backend)
-      if (task.name.startsWith("►") || task.type === "node") {
-        headerMap.set(task.id, task)
+      if (step.name.startsWith("►") || step.type === "node") {
+        headerMap.set(step.id, step)
       } else {
-        orphans.push(task)
+        orphans.push(step)
       }
     }
   })
@@ -81,7 +72,6 @@ function groupTasks(tasks: TaskItem[], t: any): TaskGroup[] {
     // determine group status based on children + header
     let status = header.status
     if (status === "running" && children.some(c => c.status === "failed")) {
-      // If header says running but a child failed? usually header will update eventually.
       // Keep header status as truth.
     }
 
@@ -89,34 +79,27 @@ function groupTasks(tasks: TaskItem[], t: any): TaskGroup[] {
       id: `g-${header.id}`,
       title: header.name.replace("► ", "").replace("Phase: ", ""),
       status: status,
-      tasks: children,
+      steps: children,
       isImplicit: false
     })
   })
 
   // 3. Handle Orphans (Implicit "Execution" Phase)
   if (orphans.length > 0) {
-    // Check if we already have an "Execution" group? No, implicit is unique.
-    // Grouping orphans together allows handling legacy events or untracked tools
-    const implicitGroup: TaskGroup = {
+    const implicitGroup: StepGroup = {
       id: "g-implicit",
       title: t("chat.steps.execution", "Execution"), // "执行阶段"
       status: orphans.some(t => t.status === "running") ? "running" : "done",
-      tasks: orphans,
+      steps: orphans,
       isImplicit: true
     }
-    // Put implicit group at the place where the first orphan appeared? 
-    // Or at bottom? Time-based sorting usually prefers implicit stuff to flow naturally.
-    // For now, simpler to append.
     groups.push(implicitGroup)
   }
 
-  // 4. Sort Groups by ID (assuming ID is roughly chronological)
-  // Headers usually created sequentially.
-  // Implicit group ID is string, maybe put it based on first orphan ID?
+  // 4. Sort Groups by ID
   groups.sort((a, b) => {
-    const getOrder = (g: TaskGroup) => {
-      if (g.isImplicit && g.tasks.length > 0) return g.tasks[0].id
+    const getOrder = (g: StepGroup) => {
+      if (g.isImplicit && g.steps.length > 0) return g.steps[0].id
       return parseInt(g.id.replace("g-", "")) || 999999
     }
     return getOrder(a) - getOrder(b)
@@ -125,18 +108,18 @@ function groupTasks(tasks: TaskItem[], t: any): TaskGroup[] {
   return groups
 }
 
-const TaskNodeItem = memo(({ task }: { task: TaskItem }) => {
+const StepNodeItem = memo(({ step }: { step: StepItem }) => {
   return (
     <div className="flex items-start gap-3 p-2 rounded-lg text-sm font-mono bg-muted/10 ml-2 border-l border-muted pl-3 hover:bg-muted/20 transition-colors animate-in fade-in slide-in-from-left-2">
       {/* Status Icon */}
       <div className="mt-0.5 shrink-0">
-        {task.status === "running" && (
+        {step.status === "running" && (
           <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />
         )}
-        {task.status === "done" && (
+        {step.status === "done" && (
           <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
         )}
-        {(task.status === "failed" || task.status === "cancelled") && (
+        {(step.status === "failed" || step.status === "cancelled") && (
           <XCircle className="w-3.5 h-3.5 text-destructive" />
         )}
       </div>
@@ -144,45 +127,42 @@ const TaskNodeItem = memo(({ task }: { task: TaskItem }) => {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           {/* Type Icon */}
-          {task.type === "skill" && (
+          {step.type === "skill" && (
             <Sparkles className="w-3 h-3 text-amber-500" />
           )}
-          {task.type === "tool" && (
+          {step.type === "tool" && (
             <Terminal className="w-3 h-3 text-muted-foreground" />
           )}
-          {task.type === "ai" && (
+          {step.type === "ai" && (
             <Cpu className="w-3 h-3 text-muted-foreground" />
           )}
 
-          <span className={`truncate ${task.status === "running" ? "text-foreground" : "text-muted-foreground"}`}>
-            {task.name}
+          <span className={`truncate ${step.status === "running" ? "text-foreground" : "text-muted-foreground"}`}>
+            {step.name}
           </span>
         </div>
 
         {/* Details */}
-        {task.details && !(task.type === "ai" && task.status === "running") && (
+        {step.details && !(step.type === "ai" && step.status === "running") && (
           <div className="text-xs text-muted-foreground pl-5 pt-1 break-words whitespace-pre-wrap opacity-80 line-clamp-4">
-            {task.details}
+            {step.details}
           </div>
         )}
       </div>
 
       {/* Time */}
-      {task.time && (
+      {step.time && (
         <div className="text-[10px] text-muted-foreground shrink-0 mt-0.5 opacity-50">
-          {task.time}
+          {step.time}
         </div>
       )}
     </div>
   )
 })
-TaskNodeItem.displayName = "TaskNodeItem"
+StepNodeItem.displayName = "StepNodeItem"
 
-const TaskGroupItem = memo(({ group }: { group: TaskGroup }) => {
+const StepGroupItem = memo(({ group }: { group: StepGroup }) => {
   const { t } = useTranslation()
-  // Auto-Folding Logic:
-  // Open if status is 'running' OR it's the very last group (often active).
-  // Closed if status is 'done'.
   const [isOpen, setIsOpen] = useState(group.status === "running")
 
   useEffect(() => {
@@ -213,7 +193,7 @@ const TaskGroupItem = memo(({ group }: { group: TaskGroup }) => {
 
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
-                {group.tasks.length} {t("chat.steps.steps", "steps")}
+                {group.steps.length} {t("chat.steps.steps", "steps")}
               </span>
               {isOpen ? (
                 <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -227,32 +207,32 @@ const TaskGroupItem = memo(({ group }: { group: TaskGroup }) => {
 
       <CollapsibleContent>
         <div className="p-2 pt-0 flex flex-col gap-1 mt-1">
-          {group.tasks.length === 0 && (
+          {group.steps.length === 0 && (
             <div className="text-xs text-muted-foreground italic pl-8 py-2">
               {t("chat.steps.initializingPhase", "Initializing phase...")}
             </div>
           )}
-          {group.tasks.map(task => (
-            <TaskNodeItem key={task.id} task={task} />
+          {group.steps.map(step => (
+            <StepNodeItem key={step.id} step={step} />
           ))}
         </div>
       </CollapsibleContent>
     </Collapsible>
   )
 })
-TaskGroupItem.displayName = "TaskGroupItem"
+StepGroupItem.displayName = "StepGroupItem"
 
 
-export function TaskSteps({ tasks }: TaskStepsProps) {
+export function ExecutionSteps({ steps }: ExecutionStepsProps) {
   const { t } = useTranslation()
-  const groups = useMemo(() => groupTasks(tasks || [], t), [tasks, t])
+  const groups = useMemo(() => groupSteps(steps || [], t), [steps, t])
 
-  if (!tasks || tasks.length === 0) return null
+  if (!steps || steps.length === 0) return null
 
   return (
     <div className="flex flex-col gap-1 w-full max-w-[95%] animate-in fade-in">
       {groups.map(group => (
-        <TaskGroupItem key={group.id} group={group} />
+        <StepGroupItem key={group.id} group={group} />
       ))}
     </div>
   )

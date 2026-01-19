@@ -301,7 +301,7 @@ mindmap
 | **DB-001** | 消息存储 | Agent 生成回复后 | `Message` 表有新记录，`run_id` 关联正确 |
 | **DB-002** | 会话创建 | 新 `thread_id` | `Conversation` 表有新记录 |
 | **DB-003** | 序号递增 | 同一会话多条消息 | `sequence_number` 正确递增 |
-| **DB-004** | 任务快照 | 任务完成时 | `tasks_snapshot` 字段包含 JSON 数组 |
+| **DB-004** | 任务快照 | 任务完成时 | `steps_snapshot` 字段包含 JSON 数组 |
 | **DB-005** | 去重逻辑 | 重复 `run_id` + 相同内容 | 不重复写入 |
 
 ### 6.2 Redis Pub/Sub

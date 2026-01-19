@@ -337,7 +337,7 @@ export class ConversationsService {
     /**
      * Get Conversation Messages
      * Get message history for a thread from the persistent SQL log.
-     * Includes tasks_snapshot for historical task visualization.
+     * Includes steps_snapshot for historical task visualization.
      * @param data The data for the request.
      * @param data.threadId
      * @returns MessageItem Successful Response

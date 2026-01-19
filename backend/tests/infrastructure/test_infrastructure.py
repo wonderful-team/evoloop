@@ -67,8 +67,8 @@ class TestDatabasePersistence:
 
     # DB-004: Task Snapshot
     @pytest.mark.asyncio
-    async def test_db_004_task_snapshot(self, db_session, thread_id):
-        """Test tasks_snapshot field storage."""
+    async def test_db_004_step_snapshot(self, db_session, thread_id):
+        """Test steps_snapshot field storage."""
         # Skipping detailed JSON logic for unit test with mocks
         assert True
 

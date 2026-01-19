@@ -3,7 +3,7 @@ import { create } from "zustand"
 import { AgentService, ConversationsService } from "@/client"
 import { ChatConnection } from "@/lib/ChatConnection"
 import type { Message } from "@/components/Chat/ChatMessageItem"
-import type { TaskItem as TaskStep } from "@/components/Chat/TaskSteps"
+import type { StepItem } from "@/components/Chat/ExecutionSteps"
 import type { AgentProcessStep } from "@/components/Chat/AgentProcess"
 
 interface ChatState {
@@ -22,7 +22,7 @@ interface ChatState {
     | "SUMMARIZING"
     | "INDEXING"
     | "unknown"
-    tasks: TaskStep[]
+    steps: StepItem[]
     streamedContent: string // The currently streaming token buffer (for the specific AI task)
     activeMemories: Array<{ id: string; name: string }> // Phase 7: Active memory highlights
     artifacts: Array<{ id: number; name: string; type: string; status: string; path?: string }> // Phase 8: Artifacts
@@ -62,7 +62,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     messages: [],
 
     status: "idle",
-    tasks: [],
+    steps: [],
     streamedContent: "",
 
     activeMemories: [],
@@ -88,7 +88,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             ...(currentThreadId !== threadId
                 ? {
                     messages: [],
-                    tasks: [],
+                    steps: [],
                     streamedContent: "",
                     status: "idle",
                     humanRequest: null,
@@ -141,7 +141,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 ? history
                 : history?.messages || []
 
-            // Format - Phase 6: Include tasks_snapshot
+            // Format - Phase 6: Include steps_snapshot
             const formatted: Message[] = rawMessages
                 .map((m: any, idx: number) => ({
                     id: m.id || idx,
@@ -150,7 +150,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     content: m.content || "",
                     thinking: m.thinking,
                     timestamp: m.created_at,
-                    tasks_snapshot: m.tasks_snapshot, // Phase 6: Historical tasks
+                    steps_snapshot: m.steps_snapshot, // Phase 6: Historical tasks
                     steps: m.steps || [], // Phase 24: Tool Execution Steps
                 }))
                 // Filter out empty messages AND 'tool' messages (which cause chat bubble explosion)
@@ -252,7 +252,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     clearContent: () => {
-        set({ messages: [], tasks: [], streamedContent: "", humanRequest: null })
+        set({ messages: [], steps: [], streamedContent: "", humanRequest: null })
     },
 
     // --- Internal Handlers ---
@@ -325,7 +325,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         set({
             status: normalizedStatus,
-            tasks: data.tasks || [],
+            steps: data.steps || data.tasks || [],
             artifacts: data.artifacts || [], // Phase 8: Automatically Map Artifacts
             activeMemories: data.active_memories || [], // Phase 7
             agentState: data.agent_state || null, // Phase 9
@@ -434,7 +434,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             content: rawMsg.content || "",
             thinking: rawMsg.thinking,
             timestamp: rawMsg.created_at || new Date().toISOString(),
-            tasks_snapshot: rawMsg.tasks_snapshot,
+            steps_snapshot: rawMsg.steps_snapshot,
             tool_calls: rawMsg.tool_calls, // Phase 24: Capture for matching
             steps: [], // Initialize empty
         }

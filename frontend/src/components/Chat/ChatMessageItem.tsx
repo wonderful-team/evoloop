@@ -25,7 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
 import { Button } from "../ui/button"
 import { TestReportCard } from "./Artifacts/TestReportCard"
 import { MessageContent } from "./MessageContent"
-import { TaskSteps } from "./TaskSteps"
+import { ExecutionSteps } from "./ExecutionSteps"
 import { SourcesFooter } from "./SourcesFooter"
 import { AgentProcess, AgentProcessStep } from "./AgentProcess"
 
@@ -45,7 +45,7 @@ export interface Message {
     target_name: string
   }>
   originalType?: string // Kept for filtering
-  tasks_snapshot?: Array<{
+  steps_snapshot?: Array<{
     // Phase 6: Historical task steps
     id: number
     name: string
@@ -143,9 +143,9 @@ const ChatMessageItem = memo(
 
             {/* Tool Execution Process (Collapsible) */}
             {/* Historical Task Steps (Unified Component) */}
-            {msg.tasks_snapshot && msg.tasks_snapshot.length > 0 && (
+            {msg.steps_snapshot && msg.steps_snapshot.length > 0 && (
               <div className="mb-2 w-full">
-                <TaskSteps tasks={msg.tasks_snapshot as any} />
+                <ExecutionSteps steps={msg.steps_snapshot as any} />
               </div>
             )}
 

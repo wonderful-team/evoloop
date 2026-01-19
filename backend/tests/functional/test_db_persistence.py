@@ -105,4 +105,4 @@ async def test_database_snapshot_persistence():
             "details": None
         }]
 
-        assert mock_db_msg.tasks_snapshot == expected_tasks
+        assert mock_db_msg.steps_snapshot == expected_tasks

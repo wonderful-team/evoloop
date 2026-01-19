@@ -174,7 +174,7 @@ export type MessageItem = {
     content: string;
     thinking: (string | null);
     created_at: (string | null);
-    tasks_snapshot?: (Array<{
+    steps_snapshot?: (Array<{
     [key: string]: unknown;
 }> | null);
     run_id?: (string | null);

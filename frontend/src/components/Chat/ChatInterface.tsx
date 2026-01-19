@@ -32,8 +32,6 @@ import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
 import { BreadcrumbStatus } from "./BreadcrumbStatus"
 
-
-
 export function ChatInterface() {
 
   const { t } = useTranslation()
@@ -46,7 +44,7 @@ export function ChatInterface() {
   const activeThreadId = useChatStore((s) => s.threadId)
   const messages = useChatStore((s) => s.messages)
   const status = useChatStore((s) => s.status)
-  const tasks = useChatStore((s) => s.tasks)
+  const steps = useChatStore((s) => s.steps)
   const streamedContent = useChatStore((s) => s.streamedContent)
   // Props required for components
   const setThread = useChatStore((s) => s.setThread)
@@ -224,8 +222,6 @@ export function ChatInterface() {
     },
   })
 
-
-
   const rewindMutation = useMutation({
     mutationFn: () =>
       ConversationsService.rewindConversation({ threadId: activeThreadId! }),
@@ -300,21 +296,19 @@ export function ChatInterface() {
     if (!isUserScrolled) {
       scrollToBottom()
     }
-  }, [isUserScrolled, scrollToBottom, messages, streamedContent, tasks]) // Trigger on content updates
+  }, [isUserScrolled, scrollToBottom, messages, streamedContent, steps]) // Trigger on content updates
 
   useEffect(() => {
     setIsUserScrolled(false)
     scrollToBottom()
   }, [scrollToBottom])
 
-
-
   // Phase 8: Deep Linking Listener
   useEffect(() => {
     const handleScrollToRun = (e: CustomEvent<{ runId: string }>) => {
       const runId = e.detail.runId
       // Find DOM element within scroll container
-      const el = scrollRef.current?.querySelector(`[data - run - id= "${runId}"]`)
+      const el = scrollRef.current?.querySelector(`[data-run-id= "${runId}"]`)
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "start" })
         // Visual indicator
@@ -384,7 +378,7 @@ export function ChatInterface() {
               onScroll={handleScroll}
               data-tour="chat-messages"
             >
-              <div className="space-y-6 max-w-3xl mx-auto pb-4">
+              <div className="space-y-6 max-w-3xl mx-auto pb-1">
                 <MessageList
                   messages={messages}
                   isAgentWorking={status === "running"}
@@ -397,8 +391,6 @@ export function ChatInterface() {
                   onQuote={(msg) => handleQuoteMessage(msg)}
                   onStarterClick={(text) => sendMessage(text)}
                 />
-
-
               </div>
             </div>
 

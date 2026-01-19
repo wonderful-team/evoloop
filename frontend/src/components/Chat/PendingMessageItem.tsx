@@ -1,7 +1,7 @@
 import { useChatStore } from "@/stores/chatStore"
 import { Bot, Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar"
-import { TaskSteps } from "./TaskSteps"
+import { ExecutionSteps } from "./ExecutionSteps"
 import { MessageContent } from "./MessageContent"
 import { ArtifactsList } from "./Artifacts/ArtifactsList"
 import { ThoughtCard } from "./ThoughtCard"
@@ -14,7 +14,7 @@ export const PendingMessageItem = memo(() => {
 
     // Connect to granular store selectors for performance
     const streamedContent = useChatStore((s) => s.streamedContent)
-    const tasks = useChatStore((s) => s.tasks)
+    const steps = useChatStore((s) => s.steps)
     const artifacts = useChatStore((s) => s.artifacts)
     const status = useChatStore((s) => s.status)
     const thoughts = useChatStore((s) => s.thoughts) || []
@@ -47,9 +47,9 @@ export const PendingMessageItem = memo(() => {
                 )}
 
                 {/* 2. Task Execution Steps */}
-                {tasks.length > 0 && (
+                {steps.length > 0 && (
                     <div className="mb-2 w-full">
-                        <TaskSteps tasks={tasks} />
+                        <ExecutionSteps steps={steps as any} />
                     </div>
                 )}
 
@@ -76,7 +76,7 @@ export const PendingMessageItem = memo(() => {
                 )}
 
                 {/* 6. Loading Indicator (if nothing else is showing yet) */}
-                {!streamedContent && tasks.length === 0 && thoughts.length === 0 && status === "running" && (
+                {!streamedContent && steps.length === 0 && thoughts.length === 0 && status === "running" && (
                     <div className="flex items-center gap-2 text-xs text-muted-foreground italic h-10">
                         <Loader2 className="h-3 w-3 animate-spin" />
                         {t("chat.interface.agentThinking", "Thinking...")}

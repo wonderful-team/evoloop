@@ -16,23 +16,23 @@ export function SystemGroupTab({ activeThreadId }: SystemGroupTabProps) {
     // --- STATE & DATA ---
 
     // 1. TOOLS
-    const tasks = useChatStore((state) => state.tasks)
+    const steps = useChatStore((state) => state.steps)
     const activeTools = useMemo(() => {
         const toolSet = new Set<string>()
-        tasks.forEach((task) => {
-            if (task.name && task.status === "running") {
+        steps.forEach((step) => {
+            if (step.name && step.status === "running") {
                 const toolPatterns = ["read_", "write_", "search_", "run_", "manage_", "create_", "delete_", "view_", "list_"]
-                if (toolPatterns.some((p) => task.name.toLowerCase().includes(p))) {
-                    toolSet.add(task.name.toLowerCase())
+                if (toolPatterns.some((p) => step.name.toLowerCase().includes(p))) {
+                    toolSet.add(step.name.toLowerCase())
                 }
-                if (task.details) {
-                    const match = task.details.match(/`([^`]+)`/)
+                if (step.details) {
+                    const match = step.details.match(/`([^`]+)`/)
                     if (match) toolSet.add(match[1].toLowerCase())
                 }
             }
         })
         return toolSet
-    }, [tasks])
+    }, [steps])
 
     const { data: tools, isLoading: isLoadingTools } = useQuery({
         queryKey: ["tools"],

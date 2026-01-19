@@ -61,7 +61,7 @@ class MessageItem(BaseModel):
     content: str
     thinking: str | None
     created_at: str | None
-    tasks_snapshot: list[dict] | None = None  # Phase 6: Historical task steps
+    steps_snapshot: list[dict] | None = None  # Phase 6: Historical task steps
     run_id: str | None = None  # Phase 8: Deep Linking
     parent_id: int | None = None  # Phase 8: Threading
     references: list[ReferenceItem] = []  # Phase 9: Persistent References
@@ -106,7 +106,7 @@ async def list_conversations(project_id: int | None = None):
 async def get_conversation_messages(thread_id: str):
     """
     Get message history for a thread from the persistent SQL log.
-    Includes tasks_snapshot (now steps_snapshot) for historical task visualization.
+    Includes steps_snapshot for historical task visualization.
     """
     try:
         async with get_db_session() as session:
@@ -145,7 +145,7 @@ async def get_conversation_messages(thread_id: str):
                         content=m.content,
                         thinking=m.thinking,
                         created_at=m.created_at.isoformat() if m.created_at else None,
-                        tasks_snapshot=m.steps_snapshot,
+                        steps_snapshot=m.steps_snapshot,
                         run_id=m.run_id,
                         parent_id=m.parent_id,
                         references=refs,
@@ -162,7 +162,7 @@ async def get_conversation_messages(thread_id: str):
                         content=m.content,
                         thinking=m.thinking,
                         created_at=m.created_at.isoformat() if m.created_at else None,
-                        tasks_snapshot=m.steps_snapshot,
+                        steps_snapshot=m.steps_snapshot,
                         run_id=m.run_id,
                         parent_id=m.parent_id,
                         references=refs,

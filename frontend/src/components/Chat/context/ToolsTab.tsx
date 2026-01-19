@@ -8,15 +8,15 @@ import { useChatStore } from "@/stores/chatStore"
 
 export function ToolsTab() {
   const { t } = useTranslation()
-  // Get current tasks from chat store
-  const tasks = useChatStore((state) => state.tasks)
+  // Get current steps from chat store
+  const steps = useChatStore((state) => state.steps)
 
-  // Extract actively executing tools from tasks
+  // Extract actively executing tools from steps
   const activeTools = useMemo(() => {
     const toolSet = new Set<string>()
-    tasks.forEach((task) => {
+    steps.forEach((step) => {
       // Check if task is a tool call based on name patterns and running status
-      if (task.name && task.status === "running") {
+      if (step.name && step.status === "running") {
         // Common tool call patterns
         const toolPatterns = [
           "read_",
@@ -29,18 +29,18 @@ export function ToolsTab() {
           "view_",
           "list_",
         ]
-        if (toolPatterns.some((p) => task.name.toLowerCase().includes(p))) {
-          toolSet.add(task.name.toLowerCase())
+        if (toolPatterns.some((p) => step.name.toLowerCase().includes(p))) {
+          toolSet.add(step.name.toLowerCase())
         }
         // Also check details for tool names (e.g. "📄 Read `foo.tsx`")
-        if (task.details) {
-          const match = task.details.match(/`([^`]+)`/)
+        if (step.details) {
+          const match = step.details.match(/`([^`]+)`/)
           if (match) toolSet.add(match[1].toLowerCase())
         }
       }
     })
     return toolSet
-  }, [tasks])
+  }, [steps])
 
   // Fetch available tools
   const { data: tools, isLoading: isLoadingTools } = useQuery({

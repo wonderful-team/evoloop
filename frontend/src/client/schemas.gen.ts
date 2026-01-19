@@ -719,7 +719,7 @@ export const MessageItemSchema = {
             ],
             title: 'Created At'
         },
-        tasks_snapshot: {
+        steps_snapshot: {
             anyOf: [
                 {
                     items: {
@@ -732,7 +732,7 @@ export const MessageItemSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Tasks Snapshot'
+            title: 'Steps Snapshot'
         },
         run_id: {
             anyOf: [
