@@ -177,6 +177,24 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         await _handle_task_exception(thread_id, project_id, e)
 
 
+async def _upload_final_log(graph, config, thread_id, command_id):
+    try:
+        final_state = await graph.aget_state(config)
+        if final_state.values and "messages" in final_state.values:
+            messages = final_state.values["messages"]
+            if messages:
+                last_msg = messages[-1]
+                if hasattr(last_msg, "content") and last_msg.content:
+                    await evocloud_client.upload_log(
+                        thread_id=thread_id,
+                        log_type="output",
+                        content=last_msg.content,
+                        command_id=command_id
+                    )
+    except Exception as e:
+        logger.warning(f"Failed to send final output: {e}")
+
+
 async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
     # Check for Interrupt
     exc_name = type(e).__name__
