@@ -1,6 +1,11 @@
-from langgraph.constants import Send
+import logging
+from collections.abc import Callable
+
+from langgraph.types import Send
 
 from app.core.engine.state import AgentState
+
+logger = logging.getLogger(__name__)
 
 
 def route_supervisor(state: AgentState):
@@ -9,6 +14,19 @@ def route_supervisor(state: AgentState):
     Supports parallel research dispatch via Send().
     """
     next_node = state["next_node"]
+
+    # [HITL Hardening] Phase 5: Intercept Unapproved Plans
+    # If Supervisor tries to skip approval, we FORCE it back.
+    if next_node == "coder":
+        plan = state.get("structured_plan")
+        scratchpad = state.get("scratchpad", {})
+        # Check if plan implies it needs approval (has title/steps) and is NOT approved
+        if isinstance(plan, dict) and plan.get("steps") and not scratchpad.get("plan_approved"):
+            # Hard Stop: Bounce back to Supervisor
+            # The Supervisor will see the "AWAITING APPROVAL" prompt context and retry correctly.
+            # Loop detection in prompt builder will prevent infinite spinning.
+            return "supervisor"
+
     if next_node == "map_research":
         tasks = state.get("parallel_research_tasks", [])
         project_id = state.get("project_id", 1)
@@ -17,9 +35,12 @@ def route_supervisor(state: AgentState):
             "research_topic": topic,
             "project_id": project_id,
         }) for topic in tasks]
+
     if next_node == "finish":
         return "finish"
+
     return next_node
+
 
 def route_tester(state: AgentState):
     """
@@ -34,6 +55,7 @@ def route_tester(state: AgentState):
             return "meta_reviewer"  # Intervention!
         return "coder"
 
+
 def route_by_next_node_field(state: AgentState):
     """
     Generic router that simply returns state["next_node"].
@@ -41,10 +63,6 @@ def route_by_next_node_field(state: AgentState):
     """
     return state["next_node"]
 
-import logging
-from collections.abc import Callable
-
-logger = logging.getLogger(__name__)
 
 def make_expression_router(conditions: list[dict[str, str]], default: str) -> Callable[[AgentState], str]:
     """
@@ -54,6 +72,7 @@ def make_expression_router(conditions: list[dict[str, str]], default: str) -> Ca
         conditions: List of dicts, e.g. [{"expr": "state['scratchpad']['score'] > 5", "to": "finish"}]
         default: Fallback node if no conditions match.
     """
+
     def expression_router(state: AgentState) -> str:
         # Prepare evaluation context
         # We provide 'state' and 'scratchpad' for convenience

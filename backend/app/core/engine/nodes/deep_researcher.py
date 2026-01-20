@@ -34,9 +34,20 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
 
     # Initialize state variables if missing
     topic = state.get("research_topic", "")
+
+    # [FIX] Phase 21: Context Handoff from Supervisor
+    # Supervisor puts context in scratchpad['handoff_context'], but we need it locally.
+    if not topic:
+        scratchpad = state.get("scratchpad", {})
+        handoff = scratchpad.get("handoff_context", {})
+        # Try common keys
+        topic = handoff.get("topic") or handoff.get("research_topic") or handoff.get("query") or ""
+        
+        if topic:
+            logger.info(f"[DeepResearcher] 🔗 Context Handoff: Found topic '{topic}' in scratchpad.")
+
     max_iter = state.get("max_research_iterations", settings.RESEARCH_MAX_ITERATIONS)
 
-    # Determine Topic
     # Determine Topic
     if not topic:
         # In parallel mode, topic MUST be passed.

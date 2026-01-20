@@ -8,11 +8,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
-from app.constants import EMBEDDING_DIMENSIONS
-import os
-
-# Get embedding dimension from env, default to 1536 (OpenAI standard)
-EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIMENSIONS", EMBEDDING_DIMENSIONS["default"]))
+# Get embedding dimension from settings (Single Source of Truth)
+from app.core.config import settings
+EMBEDDING_DIM = settings.EMBEDDING_DIMENSIONS
 
 
 class Repository(Base):

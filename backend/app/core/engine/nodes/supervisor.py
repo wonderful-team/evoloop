@@ -191,10 +191,30 @@ class SupervisorNode:
             fast_route = await IntentClassifier.classify(last_human_msg)
             if fast_route:
                 logger.info(f"[Supervisor] ⚡ Fast-Track routing to '{fast_route}'")
+                
+                # [FIX] Phase 21: Auto-Populate Handoff Context for Fast Path
+                # Specialized Logic used to map User Message -> Node Context
+                handoff_context = {}
+                scratchpad_update = {}
+                
+                if fast_route == "deep_researcher":
+                    # Assume user message is the research topic
+                    handoff_context = {"topic": last_human_msg}
+                elif fast_route == "planner":
+                    # Assume user message is the updated instruction
+                    handoff_context = {"instruction": last_human_msg}
+                
+                if handoff_context:
+                    scratchpad_update = {
+                        "handoff_context": handoff_context,
+                        "route_reason": "Fast-Track Intent"
+                    }
+
                 return {
                     "next_node": fast_route,
                     "messages": [],
                     "current_plan": state.get("current_plan"),
+                    "scratchpad": scratchpad_update  # Inject context
                 }
         except Exception as e:
             logger.warning(f"IntentClassifier failed: {e}")
@@ -376,7 +396,8 @@ When you call `route_to(target='coder', ...)` or `route_to(target='tester', ...)
             "cwd": cwd,
             "current_plan": state.get("current_plan", "No plan yet."),
             "active_plan_context": active_plan_context,
-            "iteration_count": state.get("iteration_count", 0)
+            "iteration_count": state.get("iteration_count", 0),
+            "last_human_msg": last_msg  # Pass for ambiguity check
         }
 
 

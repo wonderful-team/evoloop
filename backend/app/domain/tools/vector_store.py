@@ -18,7 +18,8 @@ class PGToolRetriever:
         self.embedder = OpenAIEmbedder(
             api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL,
-            model=settings.EMBEDDING_MODEL_NAME
+            model=settings.EMBEDDING_MODEL_NAME,
+            dimensions=settings.EMBEDDING_DIMENSIONS
         )
 
     async def index_tool(self, tool_name: str, description: str, signature: str, category: str = None):

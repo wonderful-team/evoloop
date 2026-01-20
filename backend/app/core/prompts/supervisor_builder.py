@@ -64,6 +64,7 @@ Available targets for route_to:
 - If you need more information from internet → route_to("deep_researcher")
 {plan_status_section}
 {visited_nodes_warning}
+{self._build_ambiguity_warning()}
 ## Active Plan Context
 {self.active_plan_context}
 
@@ -160,6 +161,18 @@ Only after the tool returns "Approved", can you route to different nodes.
   - ✅ `route_to(target="planner")` (CORRECT)
 """
         return warning
+
+    def _build_ambiguity_warning(self) -> str:
+        """Solution C: Warn if user message is too short/ambiguous."""
+        last_msg = self.context.get("last_human_msg", "")
+        if last_msg and len(last_msg.strip()) < 5:
+            return f"""
+## ⚠️ AMBIGUITY WARNING
+The user's request is extremely short ("{last_msg}").
+DO NOT Assume intent.
+- Route to "chat" and ask: "Could you please provide more details?"
+"""
+        return ""
 
     def _get_user_language(self) -> str:
         return SystemConfigService.get_language_preference()

@@ -226,7 +226,10 @@ async def request_human_input(
         }
     )
 
-    return response_text
+    # Raise Interrupt Exception to pause execution
+    # This ensures the graph stops immediately
+    from app.core.exceptions import AgentHumanInterruptException
+    raise AgentHumanInterruptException(request.id, response_text)
 
 
 @tool("request_approval", args_schema=RequestApprovalArgs)
@@ -305,7 +308,9 @@ async def request_approval(
         }
     )
 
-    return response_text
+    # Raise Interrupt Exception to pause execution
+    from app.core.exceptions import AgentHumanInterruptException
+    raise AgentHumanInterruptException(request.id, response_text)
 
 
 # ============ API Helpers ============

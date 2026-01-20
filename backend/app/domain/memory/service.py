@@ -35,22 +35,22 @@ class MemoryService:
             # Vector Index for Concepts
             # Syntax for Neo4j 5.x+
             # IF NOT EXISTS is supported in newer versions.
-            try:
-                # Check if index exists explicitly if needed, but modern CREATE handles it.
-                # using `db.index.vector.createNodeIndex` procedure for compatibility if CREATE fails?
-                # We'll use the CREATE syntax.
-                # Note: Dimensions now dynamic? If index depends on fixed dim, we might have issues if factory returns diff dim.
-                # Ideally, we should check the current configured dimension.
-                # For now, let's try to get a sample embedding to determine dim? Or trust the default.
-                # But CREATE INDEX requires fixed dim.
-                # Strategy: We only create if not exists. If dimension mismatch, user must use "Switch Model" which drops index.
+            # Strategy: Use settings.EMBEDDING_DIMENSIONS as source of truth.
+            target_dim = settings.EMBEDDING_DIMENSIONS
 
-                # Get configured embedder
-                embedder = EmbedderFactory.get_embedder()
-                # Dummy embedding to check dimension
-                vec = await embedder.embed_query("dim_check")
-                target_dim = len(vec)
-                logger.info(f"MemoryService: Configured Embedder Dimension: {target_dim}")
+            try:
+                # Validate Embedder (Optional check)
+                try:
+                    embedder = EmbedderFactory.get_embedder()
+                    vec = await embedder.embed_query("dim_check")
+                    if vec:
+                        target_dim = len(vec)
+                        logger.info(f"MemoryService: Verified Embedder Dimension: {target_dim}")
+                except Exception as e:
+                    logger.warning(
+                        f"MemoryService: Embedder check failed ({e}). Using configured dimension: {target_dim}")
+
+                # Check existing index dimension if it exists
 
                 # Check existing index dimension if it exists
                 # Using YIELD to be explicit about what we want
@@ -117,7 +117,6 @@ class MemoryService:
 
             except Exception as e:
                 logger.error(f"Failed to initialize Vector Index: {e}")
-                logger.info(f"Vector Index 'concept_embeddings' ensured (dim={dim}).")
             except Exception as e:
                 logger.warning(f"Failed to create Vector Index: {e}")
 
@@ -129,21 +128,17 @@ class MemoryService:
 
             # Vector Index for Episodes (Features: Goal)
             try:
-                # Assuming same dimensions as Concepts for now
-                embedder = EmbedderFactory.get_embedder()
-                vec = await embedder.embed_query("dim_check")
-                dim = len(vec)
-
+                # Use safely determined target_dim
                 await session.run(f"""
                     CREATE VECTOR INDEX episode_embeddings IF NOT EXISTS
                     FOR (e:Episode)
                     ON (e.embedding)
                     OPTIONS {{indexConfig: {{
-                        `vector.dimensions`: {dim},
+                        `vector.dimensions`: {target_dim},
                         `vector.similarity_function`: 'cosine'
                     }}}}
                 """)
-                logger.info(f"Vector Index 'episode_embeddings' ensured (dim={dim}).")
+                logger.info(f"Vector Index 'episode_embeddings' ensured (dim={target_dim}).")
             except Exception as e:
                 logger.warning(f"Failed to create Episode Vector Index: {e}")
 

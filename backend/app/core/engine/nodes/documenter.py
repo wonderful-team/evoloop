@@ -166,6 +166,16 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
             HumanMessage(content=prompt_content)
         ]
 
+        # [FIX] Phase 21: Context Handoff (Cure Blindness)
+        scratchpad = state.get("scratchpad", {})
+        handoff = scratchpad.get("handoff_context", {})
+        focus_paths = handoff.get("focus_paths", [])
+        
+        if focus_paths:
+            logger.info(f"[Documenter] 🎯 Focusing on {len(focus_paths)} files from Supervisor.")
+            focus_list = "\n".join([f"- {p}" for p in focus_paths])
+            msgs.append(HumanMessage(content=f"SUPERVISOR INSTRUCTION: Focus your documentation plan ONLY on these specific files:\n{focus_list}\n\nDo NOT document other files unless absolutely necessary for context."))
+
         # Prevent streaming the raw JSON to the frontend
         clean_config = config.copy() if config else {}
         clean_config["callbacks"] = []

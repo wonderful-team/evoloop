@@ -38,7 +38,7 @@ def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:
             if m.get("type") == "human":
                 deserialized.append(HumanMessage(content=m.get("content", "")))
             else:
-                deserialized.append(m) # Assume other dicts are handled or already compatible?
+                deserialized.append(m)  # Assume other dicts are handled or already compatible?
         else:
             deserialized.append(m)
     return deserialized
@@ -65,10 +65,10 @@ async def _ensure_conversation_in_db(thread_id: str, project_id: int, inputs: di
                 if inputs.get("task_title"):
                     conversation_title = inputs["task_title"]
                 elif inputs.get("messages") and inputs["messages"]:
-                     try:
+                    try:
                         first_msg = inputs["messages"][0]
                         conversation_title = first_msg.content[:50]
-                     except:
+                    except:
                         pass
 
                 conversation = Conversation(
@@ -173,29 +173,8 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             logger.info(f"Task {thread_id} cancelled by user.")
             await activity_monitor.end_run(thread_id, "cancelled")
 
-        except Exception as e:
-             await _handle_task_exception(thread_id, project_id, e)
-
-    except Exception as outer_e:
-        logger.critical(f"Fatal error in background dispatcher: {outer_e}")
-
-
-async def _upload_final_log(graph, config, thread_id, command_id):
-    try:
-        final_state = await graph.aget_state(config)
-        if final_state.values and "messages" in final_state.values:
-            messages = final_state.values["messages"]
-            if messages:
-                last_msg = messages[-1]
-                if hasattr(last_msg, "content") and last_msg.content:
-                    await evocloud_client.upload_log(
-                        thread_id=thread_id,
-                        log_type="output",
-                        content=last_msg.content,
-                        command_id=command_id
-                    )
     except Exception as e:
-        logger.warning(f"Failed to send final output: {e}")
+        await _handle_task_exception(thread_id, project_id, e)
 
 
 async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
@@ -222,7 +201,7 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
             # Get next sequence
             stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
             max_seq = (await session.execute(stmt)).scalar() or 0
-            
+
             error_msg = Message(
                 thread_id=thread_id,
                 project_id=project_id,
@@ -234,4 +213,3 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
             session.add(error_msg)
     except Exception as db_e:
         logger.error(f"Failed to persist error message: {db_e}")
-

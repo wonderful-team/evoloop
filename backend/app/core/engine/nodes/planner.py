@@ -127,6 +127,15 @@ async def planner_node(state: AgentState, config: RunnableConfig):
     # 2. Repair history (inject dummy AIMessages if ToolMessages are orphaned)
     messages = repair_message_history(raw_messages)
 
+    # [FIX] Phase 21: Supervisor Instruction Injection (Cure Planner Deafness)
+    scratchpad = state.get("scratchpad", {})
+    handoff = scratchpad.get("handoff_context", {})
+    instruction = handoff.get("instruction") or scratchpad.get("route_reason")
+
+    if instruction:
+        logger.info(f"[Planner] 🎯 Injected Supervisor Instruction: {instruction}")
+        messages.append(HumanMessage(content=f"SUPERVISOR INSTRUCTION (Override): {instruction}\n\nFocus ONLY on this instruction. Do not re-plan unrelated parts."))
+
     new_messages = []
 
     # We allow a small loop for "Propose -> Analyze -> Finalize"

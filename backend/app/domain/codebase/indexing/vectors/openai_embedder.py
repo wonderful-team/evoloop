@@ -1,4 +1,3 @@
-
 from openai import AsyncOpenAI
 
 from app.domain.codebase.indexing.base import BaseEmbedder
@@ -8,6 +7,7 @@ class GenericOpenAIEmbedder(BaseEmbedder):
     """
     Generic Embedder for any OpenAI-compatible API (OpenAI, LMStudio, vLLM, DeepSeek).
     """
+
     def __init__(self, api_key: str, base_url: str, model: str, dimensions: int = None):
         self.client = AsyncOpenAI(
             api_key=api_key,
@@ -51,9 +51,14 @@ class GenericOpenAIEmbedder(BaseEmbedder):
 
         try:
             response = await self.client.embeddings.create(**kwargs)
+            if not response.data:
+                raise ValueError(f"OpenAI returned empty data. Full Response: {response}")
             return response.data[0].embedding
         except Exception as e:
-             print(f"Embedding Error (Query): {e}")
-             raise e
+            # Log full stack if needed, but for now specific error message
+            import traceback
+            logger.error(f"Embedding Error (Query): {e}\nParams: {kwargs}")
+            raise e
+
 
 OpenAIEmbedder = GenericOpenAIEmbedder

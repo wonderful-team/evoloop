@@ -302,6 +302,41 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
             logger.error(f"Failed to persist resume message: {e}")
             # Non-blocking, continue resume flow
 
+    # [HITL Resume Fix]: Check if we need to auto-complete a Tool Call
+    try:
+        current_state = await graph.aget_state(config)
+        if current_state.values and "messages" in current_state.values:
+            history = current_state.values["messages"]
+            if history:
+                last_msg = history[-1]
+                # If last message was an Assistant Message with tool_calls (pending)
+                # AND there are no corresponding ToolMessages yet
+                # We should inject a ToolMessage representing the human approval
+                if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                    # Check if it was "request_approval" or "request_human_input"
+                    last_tool_call = last_msg.tool_calls[-1]
+                    if last_tool_call["name"] in ["request_approval", "request_human_input"]:
+                        logger.info(f"Auto-completing tool call {last_tool_call['name']} on resume")
+
+                        from langchain_core.messages import ToolMessage
+
+                        tool_msg = ToolMessage(
+                            tool_call_id=last_tool_call["id"],
+                            content=req.user_input or "APPROVED"  # Default to APPROVED if empty for approval
+                        )
+
+                        if inputs:
+                            if "messages" in inputs:
+                                # Prepend or Replace? Use ToolMessage INSTEAD of HumanMessage
+                                # Because HumanMessage would confuse the LLM expecting tool output
+                                inputs["messages"] = [tool_msg]
+                            else:
+                                inputs["messages"] = [tool_msg]
+                        else:
+                            inputs = {"messages": [tool_msg]}
+    except Exception as state_e:
+        logger.warning(f"Failed to inspect state for smart resume: {state_e}")
+
     # Resume in background
     async def _resume_graph():
         from app.core.callbacks.transparent import TransparentCallbackHandler

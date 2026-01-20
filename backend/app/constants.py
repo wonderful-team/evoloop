@@ -412,65 +412,6 @@ CONTEXT_SIZES = {
     }
 }
 
-# Embedding Model Dimensions
-# Critical for Vector DB configuration
-EMBEDDING_DIMENSIONS = {
-    "openai": {
-        "text-embedding-ada-002": 1536,
-        "text-embedding-3-small": 1536,
-        "text-embedding-3-large": 3072,
-        "default": 1536
-    },
-    "dashscope": {
-        "text-embedding-v1": 1536,
-        "text-embedding-v2": 1536,
-        "text-embedding-v3": 1024,
-        "default": 1536
-    },
-    "cohere": {
-        "embed-english-v2.0": 4096,
-        "embed-multilingual-v2.0": 4096,
-        "embed-english-light-v2.0": 1024,
-        "embed-multilingual-light-v2.0": 1024,
-        "default": 4096
-    },
-    "huggingface": {
-        "sentence-transformers/all-mpnet-base-v2": 768,
-        "sentence-transformers/all-MiniLM-L6-v2": 384,
-        "sentence-transformers/paraphrase-multilingual-mpnet-base-v2": 768,
-        "BAAI/bge-large-en-v1.5": 1024,
-        "BAAI/bge-base-en-v1.5": 768,
-        "BAAI/bge-small-en-v1.5": 384,
-        "BAAI/bge-large-zh-v1.5": 1024,
-        "BAAI/bge-base-zh-v1.5": 768,
-        "default": 768
-    },
-    "anthropic": {
-        "claude-3-embedding": 3072,
-        "claude-2-embedding": 1536,
-        "default": 3072
-    },
-    "google": {
-        "textembedding-gecko": 768,
-        "textembedding-gecko-multilingual": 768,
-        "text-embedding-004": 768,
-        "embedding-001": 768,
-        "default": 768
-    },
-    "local": {
-        "all-MiniLM-L6-v2": 384,
-        "all-mpnet-base-v2": 768,
-        "e5-large-v2": 1024,
-        "bge-large": 1024,
-        "bge-small": 384,
-        "nomic-embed-text": 768,
-        "gte-large": 1024,
-        "gte-small": 384,
-        "default": 768
-    },
-    "default": 1536
-}
-
 # Max Tokens per Chunk (for Embedding)
 MAX_TOKENS_PER_CHUNK = {
     "openai": {
