@@ -1,18 +1,22 @@
-from langchain_core.messages import SystemMessage, HumanMessage
+import logging
+
+from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
 
-from app.i18n.service import i18n
 from app.core.engine import repair_message_history
+from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
-from app.core.engine.message_utils import get_message_text
 from app.core.tools.executor import ToolExecutor
 from app.domain.planning.tools import (
     analyze_feasibility,
     create_plan,
     update_step_status,
 )
+from app.i18n.service import i18n
+
+logger = logging.getLogger(__name__)
 
 # --- Planner Prompt ---
 planner_prompt = ChatPromptTemplate.from_messages([
@@ -51,8 +55,6 @@ System Info: {system_info}
 
 
 async def planner_node(state: AgentState, config: RunnableConfig):
-    import logging
-    logger = logging.getLogger(__name__)
     llm = LLMFactory.create_llm(temperature=0.2)  # Low temp for standardized planning
 
     project_id = state.get("project_id", 1)
@@ -60,13 +62,13 @@ async def planner_node(state: AgentState, config: RunnableConfig):
     # 1. Access System Config / Context
     import os
 
-    from app.domain.system.service import SystemConfigService
+
     cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
-    user_lang = SystemConfigService.get_language_preference()
 
     # 4. Prepare Chain
     # Generate Project Structure dynamically
     from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+
     project_structure = "Tree not available"
     try:
         generator = AnnotatedTreeGenerator(cwd, max_depth=2, with_symbols=False, file_limit=20)
@@ -102,8 +104,8 @@ async def planner_node(state: AgentState, config: RunnableConfig):
         current_plan=current_plan_display,
         context={
             "project_structure": project_structure[:3000],
-            "past_experience": past_episodes
-        }
+            "past_experience": past_episodes,
+        },
     )
 
     system_msg = prompt_builder.build(config)
@@ -173,12 +175,11 @@ async def planner_node(state: AgentState, config: RunnableConfig):
                             # Content is JSON string from tool
                             state["structured_plan"] = str(content)
                             state["current_plan"] = PlanManager.format_plan_for_prompt(str(content))
-                        except:
+                        except Exception:
                             pass
                 else:
                     content = i18n.get("prompts.common.tool_not_found", name=tool_name)
 
-                from langchain_core.messages import ToolMessage
                 tool_msg = ToolMessage(content=str(content), tool_call_id=tool_call["id"], name=tool_name)
 
                 messages.append(tool_msg)
@@ -198,5 +199,5 @@ async def planner_node(state: AgentState, config: RunnableConfig):
         "messages": new_messages,
         "current_plan": state.get("current_plan"),
         "structured_plan": state.get("structured_plan"),
-        "next_node": "supervisor"
+        "next_node": "supervisor",
     }

@@ -1,10 +1,13 @@
 import functools
+import logging
 import os
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool as langchain_tool
 
 from app.logging import get_context
+
+logger = logging.getLogger(__name__)
 
 
 def get_working_directory(config: RunnableConfig | None = None) -> str:
@@ -30,12 +33,13 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
     # Default
     return os.getcwd()
 
+
 def evoloop_tool(func):
     """
     Decorator that applies standard EvoLoop tool behaviors:
     1. Wraps execution in a try/except block to return formatted error strings.
     2. (Implicitly) relies on `get_working_directory` being used inside.
-    
+
     Usage:
     @evoloop_tool
     def my_tool(args, config: RunnableConfig): ...
@@ -43,10 +47,10 @@ def evoloop_tool(func):
     import inspect
 
     if inspect.iscoroutinefunction(func):
+
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
             # Debug: Log raw inputs
-            from app.logging import logger
             logger.info(f"🔧 Tool [{func.__name__}] Invoked - Args: {args}, Kwargs: {kwargs}")
             try:
                 return await func(*args, **kwargs)
@@ -54,10 +58,10 @@ def evoloop_tool(func):
                 # Log error
                 return f"Error: {str(e)}"
     else:
+
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             # Debug: Log raw inputs
-            from app.logging import logger
             logger.info(f"🔧 Tool [{func.__name__}] Invoked - Args: {args}, Kwargs: {kwargs}")
             try:
                 return func(*args, **kwargs)
@@ -71,7 +75,7 @@ def evoloop_tool(func):
 
     # Apply LangChain's @tool
     tool_instance = langchain_tool(wrapper)
-    
+
     # Enable error handling to return validation errors as text to the Agent
     tool_instance.handle_tool_error = True
 

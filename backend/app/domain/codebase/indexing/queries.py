@@ -11,7 +11,7 @@ TREE_SITTER_QUERIES = {
         "imports": """
             (import_statement name: (dotted_name) @module) @import
             (import_from_statement module_name: (dotted_name) @module) @import
-        """
+        """,
     },
     "go": {
         "defs": """
@@ -20,7 +20,7 @@ TREE_SITTER_QUERIES = {
         """,
         "imports": """
             (import_spec path: (string_literal) @module) @import
-        """
+        """,
     },
     "java": {
         "defs": """
@@ -29,7 +29,7 @@ TREE_SITTER_QUERIES = {
         """,
         "imports": """
             (import_declaration name: (scoped_identifier) @module) @import
-        """
+        """,
     },
     "c_sharp": {
         "defs": """
@@ -39,7 +39,7 @@ TREE_SITTER_QUERIES = {
         "imports": """
             (using_directive name: (identifier) @module) @import
             (using_directive name: (qualified_name) @module) @import
-        """
+        """,
     },
     "javascript": {
         "defs": """
@@ -50,7 +50,7 @@ TREE_SITTER_QUERIES = {
         "imports": """
             (import_statement source: (string) @module) @import
             (call_expression function: (identifier) @func arguments: (arguments (string) @module) (#eq? @func "require")) @import
-        """
+        """,
     },
     "typescript": {
         "defs": """
@@ -61,7 +61,7 @@ TREE_SITTER_QUERIES = {
         """,
         "imports": """
             (import_statement source: (string) @module) @import
-        """
+        """,
     },
     "cpp": {
         "defs": """
@@ -71,7 +71,7 @@ TREE_SITTER_QUERIES = {
         "imports": """
             (preproc_include path: (string_literal) @module) @import
             (preproc_include path: (system_lib_string) @module) @import
-        """
+        """,
     },
     "rust": {
         "defs": """
@@ -80,7 +80,7 @@ TREE_SITTER_QUERIES = {
         """,
         "imports": """
             (use_declaration argument: (scoped_identifier) @module) @import
-        """
+        """,
     },
     "php": {
         "defs": """
@@ -90,7 +90,7 @@ TREE_SITTER_QUERIES = {
         "imports": """
             (include_expression (string) @module) @import
             (require_expression (string) @module) @import
-        """
+        """,
     },
     "ruby": {
         "defs": """
@@ -99,6 +99,6 @@ TREE_SITTER_QUERIES = {
         """,
         "imports": """
             (call method: (identifier) @method arguments: (argument_list (string) @module) (#match? @method "^(require|require_relative)$")) @import
-        """
-    }
+        """,
+    },
 }

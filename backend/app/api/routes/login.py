@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["login"])
 
+
 @router.post("/login/access-token")
 async def login_access_token(
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
@@ -31,6 +32,7 @@ async def login_access_token(
         async def event_router(etype, edata):
             if etype == "project_switch":
                 await handle_project_switch_event(edata)
+
         evocloud_client.set_event_handler(event_router)
 
         # 2. Login (This triggers device link start if successful)
@@ -44,7 +46,7 @@ async def login_access_token(
 
         token_str = result.get("token")
         if not token_str:
-             raise HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Token not found in response",
             )
@@ -54,8 +56,8 @@ async def login_access_token(
             redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
             async with redis_client:
                 await redis_client.set("evoloop:link:token", token_str)
-        except:
-             pass
+        except Exception:
+            pass
 
         return Token(access_token=token_str, token_type="bearer")
 

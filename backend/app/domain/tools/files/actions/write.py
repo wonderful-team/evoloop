@@ -6,7 +6,12 @@ from app.utils.file import write_file_contents as utils_write_file
 from .utils import resolve_and_validate_path
 
 
-async def handle_write(action: str, path: str, content: str | None = None, config: RunnableConfig | None = None) -> str:
+async def handle_write(
+    action: str,
+    path: str,
+    content: str | None = None,
+    config: RunnableConfig | None = None,
+) -> str:
     if content is None:
         return i18n.get("prompts.domain_tools.files.write_content_required", action=action)
 

@@ -1,3 +1,4 @@
+import logging
 
 from sqlalchemy import delete, select
 
@@ -5,7 +6,8 @@ from app.core.config import settings
 from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import Tool
-from app.logging import logger
+
+logger = logging.getLogger(__name__)
 
 
 class PGToolRetriever:
@@ -19,7 +21,7 @@ class PGToolRetriever:
             api_key=settings.OPENAI_API_KEY,
             base_url=settings.OPENAI_BASE_URL,
             model=settings.EMBEDDING_MODEL_NAME,
-            dimensions=settings.EMBEDDING_DIMENSIONS
+            dimensions=settings.EMBEDDING_DIMENSIONS,
         )
 
     async def index_tool(self, tool_name: str, description: str, signature: str, category: str = None):
@@ -51,7 +53,7 @@ class PGToolRetriever:
                     description=description,
                     signature=signature,
                     embedding=vector,
-                    category=category
+                    category=category,
                 )
                 session.add(new_tool)
 
@@ -88,6 +90,7 @@ class PGToolRetriever:
         async with session_scope() as session:
             await session.execute(delete(Tool))
             await session.commit()
+
 
 # Global Instance
 pg_tool_retriever = PGToolRetriever()

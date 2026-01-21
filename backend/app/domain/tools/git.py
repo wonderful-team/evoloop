@@ -1,11 +1,7 @@
-
-import os
-
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
 from app.core.tools import get_working_directory
-from app.logging import get_context
 from app.utils.git import git_command
 
 
@@ -18,12 +14,14 @@ def _run_git(args: list[str], config: RunnableConfig | None = None) -> str:
         return res.stdout
     return f"Git Error: {res.stderr}"
 
+
 @tool
 def git_status(config: RunnableConfig) -> str:
     """
     Get the current git status (branch, modified files).
     """
     return _run_git(["status"], config)
+
 
 @tool
 def git_diff(config: RunnableConfig) -> str:
@@ -33,11 +31,12 @@ def git_diff(config: RunnableConfig) -> str:
     """
     return _run_git(["diff"], config)
 
+
 @tool
 def git_commit(message: str, add_all: bool = True, config: RunnableConfig = None) -> str:
     """
     Commit changes to the repository.
-    
+
     Args:
         message: Commit message.
         add_all: If True (default), runs 'git add .' before committing.
@@ -45,9 +44,10 @@ def git_commit(message: str, add_all: bool = True, config: RunnableConfig = None
     if add_all:
         add_res = _run_git(["add", "."], config)
         if "Error" in add_res:
-             return f"Failed to add files: {add_res}"
+            return f"Failed to add files: {add_res}"
 
     return _run_git(["commit", "-m", message], config)
+
 
 @tool
 def git_history(limit: int = 5, config: RunnableConfig = None) -> str:

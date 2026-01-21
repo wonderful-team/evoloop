@@ -5,11 +5,11 @@ from langchain_core.tools import tool
 
 
 @tool
-def update_scratchpad(key: str, value: Any, config: RunnableConfig) -> str:
+def update_scratchpad(key: str, value: Any, _config: RunnableConfig) -> str:
     """
     Updates the agent's dynamic state (scratchpad) with a key-value pair.
     Useful for passing information between nodes or controlling flow (routers).
-    
+
     Args:
         key: The variable name to set (e.g., "complexity", "status").
         value: The value to assign (can be string, number, boolean, etc.).

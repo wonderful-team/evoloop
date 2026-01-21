@@ -2,7 +2,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.domain.memory.service import memory_service
-from app.logging import logger
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["memory"])
 
@@ -76,7 +77,8 @@ async def search_memory(project_id: int, q: str):
     """
     Search memory concepts.
     """
-    if not q: return []
+    if not q:
+        return []
     result = await memory_service.search_concepts_data(q, project_id)
     return result
 

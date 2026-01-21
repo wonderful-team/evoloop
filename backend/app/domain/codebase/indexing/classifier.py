@@ -19,15 +19,39 @@ class ProjectClassifier:
 
     SOFTWARE_INDICATORS = {
         # Files
-        "package.json", "go.mod", "pom.xml", "build.gradle", "requirements.txt",
-        "Cargo.toml", "Gemfile", "composer.json", "Makefile",
-        "tsconfig.json", "pyproject.toml",
+        "package.json",
+        "go.mod",
+        "pom.xml",
+        "build.gradle",
+        "requirements.txt",
+        "Cargo.toml",
+        "Gemfile",
+        "composer.json",
+        "Makefile",
+        "tsconfig.json",
+        "pyproject.toml",
         # Directories
-        "src", "app", "lib", "pkg", "cmd"
+        "src",
+        "app",
+        "lib",
+        "pkg",
+        "cmd",
     }
 
     CODE_EXTENSIONS = {
-        ".py", ".js", ".ts", ".go", ".java", ".cpp", ".c", ".h", ".rs", ".php", ".rb", ".kt", ".swift"
+        ".py",
+        ".js",
+        ".ts",
+        ".go",
+        ".java",
+        ".cpp",
+        ".c",
+        ".h",
+        ".rs",
+        ".php",
+        ".rb",
+        ".kt",
+        ".swift",
     }
 
     def classify(self, root_path: str) -> ProjectType:

@@ -6,10 +6,12 @@ from .algorithms import levenshtein
 SINGLE_CANDIDATE_SIMILARITY_THRESHOLD = 0.0
 MULTIPLE_CANDIDATES_SIMILARITY_THRESHOLD = 0.3
 
+
 def simple_replacer(content: str, find: str) -> Generator[str, None, None]:
     """Exact match replacer."""
     if find in content:
         yield find
+
 
 def line_trimmed_replacer(content: str, find: str) -> Generator[str, None, None]:
     """Matches content ignoring leading/trailing whitespace of each line."""
@@ -54,7 +56,7 @@ def line_trimmed_replacer(content: str, find: str) -> Generator[str, None, None]
             # If the last line of the match didn't have a newline in the original but splitlines added one implicitly?
             # splitlines(keepends=True) keeps the \n.
 
-            yield content[start_index:end_index].rstrip('\n') # Yield trim optional
+            yield content[start_index:end_index].rstrip("\n")  # Yield trim optional
 
 
 def block_anchor_replacer(content: str, find: str) -> Generator[str, None, None]:
@@ -88,7 +90,7 @@ def block_anchor_replacer(content: str, find: str) -> Generator[str, None, None]
         for j in range(i + 2, len(original_lines)):
             if original_lines[j].strip() == last_line_search:
                 candidates.append((i, j))
-                break # Only match first occurrences of end line for this start line
+                break  # Only match first occurrences of end line for this start line
 
     if not candidates:
         return
@@ -120,7 +122,7 @@ def block_anchor_replacer(content: str, find: str) -> Generator[str, None, None]
                     continue
 
                 distance = levenshtein(original_line, search_line)
-                current_similarity_sum += (1.0 - distance / max_len)
+                current_similarity_sum += 1.0 - distance / max_len
 
             similarity = current_similarity_sum / lines_to_check
         else:
@@ -132,7 +134,7 @@ def block_anchor_replacer(content: str, find: str) -> Generator[str, None, None]
                 best_match = (start_line, end_line)
                 break
         else:
-             if similarity > max_similarity:
+            if similarity > max_similarity:
                 max_similarity = similarity
                 best_match = (start_line, end_line)
 
@@ -142,13 +144,14 @@ def block_anchor_replacer(content: str, find: str) -> Generator[str, None, None]
         start_index = sum(len(lines_with_ends[k]) for k in range(start_line))
         end_index = start_index + sum(len(lines_with_ends[k]) for k in range(start_line, end_line + 1))
 
-        yield content[start_index:end_index].rstrip('\n')
+        yield content[start_index:end_index].rstrip("\n")
 
 
 def whitespace_normalized_replacer(content: str, find: str) -> Generator[str, None, None]:
     """Matches content treating all whitespace sequences as a single space."""
+
     def normalize_ws(text: str) -> str:
-        return ' '.join(text.split())
+        return " ".join(text.split())
 
     normalized_find = normalize_ws(find)
 
@@ -174,8 +177,7 @@ def whitespace_normalized_replacer(content: str, find: str) -> Generator[str, No
     for i in range(len(original_lines) - search_window_size + 1):
         window_block = "".join(lines_with_ends[i : i + search_window_size])
         if normalize_ws(window_block) == normalized_find:
-             yield window_block.rstrip('\n')
-
+            yield window_block.rstrip("\n")
 
 
 def trimmed_boundary_replacer(content: str, find: str) -> Generator[str, None, None]:
@@ -201,17 +203,18 @@ def trimmed_boundary_replacer(content: str, find: str) -> Generator[str, None, N
         block_lines = original_lines[i : i + search_len]
         block = "\n".join(block_lines)
         if block.strip() == trimmed_find:
-             # Reconstruct exact block from lines_with_ends
+            # Reconstruct exact block from lines_with_ends
             start_index = sum(len(lines_with_ends[k]) for k in range(i))
             end_index = start_index + sum(len(lines_with_ends[k]) for k in range(i, i + search_len))
-            yield content[start_index:end_index].rstrip('\n')
+            yield content[start_index:end_index].rstrip("\n")
 
 
 def escape_normalized_replacer(content: str, find: str) -> Generator[str, None, None]:
     """Matches content trying to unescape common sequences."""
+
     def unescape(s: str) -> str:
         # Simple unescape for common chars
-        return s.replace(r'\n', '\n').replace(r'\t', '\t').replace(r'\"', '"').replace(r"\'", "'")
+        return s.replace(r"\n", "\n").replace(r"\t", "\t").replace(r"\"", '"').replace(r"\'", "'")
 
     unescaped_find = unescape(find)
     if unescaped_find == find:
@@ -239,7 +242,6 @@ def context_aware_replacer(content: str, find: str) -> Generator[str, None, None
 
     original_lines = content.splitlines()
     lines_with_ends = content.splitlines(keepends=True)
-
 
     for i in range(len(original_lines)):
         if original_lines[i].strip() != first_line:
@@ -272,13 +274,14 @@ def context_aware_replacer(content: str, find: str) -> Generator[str, None, None
                     # Found match
                     start_index = sum(len(lines_with_ends[k]) for k in range(i))
                     end_index = start_index + sum(len(lines_with_ends[k]) for k in range(i, j + 1))
-                    yield content[start_index:end_index].rstrip('\n')
-                    if True: return # Only yield first match per logic
+                    yield content[start_index:end_index].rstrip("\n")
+                    if True:
+                        return  # Only yield first match per logic
 
 
 def indentation_flexible_replacer(content: str, find: str) -> Generator[str, None, None]:
     """
-    Matches block regardless of indentation level, effectively shifting 
+    Matches block regardless of indentation level, effectively shifting
     the search block to match the target's indentation.
     """
     find_lines = find.splitlines()
@@ -316,21 +319,21 @@ def indentation_flexible_replacer(content: str, find: str) -> Generator[str, Non
         # Calculate min indent of this candidate block
         non_empty_block = [line for line in block_lines if line.strip()]
         if not non_empty_block:
-             continue
+            continue
 
         min_block_indent = min(get_indent(line) for line in non_empty_block)
 
         # Create normalized candidate
         normalized_block_lines = []
         for line in block_lines:
-             if line.strip():
-                 # Handle case where line is shorter than min indent (shouldn't happen if min is correct)
-                 if len(line) >= min_block_indent:
-                     normalized_block_lines.append(line[min_block_indent:])
-                 else:
-                     normalized_block_lines.append(line)
-             else:
-                 normalized_block_lines.append(line)
+            if line.strip():
+                # Handle case where line is shorter than min indent (shouldn't happen if min is correct)
+                if len(line) >= min_block_indent:
+                    normalized_block_lines.append(line[min_block_indent:])
+                else:
+                    normalized_block_lines.append(line)
+            else:
+                normalized_block_lines.append(line)
 
         # Check match
         # We need strict match on normalized content
@@ -341,10 +344,10 @@ def indentation_flexible_replacer(content: str, find: str) -> Generator[str, Non
                 break
 
         if match:
-             # Found it! Yield the ORIGINAL block from content
+            # Found it! Yield the ORIGINAL block from content
             start_index = sum(len(lines_with_ends[k]) for k in range(i))
             end_index = start_index + sum(len(lines_with_ends[k]) for k in range(i, i + search_len))
-            yield content[start_index:end_index].rstrip('\n')
+            yield content[start_index:end_index].rstrip("\n")
 
 
 def multi_occurrence_replacer(content: str, find: str) -> Generator[str, None, None]:

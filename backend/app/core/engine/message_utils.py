@@ -4,7 +4,13 @@ Shared message utilities for agent nodes.
 Contains common functions for message processing, history repair, and extraction.
 """
 
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage, SystemMessage
+from langchain_core.messages import (
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
 
 from app.i18n.service import i18n
 
@@ -69,7 +75,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
             if repaired:
                 last = repaired[-1]
                 if isinstance(last, AIMessage) and last.tool_calls:
-                    ids = [tc['id'] for tc in last.tool_calls]
+                    ids = [tc["id"] for tc in last.tool_calls]
                     if msg.tool_call_id in ids:
                         is_orphaned = False
 
@@ -90,7 +96,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
         # 2. Strict Role Alternation (Merge consecutive same-role)
         if repaired:
             last = repaired[-1]
-            if type(last) == type(msg) and isinstance(msg, (HumanMessage, AIMessage)):
+            if type(last) is type(msg) and isinstance(msg, (HumanMessage, AIMessage)):
                 # Merge content
                 new_content = f"{last.content}\n\n{msg.content}"
                 # Update last message in place
@@ -128,11 +134,11 @@ def smart_window_slice(messages: list[BaseMessage], window_size: int = 30) -> li
     """
     Slice the message list to a window size, ensuring no (AI -> Tool) pair is split.
     If the window start falls on a ToolMessage, it backtracks to include the parent AIMessage.
-    
+
     Args:
         messages: Full list of messages.
         window_size: Desired window size.
-        
+
     Returns:
         Sliced list of messages.
     """

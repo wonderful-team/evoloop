@@ -3,45 +3,53 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from app.constants import BLACKLIST_DIRS
 from app.domain.project.service import project_context_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
 
+
 class FileNode(BaseModel):
-    name: str # display name
-    path: str # relative path to project root
-    type: str # 'file' or 'directory'
+    name: str  # display name
+    path: str  # relative path to project root
+    type: str  # 'file' or 'directory'
     children: list["FileNode"] | None = None
+
 
 @router.get("", response_model=list[FileNode])
 async def list_files(project_id: int, path: str | None = None):
     """
-    Get file tree for a project. 
+    Get file tree for a project.
     If path is None, returns root.
     Use path to traverse deeper (though UI might just want full tree?).
     Let's implement a recursive full tree for now (depth limited) or single level.
-    Given "IDE-like" request, single level with lazy load is safer for huge repos, 
-    but full tree is nicer for UX. 
+    Given "IDE-like" request, single level with lazy load is safer for huge repos,
+    but full tree is nicer for UX.
     Let's do full tree with .gitignore respect and max depth.
     """
     project = await project_context_manager.get_project_by_id(project_id)
     if not project:
-         raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Project not found")
 
     root_path = project.get("path")
     if not root_path or not os.path.exists(root_path):
-        raise HTTPException(status_code=404, detail=f"Project path not found locally: {root_path}")
+        raise HTTPException(
+            status_code=404, detail=f"Project path not found locally: {root_path}"
+        )
 
     # Simple recursive walker ignoring heavy dirs
-    from app.constants import BLACKLIST_DIRS
+    from app.constants import DEFAULT_EXCLUDED_DIRS
+
     # Combine with local ignores if needed, or just use global
-    IGNORE_DIRS = set(BLACKLIST_DIRS).union({'.idea', '.vscode', '.DS_Store', 'dist', 'build'})
+    # IGNORE_DIRS is now effectively DEFAULT_EXCLUDED_DIRS from constant
+
 
     def build_tree(current_path: str, rel_path: str = "") -> list[FileNode]:
         nodes = []
@@ -49,9 +57,10 @@ async def list_files(project_id: int, path: str | None = None):
             with os.scandir(current_path) as it:
                 entries = sorted(it, key=lambda e: (not e.is_dir(), e.name.lower()))
                 for entry in entries:
-                    if entry.name in IGNORE_DIRS:
+                    # Use central exclude list
+                    if entry.name in DEFAULT_EXCLUDED_DIRS:
                         continue
-                    if entry.name.startswith('.'): # Skip hidden files heavily? Maybe make optional.
+                    if entry.name.startswith("."):  # Skip hidden files heavily? Maybe make optional.
                         pass
 
                     node_rel_path = os.path.join(rel_path, entry.name)
@@ -59,7 +68,7 @@ async def list_files(project_id: int, path: str | None = None):
                     node = FileNode(
                         name=entry.name,
                         path=node_rel_path,
-                        type="directory" if entry.is_dir() else "file"
+                        type="directory" if entry.is_dir() else "file",
                     )
 
                     if entry.is_dir():
@@ -94,9 +103,11 @@ async def list_files(project_id: int, path: str | None = None):
 
     return build_tree(target_dir, path or "")
 
+
 class FileContent(BaseModel):
     content: str
     language: str
+
 
 @router.get("/content", response_model=FileContent)
 async def get_file_content(project_id: int, path: str = Query(..., min_length=1)):
@@ -105,13 +116,15 @@ async def get_file_content(project_id: int, path: str = Query(..., min_length=1)
     """
     project = await project_context_manager.get_project_by_id(project_id)
     if not project:
-         raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Project not found")
 
     root_path = project.get("path")
     if not root_path or not os.path.exists(root_path):
-        raise HTTPException(status_code=404, detail=f"Project path not found locally: {root_path}")
+        raise HTTPException(
+            status_code=404, detail=f"Project path not found locally: {root_path}"
+        )
 
-    target_file = os.path.join(root_path, path.lstrip('/'))
+    target_file = os.path.join(root_path, path.lstrip("/"))
 
     if not os.path.commonpath([root_path, target_file]) == root_path:
         raise HTTPException(403, "Access denied")
@@ -123,12 +136,13 @@ async def get_file_content(project_id: int, path: str = Query(..., min_length=1)
     ext = os.path.splitext(target_file)[1].lower()
 
     try:
-        with open(target_file, encoding='utf-8') as f:
+        with open(target_file, encoding="utf-8") as f:
             content = f.read()
-            return FileContent(content=content, language=ext.lstrip('.'))
+            return FileContent(content=content, language=ext.lstrip("."))
     except Exception as e:
         logger.error(f"Error reading file {target_file}: {e}")
         raise HTTPException(500, "Error reading file")
+
 
 @router.get("/raw")
 async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
@@ -137,13 +151,15 @@ async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
     """
     project = await project_context_manager.get_project_by_id(project_id)
     if not project:
-         raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Project not found")
 
     root_path = project.get("path")
     if not root_path or not os.path.exists(root_path):
-        raise HTTPException(status_code=404, detail=f"Project path not found locally: {root_path}")
+        raise HTTPException(
+            status_code=404, detail=f"Project path not found locally: {root_path}"
+        )
 
-    target_file = os.path.join(root_path, path.lstrip('/'))
+    target_file = os.path.join(root_path, path.lstrip("/"))
 
     if not os.path.commonpath([root_path, target_file]) == root_path:
         raise HTTPException(403, "Access denied")
@@ -153,8 +169,10 @@ async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
 
     return FileResponse(target_file)
 
+
 class OpenFileRequest(BaseModel):
     path: str
+
 
 @router.post("/open")
 async def open_file(project_id: int, req: OpenFileRequest):
@@ -163,13 +181,13 @@ async def open_file(project_id: int, req: OpenFileRequest):
     """
     project = await project_context_manager.get_project_by_id(project_id)
     if not project:
-         raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Project not found")
 
     root_path = project.get("path")
     if not root_path or not os.path.exists(root_path):
         raise HTTPException(status_code=404, detail="Project path invalid")
 
-    target_file = os.path.join(root_path, req.path.lstrip('/'))
+    target_file = os.path.join(root_path, req.path.lstrip("/"))
 
     # Security check
     if not os.path.commonpath([root_path, target_file]) == root_path:
@@ -190,9 +208,11 @@ async def open_file(project_id: int, req: OpenFileRequest):
         logger.error(f"Failed to open file {target_file}: {e}")
         raise HTTPException(500, f"Failed to open file: {str(e)}")
 
+
 class CreateFileRequest(BaseModel):
     path: str
     content: str
+
 
 @router.post("", response_model=FileNode)
 async def create_file(project_id: int, req: CreateFileRequest):
@@ -201,13 +221,13 @@ async def create_file(project_id: int, req: CreateFileRequest):
     """
     project = await project_context_manager.get_project_by_id(project_id)
     if not project:
-         raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Project not found")
 
     root_path = project.get("path")
     if not root_path or not os.path.exists(root_path):
         raise HTTPException(status_code=404, detail="Project path invalid")
 
-    target_file = os.path.join(root_path, req.path.lstrip('/'))
+    target_file = os.path.join(root_path, req.path.lstrip("/"))
 
     # Security check
     if not os.path.commonpath([root_path, target_file]) == root_path:
@@ -218,14 +238,11 @@ async def create_file(project_id: int, req: CreateFileRequest):
         with open(target_file, "w", encoding="utf-8") as f:
             f.write(req.content)
 
-        return FileNode(
-            name=os.path.basename(target_file),
-            path=req.path,
-            type="file"
-        )
+        return FileNode(name=os.path.basename(target_file), path=req.path, type="file")
     except Exception as e:
         logger.error(f"Failed to write file {target_file}: {e}")
         raise HTTPException(500, f"Failed to write file: {str(e)}")
+
 
 @router.post("/upload")
 async def upload_file(project_id: int, file: UploadFile = File(...)):
@@ -235,7 +252,7 @@ async def upload_file(project_id: int, file: UploadFile = File(...)):
     """
     project = await project_context_manager.get_project_by_id(project_id)
     if not project:
-         raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Project not found")
 
     root_path = project.get("path")
     if not root_path or not os.path.exists(root_path):
@@ -254,13 +271,12 @@ async def upload_file(project_id: int, file: UploadFile = File(...)):
     # Simple dedupe
     if os.path.exists(target_path):
         base, ext = os.path.splitext(filename)
-        import time
         filename = f"{base}_{int(time.time())}{ext}"
         target_path = os.path.join(upload_dir, filename)
 
     try:
         with open(target_path, "wb") as buffer:
-             shutil.copyfileobj(file.file, buffer)
+            shutil.copyfileobj(file.file, buffer)
 
         # Return URL.
         # API URL structure: /api/projects/{id}/files/raw?path=uploads/{filename}
@@ -284,6 +300,7 @@ async def upload_file(project_id: int, file: UploadFile = File(...)):
         logger.error(f"Failed to upload file {target_path}: {e}")
         raise HTTPException(500, f"Failed to upload file: {str(e)}")
 
+
 @router.get("/search", response_model=list[dict])
 async def search_files(project_id: int, q: str):
     """
@@ -294,7 +311,7 @@ async def search_files(project_id: int, q: str):
 
     project = await project_context_manager.get_project_by_id(project_id)
     if not project:
-         raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Project not found")
 
     root_path = project.get("path")
     if not root_path or not os.path.exists(root_path):
@@ -310,20 +327,24 @@ async def search_files(project_id: int, q: str):
         # --exclude-dir: ignore common junk
         from app.utils.process import run_async_command
 
+        from app.constants import DEFAULT_EXCLUDED_DIRS
+
+        excludes = [f"--exclude-dir={d}" for d in DEFAULT_EXCLUDED_DIRS]
+        
         cmd = [
             "grep", "-r", "-i", "-n", "-I",
-            "--exclude-dir={.git,.venv,node_modules,__pycache__,dist,build,.evoloop}",
+            *excludes,
             q,
-            root_path
+            root_path,
         ]
 
         # run_async_command
         result = await run_async_command(cmd)
-        stdout, stderr = result.stdout, result.stderr
+        stdout, _stderr = result.stdout, result.stderr
 
         if stdout:
             lines = stdout.splitlines()
-            for line in lines[:50]: # Limit to 50 hits
+            for line in lines[:50]:  # Limit to 50 hits
                 try:
                     # Grep output format: filename:line:content
                     # But filepath is absolute or relative depending on grep.
@@ -338,15 +359,15 @@ async def search_files(project_id: int, q: str):
                         if os.path.isabs(file_path_part):
                             rel_path = os.path.relpath(file_path_part, root_path)
                         else:
-                             # If grep was run on directory, it outputs dir/file
-                             # We passed root_path as argument.
-                             # If root_path is absolute, output is absolute.
-                             rel_path = os.path.relpath(file_path_part, root_path)
+                            # If grep was run on directory, it outputs dir/file
+                            # We passed root_path as argument.
+                            # If root_path is absolute, output is absolute.
+                            rel_path = os.path.relpath(file_path_part, root_path)
 
                         results.append({
                             "file": rel_path,
                             "line": int(line_num),
-                            "content": content.strip()[:200]
+                            "content": content.strip()[:200],
                         })
                 except Exception:
                     continue
@@ -355,6 +376,7 @@ async def search_files(project_id: int, q: str):
         logger.error(f"Search failed: {e}")
 
     return results
+
 
 @router.get("/search_name", response_model=list[dict])
 async def search_files_by_name(project_id: int, q: str):
@@ -367,7 +389,7 @@ async def search_files_by_name(project_id: int, q: str):
 
     project = await project_context_manager.get_project_by_id(project_id)
     if not project:
-         raise HTTPException(status_code=404, detail="Project not found")
+        raise HTTPException(status_code=404, detail="Project not found")
 
     root_path = project.get("path")
     if not root_path or not os.path.exists(root_path):
@@ -376,51 +398,51 @@ async def search_files_by_name(project_id: int, q: str):
     results = []
     try:
         # Use find or fd to search filenames
-        from app.utils.process import run_async_command
-        
+
         # Using 'find' for portability, though 'fd' is better if installed.
         # Let's stick to standard find or simple python walk if not too big.
         # Python walk is safer for no-dependency.
-        
+
         # Simple Python walk for now (safer than shell injection risks with find if not careful)
-        # But for large repos, walk is slow? 
-        # Actually for 10k files python walk is instant (ms). 
+        # But for large repos, walk is slow?
+        # Actually for 10k files python walk is instant (ms).
         # 100k files might take 1s.
+
+        from app.constants import DEFAULT_EXCLUDED_DIRS
         
         q_lower = q.lower()
         count = 0
-        from app.constants import BLACKLIST_DIRS
-        IGNORE_DIRS = set(BLACKLIST_DIRS).union({'.idea', '.vscode', '.DS_Store', 'dist', 'build', '.git', '__pycache__', 'node_modules'})
+        # Use standard excludes
+        IGNORE_DIRS = set(DEFAULT_EXCLUDED_DIRS).union({
+            ".idea",
+            ".vscode",
+            ".DS_Store",
+            # Add any other specific files not in default if necessary
+        })
 
         for root, dirs, files in os.walk(root_path):
             # Prune ignored dirs
-            dirs[:] = [d for d in dirs if d not in IGNORE_DIRS and not d.startswith('.')]
-            
+            dirs[:] = [
+                d for d in dirs if d not in IGNORE_DIRS and not d.startswith(".")
+            ]
+
             for file in files:
                 if q_lower in file.lower():
                     # Match!
                     full_path = os.path.join(root, file)
                     rel_path = os.path.relpath(full_path, root_path)
-                    
-                    results.append({
-                        "name": file,
-                        "path": rel_path,
-                        "type": "file"
-                    })
+
+                    results.append({"name": file, "path": rel_path, "type": "file"})
                     count += 1
-                    if count >= 20: # Limit results
+                    if count >= 20:  # Limit results
                         return results
-            
+
             # Also match directories?
             for d in dirs:
-                 if q_lower in d.lower():
+                if q_lower in d.lower():
                     full_path = os.path.join(root, d)
                     rel_path = os.path.relpath(full_path, root_path)
-                    results.append({
-                        "name": d,
-                        "path": rel_path,
-                        "type": "directory"
-                    })
+                    results.append({"name": d, "path": rel_path, "type": "directory"})
                     count += 1
                     if count >= 20:
                         return results

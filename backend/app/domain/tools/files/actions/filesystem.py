@@ -4,18 +4,18 @@ from typing import Literal
 
 from langchain_core.runnables import RunnableConfig
 
-from app.i18n.service import i18n
 from app.core.tools import get_working_directory
+from app.i18n.service import i18n
 from app.utils.file import resolve_path
 
 from .utils import resolve_and_validate_path
 
 
 async def handle_filesystem(
-    action: Literal['delete', 'move', 'create_directory'],
+    action: Literal["delete", "move", "create_directory"],
     path: str,
-    content: str | None = None, # Used as destination for move
-    config: RunnableConfig | None = None
+    content: str | None = None,  # Used as destination for move
+    config: RunnableConfig | None = None,
 ) -> str:
     root = get_working_directory(config)
 
@@ -24,14 +24,14 @@ async def handle_filesystem(
     except ValueError as e:
         return str(e)
 
-    if action == 'create_directory':
+    if action == "create_directory":
         try:
             os.makedirs(target_path, exist_ok=True)
             return i18n.get("prompts.domain_tools.files.fs_create_dir_success", path=path)
         except Exception as e:
             return i18n.get("prompts.domain_tools.files.fs_create_dir_error", error=str(e))
 
-    elif action == 'delete':
+    elif action == "delete":
         if not os.path.exists(target_path):
             return i18n.get("prompts.domain_tools.files.fs_not_found", path=path)
         try:
@@ -44,7 +44,7 @@ async def handle_filesystem(
         except Exception as e:
             return i18n.get("prompts.domain_tools.files.fs_delete_error", error=str(e))
 
-    elif action == 'move':
+    elif action == "move":
         # content is treated as destination path here
         if not content:
             return i18n.get("prompts.domain_tools.files.fs_move_content_required")

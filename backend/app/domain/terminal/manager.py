@@ -12,11 +12,12 @@ class TerminalManager:
     Manages a persistent shell session context (CWD + Env).
     Does NOT use PTY for now (to avoid WebSocket complexity), but emulates statefulness.
     """
+
     _instance = None
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(TerminalManager, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance.cwd = os.getcwd()
             cls._instance.env = os.environ.copy()
             # Default to reasonable path
@@ -49,7 +50,7 @@ class TerminalManager:
                 shell=True,
                 capture_output=True,
                 text=True,
-                timeout=timeout
+                timeout=timeout,
             )
 
             stdout = process.stdout

@@ -5,9 +5,8 @@ from langchain_core.runnables import RunnableConfig
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
-from app.logging import logger
-
-logger = logger.getChild("meta_reviewer")
+import logging
+logger = logging.getLogger(__name__)
 
 
 async def meta_reviewer_node(state: AgentState, config: RunnableConfig):
@@ -39,12 +38,13 @@ async def meta_reviewer_node(state: AgentState, config: RunnableConfig):
         tree_context = f"Error fetching architecture: {e}"
 
     from app.core.prompts.meta_reviewer_builder import MetaReviewerPromptBuilder
+
     system_prompt_str = MetaReviewerPromptBuilder.build_system_prompt(
         project_id=project_id,
         plan=plan,
         test_results=test_results,
         iteration_count=iteration_count,
-        tree=tree_context
+        tree=tree_context,
     )
 
     reviewer_prompt = ChatPromptTemplate.from_template(system_prompt_str)

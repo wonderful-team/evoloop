@@ -30,5 +30,5 @@ class EvolutionConfigService:
         SystemConfigService.set_value(
             EvolutionConfigService.KEY,
             "true" if enabled else "false",
-            description="Runtime switch for Self-Evolution Loop"
+            description="Runtime switch for Self-Evolution Loop",
         )

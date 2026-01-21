@@ -15,13 +15,14 @@ class ProjectContextManager:
     This allows the server to support multiple active projects simultaneously.
     Integrates with EvoCloud API for project discovery.
     """
+
     _instance = None
     _lock = Lock()
 
     def __new__(cls):
         with cls._lock:
             if cls._instance is None:
-                cls._instance = super(ProjectContextManager, cls).__new__(cls)
+                cls._instance = super().__new__(cls)
                 cls._instance._initialized = False
             return cls._instance
 
@@ -32,7 +33,7 @@ class ProjectContextManager:
         self._initialized = True
         # Mapping: thread_id -> working_directory path
         self._thread_contexts: dict[str, str] = {}
-        self._thread_projects: dict[str, int] = {} # thread_id -> project_id
+        self._thread_projects: dict[str, int] = {}  # thread_id -> project_id
         # Default fallback directory (from Settings/DB)
         db_root = SystemConfigService.get_value("PROJECTS_ROOT")
         self._default_root = os.path.abspath(db_root if db_root else settings.PROJECTS_ROOT)
@@ -41,8 +42,8 @@ class ProjectContextManager:
     def set_working_directory(self, thread_id: str, path: str):
         """Set the working directory for a specific thread."""
         if not path:
-             logger.warning(f"Attempted to set empty path for thread {thread_id}")
-             return
+            logger.warning(f"Attempted to set empty path for thread {thread_id}")
+            return
 
         # With API-driven projects, the path might be on a remote server (conceptually)
         # But for EvoLoop to work, it must be mounted/present locally at 'path'.
@@ -119,7 +120,6 @@ class ProjectContextManager:
 
             return projects
 
-
         except Exception as e:
             logger.error(f"scan_projects failed: {e}")
             return []
@@ -131,6 +131,7 @@ class ProjectContextManager:
             if p.get("id") == project_id:
                 return p
         return None
+
 
 # Global instance
 project_context_manager = ProjectContextManager()

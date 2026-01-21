@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -24,11 +25,12 @@ from app.domain.project.summarizer import project_summarizer
 from app.domain.watchers import ProjectDiscoveryWatcher
 from app.infrastructure.database.sql.database import Base, engine
 from app.infrastructure.mcp.client import mcp_client_manager
-from app.logging import logger
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI):
     # --- Startup ---
     logger.info("Initializing EvoLoop resources...")
 
@@ -40,11 +42,13 @@ async def lifespan(app: FastAPI):
     # 1.5 Seed Initial Data (System Config)
     # This runs sychronously, so we offload to thread
     from app.initial_data import init as init_data
+
     await asyncio.to_thread(init_data)
 
     # 2. Graph/Memory Init
     try:
         from app.domain.memory.service import memory_service
+
         await memory_service.initialize_schema()
         logger.info("Memory Service schema initialized.")
     except Exception as e:
@@ -107,19 +111,20 @@ async def lifespan(app: FastAPI):
             # Catch up on offline changes (creates, deletes)
             try:
                 from app.domain.project.sync_service import project_sync_service
+
                 # Run reconciliation in background to not block startup significantly,
                 # or await it if critical? Await is safer to ensure state consistency before accepting requests.
                 # However, for large folders, it might be slow.
-                # Given "Local-First" robustness, we can update state asynchronously.
                 # But let's await it for V1 safety.
-                print(f"DEBUG: Triggering reconcile_projects on {root_projects_dir}")
+                logger.debug(f"DEBUG: Triggering reconcile_projects on {root_projects_dir}")
                 await project_sync_service.reconcile_projects(root_projects_dir)
             except Exception as e:
                 logger.error(f"Startup Reconciliation failed: {e}")
-                print(f"DEBUG: Startup Reconciliation failed: {e}")
+                logger.debug(f"DEBUG: Startup Reconciliation failed: {e}")
 
         if default_path and os.path.exists(default_path) and not is_root_dir:
             from app.domain.codebase.indexing.service import IndexingService
+
             service = IndexingService()
             repo_name = os.path.basename(default_path)
             repo = await service.get_or_create_repo(default_path, repo_name)
@@ -157,6 +162,7 @@ async def lifespan(app: FastAPI):
     if not evoloop_token:
         try:
             import redis.asyncio as redis
+
             redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
             async with redis_client:
                 evoloop_token = await redis_client.get("evoloop:link:token")
@@ -193,6 +199,7 @@ async def lifespan(app: FastAPI):
                         project_id = project_data.get("project_id")
 
                         from app.domain.codebase.indexing.service import IndexingService
+
                         service = IndexingService()
                         repo_name = os.path.basename(cloud_path)
                         repo = await service.get_or_create_repo(cloud_path, repo_name, project_id=project_id)
@@ -221,6 +228,7 @@ async def lifespan(app: FastAPI):
     # Stop EvoLoop Link
     try:
         from app.infrastructure.external.evocloud import evocloud_client
+
         await evocloud_client.stop_device_link()
     except Exception as e:
         logger.warning(f"Failed to stop EvoLoop Link: {e}")
@@ -241,7 +249,7 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     generate_unique_id_function=custom_generate_unique_id,
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # Set all CORS enabled origins

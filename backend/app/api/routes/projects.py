@@ -3,34 +3,40 @@ import os
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.core.config import settings
 from app.api.deps import TokenDep
+from app.core.config import settings
+from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.project.service import project_context_manager
 from app.infrastructure.external.evocloud import evocloud_client
-from app.domain.codebase.indexing.manager import indexing_manager
-from app.logging import logger
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["projects"])
 
+
 class IndexingRequest(BaseModel):
     project_id: int
+
 
 class CreateProjectRequest(BaseModel):
     name: str
     description: str = ""
     path: str
 
+
 class UpdateProjectRequest(BaseModel):
     name: str | None = None
     description: str | None = None
     path: str | None = None
 
+
 @router.get("/")
-async def get_projects(page: int = 1, page_size: int = 100, token: TokenDep = None):
+async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDep = None):
     return await evocloud_client.get_projects(page, page_size)
 
+
 @router.get("/current")
-async def get_current_project(token: TokenDep):
+async def get_current_project(_token: TokenDep):
     """
     Get current project from Cloud (User's focus on Web/Mobile).
     Also returns Local Focus if configured.
@@ -40,8 +46,9 @@ async def get_current_project(token: TokenDep):
     # ...
     return cloud_res
 
+
 @router.post("/")
-async def create_project(req: CreateProjectRequest, token: TokenDep):
+async def create_project(req: CreateProjectRequest, _token: TokenDep):
     """Create a new project directory and sync to Member Center."""
     root_dir = settings.PROJECTS_ROOT
     if not root_dir:
@@ -57,12 +64,12 @@ async def create_project(req: CreateProjectRequest, token: TokenDep):
         meta_dir = os.path.join(project_path, ".evoloop")
         os.makedirs(meta_dir, exist_ok=True)
         with open(os.path.join(meta_dir, "project.json"), "w") as f:
-            f.write(f'{{"name": "{req.name}", "description": "Created via EvoLoop V3"}}')
+            f.write(f'{{"name": "{req.name}", "description": "Created via EvoLoop"}}')
 
         # Sync with Member Center
-        res = await evocloud_client.create_project(req.name, "Created via EvoLoop V3", project_path)
+        res = await evocloud_client.create_project(req.name, "Created via EvoLoop", project_path)
         if res.get("code") != 0:
-             logger.warning(f"Failed to sync project creation to Member Center: {res}")
+            logger.warning(f"Failed to sync project creation to Member Center: {res}")
 
         # Re-scan to get ID/Color
         projects = await project_context_manager.scan_projects()
@@ -71,6 +78,7 @@ async def create_project(req: CreateProjectRequest, token: TokenDep):
     except Exception as e:
         logger.error(f"Failed to create project: {e}")
         raise HTTPException(500, str(e))
+
 
 @router.get("/{project_id}/status")
 async def get_project_status(project_id: int):
@@ -85,10 +93,8 @@ async def get_project_status(project_id: int):
     indexing = await activity_monitor.get_activity(indexing_key)
     summarization = await activity_monitor.get_activity(summarization_key)
 
-    return {
-        "indexing": indexing,
-        "summarization": summarization
-    }
+    return {"indexing": indexing, "summarization": summarization}
+
 
 @router.delete("/{project_id}")
 async def delete_project(project_id: int):
@@ -96,12 +102,13 @@ async def delete_project(project_id: int):
     try:
         res = await evocloud_client.delete_project(project_id)
         if res.get("code") == 0:
-             return {"status": "success", "id": project_id}
+            return {"status": "success", "id": project_id}
         else:
-             raise HTTPException(500, f"Failed to delete project: {res.get('message')}")
+            raise HTTPException(500, f"Failed to delete project: {res.get('message')}")
     except Exception as e:
         logger.error(f"Failed to delete project: {e}")
         raise HTTPException(500, str(e))
+
 
 @router.post("/indexing/run")
 async def run_indexing_endpoint(req: IndexingRequest):

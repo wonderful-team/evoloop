@@ -1,5 +1,6 @@
 import importlib
 import logging
+from functools import partial
 from typing import Any
 
 import yaml
@@ -8,6 +9,7 @@ from langgraph.graph import END, StateGraph
 from app.core.engine.schema import AgentConfig
 
 logger = logging.getLogger(__name__)
+
 
 class GraphBuilder:
     """
@@ -60,18 +62,16 @@ class GraphBuilder:
                 node_func = compiled_subgraph
 
             elif node.path == "app.core.engine.nodes.generic.GenericLLMNode" or getattr(node, "type", "") == "generic":
-                 # Universal Agent: "No-Code" Node
-                 # We import the generic handler and bind the specific config from YAML
-                 from functools import partial
+                # Universal Agent: "No-Code" Node
+                # We import the generic handler and bind the specific config from YAML
+                from app.core.engine.nodes.generic import generic_node
 
-                 from app.core.engine.nodes.generic import generic_node
+                logger.info(f"Hydrating Generic Node: {node.id} with config keys: {list(node.config.keys())}")
+                # Partial binding: node_config is passed as a keyword argument
+                node_func = partial(generic_node, node_config=node.config)
 
-                 logger.info(f"Hydrating Generic Node: {node.id} with config keys: {list(node.config.keys())}")
-                 # Partial binding: node_config is passed as a keyword argument
-                 node_func = partial(generic_node, node_config=node.config)
-
-                 # Set metadata to look like a real function for LangGraph inspection if needed
-                 node_func.__name__ = node.id
+                # Set metadata to look like a real function for LangGraph inspection if needed
+                node_func.__name__ = node.id
             else:
                 # Legacy: Dynamic Import of Python Function
                 node_func = self._import_obj(node.path)
@@ -84,31 +84,30 @@ class GraphBuilder:
                 logger.info(f"Adding Edge: {edge.from_node} -> {edge.to_node}")
                 src = edge.from_node
                 dst = edge.to_node
-                if dst == "END": dst = END
+                if dst == "END":
+                    dst = END
                 workflow.add_edge(src, dst)
 
             elif edge.type == "conditional":
                 logger.info(f"Adding Conditional Edge from {edge.from_node}")
 
                 if edge.conditions:
-                     # New: Expression Router
-                     from app.core.engine.routers import make_expression_router
-                     router_func = make_expression_router(edge.conditions, edge.default)
+                    # New: Expression Router
+                    from app.core.engine.routers import make_expression_router
 
-                     # Construct mapping automatically from conditions
-                     mapping = {c["to"]: c["to"] for c in edge.conditions}
-                     if edge.default:
-                         mapping[edge.default] = edge.default
+                    router_func = make_expression_router(edge.conditions, edge.default)
 
-                     # Handle END
-                     for k, v in mapping.items():
-                         if v == "END": mapping[k] = END
+                    # Construct mapping automatically from conditions
+                    mapping = {c["to"]: c["to"] for c in edge.conditions}
+                    if edge.default:
+                        mapping[edge.default] = edge.default
 
-                     workflow.add_conditional_edges(
-                        edge.from_node,
-                        router_func,
-                        mapping
-                    )
+                    # Handle END
+                    for k, v in mapping.items():
+                        if v == "END":
+                            mapping[k] = END
+
+                    workflow.add_conditional_edges(edge.from_node, router_func, mapping)
                 else:
                     # Legacy: Python Router Function
                     router_func = self._import_obj(edge.router)
@@ -116,13 +115,10 @@ class GraphBuilder:
 
                     # Resolving END mapping
                     for k, v in mapping.items():
-                        if v == "END": mapping[k] = END
+                        if v == "END":
+                            mapping[k] = END
 
-                    workflow.add_conditional_edges(
-                        edge.from_node,
-                        router_func,
-                        mapping
-                    )
+                    workflow.add_conditional_edges(edge.from_node, router_func, mapping)
 
         # 5. Set Entry Point
         # Heuristic: The first node defined is usually the entry point?
@@ -137,5 +133,5 @@ class GraphBuilder:
         return workflow.compile(
             checkpointer=checkpointer,
             interrupt_before=agent_config.interrupt_before or None,
-            interrupt_after=agent_config.interrupt_after or None
+            interrupt_after=agent_config.interrupt_after or None,
         )

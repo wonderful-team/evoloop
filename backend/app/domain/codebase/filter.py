@@ -50,20 +50,24 @@ class FileFilter:
                 else:
                     logging.error("Unrecognized key in line: %s, skipping.", line)
             except ValueError:
-                pass # Skip malformed lines
+                pass  # Skip malformed lines
 
         return parsed_data
 
-    def should_include(self, file_path: str, inclusions: dict | None = None,
-                       exclusions: dict | None = None) -> bool:
+    def should_include(
+        self,
+        file_path: str,
+        inclusions: dict | None = None,
+        exclusions: dict | None = None,
+    ) -> bool:
         """
         Check if a file should be included, using multi-dimensional checks for compression and encryption.
-        
+
         Args:
             file_path: File path
             inclusions: Inclusion rules
             exclusions: Exclusion rules
-            
+
         Returns:
             True if file should be included, False otherwise.
         """
@@ -87,7 +91,7 @@ class FileFilter:
             result = is_text_file(file_path) and not is_encrypted_path(file_path)
             # Add compression check here as well for default behavior
             if result:
-                 result = not self._is_likely_compressed_file(file_path)
+                result = not self._is_likely_compressed_file(file_path)
 
             self._file_inclusion_cache[cache_key] = result
             return result
@@ -159,7 +163,7 @@ class FileFilter:
                 return True
 
         # Valid extensions for content check
-        if file_path.endswith(('.js', '.css', '.html')):
+        if file_path.endswith((".js", ".css", ".html")):
             return self._is_compressed_content(file_path)
 
         return False
@@ -167,13 +171,13 @@ class FileFilter:
     def _check_compressed_content_sample(self, file_path: str) -> bool:
         """Simple sample check for compressed content."""
         try:
-            with open(file_path, encoding='utf-8', errors='ignore') as f:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
                 sample = f.read(1000)
 
             if not sample:
                 return False
 
-            lines = sample.split('\n')
+            lines = sample.split("\n")
 
             # 1. Single long line
             if len(lines) > 0 and len(lines[0]) > 500:
@@ -189,28 +193,28 @@ class FileFilter:
                 return True
 
             return False
-        except:
+        except Exception:
             return False
 
     def _is_compressed_content(self, file_path: str) -> bool:
         """Detailed content analysis to identify compressed/obfuscated code."""
         try:
             sample_size = CODE_QUALITY_THRESHOLDS["sample_size"]
-            with open(file_path, encoding='utf-8', errors='ignore') as f:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
                 content = f.read(sample_size)
 
             if not content:
                 return False
 
             # 1. Line length
-            lines = content.split('\n')
+            lines = content.split("\n")
             if lines:
                 max_line_length = max(len(line) for line in lines)
                 if max_line_length > CODE_QUALITY_THRESHOLDS["max_line_length"]:
                     return True
 
             # 2. Newline ratio
-            newline_ratio = content.count('\n') / max(len(content), 1)
+            newline_ratio = content.count("\n") / max(len(content), 1)
             if newline_ratio < CODE_QUALITY_THRESHOLDS["min_newline_ratio"] and len(content) > 1000:
                 return True
 
@@ -221,8 +225,8 @@ class FileFilter:
                 return True
 
             # 4. Semicolon density (for JS)
-            if file_path.endswith('.js'):
-                semicolon_ratio = content.count(';') / max(len(content), 1)
+            if file_path.endswith(".js"):
+                semicolon_ratio = content.count(";") / max(len(content), 1)
                 if semicolon_ratio > CODE_QUALITY_THRESHOLDS["max_semicolon_ratio"]:
                     return True
 
@@ -237,9 +241,9 @@ class FileFilter:
                 return True
 
             # 6. Variable Name Analysis (Short vars)
-            if file_path.endswith(('.js', '.ts')):
-                short_vars = len(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]?\b', content))
-                total_words = len(re.findall(r'\b[a-zA-Z_][a-zA-Z0-9_]*\b', content))
+            if file_path.endswith((".js", ".ts")):
+                short_vars = len(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]?\b", content))
+                total_words = len(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", content))
 
                 if total_words > 50 and short_vars / max(total_words, 1) > 0.7:
                     return True

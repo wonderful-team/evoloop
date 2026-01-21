@@ -9,6 +9,7 @@ from app.core.engine.state import AgentState
 
 logger = logging.getLogger(__name__)
 
+
 class ContextInjector:
     """
     Middleware Component that resolves and injects context dependencies.
@@ -22,13 +23,14 @@ class ContextInjector:
         This isolates the Node from the complexity of fetching data (DB calls, API calls, File IO).
         """
         context = {}
-        project_id = state.get("project_id", 1) # Default to 1 if missing
+        project_id = state.get("project_id", 1)  # Default to 1 if missing
 
         for key in injectables:
             try:
                 if key == "memory":
                     # Lazy Import to avoid circular deps
                     from app.domain.memory.service import MemoryService
+
                     # Fetch concepts from Long-Term Memory (Knowledge Graph / Vector DB)
                     # We assume we want ALL concepts for the project for now,
                     # or perhaps context-relevant ones if 'context.snippets' exists.
@@ -63,15 +65,17 @@ class ContextInjector:
 
         return context
 
+
 def context_aware(inject: list[str]):
     """
     Decorator for LangGraph Nodes.
-    
+
     Usage:
         @context_aware(inject=["memory", "files"])
         async def my_node(state, config, context):
             ...
     """
+
     def decorator(func: Callable):
         @functools.wraps(func)
         async def wrapper(state: AgentState, config: RunnableConfig, **kwargs):
@@ -84,5 +88,7 @@ def context_aware(inject: list[str]):
             # But we control the nodes. We will standardize them to accept `context`.
 
             return await func(state, config, context=context_data, **kwargs)
+
         return wrapper
+
     return decorator

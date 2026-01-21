@@ -25,14 +25,17 @@ class VisionLLMFactory:
     # Known vision-capable models
     VISION_MODELS = {
         "openai": ["gpt-4o", "gpt-4-turbo", "gpt-4-vision-preview", "gpt-4o-mini"],
-        "anthropic": ["claude-3-opus", "claude-3-sonnet", "claude-3-haiku", "claude-3-5-sonnet"],
+        "anthropic": [
+            "claude-3-opus",
+            "claude-3-sonnet",
+            "claude-3-haiku",
+            "claude-3-5-sonnet",
+        ],
     }
 
     @staticmethod
     def create_vision_llm(
-        model_name: str | None = None,
-        temperature: float = 0.3,
-        max_tokens: int = 4096
+        model_name: str | None = None, temperature: float = 0.3, max_tokens: int = 4096
     ) -> BaseChatModel:
         """
         Create a Vision-capable LLM instance.
@@ -61,7 +64,7 @@ class VisionLLMFactory:
             model=final_model,
             temperature=temperature,
             max_tokens=max_tokens,
-            streaming=False
+            streaming=False,
         )
 
     @staticmethod
@@ -89,16 +92,15 @@ class VisionLLMFactory:
 
     @staticmethod
     def create_image_message(
-        image_path: str,
-        prompt: str = "Describe this image in detail."
+        image_path: str, prompt: str = "Describe this image in detail."
     ) -> HumanMessage:
         """
         Create a HumanMessage with image content for Vision LLM.
-        
+
         Args:
             image_path: Path to the image file
             prompt: Text prompt to accompany the image
-            
+
         Returns:
             HumanMessage with multimodal content
         """
@@ -111,31 +113,20 @@ class VisionLLMFactory:
 
         return HumanMessage(
             content=[
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": image_url
-                    }
-                },
-                {
-                    "type": "text",
-                    "text": prompt
-                }
+                {"type": "image_url", "image_url": {"url": image_url}},
+                {"type": "text", "text": prompt},
             ]
         )
 
     @staticmethod
-    def create_multi_image_message(
-        image_paths: list[str],
-        prompt: str
-    ) -> HumanMessage:
+    def create_multi_image_message(image_paths: list[str], prompt: str) -> HumanMessage:
         """
         Create a HumanMessage with multiple images for comparison/analysis.
-        
+
         Args:
             image_paths: List of paths to image files
             prompt: Text prompt for multi-image analysis
-            
+
         Returns:
             HumanMessage with multimodal content
         """
@@ -144,17 +135,14 @@ class VisionLLMFactory:
         for path in image_paths:
             base64_image = VisionLLMFactory.encode_image(path)
             media_type = VisionLLMFactory.get_image_media_type(path)
-            content.append({
-                "type": "image_url",
-                "image_url": {
-                    "url": f"data:{media_type};base64,{base64_image}"
+            content.append(
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:{media_type};base64,{base64_image}"},
                 }
-            })
+            )
 
-        content.append({
-            "type": "text",
-            "text": prompt
-        })
+        content.append({"type": "text", "text": prompt})
 
         return HumanMessage(content=content)
 

@@ -104,8 +104,8 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
     """
     # Imports inside to avoid circular dependencies during initial load
     from app.infrastructure.database.sql.database import session_scope
-    from app.infrastructure.database.sql.models.planning import Plan as DBPlan, PlanStep as DBPlanStep
-    from app.infrastructure.database.sql.models import Conversation
+    from app.infrastructure.database.sql.models.planning import Plan as DBPlan
+    from app.infrastructure.database.sql.models.planning import PlanStep as DBPlanStep
     from app.utils.id import gen_uuid
 
     thread_id = config.get("configurable", {}).get("thread_id")
@@ -124,7 +124,7 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
                 plan_id = existing_plan.id
                 existing_plan.title = title
                 existing_plan.status = "active"
-                
+
                 # Delete old steps for this plan to overwrite with new ones (simplest approach for 'create_plan')
                 # Alternatively we could soft-delete or archive, but 'create_plan' implies a fresh start.
                 await session.execute(delete(DBPlanStep).where(DBPlanStep.plan_id == plan_id))
@@ -138,25 +138,25 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
                     status="active"
                 )
                 session.add(new_plan)
-            
+
             # 3. Create Steps (Common for both paths)
             db_steps = []
             for idx, step_title in enumerate(steps):
                 step_id = gen_uuid()
                 status = "in_progress" if idx == 0 else "pending"
-                
+
                 db_step = DBPlanStep(
                     id=step_id,
                     plan_id=plan_id,
                     title=step_title,
                     status=status,
-                    order=idx
+                    order=idx,
                 )
                 session.add(db_step)
                 db_steps.append(db_step)
-            
+
             # Commit happens on exit
-            
+
             # 4. Construct Return Object (Pydantic-like for Planner state)
             # We return the structure matching domain.planning.models.Plan
             # But populated with the DB IDs so future tools can reference them.
@@ -181,7 +181,13 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
 
 
 @tool
-async def update_step_status(plan_id: str, step_id: str, status: str, result: str = None, execution_run_id: str = None):
+async def update_step_status(
+    plan_id: str,
+    step_id: str,
+    status: str,
+    result: str = None,
+    execution_run_id: str = None,
+):
     """
     Update the status of a step in the plan.
     Args:
@@ -209,7 +215,7 @@ async def update_step_status(plan_id: str, step_id: str, status: str, result: st
 
                 # session commits automatically on exit
             else:
-                 return json.dumps({"error": "Step not found"})
+                return json.dumps({"error": "Step not found"})
 
         return json.dumps({
             "action": "update_step",
@@ -238,6 +244,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
     try:
         # Retrieval
         from app.domain.codebase.retrieval.service import RetrievalService
+
         retrieval_service = RetrievalService()
         search_results = await retrieval_service.search(proposed_plan, project_id=project_id, limit=5)
 
@@ -246,14 +253,17 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         # Get Project Structure
         # Use underlying Generator directly (no longer a tool)
         from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+
         # Smart Truncation enabled to avoid context overflow
         generator = AnnotatedTreeGenerator(root, max_depth=3, with_symbols=False, file_limit=30)
         tree = await generator.generate()
 
         # LLM Analysis
-        from app.core.llm.factory import LLMFactory
-        llm = LLMFactory.create_llm()
+        from app.core.llm.factory import get_default_llm
+
+        llm = get_default_llm()
         from app.domain.system.service import SystemConfigService
+
         user_lang = SystemConfigService.get_language_preference()
 
         chain = FEASIBILITY_ANALYSIS_PROMPT | llm | StrOutputParser()

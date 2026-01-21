@@ -20,6 +20,7 @@ async def crawl_url(url: str) -> str:
     except Exception as e:
         return f"Error crawling {url}: {e}"
 
+
 @evoloop_tool
 # @tool removed - evoloop_tool handles it
 async def search_web(query: str) -> str:
@@ -34,6 +35,7 @@ async def search_web(query: str) -> str:
     # Check for simple fallback
     try:
         from googlesearch import search
+
         results = []
         # advanced=True yields Result objects
         for result in search(query, num_results=5, advanced=True):

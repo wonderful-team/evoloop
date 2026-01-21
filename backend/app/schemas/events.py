@@ -1,5 +1,5 @@
 import time
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -51,4 +51,6 @@ class MessageEvent(EventBase):
 
 
 # Union type for easy parsing if needed
-StreamEvent = Union[StepEvent, ArtifactEvent, AgentStateEvent, TokenEvent, StatusEvent, MessageEvent]
+StreamEvent = (
+    StepEvent | ArtifactEvent | AgentStateEvent | TokenEvent | StatusEvent | MessageEvent
+)

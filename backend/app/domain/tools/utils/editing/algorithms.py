@@ -21,9 +21,9 @@ def levenshtein(a: str, b: str) -> int:
         for j in range(1, len(b) + 1):
             cost = 0 if a[i - 1] == b[j - 1] else 1
             matrix[i][j] = min(
-                matrix[i - 1][j] + 1,      # Deletion
-                matrix[i][j - 1] + 1,      # Insertion
-                matrix[i - 1][j - 1] + cost # Substitution
+                matrix[i - 1][j] + 1,  # Deletion
+                matrix[i][j - 1] + 1,  # Insertion
+                matrix[i - 1][j - 1] + cost,  # Substitution
             )
 
     return matrix[len(a)][len(b)]

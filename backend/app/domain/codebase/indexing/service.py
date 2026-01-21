@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import datetime, timezone
 
@@ -10,6 +11,7 @@ from app.domain.codebase.indexing.extractors.treesitter_extractor import (
 )
 from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 from app.domain.project.service import project_context_manager
+from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.infrastructure.database.sql.models import (
     CodeChunk,
@@ -18,7 +20,10 @@ from app.infrastructure.database.sql.models import (
     Repository,
     SourceFile,
 )
-from app.logging import logger
+from app.utils.file import read_file_content
+from app.utils.hash import compute_md5
+
+logger = logging.getLogger(__name__)
 
 
 class IndexingService:
@@ -72,7 +77,7 @@ class IndexingService:
                 name=name,
                 url="local",
                 local_path=path,
-                sync_status=sync_status
+                sync_status=sync_status,
             )
             session.add(repo)
             await session.commit()
@@ -96,6 +101,7 @@ class IndexingService:
         """
         # FileFilter check
         from app.domain.codebase.filter import FileFilter
+
         file_filter = FileFilter()
         if not file_filter.should_include(file_path):
             return
@@ -113,14 +119,28 @@ class IndexingService:
                 rel_path = os.path.relpath(file_path, repo.local_path)
 
                 # Check extension - FileFilter handled generic text check, but specific languages?
-                valid_extensions = (".py", ".js", ".ts", ".go", ".java", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".rs", ".php", ".rb", ".md")
+                valid_extensions = (
+                    ".py",
+                    ".js",
+                    ".ts",
+                    ".go",
+                    ".java",
+                    ".cpp",
+                    ".cc",
+                    ".cxx",
+                    ".h",
+                    ".hpp",
+                    ".rs",
+                    ".php",
+                    ".rb",
+                    ".md",
+                )
                 if not file_path.endswith(valid_extensions):
                     # FileFilter might pass a .txt or .json, but indexing service might strictly want code.
                     # Let's keep this check for now to be safe, or expand it using constants.
                     # Or rely on Extractor capability. TreeSitterExtractor supports specific languages.
                     # Let's keep it to avoid regression but rely on FileFilter for "Bad Files"
                     return
-
 
                 # Optimization: Check mtime first to avoid reading file content
                 stmt = select(SourceFile).where(SourceFile.repository_id == repo_id, SourceFile.path == rel_path)
@@ -136,25 +156,23 @@ class IndexingService:
                         # Comparison: if file_mtime is OLDER than last_indexed_at, it's unchanged.
                         # source_file.last_indexed_at should be in UTC.
                         if source_file.last_indexed_at and file_mtime < source_file.last_indexed_at:
-                             # logger.debug(f"Skipping {rel_path} (mtime unchanged)")
-                             return
+                            # logger.debug(f"Skipping {rel_path} (mtime unchanged)")
+                            return
                     except Exception:
                         # Fallback to checksum if mtime check fails
                         pass
 
                 # Read content
                 try:
-                    from app.utils.file import read_file_content
                     # read_file_content returns (content, encoding)
                     content, _ = read_file_content(file_path)
                     if content is None:
-                         pass
+                        pass
                 except Exception as e:
                     logger.warning(f"Could not read {file_path}: {e}")
                     return
 
                 # Checksum Verification
-                from app.utils.hash import compute_md5
                 new_checksum = compute_md5(content)
 
                 if not force and source_file and source_file.checksum == new_checksum:
@@ -177,13 +195,13 @@ class IndexingService:
                 # Unpack result
                 # Support both old list return (if any other extractor used) and new object
                 if isinstance(extraction_result, list):
-                     docs = extraction_result
-                     entities = []
-                     relations = []
+                    docs = extraction_result
+                    entities = []
+                    relations = []
                 else:
-                     docs = extraction_result.documents
-                     entities = extraction_result.entities
-                     relations = extraction_result.relations
+                    docs = extraction_result.documents
+                    entities = extraction_result.entities
+                    relations = extraction_result.relations
 
                 if not docs and not entities:
                     # Safe Indexing Check:
@@ -236,24 +254,35 @@ class IndexingService:
                     file_summary_content = content[:15000] + "\n...(truncated)"
 
                 # We create a pseudo-Document for this
-                from app.domain.codebase.indexing.extractors.treesitter_extractor import (
-                    Document,
-                )
+                from app.domain.codebase.indexing.extractors.treesitter_extractor import Document
+
                 summary_doc = Document(
                     content=file_summary_content,
                     metadata={
-                       "type": "file",
-                       "name": f"{rel_path}::whole_file",
-                       "start_line": 1,
-                       "end_line": getattr(source_file, 'lines', content.count('\n') + 1) # simple count if not tracked
-                    }
+                        "type": "file",
+                        "name": f"{rel_path}::whole_file",
+                        "start_line": 1,
+                        "end_line": getattr(source_file, "lines", content.count("\n") + 1),  # simple count if not tracked
+                    },
                 )
 
                 # Prepend to docs so it's indexed
                 docs.insert(0, summary_doc)
 
                 if docs:
-                    texts = [d.content for d in docs]
+                    # OPTIMIZATION: Use 'skeleton' for embedding if available
+                    # content matches what is stored in DB (full code), texts matches what is sent to Embedder (summary/skeleton)
+                    texts = []
+                    for d in docs:
+                        skel = d.metadata.get("skeleton")
+                        if skel:
+                            texts.append(skel)
+                        else:
+                            # Fallback: limit content to avoid heavy token usage for raw chunks
+                            # If content > 8k chars, truncate?
+                            # Let's trust the chunking or truncation done before.
+                            texts.append(d.content[:8000])  # Safety cap
+
                     embeddings = await self.embedder.embed_documents(texts)
 
                     for doc, vector in zip(docs, embeddings, strict=False):
@@ -264,7 +293,7 @@ class IndexingService:
                             start_line=doc.metadata.get("start_line", 0),
                             end_line=doc.metadata.get("end_line", 0),
                             content=doc.content,
-                            embedding=vector
+                            embedding=vector,
                         )
                         session.add(chunk)
 
@@ -277,17 +306,17 @@ class IndexingService:
                         type=ent.type,
                         full_name=ent.full_name,
                         start_line=ent.start_line,
-                        end_line=ent.end_line
+                        end_line=ent.end_line,
                     )
                     session.add(entity_record)
-                    await session.flush() # Flush to get ID
+                    await session.flush()  # Flush to get ID
                     name_to_id[ent.full_name] = entity_record.id
 
                 # 5. Insert Relations
                 for rel in relations:
                     source_id = name_to_id.get(rel.source_full_name)
                     if not source_id:
-                        continue # Cannot link if source is missing (should not happen if logic is correct)
+                        continue  # Cannot link if source is missing (should not happen if logic is correct)
 
                     # Try to resolve target locally (generic logic, incomplete for full project graph pass)
                     # For now we mostly rely on target_name for cross-file links
@@ -295,9 +324,9 @@ class IndexingService:
 
                     rel_record = CodeRelation(
                         source_entity_id=source_id,
-                        target_entity_id=target_id, # Can be None
+                        target_entity_id=target_id,  # Can be None
                         target_name=rel.target_full_name,
-                        relation_type=rel.relation_type
+                        relation_type=rel.relation_type,
                     )
                     session.add(rel_record)
 
@@ -305,15 +334,19 @@ class IndexingService:
 
                 # 6. Sync to Neo4j
                 try:
-                    from app.infrastructure.database.graph.driver import get_graph_db
                     driver = await get_graph_db()
                     async with driver.session() as n4j:
                         # 6.1 Sync File Node
                         # We store pg_id to link back to SQL if needed
-                        await n4j.run("""
-                            MERGE (f:File {path: $path, project_id: $pid}) 
+                        await n4j.run(
+                            """
+                            MERGE (f:File {path: $path, project_id: $pid})
                             SET f.last_indexed = timestamp(), f.pg_id = $pg_id
-                        """, path=rel_path, pid=repo.project_id, pg_id=source_file.id)
+                        """,
+                            path=rel_path,
+                            pid=repo.project_id,
+                            pg_id=source_file.id,
+                        )
 
                         # 6.2 Sync Code Entities and Relations
                         # This is a bit heavier, but necessary for Graph RAG/Analysis
@@ -323,15 +356,16 @@ class IndexingService:
                         # Strategy: Delete all CHILD nodes of this File first (to clear old functions/classes)
                         # Then recreate.
 
-                        await n4j.run("""
+                        await n4j.run(
+                            """
                             MATCH (f:File {path: $path, project_id: $pid})-[r:CONTAINS]->(e)
                             DETACH DELETE e
-                        """, path=rel_path, pid=repo.project_id)
+                        """,
+                            path=rel_path,
+                            pid=repo.project_id,
+                        )
 
                         # Now create new entities and link to File
-                        for ent_name, ent_id in name_to_id.items():
-                            # We need type info. Logic: we iterate entities list again to get type.
-                            pass # loop below handles it
 
                         for ent in entities:
                             # Create Concept/Entity Node
@@ -339,15 +373,21 @@ class IndexingService:
                             # Let's use generic :CodeEntity with type property for flexibility,
                             # or multiple labels if Neo4j supports dynamic labels easily (Cypher specific).
                             # Let's stick to :CodeEntity.
-                            await n4j.run("""
+                            await n4j.run(
+                                """
                                 MATCH (f:File {path: $path, project_id: $pid})
                                 MERGE (e:CodeEntity {full_name: $full_name, project_id: $pid})
                                 ON CREATE SET e.name = $name, e.type = $type, e.pg_id = $ent_pg_id
                                 ON MATCH SET e.name = $name, e.type = $type, e.pg_id = $ent_pg_id
                                 MERGE (f)-[:CONTAINS]->(e)
-                            """, path=rel_path, pid=repo.project_id,
-                                 name=ent.name, full_name=ent.full_name, type=ent.type,
-                                 ent_pg_id=name_to_id.get(ent.full_name))
+                            """,
+                                path=rel_path,
+                                pid=repo.project_id,
+                                name=ent.name,
+                                full_name=ent.full_name,
+                                type=ent.type,
+                                ent_pg_id=name_to_id.get(ent.full_name),
+                            )
 
                         # 6.3 Sync Relations
                         # We need to link entities. Target might be in another file (not created yet).
@@ -361,20 +401,25 @@ class IndexingService:
                         # For now, we only link INTRA-FILE relations reliably, and Cross-File via MERGE (optimistic).
 
                         for rel in relations:
-                            if not rel.target_full_name: continue
+                            if not rel.target_full_name:
+                                continue
 
                             # Cypher to link Source -> Target
                             # We use MERGE for target to ensure it exists (even if ghost for now)
-                            await n4j.run("""
+                            await n4j.run(
+                                """
                                 MATCH (s:CodeEntity {full_name: $src_name, project_id: $pid})
                                 MERGE (t:CodeEntity {full_name: $tgt_name, project_id: $pid})
                                 MERGE (s)-[:RELATION {type: $rel_type}]->(t)
-                            """, src_name=rel.source_full_name, tgt_name=rel.target_full_name,
-                                 pid=repo.project_id, rel_type=rel.relation_type)
+                            """,
+                                src_name=rel.source_full_name,
+                                tgt_name=rel.target_full_name,
+                                pid=repo.project_id,
+                                rel_type=rel.relation_type,
+                            )
 
                 except Exception as e:
                     logger.warning(f"Neo4j Sync Failed for {rel_path}: {e}")
-
 
                 # logger.debug(f"Indexed {rel_path}")
 
@@ -388,7 +433,8 @@ class IndexingService:
         """
         async with self.session_factory() as session:
             repo = await session.get(Repository, repo_id)
-            if not repo: return
+            if not repo:
+                return
 
             rel_path = os.path.relpath(file_path, repo.local_path)
 
@@ -413,16 +459,19 @@ class IndexingService:
 
             # 2. Neo4j Delete
             try:
-                from app.infrastructure.database.graph.driver import get_graph_db
                 driver = await get_graph_db()
                 async with driver.session() as n4j:
                     # Cascade delete: File -> Entities
-                    await n4j.run("""
+                    await n4j.run(
+                        """
                         MATCH (f:File {path: $path, project_id: $pid})
                         OPTIONAL MATCH (f)-[:CONTAINS]->(e)
                         DETACH DELETE e
                         DETACH DELETE f
-                    """, path=rel_path, pid=repo.project_id)
+                    """,
+                        path=rel_path,
+                        pid=repo.project_id,
+                    )
             except Exception as e:
                 logger.warning(f"Neo4j Delete Failed for {rel_path}: {e}")
 
@@ -467,9 +516,9 @@ class IndexingService:
                 full_d_path = os.path.join(root, d)
 
                 # Check 1: Hardcoded Blacklist (Fastest)
-                if d in BLACKLIST_DIRS or d.startswith('.'):
-                     d_to_remove.append(d)
-                     continue
+                if d in BLACKLIST_DIRS or d.startswith("."):
+                    d_to_remove.append(d)
+                    continue
 
                 # Check 2: Gitignore (Flexible)
                 if ignore_matcher.should_ignore(full_d_path, is_dir=True):
@@ -489,7 +538,22 @@ class IndexingService:
                 # Check 2: FileFilter (Binary, size, etc.)
                 if file_filter.should_include(full_path):
                     # Check 3: Supported Extension for Indexing
-                    valid_exts = (".py", ".js", ".ts", ".go", ".java", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".rs", ".php", ".rb", ".md")
+                    valid_exts = (
+                        ".py",
+                        ".js",
+                        ".ts",
+                        ".go",
+                        ".java",
+                        ".cpp",
+                        ".cc",
+                        ".cxx",
+                        ".h",
+                        ".hpp",
+                        ".rs",
+                        ".php",
+                        ".rb",
+                        ".md",
+                    )
                     if full_path.endswith(valid_exts):
                         filtered_files.append(full_path)
 

@@ -1,5 +1,13 @@
+import asyncio
+import logging
+import os
 
-from app.logging import logger
+from app.core.engine.background_agent import run_agent_background
+from app.domain.codebase.indexing.manager import indexing_manager
+from app.domain.codebase.indexing.service import IndexingService
+from app.domain.project.service import project_context_manager
+
+logger = logging.getLogger(__name__)
 
 
 async def handle_remote_command(command_data: dict):
@@ -14,6 +22,23 @@ async def handle_remote_command(command_data: dict):
     # The error "No module named 'core'" suggests a deeper issue or misconfiguration in execution context,
     # but based on the code structure, agent.py <-> infrastructure/evoloop_link is a likely cycle.
     # from app.api.routes.agent import run_agent_background
+
+    cmd_type = command_data.get("type", "chat_message")
+
+    # [HITL Inbound Logic]
+    if cmd_type == "hitl_response":
+        thread_id = command_data.get("thread_id")
+        response = command_data.get("content", {}).get("response")
+
+        if thread_id and response is not None:
+             logger.info(f"[EvoLoop] Processing HITL Response for thread {thread_id}: {response}")
+
+             inputs = {
+                 "hitl_resume_response": response,
+                 "command_id": command_data.get("command_id")
+             }
+             asyncio.create_task(run_agent_background(thread_id, inputs))
+        return
 
     # Support both nested 'content' (legacy/cloud) and flat 'message' (mobile/local) structures
     content_obj = command_data.get("content", {})
@@ -66,13 +91,10 @@ async def handle_remote_command(command_data: dict):
         inputs = {
             "messages": messages,
             "project_id": project_id,
-            "command_id": command_data.get("command_id")
+            "command_id": command_data.get("command_id"),
         }
 
         # Run agent in background (Local)
-        import asyncio
-
-        from app.core.engine.tasks import run_agent_background
         asyncio.create_task(run_agent_background(thread_id, inputs))
 
 
@@ -87,7 +109,6 @@ async def handle_project_switch_event(event_data: dict):
         ...
     }
     """
-    from app.domain.project.service import project_context_manager
     # Circular dependency risk with agent.py depending on how it's imported.
     # But this handler is imported by main/client.
 
@@ -127,11 +148,6 @@ async def handle_project_switch_event(event_data: dict):
             project_context_manager.set_active_project("default", project_id)
 
         # 2. Start Indexing/Watching if not already
-        import os
-
-        from app.domain.codebase.indexing.manager import indexing_manager
-        from app.domain.codebase.indexing.service import IndexingService
-
         try:
             service = IndexingService()
             repo_name = os.path.basename(path)

@@ -2,9 +2,9 @@ import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.i18n.service import i18n
 from app.core.llm.factory import LLMFactory
 from app.domain.system.service import SystemConfigService
+from app.i18n.service import i18n
 
 logger = logging.getLogger("evoloop.learning.optimizer")
 
@@ -51,7 +51,7 @@ Please optimize the prompt to fix this.
 """
             messages = [
                 SystemMessage(content=META_OPTIMIZER_PROMPT),
-                HumanMessage(content=user_content)
+                HumanMessage(content=user_content),
             ]
 
             response = await llm.ainvoke(messages, config={"callbacks": []})
@@ -61,8 +61,10 @@ Please optimize the prompt to fix this.
             if new_prompt.startswith("```"):
                 lines = new_prompt.splitlines()
                 # Remove first and last lines if they are fences
-                if lines[0].startswith("```"): lines = lines[1:]
-                if lines and lines[-1].startswith("```"): lines = lines[:-1]
+                if lines[0].startswith("```"):
+                    lines = lines[1:]
+                if lines and lines[-1].startswith("```"):
+                    lines = lines[:-1]
                 new_prompt = "\n".join(lines).strip()
 
             logger.info(f"Optimized prompt based on feedback: {feedback}")
@@ -71,6 +73,7 @@ Please optimize the prompt to fix this.
             if thread_id:
                 try:
                     from app.core.monitoring.activity import activity_monitor
+
                     await activity_monitor.update_agent_state(
                         thread_id=thread_id,
                         mode="LEARNING",
@@ -81,8 +84,8 @@ Please optimize the prompt to fix this.
                             "thought_type": "optimization",
                             "original_length": len(current_prompt),
                             "new_length": len(new_prompt),
-                            "feedback": feedback
-                        }
+                            "feedback": feedback,
+                        },
                     )
                 except Exception:
                     pass

@@ -8,35 +8,40 @@ from app.infrastructure.external.evocloud import evocloud_client
 class BindClientRequest(BaseModel):
     client_id: str
 
+
 router = APIRouter()
+
 
 # --- Schemas (Basic) ---
 class SendCommandRequest(BaseModel):
     command_type: str
     params: dict = {}
 
+
 @router.get("/")
-async def get_devices(token: TokenDep):
+async def get_devices(_token: TokenDep):
     """List devices connected to account"""
     res = await evocloud_client.get_devices()
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
 
+
 @router.post("/{device_id}/command")
-async def send_command(device_id: int, req: SendCommandRequest, token: TokenDep):
+async def send_command(device_id: int, req: SendCommandRequest, _token: TokenDep):
     """Send remote command"""
     res = await evocloud_client.send_command_to_device(device_id, req.dict())
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data")
 
+
 @router.get("/{device_id}/logs")
 async def get_recent_logs(
     device_id: int,
     limit: int = 20,
     project_id: int | None = None,
-    token: TokenDep = None
+    token: TokenDep = None,
 ):
     """Get recent logs from device"""
     res = await evocloud_client.get_device_logs(device_id, limit, project_id)
@@ -44,13 +49,14 @@ async def get_recent_logs(
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
 
+
 @router.get("/{device_id}/logs/search")
 async def search_logs(
     device_id: int,
     query: str,
     limit: int = 20,
     project_id: int | None = None,
-    token: TokenDep = None
+    token: TokenDep = None,
 ):
     """Search logs"""
     res = await evocloud_client.search_device_logs(device_id, query, limit, project_id)
@@ -58,8 +64,9 @@ async def search_logs(
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
 
+
 @router.post("/{device_id}/bind")
-async def bind_client(device_id: int, req: BindClientRequest, token: TokenDep):
+async def bind_client(_device_id: int, _req: BindClientRequest, _token: TokenDep):
     """Bind mobile client to device"""
     # Verify device belongs to user? EvoCloud usually handles this logic.
     # EvoCloudClient uses device_id stored in self?
@@ -93,8 +100,9 @@ async def bind_client(device_id: int, req: BindClientRequest, token: TokenDep):
     # I'll call it directly since I'm in same app.
     pass
 
+
 @router.post("/bind")
-async def bind_current_device(req: BindClientRequest, token: TokenDep):
+async def bind_current_device(req: BindClientRequest, _token: TokenDep):
     """Bind a client_id (e.g. mobile) to this device"""
     # Requires access to internal method or we expose public one.
     # For now accessing 'link' directly to bind.

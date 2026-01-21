@@ -65,7 +65,7 @@ If multiple matching elements exist, describe all of them.
 Identify:
 1. **What Changed**: All visible differences
 2. **New Elements**: Elements that appeared
-3. **Removed Elements**: Elements that disappeared  
+3. **Removed Elements**: Elements that disappeared
 4. **Modified Elements**: Elements that changed (text, color, position, size)
 5. **State Changes**: Any state indicators that changed (loading, errors, selections)
 {focus_instruction}
@@ -86,4 +86,6 @@ Output the text organized by:
 
 Preserve the hierarchical structure where possible.
 """
+
+
 # Note: Text extraction usually preserves original language, so we don't force translation here unless requested.

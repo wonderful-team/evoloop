@@ -18,7 +18,6 @@ from typing import Any
 
 from sqlalchemy import select
 
-from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import TraceEvent
 
@@ -27,24 +26,27 @@ logger = logging.getLogger("evoloop.learning.parser")
 
 class ActionSource(str, Enum):
     """Who initiated the action."""
+
     AGENT = "agent"
     HUMAN = "human"
 
 
 class ActionCategory(str, Enum):
     """High-level categorization of actions."""
+
     NAVIGATION = "navigation"  # File/URL navigation
-    EDIT = "edit"              # Content modification
-    QUERY = "query"            # Information retrieval
-    COMMAND = "command"        # System command execution
+    EDIT = "edit"  # Content modification
+    QUERY = "query"  # Information retrieval
+    COMMAND = "command"  # System command execution
     INTERACTION = "interaction"  # UI interaction
-    DECISION = "decision"      # Approval/choice
+    DECISION = "decision"  # Approval/choice
     OTHER = "other"
 
 
 @dataclass
 class UIContext:
     """Visual/UI context at the time of action."""
+
     screenshot_path: str | None = None
     element_selector: str | None = None
     element_text: str | None = None
@@ -56,6 +58,7 @@ class TraceStep:
     A single semantic step in a trace sequence.
     Represents one complete action-observation pair.
     """
+
     step_number: int
     source: ActionSource
     category: ActionCategory
@@ -85,6 +88,7 @@ class TraceSequence:
     A complete sequence of steps representing a task.
     Can be used for pattern analysis and workflow synthesis.
     """
+
     thread_id: str
     session_id: str | None = None
     task_name: str | None = None
@@ -105,7 +109,7 @@ class TraceSequence:
             "human_steps": sum(1 for s in self.steps if s.source == ActionSource.HUMAN),
             "agent_steps": sum(1 for s in self.steps if s.source == ActionSource.AGENT),
             "tools_used": list(set(self.tools_used)),
-            "success": self.success
+            "success": self.success,
         }
 
 
@@ -153,9 +157,11 @@ class TraceParser:
     async def _fetch_events(self) -> list[TraceEvent]:
         """Fetch trace events from database."""
         async with session_scope() as session:
-            stmt = select(TraceEvent).where(
-                TraceEvent.thread_id == self.thread_id
-            ).order_by(TraceEvent.step_number)
+            stmt = (
+                select(TraceEvent)
+                .where(TraceEvent.thread_id == self.thread_id)
+                .order_by(TraceEvent.step_number)
+            )
 
             # Optionally filter by session
             if self.session_id:
@@ -166,10 +172,7 @@ class TraceParser:
 
     def _convert_to_sequence(self, events: list[TraceEvent]) -> TraceSequence:
         """Convert raw events to structured sequence."""
-        sequence = TraceSequence(
-            thread_id=self.thread_id,
-            session_id=self.session_id
-        )
+        sequence = TraceSequence(thread_id=self.thread_id, session_id=self.session_id)
 
         for event in events:
             step = self._parse_event(event)
@@ -179,7 +182,11 @@ class TraceParser:
                 # Track metadata
                 if step.source == ActionSource.HUMAN:
                     sequence.has_human_intervention = True
-                if step.action_name and step.category in [ActionCategory.QUERY, ActionCategory.EDIT, ActionCategory.COMMAND]:
+                if step.action_name and step.category in [
+                    ActionCategory.QUERY,
+                    ActionCategory.EDIT,
+                    ActionCategory.COMMAND,
+                ]:
                     sequence.tools_used.append(step.action_name)
 
         return sequence
@@ -209,12 +216,19 @@ class TraceParser:
             # Build UI context if available
             ui_context = None
             ui_context = None
-            if event.ui_element_info or event.screenshot_path or event.target_selector or event.target_text:
-                ui_info = json.loads(event.ui_element_info) if event.ui_element_info else {}
+            if (
+                event.ui_element_info
+                or event.screenshot_path
+                or event.target_selector
+                or event.target_text
+            ):
+                ui_info = (
+                    json.loads(event.ui_element_info) if event.ui_element_info else {}
+                )
                 ui_context = UIContext(
                     screenshot_path=event.screenshot_path,
                     element_selector=event.target_selector or ui_info.get("selector"),
-                    element_text=event.target_text or ui_info.get("text")
+                    element_text=event.target_text or ui_info.get("text"),
                 )
 
             # Parse state context (simplified for synthesis)
@@ -222,7 +236,7 @@ class TraceParser:
             if event.state_snapshot:
                 try:
                     state_context = json.loads(event.state_snapshot)
-                except:
+                except Exception:
                     pass
 
             return TraceStep(
@@ -235,7 +249,7 @@ class TraceParser:
                 node_name=event.node_name,
                 state_context=state_context,
                 ui_context=ui_context,
-                user_feedback=event.user_feedback
+                user_feedback=event.user_feedback,
             )
 
         except Exception as e:
@@ -258,14 +272,18 @@ class TraceParser:
         lines = [f"# Task Trace: {sequence.task_name or 'Untitled'}", ""]
         lines.append(f"**Thread ID**: {sequence.thread_id}")
         lines.append(f"**Total Steps**: {len(sequence.steps)}")
-        lines.append(f"**Human Intervention**: {'Yes' if sequence.has_human_intervention else 'No'}")
+        lines.append(
+            f"**Human Intervention**: {'Yes' if sequence.has_human_intervention else 'No'}"
+        )
         lines.append("")
         lines.append("## Steps")
         lines.append("")
 
         for step in sequence.steps:
             source_icon = "👤" if step.source == ActionSource.HUMAN else "🤖"
-            lines.append(f"### Step {step.step_number} {source_icon} [{step.category.value}]")
+            lines.append(
+                f"### Step {step.step_number} {source_icon} [{step.category.value}]"
+            )
             lines.append(f"- **Action**: `{step.action_name}`")
 
             if step.action_args:
@@ -277,12 +295,16 @@ class TraceParser:
 
             if step.ui_context:
                 if step.ui_context.element_text:
-                    lines.append(f"- **UI Element**: \"{step.ui_context.element_text[:50]}\"")
+                    lines.append(
+                        f'- **UI Element**: "{step.ui_context.element_text[:50]}"'
+                    )
                 if step.ui_context.screenshot_path:
-                    lines.append(f"- **Screenshot**: `{step.ui_context.screenshot_path}`")
+                    lines.append(
+                        f"- **Screenshot**: `{step.ui_context.screenshot_path}`"
+                    )
 
             if step.user_feedback:
-                lines.append(f"- **User Feedback**: \"{step.user_feedback}\"")
+                lines.append(f'- **User Feedback**: "{step.user_feedback}"')
 
             lines.append("")
 

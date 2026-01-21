@@ -1,9 +1,9 @@
-
 import asyncio
+import logging
 
 from langchain_core.tools import BaseTool
 
-from app.logging import logger
+logger = logging.getLogger(__name__)
 
 
 class ToolRetriever:
@@ -11,11 +11,12 @@ class ToolRetriever:
     Manages semantic retrieval of tools to avoid context window saturation.
     Uses in-memory vector storage for ephemeral tool instances.
     """
+
     _instance = None
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(ToolRetriever, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance._init()
         return cls._instance
 
@@ -25,7 +26,7 @@ class ToolRetriever:
         # self.embeddings: List[List[float]] = [] # Deprecated
         # self._indexed_names = set() # Deprecated
 
-        self.tools_map: dict[str, BaseTool] = {} # Local runtime cache
+        self.tools_map: dict[str, BaseTool] = {}  # Local runtime cache
         self._lock = asyncio.Lock()
 
     async def index_tools(self, tools: list[BaseTool]):
@@ -96,6 +97,7 @@ class ToolRetriever:
         except Exception as e:
             logger.error(f"Tool retrieval error: {e}")
             return []
+
 
 # Global Instance
 tool_retriever = ToolRetriever()

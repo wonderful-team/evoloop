@@ -1,10 +1,12 @@
-from datetime import datetime
-from sqlalchemy import DateTime, ForeignKey, String, Text, Enum, Integer
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from app.infrastructure.database.sql.database import Base
-from app.utils.time import utcnow
 import enum
 import uuid
+from datetime import datetime
+
+from sqlalchemy import DateTime, Enum, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.infrastructure.database.sql.database import Base
+from app.utils.time import utcnow
 
 
 class TodoStatus(str, enum.Enum):

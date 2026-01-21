@@ -1,5 +1,8 @@
+import logging
+
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.logging import logger
+
+logger = logging.getLogger(__name__)
 
 
 class DirectorySummarizer:
@@ -40,9 +43,12 @@ class DirectorySummarizer:
         # We should use the Embedding or fetch the Chunk content?
         # Ideally, File node has a 'description' or we use the linked 'whole_file' chunk.
 
-        files_data = []
         async with driver.session() as session:
-            result = await session.run(all_files_query, pid=project_id, path=dir_path if dir_path.endswith('/') else dir_path + '/')
+            result = await session.run(
+                all_files_query,
+                pid=project_id,
+                path=dir_path if dir_path.endswith("/") else dir_path + "/",
+            )
             records = await result.data()
 
         # Build Local Tree
@@ -53,21 +59,23 @@ class DirectorySummarizer:
         direct_files = []
         direct_subdirs = set()
 
-        base_len = len(dir_path) + (1 if not dir_path.endswith('/') else 0)
+        base_len = len(dir_path) + (1 if not dir_path.endswith("/") else 0)
 
         for r in records:
-            rel_path = r['path'][base_len:] # strip prefix
-            parts = rel_path.split('/')
+            rel_path = r["path"][base_len:]  # strip prefix
+            parts = rel_path.split("/")
 
             if len(parts) == 1:
                 # Is a file
                 # Fetch summary/content for this file
                 # We use the whole file content proxy logic below (Step 3).
-                direct_files.append(r['path'])
+                direct_files.append(r["path"])
             else:
                 # Is in a subdir
                 subdir_name = parts[0]
-                direct_subdirs.add(dir_path + ("/" if not dir_path.endswith("/") else "") + subdir_name)
+                direct_subdirs.add(
+                    dir_path + ("/" if not dir_path.endswith("/") else "") + subdir_name
+                )
 
         # 2. Recursive Step (Bottom-Up)
         child_summaries = []
@@ -96,8 +104,8 @@ class DirectorySummarizer:
                 # Use the 'whole_file' chunk content as a proxy for summary.
                 # In the future (Phase 2), we should store a generated summary on the File node itself.
                 # For now, we take the first 1000 characters to give the context window enough signal.
-                content_preview = (fr['content'] or "")[:1000].replace('\n', ' ')
-                if len(fr['content'] or "") > 1000:
+                content_preview = (fr["content"] or "")[:1000].replace("\n", " ")
+                if len(fr["content"] or "") > 1000:
                     content_preview += "..."
                 child_summaries.append(f"File {fr['path']}: {content_preview}")
 
@@ -109,22 +117,32 @@ class DirectorySummarizer:
 
         # 5. Store in Neo4j
         async with driver.session() as session:
-            await session.run("""
+            await session.run(
+                """
                 MERGE (d:Directory {path: $path, project_id: $pid})
                 SET d.description = $summary, d.updated_at = timestamp()
-            """, path=dir_path, pid=project_id, summary=summary_text)
+            """,
+                path=dir_path,
+                pid=project_id,
+                summary=summary_text,
+            )
 
             # Also Link to Parent?
             # Implied by path structure, but explicit link is better for graph traversal.
             # (Parent)-[:CONTAINS]->(ChildDir)
             # We can infer parent path string.
-            if '/' in dir_path.strip('/'):
-                parent_path = dir_path.rstrip('/').rsplit('/', 1)[0]
-                await session.run("""
+            if "/" in dir_path.strip("/"):
+                parent_path = dir_path.rstrip("/").rsplit("/", 1)[0]
+                await session.run(
+                    """
                     MATCH (p:Directory {path: $ppath, project_id: $pid})
                     MATCH (c:Directory {path: $cpath, project_id: $pid})
                     MERGE (p)-[:CONTAINS]->(c)
-                """, ppath=parent_path, cpath=dir_path, pid=project_id)
+                """,
+                    ppath=parent_path,
+                    cpath=dir_path,
+                    pid=project_id,
+                )
 
         logger.info(f"Summarized Directory: {dir_path}")
         return summary_text
@@ -144,13 +162,19 @@ class DirectorySummarizer:
         user_prompt = f"Directory: {dir_path}\n\nContents:\n{context}\n\nProvide a concise, high-level summary (1-2 sentences) of what this module does."
 
         try:
-            response = await llm.invoked([SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)])
+            response = await llm.invoked([
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt),
+            ])
             return response.content
         except Exception:
             # Fallback for LLM failure or invocation error (invoked vs invoke)
             # invoke is standard
             try:
-                response = await llm.ainvoke([SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)])
+                response = await llm.ainvoke([
+                    SystemMessage(content=system_prompt),
+                    HumanMessage(content=user_prompt),
+                ])
                 return response.content
             except Exception as e:
                 logger.error(f"LLM Summary Failed: {e}")

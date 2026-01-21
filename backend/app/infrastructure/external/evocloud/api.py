@@ -15,6 +15,7 @@ from app.utils.security import generate_hmac_signature
 
 logger = logging.getLogger(__name__)
 
+
 class EvoCloudAPI:
     """
     REST API Wrapper for EvoCloud.
@@ -22,7 +23,7 @@ class EvoCloudAPI:
     """
 
     def __init__(self):
-        self.base_url = str(settings.EVOCLOUD_API_URL).rstrip('/')
+        self.base_url = str(settings.EVOCLOUD_API_URL).rstrip("/")
         self.api_key = settings.EVOCLOUD_API_KEY
         self.api_secret = settings.EVOCLOUD_API_SECRET
         self.timeout = 30.0
@@ -93,7 +94,7 @@ class EvoCloudAPI:
             auth_file = os.path.join(os.getcwd(), ".evoloop", "auth.json")
             if os.path.exists(auth_file):
                 os.remove(auth_file)
-        except:
+        except Exception:
             pass
 
     def get_token(self) -> str | None:
@@ -108,7 +109,14 @@ class EvoCloudAPI:
         string_to_sign = f"{method}\\n{uri}\\n{body}\\n{timestamp}"
         return generate_hmac_signature(self.api_secret, string_to_sign)
 
-    async def request(self, method: str, endpoint: str, params: dict | None = None, data: dict | None = None, token: str | None = None) -> dict:
+    async def request(
+        self,
+        method: str,
+        endpoint: str,
+        params: dict | None = None,
+        data: dict | None = None,
+        token: str | None = None,
+    ) -> dict:
         client = await self.get_client()
         active_token = token or self._user_token
 
@@ -116,19 +124,16 @@ class EvoCloudAPI:
         timestamp = int(time.time())
         body_str = json_utils.dumps(data) if data else ""
 
-        headers = {
-            'Content-Type': 'application/json',
-            'X-Timestamp': str(timestamp)
-        }
+        headers = {"Content-Type": "application/json", "X-Timestamp": str(timestamp)}
 
         if self.api_key and self.api_secret:
-            headers['X-API-Key'] = self.api_key
-            headers['X-Signature'] = self._generate_signature(method, endpoint, body_str, timestamp)
+            headers["X-API-Key"] = self.api_key
+            headers["X-Signature"] = self._generate_signature(method, endpoint, body_str, timestamp)
 
         if params is None:
             params = {}
         if active_token:
-            params['token'] = active_token
+            params["token"] = active_token
 
         try:
             logger.debug(f"Req: {method} {endpoint}")
@@ -157,7 +162,7 @@ class EvoCloudAPI:
         if res.get("code", -1) >= 0:
             token = res.get("data", {}).get("token")
             if token:
-                self._save_token(token, 0) # member_id 0 or unknown initially
+                self._save_token(token, 0)  # member_id 0 or unknown initially
                 return {"success": True, "token": token}
         return {"success": False, "message": res.get("message", "Login failed")}
 
@@ -166,21 +171,43 @@ class EvoCloudAPI:
 
     # Project
     async def get_projects(self, page=1, page_size=100) -> dict:
-        return await self.request("GET", "/projectmanage/api/projectOpen/projects", params={"page": page, "page_size": page_size})
+        return await self.request(
+            "GET",
+            "/projectmanage/api/projectOpen/projects",
+            params={"page": page, "page_size": page_size},
+        )
 
     async def create_project(self, name: str, description: str, path: str) -> dict:
-        payload = {"name": name, "description": description, "path": path, "source": "EvoLoopV3"}
+        payload = {
+            "name": name,
+            "description": description,
+            "path": path,
+            "source": "EvoLoop",
+        }
         return await self.request("POST", "/projectmanage/api/projectOpen/createProject", data=payload)
 
-    async def update_project(self, project_id: int, description: str = None, name: str = None, path: str = None) -> dict:
+    async def update_project(
+        self,
+        project_id: int,
+        description: str = None,
+        name: str = None,
+        path: str = None,
+    ) -> dict:
         data = {"project_id": project_id}
-        if description is not None: data["project_desc"] = description
-        if name is not None: data["name"] = name
-        if path is not None: data["path"] = path
+        if description is not None:
+            data["project_desc"] = description
+        if name is not None:
+            data["name"] = name
+        if path is not None:
+            data["path"] = path
         return await self.request("POST", "/projectmanage/api/projectOpen/updateProject", data=data)
 
     async def delete_project(self, project_id: int) -> dict:
-        return await self.request("POST", "/projectmanage/api/projectOpen/deleteProject", data={"project_id": project_id})
+        return await self.request(
+            "POST",
+            "/projectmanage/api/projectOpen/deleteProject",
+            data={"project_id": project_id},
+        )
 
     async def get_current_project(self, token: str | None = None) -> dict:
         return await self.request("GET", "/projectmanage/api/projectOpen/getCurrentProject", token=token)
@@ -188,7 +215,8 @@ class EvoCloudAPI:
     # Task
     async def get_project_tasks(self, project_id: int, page=1, page_size=50, status=None, token=None) -> dict:
         p = {"project_id": project_id, "page": page, "page_size": page_size}
-        if status is not None: p["status"] = status
+        if status is not None:
+            p["status"] = status
         return await self.request("GET", "/projectmanage/api/task/projectTasks", params=p, token=token)
 
     async def get_task_detail(self, task_id: int, token=None) -> dict:
@@ -201,20 +229,45 @@ class EvoCloudAPI:
         return await self.request("PUT", f"/projectmanage/api/task/update/{task_id}", data=data, token=token)
 
     async def delete_task(self, task_id: int, token=None) -> dict:
-        return await self.request("DELETE", "/projectmanage/api/task/delete", data={"task_id": task_id}, token=token)
+        return await self.request(
+            "DELETE",
+            "/projectmanage/api/task/delete",
+            data={"task_id": task_id},
+            token=token,
+        )
 
     async def update_task_status(self, task_id: int, status: int, progress: int = 0, token=None) -> dict:
-        return await self.request("POST", "/projectmanage/api/task/updateStatus", data={"task_id": task_id, "status": status, "progress": progress}, token=token)
+        return await self.request(
+            "POST",
+            "/projectmanage/api/task/updateStatus",
+            data={"task_id": task_id, "status": status, "progress": progress},
+            token=token,
+        )
 
     # Modules
     async def get_budget_list(self, project_id: int, page=1, page_size=50, token=None) -> dict:
-        return await self.request("GET", "/projectmanage/api/budget/lists", params={"project_id": project_id, "page": page, "page_size": page_size}, token=token)
+        return await self.request(
+            "GET",
+            "/projectmanage/api/budget/lists",
+            params={"project_id": project_id, "page": page, "page_size": page_size},
+            token=token,
+        )
 
     async def get_budget_overview(self, project_id: int, token=None) -> dict:
-        return await self.request("GET", "/projectmanage/api/budget/overview", params={"project_id": project_id}, token=token)
+        return await self.request(
+            "GET",
+            "/projectmanage/api/budget/overview",
+            params={"project_id": project_id},
+            token=token,
+        )
 
     async def get_timesheet_list(self, project_id: int, page=1, page_size=50, token=None) -> dict:
-        return await self.request("GET", "/projectmanage/api/timesheet/lists", params={"project_id": project_id, "page": page, "page_size": page_size}, token=token)
+        return await self.request(
+            "GET",
+            "/projectmanage/api/timesheet/lists",
+            params={"project_id": project_id, "page": page, "page_size": page_size},
+            token=token,
+        )
 
     async def add_timesheet_quick(self, data: dict, token=None) -> dict:
         return await self.request("POST", "/projectmanage/api/timesheet/quickAdd", data=data, token=token)
@@ -250,12 +303,16 @@ class EvoCloudAPI:
         return await self.request("GET", "/api/register/agreement")
 
     async def send_mobile_code(self, mobile: str, captcha_id: str, captcha_code: str, type: str = "login") -> dict:
-        return await self.request("POST", "/api/sms/send", data={
-            "mobile": mobile,
-            "captcha_id": captcha_id,
-            "captcha_code": captcha_code,
-            "type": type
-        })
+        return await self.request(
+            "POST",
+            "/api/sms/send",
+            data={
+                "mobile": mobile,
+                "captcha_id": captcha_id,
+                "captcha_code": captcha_code,
+                "type": type,
+            },
+        )
 
     async def register_mobile(self, data: dict) -> dict:
         return await self.request("POST", "/api/register/mobile", data=data)
@@ -264,24 +321,31 @@ class EvoCloudAPI:
         return await self.request("POST", "/api/register/account", data=data)
 
     async def login_mobile(self, mobile: str, key: str, code: str) -> dict:
-        res = await self.request("POST", "/passport/api/login/mobile", data={"mobile": mobile, "key": key, "code": code})
+        res = await self.request(
+            "POST",
+            "/passport/api/login/mobile",
+            data={"mobile": mobile, "key": key, "code": code},
+        )
         if res.get("code", -1) >= 0:
             token = res.get("data", {}).get("token")
             if token:
                 self._save_token(token, 0)
-                return {"success": True, "token": token, "member_id": res.get("data", {}).get("member_id")}
+                return {
+                    "success": True,
+                    "token": token,
+                    "member_id": res.get("data", {}).get("member_id"),
+                }
         return {"success": False, "message": res.get("message", "Login failed")}
 
     async def check_mobile_exist(self, mobile: str) -> dict[str, Any]:
         return await self.request("GET", "/passport/api/mobile/check", params={"mobile": mobile})
 
     async def reset_password_by_mobile(self, mobile: str, code: str, key: str, password: str) -> dict[str, Any]:
-        return await self.request("POST", "/passport/api/password/reset/mobile", data={
-            "mobile": mobile,
-            "code": code,
-            "key": key,
-            "password": password
-        })
+        return await self.request(
+            "POST",
+            "/passport/api/password/reset/mobile",
+            data={"mobile": mobile, "code": code, "key": key, "password": password},
+        )
 
     # Device Specific via API
     async def get_devices(self) -> dict:
@@ -293,12 +357,14 @@ class EvoCloudAPI:
 
     async def get_device_logs(self, device_id: int, limit=20, project_id=None) -> dict:
         params = {"device_id": device_id, "limit": limit}
-        if project_id: params["project_id"] = project_id
+        if project_id:
+            params["project_id"] = project_id
         return await self.request("GET", "/evolooplink/api/log/recent", params=params)
 
     async def search_device_logs(self, device_id: int, query: str, limit=20, project_id=None) -> dict:
         params = {"device_id": device_id, "query": query, "limit": limit}
-        if project_id: params["project_id"] = project_id
+        if project_id:
+            params["project_id"] = project_id
         return await self.request("GET", "/evolooplink/api/log/search", params=params)
 
     async def register_device(self, key: str, name: str, os_info: str) -> dict:
@@ -310,19 +376,24 @@ class EvoCloudAPI:
                 "device_key": key,
                 "device_name": name,
                 "device_type": "desktop",
-                "os_info": os_info
-            }
+                "os_info": os_info,
+            },
         )
 
     async def send_heartbeat(self, device_id: int):
         await self.request("POST", "/evolooplink/api/device/heartbeat", data={"device_id": device_id})
 
     async def bind_client_id(self, device_id: int, client_id: str):
-        await self.request("POST", "/evolooplink/api/device/bind", data={"device_id": device_id, "client_id": client_id})
+        await self.request(
+            "POST",
+            "/evolooplink/api/device/bind",
+            data={"device_id": device_id, "client_id": client_id},
+        )
 
     async def update_command_status(self, command_id, status, result=None):
         data = {"command_id": command_id, "status": status}
-        if result: data["result"] = result
+        if result:
+            data["result"] = result
         await self.request("POST", "/evolooplink/api/command/updateStatus", data=data)
 
     async def upload_log(self, device_id, thread_id, log_type, content, command_id=None, project_id=None):
@@ -330,8 +401,10 @@ class EvoCloudAPI:
             "device_id": device_id,
             "thread_id": thread_id,
             "type": log_type,
-            "content": json_utils.dumps(content) if isinstance(content, (dict, list)) else str(content)
+            "content": json_utils.dumps(content) if isinstance(content, dict | list) else str(content),
         }
-        if command_id: data["command_id"] = command_id
-        if project_id: data["project_id"] = project_id
+        if command_id:
+            data["command_id"] = command_id
+        if project_id:
+            data["project_id"] = project_id
         await self.request("POST", "/evolooplink/api/log/upload", data=data)

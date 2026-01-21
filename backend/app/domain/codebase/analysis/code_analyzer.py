@@ -3,6 +3,7 @@ Code Analyzer Module
 Ported from Legacy `CodeSymbolExtractor`.
 Provides deep analysis of code files using Tree-sitter.
 """
+
 import logging
 from typing import Any
 
@@ -46,7 +47,7 @@ class CodeAnalyzer:
                 "file_path": file_path,
                 "lines": len(content.splitlines()),
                 "language": "unknown",
-                "symbols": []
+                "symbols": [],
             }
 
         parser, language = parser_info
@@ -58,7 +59,6 @@ class CodeAnalyzer:
         line_count = len(lines)
         blank_lines = sum(1 for line in lines if not line.strip())
         code_lines = line_count - blank_lines
-        complexity = 0 # Placeholder
 
         # Structure Extraction
         symbols = []
@@ -73,6 +73,7 @@ class CodeAnalyzer:
             defs_query = language.query(q_map["defs"])
             # import tree_sitter # Not needed for object methods in new bindings usually
             from tree_sitter import QueryCursor
+
             cursor = QueryCursor(defs_query)
             matches = cursor.matches(root)
 
@@ -112,7 +113,7 @@ class CodeAnalyzer:
                     if "module" in captures:
                         m_nodes = captures["module"]
                         m_node = m_nodes[0] if isinstance(m_nodes, list) else m_nodes
-                        imports.append(m_node.text.decode("utf8").strip('"\''))
+                        imports.append(m_node.text.decode("utf8").strip("\"'"))
 
         return {
             "file_path": file_path,
@@ -120,11 +121,11 @@ class CodeAnalyzer:
             "metrics": {
                 "total_lines": line_count,
                 "code_lines": code_lines,
-                "blank_lines": blank_lines
+                "blank_lines": blank_lines,
                 # "complexity": ... (Porting complexity logic is verbose, skipping for MVP)
             },
             "symbols": symbols,
-            "imports": list(set(imports))  # Unique imports
+            "imports": list(set(imports)),  # Unique imports
         }
 
 

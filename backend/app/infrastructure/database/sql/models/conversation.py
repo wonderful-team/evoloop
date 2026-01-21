@@ -16,6 +16,7 @@ class Message(Base):
     Flattened message log for full-text search.
     Populated asynchronously when messages are generated.
     """
+
     __tablename__ = "messages"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -45,9 +46,11 @@ class Message(Base):
 
     references: Mapped[list["MessageReference"]] = relationship(back_populates="message", cascade="all, delete-orphan")
 
-    conversation: Mapped["Conversation"] = relationship(back_populates="messages",
-                                                        primaryjoin="Message.thread_id == Conversation.id",
-                                                        foreign_keys=[thread_id])
+    conversation: Mapped["Conversation"] = relationship(
+        back_populates="messages",
+        primaryjoin="Message.thread_id == Conversation.id",
+        foreign_keys=[thread_id],
+    )
 
 
 class MessageReference(Base):
@@ -55,6 +58,7 @@ class MessageReference(Base):
     Phase 9: Persistent Context References
     Tracks what memory/knowledge/tool was used to generate a message.
     """
+
     __tablename__ = "message_references"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID
@@ -71,6 +75,7 @@ class Conversation(Base):
     """
     Metadata for a conversation thread.
     """
+
     __tablename__ = "conversations"
 
     id: Mapped[str] = mapped_column(String(255), primary_key=True)  # thread_id (uuid)
@@ -79,17 +84,25 @@ class Conversation(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
-    messages: Mapped[list["Message"]] = relationship(back_populates="conversation", cascade="all, delete-orphan",
-                                                     primaryjoin=lambda: Message.thread_id == Conversation.id,
-                                                     foreign_keys=[Message.thread_id])
-    plan: Mapped[Optional["Plan"]] = relationship("Plan", back_populates="conversation", uselist=False,
-                                                  cascade="all, delete-orphan")
+    messages: Mapped[list["Message"]] = relationship(
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        primaryjoin=lambda: Message.thread_id == Conversation.id,
+        foreign_keys=[Message.thread_id],
+    )
+    plan: Mapped[Optional["Plan"]] = relationship(
+        "Plan",
+        back_populates="conversation",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
 
 class HumanRequest(Base):
     """
     Stores pending human interactions (Phase 0.2)
     """
+
     __tablename__ = "human_requests"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID

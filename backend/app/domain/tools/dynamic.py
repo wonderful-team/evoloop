@@ -1,4 +1,3 @@
-
 import ast
 import importlib.util
 import logging
@@ -20,41 +19,54 @@ if not os.path.exists(init_file):
     with open(init_file, "w") as f:
         f.write("")
 
+
 class SafeASTVisitor(ast.NodeVisitor):
     """
     AST Visitor to enforce strict security policies on dynamic tools.
     Forbids dangerous imports and function calls.
     """
+
     def __init__(self):
         self.errors = []
-        self.allowed_imports = {"json", "math", "datetime", "re", "random", "typing", "collections", "itertools", "functools"}
+        self.allowed_imports = {
+            "json",
+            "math",
+            "datetime",
+            "re",
+            "random",
+            "typing",
+            "collections",
+            "itertools",
+            "functools",
+        }
         # Whitelist safe builtins if needed, but for now we blacklist dangerous ones.
         self.unsafe_functions = {"eval", "exec", "compile", "open", "input"}
 
     def visit_Import(self, node):
         for alias in node.names:
-            if alias.name.split('.')[0] not in self.allowed_imports:
+            if alias.name.split(".")[0] not in self.allowed_imports:
                 self.errors.append(f"Import forbidden: '{alias.name}'. Allowed: {self.allowed_imports}")
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node):
-        if node.module and node.module.split('.')[0] not in self.allowed_imports:
-             self.errors.append(f"Import forbidden: '{node.module}'. Allowed: {self.allowed_imports}")
+        if node.module and node.module.split(".")[0] not in self.allowed_imports:
+            self.errors.append(f"Import forbidden: '{node.module}'. Allowed: {self.allowed_imports}")
         self.generic_visit(node)
 
     def visit_Call(self, node):
         # Check for banned functions like eval(), exec(), open()
         if isinstance(node.func, ast.Name):
             if node.func.id in self.unsafe_functions:
-                 self.errors.append(f"Function call forbidden: '{node.func.id}()'")
-        
+                self.errors.append(f"Function call forbidden: '{node.func.id}()'")
+
         # Check for os.system, subprocess.run etc.
         elif isinstance(node.func, ast.Attribute):
-             # Hard to catch everything, but we block imports so 'os.system' fails at import level.
-             # Double check for attributes if someone passes module as arg?
-             pass
-        
+            # Hard to catch everything, but we block imports so 'os.system' fails at import level.
+            # Double check for attributes if someone passes module as arg?
+            pass
+
         self.generic_visit(node)
+
 
 class CreatePythonToolInput(BaseModel):
     name: str = Field(..., description="The name of the tool (snake_case), e.g., 'calculate_hash'.")
@@ -62,12 +74,13 @@ class CreatePythonToolInput(BaseModel):
     code: str = Field(..., description="The Python code defining the function. MUST include type hints and a docstring.")
     version: str | None = Field("1.0.0", description="Version string.")
 
+
 @tool("create_python_tool", args_schema=CreatePythonToolInput)
 def create_python_tool(name: str, description: str, code: str, version: str = "1.0.0") -> str:
     """
     Creates a new Python tool at runtime.
     The tool will be saved to disk, loaded, and made available for immediate use.
-    
+
     WARNING: The code runs in the host environment. Do not use for untrusted code if not sandboxed.
     """
     if not name.isidentifier():
@@ -79,7 +92,7 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
         validator = SafeASTVisitor()
         validator.visit(tree)
         if validator.errors:
-            return f"Security Error: Unsafe code detected.\n" + "\n".join(validator.errors)
+            return "Security Error: Unsafe code detected.\n" + "\n".join(validator.errors)
     except SyntaxError as e:
         return f"Error: Code has syntax errors: {e}"
 
@@ -97,7 +110,7 @@ def create_python_tool(name: str, description: str, code: str, version: str = "1
     try:
         spec = importlib.util.spec_from_file_location(name, filepath)
         if spec is None or spec.loader is None:
-             return f"Error: Could not create import spec for {filepath}"
+            return f"Error: Could not create import spec for {filepath}"
 
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)

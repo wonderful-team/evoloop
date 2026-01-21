@@ -5,6 +5,34 @@ import pkgutil
 
 from langchain_core.tools import BaseTool
 
+from app.domain.learning.tools import learn_skill_from_trace
+from app.domain.planning.tools import (
+    analyze_feasibility,
+    create_plan,
+    update_step_status,
+)
+from app.domain.research.tools import search_web
+from app.domain.tools.coding.lsp import consult_lsp
+from app.domain.tools.facades import (
+    consult_architecture,
+    edit_document,
+    explore_codebase,
+    manage_git,
+    manage_memory,
+    write_document,
+)
+
+# Phase 18: New Atomic File Tools
+from app.domain.tools.files import (
+    edit_file,
+    file_system,
+    list_files,
+    read_file,
+    write_file,
+)
+from app.domain.tools.human_input import request_approval
+from app.infrastructure.filesystem.tool import grep_files
+
 logger = logging.getLogger(__name__)
 
 
@@ -95,32 +123,6 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
     # For now, we import them if they exist as tool wrappers.
     # Assuming they are available via facades or planning module.
     # Checking planner.py, they are imported from app.domain.planning.tools.
-    from app.domain.planning.tools import (
-        analyze_feasibility,
-        create_plan,
-        update_step_status,
-    )
-    from app.domain.tools.coding.lsp import consult_lsp
-    from app.domain.tools.facades import (
-        consult_architecture,
-        explore_codebase,
-        write_document,
-        edit_document,
-        manage_git,
-        manage_memory,
-    )
-    # Phase 18: New Atomic File Tools
-    from app.domain.tools.files import (
-        read_file,
-        write_file,
-        edit_file,
-        list_files,
-        file_system,
-    )
-    from app.domain.tools.human_input import request_approval
-    from app.domain.research.tools import search_web
-    from app.infrastructure.filesystem.tool import grep_files
-
     # Core Tools everyone gets (Read-Only)
     common_read = [explore_codebase, grep_files]
 
@@ -130,15 +132,16 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
             read_file,
             list_files,
             manage_memory,
-            create_plan, update_step_status, analyze_feasibility,  # Plan Tools
+            create_plan,
+            update_step_status,
+            analyze_feasibility,  # Plan Tools
             consult_architecture,
             request_approval,  # Supervisor needs HITL for plan confirmation
-            *common_read
+            *common_read,
         ]
 
         # Phase 11: Learning Tool (Dynamic Import)
         try:
-            from app.domain.learning.tools import learn_skill_from_trace
             tools.append(learn_skill_from_trace)
         except ImportError:
             pass
@@ -158,29 +161,29 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
             manage_memory,
             consult_architecture,
             request_approval,  # HITL for high-risk operations
-            *common_read
+            *common_read,
         ]
 
     elif node_role == "planner":
         # Planner: Read Only + Planning Tools + HITL
         return [
-            read_file, list_files,
-            create_plan, update_step_status, analyze_feasibility,
+            read_file,
+            list_files,
+            create_plan,
+            update_step_status,
+            analyze_feasibility,
             consult_architecture,
             request_approval,  # HITL for complex plans
-            *common_read
+            *common_read,
         ]
 
     elif node_role == "researcher":
         # Researcher: Read Only + Web Search + Crawler + Memory
         from app.domain.research.tools import crawl_url
-        tools = [
-            read_file, list_files,
-            manage_memory,
-            crawl_url,
-            *common_read
-        ]
-        if search_web: tools.append(search_web)
+
+        tools = [read_file, list_files, manage_memory, crawl_url, *common_read]
+        if search_web:
+            tools.append(search_web)
         return tools
 
     elif node_role == "requirement_analyst":
@@ -191,7 +194,7 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
             write_document,
             edit_document,
             manage_memory,
-            *common_read
+            *common_read,
         ]
 
     elif node_role == "tester":
@@ -202,9 +205,8 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
             edit_file,
             list_files,
             manage_memory,
-            *common_read
+            *common_read,
         ]
 
     # Fallback to safe defaults (read-only)
     return [read_file, list_files]
-

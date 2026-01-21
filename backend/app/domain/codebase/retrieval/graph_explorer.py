@@ -1,35 +1,33 @@
-
 import logging
-from typing import Any
 
-from langchain_neo4j import GraphCypherQAChain, Neo4jGraph
 from langchain_core.prompts.prompt import PromptTemplate
+from langchain_neo4j import GraphCypherQAChain, Neo4jGraph
 
 from app.core.config import settings
 from app.core.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
+
 class GraphExplorer:
     """
     Exploratory Graph Retrieval using LangChain's Text-to-Cypher capabilities.
     """
-    
-    
+
     def __init__(self):
         # We need a synchronous Neo4j connection for LangChain.
         # PROBLEM: Default Neo4jGraph requires APOC plugin for schema retrieval.
         # FIX: We manually define the schema to avoid APOC dependency.
-        
+
         try:
             self.graph = Neo4jGraph(
                 url=settings.NEO4J_URI,
                 username=settings.NEO4J_USER,
                 password=settings.NEO4J_PASSWORD,
-                refresh_schema=False # Prevent auto-APOC call in constructor if supported (v0.1.0+ likely supports)
+                refresh_schema=False,  # Prevent auto-APOC call in constructor if supported (v0.1.0+ likely supports)
             )
-            
-            # If refresh_schema=False didn't exist or didn't work as expected in older versions, 
+
+            # If refresh_schema=False didn't exist or didn't work as expected in older versions,
             # we might need to manually set the schema string.
             # Defining the schema explicitly:
             self.graph.schema = """
@@ -53,24 +51,24 @@ The relationships:
 (:CodeEntity)-[:RELATION]->(:CodeEntity)
 """
             # Also set structured schema if needed by newer langchain versions
-            # self.graph.structured_schema = ... 
-            
+            # self.graph.structured_schema = ...
+
             logger.info("GraphExplorer initialized with manual schema (bypassing APOC).")
-            
+
         except TypeError:
             # Fallback if refresh_schema param doesn't exist in installed version
-             try:
+            try:
                 self.graph = Neo4jGraph(
                     url=settings.NEO4J_URI,
                     username=settings.NEO4J_USER,
-                    password=settings.NEO4J_PASSWORD
+                    password=settings.NEO4J_PASSWORD,
                 )
                 # It likely failed inside init, but let's try our best or log.
-             except Exception as e:
-                 logger.error(f"Failed to initialize Neo4jGraph (Standard): {e}")
-                 # Last resort: Mock object? Or just accept failure.
-                 self.graph = None
-                 
+            except Exception as e:
+                logger.error(f"Failed to initialize Neo4jGraph (Standard): {e}")
+                # Last resort: Mock object? Or just accept failure.
+                self.graph = None
+
         except Exception as e:
             logger.error(f"Failed to initialize Neo4jGraph for LangChain: {e}")
             self.graph = None
@@ -85,8 +83,8 @@ The relationships:
         if not self.graph:
             return "Graph Explorer is not available (Connection failed)."
 
-        llm = LLMFactory.create_llm(temperature=0) # Low temp for code generation
-        
+        llm = LLMFactory.create_llm(temperature=0)  # Low temp for code generation
+
         # Custom Prompt to inject schema hints or project context
         CYPHER_GENERATION_TEMPLATE = """Task:Generate Cypher statement to query a graph database.
 Instructions:
@@ -106,7 +104,7 @@ The question is:
             CYPHER_GENERATION_TEMPLATE += f"\nConstraint: ALWAYS filter by project_id = {project_id} in your query if nodes have that property."
 
         CYPHER_GENERATION_PROMPT = PromptTemplate(
-            input_variables=["schema", "question"], 
+            input_variables=["schema", "question"],
             template=CYPHER_GENERATION_TEMPLATE
         )
 
@@ -115,9 +113,9 @@ The question is:
             graph=self.graph,
             verbose=True,
             cypher_prompt=CYPHER_GENERATION_PROMPT,
-            allow_dangerous_requests=True
+            allow_dangerous_requests=True,
         )
-        
+
         try:
             # invoke/ainvoke
             result = await chain.ainvoke({"query": question})
@@ -125,6 +123,7 @@ The question is:
         except Exception as e:
             logger.error(f"Graph Explorer Query Failed: {e}")
             return f"I couldn't query the graph: {e}"
+
 
 # Global instance
 graph_explorer = GraphExplorer()

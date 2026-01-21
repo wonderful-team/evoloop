@@ -11,8 +11,8 @@ from app.infrastructure.database.graph.driver import get_graph_db
 
 logger = logging.getLogger(__name__)
 
-class EmbeddingConfigService:
 
+class EmbeddingConfigService:
     @staticmethod
     async def validate_connection(provider: str, base_url: str, model: str, api_key: str = None) -> bool:
         """
@@ -31,7 +31,12 @@ class EmbeddingConfigService:
             embedder = None
             if provider in ["openai", "generic", "qwen"]:
                 # Use settings dimensions or provider default
-                embedder = GenericOpenAIEmbedder(api_key=api_key or "dummy", base_url=base_url, model=model, dimensions=settings.EMBEDDING_DIMENSIONS)
+                embedder = GenericOpenAIEmbedder(
+                    api_key=api_key or "dummy",
+                    base_url=base_url,
+                    model=model,
+                    dimensions=settings.EMBEDDING_DIMENSIONS,
+                )
             elif provider == "ollama":
                 embedder = OllamaEmbedder(base_url=base_url, model=model)
             else:
@@ -42,7 +47,7 @@ class EmbeddingConfigService:
             if not vec or len(vec) == 0:
                 raise ValueError("Empty embedding returned")
 
-            return True, len(vec) # Return success and dimension
+            return True, len(vec)  # Return success and dimension
         except Exception as e:
             logger.error(f"Embedding Validation Failed: {e}")
             raise e
@@ -53,7 +58,7 @@ class EmbeddingConfigService:
         base_url: str,
         model: str,
         api_key: str = None,
-        current_project_id: int = None
+        current_project_id: int = None,
     ):
         """
         Critical Operation: Switches Embedding Model.
@@ -156,11 +161,18 @@ class EmbeddingConfigService:
         if provider == "ollama":
             embedder = OllamaEmbedder(base_url, model)
         else:
-            embedder = GenericOpenAIEmbedder(api_key or "dummy", base_url, model, dimensions=settings.EMBEDDING_DIMENSIONS)
+            embedder = GenericOpenAIEmbedder(
+                api_key or "dummy",
+                base_url,
+                model,
+                dimensions=settings.EMBEDDING_DIMENSIONS,
+            )
 
         async with driver.session() as session:
             # Fetch all concepts
-            result = await session.run("MATCH (c:Concept) RETURN c.name as name, c.description as desc, elementId(c) as id")
+            result = await session.run(
+                "MATCH (c:Concept) RETURN c.name as name, c.description as desc, elementId(c) as id"
+            )
             records = await result.data()
 
             logger.info(f"Migrating {len(records)} Neo4j Concepts having description...")
@@ -172,7 +184,8 @@ class EmbeddingConfigService:
                     # Update
                     await session.run(
                         "MATCH (c:Concept) WHERE elementId(c) = $id SET c.embedding = $vec",
-                        id=r['id'], vec=vec
+                        id=r["id"],
+                        vec=vec,
                     )
                 except Exception as e:
                     logger.error(f"Failed to re-embed concept {r['name']}: {e}")

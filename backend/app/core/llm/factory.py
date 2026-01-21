@@ -1,4 +1,3 @@
-
 from app.core.config import settings
 from app.core.llm.adaptive import AdaptiveChatOpenAI
 
@@ -28,30 +27,34 @@ class LLMFactory:
         final_model = model_name or db_model or settings.OPENAI_MODEL_NAME
 
         import logging
+
         logger = logging.getLogger(__name__)
-        logger.info(f"LLM Config - Provider: {db_provider}, Base URL: {base_url}, Model: {final_model}")
+        logger.info(
+            f"LLM Config - Provider: {db_provider}, Base URL: {base_url}, Model: {final_model}"
+        )
 
         # Anthropic / Claude Protocol Support
         if db_provider == "anthropic" or "api/anthropic" in (base_url or ""):
             # Check for Zhipu GLM-4 (requires response patching)
             if "bigmodel.cn" in (base_url or ""):
                 from app.core.llm.zhipu_adapter import ZhipuChatAnthropic
+
                 return ZhipuChatAnthropic(
                     api_key=api_key,
                     base_url=base_url,
                     model_name=final_model,
                     temperature=temperature,
-                    streaming=False
+                    streaming=False,
                 )
 
             from langchain_anthropic import ChatAnthropic
-            
+
             return ChatAnthropic(
                 api_key=api_key,
                 base_url=base_url,
                 model_name=final_model,
                 temperature=temperature,
-                streaming=False  # Disable streaming to prevent httpx.ResponseNotRead on errors
+                streaming=False,  # Disable streaming to prevent httpx.ResponseNotRead on errors
             )
 
         # Default: OpenAI Compatible (Adaptive)
@@ -60,7 +63,7 @@ class LLMFactory:
             base_url=base_url,
             model=final_model,
             temperature=temperature,
-            streaming=True
+            streaming=True,
         )
 
 

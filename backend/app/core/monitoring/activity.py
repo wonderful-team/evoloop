@@ -25,7 +25,9 @@ class ActivityMonitor:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             # Fallback if called outside loop (unlikely for async methods)
-            return redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+            return redis.from_url(
+                self.redis_url, encoding="utf-8", decode_responses=True
+            )
 
         if loop in self._clients:
             client = self._clients[loop]
@@ -53,12 +55,16 @@ class ActivityMonitor:
         try:
             loop = asyncio.get_running_loop()
             if loop not in self._clients:
-                self._clients[loop] = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+                self._clients[loop] = redis.from_url(
+                    self.redis_url, encoding="utf-8", decode_responses=True
+                )
             return self._clients[loop]
         except RuntimeError:
             # If no loop running, return a default/global one?
             if self._global_client is None:
-                self._global_client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
+                self._global_client = redis.from_url(
+                    self.redis_url, encoding="utf-8", decode_responses=True
+                )
             return self._global_client
 
     @classmethod
@@ -77,8 +83,10 @@ class ActivityMonitor:
             "verification": json.dumps({}),
             "steps": json.dumps([]),
             "artifacts": json.dumps([]),
-            "active_memories": json.dumps([]),  # Phase 7: Track active memory references
-            "updated_at": now
+            "active_memories": json.dumps(
+                []
+            ),  # Phase 7: Track active memory references
+            "updated_at": now,
         }
         # Use HSET
         await self.client.hset(key, mapping=data)
@@ -94,10 +102,9 @@ class ActivityMonitor:
         if current_status == "stopping":
             final_status = "cancelled"
 
-        await self.client.hset(key, mapping={
-            "status": final_status,
-            "updated_at": time.time()
-        })
+        await self.client.hset(
+            key, mapping={"status": final_status, "updated_at": time.time()}
+        )
 
         # Mark running steps as done/cancelled
         steps_json = await self.client.hget(key, "steps")
@@ -115,44 +122,54 @@ class ActivityMonitor:
                 # Simplification: Just publish the end-run status for now or iterate
                 # Iterate to be precise
                 for t in steps:
-                    if t["status"] in ["done", "cancelled"] and t.get("start_time"):  # It was running
+                    if t["status"] in ["done", "cancelled"] and t.get(
+                        "start_time"
+                    ):  # It was running
                         await self.client.publish(
                             f"chat:{thread_id}:events",
-                            StepEvent(action="update", id=t["id"], data={"status": t["status"]}).json()
+                            StepEvent(
+                                action="update",
+                                id=t["id"],
+                                data={"status": t["status"]},
+                            ).json(),
                         )
 
         # Publish Status Change
         await self.client.publish(
-            f"chat:{thread_id}:events",
-            StatusEvent(status=final_status).json()
+            f"chat:{thread_id}:events", StatusEvent(status=final_status).json()
         )
 
     async def stop_run(self, thread_id: str):
         """Signal a run to stop."""
         key = f"activity:{thread_id}"
         if await self.client.exists(key):
-            await self.client.hset(key, mapping={
-                "status": "stopping",
-                "updated_at": time.time()
-            })
+            await self.client.hset(
+                key, mapping={"status": "stopping", "updated_at": time.time()}
+            )
 
     async def check_cancellation(self, thread_id: str):
         """Check if run is marked for stopping and raise exception if so."""
         from app.core.exceptions import AgentCancelledException
+
         key = f"activity:{thread_id}"
         status = await self.client.hget(key, "status")
         if status == "stopping":
             raise AgentCancelledException(f"Run {thread_id} cancelled by user")
 
-    async def set_interrupted(self, thread_id: str, reason: str = "awaiting_human_input"):
+    async def set_interrupted(
+        self, thread_id: str, reason: str = "awaiting_human_input"
+    ):
         """Mark a run as interrupted (paused for human input)."""
         key = f"activity:{thread_id}"
         if await self.client.exists(key):
-            await self.client.hset(key, mapping={
-                "status": "interrupted",
-                "interrupt_reason": reason,
-                "updated_at": time.time()
-            })
+            await self.client.hset(
+                key,
+                mapping={
+                    "status": "interrupted",
+                    "interrupt_reason": reason,
+                    "updated_at": time.time(),
+                },
+            )
 
     async def set_human_request(self, thread_id: str, request_data: dict[str, Any]):
         """
@@ -161,24 +178,32 @@ class ActivityMonitor:
         """
         key = f"activity:{thread_id}"
         if await self.client.exists(key):
-            await self.client.hset(key, mapping={
-                "status": "interrupted",
-                "human_request": json.dumps(request_data),
-                "interrupt_reason": request_data.get("prompt", "Human Input Required"),
-                "updated_at": time.time()
-            })
+            await self.client.hset(
+                key,
+                mapping={
+                    "status": "interrupted",
+                    "human_request": json.dumps(request_data),
+                    "interrupt_reason": request_data.get(
+                        "prompt", "Human Input Required"
+                    ),
+                    "updated_at": time.time(),
+                },
+            )
 
     async def clear_human_request(self, thread_id: str):
         """Clear human request upon resumption."""
         key = f"activity:{thread_id}"
         if await self.client.exists(key):
             # We don't delete the key, just clear the field and set status to running
-            await self.client.hset(key, mapping={
-                "status": "running",
-                "human_request": "",  # Clear it
-                "interrupt_reason": "",
-                "updated_at": time.time()
-            })
+            await self.client.hset(
+                key,
+                mapping={
+                    "status": "running",
+                    "human_request": "",  # Clear it
+                    "interrupt_reason": "",
+                    "updated_at": time.time(),
+                },
+            )
 
     async def set_active_memory(self, thread_id: str, memory_id: str, memory_name: str):
         """Phase 7: Track which memory is currently being accessed by the Agent."""
@@ -192,10 +217,13 @@ class ActivityMonitor:
         # Add if not already in list
         if not any(m.get("id") == memory_id for m in memories):
             memories.append({"id": memory_id, "name": memory_name})
-            await self.client.hset(key, mapping={
-                "active_memories": json.dumps(memories),
-                "updated_at": time.time()
-            })
+            await self.client.hset(
+                key,
+                mapping={
+                    "active_memories": json.dumps(memories),
+                    "updated_at": time.time(),
+                },
+            )
 
     async def clear_active_memories(self, thread_id: str):
         """Clear active memory highlights at end of run."""
@@ -203,7 +231,9 @@ class ActivityMonitor:
         if await self.client.exists(key):
             await self.client.hset(key, "active_memories", json.dumps([]))
 
-    async def add_step(self, thread_id: str, name: str, step_type="node", parent_id: int = None):
+    async def add_step(
+        self, thread_id: str, name: str, step_type="node", parent_id: int = None
+    ):
         key = f"activity:{thread_id}"
 
         # Use a lock to prevent Race Conditions on the JSON list
@@ -230,19 +260,18 @@ class ActivityMonitor:
                     "type": step_type,
                     "parent_id": parent_id,
                     "start_time": time.time(),
-                    "time": "0s"
+                    "time": "0s",
                 }
                 steps.append(new_step)
 
-                await self.client.hset(key, mapping={
-                    "steps": json.dumps(steps),
-                    "updated_at": time.time()
-                })
+                await self.client.hset(
+                    key, mapping={"steps": json.dumps(steps), "updated_at": time.time()}
+                )
 
                 # Publish Event
                 await self.client.publish(
                     f"chat:{thread_id}:events",
-                    StepEvent(action="create", id=step_id, data=new_step).json()
+                    StepEvent(action="create", id=step_id, data=new_step).json(),
                 )
 
                 return step_id
@@ -250,7 +279,9 @@ class ActivityMonitor:
             # logger.error(f"Failed to add task: {e}")
             return None
 
-    async def update_step(self, thread_id: str, step_id: int, status: str, details: str = None):
+    async def update_step(
+        self, thread_id: str, step_id: int, status: str, details: str = None
+    ):
         key = f"activity:{thread_id}"
         lock_key = f"lock:{key}"
 
@@ -258,7 +289,8 @@ class ActivityMonitor:
             async with self.client.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
                 # We need to fetch, modify, save.
                 steps_json = await self.client.hget(key, "steps")
-                if not steps_json: return
+                if not steps_json:
+                    return
 
                 steps = json.loads(steps_json)
                 modified = False
@@ -275,39 +307,44 @@ class ActivityMonitor:
                         break
 
                 if modified:
-                    await self.client.hset(key, mapping={
-                        "steps": json.dumps(steps),
-                        "updated_at": time.time()
-                    })
+                    await self.client.hset(
+                        key,
+                        mapping={"steps": json.dumps(steps), "updated_at": time.time()},
+                    )
 
                     # Publish Event
                     # We accept 'details' might mean partial update, but our schema is flexible
                     update_data = {"status": status}
-                    if details: update_data["details"] = details
+                    if details:
+                        update_data["details"] = details
                     await self.client.publish(
                         f"chat:{thread_id}:events",
-                        StepEvent(action="update", id=step_id, data=update_data).json()
+                        StepEvent(action="update", id=step_id, data=update_data).json(),
                     )
         except Exception:
             pass
 
-    async def update_agent_state(self, thread_id: str, mode: str, task_name: str, task_status: str):
+    async def update_agent_state(
+        self, thread_id: str, mode: str, task_name: str, task_status: str
+    ):
         # New method to sync Agent State (Sidebar info)
         key = f"activity:{thread_id}"
-        state = {
-            "mode": mode,
-            "task_name": task_name,
-            "task_status": task_status
-        }
+        state = {"mode": mode, "task_name": task_name, "task_status": task_status}
         await self.client.hset(key, "agent_state", json.dumps(state))
 
         # Publish Event
         await self.client.publish(
-            f"chat:{thread_id}:events",
-            AgentStateEvent(data=state).json()
+            f"chat:{thread_id}:events", AgentStateEvent(data=state).json()
         )
 
-    async def add_artifact(self, thread_id: str, name: str, artifact_type: str, status="created", path: str = None):
+    async def add_artifact(
+        self,
+        thread_id: str,
+        name: str,
+        artifact_type: str,
+        status="created",
+        path: str = None,
+    ):
         key = f"activity:{thread_id}"
         arts_json = await self.client.hget(key, "artifacts")
         artifacts = json.loads(arts_json) if arts_json else []
@@ -320,23 +357,24 @@ class ActivityMonitor:
                 # Publish Event for modification
                 await self.client.publish(
                     f"chat:{thread_id}:events",
-                    ArtifactEvent(action="update", name=name, data=art).json()
+                    ArtifactEvent(action="update", name=name, data=art).json(),
                 )
                 return
 
-        artifacts.append({
-            "id": len(artifacts) + 1,
-            "name": name,
-            "type": artifact_type,
-            "status": status,
-            "path": path,
-            "icon": "FileCode"
-        })
+        artifacts.append(
+            {
+                "id": len(artifacts) + 1,
+                "name": name,
+                "type": artifact_type,
+                "status": status,
+                "path": path,
+                "icon": "FileCode",
+            }
+        )
 
-        await self.client.hset(key, mapping={
-            "artifacts": json.dumps(artifacts),
-            "updated_at": time.time()
-        })
+        await self.client.hset(
+            key, mapping={"artifacts": json.dumps(artifacts), "updated_at": time.time()}
+        )
 
         # Publish Event
         # We need to find the artifact we just added/modified
@@ -345,18 +383,14 @@ class ActivityMonitor:
             action = "update" if status == "modified" else "create"
             await self.client.publish(
                 f"chat:{thread_id}:events",
-                ArtifactEvent(action=action, name=name, data=target_art).json()
+                ArtifactEvent(action=action, name=name, data=target_art).json(),
             )
 
     async def get_activity(self, thread_id: str):
         key = f"activity:{thread_id}"
         data = await self.client.hgetall(key)
         if not data:
-            return {
-                "status": "idle",
-                "tasks": [],
-                "artifacts": []
-            }
+            return {"status": "idle", "tasks": [], "artifacts": []}
 
         # Parse JSON fields
         try:
@@ -368,7 +402,7 @@ class ActivityMonitor:
 
             human_request_raw = data.get("human_request")
             human_request = json.loads(human_request_raw) if human_request_raw else None
-        except:
+        except Exception:
             steps = []
             artifacts = []
             agent_state = {}
@@ -385,7 +419,7 @@ class ActivityMonitor:
             "agent_state": agent_state,
             "verification": verification,
             "active_memories": active_memories,  # Phase 7
-            "human_request": human_request
+            "human_request": human_request,
         }
 
     async def get_statuses(self, thread_ids: list[str]) -> dict[str, str]:

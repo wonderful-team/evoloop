@@ -23,12 +23,14 @@ class ReportGenerator:
         # Maybe collapse them or put them in an appendix
         logs_text = "\n\n".join(logs)
 
-        report = i18n.get("prompts.domain_tools.research_report.template",
-                          topic=topic,
-                          date=date_str,
-                          meta_info=meta_info,
-                          conclusion=conclusion,
-                          logs_text=logs_text)
+        report = i18n.get(
+            "prompts.domain_tools.research_report.template",
+            topic=topic,
+            date=date_str,
+            meta_info=meta_info,
+            conclusion=conclusion,
+            logs_text=logs_text,
+        )
         return report
 
     @staticmethod

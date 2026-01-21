@@ -1,4 +1,3 @@
-
 import logging
 from dataclasses import dataclass
 
@@ -9,6 +8,7 @@ from app.utils.file import read_file_content
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class APIEndpoint:
     method: str
@@ -16,6 +16,7 @@ class APIEndpoint:
     handler_name: str
     file_path: str
     line_number: int
+
 
 class APIExtractor:
     """
@@ -95,7 +96,7 @@ class APIExtractor:
       (attribute_list
         (attribute
           name: (identifier) @method_attr
-          (attribute_argument_list 
+          (attribute_argument_list
             (attribute_argument) @path_arg
           )?
         )
@@ -117,7 +118,7 @@ class APIExtractor:
         "HttpPost": "POST",
         "HttpPut": "PUT",
         "HttpDelete": "DELETE",
-        "HttpPatch": "PATCH"
+        "HttpPatch": "PATCH",
     }
 
     async def extract(self, file_path: str) -> list[APIEndpoint]:
@@ -135,7 +136,8 @@ class APIExtractor:
 
         try:
             content, _ = read_file_content(file_path)
-            if not content: return []
+            if not content:
+                return []
 
             tree = parser.parse(bytes(content, "utf8"))
 
@@ -169,11 +171,13 @@ class APIExtractor:
                 path_node = self._get_node(captured_nodes, "path")
                 handler_node = self._get_node(captured_nodes, "handler")
 
-                if not (obj_node and method_node and path_node and handler_node): continue
+                if not (obj_node and method_node and path_node and handler_node):
+                    continue
 
                 method = method_node.text.decode("utf8").lower()
 
-                if method not in self.HTTP_METHODS: continue
+                if method not in self.HTTP_METHODS:
+                    continue
 
                 path = path_node.text.decode("utf8").strip("'\"")
                 handler = handler_node.text.decode("utf8")
@@ -203,10 +207,12 @@ class APIExtractor:
                 path_node = self._get_node(captured_nodes, "path")
                 handler_node = self._get_node(captured_nodes, "handler")
 
-                if not (obj_node and method_node and path_node and handler_node): continue
+                if not (obj_node and method_node and path_node and handler_node):
+                    continue
 
                 method = method_node.text.decode("utf8").lower()
-                if method not in self.HTTP_METHODS: continue
+                if method not in self.HTTP_METHODS:
+                    continue
 
                 path_text = path_node.text.decode("utf8")
                 # Remove quotes or backticks
@@ -217,7 +223,7 @@ class APIExtractor:
 
                 handler = "anonymous"
                 if handler_node.type == "identifier":
-                     handler = handler_node.text.decode("utf8")
+                    handler = handler_node.text.decode("utf8")
 
                 endpoints.append(APIEndpoint(
                     method=method.upper(),
@@ -243,11 +249,13 @@ class APIExtractor:
                 path_node = self._get_node(captured_nodes, "path")
                 handler_node = self._get_node(captured_nodes, "handler")
 
-                if not (annotation_node and handler_node): continue
+                if not (annotation_node and handler_node):
+                    continue
 
                 annotation = annotation_node.text.decode("utf8")
                 method = self.ANNOTATION_TO_METHOD.get(annotation)
-                if not method: continue
+                if not method:
+                    continue
 
                 path = "/"
                 if path_node:
@@ -276,10 +284,12 @@ class APIExtractor:
                 path_node = self._get_node(captured_nodes, "path")
                 handler_node = self._get_node(captured_nodes, "handler")
 
-                if not (method_node and path_node and handler_node): continue
+                if not (method_node and path_node and handler_node):
+                    continue
 
                 method = method_node.text.decode("utf8").upper()
-                if method not in map(str.upper, self.HTTP_METHODS): continue
+                if method not in map(str.upper, self.HTTP_METHODS):
+                    continue
 
                 path = path_node.text.decode("utf8").strip('"')
 
@@ -310,11 +320,13 @@ class APIExtractor:
                 path_arg_node = self._get_node(captured_nodes, "path_arg")
                 handler_node = self._get_node(captured_nodes, "handler")
 
-                if not (attr_node and handler_node): continue
+                if not (attr_node and handler_node):
+                    continue
 
                 attr_name = attr_node.text.decode("utf8")
                 method = self.ANNOTATION_TO_METHOD.get(attr_name)
-                if not method: continue
+                if not method:
+                    continue
 
                 path = "/"
                 if path_arg_node:
@@ -322,7 +334,7 @@ class APIExtractor:
                     path_text = path_arg_node.text.decode("utf8").strip()
                     if path_text.startswith('"') and path_text.endswith('"'):
                         path = path_text.strip('"')
-                    elif path_text.startswith('nameof('):
+                    elif path_text.startswith("nameof("):
                         # skip complex args for now
                         continue
 
@@ -340,29 +352,41 @@ class APIExtractor:
 
     def _get_node(self, captured: dict, name: str):
         nodes = captured.get(name)
-        if not nodes: return None
-        if isinstance(nodes, list): return nodes[0]
+        if not nodes:
+            return None
+        if isinstance(nodes, list):
+            return nodes[0]
         return nodes
 
     async def sync_to_graph(self, project_id: int, endpoints: list[APIEndpoint]):
-        if not endpoints: return
+        if not endpoints:
+            return
 
         try:
             from app.infrastructure.database.graph.driver import get_graph_db
+
             driver = await get_graph_db()
             async with driver.session() as session:
                 for ep in endpoints:
                     full_name = f"{ep.method} {ep.path}"
-                    await session.run("""
+                    await session.run(
+                        """
                         MERGE (e:APIEndpoint {full_name: $id, project_id: $pid})
                         SET e.method = $method, e.path = $path, e.handler = $handler, e.file = $file
                         WITH e
-                        MATCH (fn:CodeEntity {name: $handler, project_id: $pid}) 
+                        MATCH (fn:CodeEntity {name: $handler, project_id: $pid})
                         MERGE (e)-[:HANDLED_BY]->(fn)
-                    """, id=full_name, pid=project_id, method=ep.method, path=ep.path,
-                         handler=ep.handler_name, file=ep.file_path)
+                    """,
+                        id=full_name,
+                        pid=project_id,
+                        method=ep.method,
+                        path=ep.path,
+                        handler=ep.handler_name,
+                        file=ep.file_path,
+                    )
 
         except Exception as e:
             logger.error(f"Graph Sync for API failed: {e}")
+
 
 api_extractor = APIExtractor()

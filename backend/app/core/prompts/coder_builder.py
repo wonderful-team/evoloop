@@ -64,15 +64,15 @@ After writing or modifying any code, you MUST verify it using `consult_lsp`:
 3. Do NOT declare "Implementation complete" until `check_errors` returns "No errors found".
 
 ### CRITICAL RULES DO NOT IGNORE
-1. **NO CHAT-ONLY CODE**: You cannot "apply" changes by just printing code blocks in the chat. 
-   - **YOU MUST USE FILE TOOLS** (`write_file`, `edit_file`). 
+1. **NO CHAT-ONLY CODE**: You cannot "apply" changes by just printing code blocks in the chat.
+   - **YOU MUST USE FILE TOOLS** (`write_file`, `edit_file`).
    - If you do not call a file tool, the file is NOT changed.
    - Any code in your final response is just for display, it does NOT execute.
 2. **VERIFY APPLICATION**: After using file tools, assume they succeeded but double check if necessary.
 3. **NO SIMULATIONS**: Do not say "I have updated..." unless you have received a `ToolMessage` confirmation.
 
 ### ANTI-HALLUCINATION RULES (CRITICAL)
-- **DO NOT USE** `write_to_file`. It does not exist. 
+- **DO NOT USE** `write_to_file`. It does not exist.
   - ❌ `write_to_file(path=..., content=...)`
   - ✅ `write_file(path="app/main.py", content="print('hello')", overwrite=False)`
   - ✅ `edit_file(path="app/main.py", target="old_code", replacement="new_code")`

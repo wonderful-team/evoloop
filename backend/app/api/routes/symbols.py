@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,13 +7,14 @@ from app.infrastructure.database.sql.models import CodeEntity, Repository
 
 router = APIRouter()
 
+
 @router.get("/projects/{project_id}/symbols", response_model=list[dict])
 async def search_symbols(
     project_id: int,
     q: str = Query(..., min_length=2, description="Search query for symbol name"),
     type: str | None = Query(None, description="Filter by entity type (class, function)"),
     limit: int = 20,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Search for code symbols (classes, functions) within a project.
@@ -70,9 +70,7 @@ async def search_symbols(
 
 @router.post("/projects/{project_id}/symbols/{symbol_id}/wiki")
 async def generate_symbol_wiki(
-    project_id: int,
-    symbol_id: int,
-    db: AsyncSession = Depends(get_db)
+    _project_id: int, symbol_id: int, db: AsyncSession = Depends(get_db)
 ):
     """
     Generate on-demand Wiki documentation for a specific symbol.

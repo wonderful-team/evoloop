@@ -1,10 +1,13 @@
+import logging
+
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
-from app.logging import logger
+
+logger = logging.getLogger(__name__)
 
 # Create Async Engine
 engine = create_async_engine(
@@ -12,7 +15,7 @@ engine = create_async_engine(
     echo=settings.DB_ECHO,
     future=True,
     pool_size=20,
-    max_overflow=10
+    max_overflow=10,
 )
 
 # Create Session Factory
@@ -40,6 +43,7 @@ async def get_db():
         finally:
             await session.close()
 
+
 @asynccontextmanager
 async def session_scope():
     """
@@ -54,6 +58,7 @@ async def session_scope():
             raise
         finally:
             await session.close()
+
 
 # Alias for compatibility
 get_db_session = session_scope

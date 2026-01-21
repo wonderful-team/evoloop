@@ -17,9 +17,11 @@ def set_context(thread_id: str = None, project_id: int = None, working_directory
         ctx["working_directory"] = working_directory
     _request_context.set(ctx)
 
+
 def get_context() -> dict[str, Any]:
     """Get the current context."""
     return _request_context.get()
+
 
 def get_context_var(key: str, default: Any = None) -> Any:
     """Get a specific variable from the current context."""

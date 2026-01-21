@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 
 from sqlmodel import Session
 
@@ -85,7 +86,6 @@ async def init_mcp() -> None:
         logger.error(f"Failed to configure filesystem: {e}")
 
     # 2. Brave Search (Network Capability)
-    import os
     brave_key = os.getenv("BRAVE_API_KEY")
     if brave_key:
         details_brave = {
@@ -97,7 +97,7 @@ async def init_mcp() -> None:
             await mcp_client_manager.add_server("brave-search", details_brave)
             logger.info("MCP 'brave-search' configured successfully.")
         except Exception as e:
-             logger.error(f"Failed to configure brave-search: {e}")
+            logger.error(f"Failed to configure brave-search: {e}")
     else:
         logger.warning("BRAVE_API_KEY not found. Skipping 'brave-search' MCP auto-configuration.")
 
@@ -106,9 +106,9 @@ async def init_mcp() -> None:
     # Default port 8000 mapped internally
     agent_s_url = "http://skill-agent-s:8000/sse"
     details_agent_s = {
-        "command": agent_s_url, # Command is URL for SSE
+        "command": agent_s_url,  # Command is URL for SSE
         "args": [],
-        "env": {}
+        "env": {},
     }
     try:
         # We add it but it might fail if container is not up yet - MCP Client handles reconnection/retry?

@@ -25,16 +25,26 @@ class ParserRegistry:
         self.parsers: dict[str, tuple[Parser, Language]] = {}
         self.languages: dict[str, Language] = {}
         self.lang_map = {
-            "py": "python", "python": "python",
+            "py": "python",
+            "python": "python",
             "go": "go",
             "java": "java",
-            "cpp": "cpp", "cc": "cpp", "cxx": "cpp", "h": "cpp", "hpp": "cpp",
+            "cpp": "cpp",
+            "cc": "cpp",
+            "cxx": "cpp",
+            "h": "cpp",
+            "hpp": "cpp",
             "rs": "rust",
             "php": "php",
-            "rb": "ruby", "ruby": "ruby",
-            "cs": "c_sharp", "csharp": "c_sharp",
-            "js": "javascript", "javascript": "javascript",
-            "ts": "typescript", "typescript": "typescript", "tsx": "typescript"
+            "rb": "ruby",
+            "ruby": "ruby",
+            "cs": "c_sharp",
+            "csharp": "c_sharp",
+            "js": "javascript",
+            "javascript": "javascript",
+            "ts": "typescript",
+            "typescript": "typescript",
+            "tsx": "typescript",
         }
         self._initialized = False
 
@@ -88,7 +98,7 @@ class ParserRegistry:
             tsx_parser = Parser(Language(tsx_lang))
             self.parsers["tsx"] = (tsx_parser, Language(tsx_lang))
         except Exception as e:
-             logger.warning(f"Failed to load TypeScript parser: {e}")
+            logger.warning(f"Failed to load TypeScript parser: {e}")
 
         self._initialized = True
 

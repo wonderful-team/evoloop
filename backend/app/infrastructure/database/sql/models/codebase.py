@@ -5,11 +5,11 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+# Get embedding dimension from settings (Single Source of Truth)
+from app.core.config import settings
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
-# Get embedding dimension from settings (Single Source of Truth)
-from app.core.config import settings
 EMBEDDING_DIM = settings.EMBEDDING_DIMENSIONS
 
 
@@ -66,8 +66,18 @@ class CodeEntity(Base):
     file: Mapped["SourceFile"] = relationship(back_populates="entities")
 
     # Relationships
-    relations_from: Mapped[list["CodeRelation"]] = relationship("CodeRelation", foreign_keys="CodeRelation.source_entity_id", back_populates="source_entity", cascade="all, delete-orphan")
-    relations_to: Mapped[list["CodeRelation"]] = relationship("CodeRelation", foreign_keys="CodeRelation.target_entity_id", back_populates="target_entity", cascade="all, delete-orphan")
+    relations_from: Mapped[list["CodeRelation"]] = relationship(
+        "CodeRelation",
+        foreign_keys="CodeRelation.source_entity_id",
+        back_populates="source_entity",
+        cascade="all, delete-orphan",
+    )
+    relations_to: Mapped[list["CodeRelation"]] = relationship(
+        "CodeRelation",
+        foreign_keys="CodeRelation.target_entity_id",
+        back_populates="target_entity",
+        cascade="all, delete-orphan",
+    )
 
 
 class CodeRelation(Base):
@@ -85,14 +95,23 @@ class CodeRelation(Base):
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
-    source_entity: Mapped["CodeEntity"] = relationship("CodeEntity", foreign_keys=[source_entity_id], back_populates="relations_from")
-    target_entity: Mapped[Optional["CodeEntity"]] = relationship("CodeEntity", foreign_keys=[target_entity_id], back_populates="relations_to")
+    source_entity: Mapped["CodeEntity"] = relationship(
+        "CodeEntity",
+        foreign_keys=[source_entity_id],
+        back_populates="relations_from"
+    )
+    target_entity: Mapped[Optional["CodeEntity"]] = relationship(
+        "CodeEntity",
+        foreign_keys=[target_entity_id],
+        back_populates="relations_to"
+    )
 
 
 class CodeChunk(Base):
     """
     Represents a chunk of code (e.g., a function, class, or block) that is vectorized.
     """
+
     __tablename__ = "code_chunks"
 
     id: Mapped[int] = mapped_column(primary_key=True)

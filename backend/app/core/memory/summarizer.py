@@ -1,7 +1,7 @@
 import logging
 
-from app.i18n.service import i18n
 from app.core.llm.factory import LLMFactory
+from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 

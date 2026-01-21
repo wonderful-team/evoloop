@@ -9,8 +9,8 @@ celery_app = Celery(
     include=[
         "app.domain.codebase.indexing.tasks",
         "app.domain.project.summarizer",
-        "app.domain.project.sync_tasks"
-    ]
+        "app.domain.project.sync_tasks",
+    ],
 )
 
 celery_app.conf.update(

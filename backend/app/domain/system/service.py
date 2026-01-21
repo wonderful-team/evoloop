@@ -49,4 +49,3 @@ class SystemConfigService:
             # Add more as needed
         }
         return language_map.get(code, code)
-

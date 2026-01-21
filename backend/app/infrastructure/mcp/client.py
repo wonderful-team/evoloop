@@ -3,15 +3,18 @@ import logging
 import os
 import sys
 from contextlib import AsyncExitStack, contextmanager
-from typing import Any, Optional
+from typing import Any
 
 from langchain_core.tools import StructuredTool
 from mcp import ClientSession, StdioServerParameters
+from mcp.client.sse import sse_client
 from mcp.client.stdio import stdio_client
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import McpServer
+
+logger = logging.getLogger("evoloop.mcp_client")
 
 
 @contextmanager
@@ -25,16 +28,14 @@ def restore_std_streams():
     old_stderr = sys.stderr
 
     try:
-        if hasattr(sys, '__stdout__') and sys.__stdout__:
+        if hasattr(sys, "__stdout__") and sys.__stdout__:
             sys.stdout = sys.__stdout__
-        if hasattr(sys, '__stderr__') and sys.__stderr__:
+        if hasattr(sys, "__stderr__") and sys.__stderr__:
             sys.stderr = sys.__stderr__
         yield
     finally:
         sys.stdout = old_stdout
         sys.stderr = old_stderr
-
-logger = logging.getLogger("evoloop.mcp_client")
 
 
 class McpClientManager:
@@ -72,7 +73,7 @@ class McpClientManager:
                             name=name,
                             command=details.get("command"),
                             args=details.get("args", []),
-                            env=details.get("env", {})
+                            env=details.get("env", {}),
                         )
                         session.add(new_server)
                 logger.info("Legacy MCP config migrated successfully.")
@@ -87,7 +88,7 @@ class McpClientManager:
 
         # 2. Fetch from DB
         async with session_scope() as session:
-            result = await session.execute(select(McpServer).where(McpServer.enabled == True))
+            result = await session.execute(select(McpServer).where(McpServer.enabled))
             servers = result.scalars().all()
 
             for server in servers:
@@ -111,20 +112,20 @@ class McpClientManager:
                     if isinstance(cmd_args, str):
                         try:
                             cmd_args = json.loads(cmd_args)
-                        except:
+                        except Exception:
                             cmd_args = []
 
                     cmd_env = server.env
                     if isinstance(cmd_env, str):
                         try:
                             cmd_env = json.loads(cmd_env)
-                        except:
+                        except Exception:
                             cmd_env = {}
 
                     details = {
                         "command": server.command,
                         "args": cmd_args,
-                        "env": cmd_env
+                        "env": cmd_env,
                     }
                     await self.connect_server(server.name, details)
                 except Exception as e:
@@ -132,9 +133,9 @@ class McpClientManager:
 
         # Post-Connect Health Check
         if "filesystem" not in self.sessions:
-             logger.critical("CRITICAL: 'filesystem' MCP server failed to connect! Agent will be unable to edit files.")
-             # Optionally raise system exit or set a global health flag?
-             # For now, distinct log is enough for monitoring.
+            logger.critical("CRITICAL: 'filesystem' MCP server failed to connect! Agent will be unable to edit files.")
+            # Optionally raise system exit or set a global health flag?
+            # For now, distinct log is enough for monitoring.
 
     async def connect_server(self, name: str, details: dict[str, Any]):
         """Connect to a single MCP server (Stdio only for now)."""
@@ -160,11 +161,7 @@ class McpClientManager:
             logger.error(f"Server '{name}' missing 'command'.")
             return
 
-        server_params = StdioServerParameters(
-            command=command,
-            args=args,
-            env=full_env
-        )
+        server_params = StdioServerParameters(command=command, args=args, env=full_env)
 
         try:
             # Create new stack for this server
@@ -174,7 +171,6 @@ class McpClientManager:
             # Use restore_std_streams to avoid 'LoggingProxy' errors during subprocess spawn
             # Use restore_std_streams to avoid 'LoggingProxy' errors during subprocess spawn
             if command.startswith("http://") or command.startswith("https://"):
-                from mcp.client.sse import sse_client
                 logger.info(f"Connecting via SSE to {command}")
                 read, write = await stack.enter_async_context(sse_client(command))
             else:
@@ -194,7 +190,7 @@ class McpClientManager:
 
         except Exception as e:
             logger.error(f"Error connecting to {name}: {e}")
-            if 'stack' in locals():
+            if "stack" in locals():
                 await stack.aclose()
             raise
 
@@ -209,8 +205,8 @@ class McpClientManager:
             lc_tools = []
 
             for tool in result.tools:
-                async def _tool_func(*args, **kwargs):
-                    return await session.call_tool(tool.name, arguments=kwargs)
+                async def _tool_func(*_args, tool_name=tool.name, **kwargs):
+                    return await session.call_tool(tool_name, arguments=kwargs)
 
                 args_schema = self._create_args_schema(tool.name, tool.inputSchema)
 
@@ -219,7 +215,7 @@ class McpClientManager:
                     coroutine=_tool_func,
                     name=tool.name,
                     description=tool.description or "",
-                    args_schema=args_schema
+                    args_schema=args_schema,
                 )
 
                 lc_tools.append(lc_tool)
@@ -241,7 +237,7 @@ class McpClientManager:
             "boolean": bool,
             "array": list,
             "object": dict,
-            "null": type(None)
+            "null": type(None),
         }
 
         fields = {}
@@ -255,7 +251,10 @@ class McpClientManager:
             if field_name in required_fields:
                 fields[field_name] = (field_type, Field(description=description))
             else:
-                fields[field_name] = (Optional[field_type], Field(default=None, description=description))
+                fields[field_name] = (
+                    field_type | None,
+                    Field(default=None, description=description),
+                )
 
         model_name = f"{tool_name}Input"
         return create_model(model_name, **fields)
@@ -300,7 +299,7 @@ class McpClientManager:
                     command=details.get("command"),
                     args=args_json,
                     env=env_json,
-                    enabled=True
+                    enabled=True,
                 )
                 session.add(server)
 
@@ -315,13 +314,13 @@ class McpClientManager:
         """Remove a server from DB and disconnect."""
         # 1. Disconnect Logic
         if name in self.server_stacks:
-             await self.server_stacks[name].aclose()
-             del self.server_stacks[name]
+            await self.server_stacks[name].aclose()
+            del self.server_stacks[name]
 
         if name in self.sessions:
-             del self.sessions[name]
-             if name in self._tools_cache:
-                 del self._tools_cache[name]
+            del self.sessions[name]
+            if name in self._tools_cache:
+                del self._tools_cache[name]
 
         # 2. Remove from DB
         async with session_scope() as session:

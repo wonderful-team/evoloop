@@ -5,8 +5,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.i18n.service import i18n
 from app.core.llm.factory import LLMFactory
+from app.i18n.service import i18n
 from app.infrastructure.database.sql.models import CodeEntity, SourceFile
 
 logger = logging.getLogger(__name__)
@@ -21,9 +21,11 @@ class WikiService:
         Generate markdown documentation for a specific entity.
         """
         # 1. Fetch Entity & Source Code
-        stmt = select(CodeEntity, SourceFile) \
-            .join(SourceFile, CodeEntity.file_id == SourceFile.id) \
+        stmt = (
+            select(CodeEntity, SourceFile)
+            .join(SourceFile, CodeEntity.file_id == SourceFile.id)
             .where(CodeEntity.id == entity_id)
+        )
 
         result = await self.session.execute(stmt)
         row = result.first()
@@ -65,8 +67,8 @@ class WikiService:
             entity_name=entity.name,
             entity_type=entity.type,
             file_path=source_file.path,
-            lang=entity.metadata.get('lang', ''),
-            code_snippet=code_snippet
+            lang=entity.metadata.get("lang", ""),
+            code_snippet=code_snippet,
         )
         messages = [
             SystemMessage(content="You generate clear, concise technical documentation."),

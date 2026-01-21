@@ -78,7 +78,8 @@ class GraphRetrievalService:
             return {
                 "incoming": len(in_paths),
                 "outgoing": len(out_paths),
-                "details": "Graph paths fetched (summarized for now)"
+                "details": "Graph paths fetched (summarized for now)",
             }
+
 
 graph_retrieval_service = GraphRetrievalService()

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 from app.core.config import settings
 from app.utils import json as json_utils
-from app.utils.context import get_context, set_context
+from app.utils.context import get_context
 
 # Re-export set_context/get_context for backwards compatibility if needed,
 # or consumers should import from utils.context directly.
@@ -16,6 +16,7 @@ class ContextFilter(logging.Filter):
     """
     Inject context variables into the log record.
     """
+
     def filter(self, record):
         ctx = get_context()
         record.thread_id = ctx.get("thread_id", "-")
@@ -27,6 +28,7 @@ class JSONFormatter(logging.Formatter):
     """
     Format logs as JSON lines.
     """
+
     def format(self, record):
         log_obj = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -34,7 +36,7 @@ class JSONFormatter(logging.Formatter):
             "logger": record.name,
             "message": record.getMessage(),
             "thread_id": getattr(record, "thread_id", "-"),
-            "project_id": getattr(record, "project_id", "-")
+            "project_id": getattr(record, "project_id", "-"),
         }
 
         # Include exception info if present

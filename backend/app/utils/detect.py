@@ -14,6 +14,7 @@ from app.constants import (
 # Let's verify `app/constants.py` content later or define a local map if needed.
 # For now, I'll rely on what I saw in `constants.py` earlier.
 
+
 def detect_language(file_path: str, content: str | None = None) -> str:
     """
     Detect programming language from file path or content.
@@ -29,11 +30,14 @@ def detect_language(file_path: str, content: str | None = None) -> str:
     # Fallback/Additional from document_reader legacy
     # If not found, maybe return 'text' or try content analysis (shebang)
 
-    if content and content.startswith('#!'):
-        first_line = content.split('\n')[0]
-        if 'python' in first_line: return 'python'
-        if 'bash' in first_line or 'sh' in first_line: return 'bash'
-        if 'node' in first_line: return 'javascript'
+    if content and content.startswith("#!"):
+        first_line = content.split("\n")[0]
+        if "python" in first_line:
+            return "python"
+        if "bash" in first_line or "sh" in first_line:
+            return "bash"
+        if "node" in first_line:
+            return "javascript"
 
     return "text"
 
@@ -44,11 +48,25 @@ def detect_document_type(file_path: str) -> str:
     Returns str value of DocumentType enum.
     """
     _, ext = os.path.splitext(file_path)
-    ext_key = ext.lower().lstrip('.')
+    ext_key = ext.lower().lstrip(".")
 
     if ext_key in FILE_EXTENSION_TO_TYPE:
         # If it's an enum member, get value
         val = FILE_EXTENSION_TO_TYPE[ext_key]
-        return val.value if hasattr(val, 'value') else val
+        return val.value if hasattr(val, "value") else val
 
     return DocumentType.UNKNOWN.value
+
+
+def is_code_file(file_path: str, _content: str | None = None) -> bool:
+    """
+    Check if the file is a code file based on extension or filename.
+    """
+    filename = os.path.basename(file_path)
+    if filename in CODE_EXTENSION_MAP:
+        return True
+
+    _, ext = os.path.splitext(filename)
+    ext = ext.lower()
+
+    return ext in CODE_EXTENSION_MAP

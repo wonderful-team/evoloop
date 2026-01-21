@@ -1,8 +1,10 @@
 import asyncio
 import json
 import re
+import time
 from typing import Any
 from uuid import UUID
+from sqlalchemy import desc, select
 
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import BaseMessage
@@ -12,6 +14,7 @@ from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import Message
 from app.infrastructure.external.evocloud import evocloud_client
+from app.schemas.events import MessageEvent
 
 
 class DatabaseCallbackHandler(AsyncCallbackHandler):
@@ -109,12 +112,12 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 role="assistant",
                 content=content,
                 thinking=thinking,
-                tool_calls=tool_calls
+                tool_calls=tool_calls,
             )
 
-        except Exception as e:
+        except Exception:
             # Swallow errors in logging to prevent crashing the flow
-            print(f"Error in DatabaseCallbackHandler: {e}")
+            pass
 
     def _get_tool_summary(self, tool_call: dict) -> str:
         """Generate a user-friendly summary of what a tool is doing."""
@@ -141,12 +144,16 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         elif tool_name == "manage_file":
             action = tool_input.get("action", "access")
             path = tool_input.get("path", "file")
-            return i18n.get("prompts.database_logger.tool_summary.manage_file", action=action.replace('_', ' ').capitalize(), path=path)
+            return i18n.get(
+                "prompts.database_logger.tool_summary.manage_file",
+                action=action.replace("_", " ").capitalize(),
+                path=path,
+            )
         elif tool_name == "search_codebase":
             query = tool_input.get("query", "")
             return i18n.get("prompts.database_logger.tool_summary.search_code", query=query)
         elif tool_name == "request_human_input":
-            return i18n.get("prompts.database_logger.tool_summary.ask_user", prompt=tool_input.get('prompt', ''))
+            return i18n.get("prompts.database_logger.tool_summary.ask_user", prompt=tool_input.get("prompt", ""))
 
         return i18n.get("prompts.database_logger.tool_summary.default", tool=tool_name)
 
@@ -157,21 +164,43 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         try:
             # Phase 18: Support new atomic file tools
-            if t_name in ["read_document", "read_file", "view_file", "manage_file", "list_files", "write_file", "edit_file"]:
-                path = t_args.get("file_path") or t_args.get("AbsolutePath") or t_args.get("url") or t_args.get("path") or "unknown"
+            if t_name in [
+                "read_document",
+                "read_file",
+                "view_file",
+                "manage_file",
+                "list_files",
+                "write_file",
+                "edit_file",
+            ]:
+                path = (
+                    t_args.get("file_path")
+                    or t_args.get("AbsolutePath")
+                    or t_args.get("url")
+                    or t_args.get("path")
+                    or "unknown"
+                )
                 name = path.split("/")[-1]
                 return {"type": "file", "target_id": path, "target_name": name}
 
             elif t_name in ["search_codebase", "grep_search", "find_by_name"]:
                 query = t_args.get("query") or t_args.get("Pattern") or "unknown"
-                return {"type": "knowledge", "target_id": query, "target_name": i18n.get("prompts.database_logger.ref_search", query=query)}
+                return {
+                    "type": "knowledge",
+                    "target_id": query,
+                    "target_name": i18n.get("prompts.database_logger.ref_search", query=query),
+                }
 
             elif t_name == "read_memory_item":  # Hypothetical tool for memory
                 mem_id = t_args.get("id", "unknown")
-                return {"type": "memory", "target_id": mem_id, "target_name": i18n.get("prompts.database_logger.ref_memory")}
+                return {
+                    "type": "memory",
+                    "target_id": mem_id,
+                    "target_name": i18n.get("prompts.database_logger.ref_memory"),
+                }
 
             return None
-        except:
+        except Exception:
             return None
 
     # Implement on_tool_end to capture tool outputs
@@ -185,16 +214,28 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     ) -> Any:
         # Capture tool output
         # Used for history and debugging
-        await self._save_log(role="tool", content=str(output), status="completed", tool_output=str(output))
+        await self._save_log(
+            role="tool",
+            content=str(output),
+            status="completed",
+            tool_output=str(output),
+        )
 
-    async def _save_log(self, role: str, content: str, thinking: str = None, status: str = "completed",
-                        references: list[dict] = None, tool_calls: list = None, tool_output: str = None):
+    async def _save_log(
+        self,
+        role: str,
+        content: str,
+        thinking: str = None,
+        status: str = "completed",
+        references: list[dict] = None,
+        tool_calls: list = None,
+        tool_output: str = None,
+    ):
         if not content and not thinking and not tool_calls:
             return
 
         # Improved Deduplication: Hash + Role + Time Window (2 seconds)
         # This allows legitimately repeated messages while preventing rapid-fire duplicates
-        import time
         current_time = time.time()
         current_hash = hash((role, content, str(tool_calls))) if content else 0
 
@@ -213,7 +254,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             async with session_scope() as session:
                 # Phase 4: Threading - Find parent (Last message in thread)
                 # Ideally we should pass parent_id explicitly, but for now linear threading is fine.
-                from sqlalchemy import desc, select
                 parent_id = None
                 stmt = (
                     select(Message.id)
@@ -238,13 +278,12 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                     parent_id=parent_id,
                     # Tool Data
                     tool_calls=tool_calls,
-                    tool_output=tool_output
+                    tool_output=tool_output,
                 )
                 session.add(log)
                 await session.flush()  # Get ID
 
                 # Phase 11: Real-time History Sync
-                from app.schemas.events import MessageEvent
                 try:
                     # Access activity_monitor lazily to avoid circular imports at module level
                     from app.core.monitoring.activity import activity_monitor
@@ -258,14 +297,14 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                         # Use current time if None?
                         "thinking": log.thinking,
                         "type": "text",
-                        "tool_calls": log.tool_calls  # Phase 24: Support Frontend Folding
+                        "tool_calls": log.tool_calls,  # Phase 24: Support Frontend Folding
                     }
 
                     # Fire and forget
                     if activity_monitor and hasattr(activity_monitor, "client"):
                         await activity_monitor.client.publish(
                             f"chat:{self.thread_id}:events",
-                            MessageEvent(data=msg_data).json()
+                            MessageEvent(data=msg_data).json(),
                         )
                 except Exception:
                     pass
@@ -273,6 +312,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 # Phase 9: Save References
                 if references:
                     from app.infrastructure.database.sql.models import MessageReference
+
                     for ref in references:
                         mr = MessageReference(
                             id=str(UUID(int=hash(f"{log.id}-{ref['target_id']}-{time.time()}") & ((1 << 128) - 1))),
@@ -280,17 +320,17 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                             message_id=log.id,
                             type=ref["type"],
                             target_id=ref["target_id"],
-                            target_name=ref["target_name"]
+                            target_name=ref["target_name"],
                         )
                         session.add(mr)
 
                 # session_scope commits automatically
         except Exception as e:
-            # Phase 18 Fix: Log error explicitly. Do not swallow fatal DB errors silently, 
+            # Phase 18 Fix: Log error explicitly. Do not swallow fatal DB errors silently,
             # although we might still want to avoid crashing the whole agent if just logging fails?
             # Actually, if logging fails, we lose history. It's critical.
-            # But crashing the agent mid-thought is also bad. 
-            # Let's log ERROR and re-raise if it's a connection issue? 
+            # But crashing the agent mid-thought is also bad.
+            # Let's log ERROR and re-raise if it's a connection issue?
             # For now, just logging ERROR is better than silent 'pass'.
             import logging
             logging.getLogger(__name__).error(f"CRITICAL: Failed to persist message log: {e}", exc_info=True)
@@ -306,7 +346,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             return
 
         try:
-            from sqlalchemy import desc, select
             async with session_scope() as session:
                 # Find the last AI message for this thread/run
                 stmt = (
@@ -330,7 +369,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                             "status": t.get("status"),
                             "type": t.get("type"),
                             "time": t.get("time"),
-                            "details": t.get("details")
+                            "details": t.get("details"),
                         }
                         for t in steps
                     ]

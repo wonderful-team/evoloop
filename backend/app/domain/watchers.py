@@ -8,24 +8,28 @@ from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
 from app.domain.codebase.indexing.service import IndexingService
+from app.domain.project.sync_service import project_sync_service
+from app.utils.detect import is_code_file
 
 logger = logging.getLogger(__name__)
 
 
 # --- Global Observer Manager ---
 
+
 class GlobalObserverManager:
     """
     Singleton to manage a single Watchdog Observer instance for the entire application.
     This prevents resource exhaustion and conflict issues on macOS (FSEvents).
     """
+
     _instance = None
     _lock = RLock()
 
     def __new__(cls):
         with cls._lock:
             if cls._instance is None:
-                cls._instance = super(GlobalObserverManager, cls).__new__(cls)
+                cls._instance = super().__new__(cls)
                 cls._instance._init()
             return cls._instance
 
@@ -101,38 +105,58 @@ observer_manager = GlobalObserverManager()
 
 # --- Reuse Handlers ---
 
+
 class IndexingEventHandler(FileSystemEventHandler):
     def __init__(self, service: IndexingService, repo_id: int, loop: asyncio.AbstractEventLoop):
         self.service = service
         self.repo_id = repo_id
         self.loop = loop
+        self._pending_tasks: dict[str, asyncio.TimerHandle] = {}
+        self._debounce_delay = 2.0  # Seconds
 
     def on_modified(self, event):
-        if event.is_directory: return
+        if event.is_directory:
+            return
         self._process(event.src_path)
 
     def on_created(self, event):
-        if event.is_directory: return
+        if event.is_directory:
+            return
         self._process(event.src_path)
 
     def on_deleted(self, event):
-        if event.is_directory: return
+        if event.is_directory:
+            return
         self._process_delete(event.src_path)
 
     def on_moved(self, event):
-        if event.is_directory: return
+        if event.is_directory:
+            return
         self._process_move(event.src_path, event.dest_path)
 
     def _is_valid_code_file(self, path: str) -> bool:
-        return path.endswith((".py", ".js", ".ts", ".go", ".java", ".cpp", ".cc", ".cxx", ".h", ".hpp", ".rs", ".php", ".rb", ".md"))
+        return is_code_file(path)
 
     def _process(self, path: str):
         if self._is_valid_code_file(path):
-            logger.info(f"File modified/created: {path}")
-            asyncio.run_coroutine_threadsafe(
-                self.service.index_file(path, self.repo_id),
-                self.loop
+            # Debounce Logic
+            if path in self._pending_tasks:
+                self._pending_tasks[path].cancel()
+
+            # Schedule new task
+            # We schedule a callback on the LOOP, which will then launch the coroutine
+            task = self.loop.call_later(
+                self._debounce_delay,
+                lambda: asyncio.create_task(self._debounce_callback(path)),
             )
+            self._pending_tasks[path] = task
+
+    async def _debounce_callback(self, path: str):
+        # Cleanup
+        self._pending_tasks.pop(path, None)
+
+        logger.info(f"File modified (Debounced): {path}")
+        await self.service.index_file(path, self.repo_id)
 
     def _process_delete(self, path: str):
         if self._is_valid_code_file(path):
@@ -186,18 +210,23 @@ class ProjectDiscoveryEventHandler(FileSystemEventHandler):
         self.loop = loop
 
     def on_created(self, event):
-        if not event.is_directory: return
+        if not event.is_directory:
+            return
         parent = os.path.dirname(event.src_path)
-        if os.path.abspath(parent) != os.path.abspath(self.root_path): return
+        if os.path.abspath(parent) != os.path.abspath(self.root_path):
+            return
         logger.info(f"Project Created (Detected): {event.src_path}")
 
     def on_moved(self, event):
-        if not event.is_directory: return
+        if not event.is_directory:
+            return
         parent = os.path.dirname(event.src_path)
-        if os.path.abspath(parent) != os.path.abspath(self.root_path): return
+        if os.path.abspath(parent) != os.path.abspath(self.root_path):
+            return
         # Ensure dest is also in root (rename)
         dest_parent = os.path.dirname(event.dest_path)
-        if os.path.abspath(dest_parent) != os.path.abspath(self.root_path): return
+        if os.path.abspath(dest_parent) != os.path.abspath(self.root_path):
+            return
 
         logger.info(f"Project Moved/Renamed (Detected): {event.src_path} -> {event.dest_path}")
         self._schedule_async(self._handle_project_moved(event.src_path, event.dest_path))
@@ -207,21 +236,18 @@ class ProjectDiscoveryEventHandler(FileSystemEventHandler):
 
     async def _handle_project_created(self, project_path: str):
         try:
-            from app.domain.project.sync_service import project_sync_service
             await project_sync_service.handle_project_created(project_path)
         except Exception as e:
             logger.error(f"Error handling new project {project_path}: {e}")
 
     async def _handle_project_deleted(self, project_path: str):
         try:
-            from app.domain.project.sync_service import project_sync_service
             await project_sync_service.handle_project_deleted(project_path)
         except Exception as e:
             logger.error(f"Error handling deleted project {project_path}: {e}")
 
     async def _handle_project_moved(self, src_path: str, dest_path: str):
         try:
-            from app.domain.project.sync_service import project_sync_service
             await project_sync_service.handle_project_moved(src_path, dest_path)
         except Exception as e:
             logger.error(f"Error handling moved project {src_path}: {e}")

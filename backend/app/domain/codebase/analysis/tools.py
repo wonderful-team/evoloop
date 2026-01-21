@@ -1,8 +1,9 @@
-
 from langchain_core.runnables import RunnableConfig
 
+from app.constants import DEFAULT_EXCLUDED_DIRS
 from app.core.tools import evoloop_tool, get_working_directory
 from app.domain.codebase.retrieval.graph_service import graph_retrieval_service
+from app.utils.process import run_command
 
 
 @evoloop_tool
@@ -10,7 +11,7 @@ async def find_definition(symbol_name: str, file_pattern: str | None = None, con
     """
     Find the definition (class/function) of a symbol in the codebase using Knowledge Graph.
     Falls back to Grep if not found in Graph.
-    
+
     Args:
         symbol_name: The exact name of the class or function.
         file_pattern: Optional glob pattern to limit search.
@@ -32,14 +33,13 @@ async def find_definition(symbol_name: str, file_pattern: str | None = None, con
 
     # 2. Fallback to Heuristic Search (Grep)
     # Useful if file is new/modified and not yet indexed
-    from app.utils.process import run_command
     root = get_working_directory(config)
     cmd = ["grep", "-rnE", f"(class|def)\\s+{symbol_name}\\b", root]
 
     if file_pattern:
         cmd.extend(["--include", file_pattern])
 
-    cmd.extend(["--exclude-dir", ".git", "--exclude-dir", "__pycache__", "--exclude-dir", "node_modules"])
+    cmd.extend([f"--exclude-dir={d}" for d in DEFAULT_EXCLUDED_DIRS])
 
     try:
         res = run_command(cmd)
@@ -47,7 +47,7 @@ async def find_definition(symbol_name: str, file_pattern: str | None = None, con
             lines = res.stdout.strip().splitlines()
             preview = "\n".join(lines[:10])
             return f"(Graph Miss) Found potential definitions via Grep:\n{preview}"
-    except:
+    except Exception:
         pass
 
     return f"No definition found for symbol '{symbol_name}'."
@@ -58,7 +58,7 @@ async def analyze_impact(symbol_name: str, config: RunnableConfig = None) -> str
     """
     Analyze the impact of changing a symbol (Dependants/Usages).
     Uses Graph Database to find who calls/uses this symbol.
-    
+
     Args:
         symbol_name: The symbol to analyze.
     """
@@ -78,8 +78,9 @@ async def analyze_impact(symbol_name: str, config: RunnableConfig = None) -> str
         # Group by file
         by_file = {}
         for use in usages:
-            fp = use.get('file_path', 'unknown')
-            if fp not in by_file: by_file[fp] = []
+            fp = use.get("file_path", "unknown")
+            if fp not in by_file:
+                by_file[fp] = []
             by_file[fp].append(f"{use.get('source')} ({use.get('relation')})")
 
         for fp, items in by_file.items():

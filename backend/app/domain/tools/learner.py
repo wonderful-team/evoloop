@@ -5,9 +5,9 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from app.i18n.service import i18n
 from app.core.llm.factory import LLMFactory
 from app.domain.memory.service import memory_service
+from app.i18n.service import i18n
 from app.logging import get_context, logger
 
 
@@ -36,12 +36,13 @@ Extract up to 5 most important concepts.
 Output a JSON object.
 """
 
+
 @tool
 async def harvest_knowledge():
     """
     Analyze uncommitted changes (working directory) to extract and save new Knowledge Concepts.
     Call this at the end of a task to 'learn' from the work done.
-    
+
     Works with both staged and unstaged changes in the working directory.
     """
     ctx = get_context()
@@ -77,6 +78,7 @@ async def harvest_knowledge():
     structured_llm = llm.with_structured_output(ExtractionResult)
 
     from app.domain.system.service import SystemConfigService
+
     user_lang = SystemConfigService.get_language_preference()
 
     lang_directive = f"\n\nLANGUAGE PROTOCOL:\nUser Language: {user_lang}\nConcept 'description' fields MUST be written in {user_lang}.\nConcept 'name' should usually remain in English (Code)."
@@ -100,7 +102,7 @@ async def harvest_knowledge():
                 name=concept.name,
                 description=concept.description,
                 project_id=project_id,
-                related_files=concept.related_files
+                related_files=concept.related_files,
             )
             saved_count += 1
             response_lines.append(f"- {concept.name}")

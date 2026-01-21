@@ -11,16 +11,20 @@ from uuid import uuid4
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from app.i18n.service import i18n
+from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
+from app.i18n.service import i18n
+from app.infrastructure.external.evocloud import evocloud_client
 
 logger = logging.getLogger("evoloop.tools.human_input")
 
 
 # ============ Data Models ============
 
+
 class HumanInputRequest(BaseModel):
     """Stored request for human input."""
+
     id: str
     thread_id: str
     request_type: Literal["text", "choice", "confirmation", "approval"]
@@ -41,46 +45,46 @@ _pending_requests: dict[str, HumanInputRequest] = {}
 
 # ============ Input Schemas ============
 
+
 class RequestHumanInputArgs(BaseModel):
-    prompt: str = Field(..., description="The question or instruction to present to the user.")
+    prompt: str = Field(
+        ..., description="The question or instruction to present to the user."
+    )
     input_type: Literal["text", "choice", "confirmation"] = Field(
         "text",
-        description="Type of input: 'text' for free-form, 'choice' for selection, 'confirmation' for yes/no."
+        description="Type of input: 'text' for free-form, 'choice' for selection, 'confirmation' for yes/no.",
     )
     options: list[str] | None = Field(
         None,
-        description="Required if input_type is 'choice'. List of options for user to select from."
+        description="Required if input_type is 'choice'. List of options for user to select from.",
     )
     context: str | None = Field(
         None,
-        description="Additional context to help the user understand what's needed."
+        description="Additional context to help the user understand what's needed.",
     )
     default_value: str | None = Field(
-        None,
-        description="Default value if user doesn't respond within timeout."
+        None, description="Default value if user doesn't respond within timeout."
     )
 
 
 class RequestApprovalArgs(BaseModel):
     action_description: str = Field(
-        ...,
-        description="Clear description of the action that requires approval."
+        ..., description="Clear description of the action that requires approval."
     )
     risk_level: Literal["low", "medium", "high", "critical"] = Field(
         "medium",
-        description="Risk level of the action to help user make informed decision."
+        description="Risk level of the action to help user make informed decision.",
     )
     details: str | None = Field(
-        None,
-        description="Detailed information about what will happen if approved."
+        None, description="Detailed information about what will happen if approved."
     )
     consequences: str | None = Field(
-        None,
-        description="Potential consequences or impact of this action."
+        None, description="Potential consequences or impact of this action."
     )
 
 
 # ============ Core Request Management ============
+
 
 def create_request(
     thread_id: str,
@@ -89,7 +93,7 @@ def create_request(
     options: list[str] | None = None,
     context: str | None = None,
     default_value: str | None = None,
-    timeout_seconds: int | None = 300
+    timeout_seconds: int | None = 300,
 ) -> HumanInputRequest:
     """Create and store a human input request."""
     request = HumanInputRequest(
@@ -100,7 +104,7 @@ def create_request(
         options=options,
         context=context,
         default_value=default_value,
-        timeout_seconds=timeout_seconds
+        timeout_seconds=timeout_seconds,
     )
     _pending_requests[request.id] = request
     logger.info(f"Created human input request: {request.id} ({request_type})")
@@ -145,25 +149,26 @@ def cancel_request(request_id: str) -> bool:
 
 # ============ Tools ============
 
+
 @tool("request_human_input", args_schema=RequestHumanInputArgs)
 async def request_human_input(
     prompt: str,
     input_type: Literal["text", "choice", "confirmation"] = "text",
     options: list[str] | None = None,
     context: str | None = None,
-    default_value: str | None = None
+    default_value: str | None = None,
 ) -> str:
     """
     Pause execution and request input from the user.
-    
+
     Use this tool when you:
     - Need information that only the user can provide
     - Require clarification on requirements
     - Want user to make a decision between options
     - Need confirmation before proceeding
-    
+
     The workflow will pause until the user responds.
-    
+
     Returns the user's response as a string.
     """
     from app.utils.context import get_context
@@ -171,7 +176,7 @@ async def request_human_input(
     try:
         ctx = get_context()
         thread_id = ctx.get("thread_id", "unknown")
-    except:
+    except Exception:
         thread_id = "unknown"
 
     # Validate choice options
@@ -185,7 +190,7 @@ async def request_human_input(
         prompt=prompt,
         options=options,
         context=context,
-        default_value=default_value
+        default_value=default_value,
     )
 
     # Format response for the agent
@@ -202,13 +207,15 @@ async def request_human_input(
     if default_value:
         default_section = f"\n{i18n.get('prompts.domain_tools.human_input.default', default=default_value)}"
 
-    response_text = i18n.get("prompts.domain_tools.human_input.request_template",
-                             id=request.id,
-                             type=input_type,
-                             prompt=prompt,
-                             context_section=context_section,
-                             options_section=options_section,
-                             default_section=default_section)
+    response_text = i18n.get(
+        "prompts.domain_tools.human_input.request_template",
+        id=request.id,
+        type=input_type,
+        prompt=prompt,
+        context_section=context_section,
+        options_section=options_section,
+        default_section=default_section,
+    )
 
     logger.info(f"Human input requested: {prompt[:50]}...")
 
@@ -222,13 +229,26 @@ async def request_human_input(
             "options": options,
             "context": context,
             "default_value": default_value,
-            "timeout_seconds": 300
-        }
+            "timeout_seconds": 300,
+        },
+    )
+
+    # Sync to EvoCloud (Mobile)
+    await evocloud_client.upload_log(
+        thread_id=thread_id,
+        log_type="hitl_request",
+        content={
+            "id": request.id,
+            "type": input_type,
+            "prompt": prompt,
+            "options": options,
+            "context": context,
+            "default_value": default_value,
+        },
     )
 
     # Raise Interrupt Exception to pause execution
     # This ensures the graph stops immediately
-    from app.core.exceptions import AgentHumanInterruptException
     raise AgentHumanInterruptException(request.id, response_text)
 
 
@@ -237,19 +257,19 @@ async def request_approval(
     action_description: str,
     risk_level: Literal["low", "medium", "high", "critical"] = "medium",
     details: str | None = None,
-    consequences: str | None = None
+    consequences: str | None = None,
 ) -> str:
     """
     Request user approval before executing a potentially impactful action.
-    
+
     Use this tool before:
     - Deleting or modifying important files
     - Running commands that could have side effects
     - Making irreversible changes
     - Executing operations with significant cost
-    
+
     The workflow will pause until the user approves or rejects.
-    
+
     Returns "APPROVED" or "REJECTED" based on user decision.
     """
     from app.utils.context import get_context
@@ -257,7 +277,7 @@ async def request_approval(
     try:
         ctx = get_context()
         thread_id = ctx.get("thread_id", "unknown")
-    except:
+    except Exception:
         thread_id = "unknown"
 
     # Build approval context
@@ -286,12 +306,14 @@ async def request_approval(
         request_type="approval",
         prompt=action_description,
         context=approval_context,
-        default_value="REJECTED"  # Default to safe option
+        default_value="REJECTED",  # Default to safe option
     )
 
-    response_text = i18n.get("prompts.domain_tools.human_input.approval_template",
-                             id=request.id,
-                             approval_context=approval_context)
+    response_text = i18n.get(
+        "prompts.domain_tools.human_input.approval_template",
+        id=request.id,
+        approval_context=approval_context,
+    )
 
     logger.info(f"Approval requested for: {action_description[:50]}... (Risk: {risk_level})")
 
@@ -304,16 +326,30 @@ async def request_approval(
             "prompt": action_description,
             "context": approval_context,
             "default_value": "REJECTED",
-            "risk_level": risk_level
-        }
+            "risk_level": risk_level,
+        },
+    )
+
+    # Sync to EvoCloud (Mobile)
+    await evocloud_client.upload_log(
+        thread_id=thread_id,
+        log_type="hitl_request",
+        content={
+            "id": request.id,
+            "type": "approval",
+            "prompt": action_description,
+            "context": approval_context,
+            "default_value": "REJECTED",
+            "risk_level": risk_level,
+        },
     )
 
     # Raise Interrupt Exception to pause execution
-    from app.core.exceptions import AgentHumanInterruptException
     raise AgentHumanInterruptException(request.id, response_text)
 
 
 # ============ API Helpers ============
+
 
 def get_all_pending_requests() -> list[dict]:
     """Get all pending requests as dictionaries (for API responses)."""
@@ -327,7 +363,7 @@ def get_all_pending_requests() -> list[dict]:
             "context": req.context,
             "default_value": req.default_value,
             "created_at": req.created_at.isoformat(),
-            "status": req.status
+            "status": req.status,
         }
         for req in _pending_requests.values()
         if req.status == "pending"

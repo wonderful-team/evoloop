@@ -18,6 +18,7 @@ from .api import EvoCloudAPI
 
 logger = logging.getLogger(__name__)
 
+
 class DeviceLinkManager:
     """
     Manages WebSocket Connection and Device State for EvoCloud.
@@ -165,7 +166,8 @@ class DeviceLinkManager:
             logger.error(f"[EvoCloud] WS Handle Error: {e}")
 
     async def _bind_client_id(self, client_id: str):
-        if not self.device_id: return
+        if not self.device_id:
+            return
         try:
             await self.api.bind_client_id(self.device_id, client_id)
             self.client_id = client_id

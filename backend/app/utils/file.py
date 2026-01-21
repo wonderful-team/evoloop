@@ -6,14 +6,10 @@ import re
 import shutil
 import tempfile
 import urllib.request
+
 from pathlib import Path
 from urllib.parse import urlparse
-
-try:
-    from rapidfuzz import fuzz, process
-except ImportError:
-    process = None
-    fuzz = None
+from rapidfuzz import fuzz, process
 
 from app.constants import (
     BLACKLIST_FILE_EXTENSIONS,
@@ -25,9 +21,11 @@ from app.constants import (
 
 logger = logging.getLogger(__name__)
 
+
 # ============================================================================
 # Path Resolution & Navigation
 # ============================================================================
+
 
 def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
     """
@@ -38,7 +36,7 @@ def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
         return None
 
     # Handle URLs
-    if file_path.startswith(('http://', 'https://')):
+    if file_path.startswith(("http://", "https://")):
         try:
             return ensure_local_path(file_path)
         except Exception as e:
@@ -63,7 +61,7 @@ def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
         # Fuzzy/Smart resolution logic from legacy file_utils
         # Check specific edge cases
         repo_parts = base_path.split(os.path.sep)
-        file_parts = file_path.split('/')
+        file_parts = file_path.split("/")
 
         # Overlap check (e.g. /users/repo/src + src/main.py)
         if file_parts and repo_parts and file_parts[0] == repo_parts[-1]:
@@ -71,7 +69,7 @@ def resolve_path(file_path: str, base_path: str | None = None) -> str | None:
             if os.path.exists(adjusted_path):
                 return adjusted_path
 
-        return full_path # Return best guess
+        return full_path  # Return best guess
 
     return os.path.abspath(file_path)
 
@@ -81,7 +79,7 @@ def ensure_local_path(file_path: str) -> str:
     If file_path is a URL, download it to a temporary file and return the temp path.
     Otherwise return the path as-is (assuming it is local).
     """
-    if file_path.startswith(('http://', 'https://')):
+    if file_path.startswith(("http://", "https://")):
         try:
             req = urllib.request.Request(file_path, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req) as response:
@@ -91,17 +89,17 @@ def ensure_local_path(file_path: str) -> str:
 
                 # 2. Try content-disposition
                 if not ext:
-                    cd = response.headers.get('Content-Disposition')
+                    cd = response.headers.get("Content-Disposition")
                     if cd:
                         _, params = cgi.parse_header(cd)
-                        if 'filename' in params:
-                            ext = os.path.splitext(params['filename'])[1]
+                        if "filename" in params:
+                            ext = os.path.splitext(params["filename"])[1]
 
                 # 3. Try content-type
                 if not ext:
-                    ct = response.headers.get('Content-Type')
+                    ct = response.headers.get("Content-Type")
                     if ct:
-                        ext = mimetypes.guess_extension(ct.split(';')[0].strip())
+                        ext = mimetypes.guess_extension(ct.split(";")[0].strip())
 
                 # 4. Default
                 if not ext:
@@ -110,8 +108,8 @@ def ensure_local_path(file_path: str) -> str:
                 fd, temp_path = tempfile.mkstemp(suffix=ext)
                 os.close(fd)
 
-                with open(temp_path, 'wb') as out_file:
-                     shutil.copyfileobj(response, out_file)
+                with open(temp_path, "wb") as out_file:
+                    shutil.copyfileobj(response, out_file)
 
             logger.info(f"Downloaded {file_path} to {temp_path}")
             return temp_path
@@ -123,8 +121,8 @@ def ensure_local_path(file_path: str) -> str:
 
 def normalize_path(path: str) -> str:
     """Normalize path separators to forward slashes."""
-    path = path.replace('\\', '/')
-    return path.lstrip('/')
+    path = path.replace("\\", "/")
+    return path.lstrip("/")
 
 
 def get_file_ext(file: str) -> str:
@@ -132,7 +130,7 @@ def get_file_ext(file: str) -> str:
     return os.path.splitext(file)[1].lower()
 
 
-def is_encrypted_path(file_path: str, pattern=r'[a-f0-9]{8,}') -> bool:
+def is_encrypted_path(file_path: str, pattern=r"[a-f0-9]{8,}") -> bool:
     """
     Check if path contains a hash-like pattern.
     Commonly used to detect build artifacts or versioned files.
@@ -147,9 +145,10 @@ def is_encrypted_path(file_path: str, pattern=r'[a-f0-9]{8,}') -> bool:
 # File Content I/O
 # ============================================================================
 
+
 def get_file_encoding(file_path: str) -> str:
     """Attempt to detect file encoding."""
-    encodings = ['utf-8', 'latin-1', 'utf-16', 'ascii']
+    encodings = ["utf-8", "latin-1", "utf-16", "ascii"]
     for encoding in encodings:
         try:
             with open(file_path, encoding=encoding) as f:
@@ -157,7 +156,7 @@ def get_file_encoding(file_path: str) -> str:
                 return encoding
         except UnicodeDecodeError:
             continue
-    return 'utf-8'
+    return "utf-8"
 
 
 def read_file_content(file_path: str, start_line: int | None = None, end_line: int | None = None) -> tuple[str, str]:
@@ -217,6 +216,7 @@ def write_file(file_path: str, content: str) -> bool:
 # File System Info & Checks
 # ============================================================================
 
+
 def get_directory_size(path: str) -> int:
     total_size = 0
     for dirpath, dirnames, filenames in os.walk(path):
@@ -230,11 +230,47 @@ def get_directory_size(path: str) -> int:
 def is_binary_file(file_path: str) -> bool:
     """Check if file is binary based on extension and content sampling."""
     binary_extensions = {
-        '.pyc', '.so', '.dll', '.exe', '.bin', '.jpg', '.jpeg', '.png',
-        '.gif', '.bmp', '.ico', '.pdf', '.zip', '.tar', '.gz', '.tgz',
-        '.rar', '.7z', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx',
-        '.class', '.jar', '.war', '.ear', '.o', '.a', '.lib', '.mp3',
-        '.mp4', '.avi', '.mov', '.flv', '.wmv', '.wma', '.ttf', '.db', '.DS_Store'
+        ".pyc",
+        ".so",
+        ".dll",
+        ".exe",
+        ".bin",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".bmp",
+        ".ico",
+        ".pdf",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".tgz",
+        ".rar",
+        ".7z",
+        ".doc",
+        ".docx",
+        ".ppt",
+        ".pptx",
+        ".xls",
+        ".xlsx",
+        ".class",
+        ".jar",
+        ".war",
+        ".ear",
+        ".o",
+        ".a",
+        ".lib",
+        ".mp3",
+        ".mp4",
+        ".avi",
+        ".mov",
+        ".flv",
+        ".wmv",
+        ".wma",
+        ".ttf",
+        ".db",
+        ".DS_Store",
     }
 
     ext = os.path.splitext(file_path)[1].lower()
@@ -242,15 +278,15 @@ def is_binary_file(file_path: str) -> bool:
         return True
 
     try:
-        with open(file_path, 'rb') as f:
+        with open(file_path, "rb") as f:
             chunk = f.read(4096)
 
-        if b'\x00' in chunk:
+        if b"\x00" in chunk:
             return True
 
         # Try utf-8
         try:
-            chunk.decode('utf-8')
+            chunk.decode("utf-8")
         except UnicodeDecodeError:
             # Check ratio of non-printable
             non_ascii_chars = sum(1 for b in chunk if b < 32 and b != 9 and b != 10 and b != 13)
@@ -265,7 +301,7 @@ def is_binary_file(file_path: str) -> bool:
         return False
 
     except OSError:
-        return True # Safer to assume binary if unreadable
+        return True  # Safer to assume binary if unreadable
 
 
 def is_text_file(file_path: str) -> bool:
@@ -281,11 +317,36 @@ def is_text_file(file_path: str) -> bool:
     return not is_binary_file(file_path)
 
 
+def is_test_file(file_path: str) -> bool:
+    """
+    Check if the file is a test file based on common conventions.
+    """
+    filename = os.path.basename(file_path)
+
+    # Common test patterns
+    if filename.startswith("test_") or filename.endswith("_test.py"):  # Python
+        return True
+    if filename.endswith((".test.js", ".spec.js", ".test.ts", ".spec.ts")):  # JS/TS
+        return True
+    if filename.endswith("_test.go"):  # Go
+        return True
+    if filename.endswith("Test.java") or filename.startswith("Test"):  # Java
+        return True
+
+    # Check for tests directory
+    # Normalize path separators
+    normalized_path = file_path.replace("\\", "/")
+    if "/tests/" in normalized_path or normalized_path.startswith("tests/"):
+        return True
+
+    return False
+
+
 def filter_code_files(
     all_files: list[str],
     excluded_dirs: list[str] = None,
     excluded_files: list[str] = None,
-    include_extensions: list[str] = None
+    include_extensions: list[str] = None,
 ) -> list[str]:
     """Filter list of files to keep only relevant code files."""
     excluded_dirs = excluded_dirs or DEFAULT_EXCLUDED_DIRS
@@ -320,7 +381,7 @@ def filter_code_files(
 def find_similar_file(file_path: str, repo_files: list[str], threshold: float = 0.7) -> str | None:
     """Fuzzy search for file in list."""
     if not process:
-         # Fallback
+        # Fallback
         for repo_file in repo_files:
             if file_path.lower() in repo_file.lower():
                 return repo_file
@@ -339,6 +400,6 @@ def find_similar_file(file_path: str, repo_files: list[str], threshold: float = 
 
         matches = process.extractOne(filename, all_filenames, scorer=fuzz.WRatio)
         if matches and matches[1] >= threshold * 100:
-             return filename_to_path[matches[0]]
+            return filename_to_path[matches[0]]
 
     return None

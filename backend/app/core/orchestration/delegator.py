@@ -3,8 +3,8 @@ import os
 
 from langchain_core.tools import tool
 
-from app.i18n.service import i18n
 from app.core.engine.graph_builder import GraphBuilder
+from app.i18n.service import i18n
 
 logger = logging.getLogger("evoloop.orchestration")
 
@@ -14,7 +14,7 @@ AGENTS_DIR = os.path.join(os.path.dirname(__file__), "../workflows/config")
 
 class SkillRegistry:
     def __init__(self):
-        self._skills: dict[str, str] = {} # name -> path
+        self._skills: dict[str, str] = {}  # name -> path
         self.scan_skills()
 
     def scan_skills(self):
@@ -38,15 +38,17 @@ class SkillRegistry:
     def list_skills(self) -> list[str]:
         return list(self._skills.keys())
 
+
 # Global Instance
 _registry = SkillRegistry()
+
 
 @tool
 async def delegate_task(skill_name: str, task_input: dict) -> dict:
     """
     Delegates a sub-task to a specialized independent Agent (Skill).
     This creates a dynamic sub-graph execution.
-    
+
     Args:
         skill_name: The name of the agent to spawn (e.g., 'researcher', 'coder').
         task_input: A dictionary of initial state inputs (e.g., {'messages': ['Analyze this']}).
@@ -59,7 +61,13 @@ async def delegate_task(skill_name: str, task_input: dict) -> dict:
 
     if not config_path:
         available = ", ".join(_registry.list_skills())
-        return {"error": i18n.get("prompts.orchestration.skill_not_found", name=skill_name, available=available)}
+        return {
+            "error": i18n.get(
+                "prompts.orchestration.skill_not_found",
+                name=skill_name,
+                available=available,
+            )
+        }
 
     try:
         logger.info(f"Orchestrator delegating task to: {skill_name}")
@@ -80,12 +88,19 @@ async def delegate_task(skill_name: str, task_input: dict) -> dict:
 
     except Exception as e:
         logger.error(f"Delegation failed: {e}")
-        return {"error": i18n.get("prompts.orchestration.delegation_failed", name=skill_name, error=str(e))}
+        return {
+            "error": i18n.get(
+                "prompts.orchestration.delegation_failed", name=skill_name, error=str(e)
+            )
+        }
 
 
-def find_skills(query: str) -> str:
+def find_skills(_query: str) -> str:
     """
     Helper for the LLM to know what skills exist.
     """
     # Simple list for now. Could be semantic search later.
-    return i18n.get("prompts.orchestration.available_skills", skills=', '.join(_registry.list_skills()))
+    return i18n.get(
+        "prompts.orchestration.available_skills",
+        skills=", ".join(_registry.list_skills()),
+    )

@@ -7,8 +7,10 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from app.celery_app import celery_app
 from app.core.llm.factory import LLMFactory
+from app.domain.codebase.filter import FileFilter
 from app.domain.memory.service import memory_service
 from app.domain.project.service import project_context_manager
+from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.external.evocloud import evocloud_client
 from app.utils import file as file_utils
 from app.utils import json as json_utils
@@ -28,7 +30,7 @@ async def _summarize_project_logic(name: str, path: str):
     logger.info(f"[ProjectSummarizer] Analyzing {name}...")
 
     # 0. Resolve Project ID Early (Used for Graph Lookup)
-    project_id = 1 # Default
+    project_id = 1  # Default
     try:
         projects = await project_context_manager.scan_projects()
         abs_path = os.path.abspath(path)
@@ -38,10 +40,10 @@ async def _summarize_project_logic(name: str, path: str):
                 matched = p
                 break
         if not matched:
-             for p in projects:
-                 if p.get("name") == name:
-                     matched = p
-                     break
+            for p in projects:
+                if p.get("name") == name:
+                    matched = p
+                    break
         if matched:
             project_id = matched.get("id")
     except Exception as e:
@@ -50,13 +52,14 @@ async def _summarize_project_logic(name: str, path: str):
     # Start Activity
     sys_tid = f"sys:{project_id}:summarization"
     await activity_monitor.start_run(sys_tid, f"Summarize Project: {name}")
-    await activity_monitor.update_agent_state(sys_tid, "SUMMARIZING", "Project Analysis", "Gathering Context...")
+    await activity_monitor.update_agent_state(
+        sys_tid, "SUMMARIZING", "Project Analysis", "Gathering Context..."
+    )
 
     try:
         # 1. Fetch Deep Architectural Summary from Graph (if available)
         arch_summary = "Not available yet."
         try:
-            from app.infrastructure.database.graph.driver import get_graph_db
             driver = await get_graph_db()
             async with driver.session() as session:
                 # Check for Root Directory Node
@@ -74,7 +77,7 @@ async def _summarize_project_logic(name: str, path: str):
                     logger.info(f"[ProjectSummarizer] Found existing architectural summary for {name}")
                 else:
                     # Try fallback: maybe path needs trailing slash?
-                     pass
+                    pass
         except Exception as e:
             logger.warning(f"[ProjectSummarizer] Failed to fetch graph summary: {e}")
 
@@ -83,37 +86,38 @@ async def _summarize_project_logic(name: str, path: str):
 
         prompt = ChatPromptTemplate.from_template("""
         You are a Technical Project Analyst. Analyze the following project information and generate a concise summary.
-        
+
         Project Name: {name}
-        
+
         --- Context 1: File Structure ---
         Top Level Files: {files}
-        
+
         --- Context 2: Documentation (README) ---
         {readme}
-        
+
         --- Context 3: Deep Architectural Analysis (from Codebase Index) ---
         {arch_summary}
-        
+
         Instruction: Combine the high-level intent from the README with the actual implementation details from the Architectural Analysis.
         If the Architecture Analysis contradicts the README (e.g. README says "Part 1" but Code says "Part 1 & 2"), prioritize the Code Analysis.
-        
+
         Return a JSON object with:
         - "description": A concise, one-sentence description of what the project does.
         - "tags": A list of 3-5 technical tags (e.g. "FastAPI", "React", "Tool").
         - "framework": The main framework used (if identifiable, else "Unknown").
         - "concepts": A list of 3-5 core domain concepts/terms found in the project (e.g., specific protocols, architecture components). List of objects {{"name": "...", "description": "..."}}.
-        
+
         JSON Only.
         """)
         parser = JsonOutputParser()
         chain = prompt | llm | parser
 
         # Update Status
-        await activity_monitor.update_agent_state(sys_tid, "SUMMARIZING", "Project Analysis", "Reading Files & Context...")
+        await activity_monitor.update_agent_state(
+            sys_tid, "SUMMARIZING", "Project Analysis", "Reading Files & Context..."
+        )
 
         # 1. Gather Context (Files)
-        from app.domain.codebase.filter import FileFilter
         f_filter = FileFilter()
 
         files = []
@@ -125,7 +129,7 @@ async def _summarize_project_logic(name: str, path: str):
                 full_p = os.path.join(path, f)
                 if f_filter.should_include(full_p):
                     files.append(f)
-        except:
+        except Exception:
             pass
 
         # Note: project_context_manager needs to be safe to use here.
@@ -133,7 +137,9 @@ async def _summarize_project_logic(name: str, path: str):
         readme_content = project_context_manager._extract_description_from_readme(path)
 
         # Update Status
-        await activity_monitor.update_agent_state(sys_tid, "SUMMARIZING", "Project Analysis", "Generating Summary with LLM...")
+        await activity_monitor.update_agent_state(
+            sys_tid, "SUMMARIZING", "Project Analysis", "Generating Summary with LLM..."
+        )
 
         # 2. Call LLM
         result = await chain.ainvoke({
@@ -178,7 +184,12 @@ async def _summarize_project_logic(name: str, path: str):
             c_name = c.get("name")
             c_desc = c.get("description")
             if c_name and c_desc:
-                await memory_service.add_concept(name=c_name, description=c_desc, project_id=project_id, related_files=[path])
+                await memory_service.add_concept(
+                    name=c_name,
+                    description=c_desc,
+                    project_id=project_id,
+                    related_files=[path],
+                )
 
         # Done
         await activity_monitor.end_run(sys_tid, "done")
@@ -205,6 +216,7 @@ class ProjectSummarizer:
     Service to dispatch project summarization tasks.
     Now delegates to Celery.
     """
+
     def __init__(self):
         self._processed = set()
 
@@ -228,8 +240,9 @@ class ProjectSummarizer:
 
         # Dispatch to Celery
         summarize_project_task.delay(name, path)
-        self._processed.add(path) # Optimistically mark as processed
+        self._processed.add(path)  # Optimistically mark as processed
         logger.debug(f"[ProjectSummarizer] Dispatched {name} to Celery queue")
+
 
 # Global instance
 project_summarizer = ProjectSummarizer()

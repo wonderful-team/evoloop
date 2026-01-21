@@ -1,22 +1,23 @@
+import logging
+
 from langchain_core.messages import BaseMessage, RemoveMessage, SystemMessage
 
 from app.core.engine.message_utils import get_message_text
 from app.core.llm.factory import LLMFactory
 
-import logging
 logger = logging.getLogger(__name__)
 
 async def compress_history_delta(messages: list[BaseMessage], keep_last: int = 15) -> list[BaseMessage | RemoveMessage]:
     """
     Generates the delta (Removals + Addition) needed to compress history.
-    
+
     Returns: A list containing:
       - RemoveMessage objects for messages to be deleted.
       - A SystemMessage containing the summary.
     """
     llm = LLMFactory.create_llm()
 
-    if len(messages) <= keep_last + 5: # Buffer
+    if len(messages) <= keep_last + 5:  # Buffer
         return []
 
     # Identification
@@ -44,6 +45,7 @@ async def compress_history_delta(messages: list[BaseMessage], keep_last: int = 1
 
     # Language Preference
     from app.domain.system.service import SystemConfigService
+
     user_lang = SystemConfigService.get_language_preference()
 
     prompt = f"""You are a Context Compression Expert for a software development assistant.
@@ -97,9 +99,9 @@ SUMMARY:
                 delta.append(RemoveMessage(id=msg.id))
                 count += 1
             else:
-                 # Fallback: We can't remove messages without ID easily in this paradigm.
-                 # But usually they have IDs if coming from StateGraph.
-                 pass
+                # Fallback: We can't remove messages without ID easily in this paradigm.
+                # But usually they have IDs if coming from StateGraph.
+                pass
 
         if count == 0:
             # If no IDs found, we abort compression to avoid duplication

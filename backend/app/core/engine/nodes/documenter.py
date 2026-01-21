@@ -2,18 +2,17 @@ import json
 import logging
 import os
 import uuid
-
 from datetime import datetime
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
-from app.i18n.service import i18n
 from app.core.config import settings
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.domain.research.engine import DeepResearchEngine
+from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,11 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
         is_approved = False
         if isinstance(last_msg, HumanMessage):
             # Simple heuristic for "Yes"
-            if "yes" in last_content_str.lower() or "approve" in last_content_str.lower() or "ok" in last_content_str.lower():
+            if (
+                "yes" in last_content_str.lower()
+                or "approve" in last_content_str.lower()
+                or "ok" in last_content_str.lower()
+            ):
                 is_approved = True
 
         if not is_approved:
@@ -72,15 +75,18 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
             try:
                 plan_data = json.loads(pending_plan_json)
                 pages = plan_data
-            except:
-                return {"messages": [AIMessage(content=i18n.get("prompts.documenter.error_loading_plan"))], "hitl_state": None}
+            except Exception:
+                return {
+                    "messages": [AIMessage(content=i18n.get("prompts.documenter.error_loading_plan"))],
+                    "hitl_state": None,
+                }
 
             # ... (lines 75-248 kept conceptually, just targeting the edit below)
             # We need to jump to the auto-execution loop replacement.
             # Since replace_file_content targets a contiguous block, I will target the except block first.
 
-# Wait, I cannot target two disjoint blocks in one replace_file_content call unless I use multi_replace.
-# I will use multi_replace for this file.
+            # Wait, I cannot target two disjoint blocks in one replace_file_content call unless I use multi_replace.
+            # I will use multi_replace for this file.
 
             # 3. Generate Pages (Iterative Deep Research)
             # Initialize Engine
@@ -93,8 +99,8 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
             generated_pages = []
 
             for page in pages:
-                filename = page.get('filename')
-                topic = page.get('topic')
+                filename = page.get("filename")
+                topic = page.get("topic")
 
                 if not filename or not topic:
                     continue
@@ -124,7 +130,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
 
             return {
                 "messages": [AIMessage(content=msg_content)],
-                "hitl_state": None  # Clear HITL state
+                "hitl_state": None,  # Clear HITL state
             }
 
     # Phase 1: Planning (Draft)
@@ -132,6 +138,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     tree_output = ""
     try:
         from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+
         root_path = config.get("configurable", {}).get("working_directory", ".")
         generator = AnnotatedTreeGenerator(root_path, max_depth=3, with_symbols=False, file_limit=30)
         tree_output = await generator.generate()
@@ -154,7 +161,8 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
 
     # Language Preference
     from app.domain.system.service import SystemConfigService
-    user_lang = SystemConfigService.get_language_preference()
+
+    # user_lang = SystemConfigService.get_language_preference()
 
     try:
         from app.core.prompts.documenter_builder import DocumenterPromptBuilder
@@ -162,15 +170,21 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
         # Builder handles language injection internally now
         prompt_content = DocumenterPromptBuilder.build_file_structure_prompt(tree_output)
 
-        msgs = [
-            HumanMessage(content=prompt_content)
-        ]
+        msgs = [HumanMessage(content=prompt_content)]
 
         # [FIX] Phase 21: Context Handoff (Cure Blindness)
         scratchpad = state.get("scratchpad", {})
         handoff = scratchpad.get("handoff_context", {})
-        focus_paths = handoff.get("focus_paths", [])
         
+        if isinstance(handoff, str):
+            try:
+                import json
+                handoff = json.loads(handoff)
+            except Exception:
+                handoff = {}
+                
+        focus_paths = handoff.get("focus_paths", [])
+
         if focus_paths:
             logger.info(f"[Documenter] 🎯 Focusing on {len(focus_paths)} files from Supervisor.")
             focus_list = "\n".join([f"- {p}" for p in focus_paths])
@@ -224,8 +238,8 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
                     "request_type": "approval",
                     "resume_node": "documenter",
                     "context": {"wiki_plan": plan_json},
-                    "created_at": datetime.utcnow().isoformat()
-                }
+                    "created_at": datetime.utcnow().isoformat(),
+                },
             }
         else:
             # Auto-Execution Path
@@ -256,8 +270,8 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
             for page in pages:
                 # ... same logic ...
                 # Simplified for compactness
-                fname = page['filename']
-                topic = page['topic']
+                fname = page["filename"]
+                topic = page["topic"]
                 try:
                     prompt_content = DocumenterPromptBuilder.build_page_generation_prompt(topic, fname)
                     content = await engine.run(topic=prompt_content, max_iterations=3, config=config)
@@ -270,7 +284,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
             msg_content = i18n.get("prompts.documenter.success", pages="\n".join(generated_pages))
             return {
                 "messages": [AIMessage(content=msg_content)],
-                "hitl_state": None  # Clear any residual state
+                "hitl_state": None,  # Clear any residual state
             }
 
     except Exception as e:

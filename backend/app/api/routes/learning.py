@@ -3,8 +3,11 @@ Learning API Routes.
 Handles human-in-the-loop requests and imitation learning endpoints.
 """
 
+import json
 import logging
+from datetime import datetime
 from typing import Any
+from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
@@ -19,8 +22,9 @@ from app.domain.tools.human_input import (
     get_pending_request,
     get_pending_requests_for_thread,
 )
+from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import Conversation, Message
+from app.infrastructure.database.sql.models import Conversation, LearnedSkill, Message, TraceEvent
 
 logger = logging.getLogger("evoloop.learning")
 
@@ -28,6 +32,7 @@ router = APIRouter()
 
 
 # ============ Schemas ============
+
 
 class HumanInputRequestOut(BaseModel):
     id: str
@@ -58,6 +63,7 @@ class RespondResponse(BaseModel):
 
 # ============ Endpoints ============
 
+
 @router.get("/human-requests", response_model=list[HumanInputRequestOut])
 def list_pending_requests(thread_id: str | None = None):
     """
@@ -76,7 +82,7 @@ def list_pending_requests(thread_id: str | None = None):
                 context=req.context,
                 default_value=req.default_value,
                 created_at=req.created_at.isoformat(),
-                status=req.status
+                status=req.status,
             )
             for req in requests
         ]
@@ -102,7 +108,7 @@ def get_request(request_id: str):
         context=request.context,
         default_value=request.default_value,
         created_at=request.created_at.isoformat(),
-        status=request.status
+        status=request.status,
     )
 
 
@@ -118,16 +124,14 @@ def respond_to_request(request_id: str, body: RespondRequest):
 
     if request.status != "pending":
         raise HTTPException(
-            status_code=400,
-            detail=f"Request is not pending (status: {request.status})"
+            status_code=400, detail=f"Request is not pending (status: {request.status})"
         )
 
     success = complete_request(request_id, body.response)
 
     if success:
         return RespondResponse(
-            success=True,
-            message=f"Response recorded for request {request_id}"
+            success=True, message=f"Response recorded for request {request_id}"
         )
     else:
         raise HTTPException(status_code=500, detail="Failed to complete request")
@@ -145,17 +149,13 @@ def cancel_pending_request(request_id: str):
 
     if request.status != "pending":
         raise HTTPException(
-            status_code=400,
-            detail=f"Request is not pending (status: {request.status})"
+            status_code=400, detail=f"Request is not pending (status: {request.status})"
         )
 
     success = cancel_request(request_id)
 
     if success:
-        return RespondResponse(
-            success=True,
-            message=f"Request {request_id} cancelled"
-        )
+        return RespondResponse(success=True, message=f"Request {request_id} cancelled")
     else:
         raise HTTPException(status_code=500, detail="Failed to cancel request")
 
@@ -171,15 +171,12 @@ def cleanup_requests(max_age_hours: int = 24):
 
 # ============ Trace Recording API (Phase 1) ============
 
-import json
-from datetime import datetime
-from uuid import uuid4
-
-from app.infrastructure.database.sql.models import TraceEvent
+# ============ Trace Recording API (Phase 1) ============
 
 
 class RecordedEvent(BaseModel):
     """Single recorded event from frontend."""
+
     timestamp: float  # Unix timestamp in ms
     event_type: str  # "click", "input", "message", "tool_result", "screenshot"
     target_selector: str | None = None  # CSS selector of target element
@@ -225,12 +222,12 @@ async def start_recording(body: StartRecordingRequest):
         "thread_id": body.thread_id,
         "task_name": body.task_name,
         "started_at": datetime.utcnow(),
-        "event_count": 0
+        "event_count": 0,
     }
 
     return StartRecordingResponse(
         session_id=session_id,
-        message=f"Recording session started for thread {body.thread_id}"
+        message=f"Recording session started for thread {body.thread_id}",
     )
 
 
@@ -299,14 +296,13 @@ async def record_events(body: RecordEventsRequest):
                     screenshot_path=screenshot_path,
                     ui_element_info=ui_info,
                     recording_session_id=body.session_id,
-
                     # New columns population
                     session_id=body.session_id,
                     timestamp=event.timestamp,
                     event_type=event.event_type,
                     target_selector=event.target_selector,
                     target_text=event.target_text,
-                    payload=event.payload
+                    payload=event.payload,
                 )
                 db.add(trace_event)
                 events_saved += 1
@@ -332,7 +328,7 @@ async def stop_recording(session_id: str):
     return StopRecordingResponse(
         session_id=session_id,
         event_count=session["event_count"],
-        message="Recording session stopped"
+        message="Recording session stopped",
     )
 
 
@@ -349,15 +345,12 @@ async def list_recording_sessions(thread_id: str | None = None):
                 "thread_id": info["thread_id"],
                 "task_name": info.get("task_name"),
                 "started_at": info["started_at"].isoformat(),
-                "event_count": info["event_count"]
+                "event_count": info["event_count"],
             })
     return {"sessions": sessions}
 
 
 # ============ Skill Management API (Phase 2) ============
-
-from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
-from app.infrastructure.database.sql.models import LearnedSkill
 
 
 class SynthesizeRequest(BaseModel):
@@ -397,7 +390,7 @@ async def synthesize_skill(body: SynthesizeRequest):
                 steps=json.dumps([s.__dict__ for s in skill.steps]),
                 tools_used=json.dumps(skill.tools_used),
                 source_thread_id=skill.source_thread_id,
-                source_session_id=skill.source_session_id
+                source_session_id=skill.source_session_id,
             )
             db.add(db_skill)
             await db.flush()  # Get ID
@@ -406,7 +399,7 @@ async def synthesize_skill(body: SynthesizeRequest):
                 "success": True,
                 "skill_id": db_skill.id,
                 "skill_name": skill.name,
-                "skill_yaml": skill.to_yaml()
+                "skill_yaml": skill.to_yaml(),
             }
 
     except Exception as e:
@@ -440,7 +433,7 @@ async def list_skills(active_only: bool = True):
                     "tools_used": json.loads(s.tools_used) if s.tools_used else [],
                     "success_count": s.success_count,
                     "failure_count": s.failure_count,
-                    "is_active": s.is_active
+                    "is_active": s.is_active,
                 }
                 for s in skills
             ]
@@ -475,7 +468,7 @@ async def get_skill(skill_id: int):
             "source_session_id": skill.source_session_id,
             "success_count": skill.success_count,
             "failure_count": skill.failure_count,
-            "is_active": skill.is_active
+            "is_active": skill.is_active,
         }
 
 
@@ -533,7 +526,7 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
             skill.trigger_patterns = json.dumps(body.trigger_patterns)
 
         if body.parameters is not None:
-             # Just dump the list of dicts directly
+            # Just dump the list of dicts directly
             skill.parameters = json.dumps(body.parameters)
 
         # 3. Commit (Automatic via session_scope exit, but we want to return updated data)
@@ -547,16 +540,14 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
                 "name": skill.name,
                 "description": skill.description,
                 "trigger_patterns": json.loads(skill.trigger_patterns),
-                "parameters": json.loads(skill.parameters)
-            }
+                "parameters": json.loads(skill.parameters),
+            },
         }
 
 
 @router.post("/skills/{skill_id}/execute")
 async def execute_skill(
-    skill_id: int,
-    body: ExecuteSkillRequest,
-    bg_tasks: BackgroundTasks
+    skill_id: int, body: ExecuteSkillRequest, bg_tasks: BackgroundTasks
 ):
     """
     Execute a skill by injecting a directive into the agent's conversation.
@@ -564,7 +555,6 @@ async def execute_skill(
     """
     async with session_scope() as db:
         # 1. Verify Skill exists
-        from app.infrastructure.database.sql.models import LearnedSkill
         skill = await db.get(LearnedSkill, skill_id)
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
@@ -584,12 +574,12 @@ async def execute_skill(
         conversation = await db.get(Conversation, body.thread_id)
         if not conversation:
             # Create if missing (though usually should exist for a thread)
-             conversation = Conversation(
+            conversation = Conversation(
                 id=body.thread_id,
                 project_id=body.project_id,
                 title=f"Execute {skill_name}",
             )
-             db.add(conversation)
+            db.add(conversation)
 
         # Add User Message
         user_msg = Message(
@@ -597,7 +587,7 @@ async def execute_skill(
             project_id=body.project_id,
             role="human",
             content=directive,
-            sequence_number=999999, # Temporary lazy sequence, effectively "next"
+            sequence_number=999999,  # Temporary lazy sequence, effectively "next"
         )
         db.add(user_msg)
         await db.flush()
@@ -605,7 +595,7 @@ async def execute_skill(
     # 4. Trigger Agent Loop
     inputs = {
         "messages": [{"type": "human", "content": directive}],
-        "project_id": body.project_id
+        "project_id": body.project_id,
     }
     bg_tasks.add_task(run_agent_background, body.thread_id, inputs)
 

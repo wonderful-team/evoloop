@@ -5,10 +5,16 @@ from app.logging import get_context
 
 
 @tool
-async def save_preference(key: str, value: str, description: str = "", is_global: bool = False, project_id: int = None):
+async def save_preference(
+    key: str,
+    value: str,
+    description: str = "",
+    is_global: bool = False,
+    project_id: int = None,
+):
     """
     Save a user preference or instruction to long-term memory.
-    
+
     Args:
         key: A short, unique key (e.g., "test_framework").
         value: The value (e.g., "pytest").
@@ -29,7 +35,7 @@ async def save_preference(key: str, value: str, description: str = "", is_global
 async def get_user_preferences(project_id: int = None):
     """
     Retrieve all current user preferences, merging global defaults with project-specific overrides.
-    
+
     Args:
         project_id: Current project ID. Optional, defaults to current context.
     """
@@ -43,7 +49,7 @@ async def get_user_preferences(project_id: int = None):
 async def search_concepts(query: str, project_id: int = None):
     """
     Search the project's Concept Graph.
-    
+
     Args:
         query: The search term.
         project_id: The ID of the project to search in. Optional.
@@ -57,7 +63,7 @@ async def search_concepts(query: str, project_id: int = None):
 async def add_concept(name: str, description: str, project_id: int = None):
     """
     Add a new concept or term to the Project's Knowledge Graph.
-    
+
     Args:
         name: The name of the concept.
         description: A concise definition.

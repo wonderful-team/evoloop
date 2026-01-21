@@ -1,17 +1,14 @@
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from langchain_core.messages import (
-    AIMessage,
     BaseMessage,
-    HumanMessage,
     SystemMessage,
     ToolMessage,
 )
 from langchain_core.runnables import RunnableConfig
 
-from app.core.config import settings
 from app.core.engine.message_utils import repair_message_history, smart_window_slice
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
@@ -37,7 +34,7 @@ class AgentEngine:
         model: str = None,
         max_steps: int = 5,
         temperature: float = 0.7,
-        name: str = "Agent"
+        name: str = "Agent",
     ) -> dict[str, Any]:
         """
         Executes the standard Agent ReAct loop.
@@ -62,6 +59,7 @@ class AgentEngine:
         # 3.0 Context Pruning (Optional Feature)
         try:
             from app.core.memory.pruner import ContextPruner
+
             raw_messages = ContextPruner.prune_messages(raw_messages)
         except ImportError:
             pass
@@ -80,7 +78,7 @@ class AgentEngine:
             system_prompt=final_system_prompt,
             config=config,
             max_steps=max_steps,
-            name=name
+            name=name,
         )
 
     @staticmethod
@@ -88,6 +86,7 @@ class AgentEngine:
         """Inject TraceCallbackHandler for Imitation/Reinforcement Learning."""
         try:
             from app.core.learning.trace_recorder import TraceCallbackHandler
+
             thread_id = config.get("configurable", {}).get("thread_id", "unknown")
             if thread_id and thread_id != "unknown":
                 trace_handler = TraceCallbackHandler(thread_id)
@@ -127,7 +126,7 @@ class AgentEngine:
         system_prompt: str,
         config: RunnableConfig,
         max_steps: int,
-        name: str
+        name: str,
     ) -> dict[str, Any]:
         """Core ReAct Loop Logic."""
 
@@ -177,7 +176,7 @@ class AgentEngine:
                         "messages": new_messages + [response],
                         "_routing_target": target,
                         "_routing_reason": reason,
-                        "_routing_context": context  # <--- NEW
+                        "_routing_context": context,  # <--- NEW
                     }
 
             # Execute Tools
@@ -238,7 +237,12 @@ class AgentEngine:
                         content = f"Error: Tool {tool_name} not found."
 
                 # Create ToolMessage using utility for ID
-                tool_msg = ToolMessage(content=str(content), tool_call_id=tool_id, name=tool_name, id=gen_uuid())
+                tool_msg = ToolMessage(
+                    content=str(content),
+                    tool_call_id=tool_id,
+                    name=tool_name,
+                    id=gen_uuid(),
+                )
 
                 logger.info(f"[{name}] ✅ Result ({tool_name}): {str(content)[:200]}...")
 
@@ -247,5 +251,5 @@ class AgentEngine:
 
         return {
             "messages": new_messages,
-            "tool_history": local_tool_history  # For finish node knowledge harvesting
+            "tool_history": local_tool_history,  # For finish node knowledge harvesting
         }

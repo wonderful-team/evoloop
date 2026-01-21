@@ -3,6 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class DiffTracker:
     """
     Tracks file changes to generate precise memory of what actually changed.
@@ -38,7 +39,7 @@ class DiffTracker:
         if path not in self._snapshots:
             return ""
 
-        old_content = self._snapshots.pop(path) # Consume snapshot
+        old_content = self._snapshots.pop(path)  # Consume snapshot
 
         try:
             with open(path, encoding="utf-8") as f:
@@ -56,7 +57,7 @@ class DiffTracker:
             new_content.splitlines(keepends=True),
             fromfile=f"a/{path}",
             tofile=f"b/{path}",
-            n=2 # Context lines
+            n=2,  # Context lines
         )
 
         diff_text = "".join(diff)
@@ -64,6 +65,7 @@ class DiffTracker:
 
     def clear(self):
         self._snapshots.clear()
+
 
 # Global singleton for the engine to use
 diff_tracker = DiffTracker()

@@ -24,13 +24,13 @@ User Preference: {user_lang}
 You MUST write your analysis and advice in {user_lang}.
 
 Your Task:
-Analyze the situation. Why are they failing? 
+Analyze the situation. Why are they failing?
 - Is the plan fundamentally flawed?
 - Are they trying to fix a file that doesn't exist? (Check Structure)
 - Are they missing a dependency?
 - Are they writing code that contradicts the existing architecture?
 
-Provide a "Course Correction" directive to the Supervisor. 
+Provide a "Course Correction" directive to the Supervisor.
 Be specific about what they should STOP doing and what they SHOULD do instead.
 Suggest a new angle or a step back to research if needed.
 

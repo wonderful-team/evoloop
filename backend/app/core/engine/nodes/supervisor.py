@@ -4,21 +4,26 @@ Supervisor Node - ReAct Architecture
 The Supervisor is the decision-making hub of the EvoLoop system.
 It analyzes user input, routes to specialized nodes via the route_to tool.
 """
+
 import logging
 import os
 import platform
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from sqlalchemy import or_, select
 
-from app.i18n.service import i18n
 from app.core.engine import AgentEngine
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
+from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models.todo import TodoItem, TodoStatus, TodoPriority
-from sqlalchemy import select, or_
+from app.infrastructure.database.sql.models.todo import (
+    TodoItem,
+    TodoPriority,
+    TodoStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +42,7 @@ def get_last_human_message(messages: list) -> str | None:
 class SupervisorNode:
     """
     Supervisor Node - Decision-making hub for the EvoLoop Agent.
-    
+
     Responsibilities:
     1. Fast-path routing via IntentClassifier and SkillMatcher
     2. Context building (tools, memory, project structure)
@@ -72,16 +77,18 @@ class SupervisorNode:
         # Phase 3: Single ReAct Loop with route_to tool (Core Change)
         # Import route_to tool and add to tools list
         from app.domain.tools.routing import route_to
+
         tools = context["tools"] + [route_to]
 
         # Use Builder for unified prompt construction
         from app.core.prompts.supervisor_builder import SupervisorPromptBuilder
+
         prompt_builder = SupervisorPromptBuilder(
             project_id=project_id,
             active_plan_context=context["active_plan_context"],
             iteration_count=context["iteration_count"],
             sys_info=context["sys_info"],
-            context=context
+            context=context,
         )
         dynamic_prompt = prompt_builder.build(config)
 
@@ -91,7 +98,7 @@ class SupervisorNode:
             system_prompt=dynamic_prompt,
             tools=tools,
             max_steps=15,  # Increased since routing is now part of the loop
-            name="Supervisor"
+            name="Supervisor",
         )
 
         # Phase 4: Handle routing result
@@ -121,8 +128,8 @@ class SupervisorNode:
                     "last_supervisor_route": routing_target,
                     "route_reason": routing_reason,
                     "handoff_context": routing_context,  # <--- NEW: Persist context
-                    "visited_nodes": visited_nodes
-                }
+                    "visited_nodes": visited_nodes,
+                },
             }
 
         # Phase 5: Fallback - LLM did not call route_to
@@ -130,13 +137,13 @@ class SupervisorNode:
         new_messages = engine_result.get("messages", [])
         if new_messages:
             last_msg = new_messages[-1]
-            if isinstance(last_msg, AIMessage) and not getattr(last_msg, 'tool_calls', None):
+            if isinstance(last_msg, AIMessage) and not getattr(last_msg, "tool_calls", None):
                 # Pure text response = consider task complete
                 logger.info("[Supervisor] 🏁 Text response without routing - finishing.")
                 return {
                     "messages": new_messages,
                     "next_node": "finish",
-                    "current_plan": state.get("current_plan")
+                    "current_plan": state.get("current_plan"),
                 }
 
         # Ultimate fallback: default to deep_researcher
@@ -144,19 +151,20 @@ class SupervisorNode:
         return {
             "messages": new_messages,
             "next_node": "deep_researcher",
-            "current_plan": state.get("current_plan")
+            "current_plan": state.get("current_plan"),
         }
 
     async def _emit_status(self, config: RunnableConfig, status: str):
         """Emit status update for UI responsiveness."""
         try:
             from app.core.monitoring.activity import activity_monitor
+
             thread_id = config.get("configurable", {}).get("thread_id", "unknown")
             await activity_monitor.update_agent_state(
                 thread_id=thread_id,
                 mode="PLANNING",
                 task_name="Supervisor Decision",
-                task_status=status
+                task_status=status,
             )
         except Exception:
             pass
@@ -165,6 +173,7 @@ class SupervisorNode:
         """Try to compress history if needed."""
         try:
             from app.core.engine.nodes.compressor import compress_history_delta
+
             current_msgs = state.get("messages", [])
             delta = await compress_history_delta(current_msgs)
             if delta:
@@ -188,33 +197,34 @@ class SupervisorNode:
         # 1. Intent Classification
         try:
             from app.core.engine.intent_classifier import IntentClassifier
+
             fast_route = await IntentClassifier.classify(last_human_msg)
             if fast_route:
                 logger.info(f"[Supervisor] ⚡ Fast-Track routing to '{fast_route}'")
-                
+
                 # [FIX] Phase 21: Auto-Populate Handoff Context for Fast Path
                 # Specialized Logic used to map User Message -> Node Context
                 handoff_context = {}
                 scratchpad_update = {}
-                
+
                 if fast_route == "deep_researcher":
                     # Assume user message is the research topic
                     handoff_context = {"topic": last_human_msg}
                 elif fast_route == "planner":
                     # Assume user message is the updated instruction
                     handoff_context = {"instruction": last_human_msg}
-                
+
                 if handoff_context:
                     scratchpad_update = {
                         "handoff_context": handoff_context,
-                        "route_reason": "Fast-Track Intent"
+                        "route_reason": "Fast-Track Intent",
                     }
 
                 return {
                     "next_node": fast_route,
                     "messages": [],
                     "current_plan": state.get("current_plan"),
-                    "scratchpad": scratchpad_update  # Inject context
+                    "scratchpad": scratchpad_update,  # Inject context
                 }
         except Exception as e:
             logger.warning(f"IntentClassifier failed: {e}")
@@ -245,8 +255,9 @@ class SupervisorNode:
 
         return None
 
-    async def _build_context(self, state: AgentState, config: RunnableConfig,
-                             messages: list, project_id: int) -> dict[str, Any]:
+    async def _build_context(
+        self, state: AgentState, config: RunnableConfig, messages: list, project_id: int
+    ) -> dict[str, Any]:
         """Build context for LLM planning."""
         from app.core.tools.registry_utils import get_node_tools
         from app.domain.system.service import SystemConfigService
@@ -284,6 +295,7 @@ class SupervisorNode:
         project_concepts = ""
         try:
             from app.domain.memory.service import memory_service
+
             if last_msg:
                 found = await memory_service.search_concepts(last_msg, project_id)
                 if found and "No relevant concepts" not in found:
@@ -397,7 +409,7 @@ When you call `route_to(target='coder', ...)` or `route_to(target='tester', ...)
             "current_plan": state.get("current_plan", "No plan yet."),
             "active_plan_context": active_plan_context,
             "iteration_count": state.get("iteration_count", 0),
-            "last_human_msg": last_msg  # Pass for ambiguity check
+            "last_human_msg": last_msg,  # Pass for ambiguity check
         }
 
 

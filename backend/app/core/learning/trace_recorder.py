@@ -50,7 +50,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
                 await self._save_event(
                     action_type="node_start",
                     payload={"node": node_name},
-                    snapshot=snapshot
+                    snapshot=snapshot,
                 )
             except Exception as e:
                 logger.error(f"Failed to record node start: {e}")
@@ -74,13 +74,13 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         tool_name = serialized.get("name")
         try:
             args = json.loads(input_str)
-        except:
+        except Exception:
             args = {"raw": input_str}
 
         await self._save_event(
             action_type="tool_call",
             payload={"name": tool_name, "args": args},
-            snapshot=self._last_state_snapshot # Action conditioned on LAST seen state
+            snapshot=self._last_state_snapshot,  # Action conditioned on LAST seen state
         )
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
@@ -94,7 +94,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         await self._save_event(
             action_type="llm_output",
             payload={"content": content},
-            snapshot=self._last_state_snapshot
+            snapshot=self._last_state_snapshot,
         )
 
     async def _save_event(self, action_type: str, payload: dict, snapshot: dict):
@@ -104,9 +104,11 @@ class TraceCallbackHandler(AsyncCallbackHandler):
                     thread_id=self.thread_id,
                     step_number=self.step_counter,
                     node_name=self.current_node,
-                    state_snapshot=json.dumps(snapshot, default=str), # Handle datetimes
+                    state_snapshot=json.dumps(
+                        snapshot, default=str
+                    ),  # Handle datetimes
                     action_type=action_type,
-                    action_payload=json.dumps(payload, default=str)
+                    action_payload=json.dumps(payload, default=str),
                 )
                 session.add(event)
         except Exception as e:
@@ -127,16 +129,16 @@ class TraceCallbackHandler(AsyncCallbackHandler):
 
 
 async def sync_thread_to_graph(
-    thread_id: str, 
+    thread_id: str,
     project_id: int,
     goal: str = None,
     result_summary: str = None,
-    concept_names: list[str] = None
+    concept_names: list[str] = None,
 ):
     """
     Syncs the completed thread's trace from SQL to Neo4j as an Episode.
     This creates the 'Episodic Memory'.
-    
+
     Args:
         thread_id: The conversation thread ID
         project_id: Project context
@@ -147,12 +149,18 @@ async def sync_thread_to_graph(
     # 1. Fetch Trace (for fallback extraction if params not provided)
     events = []
     async with session_scope() as session:
-        stmt = select(TraceEvent).where(TraceEvent.thread_id == thread_id).order_by(TraceEvent.step_number)
+        stmt = (
+            select(TraceEvent)
+            .where(TraceEvent.thread_id == thread_id)
+            .order_by(TraceEvent.step_number)
+        )
         result = await session.execute(stmt)
         events = result.scalars().all()
 
     if not events:
-        logger.warning(f"No trace events found for thread {thread_id}, skipping graph sync.")
+        logger.warning(
+            f"No trace events found for thread {thread_id}, skipping graph sync."
+        )
         return
 
     # 2. Extract/Fallback Metadata
@@ -193,7 +201,7 @@ async def sync_thread_to_graph(
         result=final_result[:2000] if final_result else "Success",
         plan_summary=plan_snapshot[:5000],
         error_msg=error,
-        project_id=project_id
+        project_id=project_id,
     )
 
     # 4. Link Episode to Concepts (NEW)
@@ -202,7 +210,7 @@ async def sync_thread_to_graph(
             await memory_service.link_episode_to_concepts(
                 episode_id=episode_id,
                 concept_names=concept_names,
-                project_id=project_id
+                project_id=project_id,
             )
             logger.info(f"Linked Episode {episode_id} to {len(concept_names)} concepts")
         except Exception as e:

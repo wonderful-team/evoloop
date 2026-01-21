@@ -17,7 +17,7 @@ class GitignoreMatcher:
     def parse(self, content: str):
         """Parse gitignore content into a PathSpec."""
         try:
-            self.spec = pathspec.PathSpec.from_lines('gitwildmatch', content.splitlines())
+            self.spec = pathspec.PathSpec.from_lines("gitwildmatch", content.splitlines())
         except Exception:
             # Fallback or log? For now just silent fail or empty spec
             pass
@@ -54,7 +54,7 @@ class GitignoreMatcher:
             return False
 
     @classmethod
-    def from_file(cls, root_path: str, ignore_file: str = ".gitignore") -> 'GitignoreMatcher':
+    def from_file(cls, root_path: str, ignore_file: str = ".gitignore") -> "GitignoreMatcher":
         """Create matcher from a .gitignore file in the root path."""
         file_path = os.path.join(root_path, ignore_file)
         content = ""

@@ -4,28 +4,28 @@ from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from sqlalchemy import func, select
 
-from app.i18n.service import i18n
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
+from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models.learning import TraceEvent
-from app.logging import logger
+import logging
+logger = logging.getLogger(__name__)
 
-logger = logger.getChild("system_scanner")
 
-
-async def system_scanner_node(state: AgentState, config: RunnableConfig):
+async def system_scanner_node(_state: AgentState, _config: RunnableConfig):
     """
     System Scanner Node: The 'Doctor' that diagnoses system health.
     Analyzes Trace Memory for recurrent failures.
     """
     # 0. Check if Evolution is Enabled
     from app.domain.system.evolution_config import EvolutionConfigService
+
     if not EvolutionConfigService.is_enabled():
         return {
             "messages": [],
-            "next_node": "finish"  # Or END
+            "next_node": "finish",  # Or END
         }
 
     logger.info("🏥 System Scanner: Starting Health Check...")
@@ -55,8 +55,9 @@ async def system_scanner_node(state: AgentState, config: RunnableConfig):
         # 2. Advanced Graph Pattern Matching (Evolution V1)
         # Find Concepts that are frequently associated with FAILED episodes in the last 24h.
         from app.infrastructure.database.graph.driver import get_graph_db
+
         driver = await get_graph_db()
-        
+
         graph_query = """
         MATCH (e:Episode)
         WHERE e.timestamp > timestamp() - 86400000  // Last 24h (ms)
@@ -66,22 +67,26 @@ async def system_scanner_node(state: AgentState, config: RunnableConfig):
         ORDER BY failures DESC
         LIMIT 3
         """
-        
+
         async with driver.session() as session:
             g_res = await session.run(graph_query)
             records = await g_res.data()
-            
+
             for r in records:
                 concept = r["concept"]
                 count = r["failures"]
                 if count >= 2:  # Threshold
-                    health_report.append(i18n.get("prompts.system_scanner.recurring_failure", concept=concept, count=count))
+                    health_report.append(i18n.get(
+                        "prompts.system_scanner.recurring_failure",
+                        concept=concept,
+                        count=count,
+                    ))
 
     # 3. Analyze Report
     if not health_report:
         return {
             "messages": [AIMessage(content=i18n.get("prompts.system_scanner.healthy"))],
-            "next_node": "finish"  # Or specific end for evolution graph
+            "next_node": "finish",  # Or specific end for evolution graph
         }
 
     report_text = "\n".join(health_report)
@@ -91,14 +96,14 @@ async def system_scanner_node(state: AgentState, config: RunnableConfig):
     llm = LLMFactory.create_llm(temperature=0.2)
 
     prompt = f"""You are the System Scanner (Medical Diagnostic AI).
-    
+
     Health Report:
     {report_text}
-    
+
     Your Task:
     1. Identify the most critical issue.
     2. Formulate a specific "Evolution Objective" for the Architect.
-    
+
     Output Format:
     Evolution Objective: [One sentence description]
     Severity: [Low/Medium/High/Critical]
@@ -110,5 +115,5 @@ async def system_scanner_node(state: AgentState, config: RunnableConfig):
     return {
         "messages": [AIMessage(content=i18n.get("prompts.system_scanner.complete", report=response_content))],
         "evolution_report": response_content,
-        "next_node": "evolution_planner"  # Signal to proceed
+        "next_node": "evolution_planner",  # Signal to proceed
     }

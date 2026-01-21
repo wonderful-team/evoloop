@@ -9,6 +9,7 @@ from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
 
 logger = logging.getLogger(__name__)
 
+
 class ToolExecutor:
     """
     Service to execute tools with enhanced observability.
@@ -18,15 +19,10 @@ class ToolExecutor:
     def __init__(self):
         pass
 
-    async def execute(
-        self,
-        tool: BaseTool,
-        args: dict[str, Any] | str,
-        config: RunnableConfig
-    ) -> Any:
+    async def execute(self, tool: BaseTool, args: dict[str, Any] | str, config: RunnableConfig) -> Any:
         """
         Execute a tool and ensure distinct 'tool_start' and 'tool_end' feedback is sent.
-        
+
         Args:
             tool: The LangChain tool instance.
             args: Arguments for the tool.
@@ -78,9 +74,7 @@ class ToolExecutor:
         # 3. Log End
         if evoloop_handler:
             try:
-                await evoloop_handler.on_tool_end(
-                    output=str(output)
-                )
+                await evoloop_handler.on_tool_end(output=str(output))
             except Exception as e:
                 logger.error(f"Failed to log tool end: {e}")
 

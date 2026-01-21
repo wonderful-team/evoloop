@@ -17,10 +17,10 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from sqlalchemy import select
 
-from app.i18n.service import i18n
 from app.core.llm.factory import LLMFactory
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools.executor import ToolExecutor
+from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import LearnedSkill as LearnedSkillModel
 
@@ -30,6 +30,7 @@ logger = logging.getLogger("evoloop.learning.executor")
 @dataclass
 class SkillMatch:
     """Result of skill matching."""
+
     skill_id: int
     skill_name: str
     confidence: float  # 0-1
@@ -49,6 +50,7 @@ class SkillMatcher:
     async def _load_skills(self) -> list[LearnedSkillModel]:
         """Load active skills from database."""
         import time
+
         current = time.time()
 
         # Cache for 60 seconds
@@ -56,7 +58,7 @@ class SkillMatcher:
             return self._skills_cache
 
         async with session_scope() as db:
-            stmt = select(LearnedSkillModel).where(LearnedSkillModel.is_active == True)
+            stmt = select(LearnedSkillModel).where(LearnedSkillModel.is_active)
             result = await db.execute(stmt)
             self._skills_cache = list(result.scalars().all())
             self._cache_expiry = current + 60
@@ -71,13 +73,13 @@ class SkillMatcher:
         # Escape regex special chars except for our {param} placeholders
         escaped = re.escape(pattern)
         # Convert \{param\} back to (?P<param>.+?)
-        regex = re.sub(r'\\{(\w+)\\}', r'(?P<\1>.+?)', escaped)
+        regex = re.sub(r"\\{(\w+)\\}", r"(?P<\1>.+?)", escaped)
         return f"^{regex}$"
 
     async def match(self, user_input: str, threshold: float = 0.5, thread_id: str = None) -> SkillMatch | None:
         """
         Find best matching skill for user input.
-        
+
         Returns SkillMatch if confidence >= threshold, else None.
         """
         skills = await self._load_skills()
@@ -91,7 +93,7 @@ class SkillMatcher:
         for skill in skills:
             try:
                 patterns = json.loads(skill.trigger_patterns) if skill.trigger_patterns else []
-            except:
+            except Exception:
                 patterns = []
 
             for pattern in patterns:
@@ -110,7 +112,7 @@ class SkillMatcher:
                             skill_id=skill.id,
                             skill_name=skill.name,
                             confidence=confidence,
-                            extracted_params=params
+                            extracted_params=params,
                         )
 
         # If no regex match, try semantic matching with LLM
@@ -124,7 +126,9 @@ class SkillMatcher:
 
         return None
 
-    async def _semantic_match(self, user_input: str, skills: list[LearnedSkillModel], thread_id: str = None) -> SkillMatch | None:
+    async def _semantic_match(
+        self, user_input: str, skills: list[LearnedSkillModel], thread_id: str = None
+    ) -> SkillMatch | None:
         """
         Use LLM to semantically match user input to skills.
         """
@@ -171,7 +175,7 @@ Output ONLY the JSON, no explanation."""
                     skill_id=data["skill_id"],
                     skill_name=data.get("skill_name", ""),
                     confidence=data.get("confidence", 0.6),
-                    extracted_params=data.get("params", {})
+                    extracted_params=data.get("params", {}),
                 )
 
                 # Phase 6: Transparent Thought
@@ -187,8 +191,8 @@ Output ONLY the JSON, no explanation."""
                                 "thought_type": "skill_match",
                                 "skill_name": match.skill_name,
                                 "confidence": match.confidence,
-                                "params": match.extracted_params
-                            }
+                                "params": match.extracted_params,
+                            },
                         )
                     except Exception:
                         pass
@@ -210,19 +214,16 @@ class SkillExecutor:
         self.tool_executor = ToolExecutor()
 
     async def execute_skill(
-        self,
-        skill_id: int,
-        params: dict[str, Any],
-        tool_registry: dict[str, Any]
+        self, skill_id: int, params: dict[str, Any], tool_registry: dict[str, Any]
     ) -> tuple[bool, str]:
         """
         Execute a skill by its ID.
-        
+
         Args:
             skill_id: Database ID of the skill
             params: Parameters extracted from user input
             tool_registry: Dict mapping tool names to tool instances
-        
+
         Returns:
             (success: bool, result_message: str)
         """
@@ -234,7 +235,7 @@ class SkillExecutor:
 
         try:
             steps = json.loads(skill.steps) if skill.steps else []
-        except:
+        except Exception:
             return False, i18n.get("prompts.skill_executor.parse_failed")
 
         logger.info(f"Executing skill '{skill.name}' with {len(steps)} steps")
@@ -246,7 +247,7 @@ class SkillExecutor:
             skill_step_id = await activity_monitor.add_step(
                 thread_id,
                 i18n.get("prompts.skill_executor.task_executing", name=skill.name),
-                "skill"
+                "skill",
             )
 
         results = []
@@ -280,11 +281,21 @@ class SkillExecutor:
                     if len(output_str) > 2000:
                         output_str = output_str[:2000] + "... (truncated)"
 
-                    results.append(i18n.get("prompts.skill_executor.step_success", i=i+1, action=action, output=output_str))
+                    results.append(i18n.get(
+                        "prompts.skill_executor.step_success",
+                        i=i + 1,
+                        action=action,
+                        output=output_str,
+                    ))
                     logger.info(f"Step {i+1} ({action}) completed")
                 except Exception as e:
                     previous_result = f"Error: {e}"
-                    results.append(i18n.get("prompts.skill_executor.step_failed", i=i+1, action=action, error=e))
+                    results.append(i18n.get(
+                        "prompts.skill_executor.step_failed",
+                        i=i + 1,
+                        action=action,
+                        error=e,
+                    ))
                     logger.error(f"Step {i+1} ({action}) failed: {e}")
             else:
                 logger.warning(f"Tool '{action}' not found in registry, skipping")
@@ -311,10 +322,7 @@ class SkillExecutor:
         return success, summary
 
     def _substitute_params(
-        self,
-        args: dict[str, Any],
-        params: dict[str, Any],
-        previous_result: Any = None
+        self, args: dict[str, Any], params: dict[str, Any], previous_result: Any = None
     ) -> dict[str, Any]:
         """
         Substitute {{param}} placeholders in args.

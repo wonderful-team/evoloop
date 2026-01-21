@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class CommandResult:
     returncode: int
@@ -20,12 +21,13 @@ class CommandResult:
         """Combined output or just stdout usually preferred."""
         return self.stdout.strip()
 
+
 def run_command(
     cmd: str | list[str],
     cwd: str | None = None,
     check: bool = False,
     timeout: float | None = None,
-    env: dict | None = None
+    env: dict | None = None,
 ) -> CommandResult:
     """
     Run a synchronous subprocess command.
@@ -49,7 +51,7 @@ def run_command(
             text=True,
             shell=shell,
             timeout=timeout,
-            env=env
+            env=env,
         )
         if check and result.returncode != 0:
             logger.warning(f"Command failed: {args}, stderr: {result.stderr}")
@@ -96,7 +98,7 @@ async def run_async_command(
                 program,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=cwd
+                cwd=cwd,
             )
         else:
             process = await create_proc(
@@ -104,7 +106,7 @@ async def run_async_command(
                 *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                cwd=cwd
+                cwd=cwd,
             )
 
         try:
@@ -119,7 +121,7 @@ async def run_async_command(
         return CommandResult(
             returncode=process.returncode,
             stdout=stdout.decode().strip() if stdout else "",
-            stderr=stderr.decode().strip() if stderr else ""
+            stderr=stderr.decode().strip() if stderr else "",
         )
 
     except Exception as e:

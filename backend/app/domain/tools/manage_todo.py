@@ -4,39 +4,43 @@ from typing import Annotated, Literal
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
+from sqlalchemy import desc, select
 
-from app.i18n.service import i18n
 from app.core.tools import evoloop_tool
+from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models.todo import TodoItem, TodoStatus, TodoPriority
+from app.infrastructure.database.sql.models.todo import (
+    TodoItem,
+    TodoPriority,
+    TodoStatus,
+)
 from app.utils.time import utcnow
-from sqlalchemy import select, desc
 
 
 @evoloop_tool
 async def manage_todo(
-    action: Literal['add', 'list', 'update', 'delete'],
+    action: Literal["add", "list", "update", "delete"],
     title: str | None = None,
     description: str | None = None,
-    priority: Literal['low', 'medium', 'high'] = 'medium',
+    priority: Literal["low", "medium", "high"] = "medium",
     category: str | None = None,
     due_date: str | None = None,
     # For list/update/delete
-    status: Literal['pending', 'completed', 'cancelled'] | None = None,
+    status: Literal["pending", "completed", "cancelled"] | None = None,
     todo_id: str | None = None,
     project_id: int | None = None,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
     Manage user Todo/Reminders items.
-    
+
     **WHEN TO USE**:
     - When the user says "Remind me to..." or "Reminder for..." -> Create a todo with the specified due date.
     - PROACTIVELY verify/create todos when the user mentions future tasks (e.g., "check logs later").
-    - **CRITICAL**: When executing LONG-RUNNING tasks (e.g., "running full test suite", "deploying to prod", "waiting for build"), 
+    - **CRITICAL**: When executing LONG-RUNNING tasks (e.g., "running full test suite", "deploying to prod", "waiting for build"),
       you MUST PROACTIVELY suggest or create a Todo with a reasonable `due_date` (e.g., "1 hour from now") so the user knows to check back.
       Example: "I am running the tests. I added a Todo to remind you to check the results in 30 minutes."
-    
+
     Args:
         action: 'add', 'list', 'update', 'delete'.
         title: Title of the todo (required for 'add').
@@ -49,7 +53,7 @@ async def manage_todo(
     """
 
     async with session_scope() as session:
-        if action == 'add':
+        if action == "add":
             if not title:
                 return i18n.get("prompts.domain_tools.manage_todo.error_title")
 
@@ -64,15 +68,15 @@ async def manage_todo(
                     now = utcnow()
                     if "hour" in due_date:
                         try:
-                            hours = int(re.search(r'(\d+)\s*hour', due_date).group(1))
+                            hours = int(re.search(r"(\d+)\s*hour", due_date).group(1))
                             parsed_due_date = now + timedelta(hours=hours)
-                        except:
+                        except Exception:
                             pass
                     elif "min" in due_date:
                         try:
-                            mins = int(re.search(r'(\d+)\s*min', due_date).group(1))
+                            mins = int(re.search(r"(\d+)\s*min", due_date).group(1))
                             parsed_due_date = now + timedelta(minutes=mins)
-                        except:
+                        except Exception:
                             pass
                     elif "tomorrow" in due_date:
                         parsed_due_date = now + timedelta(days=1)
@@ -94,9 +98,14 @@ async def manage_todo(
             )
             session.add(todo)
             await session.commit()
-            return i18n.get("prompts.domain_tools.manage_todo.success_add", priority=todo.priority.value.upper(), title=todo.title, id=todo.id)
+            return i18n.get(
+                "prompts.domain_tools.manage_todo.success_add",
+                priority=todo.priority.value.upper(),
+                title=todo.title,
+                id=todo.id,
+            )
 
-        elif action == 'list':
+        elif action == "list":
             query = select(TodoItem).order_by(desc(TodoItem.created_at))
             if status:
                 query = query.where(TodoItem.status == TodoStatus(status))
@@ -111,7 +120,7 @@ async def manage_todo(
 
             return "\n".join([f"- [{t.status.value}] {t.title} (ID: {t.id}, Due: {t.due_date})" for t in todos])
 
-        elif action == 'update':
+        elif action == "update":
             if not todo_id:
                 return i18n.get("prompts.domain_tools.manage_todo.error_id", action="update")
 
@@ -120,21 +129,25 @@ async def manage_todo(
             if not todo:
                 return i18n.get("prompts.domain_tools.manage_todo.error_not_found", id=todo_id)
 
-            if status: todo.status = TodoStatus(status)
-            if title: todo.title = title
-            if description: todo.description = description
-            if category: todo.category = category
+            if status:
+                todo.status = TodoStatus(status)
+            if title:
+                todo.title = title
+            if description:
+                todo.description = description
+            if category:
+                todo.category = category
             if due_date:
                 # (Reuse parsing logic if robust, for now keeping simple for update)
                 try:
                     todo.due_date = datetime.fromisoformat(due_date)
-                except:
+                except Exception:
                     pass
 
             await session.commit()
             return i18n.get("prompts.domain_tools.manage_todo.success_update", id=todo_id)
 
-        elif action == 'delete':
+        elif action == "delete":
             if not todo_id:
                 return i18n.get("prompts.domain_tools.manage_todo.error_id", action="delete")
             result = await session.execute(select(TodoItem).where(TodoItem.id == todo_id))

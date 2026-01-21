@@ -2,7 +2,6 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-# from app.logging import logger # Uses structlog or logging conf. app.core.config might have settings.
 # Import existing domain tools
 from app.domain.codebase.indexing.tools import index_path
 from app.domain.codebase.retrieval.tools import search_codebase
@@ -14,13 +13,14 @@ from app.domain.tools.facades import (
     manage_git,
     manage_memory,
 )
+
 # Phase 18: Import new atomic file tools
 from app.domain.tools.files import (
+    edit_file,
+    file_system,
+    list_files,
     read_file,
     write_file,
-    edit_file,
-    list_files,
-    file_system,
 )
 from app.utils import json as json_utils
 
@@ -123,6 +123,7 @@ async def explore_codebase_ops(
     except Exception as e:
         return f"Error: {e}"
 
+
 @mcp.tool()
 async def manage_git_ops(action: str, argument: str = None) -> str:
     """Unified Git Operations."""
@@ -130,6 +131,7 @@ async def manage_git_ops(action: str, argument: str = None) -> str:
         return _truncate(manage_git.invoke({"action": action, "argument": argument}))
     except Exception as e:
         return f"Error: {e}"
+
 
 @mcp.tool()
 async def manage_memory_ops(action: str, key: str = None, value: str = None) -> str:
@@ -139,16 +141,17 @@ async def manage_memory_ops(action: str, key: str = None, value: str = None) -> 
     except Exception as e:
         return f"Error: {e}"
 
+
 # Kept independent
 @mcp.tool()
 async def run_command_ops(command: str) -> str:
     """Run shell command."""
     try:
         from app.domain.tools.execution import run_command
+
         return _truncate(await run_command.ainvoke({"command": command}))
     except Exception as e:
         return f"Error: {e}"
-
 
 
 @mcp.tool()
@@ -156,12 +159,10 @@ def read_document(path: str) -> str:
     """Read content from PDF or DOCX file."""
     try:
         from app.domain.tools.document_reader import read_document as read_doc_tool
+
         return _truncate(read_doc_tool.invoke({"file_path": path}))
     except Exception as e:
         return f"Error reading document: {e}"
-
-
-
 
 
 @mcp.tool()
@@ -208,7 +209,7 @@ async def get_annotated_tree(path: str = ".") -> str:
 
         target_path = os.path.abspath(path)
         if not os.path.exists(target_path):
-             return f"Error: Path {path} not found."
+            return f"Error: Path {path} not found."
 
         generator = AnnotatedTreeGenerator(target_path, file_limit=30)
         return _truncate(await generator.generate())
@@ -234,11 +235,13 @@ async def remember_preference(key: str, value: str, description: str = "") -> st
 
 
 @mcp.tool()
-async def remember_concept(name: str, description: str, related_files: list[str] = []) -> str:
+async def remember_concept(name: str, description: str, related_files: list[str] | None = None) -> str:
     """
     Store a high-level project concept.
     Example: name="Auth Flow", description="Uses JWT with 15min expiry", related_files=["auth.py"]
     """
+    if related_files is None:
+        related_files = []
     try:
         await memory_service.initialize_schema()
         await memory_service.add_concept(name, description, related_files)

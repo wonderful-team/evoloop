@@ -1,4 +1,3 @@
-
 import logging
 import os
 import random
@@ -10,6 +9,7 @@ from app.domain.memory.service import memory_service
 from app.utils.file import read_file_content
 
 logger = logging.getLogger(__name__)
+
 
 class ProjectStandardsAnalyst:
     """
@@ -43,12 +43,12 @@ class ProjectStandardsAnalyst:
         combined_context = "\n".join(snippets)
 
         # 3. LLM Analysis
-        llm = LLMFactory.create_llm(temperature=0.1) # Low temp for factual analysis
+        llm = LLMFactory.create_llm(temperature=0.1)  # Low temp for factual analysis
 
         system_prompt = """You are a Lead Architect conducting a Code Audit.
         Your goal is to extract the IMPLICIT CODING STANDARDS and PATTERNS from the provided code samples.
         Do NOT critique the code. Describe the 'Way of Working'.
-        
+
         Focus on:
         1. Naming Conventions (Snake case? Camel case? Prefix rules?)
         2. Typing (Strict type hints? No types? Pydantic?)
@@ -56,13 +56,16 @@ class ProjectStandardsAnalyst:
         4. Architectual Patterns (Repository pattern? Service layer? MVC?)
         5. Error Handling (Exceptions? Return values?)
         6. Libraries (Key libs used frequently?)
-        
+
         Output a concise List of Rules that a new developer should follow."""
 
         user_prompt = f"Here are samples from the codebase:\n\n{combined_context}\n\nExtract the Coding Standards."
 
         try:
-            response = await llm.ainvoke([SystemMessage(content=system_prompt), HumanMessage(content=user_prompt)])
+            response = await llm.ainvoke([
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt),
+            ])
             standards_report = response.content
 
             logger.info("[StandardsAnalyst] Analysis Complete. Saving to Memory.")
@@ -73,7 +76,7 @@ class ProjectStandardsAnalyst:
                 name="Project Coding Standards",
                 description=standards_report,
                 project_id=project_id,
-                related_files=sample_files
+                related_files=sample_files,
             )
 
             # Also save as generic preference?
@@ -98,7 +101,9 @@ class ProjectStandardsAnalyst:
                     candidates.append(os.path.join(root, f))
 
         # Prioritize core directories
-        core_candidates = [f for f in candidates if "core" in f or "domain" in f or "app" in f]
+        core_candidates = [
+            f for f in candidates if "core" in f or "domain" in f or "app" in f
+        ]
 
         selection = []
         if len(core_candidates) >= count:
@@ -109,6 +114,7 @@ class ProjectStandardsAnalyst:
             selection = candidates
 
         return selection
+
 
 # Global Instance
 project_standards_analyst = ProjectStandardsAnalyst()

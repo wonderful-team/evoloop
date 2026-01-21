@@ -1,38 +1,39 @@
-
 import logging
-from typing import Optional
 
 from app.core.config import settings
 from app.domain.sandbox.base import Sandbox
 from app.domain.sandbox.local import LocalSandbox
+
 # Defer import of DockerSandbox to prevent failure if docker not installed?
 # Or just import it.
 
 logger = logging.getLogger(__name__)
 
+
 class SandboxFactory:
-    _instance: Optional[Sandbox] = None
-    
+    _instance: Sandbox | None = None
+
     @classmethod
     def get_sandbox(cls) -> Sandbox:
         if cls._instance:
             return cls._instance
-            
+
         mode = getattr(settings, "EXECUTION_MODE", "local").lower()
         image = getattr(settings, "SANDBOX_IMAGE", "python:3.11")
-        
+
         logger.info(f"Initializing Sandbox in mode: {mode}")
-        
+
         if mode == "docker":
             try:
                 from app.domain.sandbox.docker import DockerSandbox
+
                 cls._instance = DockerSandbox(image_name=image)
             except Exception as e:
                 logger.error(f"Failed to initialize Docker Sandbox, falling back to Local: {e}")
                 cls._instance = LocalSandbox()
         else:
             cls._instance = LocalSandbox()
-            
+
         return cls._instance
 
     @classmethod

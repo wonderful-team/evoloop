@@ -1,4 +1,3 @@
-
 from typing import Any
 
 from langchain_core.messages import HumanMessage
@@ -30,7 +29,7 @@ class EventAdapter:
         **Title**: {title}
         **Description**: 
         {desc}
-        
+
         Please analyze this task and start execution.
         """
         return [HumanMessage(content=content)]
@@ -49,7 +48,7 @@ class EventAdapter:
         **URL**: {url}
         **Description**:
         {desc}
-        
+
         Please fix this issue.
         """
         return [HumanMessage(content=content)]

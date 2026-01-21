@@ -1,7 +1,8 @@
-
+import logging
 
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.logging import logger
+
+logger = logging.getLogger(__name__)
 
 
 class GraphGarbageCollector:
@@ -33,11 +34,11 @@ class GraphGarbageCollector:
         MATCH (n:CodeEntity {project_id: $pid})
         WHERE NOT (n)<-[:CONTAINS]-(:File)
         AND NOT (n)<-[:REFERENCES]-(:Concept)
-        
+
         // Optional: Check timestamp if we have it, or just assume if it's not in a file it's dead.
-        // Risk: Race condition during indexing (node created but file link not yet made). 
+        // Risk: Race condition during indexing (node created but file link not yet made).
         // Transactional integrity usually prevents this, but grace period is safer.
-        
+
         // Return count first for logging? Or just delete.
         WITH n
         LIMIT 1000 // Batch delete
@@ -71,6 +72,7 @@ class GraphGarbageCollector:
         # Complex to verify against SQL efficiently without iterating all.
         # Maybe skipped for now, focus on Ghost Entities.
         pass
+
 
 # Global Instance
 graph_gc = GraphGarbageCollector()

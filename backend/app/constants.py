@@ -9,6 +9,7 @@ from enum import Enum
 # ====================== Document Type Enum ======================
 class DocumentType(Enum):
     """Document type enumeration"""
+
     UNKNOWN = "unknown"
     TEXT = "text"
     PDF = "pdf"
@@ -27,9 +28,25 @@ class DocumentType(Enum):
 
 # Text file identification
 TEXT_EXTENSIONS = [
-    '.py', '.js', '.java', '.c', '.cpp', '.h', '.cs', '.php',
-    '.rb', '.go', '.rs', '.ts', '.html', '.css', '.md',
-    '.json', '.yml', '.yaml', '.xml'
+    ".py",
+    ".js",
+    ".java",
+    ".c",
+    ".cpp",
+    ".h",
+    ".cs",
+    ".php",
+    ".rb",
+    ".go",
+    ".rs",
+    ".ts",
+    ".html",
+    ".css",
+    ".md",
+    ".json",
+    ".yml",
+    ".yaml",
+    ".xml",
 ]
 
 # Image file extensions
@@ -86,12 +103,10 @@ DOC_TEXT_EXTENSIONS = [
 FILE_EXTENSION_TO_TYPE = {
     # Text files
     "txt": DocumentType.TEXT,
-
     # Document files
     "pdf": DocumentType.PDF,
     "docx": DocumentType.DOCX,
     "doc": DocumentType.DOCX,
-
     # Code files
     "py": DocumentType.CODE,
     "js": DocumentType.CODE,
@@ -107,7 +122,6 @@ FILE_EXTENSION_TO_TYPE = {
     "kt": DocumentType.CODE,
     "ts": DocumentType.CODE,
     "sh": DocumentType.CODE,
-
     # Markup languages
     "md": DocumentType.MARKDOWN,
     "markdown": DocumentType.MARKDOWN,
@@ -115,21 +129,16 @@ FILE_EXTENSION_TO_TYPE = {
     "htm": DocumentType.HTML,
     "xml": DocumentType.XML,
     "json": DocumentType.JSON,
-
     # Spreadsheets
     "xlsx": DocumentType.EXCEL,
     "xls": DocumentType.EXCEL,
     "csv": DocumentType.CSV,
-
     # Jupyter notebooks
     "ipynb": DocumentType.JUPYTER,
 }
 
 # Source map files
-SOURCE_MAP_EXTENSIONS = [
-    ".map",
-    ".sourcemap"
-]
+SOURCE_MAP_EXTENSIONS = [".map", ".sourcemap"]
 
 # ====================== File Filtering Configuration ======================
 
@@ -145,8 +154,15 @@ CACHE_TEMP_DIRS = [
 
 # Build and deploy related directories
 BUILD_DEPLOY_DIRS = [
-    "dist", "build", "node_modules", "cdk.out", ".aws-sam",
-    ".terraform", ".angular", ".next", "_nuxt",
+    "dist",
+    "build",
+    "node_modules",
+    "cdk.out",
+    ".aws-sam",
+    ".terraform",
+    ".angular",
+    ".next",
+    "_nuxt",
 ]
 
 # All blacklisted directories
@@ -168,19 +184,19 @@ BLACKLIST_FILES = DEPENDENCY_FILES + SPECIAL_PYTHON_FILES
 
 # Excluded directory and file patterns
 EXCLUDED_PATTERNS = [
-    r'\.git/',
-    r'\.github/',
-    r'node_modules/',
-    r'venv/',
-    r'__pycache__/',
-    r'\.pyc',
-    r'\.DS_Store',
-    r'\.env',
-    r'\.lock',
-    r'package-lock\.json',
-    r'yarn\.lock',
-    r'composer\.lock',
-    r'poetry\.lock',
+    r"\.git/",
+    r"\.github/",
+    r"node_modules/",
+    r"venv/",
+    r"__pycache__/",
+    r"\.pyc",
+    r"\.DS_Store",
+    r"\.env",
+    r"\.lock",
+    r"package-lock\.json",
+    r"yarn\.lock",
+    r"composer\.lock",
+    r"poetry\.lock",
 ]
 
 # All blacklisted file extensions
@@ -188,12 +204,12 @@ BLACKLIST_FILE_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIO
 
 # All whitelist file extensions
 WHITELIST_FILE_EXTENSIONS = (
-    LOW_LEVEL_EXTENSIONS +
-    SCRIPT_EXTENSIONS +
-    FUNCTIONAL_EXTENSIONS +
-    WEB_EXTENSIONS +
-    CONFIG_EXTENSIONS +
-    DOC_TEXT_EXTENSIONS
+    LOW_LEVEL_EXTENSIONS
+    + SCRIPT_EXTENSIONS
+    + FUNCTIONAL_EXTENSIONS
+    + WEB_EXTENSIONS
+    + CONFIG_EXTENSIONS
+    + DOC_TEXT_EXTENSIONS
 )
 
 # Default excluded directories and files
@@ -204,26 +220,57 @@ DEFAULT_INCLUDED_EXTENSIONS = WHITELIST_FILE_EXTENSIONS
 
 # Directories likely to contain compressed code
 LIKELY_COMPRESSED_CODE_DIRS = [
-    "dist", "build", "vendor", "node_modules", "cdn",
-    "assets/vendor", "public/assets", "static/vendor",
+    "dist",
+    "build",
+    "vendor",
+    "node_modules",
+    "cdn",
+    "assets/vendor",
+    "public/assets",
+    "static/vendor",
 ]
 
 # Identification patterns for main files: Entry point patterns
 ENTRY_PATTERNS = [
-    "main.py", "app.py", "index.js", "server.js", "main.go",
-    "Main.java", "Program.cs", "index.php", "main.rs"
+    "main.py",
+    "app.py",
+    "index.js",
+    "server.js",
+    "main.go",
+    "Main.java",
+    "Program.cs",
+    "index.php",
+    "main.rs",
 ]
 
 # Identification patterns for main files: Configuration patterns
 CONFIG_PATTERNS = [
-    "config", "settings", ".env", ".gitignore", "dockerfile",
-    "docker-compose", "requirements.txt", "package.json",
-    "setup.py", "pyproject.toml", "Cargo.toml"
+    "config",
+    "settings",
+    ".env",
+    ".gitignore",
+    "dockerfile",
+    "docker-compose",
+    "requirements.txt",
+    "package.json",
+    "setup.py",
+    "pyproject.toml",
+    "Cargo.toml",
 ]
 
 IMPORTANT_PATTERNS = [
-    "/api/", "controller", "service", "model", "main", "app", "core",
-    "index", "base", "utils", "common", "component"
+    "/api/",
+    "controller",
+    "service",
+    "model",
+    "main",
+    "app",
+    "core",
+    "index",
+    "base",
+    "utils",
+    "common",
+    "component",
 ]
 
 # Compressed/Obfuscated file identification
@@ -231,43 +278,42 @@ COMPRESSED_FILE_PATTERNS = [
     r"\.min\.(js|css|html)$",  # Minified JS/CSS
     r"\.bundle\.(js|css)$",  # Bundled files
     r"\.compiled\.(js|css)$",  # Compiled files
-    r'\.umd\.js$',  # UMD modules
-    r'\.(map|gzip|br)$',  # Source maps and compressed files
-    r"-[a-f0-9]{8,}\.js$",   # JS files with hash
+    r"\.umd\.js$",  # UMD modules
+    r"\.(map|gzip|br)$",  # Source maps and compressed files
+    r"-[a-f0-9]{8,}\.js$",  # JS files with hash
     r"\.[a-f0-9]{8,}\.chunk\.js$",  # Webpack chunks
-    r'\.chunk\.[a-f0-9]{8,}\.(js|css)$',  # Chunk files
-    r'vendors\-[a-f0-9]{6,}\.(js|css)$',  # Vendor files
+    r"\.chunk\.[a-f0-9]{8,}\.(js|css)$",  # Chunk files
+    r"vendors\-[a-f0-9]{6,}\.(js|css)$",  # Vendor files
 ]
 
 # Code quality thresholds (for compressed code detection)
 CODE_QUALITY_THRESHOLDS = {
-    "max_line_length": 500,        # Maximum line length
-    "min_newline_ratio": 0.005,    # Minimum newline ratio
-    "max_char_entropy": 7.0,       # Maximum character entropy (measure of randomness)
-    "min_whitespace_ratio": 0.1,   # Minimum whitespace ratio
-    "max_semicolon_ratio": 0.05,   # Maximum semicolon ratio
-    "max_file_size_mb": 1.0,       # Maximum file size (MB)
-    "sample_size": 4096,           # Content sampling size (bytes)
+    "max_line_length": 500,  # Maximum line length
+    "min_newline_ratio": 0.005,  # Minimum newline ratio
+    "max_char_entropy": 7.0,  # Maximum character entropy (measure of randomness)
+    "min_whitespace_ratio": 0.1,  # Minimum whitespace ratio
+    "max_semicolon_ratio": 0.05,  # Maximum semicolon ratio
+    "max_file_size_mb": 1.0,  # Maximum file size (MB)
+    "sample_size": 4096,  # Content sampling size (bytes)
 }
 
 # File encoding attempt order
-FILE_ENCODINGS = ['utf-8', 'latin-1', 'utf-16', 'ascii']
+FILE_ENCODINGS = ["utf-8", "latin-1", "utf-16", "ascii"]
 
 # Code File Extension Map
 CODE_EXTENSION_MAP = {
     # Python
     ".py": "python",
     ".pyi": "python",
-
     # JavaScript/TypeScript
     ".js": "javascript",
     ".jsx": "javascript",
     ".ts": "typescript",
     ".tsx": "typescript",
-
+    # Vue
+    ".vue": "Vue",
     # Java
     ".java": "java",
-
     # C/C++
     ".c": "c",
     ".h": "c",
@@ -275,55 +321,80 @@ CODE_EXTENSION_MAP = {
     ".cc": "cpp",
     ".cxx": "cpp",
     ".hpp": "cpp",
-
     # Go
     ".go": "go",
-
     # Ruby
     ".rb": "ruby",
-
     # PHP
     ".php": "php",
-
     # C#
     ".cs": "c_sharp",
-
     # Rust
     ".rs": "rust",
-
     # Swift
     ".swift": "swift",
-
     ".html": "html",
     ".css": "css",
     ".scss": "scss",
     ".sql": "sql",
-    ".sh": "shell"
+    ".sh": "shell",
+    ".md": "markdown",
 }
 
 # Merged from document_reader.py
 EXTENSION_MAP = {
     # Python
-    ".py": "python", ".pyi": "python",
+    ".py": "python",
+    ".pyi": "python",
     # JavaScript/TypeScript
-    ".js": "javascript", ".jsx": "javascript", ".ts": "typescript", ".tsx": "typescript",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".ts": "typescript",
+    ".tsx": "typescript",
     # Web
-    ".html": "html", ".css": "css", ".scss": "scss", ".less": "less",
+    ".html": "html",
+    ".css": "css",
+    ".scss": "scss",
+    ".less": "less",
     # Java/JVM
-    ".java": "java", ".kt": "kotlin", ".scala": "scala",
+    ".java": "java",
+    ".kt": "kotlin",
+    ".scala": "scala",
     # C/C++
-    ".c": "c", ".h": "c", ".cpp": "cpp", ".cc": "cpp", ".cxx": "cpp", ".hpp": "cpp",
+    ".c": "c",
+    ".h": "c",
+    ".cpp": "cpp",
+    ".cc": "cpp",
+    ".cxx": "cpp",
+    ".hpp": "cpp",
     # Go
     ".go": "go",
     # Rust
     ".rs": "rust",
     # Scripting
-    ".sh": "bash", ".bash": "bash", ".zsh": "bash", ".pl": "perl", ".rb": "ruby", ".php": "php", ".lua": "lua",
+    ".sh": "bash",
+    ".bash": "bash",
+    ".zsh": "bash",
+    ".pl": "perl",
+    ".rb": "ruby",
+    ".php": "php",
+    ".lua": "lua",
     # Data/Config
-    ".json": "json", ".xml": "xml", ".yaml": "yaml", ".yml": "yaml", ".toml": "toml", ".ini": "ini",
-    ".sql": "sql", ".md": "markdown",
+    ".json": "json",
+    ".xml": "xml",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".toml": "toml",
+    ".ini": "ini",
+    ".sql": "sql",
+    ".md": "markdown",
     # Other
-    ".cs": "csharp", ".swift": "swift", ".r": "r", ".dart": "dart", ".vue": "vue", ".svelte": "svelte"
+    ".cs": "csharp",
+    ".swift": "swift",
+    ".r": "r",
+    ".dart": "dart",
+    ".vue": "vue",
+    ".svelte": "svelte",
 }
 
 # ====================== Model Constants ======================
@@ -332,11 +403,11 @@ MODEL_CLAUDE_SONNET = "claude-3-5-sonnet-20240620"
 
 # ====================== Security / Filter Patterns ======================
 SUSPICIOUS_JS_PATTERNS = [
-    r'\(function\([a-z],[a-z],[a-z]\)',
+    r"\(function\([a-z],[a-z],[a-z]\)",
     r'new Function\(["\'](.*?)["\']',
-    r'eval\(.*?\)',
-    r'\\x[0-9a-f]{2}',
-    r'\\u[0-9a-f]{4}'
+    r"eval\(.*?\)",
+    r"\\x[0-9a-f]{2}",
+    r"\\u[0-9a-f]{4}",
 ]
 
 
@@ -363,16 +434,10 @@ TASK_TYPES = [
     "bug_fix",
     "code_explanation",
     "refactoring",
-    "architecture_analysis"
+    "architecture_analysis",
 ]
 
-WORKFLOW_STATUS = [
-    "pending",
-    "running",
-    "completed",
-    "failed",
-    "cancelled"
-]
+WORKFLOW_STATUS = ["pending", "running", "completed", "failed", "cancelled"]
 
 
 # ====================== AI Model Capabilities ======================
@@ -383,7 +448,7 @@ CONTEXT_SIZES = {
         "gpt-4": 8192,
         "gpt-4-turbo": 128000,
         "gpt-4o": 128000,
-        "default": 16384
+        "default": 16384,
     },
     "anthropic": {
         "claude-instant-1": 100000,
@@ -392,23 +457,23 @@ CONTEXT_SIZES = {
         "claude-3-sonnet": 200000,
         "claude-3-haiku": 200000,
         "claude-3-5-sonnet": 200000,
-        "default": 100000
+        "default": 100000,
     },
     "dashscope": {
         "qwen-turbo": 32000,
         "qwen-plus": 32000,
         "qwen-max": 1000000,
-        "default": 32000
+        "default": 32000,
     },
     "deepseek": {
         "deepseek-chat": 64000,
         "deepseek-coder": 64000,
-        "default": 64000
+        "default": 64000,
     },
     "local": {
         "llama3": 8192,
         "mistral": 8192,
-        "default": 4096
+        "default": 4096,
     }
 }
 
@@ -418,18 +483,18 @@ MAX_TOKENS_PER_CHUNK = {
         "text-embedding-ada-002": 8192,
         "text-embedding-3-small": 8192,
         "text-embedding-3-large": 8192,
-        "default": 8192
+        "default": 8192,
     },
     "dashscope": {
         "text-embedding-v1": 2048,
         "text-embedding-v2": 2048,
         "text-embedding-v3": 8192,
-        "default": 2048
+        "default": 2048,
     },
     "cohere": {
         "embed-english-v2.0": 2048,
         "embed-multilingual-v2.0": 2048,
-        "default": 2048
+        "default": 2048,
     },
     "huggingface": {
         "sentence-transformers/all-mpnet-base-v2": 512,
@@ -440,7 +505,7 @@ MAX_TOKENS_PER_CHUNK = {
         "BAAI/bge-small-en-v1.5": 512,
         "BAAI/bge-large-zh-v1.5": 512,
         "BAAI/bge-base-zh-v1.5": 512,
-        "default": 512
+        "default": 512,
     },
     "local": {
         "all-MiniLM-L6-v2": 512,
@@ -451,8 +516,7 @@ MAX_TOKENS_PER_CHUNK = {
         "nomic-embed-text": 1024,
         "gte-large": 1024,
         "gte-small": 512,
-        "default": 512
+        "default": 512,
     },
-    "default": 2048
+    "default": 2048,
 }
-

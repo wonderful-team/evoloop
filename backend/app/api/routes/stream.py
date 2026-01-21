@@ -2,6 +2,7 @@
 SSE (Server-Sent Events) streaming endpoint for real-time chat updates.
 Streams tokens and activity updates as they happen.
 """
+
 import asyncio
 import json
 import logging
@@ -39,7 +40,7 @@ async def stream_chat(thread_id: str):
                     "active_memories": activity.get("active_memories", []),
                     "verification": activity.get("verification", {}),
                     "status": activity.get("status", "unknown"),
-                    "human_request": activity.get("human_request")  # Include here
+                    "human_request": activity.get("human_request"),  # Include here
                 }
                 yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
 
@@ -108,7 +109,7 @@ async def stream_chat(thread_id: str):
                                 "agent_state": current.get("agent_state", {}),
                                 "active_memories": current.get("active_memories", []),
                                 "verification": current.get("verification", {}),
-                                "status": current.get("status", "unknown")
+                                "status": current.get("status", "unknown"),
                             }
                             yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
 
@@ -155,6 +156,6 @@ async def stream_chat(thread_id: str):
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "X-Accel-Buffering": "no"
-        }
+            "X-Accel-Buffering": "no",
+        },
     )

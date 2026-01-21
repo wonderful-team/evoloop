@@ -4,10 +4,10 @@ from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableConfig
 
-from app.i18n.service import i18n
-from app.core.engine.state import AgentState
 from app.core.engine.message_utils import repair_message_history
+from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
+from app.i18n.service import i18n
 
 
 async def chat_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
@@ -49,15 +49,16 @@ Keep responses concise and friendly.
 
     # Language preference
     from app.domain.system.service import SystemConfigService
+
     user_lang = SystemConfigService.get_language_preference()
 
     # Invoke with ONLY cleaned history (System prompt is in chain)
     response = await chain.ainvoke(
         {
-            "messages": cleaned_messages, 
-            "lang_instruction": i18n.get("prompts.chat.lang_instruction", language=user_lang)
-        }, 
-        config=config
+            "messages": cleaned_messages,
+            "lang_instruction": i18n.get("prompts.chat.lang_instruction", language=user_lang),
+        },
+        config=config,
     )
 
     return {

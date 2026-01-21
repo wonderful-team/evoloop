@@ -1,10 +1,10 @@
 import json
-import os
+import logging
 from pathlib import Path
-from typing import Any
 
 from app.domain.system.service import SystemConfigService
-from app.logging import logger
+
+logger = logging.getLogger(__name__)
 
 
 class I18nService:
@@ -15,7 +15,7 @@ class I18nService:
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(I18nService, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
         return cls._instance
 
     def load_locales(self):
@@ -32,12 +32,12 @@ class I18nService:
             file_path = base_path / f"{code}.json"
             if file_path.exists():
                 try:
-                    with open(file_path, "r", encoding="utf-8") as f:
+                    with open(file_path, encoding="utf-8") as f:
                         self._locales[code] = json.load(f)
                     logger.info(f"Loaded locale: {code}")
                 except Exception as e:
                     logger.error(f"Failed to load locale {code}: {e}")
-        
+
         self._loaded = True
 
     def get(self, key: str, **kwargs) -> str:
@@ -57,7 +57,7 @@ class I18nService:
 
         # 2. Fetch Template
         template = self._get_template(lang, key)
-        
+
         # Fallback to English if not found in target language
         if template is None and lang != "en":
             template = self._get_template("en", key)
@@ -90,7 +90,7 @@ class I18nService:
                 current = current[k]
             else:
                 return None
-        
+
         return current if isinstance(current, str) else None
 
 

@@ -1,11 +1,13 @@
 import os
-import subprocess
 
 from typing import Annotated
+
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
+from app.constants import DEFAULT_EXCLUDED_DIRS
 from app.core.tools import evoloop_tool, get_working_directory
+from app.domain.codebase.filter import FileFilter
 from app.utils.file import read_file_content as utils_read_file
 from app.utils.file import resolve_path
 from app.utils.file import write_file_contents as utils_write_file
@@ -13,30 +15,81 @@ from app.utils.process import run_command
 
 
 @evoloop_tool
-def list_files(path: str = ".", recursive: bool = False, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
+def list_files(
+    path: str = ".",
+    recursive: bool = False,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+) -> str:
     """
     List files in a directory.
     By default is non-recursive. Set recursive=True for deep listing (careful with large projects).
     For structural understanding with annotations, prefer `list_files(path, tree=True)` from domain/tools/files.
     """
+    """
+    List files in a directory using standardized FileFilter logic.
+    """
     root = get_working_directory(config)
     target_path = os.path.abspath(os.path.join(root, path))
 
     if not os.path.exists(target_path):
-         return f"Error: Directory does not exist: {target_path}"
+        return f"Error: Directory does not exist: {target_path}"
 
-    cmd = ["ls"]
-    if recursive:
-        cmd.append("-R")
-    cmd.append(target_path)
+    if not recursive:
+        # Simple listdir with filter
+        try:
+            items = os.listdir(target_path)
+            # Filter? FileFilter is mostly for files. 
+            # But let's basic filter hidden/excluded.
+            file_filter = FileFilter()
+            filtered_items = []
+            for item in items:
+                full_p = os.path.join(target_path, item)
+                if file_filter.should_include(full_p):
+                    filtered_items.append(item)
+                elif os.path.isdir(full_p) and item not in DEFAULT_EXCLUDED_DIRS and not item.startswith("."):
+                     # Include directories if not explicitly excluded (FileFilter mostly checks files)
+                     # But we should mimic its directory logic too.
+                     # Simplified:
+                     filtered_items.append(item + "/")
+            return "\n".join(sorted(filtered_items))
+        except Exception as e:
+            return f"Error listing files: {e}"
 
-    res = run_command(cmd)
-    if not res.success:
-        return f"Error: {res.stderr}"
-    return res.stdout[:2000]
+    # Recursive: Use FileFilter walk approach similar to AnnotatedTreeGenerator but simpler output
+    file_filter = FileFilter()
+    results = []
+    
+    # Safety limit
+    MAX_FILES = 1000
+    count = 0
+
+    for current_root, dirs, files in os.walk(target_path):
+        # Prune dirs
+        dirs[:] = [d for d in dirs if d not in DEFAULT_EXCLUDED_DIRS and not d.startswith(".")]
+        
+        rel_dir = os.path.relpath(current_root, target_path)
+        if rel_dir == ".": rel_dir = ""
+
+        # Check files
+        for f in files:
+            full_path = os.path.join(current_root, f)
+            if file_filter.should_include(full_path):
+                results.append(os.path.join(rel_dir, f))
+                count += 1
+                if count >= MAX_FILES:
+                    results.append(f"... (Truncated at {MAX_FILES} files)")
+                    return "\n".join(results)
+
+    return "\n".join(sorted(results))
+
 
 @evoloop_tool
-def read_file(path: str, start_line: int | None = None, end_line: int | None = None, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
+def read_file(
+    path: str,
+    start_line: int | None = None,
+    end_line: int | None = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+) -> str:
     """
     Read the contents of a file. Supports optional line range reading.
     Line numbers are 1-based.
@@ -45,17 +98,23 @@ def read_file(path: str, start_line: int | None = None, end_line: int | None = N
     target_path = resolve_path(path, base_path=root)
 
     if not target_path or not os.path.exists(target_path):
-         return f"Error: File not found: {path} (Resolved: {target_path})"
+        return f"Error: File not found: {path} (Resolved: {target_path})"
 
     content, _ = utils_read_file(target_path, start_line, end_line)
     return content
 
+
 @evoloop_tool
-def edit_file(path: str, target: str, replacement: str, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
+def edit_file(
+    path: str,
+    target: str,
+    replacement: str,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+) -> str:
     """
     Edit a file by replacing a specific target snippet with a replacement.
     Efficient for making changes without re-writing the whole document.
-    
+
     Args:
         path: Relative path to the file.
         target: The exact text block to replace. Must be unique in the file.
@@ -84,8 +143,14 @@ def edit_file(path: str, target: str, replacement: str, config: Annotated[Runnab
 
     return f"Successfully edited {path}"
 
+
 @evoloop_tool
-def grep_files(pattern: str, path: str = ".", case_insensitive: bool = False, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
+def grep_files(
+    pattern: str,
+    path: str = ".",
+    case_insensitive: bool = False,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
+) -> str:
     """
     Search for a text pattern in files using 'grep -r'.
     Useful for finding all usages of a function, class, or variable.
@@ -93,29 +158,98 @@ def grep_files(pattern: str, path: str = ".", case_insensitive: bool = False, co
     root = get_working_directory(config)
     target_path = os.path.abspath(os.path.join(root, path))
 
+    # grep -r searches everything by default.
+    # To use our centralized FileFilter logic with `grep`, we'd ideally pass specific files or multiple --exclude args.
+    # `FileFilter` is complex (size, binary, custom rules). `grep` has limited regex/wildcard excludes.
+    #
+    # Option A: List all files with `os.walk` + `FileFilter`, then grep each (too slow for large codebase).
+    # Option B: Translate `FileFilter` logic into `grep` arguments as best as possible.
+    #
+    # Given the user request to "use FileFilter logic", for `grep_files` (which is a rough search), 
+    # relying on `DEFAULT_EXCLUDED_DIRS` is usually close enough to FileFilter's directory logic.
+    # But if we want to be strict, we might need to exclusions from FileFilter if it has global state.
+    # `FileFilter` currently uses `DEFAULT_EXCLUDED_DIRS` implicitly via `BLACKLIST_DIRS` check in `_is_likely_compressed_file` etc?
+    # Actually `FileFilter` checks `exclusions` passed to `should_include`.
+    #
+    # The user example `AnnotatedTreeGenerator` uses `self.file_filter = FileFilter()` and checks files one by one.
+    # grep is a bulk operation.
+    #
+    # Let's keep using `DEFAULT_EXCLUDED_DIRS` as a robust approximation for grep, 
+    # BUT we can add a comment acknowledging the alignment.
+    # OR if we want to support `tool.py`'s `list_files` which could use FileFilter?
+    # The user specifically mentioned "Unified file filtering logic... refer to AnnotatedTreeGenerator".
+    # `list_files` (lines 16-41) currently just runs `ls`. 
+    # Let's upgrade `list_files` to use `FileFilter` instead of `ls` if reasonable?
+    # `list_files` description says "simple ls". 
+    #
+    # However, `grep_files` at line 105 is the one I touched.
+    # I will stick to the previous `DEFAULT_EXCLUDED_DIRS` fix for `grep_files` as `grep` cannot easily run python logic per file during search.
+    #
+    # I WILL update `list_files` to use `FileFilter` if specific pattern/recursive is requested, or just respect it is `ls`.
+    # Actually, the user's intent "Unified... filter.py" strongly suggests using it where file traversal happens.
+    # The `grep_files` tool delegates to `grep` binary for speed. 
+    # It seems `find_definition` (analysis/tools.py) falls back to `grep` too.
+    #
+    # Wait, `AnnotatedTreeGenerator` is for *listing/visualizing* structure. 
+    # Maybe the user wants me to apply it to `list_files`?
+    #
+    # Let's update `list_files` to support smart filtering too?
+    # The current `list_files` implementation is `ls`.
+    #
+    # Actually, look at `app/domain/codebase/analysis/tools.py`.
+    # It has `FileFilter`? No.
+    #
+    # Let's adhere to the instruction: "Unified file filtering... use filter.py".
+    # I will assume this applies primarily to where we *iterate* files in Python.
+    # The `grep_files` using `grep` CLI is distinct.
+    #
+    # Let's update `list_files` to be smarter or at least acknowledge `FileFilter`?
+    # Or maybe the user meant `analysis/tools.py` logic?
+    #
+    # Re-reading `grep_files` in `infrastructure/filesystem/tool.py`:
+    # It uses `grep -r`. It's hard to inject `FileFilter` there.
+    #
+    # Let's update `find_definition` in `domain/codebase/analysis/tools.py`? 
+    # It also uses `grep`.
+    #
+    # Perhaps I should leave `grep` logic as "fast path" but update any Python iteration.
+    #
+    # Wait! The user pointed to `AnnotatedTreeGenerator`.
+    # `AnnotatedTreeGenerator` walks directories and checks `self.file_filter.should_include(f_abs)`.
+    #
+    # If I look at `app/domain/codebase/analysis/tools.py`:
+    # It doesn't walk files. It asks Graph or Greps.
+    #
+    # Maybe I missed a spot? 
+    # `app/infrastructure/filesystem/tool.py` has `list_files`.
+    # `ls -R` dumps everything including `.git` if not careful (though I added excludes to grep).
+    # `ls` tool doesn't use the excludes!
+    #
+    # Fix: Rewrite `list_files` in `app/infrastructure/filesystem/tool.py` to use `FileFilter` + `os.walk` instead of `ls` command.
+    # This aligns perfectly with "Unified Logic".
+    
     cmd = ["grep", "-r", "-n"]
     if case_insensitive:
         cmd.append("-i")
 
-    cmd.extend([
-        "--exclude-dir=.git",
-        "--exclude-dir=__pycache__",
-        "--exclude-dir=.venv",
-        "--exclude-dir=node_modules"
-    ])
+    # Use standard excluded directories
+    for excluded_dir in DEFAULT_EXCLUDED_DIRS:
+        cmd.append(f"--exclude-dir={excluded_dir}")
 
     cmd.append(pattern)
     cmd.append(target_path)
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode > 1:
-        return f"Error running grep: {result.stderr}"
+    res = run_command(cmd)
+    if not res.success:
+        # grep returns 1 if no lines found, which run_command might capture as non-zero return code
+        # but standardized run_command logic usually handles checking or we check returncode here.
+        # run_command returns CommandResult(returncode, stdout, stderr).
+        if res.returncode == 1:
+            return "No matches found."
+        return f"Error running grep: {res.stderr}"
 
-    output = result.stdout
-    if not output:
-        return "No matches found."
+    return res.stdout[:3000]
 
-    return output[:3000]
 
 @evoloop_tool
 def write_file_content(path: str, content: str, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:

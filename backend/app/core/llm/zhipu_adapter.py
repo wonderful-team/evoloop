@@ -1,19 +1,24 @@
 from typing import Any
+
 try:
     from langchain_anthropic import ChatAnthropic
+
     try:
         from langchain_anthropic.chat_models import _create_usage_metadata
     except ImportError:
         # Fallback if _create_usage_metadata is not available or moved
         from langchain_core.messages.ai import UsageMetadata
+
         def _create_usage_metadata(usage: Any) -> UsageMetadata:
-             return UsageMetadata(input_tokens=usage.input_tokens, output_tokens=usage.output_tokens)
+            return UsageMetadata(
+                input_tokens=usage.input_tokens, output_tokens=usage.output_tokens
+            )
 
     from langchain_anthropic.output_parsers import extract_tool_calls
     from langchain_core.messages import AIMessage
     from langchain_core.outputs import ChatGeneration, ChatResult
 except ImportError:
-    # If langchain_anthropic is not installed, we can't do anything. 
+    # If langchain_anthropic is not installed, we can't do anything.
     # But factory checks for import.
     pass
 
@@ -23,7 +28,7 @@ class ZhipuChatAnthropic(ChatAnthropic):
     Adapter for Zhipu AI (GLM-4) using Anthropic Protocol.
     Fixes known compatibility issues like list-wrapped tool arguments.
     """
-    
+
     def _format_output(self, data: Any, **kwargs: Any) -> ChatResult:
         data_dict = data.model_dump()
         content = data_dict["content"]
@@ -39,7 +44,7 @@ class ZhipuChatAnthropic(ChatAnthropic):
                         # Unwrap the list
                         block["input"] = inp[0]
                     elif isinstance(inp, list) and not inp:
-                         block["input"] = {}
+                        block["input"] = {}
         # --- Zhipu Fix End ---
 
         # Remove citations if they are None (Copied from original logic)
@@ -63,11 +68,10 @@ class ZhipuChatAnthropic(ChatAnthropic):
         }
         if "model" in llm_output and "model_name" not in llm_output:
             llm_output["model_name"] = llm_output["model"]
-        
+
         # Construct AIMessage
         if (
-            len(content) == 1
-            and content[0]["type"] == "text"
+            len(content) == 1 and content[0]["type"] == "text"
             # and not content[0].get("citations") # Optional check matches original
         ):
             msg = AIMessage(content=content[0]["text"])
@@ -79,7 +83,7 @@ class ZhipuChatAnthropic(ChatAnthropic):
             )
         else:
             msg = AIMessage(content=content)
-            
+
         msg.usage_metadata = _create_usage_metadata(data.usage)
         return ChatResult(
             generations=[ChatGeneration(message=msg)],

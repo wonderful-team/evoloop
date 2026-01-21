@@ -1,7 +1,11 @@
+import logging
+import uuid
+
 from app.core.config import settings
 from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.logging import logger
+
+logger = logging.getLogger(__name__)
 
 
 class MemoryService:
@@ -117,8 +121,6 @@ class MemoryService:
 
             except Exception as e:
                 logger.error(f"Failed to initialize Vector Index: {e}")
-            except Exception as e:
-                logger.warning(f"Failed to create Vector Index: {e}")
 
             # Episode Constraints
             try:
@@ -142,7 +144,14 @@ class MemoryService:
             except Exception as e:
                 logger.warning(f"Failed to create Episode Vector Index: {e}")
 
-    async def add_user_preference(self, user_id: str, key: str, value: str, description: str = "", project_id: int = None):
+    async def add_user_preference(
+        self,
+        user_id: str,
+        key: str,
+        value: str,
+        description: str = "",
+        project_id: int = None,
+    ):
         """
         Add a preference. If project_id is provided, it's scoped to that project.
         """
@@ -159,7 +168,14 @@ class MemoryService:
         RETURN p
         """
         async with driver.session() as session:
-            await session.run(query, user_id=user_id, key=key, value=value, description=description, pid=pid_val)
+            await session.run(
+                query,
+                user_id=user_id,
+                key=key,
+                value=value,
+                description=description,
+                pid=pid_val,
+            )
             scope = f"Project {pid_val}" if pid_val else "Global"
             logger.info(f"Stored Preference ({scope}): {key}={value}")
 
@@ -188,15 +204,21 @@ class MemoryService:
         # Merge Logic
         final_prefs = {}
         for r in records:
-            key = r['key']
-            val = r['value']
-            scope_pid = r['pid']
-            desc = r['desc']
+            key = r["key"]
+            val = r["value"]
+            scope_pid = r["pid"]
+            desc = r["desc"]
             final_prefs[key] = f"- {key}: {val} ({desc})" + (" [Global]" if scope_pid == 0 else " [Project]")
 
         return "\n".join(["**User Preferences:**"] + sorted(final_prefs.values()))
 
-    async def add_concept(self, name: str, description: str, project_id: int, related_files: list[str] = None):
+    async def add_concept(
+        self,
+        name: str,
+        description: str,
+        project_id: int,
+        related_files: list[str] = None,
+    ):
         driver = await get_graph_db()
         pid_val = project_id if project_id is not None else 0
 
@@ -213,7 +235,8 @@ class MemoryService:
         # Before creating, check if a semantically IDENTICAL concept exists.
         # Threshold: 0.92 (Very High Similarity)
         if embedding:
-            existing = await self.search_concepts_data(f"{name}: {description}", pid_val)
+            # Check for existing concepts (logic simplified for now)
+            # existing = await self.search_concepts_data(f"{name}: {description}", pid_val)
             # search_concepts_data usually returns top K. We need score.
             # Let's adjust search_concepts_data or write a specific check query here.
 
@@ -249,12 +272,18 @@ class MemoryService:
 
         query = """
         MERGE (c:Concept {name: $name, project_id: $pid})
-        SET c.description = $description, 
+        SET c.description = $description,
             c.updated_at = timestamp(),
             c.embedding = $embedding
         """
         async with driver.session() as session:
-            await session.run(query, name=name, pid=pid_val, description=description, embedding=embedding)
+            await session.run(
+                query,
+                name=name,
+                pid=pid_val,
+                description=description,
+                embedding=embedding,
+            )
 
             if related_files:
                 for file_path in related_files:
@@ -271,7 +300,7 @@ class MemoryService:
         """
         Semantic Search for Concepts using Vector Index.
         Also traverses to return related file names.
-        
+
         Args:
             query_text: The search query
             project_id: Project context for filtering
@@ -293,10 +322,10 @@ class MemoryService:
         CALL db.index.vector.queryNodes('concept_embeddings', $top_k, $embedding)
         YIELD node AS c, score
         WHERE (c.project_id = $pid OR c.project_id = 0) AND score >= $min_score
-        
+
         // Optional: GraphRAG - Fetch connected files
         OPTIONAL MATCH (c)-[:REFERENCES]->(f:File)
-        
+
         RETURN c.name as name, c.description as desc, c.project_id as pid, score, collect(f.path) as files
         """
 
@@ -308,7 +337,7 @@ class MemoryService:
                 embedding=query_embedding,
                 pid=project_id,
                 top_k=settings.MEMORY_SEARCH_LIMIT,
-                min_score=min_score
+                min_score=min_score,
             )
             records = await result.data()
 
@@ -317,11 +346,11 @@ class MemoryService:
 
         lines = []
         for r in records:
-            scope = "[Global]" if r['pid'] == 0 else ""
+            scope = "[Global]" if r["pid"] == 0 else ""
             files_str = ""
-            if r['files']:
+            if r["files"]:
                 # Just show basenames for brevity
-                basenames = [f.split('/')[-1] for f in r['files']]
+                basenames = [f.split("/")[-1] for f in r["files"]]
                 files_str = f"\n  Related Files: {', '.join(basenames)}"
 
             lines.append(f"- **{r['name']}** {scope} (Score: {r['score']:.2f}): {r['desc']}{files_str}")
@@ -343,7 +372,12 @@ class MemoryService:
         RETURN c.name as name, c.description as description, c.project_id as project_id
         """
         async with driver.session() as session:
-            result = await session.run(vector_cypher, embedding=query_embedding, pid=project_id, top_k=settings.MEMORY_SEARCH_LIMIT)
+            result = await session.run(
+                vector_cypher,
+                embedding=query_embedding,
+                pid=project_id,
+                top_k=settings.MEMORY_SEARCH_LIMIT,
+            )
             records = await result.data()
         return records
 
@@ -385,7 +419,7 @@ class MemoryService:
         # Normalize path: ensure no trailing slash unless root?
         # Graph paths in Phase 7 implementation: `path=dir_path`
         # If user asks for "app/core/", we should strip.
-        norm_path = path.rstrip('/')
+        norm_path = path.rstrip("/")
         if not norm_path and path:  # if was just "/"
             pass  # keep empty
 
@@ -408,7 +442,7 @@ class MemoryService:
             "path": norm_path,
             "summary": "No summary available (Directory not indexed or not found).",
             "sub_modules": [],
-            "dependencies": []
+            "dependencies": [],
         }
 
         async with driver.session() as session:
@@ -454,7 +488,14 @@ class MemoryService:
 
         return [f"{r['name']}: {r['description']}" for r in records]
 
-    async def store_episode(self, goal: str, result: str, plan_summary: str, error_msg: str | None, project_id: int) -> str | None:
+    async def store_episode(
+        self,
+        goal: str,
+        result: str,
+        plan_summary: str,
+        error_msg: str | None,
+        project_id: int,
+    ) -> str | None:
         """
         Store a completed task execution as an Episode in the graph.
         Returns the episode_id for downstream linking.
@@ -471,7 +512,6 @@ class MemoryService:
             return None
 
         # 2. Create Episode Node
-        import uuid
         episode_id = str(uuid.uuid4())
 
         query = """
@@ -489,7 +529,16 @@ class MemoryService:
         """
 
         async with driver.session() as session:
-            await session.run(query, id=episode_id, goal=goal, result=result, plan=plan_summary, error=error_msg, pid=pid_val, embedding=embedding)
+            await session.run(
+                query,
+                id=episode_id,
+                goal=goal,
+                result=result,
+                plan=plan_summary,
+                error=error_msg,
+                pid=pid_val,
+                embedding=embedding,
+            )
             logger.info(f"Stored Episode: {episode_id} (Result: {result})")
 
         # 3. Link to Concepts (Heuristic / Knowledge Graph)
@@ -505,7 +554,13 @@ class MemoryService:
         """
 
         async with driver.session() as session:
-            await session.run(link_query, id=episode_id, pid=pid_val, goal=goal, plan=plan_summary)
+            await session.run(
+                link_query,
+                id=episode_id,
+                pid=pid_val,
+                goal=goal,
+                plan=plan_summary
+            )
             logger.info(f"Linked Episode {episode_id} to relevant Concepts.")
 
         return episode_id
@@ -530,7 +585,12 @@ class MemoryService:
         async with driver.session() as session:
             for name in concept_names:
                 try:
-                    await session.run(link_query, episode_id=episode_id, concept_name=name, pid=pid_val)
+                    await session.run(
+                        link_query,
+                        episode_id=episode_id,
+                        concept_name=name,
+                        pid=pid_val,
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to link Episode to Concept {name}: {e}")
 
@@ -556,7 +616,12 @@ class MemoryService:
         """
 
         async with driver.session() as session:
-            result = await session.run(query, embedding=query_embedding, pid=project_id, top_k=top_k)
+            result = await session.run(
+                query,
+                embedding=query_embedding,
+                pid=project_id,
+                top_k=top_k
+            )
             records = await result.data()
 
         if not records:
@@ -564,17 +629,19 @@ class MemoryService:
 
         lines = ["**Relevant Past Experiences:**"]
         for r in records:
-            status = "FAILED" if r['error'] else "SUCCESS"
+            status = "FAILED" if r["error"] else "SUCCESS"
             # Only show if reasonable similarity
-            if r['score'] < 0.75: continue
+            if r["score"] < 0.75:
+                continue
 
             lines.append(f"- [{status}] Goal: {r['goal']}")
-            if r['error']:
+            if r["error"]:
                 lines.append(f"  Error: {r['error']}")
             lines.append(f"  Plan: {r['plan']}")
             lines.append("---")
 
-        if len(lines) == 1: return ""  # Nothing significant found
+        if len(lines) == 1:
+            return ""  # Nothing significant found
 
         return "\n".join(lines)
 
@@ -595,7 +662,12 @@ class MemoryService:
 
         try:
             async with driver.session() as session:
-                result = await session.run(query, name=concept_name, pid=pid_val, limit=limit)
+                result = await session.run(
+                    query,
+                    name=concept_name,
+                    pid=pid_val,
+                    limit=limit
+                )
                 records = await result.data()
                 return records
         except Exception as e:

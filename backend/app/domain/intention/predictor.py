@@ -15,8 +15,8 @@ class IntentionOutput(BaseModel):
     reasoning: str = Field(description="Brief reasoning for the classification.")
     refined_instruction: str = Field(description="The instruction optimized for the selected agent.")
 
-class IntentionPredictor:
 
+class IntentionPredictor:
     async def _load_few_shots(self) -> str:
         from sqlalchemy import select
 
@@ -25,7 +25,12 @@ class IntentionPredictor:
 
         try:
             async with session_scope() as session:
-                query = select(RouterTrainingData).where(RouterTrainingData.is_active == True).order_by(RouterTrainingData.id.desc()).limit(20)
+                query = (
+                    select(RouterTrainingData)
+                    .where(RouterTrainingData.is_active)
+                    .order_by(RouterTrainingData.id.desc())
+                    .limit(20)
+                )
                 result = await session.execute(query)
                 data = result.scalars().all()
 
@@ -34,7 +39,9 @@ class IntentionPredictor:
 
                 examples = []
                 for item in data:
-                    examples.append(f"- User: \"{item.instruction}\" -> Intent: {item.intent.upper()} (Reason: {item.reasoning})")
+                    examples.append(
+                        f'- User: "{item.instruction}" -> Intent: {item.intent.upper()} (Reason: {item.reasoning})'
+                    )
 
                 return "\n".join(examples)
         except Exception:
@@ -68,7 +75,7 @@ Agents:
 Few-Shot Examples (Learn from these!):
 {examples}
 
-CRITICAL: 
+CRITICAL:
 - If request is broad/unclear, SELECT "general".
 - If request is "Hi" or "How are you", SELECT "chat".
 - OUTPUT JSON ONLY. NO MARKDOWN. NO EXPLANATIONS.
@@ -83,8 +90,14 @@ User Request: {instruction}
 
         try:
             result = await chain.ainvoke(
-                {"instruction": instruction, "format_instructions": format_instructions, "examples": examples},
-                config={"callbacks": []}  # Disable global callbacks (streaming) for internal thought
+                {
+                    "instruction": instruction,
+                    "format_instructions": format_instructions,
+                    "examples": examples,
+                },
+                config={
+                    "callbacks": []
+                },  # Disable global callbacks (streaming) for internal thought
             )
 
             output = None
@@ -106,17 +119,21 @@ User Request: {instruction}
                             "thought_type": "intent",
                             "intent": output.intent,
                             "reasoning": output.reasoning,
-                            "confidence": 0.95 # Proxy high confidence for success
-                        }
+                            "confidence": 0.95,  # Proxy high confidence for success
+                        },
                     )
                 except Exception:
-                    pass # Non-blocking
+                    pass  # Non-blocking
 
             return output
 
         except Exception:
             # Fallback for parsing errors
-            return IntentionOutput(intent="general", reasoning="Error parsing intention", refined_instruction=instruction)
+            return IntentionOutput(
+                intent="general",
+                reasoning="Error parsing intention",
+                refined_instruction=instruction,
+            )
 
     async def learn(self, instruction: str, correct_intent: str, reasoning: str = "User feedback"):
         """
@@ -132,14 +149,15 @@ User Request: {instruction}
                     intent=correct_intent,
                     reasoning=reasoning,
                     is_active=True,
-                    source="user_feedback"
+                    source="user_feedback",
                 )
                 session.add(new_example)
                 # Commit handled by context manager
 
             return True
-        except Exception as e:
-            print(f"Failed to learn: {e}")
+        except Exception:
+            # print(f"Failed to learn: {e}")
             return False
+
 
 intention_predictor = IntentionPredictor()

@@ -12,7 +12,7 @@ logger = logging.getLogger("evoloop.callbacks")
 
 class TransparentCallbackHandler(AsyncCallbackHandler):
     """
-    A CallbackHandler that logs LLM thoughts, tool calls, 
+    A CallbackHandler that logs LLM thoughts, tool calls,
     and code generation to standard logger.
     Async compliant for Redis Monitor integration.
     """
@@ -21,6 +21,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         super().__init__()
         self.thread_id = thread_id
         from app.core.monitoring.activity import activity_monitor
+
         self.monitor = activity_monitor
         self.current_task_id = None
         self.active_llm_run_id = None
@@ -77,7 +78,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                         if hasattr(self.monitor, "client"):
                             await self.monitor.client.publish(
                                 f"chat:{self.thread_id}:events",
-                                TokenEvent(content=self._publish_buffer).json()
+                                TokenEvent(content=self._publish_buffer).json(),
                             )
                         self._publish_buffer = ""
 
@@ -86,7 +87,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                             self.thread_id,
                             self.current_task_id,
                             "running",
-                            details=self._current_stream_buffer
+                            details=self._current_stream_buffer,
                         )
                     except Exception:
                         pass
@@ -101,9 +102,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 if self.thread_id and self.monitor and hasattr(self.monitor, "client"):
                     await self.monitor.client.publish(
                         f"chat:{self.thread_id}:events",
-                        TokenEvent(content=self._publish_buffer).json()
+                        TokenEvent(content=self._publish_buffer).json(),
                     )
-            except:
+            except Exception:
                 pass
             self._publish_buffer = ""
 
@@ -148,16 +149,21 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Try to extract file path for read operations
         # Phase 18: Support new atomic file tools
-        if tool_name in ["read_file", "view_file", "read_file_content", "manage_file", "list_files"]:
+        if tool_name in [
+            "read_file",
+            "view_file",
+            "read_file_content",
+            "manage_file",
+            "list_files",
+        ]:
             import ast
-            import json
 
             data = None
             try:
                 # Agent inputs are often JSON strings
                 if input_str.strip().startswith("{"):
                     data = json.loads(input_str)
-            except:
+            except Exception:
                 pass
 
             # Fallback: LangChain sometimes logs inputs as Python dict string (single quotes)
@@ -165,7 +171,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 try:
                     if input_str.strip().startswith("{"):
                         data = ast.literal_eval(input_str)
-                except:
+                except Exception:
                     pass
 
             if data and isinstance(data, dict):
@@ -177,7 +183,12 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 elif tool_name in ["read_file", "list_files"]:
                     path = data.get("path")
                 else:
-                    path = data.get("AbsolutePath") or data.get("file_path") or data.get("path") or data.get("TargetFile")
+                    path = (
+                        data.get("AbsolutePath")
+                        or data.get("file_path")
+                        or data.get("path")
+                        or data.get("TargetFile")
+                    )
 
                 if path:
                     self.current_tool_path = path
@@ -197,18 +208,35 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                     tstatus = data.get("TaskStatus")
                     if mode and tname:
                         await self.monitor.update_agent_state(self.thread_id, mode, tname, tstatus)
-                except:
+                except Exception:
                     pass
 
             # 2. Handle Artifacts
-            if tool_name in ["write_to_file", "write_file", "create_file", "replace_file_content", "multi_replace_file_content"]:
+            if tool_name in [
+                "write_to_file",
+                "write_file",
+                "create_file",
+                "replace_file_content",
+                "multi_replace_file_content",
+            ]:
                 try:
                     if input_str.strip().startswith("{"):
                         data = json.loads(input_str)
-                        fname = data.get("TargetFile") or data.get("target_file") or data.get("filename") or data.get("file_path")
+                        fname = (
+                            data.get("TargetFile")
+                            or data.get("target_file")
+                            or data.get("filename")
+                            or data.get("file_path")
+                        )
                         if fname:
-                            await self.monitor.add_artifact(self.thread_id, fname.split("/")[-1], "file", "pending", fname)
-                except:
+                            await self.monitor.add_artifact(
+                                self.thread_id,
+                                fname.split("/")[-1],
+                                "file",
+                                "pending",
+                                fname,
+                            )
+                except Exception:
                     pass
 
             # 3. Create Task (Friendly Name)
@@ -225,11 +253,16 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                     cmd = data.get("CommandLine")
                     if cmd:
                         friendly_name = f"Running: {cmd[:30]}..."
-                except:
+                except Exception:
                     friendly_name = "Running Command"
 
             # Phase 7: Detect Memory Tool Access
-            if tool_name in ["manage_memory", "search_concepts", "add_concept", "get_user_preferences"]:
+            if tool_name in [
+                "manage_memory",
+                "search_concepts",
+                "add_concept",
+                "get_user_preferences",
+            ]:
                 try:
                     data = json.loads(input_str) if input_str.strip().startswith("{") else {}
                     # Extract identifier (action or query)
@@ -237,7 +270,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                     key = data.get("key") or data.get("query") or "Unknown"
                     memory_name = f"{action or tool_name}: {key[:30]}"
                     await self.monitor.set_active_memory(self.thread_id, f"tool-{tool_name}", memory_name)
-                except:
+                except Exception:
                     pass
 
             self.current_task_id = await self.monitor.add_step(self.thread_id, friendly_name, "tool")
@@ -252,17 +285,23 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         # Strict sanitation for file reads (including manage_file read)
         log_output = output
 
-        is_read_tool = self.current_tool_name in ["read_file", "view_file", "read_file_content", "list_files"]
+        is_read_tool = self.current_tool_name in [
+            "read_file",
+            "view_file",
+            "read_file_content",
+            "list_files",
+        ]
         is_manage_read = (self.current_tool_name == "manage_file" and self.current_tool_path)
 
         if (is_read_tool or is_manage_read) and self.current_tool_path:
-            lines = output.split('\n')
+            lines = output.split("\n")
             count = len(lines)
-            if not output: count = 0
+            if not output:
+                count = 0
             log_output = f"File: {self.current_tool_path} (Lines: {count})"
 
         elif len(output) > 500:
-            lines = output.split('\n')
+            lines = output.split("\n")
             if len(lines) > 20:
                 log_output = f"{output[:300]}\n...\n[Truncated {len(lines)} lines / {len(output)} chars]"
 
@@ -292,7 +331,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 "reviewer": "Review Phase",
                 "researcher": "Research Phase",
                 "executor": "Execution Phase",
-                "verifier": "Verification Phase"
+                "verifier": "Verification Phase",
             }
 
             phase_name = friendly_map.get(node_name, f"Phase: {node_name}")

@@ -1,9 +1,13 @@
 from fastapi import APIRouter
+from sqlalchemy import select
 
-from app.core.globals import get_graph
-from app.logging import logger
+from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.database.sql.models.planning import Plan, PlanStep
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conversations/{thread_id}/plan", tags=["planning"])
+
 
 @router.get("")
 async def get_plan(thread_id: str):
@@ -12,10 +16,6 @@ async def get_plan(thread_id: str):
     Targeting persistent storage instead of transient AgentState.
     """
     try:
-        from app.infrastructure.database.sql.database import session_scope
-        from app.infrastructure.database.sql.models.planning import Plan, PlanStep
-        from sqlalchemy import select
-
         async with session_scope() as session:
             # 1. Fetch Active Plan
             stmt = select(Plan).where(Plan.thread_id == thread_id, Plan.status == "active")
@@ -23,7 +23,7 @@ async def get_plan(thread_id: str):
             db_plan = res.scalars().first()
 
             if not db_plan:
-                # If no active plan, check for completed ones? 
+                # If no active plan, check for completed ones?
                 # For now, just return "no_graph" equivalent or "no_plan"
                 return {"status": "no_plan", "plan": None}
 
@@ -41,13 +41,13 @@ async def get_plan(thread_id: str):
                         "id": s.id,
                         "title": s.title,
                         "status": s.status,
-                        "result": s.result, # Optional field for step output summary
+                        "result": s.result,  # Optional field for step output summary
                         # "execution_run_id": s.execution_run_id # If we have this linkage
                     } for s in steps
                 ],
-                "current_step_id": None
+                "current_step_id": None,
             }
-            
+
             # Find current step
             current_step = next((s for s in steps if s.status == "in_progress"), None)
             if current_step:
@@ -55,8 +55,8 @@ async def get_plan(thread_id: str):
 
             return {
                 "status": "success",
-                "plan": plan_data, # Frontend expects this nested 'plan' object
-                "generated_at": db_plan.created_at.isoformat() if db_plan.created_at else None
+                "plan": plan_data,  # Frontend expects this nested 'plan' object
+                "generated_at": db_plan.created_at.isoformat() if db_plan.created_at else None,
             }
 
     except Exception as e:

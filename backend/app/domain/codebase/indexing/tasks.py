@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 
@@ -6,6 +5,7 @@ from app.celery_app import celery_app
 from app.domain.codebase.indexing.manager import indexing_manager
 
 logger = logging.getLogger(__name__)
+
 
 @celery_app.task(name="run_full_indexing")
 def run_full_indexing_task(project_id: int, rebuild: bool = False):
@@ -15,6 +15,7 @@ def run_full_indexing_task(project_id: int, rebuild: bool = False):
     logger.info(f"[Celery] Starting Full Indexing for Project {project_id} (Rebuild={rebuild})")
 
     from app.core.monitoring.activity import activity_monitor
+
     sys_tid = f"sys:{project_id}:indexing"
 
     async def _monitored_execution():

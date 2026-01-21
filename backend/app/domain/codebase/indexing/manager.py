@@ -11,14 +11,16 @@ from app.infrastructure.database.sql.models import Repository
 
 logger = logging.getLogger(__name__)
 
+
 class IndexingManager:
     """
     Manages active watchers for projects and handles manual indexing triggers.
     Singleton-ish usage recommended.
     """
+
     def __init__(self):
-        self._watchers: dict[str, RepoWatcher] = {} # path -> watcher
-        self._service = IndexingService() # Shared service
+        self._watchers: dict[str, RepoWatcher] = {}  # path -> watcher
+        self._service = IndexingService()  # Shared service
         self._lock = asyncio.Lock()
 
         # Track Active Jobs: project_id -> status dict
@@ -84,7 +86,7 @@ class IndexingManager:
 
                 if not repos:
                     logger.warning(f"No repositories found for Project ID {project_id}")
-                    self._active_jobs[project_id] = "done" # nothing to do
+                    self._active_jobs[project_id] = "done"  # nothing to do
                     return
 
                 for repo in repos:
@@ -120,9 +122,7 @@ class IndexingManager:
                         # --- Phase 9: Standards & Patterns Analysis ---
                         # Sample code to extract implicit style guidelines for the Agent to follow.
                         try:
-                            from app.domain.codebase.indexing.standards import (
-                                project_standards_analyst,
-                            )
+                            from app.domain.codebase.indexing.standards import project_standards_analyst
                             await project_standards_analyst.analyze_standards(repo.project_id, repo.local_path)
                         except Exception as e:
                             logger.error(f"Standards Analysis Failed: {e}")
@@ -134,6 +134,7 @@ class IndexingManager:
                                 ProjectType,
                                 project_classifier,
                             )
+
                             p_type = project_classifier.classify(repo.local_path)
 
                             if p_type == ProjectType.SOFTWARE:
@@ -157,6 +158,7 @@ class IndexingManager:
         """
         try:
             from app.domain.codebase.indexing.tasks import run_full_indexing_task
+
             self._active_jobs[project_id] = "queued"
             run_full_indexing_task.delay(project_id, rebuild)
             logger.info(f"Dispatched full index task for Project {project_id}")
@@ -171,21 +173,19 @@ class IndexingManager:
         from app.domain.codebase.indexing.extractors.api_extractor import api_extractor
         from app.domain.codebase.indexing.extractors.db_extractor import db_extractor
 
-        # Scanners list
-        scanners = [api_extractor, db_extractor]
-
-        # Walk once
         # Walk once
         try:
             for root, dirs, files in os.walk(repo_path):
-                if ".git" in dirs: dirs.remove(".git")
-                if "__pycache__" in dirs: dirs.remove("__pycache__")
+                if ".git" in dirs:
+                    dirs.remove(".git")
+                if "__pycache__" in dirs:
+                    dirs.remove("__pycache__")
 
                 for f in files:
                     full_path = os.path.join(root, f)
 
                     # API Extraction
-                    if f.endswith(".py"): # Only Python supported currently
+                    if f.endswith(".py"):  # Only Python supported currently
                         # API
                         endpoints = await api_extractor.extract(full_path)
                         if endpoints:
@@ -215,18 +215,18 @@ class IndexingManager:
 
             project_id = repo.project_id
             if project_id:
-                 self._active_jobs[project_id] = "indexing"
+                self._active_jobs[project_id] = "indexing"
 
             logger.info(f"Triggering full index for Repo ID: {repo_id} ({repo.name})")
 
             try:
                 await self._service.index_repository(repo.local_path, repo.id)
                 if project_id:
-                     self._active_jobs[project_id] = "done"
+                    self._active_jobs[project_id] = "done"
             except Exception as e:
-                 logger.error(f"Repo Index failed: {e}")
-                 if project_id:
-                     self._active_jobs[project_id] = "error_repo"
+                logger.error(f"Repo Index failed: {e}")
+                if project_id:
+                    self._active_jobs[project_id] = "error_repo"
 
     async def run_indexing_background(self, repo_id: int):
         """

@@ -1,7 +1,4 @@
-from typing import Annotated
-
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
+import re
 
 from app.core.tools import evoloop_tool
 
@@ -16,7 +13,7 @@ async def read_file(
 ) -> str:
     """
     Read the contents of a file.
-    
+
     Args:
         path: Absolute or relative path to the file. **REQUIRED**
         start_line: Optional start line (1-indexed). Can be int or string.
@@ -27,15 +24,16 @@ async def read_file(
 
     # Helper to safely parse integers from loose model output (e.g. "1 Union College")
     def safe_int(val):
-        if val is None: return None
-        if isinstance(val, int): return val
+        if val is None:
+            return None
+        if isinstance(val, int):
+            return val
         try:
-             # Try simple conversion
-             return int(str(val).strip())
+            # Try simple conversion
+            return int(str(val).strip())
         except ValueError:
             # Fallback: Extract first digit sequence if mixed garbage
-            import re
-            match = re.search(r'\d+', str(val))
+            match = re.search(r"\d+", str(val))
             if match:
                 return int(match.group())
             return None

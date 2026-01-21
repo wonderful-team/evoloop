@@ -4,13 +4,12 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import JSON, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+# Get embedding dimension from settings (Single Source of Truth)
+from app.core.config import settings
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
-import os
 
-from app.constants import EMBEDDING_DIMENSIONS
-
-EMBEDDING_DIM = int(os.getenv("EMBEDDING_DIMENSIONS", EMBEDDING_DIMENSIONS["default"]))
+EMBEDDING_DIM = settings.EMBEDDING_DIMENSIONS
 
 
 class TraceEvent(Base):
@@ -22,10 +21,12 @@ class TraceEvent(Base):
     - Agent actions (LLM/tool calls, automatically captured)
     - Human actions (UI interactions, captured via frontend ActionRecorder)
     """
+
     __tablename__ = "trace_events"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     thread_id: Mapped[str] = mapped_column(String(255), index=True)
+    message_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     step_number: Mapped[int] = mapped_column(Integer)
 
     # State Context
@@ -59,9 +60,6 @@ class TraceEvent(Base):
     target_selector: Mapped[str | None] = mapped_column(Text, nullable=True)
     target_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    
-    # Phase 25: Link to parent AI message for tool step aggregation
-    message_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
 
 
 class LearnedSkill(Base):
@@ -69,6 +67,7 @@ class LearnedSkill(Base):
     Stores learned skills synthesized from trace sequences.
     These can be matched to user intents and executed automatically.
     """
+
     __tablename__ = "learned_skills"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -107,6 +106,7 @@ class RouterTrainingData(Base):
     Stores few-shot examples for the Intent Router.
     This replaces the local 'few_shots.json' file with a persistent DB table.
     """
+
     __tablename__ = "router_training_data"
 
     id: Mapped[int] = mapped_column(primary_key=True)

@@ -1,13 +1,12 @@
-
 import json
 import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from sqlalchemy import select
 
-from app.i18n.service import i18n
 from app.core.llm.factory import LLMFactory
 from app.domain.system.service import SystemConfigService
+from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import TraceEvent
 
@@ -46,7 +45,6 @@ nodes:
 
 
 class WorkflowSynthesizer:
-
     def __init__(self, thread_id: str):
         self.thread_id = thread_id
 
@@ -83,7 +81,7 @@ class WorkflowSynthesizer:
                         step_desc += f"  Args: {payload.get('args')}\n"
                     elif ev.action_type == "llm_output":
                         step_desc += f"  Thought: {payload.get('content')}\n"
-                except:
+                except Exception:
                     step_desc += f"  Raw: {ev.action_payload}\n"
 
                 narrative.append(step_desc)
@@ -95,9 +93,14 @@ class WorkflowSynthesizer:
         provider = await SystemConfigService.get_value("provider") or "openai"
         llm = LLMFactory.create_llm(provider=provider, smart=True)
 
+        user_lang = SystemConfigService.get_language_preference()
+        sys_prompt = META_ARCHITECT_PROMPT + i18n.get("prompts.learning.synthesis_lang_constraint", lang=user_lang)
+
         messages = [
-            SystemMessage(content=META_ARCHITECT_PROMPT),
-            HumanMessage(content=f"Analyze this trace and generate the Agent YAML:\n\n{trace_text}")
+            SystemMessage(content=sys_prompt),
+            HumanMessage(
+                content=i18n.get("prompts.domain_tools.learning.synthesis.instruction", trace_text=trace_text)
+            ),
         ]
 
         response = await llm.ainvoke(messages)
@@ -107,6 +110,6 @@ class WorkflowSynthesizer:
         if "```yaml" in content:
             content = content.split("```yaml")[1].split("```")[0].strip()
         elif "```" in content:
-             content = content.split("```")[1].split("```")[0].strip()
+            content = content.split("```")[1].split("```")[0].strip()
 
         return content

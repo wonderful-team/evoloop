@@ -4,19 +4,23 @@ Supervisor Prompt Builder
 Constructs the system prompt for the Supervisor ReAct Agent.
 Allows for dynamic context injection and potential LLM-specific adaptations.
 """
+
 import json
 
 from langchain_core.runnables import RunnableConfig
+
 from app.domain.system.service import SystemConfigService
 
 
 class SupervisorPromptBuilder:
-    def __init__(self,
-                 project_id: int,
-                 active_plan_context: str,
-                 iteration_count: int,
-                 sys_info: str,
-                 context: dict = None):
+    def __init__(
+        self,
+        project_id: int,
+        active_plan_context: str,
+        iteration_count: int,
+        sys_info: str,
+        context: dict = None,
+    ):
         self.project_id = project_id
         self.active_plan_context = active_plan_context
         self.iteration_count = iteration_count
@@ -96,7 +100,7 @@ Communicate in this language.
         if isinstance(structured_plan, str):
             try:
                 structured_plan = json.loads(structured_plan)
-            except:
+            except Exception:
                 return ""
 
         title = structured_plan.get("title", "Untitled Plan")

@@ -1,10 +1,9 @@
-import asyncio
-import logging
 from typing import Any
 
-from sqlalchemy import func, select
 # from celery import shared_task # Removed Celery
-from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
+from langgraph.types import Command
+from sqlalchemy import func, select
 
 from app.core.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
@@ -21,13 +20,11 @@ from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import Conversation, Message
 from app.infrastructure.external.evocloud import evocloud_client
-from app.logging import logger
+import logging
+logger = logging.getLogger(__name__)
 
 # Utils
 from app.utils.context import set_context
-from app.utils.id import gen_uuid
-
-logger = logging.getLogger(__name__)
 
 
 def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:
@@ -68,7 +65,7 @@ async def _ensure_conversation_in_db(thread_id: str, project_id: int, inputs: di
                     try:
                         first_msg = inputs["messages"][0]
                         conversation_title = first_msg.content[:50]
-                    except:
+                    except Exception:
                         pass
 
                 conversation = Conversation(
@@ -130,13 +127,19 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
 
         # Initialize Handlers
         callback = TransparentCallbackHandler(thread_id=thread_id)
-        db_callback = DatabaseCallbackHandler(thread_id=thread_id, project_id=project_id, start_sequence=start_seq, run_id=thread_id)
+        db_callback = DatabaseCallbackHandler(
+            thread_id=thread_id,
+            project_id=project_id,
+            start_sequence=start_seq,
+            run_id=thread_id,
+        )
 
         # 5. Execution
         await activity_monitor.start_run(thread_id)
 
         # Memory Injection
         from app.domain.memory.service import memory_service
+
         user_prefs = await memory_service.get_user_preferences("user_default")
         concepts_text = await memory_service.search_concepts("", project_id)
         inputs["user_preferences"] = user_prefs
@@ -153,8 +156,46 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             if not graph_instance:
                 raise ValueError("Global Graph not initialized")
 
+            # [HITL Resume Logic]
+            # Check if this is a resume request from Mobile/Background
+            input_payload = inputs
+            if "hitl_resume_response" in inputs:
+                user_response = inputs["hitl_resume_response"]
+
+                # Check state to see if we need to satisfy a specific tool call
+                current_state = await graph_instance.aget_state(config)
+                last_tool_call_id = None
+
+                if current_state.values and "messages" in current_state.values:
+                    history = current_state.values["messages"]
+                    if history:
+                        last_msg = history[-1]
+                        # Check for pending tool calls
+                        if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                            last_tool_call = last_msg.tool_calls[-1]
+                            if last_tool_call["name"] in [
+                                "request_approval",
+                                "request_human_input",
+                            ]:
+                                logger.info(
+                                    f"Background Resume: Auto-completing tool {last_tool_call['name']}"
+                                )
+                                last_tool_call_id = last_tool_call["id"]
+
+                # Construct Command
+                if last_tool_call_id:
+                    # Resume with Tool Message
+                    tool_msg = ToolMessage(
+                        tool_call_id=last_tool_call_id,
+                        content=str(user_response),
+                    )
+                    input_payload = Command(resume=tool_msg)
+                else:
+                    # Fallback or standard resume
+                    input_payload = Command(resume=user_response)
+
             # Run Graph
-            async for event in graph_instance.astream(inputs, config=config):
+            async for _event in graph_instance.astream(input_payload, config=config):
                 await activity_monitor.check_cancellation(thread_id)
                 pass
 
@@ -189,25 +230,36 @@ async def _upload_final_log(graph, config, thread_id, command_id):
                         thread_id=thread_id,
                         log_type="output",
                         content=last_msg.content,
-                        command_id=command_id
+                        command_id=command_id,
                     )
     except Exception as e:
         logger.warning(f"Failed to send final output: {e}")
 
 
 async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
+    from app.core.exceptions import AgentHumanInterruptException
+
     # Check for Interrupt
     exc_name = type(e).__name__
-    if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
+
+    # [HITL Fix] Explicitly catch our custom interrupt exception
+    if isinstance(e, AgentHumanInterruptException) or "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
         logger.info(f"Task {thread_id} interrupted for human input: {e}")
 
-        request_data = {
-            "id": gen_uuid(),
-            "type": "text",
-            "prompt": str(e),
-            "created_at": str(asyncio.get_event_loop().time())
-        }
-        await activity_monitor.set_human_request(thread_id, request_data)
+        # If it's our custom exception, we might have the request ID
+        # req_id = getattr(e, "request_id", gen_uuid())
+
+        # We don't need to create a NEW request if the exception came from tool execution
+        # The tool already created it. We just set status.
+        # But `set_human_request` updates Redis status.
+
+        # If it is AgentHumanInterruptException, the tool already called activity_monitor.set_human_request
+        # So we just need to ensure we don't overwrite it or fail.
+        # However, the tool call might be inside a node. If we catch it here, the node failed.
+        # Actually, LangGraph might handle exceptions differently.
+        # If we raise BaseException, LangGraph usually stops.
+        # We just need to mark run as "interrupted" in Redis (which the tool already did!)
+        # So we simply return and DO NOT mark as failed.
         return
 
     logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
@@ -226,7 +278,7 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
                 role="ai",
                 content=f"❌ **System Error**: Agent execution failed.\n\nError Details:\n> {str(e)}\n\nPlease try again or contact support.",
                 thinking="",
-                sequence_number=max_seq + 1
+                sequence_number=max_seq + 1,
             )
             session.add(error_msg)
     except Exception as db_e:

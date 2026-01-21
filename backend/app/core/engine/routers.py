@@ -67,7 +67,7 @@ def route_by_next_node_field(state: AgentState):
 def make_expression_router(conditions: list[dict[str, str]], default: str) -> Callable[[AgentState], str]:
     """
     Factory that creates a router function based on a list of expression conditions.
-    
+
     Args:
         conditions: List of dicts, e.g. [{"expr": "state['scratchpad']['score'] > 5", "to": "finish"}]
         default: Fallback node if no conditions match.
@@ -83,7 +83,7 @@ def make_expression_router(conditions: list[dict[str, str]], default: str) -> Ca
             "len": len,
             "int": int,
             "str": str,
-            "bool": bool
+            "bool": bool,
         }
 
         for case in conditions:

@@ -13,14 +13,14 @@ logger = logging.getLogger(__name__)
 class AdaptiveChatOpenAI(ChatOpenAI):
     """
     A robust ChatOpenAI wrapper that implements DeepCode's 'Adaptive Token Strategy'.
-    
+
     Features:
     - Automatically catches 'Context Window Exceeded' errors.
     - Retries with reduced 'max_tokens' (Output) to make room for Input.
     - Lowers 'temperature' on retries for stability.
     """
 
-    retry_max_tokens_base: int = 4096 # Default fallback if not set
+    retry_max_tokens_base: int = 4096  # Default fallback if not set
     adaptive_retries: int = 3
 
     async def _agenerate(
@@ -99,7 +99,7 @@ class AdaptiveChatOpenAI(ChatOpenAI):
         prompt = PromptTemplate.from_template(i18n.get("prompts.adaptive_llm.summarize_prompt"))
         chain = (
             RunnablePassthrough.assign(prompt=prompt)
-            | RunnableLambda(lambda x: x['prompt'].format(input=x['input']))
+            | RunnableLambda(lambda x: x["prompt"].format(input=x["input"]))
             | self
         )
         result = await chain.ainvoke({"input": text})

@@ -2,15 +2,17 @@
 Project Tasks API Routes.
 Handles CRUD for Project Tasks (Tickets/Requirements).
 """
+
 import time
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
-from app.api.deps import TokenDep
 from pydantic import BaseModel
 
+from app.api.deps import TokenDep
 from app.infrastructure.external.evocloud import evocloud_client
-from app.logging import logger
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["tasks"])
 
@@ -25,6 +27,7 @@ def get_token(authorization: str | None = Header(None)):
 
 
 # --- Pydantic Models for Request Body ---
+
 
 class TaskCreateRequest(BaseModel):
     project_id: int
@@ -62,13 +65,14 @@ class TaskStatusUpdate(BaseModel):
 
 # --- Routes ---
 
+
 @router.get("/")
 async def get_project_tasks(
     project_id: int,
     page: int = 1,
     page_size: int = 50,
     status: int | None = None,
-    token: TokenDep = None
+    token: TokenDep = None,
 ):
     """
     Get a list of tasks for a specific project.
@@ -78,10 +82,12 @@ async def get_project_tasks(
         page=page,
         page_size=page_size,
         status=status,
-        token=token
+        token=token,
     )
     if res.get("code") != 0:
-        raise HTTPException(status_code=400, detail=res.get("message", "Failed to get tasks"))
+        raise HTTPException(
+            status_code=400, detail=res.get("message", "Failed to get tasks")
+        )
 
     return res.get("data", {})
 
@@ -93,7 +99,9 @@ async def get_task_detail(task_id: int, token: TokenDep):
     """
     res = await evocloud_client.get_task_detail(task_id, token=token)
     if res.get("code") != 0:
-        raise HTTPException(status_code=400, detail=res.get("message", "Failed to get task detail"))
+        raise HTTPException(
+            status_code=400, detail=res.get("message", "Failed to get task detail")
+        )
 
     return res.get("data", {})
 
@@ -109,7 +117,9 @@ async def create_task(req: TaskCreateRequest, authorization: str | None = Header
 
     res = await evocloud_client.create_task(data, token=token)
     if res.get("code") != 0:
-        raise HTTPException(status_code=400, detail=res.get("message", "Failed to create task"))
+        raise HTTPException(
+            status_code=400, detail=res.get("message", "Failed to create task")
+        )
 
     return res
 
@@ -121,11 +131,13 @@ async def update_task(task_id: int, req: TaskUpdateRequest, authorization: str |
     """
     token = get_token(authorization)
     data = req.model_dump(exclude_none=True)
-    data['task_id'] = task_id  # Ensure ID is passed if needed by backend, though URL param usually sufficient for routing
+    data["task_id"] = task_id  # Ensure ID is passed if needed by backend, though URL param usually sufficient for routing
 
     res = await evocloud_client.update_task(task_id, data, token=token)
     if res.get("code") != 0:
-        raise HTTPException(status_code=400, detail=res.get("message", "Failed to update task"))
+        raise HTTPException(
+            status_code=400, detail=res.get("message", "Failed to update task")
+        )
 
     return res
 
@@ -138,7 +150,9 @@ async def delete_task(task_id: int, authorization: str | None = Header(None)):
     token = get_token(authorization)
     res = await evocloud_client.delete_task(task_id, token=token)
     if res.get("code") != 0:
-        raise HTTPException(status_code=400, detail=res.get("message", "Failed to delete task"))
+        raise HTTPException(
+            status_code=400, detail=res.get("message", "Failed to delete task")
+        )
 
     return res
 
@@ -151,16 +165,16 @@ async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, autho
     token = get_token(authorization)
     res = await evocloud_client.update_task_status(task_id, req.status, req.progress, token=token)
     if res.get("code") != 0:
-        raise HTTPException(status_code=400, detail=res.get("message", "Failed to update task status"))
+        raise HTTPException(
+            status_code=400, detail=res.get("message", "Failed to update task status")
+        )
 
     return res
 
 
 @router.post("/{task_id}/execute")
 async def execute_task(
-    task_id: int,
-    bg_tasks: BackgroundTasks,
-    authorization: str | None = Header(None)
+    task_id: int, bg_tasks: BackgroundTasks, authorization: str | None = Header(None)
 ):
     """
     Trigger Autonomous Agent to execute the task.
@@ -182,12 +196,12 @@ async def execute_task(
 
     prompt = i18n.get(
         "prompts.tasks.execution_instruction",
-        title=task.get('task_title'),
-        desc=task.get('task_desc'),
-        key_modules=task.get('key_modules_list', []),
-        tech_challenges=task.get('technical_challenges_list', []),
-        deliverables=task.get('deliverables_list', []),
-        complexity=task.get('implementation_complexity', 'Unknown')
+        title=task.get("task_title"),
+        desc=task.get("task_desc"),
+        key_modules=task.get("key_modules_list", []),
+        tech_challenges=task.get("technical_challenges_list", []),
+        deliverables=task.get("deliverables_list", []),
+        complexity=task.get("implementation_complexity", "Unknown"),
     )
 
     # 3. Generate Thread ID
@@ -204,7 +218,7 @@ async def execute_task(
     inputs = {
         "messages": messages,
         "project_id": task.get("project_id", 1),
-        "task_title": task.get("task_title")
+        "task_title": task.get("task_title"),
     }
 
     # --- PERSIST AUTOMATED USER MESSAGE ---
@@ -222,7 +236,7 @@ async def execute_task(
                 conversation = Conversation(
                     id=thread_id,
                     project_id=task.get("project_id", 1),
-                    title=task.get("task_title")
+                    title=task.get("task_title"),
                 )
                 session.add(conversation)
             else:
@@ -234,7 +248,7 @@ async def execute_task(
                 project_id=task.get("project_id", 1),
                 role="human",
                 content=prompt,
-                thinking=None
+                thinking=None,
             )
             session.add(user_msg)
             await session.flush()  # Ensure it lands
@@ -248,5 +262,5 @@ async def execute_task(
     return {
         "status": "queued",
         "thread_id": thread_id,
-        "message": "Agent execution started (Local BG)"
+        "message": "Agent execution started (Local BG)",
     }

@@ -3,6 +3,7 @@ Retry Utilities Module.
 
 Provides generic retry decorators and specific service health check helpers.
 """
+
 import logging
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -31,17 +32,17 @@ def get_retry_decorator(
     max_tries: int = DEFAULT_MAX_TRIES,
     wait_seconds: float = DEFAULT_WAIT_SECONDS,
     logger_instance: logging.Logger = logger,
-    log_level: int = logging.INFO
+    log_level: int = logging.INFO,
 ) -> Callable[[T], T]:
     """
     Get a configured tenacity retry decorator.
-    
+
     Args:
         max_tries: Maximum number of attempts
         wait_seconds: Wait time between attempts
         logger_instance: Logger to use for retry logs
         log_level: Logging level for retry attempts
-        
+
     Returns:
         Decorated function
     """
@@ -58,6 +59,7 @@ def wait_for_db(db_engine: Engine) -> None:
     Wait for database to be ready.
     Retries automatically for a configurable period (default 5 mins).
     """
+
     @get_retry_decorator()
     def _check_db() -> None:
         try:

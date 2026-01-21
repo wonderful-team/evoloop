@@ -4,7 +4,8 @@ from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.project.service import project_context_manager
 from app.infrastructure.external.evocloud import evocloud_client
-from app.logging import logger
+import logging
+logger = logging.getLogger(__name__)
 
 
 class ProjectSyncService:
@@ -49,7 +50,7 @@ class ProjectSyncService:
         if not repo.project_id:
             logger.info(f"[ProjectSync] Dispatching background sync for '{repo_name}'...")
             from app.domain.project.sync_tasks import sync_project_to_cloud_task
-            
+
             # Dispatch task
             # We use apply_async to ensure it's queued
             try:

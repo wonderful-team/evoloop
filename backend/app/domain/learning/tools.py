@@ -1,9 +1,11 @@
 import json
 import time
 
-from app.i18n.service import i18n
+from sqlalchemy import select
+
 from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
 from app.core.tools.base import evoloop_tool
+from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models.learning import LearnedSkill
 
@@ -13,7 +15,7 @@ async def learn_skill_from_trace(thread_id: str, session_id: str | None = None) 
     """
     Analyzes the execution trace of a given thread/session and learns a reusable skill from it.
     This uses "Imitation Learning" to synthesize a parameterized skill configuration.
-    
+
     Args:
         thread_id: The conversation thread ID to learn from.
         session_id: Optional session ID if specific session is targeted.
@@ -25,7 +27,6 @@ async def learn_skill_from_trace(thread_id: str, session_id: str | None = None) 
         # Save to Database
         async with session_scope() as db:
             # Check for name collision
-            from sqlalchemy import select
             stmt = select(LearnedSkill).where(LearnedSkill.name == skill_data.name)
             existing = (await db.execute(stmt)).scalar_one_or_none()
 
@@ -43,12 +44,18 @@ async def learn_skill_from_trace(thread_id: str, session_id: str | None = None) 
                 steps=json.dumps([s.__dict__ for s in skill_data.steps]),
                 tools_used=json.dumps(skill_data.tools_used),
                 source_thread_id=skill_data.source_thread_id,
-                source_session_id=skill_data.source_session_id
+                source_session_id=skill_data.source_session_id,
             )
             db.add(new_skill)
             # Commit happens automatically on exit of session_scope
 
-        return i18n.get("prompts.domain_tools.learning.success", name=skill_data.name, thread=thread_id, desc=skill_data.description, triggers=skill_data.trigger_patterns)
+        return i18n.get(
+            "prompts.domain_tools.learning.success",
+            name=skill_data.name,
+            thread=thread_id,
+            desc=skill_data.description,
+            triggers=skill_data.trigger_patterns,
+        )
 
     except Exception as e:
         return i18n.get("prompts.domain_tools.learning.failed", error=str(e))

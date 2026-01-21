@@ -1,18 +1,18 @@
 from collections.abc import Generator
+from datetime import datetime
 from typing import Annotated
 
+import redis.asyncio as redis
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import engine
-from app.logging import logger
-from app.models import User
-
-from datetime import datetime
-import redis.asyncio as redis
 from app.infrastructure.external.evocloud import evocloud_client
+import logging
+logger = logging.getLogger(__name__)
+from app.models import User
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -76,7 +76,6 @@ async def get_current_user_optional(token: TokenDepOptional) -> User | None:
     if not token:
         return None
     try:
-        from app.infrastructure.external.evocloud import evocloud_client
         result = await evocloud_client.get_user_info(token)
 
         if result.get("code") != 0:
@@ -101,7 +100,7 @@ async def verify_guest_access(
     current_user: CurrentUserOptional,
     x_guest_id: Annotated[str | None, Header()] = None,
     guest_id: str | None = None,  # Added for Query Param support
-    token: str | None = None  # Added for Query Param Token Support (SSE)
+    token: str | None = None,  # Added for Query Param Token Support (SSE)
 ) -> None:
     """
     Middleware-like dependency to verify guest access limits.
@@ -112,7 +111,7 @@ async def verify_guest_access(
     # 0. Backfill User from Query Token if Header Auth missing
     if not current_user and token:
         try:
-            # We must import inside function to avoid circular imports layout if any, 
+            # We must import inside function to avoid circular imports layout if any,
             # though get_current_user_optional imports it too.
             result = await evocloud_client.get_user_info(token)
             if result.get("code") == 0:
@@ -165,7 +164,7 @@ async def verify_guest_access(
         if current_usage > limit:
             raise HTTPException(
                 status_code=402,
-                detail=f"Guest limit reached ({limit}/day). Please upgrade."
+                detail=f"Guest limit reached ({limit}/day). Please upgrade.",
             )
 
         # logger.info(f"Guest {effective_guest_id} usage: {current_usage}/{limit}")

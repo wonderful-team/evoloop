@@ -33,7 +33,7 @@ api_router.include_router(utils.router)
 api_router.include_router(auth_proxy.router, prefix="/auth", tags=["auth"])
 
 
-api_router.include_router(agent.router, tags=["agent"]) # agent.py defines /chat, /webhook
+api_router.include_router(agent.router, tags=["agent"])  # agent.py defines /chat, /webhook
 api_router.include_router(projects.router, prefix="/projects", tags=["projects"])
 api_router.include_router(devices.router, prefix="/devices", tags=["devices"])
 api_router.include_router(mcp.router, prefix="/mcp", tags=["mcp"])
@@ -57,4 +57,3 @@ api_router.include_router(learning.router, prefix="/learning", tags=["learning"]
 
 # SSE Streaming
 api_router.include_router(stream.router, tags=["stream"])
-

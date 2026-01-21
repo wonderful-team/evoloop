@@ -1,15 +1,15 @@
 import logging
 import os
 
-from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from app.i18n.service import i18n
 from app.core.engine.message_utils import get_message_text, smart_window_slice
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.domain.memory.service import memory_service
+from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,7 @@ class SessionConclusion(BaseModel):
     summary: str = Field(description="Human-readable summary of what was accomplished in this session")
     harvested_concepts: list[HarvestedConcept] = Field(
         default_factory=list,
-        description="Key concepts, patterns, or decisions worth remembering for future tasks"
+        description="Key concepts, patterns, or decisions worth remembering for future tasks",
     )
     proactive_todo: ProactiveTodo | None = Field(
         default=None,
@@ -42,7 +42,7 @@ class SessionConclusion(BaseModel):
 async def finish_node(state: AgentState, config: RunnableConfig):
     """
     Finalize the workflow with unified SessionConclusion.
-    
+
     Single LLM call produces:
     1. Human-readable summary (returned to user)
     2. Harvested concepts (stored in Neo4j)
@@ -58,11 +58,12 @@ async def finish_node(state: AgentState, config: RunnableConfig):
 
     # Language preference
     from app.domain.system.service import SystemConfigService
+
     user_lang = SystemConfigService.get_language_preference()
 
     # 2. Build Context Summary
     recent_history = smart_window_slice(messages, window_size=15)
-    
+
     # Tool history summary (for context enrichment)
     tool_summary = "None"
     if tool_history:
@@ -76,12 +77,13 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     if os.path.exists(os.path.join(cwd, ".git")):
         try:
             import subprocess
+
             result = subprocess.run(
                 ["git", "diff", "HEAD", "--stat"],
                 cwd=cwd,
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
             if result.stdout.strip():
                 git_context = f"\n**Git Changes (Uncommitted):**\n```\n{result.stdout[:500]}\n```"
@@ -131,15 +133,11 @@ Analyze the conversation and respond with the SessionConclusion structure.
     except Exception as e:
         logger.error(f"Failed to generate SessionConclusion: {e}")
         # Fallback to simple response
-        return {
-            "messages": [AIMessage(content="✅ Task completed.")]
-        }
+        return {"messages": [AIMessage(content="✅ Task completed.")]}
 
     if not conclusion:
         logger.warning("LLM returned None for SessionConclusion")
-        return {
-            "messages": [AIMessage(content="✅ Task completed.")]
-        }
+        return {"messages": [AIMessage(content="✅ Task completed.")]}
 
     # 5. Process Results
 
@@ -151,7 +149,7 @@ Analyze the conversation and respond with the SessionConclusion structure.
                     name=concept.name,
                     description=concept.description,
                     project_id=project_id,
-                    related_files=[]
+                    related_files=[],
                 )
                 logger.info(f"Harvested concept: {concept.name}")
             except Exception as e:
@@ -162,6 +160,7 @@ Analyze the conversation and respond with the SessionConclusion structure.
     if conclusion.proactive_todo and conclusion.proactive_todo.should_create and conclusion.proactive_todo.title:
         try:
             from app.domain.tools.manage_todo import manage_todo
+
             await manage_todo.ainvoke(
                 {
                     "action": "add",
@@ -169,13 +168,13 @@ Analyze the conversation and respond with the SessionConclusion structure.
                     "due_date": conclusion.proactive_todo.due_date,
                     "category": "proactive",
                     "priority": "medium",
-                    "description": f"Auto-created: {conclusion.proactive_todo.reason}"
+                    "description": f"Auto-created: {conclusion.proactive_todo.reason}",
                 },
-                config=config
+                config=config,
             )
             todo_notice = i18n.get(
                 "prompts.finish.proactive_reminder",
-                title=conclusion.proactive_todo.title
+                title=conclusion.proactive_todo.title,
             )
             logger.info(f"Created proactive todo: {conclusion.proactive_todo.title}")
         except Exception as e:
@@ -183,16 +182,16 @@ Analyze the conversation and respond with the SessionConclusion structure.
 
     # 5c. Build final message
     final_summary = conclusion.summary
-    
+
     # Append harvested concepts notice if any
     if conclusion.harvested_concepts:
         concept_names = [c.name for c in conclusion.harvested_concepts]
         final_summary += i18n.get(
             "prompts.finish.brain_update",
             count=len(concept_names),
-            concepts=', '.join(concept_names)
+            concepts=", ".join(concept_names),
         )
-    
+
     # Append todo notice if created
     if todo_notice:
         final_summary += todo_notice
@@ -200,27 +199,28 @@ Analyze the conversation and respond with the SessionConclusion structure.
     # 6. Sync Trace to Episode Graph
     try:
         from app.core.learning.trace_recorder import sync_thread_to_graph
+
         thread_id = config.get("configurable", {}).get("thread_id", None)
 
         if thread_id:
             logger.info(f"Syncing thread {thread_id} to Episode Graph...")
-            
+
             # Extract goal from first HumanMessage
             first_goal = None
             for msg in messages:
                 if isinstance(msg, HumanMessage):
                     first_goal = get_message_text(msg)[:2000]
                     break
-            
+
             # Extract concept names for linking
             concept_names = [c.name for c in conclusion.harvested_concepts] if conclusion.harvested_concepts else []
             
             await sync_thread_to_graph(
-                thread_id=thread_id, 
+                thread_id=thread_id,
                 project_id=project_id,
                 goal=first_goal,
                 result_summary=conclusion.summary,
-                concept_names=concept_names
+                concept_names=concept_names,
             )
     except Exception as e:
         logger.error(f"Failed to sync episode to graph: {e}")
@@ -228,11 +228,11 @@ Analyze the conversation and respond with the SessionConclusion structure.
     # Return the summary as a regular AIMessage (will be logged by DatabaseCallbackHandler)
     # Note: Since this is manual AIMessage, it needs to be invoked via LLM for persistence
     # We'll create a simple pass-through for the summary
-    
+
     # Use LLM to "echo" the summary so it gets captured by callback
     echo_llm = LLMFactory.create_llm(temperature=0)
     echo_prompt = f"Return the following text EXACTLY as-is, with no modifications:\n\n{final_summary}"
-    
+
     try:
         final_response = await echo_llm.ainvoke(
             [SystemMessage(content=echo_prompt)],
@@ -242,6 +242,4 @@ Analyze the conversation and respond with the SessionConclusion structure.
         # Fallback if echo fails
         final_response = AIMessage(content=final_summary)
 
-    return {
-        "messages": [final_response]
-    }
+    return {"messages": [final_response]}

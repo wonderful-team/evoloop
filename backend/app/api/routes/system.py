@@ -1,6 +1,9 @@
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user
+from app.domain.system.embedding_config import EmbeddingConfigService
+from app.domain.system.llm_config import LLMConfigService
 from app.domain.system.service import SystemConfigService
 from app.models.config import SystemConfig
 
@@ -41,14 +44,8 @@ def get_evolution_status():
     return {
         "enabled": effective_enabled,
         "env_enabled": settings.ENABLE_SELF_EVOLUTION,
-        "db_enabled": db_enabled
+        "db_enabled": db_enabled,
     }
-
-
-
-from pydantic import BaseModel, Field
-
-from app.domain.system.embedding_config import EmbeddingConfigService
 
 
 class EmbeddingConfigRequest(BaseModel):
@@ -68,7 +65,7 @@ async def test_embedding_connection(req: EmbeddingConfigRequest):
         provider=req.provider,
         base_url=req.base_url,
         model=req.model,
-        api_key=req.api_key
+        api_key=req.api_key,
     )
     return {"success": success, "dimensions": dim}
 
@@ -83,9 +80,12 @@ async def apply_embedding_config(req: EmbeddingConfigRequest):
         base_url=req.base_url,
         model=req.model,
         api_key=req.api_key,
-        current_project_id=req.project_id
+        current_project_id=req.project_id,
     )
-    return {"status": "applied", "message": "Embedding model switched. Re-indexing triggered."}
+    return {
+        "status": "applied",
+        "message": "Embedding model switched. Re-indexing triggered.",
+    }
 
 
 # --- LLM Config ---
@@ -102,12 +102,11 @@ async def test_llm_connection(req: LLMConfigRequest):
     """
     Validate connection to LLM provider.
     """
-    from app.domain.system.llm_config import LLMConfigService
     success, reply = await LLMConfigService.validate_connection(
         provider=req.provider,
         base_url=req.base_url,
         model=req.model,
-        api_key=req.api_key
+        api_key=req.api_key,
     )
     return {"success": success, "reply": reply}
 
@@ -117,13 +116,12 @@ async def apply_llm_config(req: LLMConfigRequest):
     """
     Apply new LLM config.
     """
-    from app.domain.system.llm_config import LLMConfigService
     await LLMConfigService.applied_llm_config(
         provider=req.provider,
         base_url=req.base_url,
         model=req.model,
         vision_model=req.vision_model,
-        api_key=req.api_key
+        api_key=req.api_key,
     )
     return {"status": "applied", "message": "LLM Configuration applied successfully."}
 
@@ -134,5 +132,6 @@ async def reset_knowledge_base():
     [DANGER] Wipe the entire Knowledge Base (Neo4j + Postgres Index).
     """
     from app.domain.knowledge.maintenance import wipe_knowledge_base
+
     await wipe_knowledge_base()
     return {"status": "success", "message": "Knowledge Base Wiped."}

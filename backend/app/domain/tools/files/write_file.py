@@ -1,14 +1,7 @@
-from typing import Annotated
-
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
 from app.core.tools import evoloop_tool
 
 from .actions.write import handle_write
 
-
-from pydantic import Field
 
 @evoloop_tool
 async def write_file(
@@ -18,12 +11,12 @@ async def write_file(
 ) -> str:
     """
     Create a new file or overwrite an existing file.
-    
+
     Args:
         path: Target file path. **REQUIRED**
         content: Content to write. **REQUIRED**
         overwrite: If True, replaces existing file. If False, fails if file exists.
-        
+
     Example:
         write_file(path="src/main.py", content="print('hello')", overwrite=False)
     """
@@ -39,4 +32,9 @@ async def write_file(
         )
 
     # Note: handle_write needs standard args. We rely on global config resolution.
-    return await handle_write(action='overwrite' if overwrite else 'create', path=path, content=content, config=None)
+    return await handle_write(
+        action="overwrite" if overwrite else "create",
+        path=path,
+        content=content,
+        config=None,
+    )

@@ -59,7 +59,7 @@ class ContextPruner:
                     content=i18n.get("prompts.memory.pruned_output"),
                     tool_call_id=msg.tool_call_id,
                     name=msg.name,
-                    additional_kwargs={"original_length": len(str(msg.content))}
+                    additional_kwargs={"original_length": len(str(msg.content))},
                 )
                 pruned_messages.append(pruned_msg)
             else:

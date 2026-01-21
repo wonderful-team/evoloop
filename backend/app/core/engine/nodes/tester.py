@@ -7,7 +7,6 @@ from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from app.i18n.service import i18n
 from app.core.engine.message_utils import repair_message_history, smart_window_slice
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
@@ -15,6 +14,7 @@ from app.core.prompts.tester_builder import TesterPromptBuilder
 from app.core.tools.executor import ToolExecutor
 from app.core.tools.registry_utils import get_node_tools
 from app.domain.testing.parser import TestParser
+from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +79,6 @@ class TesterNode:
         # 3. Tool Loop (Custom Logic for XML Parsing)
         # NOTE: This loop handles specific post-tool execution logic (report.xml parsing)
         # which is not supported by the generic AgentEngine loop.
-        report_analysis = ""
 
         for _ in range(3):
             # Invoke LLM
@@ -118,7 +117,7 @@ class TesterNode:
         return {
             "test_results": analysis.status,
             "messages": [AIMessage(content=output_msg)],
-            "iteration_count": state.get("iteration_count", 0) + 1
+            "iteration_count": state.get("iteration_count", 0) + 1,
         }
 
     def _handle_test_report(self, tool_output: str, cwd: str) -> str:
@@ -131,7 +130,11 @@ class TesterNode:
                 if not parsed_report.is_pass:
                     # Format failures for LLM
                     fail_txt = "\n".join([f"FAIL: {f.name}\nMsg: {f.message}\nTrace: {f.stack_trace[:500]}..." for f in parsed_report.failed_cases])
-                    report_analysis = i18n.get("prompts.tester.report_header", failures=parsed_report.failures, details=fail_txt)
+                    report_analysis = i18n.get(
+                        "prompts.tester.report_header",
+                        failures=parsed_report.failures,
+                        details=fail_txt,
+                    )
                 else:
                     report_analysis = i18n.get("prompts.tester.report_pass")
 
@@ -158,10 +161,20 @@ class TesterNode:
             result = await structured_llm.ainvoke(final_prompt, config={"callbacks": []})
             if result is None:
                 logger.warning("[TesterNode] LLM returned None for analysis.")
-                return TestAnalysis(status="FAIL", summary="LLM Verification Failed (Empty Response)", root_cause="LLM Output Error", fix_suggestion="Check LLM logs")
+                return TestAnalysis(
+                    status="FAIL",
+                    summary="LLM Verification Failed (Empty Response)",
+                    root_cause="LLM Output Error",
+                    fix_suggestion="Check LLM logs",
+                )
             return result
         except Exception as e:
-            return TestAnalysis(status="FAIL", summary=f"Error analyzing tests: {e}", root_cause="LLM Error", fix_suggestion="Check logs")
+            return TestAnalysis(
+                status="FAIL",
+                summary=f"Error analyzing tests: {e}",
+                root_cause="LLM Error",
+                fix_suggestion="Check logs",
+            )
 
     def _create_output_artifact(self, analysis: TestAnalysis) -> str:
         """Format the final JSON output."""
@@ -173,8 +186,8 @@ class TesterNode:
                 "summary": analysis.summary,
                 "root_cause": analysis.root_cause,
                 "fix_suggestion": analysis.fix_suggestion,
-                "failures": []
-            }
+                "failures": [],
+            },
         }
         return json.dumps(artifact, ensure_ascii=False)
 
@@ -183,6 +196,13 @@ class TesterNode:
         Hydrate context pointers into actual content.
         Protocol: Attention Guidance (Phase 21).
         """
+        if isinstance(context, str):
+            try:
+                import json
+                context = json.loads(context)
+            except Exception:
+                context = {}
+
         output = []
         focus_paths = context.get("focus_paths", [])
 
@@ -207,7 +227,7 @@ class TesterNode:
                     continue
 
                 # Read content
-                with open(full_path, "r", encoding="utf-8") as f:
+                with open(full_path, encoding="utf-8") as f:
                     content = f.read()
 
                 output.append(f"\n--- FILE: {rel_path} ---\n{content}\n--- END OF FILE ---\n")

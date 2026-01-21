@@ -3,6 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 def apply_fuzzy_patch(file_content: str, target: str, replacement: str) -> tuple[bool, str, str]:
     """
     Apply a patch fuzzily.
@@ -31,10 +32,9 @@ def apply_fuzzy_patch(file_content: str, target: str, replacement: str) -> tuple
     if match.size > 0:
         # Check if the match covers most of the target
         ratio = match.size / len(target)
-        if ratio > 0.85: # Threshold
+        if ratio > 0.85:  # Threshold
             # Found a very similar block
-            start = match.a
-            end = match.a + match.size
+            # Found a very similar block
 
             # Apply replacement
             # Note: This replaces exactly the matched part.
@@ -52,15 +52,15 @@ def apply_fuzzy_patch(file_content: str, target: str, replacement: str) -> tuple
     # 1. Find line in file that matches first line of target (fuzzy).
     # 2. Check subsequent lines.
 
-    best_ratio = 0.0
-    best_idx = -1
+    # 2. Check subsequent lines.
 
     # Heuristic: Only check if target is distinct enough (> 10 chars)
     if len(target) < 10:
         return False, file_content, "Target too short for fuzzy match"
 
     # Simplify: Strip all whitespace and match?
-    def normalize(s): return "".join(s.split())
+    def normalize(s):
+        return "".join(s.split())
 
     norm_content = normalize(file_content)
     norm_target = normalize(target)
@@ -74,12 +74,13 @@ def apply_fuzzy_patch(file_content: str, target: str, replacement: str) -> tuple
     # Fallback to difflib.get_close_matches logic tailored for blocks
     # Sliding window of len(target_lines)
     n_target = len(target_lines)
-    if n_target == 0: return False, file_content, "Empty target lines"
+    if n_target == 0:
+        return False, file_content, "Empty target lines"
 
     # This is expensive for large files (O(N*M)).
     # Limit: if file > 20000 lines, skip fuzzy
     if len(file_lines) > 20000:
-         return False, file_content, "File too large for fuzzy patch"
+        return False, file_content, "File too large for fuzzy patch"
 
     best_score = 0
     best_start_idx = -1
@@ -98,7 +99,8 @@ def apply_fuzzy_patch(file_content: str, target: str, replacement: str) -> tuple
     for start_idx in candidates:
         # Check the block starting at start_idx
         end_idx = start_idx + n_target
-        if end_idx > len(file_lines): continue
+        if end_idx > len(file_lines):
+            continue
 
         block = "".join(file_lines[start_idx:end_idx])
         score = difflib.SequenceMatcher(None, block, target).ratio()
@@ -107,7 +109,7 @@ def apply_fuzzy_patch(file_content: str, target: str, replacement: str) -> tuple
             best_score = score
             best_start_idx = start_idx
 
-    if best_score > 0.8: # Threshold
+    if best_score > 0.8:  # Threshold
         # Construct new content
         new_lines = file_lines[:best_start_idx] + [replacement] + file_lines[best_start_idx + n_target:]
         return True, "".join(new_lines), f"Fuzzy match applied (score: {best_score:.2f})"

@@ -1,6 +1,8 @@
+import logging
 
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.logging import logger
+
+logger = logging.getLogger(__name__)
 
 
 class OntologyBuilder:
@@ -30,47 +32,26 @@ class OntologyBuilder:
         # Where r.type IN ['calls', 'imports']
         # Count relations. If > Threshold, Create (d1)-[:DEPENDS_ON]->(d2)
 
-        query = """
-        MATCH (d1:Directory {project_id: $pid})
-        MATCH (d2:Directory {project_id: $pid})
-        WHERE d1 <> d2
-        
-        // Find connections via underlying files
-        // Note: d1 and d2 paths are identifying.
-        // We match files by path prefix.
-        MATCH (f1:File) WHERE f1.path STARTS WITH d1.path AND f1.project_id = $pid
-        MATCH (f2:File) WHERE f2.path STARTS WITH d2.path AND f2.project_id = $pid
-        
-        MATCH (f1)-[:CONTAINS]->(:CodeEntity)-[:RELATION]->(:CodeEntity)<-[:CONTAINS]-(f2)
-        
-        WITH d1, d2, count(*) as weight
-        WHERE weight > 2 // Threshold: at least 3 calls to establish architectural dependency
-        
-        MERGE (d1)-[r:DEPENDS_ON]->(d2)
-        SET r.weight = weight
-        RETURN d1.path, d2.path, weight
-        """
-
         # Note: This query is expensive (Cartesian if not careful).
         # Optimized approach: Traverse relations first, then aggregate to dirs.
 
         optimized_query = """
         MATCH (e1:CodeEntity {project_id: $pid})-[r:RELATION]->(e2:CodeEntity {project_id: $pid})
         WHERE e1.pg_id IS NOT NULL AND e2.pg_id IS NOT NULL // Ensure they are real
-        
+
         // Find parent files
         MATCH (f1:File)-[:CONTAINS]->(e1)
         MATCH (f2:File)-[:CONTAINS]->(e2)
         WHERE f1 <> f2
-        
+
         // Aggregate by Directories (Simplistic: Top level folder)
         // We need 'Directory' nodes to exist first (Phase 7 ensures this).
         // Finding specific Directory node from File path requires string parsing in Cypher or Link.
         // Assuming we populated (Dir)-[:CONTAINS]->(File) in Phase 7 via `summarize_directory`
-        // Wait, Phase 7 did (Parent)-[:CONTAINS]->(ChildDir), but didn't explicitly link Dir->File in Graph 
+        // Wait, Phase 7 did (Parent)-[:CONTAINS]->(ChildDir), but didn't explicitly link Dir->File in Graph
         // other than implicit path logic.
         // Let's rely on string parsing for V1.
-        
+
         RETURN f1.path as src_path, f2.path as tgt_path
         """
 
@@ -83,8 +64,8 @@ class OntologyBuilder:
         dependency_map = {}
 
         for r in records:
-            src_p = r['src_path']
-            tgt_p = r['tgt_path']
+            src_p = r["src_path"]
+            tgt_p = r["tgt_path"]
 
             # Simple Heuristic: First level directory is the Module.
             # e.g. app/domain/x.py -> app/domain
@@ -92,27 +73,36 @@ class OntologyBuilder:
             tgt_dir = self._get_module_dir(tgt_p)
 
             if src_dir and tgt_dir and src_dir != tgt_dir:
-                 key = (src_dir, tgt_dir)
-                 dependency_map[key] = dependency_map.get(key, 0) + 1
+                key = (src_dir, tgt_dir)
+                dependency_map[key] = dependency_map.get(key, 0) + 1
 
         # Write back significant dependencies
         async with driver.session() as session:
-             for (src, tgt), count in dependency_map.items():
-                 if count >= 3:
-                     # Link Directory Nodes
-                     await session.run("""
+            for (src, tgt), count in dependency_map.items():
+                if count >= 3:
+                    # Link Directory Nodes
+                    await session.run(
+                        """
                         MATCH (d1:Directory {path: $src, project_id: $pid})
                         MATCH (d2:Directory {path: $tgt, project_id: $pid})
                         MERGE (d1)-[r:DEPENDS_ON]->(d2)
                         SET r.weight = $w
-                     """, src=src, tgt=tgt, pid=project_id, w=count)
-                     logger.info(f"Inferred Architecture: {src} DEPENDS_ON {tgt} (Weight: {count})")
+                     """,
+                        src=src,
+                        tgt=tgt,
+                        pid=project_id,
+                        w=count,
+                    )
+                    logger.info(
+                        f"Inferred Architecture: {src} DEPENDS_ON {tgt} (Weight: {count})"
+                    )
 
     def _get_module_dir(self, file_path: str) -> str:
         # Returns parent dir.
-        if '/' not in file_path:
+        if "/" not in file_path:
             return ""
-        return file_path.rsplit('/', 1)[0]
+        return file_path.rsplit("/", 1)[0]
+
 
 # Global
 ontology_builder = OntologyBuilder()

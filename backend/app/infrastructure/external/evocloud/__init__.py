@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from collections.abc import Callable
-from typing import Any, Dict, Optional
 
 import httpx
 
@@ -10,16 +9,18 @@ from app.infrastructure.external.evocloud.device_link import DeviceLinkManager
 
 logger = logging.getLogger(__name__)
 
+
 class EvoCloudClient:
     """
     Unified Client Facade via EvoCloudAPI and DeviceLinkManager.
     Maintains backward compatibility.
     """
+
     _instance = None
 
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(EvoCloudClient, cls).__new__(cls)
+            cls._instance = super().__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
@@ -63,7 +64,7 @@ class EvoCloudClient:
             "is_logged_in": bool(self.api.get_token()),
             "member_id": self.api.get_member_id(),
             "device_connected": self.link.is_connected(),
-            "device_id": self.link.device_id
+            "device_id": self.link.device_id,
         }
 
     async def login(self, username, password) -> dict:
@@ -183,7 +184,8 @@ class EvoCloudClient:
 
     async def upload_log(self, thread_id, log_type, content, command_id=None, project_id=None):
         # Requires device_id from Link
-        if not self.link.device_id: return
+        if not self.link.device_id:
+            return
         await self.api.upload_log(self.link.device_id, thread_id, log_type, content, command_id, project_id)
 
     # --- Methods Delegated to DeviceLink ---
@@ -201,6 +203,7 @@ class EvoCloudClient:
 
     async def stop_device_link(self):
         await self.link.stop()
+
 
 # Global Instance
 evocloud_client = EvoCloudClient()

@@ -7,6 +7,7 @@ from app.schemas.mcp import McpServerCreate
 
 router = APIRouter()
 
+
 @router.get("/servers", response_model=list[Any])
 async def list_mcp_servers():
     """
@@ -18,6 +19,7 @@ async def list_mcp_servers():
     # backend list_servers returns list of dicts.
     return servers
 
+
 @router.post("/server", response_model=Any)
 async def add_mcp_server(server: McpServerCreate):
     """
@@ -27,12 +29,13 @@ async def add_mcp_server(server: McpServerCreate):
         details = {
             "command": server.command,
             "args": server.args or [],
-            "env": server.env or {}
+            "env": server.env or {},
         }
         result = await mcp_client_manager.add_server(server.name, details)
         return result
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 @router.delete("/server/{name}", response_model=Any)
 async def delete_mcp_server(name: str):
@@ -42,7 +45,7 @@ async def delete_mcp_server(name: str):
     try:
         result = await mcp_client_manager.remove_server(name)
         if not result:
-             raise HTTPException(status_code=404, detail="Server not found")
+            raise HTTPException(status_code=404, detail="Server not found")
         return {"status": "success", "message": f"Server {name} removed"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

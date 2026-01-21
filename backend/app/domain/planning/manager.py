@@ -8,9 +8,11 @@ class PlanStep(BaseModel):
     status: str = "pending"  # pending, in_progress, completed, failed
     details: str | None = None
 
+
 class Plan(BaseModel):
     title: str
     steps: list[PlanStep] = Field(default_factory=list)
+
 
 class PlanManager:
     @staticmethod

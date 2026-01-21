@@ -1,12 +1,13 @@
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
-from app.i18n.service import i18n
 from app.core.config import settings
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.domain.research.engine import DeepResearchEngine
-from app.logging import logger
+from app.i18n.service import i18n
+import logging
+logger = logging.getLogger(__name__)
 
 
 async def deep_researcher_node(state: AgentState, config: RunnableConfig):
@@ -17,6 +18,7 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
     llm = LLMFactory.create_llm()
     # Researcher Engine usually manages its own tools, but we should enforce it uses RBAC tools
     from app.core.tools.registry_utils import get_node_tools
+
     tools = get_node_tools("researcher")
     # engine = DeepResearchEngine(llm) -> We need to check if Engine supports tools injection.
     # Assuming DeepResearchEngine has its own internal tool logic or accepts tools.
@@ -40,6 +42,14 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
     if not topic:
         scratchpad = state.get("scratchpad", {})
         handoff = scratchpad.get("handoff_context", {})
+        
+        if isinstance(handoff, str):
+            try:
+                import json
+                handoff = json.loads(handoff)
+            except Exception:
+                handoff = {}
+
         # Try common keys
         topic = handoff.get("topic") or handoff.get("research_topic") or handoff.get("query") or ""
         
@@ -73,7 +83,7 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
             "messages": [AIMessage(content=final_report)],
             "research_logs": [f"Full Research Report:\n{final_report}"],  # Simplified logging for state compatibility
             "research_loop_count": max_iter,  # Mark as done
-            "next_node": "supervisor"
+            "next_node": "supervisor",
         }
     except Exception as e:
         logger.error(f"Deep Research Failed: {e}")

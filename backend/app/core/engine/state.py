@@ -14,14 +14,15 @@ class RetrievalContext(TypedDict):
 class HITLState(TypedDict):
     """
     Human-in-the-Loop state for managing interrupts and user interactions.
-    
+
     This is a generic structure that replaces task-specific fields like `pending_wiki_plan`.
     """
-    request_id: str                 # Unique ID for this HITL request
-    request_type: str               # "approval", "input", "confirmation"
-    resume_node: str                # Node to resume after user responds
-    context: dict[str, Any]         # Node-specific context (e.g., wiki plan, file changes)
-    created_at: str | None       # ISO timestamp
+
+    request_id: str  # Unique ID for this HITL request
+    request_type: str  # "approval", "input", "confirmation"
+    resume_node: str  # Node to resume after user responds
+    context: dict[str, Any]  # Node-specific context (e.g., wiki plan, file changes)
+    created_at: str | None  # ISO timestamp
 
 
 class AgentState(TypedDict):
@@ -33,7 +34,7 @@ class AgentState(TypedDict):
 
     # Current Plan / Intent
     current_plan: str | None
-    structured_plan: str | None # JSON string of domain.planning.models.Plan
+    structured_plan: str | None  # JSON string of domain.planning.models.Plan
 
     # Context retrieved by Researcher
     context: RetrievalContext | None
@@ -71,8 +72,8 @@ class AgentState(TypedDict):
     skill_execution_attempted: bool | None
 
     # Tool Orchestration (Phase 3.0)
-    active_tool_profile: str | None # e.g. "DEVOPS", "RESEARCH"
-    tool_retrieval_query: str | None # e.g. "kubernetes tools"
+    active_tool_profile: str | None  # e.g. "DEVOPS", "RESEARCH"
+    tool_retrieval_query: str | None  # e.g. "kubernetes tools"
 
     # Human-in-the-Loop State (Generic)
     # Used by documenter and other nodes for HITL flow
@@ -81,4 +82,3 @@ class AgentState(TypedDict):
 
     # Tool History (for finish node knowledge harvesting)
     tool_history: Annotated[list[str], operator.add]
-

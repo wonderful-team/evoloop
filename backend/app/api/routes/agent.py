@@ -1,9 +1,12 @@
-from typing import Annotated, Any
+import os
+import uuid
 from datetime import datetime, timezone
+from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel
+from sqlalchemy import func, select
 
 from app.adapters import EventAdapter
 from app.api.deps import CurrentUserOptional, verify_guest_access
@@ -11,14 +14,24 @@ from app.api.deps import CurrentUserOptional, verify_guest_access
 # --- Background Worker ---
 from app.core.engine.background_agent import run_agent_background
 from app.core.monitoring.activity import activity_monitor
+from app.domain.codebase.indexing.manager import indexing_manager
+from app.domain.codebase.indexing.service import IndexingService
+from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import Conversation, Message, MessageReference
-from app.logging import logger, set_context
+from app.infrastructure.database.sql.models import (
+    Conversation,
+    Message,
+    MessageReference,
+)
+import logging
+logger = logging.getLogger(__name__)
+from app.utils.context import set_context
 
 router = APIRouter()
 
 
 # --- Models ---
+
 
 class ChatRequest(BaseModel):
     thread_id: str
@@ -37,12 +50,13 @@ class WebhookRequest(BaseModel):
 
 # --- Endpoints ---
 
+
 @router.post("/chat", dependencies=[Depends(verify_guest_access)])
 async def chat_endpoint(
     req: ChatRequest,
     bg_tasks: BackgroundTasks,  # Injected
-    current_user: CurrentUserOptional,  # Used for context if needed, though verified by deps
-    x_guest_id: Annotated[str | None, Header()] = None
+    _current_user: CurrentUserOptional,  # Used for context if needed, though verified by deps
+    _x_guest_id: Annotated[str | None, Header()] = None,
 ):
     """
     Unified entry point for User Chat (Local Background Task).
@@ -64,7 +78,11 @@ async def chat_endpoint(
                             if ref_msg and ref_msg.content:
                                 # Append to user message for context
                                 # Use XML-like quoting or Markdown blockquote
-                                snippet = ref_msg.content[:500] + "..." if len(ref_msg.content) > 500 else ref_msg.content
+                                snippet = (
+                                    ref_msg.content[:500] + "..."
+                                    if len(ref_msg.content) > 500
+                                    else ref_msg.content
+                                )
                                 req.message += f"\n\n> Quoted Message ({att.get('name', 'Reference')}):\n{snippet}\n"
                         except (ValueError, TypeError):
                             logger.warning(f"Invalid message reference ID: {att.get('id')}")
@@ -99,7 +117,7 @@ async def chat_endpoint(
     inputs = {
         "messages": messages,
         "project_id": req.project_id,
-        "checkpoint_id": req.checkpoint_id
+        "checkpoint_id": req.checkpoint_id,
     }
 
     # Enable monitor
@@ -124,7 +142,6 @@ async def chat_endpoint(
 
             # 4. Upsert User Message with Correct Sequence
             # We need to find the next sequence number (max + 1) to maintain order
-            from sqlalchemy import func, select
             stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == req.thread_id)
             max_seq = (await session.execute(stmt)).scalar() or 0
 
@@ -134,7 +151,7 @@ async def chat_endpoint(
                 role="human",
                 content=req.message,
                 thinking=None,
-                sequence_number=max_seq + 1
+                sequence_number=max_seq + 1,
             )
             session.add(user_msg)
             await session.flush()  # Ensure FK consistency
@@ -142,7 +159,6 @@ async def chat_endpoint(
 
             # 5. Upsert References (Phase 9)
             if req.attachments:
-                import uuid
                 for att in req.attachments:
                     # att structure: {type: 'file'|'image'|'message', url?: string, id?: string, name?: string}
                     ref_type = att.get("type", "file")
@@ -150,7 +166,7 @@ async def chat_endpoint(
                     target_name = att.get("name") or target_id
 
                     # Special handling for message references
-                    if ref_type == 'message':
+                    if ref_type == "message":
                         pass
 
                     ref = MessageReference(
@@ -158,7 +174,7 @@ async def chat_endpoint(
                         message_id=user_msg.id,
                         type=ref_type,
                         target_id=str(target_id),
-                        target_name=str(target_name)
+                        target_name=str(target_name),
                     )
                     session.add(ref)
 
@@ -225,14 +241,16 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
 
     # 3. Setup Context
     set_context(thread_id=req.thread_id, project_id=req.project_id)
-    await activity_monitor.start_run(req.thread_id, f"Retry: {retry_message_content[:50]}...")
+    await activity_monitor.start_run(
+        req.thread_id, f"Retry: {retry_message_content[:50]}..."
+    )
 
     # 4. Dispatch
     # Ensure inputs match normal chat flow
     inputs = {
         "messages": [{"type": "human", "content": retry_message_content}],
         "project_id": req.project_id,
-        "is_retry": True  # Flag for engine if needed (optional)
+        "is_retry": True,  # Flag for engine if needed (optional)
     }
 
     bg_tasks.add_task(run_agent_background, req.thread_id, inputs)
@@ -260,7 +278,9 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
     checkpointer = get_checkpointer()
 
     if not graph or not checkpointer:
-        raise HTTPException(status_code=500, detail="Graph or Checkpointer not initialized")
+        raise HTTPException(
+            status_code=500, detail="Graph or Checkpointer not initialized"
+        )
 
     # Config for resuming from checkpoint
     config = {
@@ -285,7 +305,6 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
                     # For simplicity/speed, we might skip sequence check or query it.
                     # Given sequence_number is mapped but not strict, we can default or query.
                     # Let's do a quick query for correctness.
-                    from sqlalchemy import func, select
                     stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == req.thread_id)
                     max_seq = (await session.execute(stmt)).scalar() or 0
 
@@ -294,7 +313,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
                         project_id=conversation.project_id,
                         role="human",
                         content=req.user_input,
-                        sequence_number=max_seq + 1
+                        sequence_number=max_seq + 1,
                     )
                     session.add(user_msg)
                     logger.info(f"Persisted RESUME message for thread {req.thread_id}")
@@ -317,12 +336,10 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
                     last_tool_call = last_msg.tool_calls[-1]
                     if last_tool_call["name"] in ["request_approval", "request_human_input"]:
                         logger.info(f"Auto-completing tool call {last_tool_call['name']} on resume")
-
-                        from langchain_core.messages import ToolMessage
-
                         tool_msg = ToolMessage(
                             tool_call_id=last_tool_call["id"],
-                            content=req.user_input or "APPROVED"  # Default to APPROVED if empty for approval
+                            content=req.user_input
+                            or "APPROVED",  # Default to APPROVED if empty for approval
                         )
 
                         if inputs:
@@ -355,7 +372,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
             }
 
             # Resume execution
-            async for event in graph.astream(inputs, config=resume_config):
+            async for _event in graph.astream(inputs, config=resume_config):
                 await activity_monitor.check_cancellation(req.thread_id)
 
             await activity_monitor.end_run(req.thread_id, "done")
@@ -387,14 +404,11 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
         new_project = req.payload.get("new_project", {})
         new_path = new_project.get("path")
         if new_path:
-            from app.domain.project.service import project_context_manager
             project_context_manager.set_working_directory(tid, new_path)
             # Dispatch Indexing Task directly from here if needed
-            import os
 
-            from app.domain.codebase.indexing.manager import indexing_manager
             repo_name = os.path.basename(new_path)
-            from app.domain.codebase.indexing.service import IndexingService
+
             service = IndexingService()
             repo = await service.get_or_create_repo(new_path, repo_name)
             await indexing_manager.start_watching(new_path, repo.id)

@@ -1,10 +1,12 @@
+import json
 import logging
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage, AIMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
+from app.domain.research.generator import ReportGenerator
 from app.domain.tools.registry import get_all_tools
 
 logger = logging.getLogger(__name__)
@@ -27,22 +29,22 @@ class DeepResearchEngine:
         topic: str,
         previous_history: list = None,
         max_iterations: int = settings.RESEARCH_MAX_ITERATIONS,
-        config: RunnableConfig = None
+        config: RunnableConfig = None,
     ) -> str:
         """
         Run the full Deep Research process on a topic.
-        
+
         Args:
             topic: The research topic/query.
             previous_history: List of prior messages in the conversation.
             max_iterations: Maximum number of research iterations.
-        
+
         Returns:
             The final conclusion content (Markdown).
         """
         logs = []
         # Create a short topic identifier for logs (e.g. "Community Plugin...")
-        topic_short = (topic[:30] + '..') if len(topic) > 30 else topic
+        topic_short = (topic[:30] + "..") if len(topic) > 30 else topic
         log_prefix = f"[{topic_short}]"
 
         logger.info(f"{log_prefix} Starting Deep Research Engine.")
@@ -68,7 +70,7 @@ class DeepResearchEngine:
 
         messages = [
             SystemMessage(content=system_content),
-            HumanMessage(content=f"User Query: {topic}")
+            HumanMessage(content=f"User Query: {topic}"),
         ]
 
         response = await self.llm.ainvoke(messages, config=config)
@@ -101,7 +103,7 @@ class DeepResearchEngine:
             # Inner ReAct Loop
             step_messages = [
                 SystemMessage(content=update_system_content),
-                HumanMessage(content=update_user_content)
+                HumanMessage(content=update_user_content),
             ]
 
             step_content = ""
@@ -126,10 +128,9 @@ class DeepResearchEngine:
                     logger.info(f"{log_prefix} Tool Call: {tool_name}({args_str})")
 
                     # Deduplication Check
-                    import json
                     try:
                         tool_sig = f"{tool_name}:{json.dumps(args, sort_keys=True)}"
-                    except:
+                    except Exception:
                         tool_sig = f"{tool_name}:{str(args)}"
 
                     if tool_sig in run_tool_history:
@@ -149,7 +150,11 @@ class DeepResearchEngine:
                     result_str = str(result)
 
                     # Log result summary
-                    res_log = result_str[:100].replace('\n', ' ') + "..." if len(result_str) > 100 else result_str.replace('\n', ' ')
+                    res_log = (
+                        result_str[:100].replace("\n", " ") + "..."
+                        if len(result_str) > 100
+                        else result_str.replace("\n", " ")
+                    )
                     logger.info(f"{log_prefix} Tool Output: {res_log}")
 
                     if len(result_str) > 5000:
@@ -178,19 +183,18 @@ class DeepResearchEngine:
 
         final_messages = [
             SystemMessage(content=system_content),
-            HumanMessage(content=conclusion_user_content)
+            HumanMessage(content=conclusion_user_content),
         ]
 
         final_response = await self.llm.ainvoke(final_messages, config=config)
         logger.info(f"{log_prefix} Research Completed.")
 
         # Generate Structured Report
-        from app.domain.research.generator import ReportGenerator
         final_report = ReportGenerator.generate_report(
             topic=topic,
             conclusion=final_response.content,
             logs=logs,
-            metadata={"Iterations": max_iterations}
+            metadata={"Iterations": max_iterations},
         )
 
         return final_report

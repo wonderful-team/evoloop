@@ -23,7 +23,9 @@ class CoderNode:
     2. Writes code using MCP tools.
     """
 
-    async def __call__(self, state: AgentState, config: RunnableConfig, context: dict[str, Any] = None) -> dict[str, Any]:
+    async def __call__(
+        self, state: AgentState, config: RunnableConfig, context: dict[str, Any] = None
+    ) -> dict[str, Any]:
         """Entry point for Coder Node."""
 
         # 1. Context Handling (Supports both Middleware and State)
@@ -59,10 +61,10 @@ class CoderNode:
             context={
                 "user_preferences": prefs,
                 "project_concepts": concepts,
-                "explicit_context": state.get("context", "")
+                "explicit_context": state.get("context", ""),
             },
             project_id=project_id,
-            project_structure=project_structure[:5000]  # Inject Tree
+            project_structure=project_structure[:5000],  # Inject Tree
         )
 
         system_msg = prompt_builder.build(config)
@@ -104,7 +106,7 @@ class CoderNode:
             config=config,
             system_prompt=system_msg,
             tools=tools,
-            name="Coder"
+            name="Coder",
         )
 
     async def _get_tools(self, state: AgentState) -> list[Any]:
@@ -122,8 +124,8 @@ class CoderNode:
             mcp_map = {t.name: t for t in all_mcp}
 
             for rec in records:
-                if rec['name'] in mcp_map:
-                    dynamic_tools.append(mcp_map[rec['name']])
+                if rec["name"] in mcp_map:
+                    dynamic_tools.append(mcp_map[rec["name"]])
 
         # Combine
         combined = {t.name: t for t in core_tools + dynamic_tools}
@@ -131,13 +133,13 @@ class CoderNode:
 
     def _build_fix_mode_prompt(self, feedback: str) -> str:
         return f"""
-        
+
         !!! CRITICAL: FIX MODE ACTIVATED !!!
         The previous tests FAILED. You are now in FIX MODE.
-        
+
         FEEDBACK FROM QA:
         {feedback}
-        
+
         PROTOCOL:
         1. Read the failing file and the test file.
         2. Apply the 'FIX SUGGESTION' provided above if it makes sense.
@@ -149,6 +151,13 @@ class CoderNode:
         Hydrate context pointers into actual content.
         Protocol: Attention Guidance (Phase 21).
         """
+        if isinstance(context, str):
+            try:
+                import json
+                context = json.loads(context)
+            except Exception:
+                context = {}
+
         output = []
         focus_paths = context.get("focus_paths", [])
 
@@ -173,7 +182,7 @@ class CoderNode:
                     continue
 
                 # Read content
-                with open(full_path, "r", encoding="utf-8") as f:
+                with open(full_path, encoding="utf-8") as f:
                     content = f.read()
 
                 output.append(f"\n--- FILE: {rel_path} ---\n{content}\n--- END OF FILE ---\n")

@@ -26,7 +26,7 @@ Tools:
 Strategy:
 1. Identify what files changed.
 2. Run relevant tests. If no tests exist, try to run the code itself.
-3. **PROTOCOL**: When running pytest, ALWAYS use `pytest --junitxml=report.xml` to generate a structured report. 
+3. **PROTOCOL**: When running pytest, ALWAYS use `pytest --junitxml=report.xml` to generate a structured report.
 4. If tests fail, analyze the specific *stack trace* provided in the tool output.
 5. Generate a Fix Suggestion in the final output.
 

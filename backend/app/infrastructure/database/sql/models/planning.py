@@ -1,10 +1,14 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
+
+if TYPE_CHECKING:
+    from app.infrastructure.database.sql.models.conversation import Conversation
 
 
 class Plan(Base):
@@ -17,8 +21,15 @@ class Plan(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
-    conversation: Mapped["Conversation"] = relationship("Conversation", back_populates="plan")
-    steps: Mapped[list["PlanStep"]] = relationship(back_populates="plan", cascade="all, delete-orphan", order_by="PlanStep.order")
+    conversation: Mapped["Conversation"] = relationship(
+        "Conversation",
+        back_populates="plan"
+    )
+    steps: Mapped[list["PlanStep"]] = relationship(
+        back_populates="plan",
+        cascade="all, delete-orphan",
+        order_by="PlanStep.order"
+    )
 
 
 class PlanStep(Base):

@@ -6,8 +6,9 @@ to avoid huge dependency footprint and network timeouts.
 """
 
 import logging
-import json
-from langchain_core.messages import SystemMessage, HumanMessage
+
+from langchain_core.messages import HumanMessage, SystemMessage
+
 from app.core.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 class IntentClassifier:
     """
     Semantic intent classifier using LLM.
-    
+
     Features:
     1. Zero-shot / Few-shot Classification via LLM
     2. No local heavy dependencies (torch/transformers removed)
@@ -47,11 +48,11 @@ class IntentClassifier:
             return None
 
         try:
-            llm = LLMFactory.create_llm(temperature=0.0) # Determinstic
-            
+            llm = LLMFactory.create_llm(temperature=0.0)  # Determinstic
+
             # Construct Prompt
             intent_descriptions = "\n".join([f"- {k}: {v}" for k, v in cls.INTENTS.items()])
-            
+
             system_prompt = f"""You are a Semantic Intent Router.
 Classify the user's input into exactly ONE of the following categories:
 
@@ -62,18 +63,18 @@ Rules:
 2. If the input matches NONE of the strict categories or is ambiguous, output 'None'.
 3. 'chat' should catch generic greetings like 'hi', 'hello'.
 """
-            
+
             response = await llm.ainvoke([
-                SystemMessage(content=system_prompt), 
+                SystemMessage(content=system_prompt),
                 HumanMessage(content=message)
             ], config={"callbacks": []})
-            
+
             predicted_label = response.content.strip().replace("'", "").replace('"', "")
-            
+
             if predicted_label in cls.INTENTS:
                 logger.info(f"[IntentClassifier] Routable Intent: '{predicted_label}'")
                 return predicted_label
-            
+
             logger.debug(f"[IntentClassifier] classification returned '{predicted_label}' (Not in schema), fallback.")
             return None
 

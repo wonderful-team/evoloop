@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
-    DB_ECHO: bool = False # Added for EvoLoop compatibility
+    DB_ECHO: bool = False  # Added for EvoLoop compatibility
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -112,12 +112,15 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = "sk-dummy-key-for-local-dev"
     OPENAI_BASE_URL: str = "http://localhost:1234/v1"
     OPENAI_MODEL_NAME: str = "gpt-4o"
-    
+
     # Embedding Configuration
     EMBEDDING_PROVIDER: Literal["openai", "ollama", "dashscope", "huggingface", "local"] = "openai"
-    EMBEDDING_BASE_URL: str | None = None # Optional override
-    EMBEDDING_MODEL_NAME: str = "text-embedding-3-small" # Qwen / Aliyun Compatible
-    EMBEDDING_DIMENSIONS: int = 768 # Nomic / Local Default
+    EMBEDDING_BASE_URL: str | None = None  # Optional override
+    EMBEDDING_MODEL_NAME: str = "text-embedding-3-small"  # Qwen / Aliyun Compatible
+    EMBEDDING_DIMENSIONS: int = 768  # Nomic / Local Default
+
+    # Search Optimization
+    ENABLE_QUERY_REWRITING: bool = True  # P1: Cross-Lingual Query Rewriting
 
     ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None
@@ -168,7 +171,7 @@ class Settings(BaseSettings):
         candidates = [
             os.path.join(home, "项目"),
             os.path.join(home, "Projects"),
-            os.path.join(home, "projects")
+            os.path.join(home, "projects"),
         ]
         for c in candidates:
             if os.path.exists(c):
@@ -199,7 +202,6 @@ class Settings(BaseSettings):
         os.makedirs(path, exist_ok=True)
         return path
 
-
     # Logic Limits
     MEMORY_SEARCH_LIMIT: int = 5
     RESEARCH_MAX_ITERATIONS: int = 5
@@ -207,7 +209,7 @@ class Settings(BaseSettings):
     RECURSION_LIMIT: int = 100  # Default LangGraph recursion limit
 
     # Meta-Evolution
-    ENABLE_SELF_EVOLUTION: bool = False # Dangerous! Requires sandbox.
+    ENABLE_SELF_EVOLUTION: bool = False  # Dangerous! Requires sandbox.
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -237,7 +239,6 @@ class Settings(BaseSettings):
     def _enforce_non_default_secrets(self) -> Self:
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
         self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
-
 
         return self
 

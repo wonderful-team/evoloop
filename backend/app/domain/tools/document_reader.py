@@ -26,9 +26,10 @@ logger = logging.getLogger(__name__)
 # _ensure_local_path -> ensure_local_path
 # _resolve_project_path -> resolve_path (with context awareness handled below or in util if passed)
 
+
 def _resolve_project_path(file_path: str) -> str:
     """Wrapper for utils.resolve_path to inject project context default"""
-    if file_path.startswith(('http://', 'https://')):
+    if file_path.startswith(("http://", "https://")):
         return file_path
 
     ctx = get_context()
@@ -40,10 +41,10 @@ def inspect_document(file_path: str) -> str:
     """
     Inspect a document to get its metadata and structure without reading the full content.
     Useful for planning how to read large files.
-    
+
     Args:
         file_path (str): Absolute path to the file.
-        
+
     Returns:
         str: JSON formatted metadata.
     """
@@ -57,14 +58,19 @@ def inspect_document(file_path: str) -> str:
         return json_utils.dumps({"error": f"File not found: {real_path}"})
 
     _ext = os.path.splitext(real_path)[1].lower()
-    metadata = {"file_path": file_path, "local_path": real_path, "type": _ext, "size_bytes": os.path.getsize(real_path)}
+    metadata = {
+        "file_path": file_path,
+        "local_path": real_path,
+        "type": _ext,
+        "size_bytes": os.path.getsize(real_path),
+    }
 
     try:
-        if _ext in ['.xlsx', '.xls']:
+        if _ext in [".xlsx", ".xls"]:
             metadata.update(_inspect_excel(real_path))
-        elif _ext in ['.docx', '.doc']:
+        elif _ext in [".docx", ".doc"]:
             metadata.update(_inspect_docx(real_path))
-        elif _ext == '.pdf':
+        elif _ext == ".pdf":
             metadata.update(_inspect_pdf(real_path))
         else:
             metadata["info"] = "Standard text file"
@@ -78,14 +84,14 @@ def inspect_document(file_path: str) -> str:
 def query_excel_sql(file_path: str, sql_query: str) -> str:
     """
     Execute a SQL query on an Excel file.
-    The table name is strictly 'data'. If the Excel has multiple sheets, 
-    this tool currently loads the first sheet by default unless specified otherwise 
+    The table name is strictly 'data'. If the Excel has multiple sheets,
+    this tool currently loads the first sheet by default unless specified otherwise
     (Future: support sheet selection).
-    
+
     Args:
         file_path: Path to Excel file or URL.
         sql_query: SQL query string (e.g., "SELECT * FROM data LIMIT 5", "SELECT col1, SUM(col2) FROM data GROUP BY col1").
-        
+
     Returns:
         JSON string of the result.
     """
@@ -102,21 +108,21 @@ def query_excel_sql(file_path: str, sql_query: str) -> str:
         # Load Excel to DataFrame
         # Optimization: If query is simple, we might not need to load everything,
         # but for V1 we load the sheet into memory.
-        df = pd.read_excel(real_path) # Loads first sheet by default
+        df = pd.read_excel(real_path)  # Loads first sheet by default
 
         # Clean column names to be SQL friendly (optional but good practice)
         # Replacing spaces with underscores
-        df.columns = [str(c).strip().replace(' ', '_') for c in df.columns]
+        df.columns = [str(c).strip().replace(" ", "_") for c in df.columns]
 
         # Create in-memory SQLite DB
-        conn = sqlite3.connect(':memory:')
-        df.to_sql('data', conn, index=False, if_exists='replace')
+        conn = sqlite3.connect(":memory:")
+        df.to_sql("data", conn, index=False, if_exists="replace")
 
         # Execute Query
         result_df = pd.read_sql_query(sql_query, conn)
         conn.close()
 
-        return result_df.to_json(orient='records', force_ascii=False)
+        return result_df.to_json(orient="records", force_ascii=False)
 
     except Exception as e:
         return f"SQL Execution Error: {str(e)}"
@@ -126,12 +132,13 @@ def query_excel_sql(file_path: str, sql_query: str) -> str:
 
 # --- Main Tool ---
 
+
 @tool
 def read_document(file_path: str, start_page: int | None = None, end_page: int | None = None) -> str:
     """
     Read and parse content from various document formats (PDF, DOCX, XLSX, MD, TXT, HTML, PY, JS, etc.).
     Returns the content converted to Markdown format.
-    
+
     For code or text files, it returns a Markdown code block with specific language highlighting.
     For documents like PDF/Word, it returns formatted text.
 
@@ -159,9 +166,10 @@ def read_document(file_path: str, start_page: int | None = None, end_page: int |
 
 # --- core Logic Helpers ---
 
+
 def _resolve_and_validate(file_path: str) -> tuple[str | None, str | None]:
     """
-    Resolves the path and checks existence. 
+    Resolves the path and checks existence.
     Returns (real_path, None) if successful.
     Returns (None, error_message) if failed (with fuzzy suggestion).
     """
@@ -183,7 +191,7 @@ def _resolve_and_validate(file_path: str) -> tuple[str | None, str | None]:
     if os.path.exists(dir_name) and os.path.isdir(dir_name):
         try:
             candidates = sorted(os.listdir(dir_name))
-            visible_candidates = [c for c in candidates if not c.startswith('.')]
+            visible_candidates = [c for c in candidates if not c.startswith(".")]
 
             # 1. Exact case-insensitive match
             for c in candidates:
@@ -201,7 +209,7 @@ def _resolve_and_validate(file_path: str) -> tuple[str | None, str | None]:
                 f"[{list_str}]\n"
                 f"Please check the spelling or choose an existing file from the list."
             )
-        except:
+        except Exception:
             pass
 
     return None, f"Error: File not found: {real_path}{suggestion} (Resolved from {file_path}){parent_listing_info}"
@@ -211,7 +219,7 @@ def _list_directory(real_path: str) -> str:
     """Returns a formatted listing of the directory."""
     try:
         items = sorted(os.listdir(real_path))
-        visible_items = [i for i in items if not i.startswith('.')]
+        visible_items = [i for i in items if not i.startswith(".")]
         formatted_items = []
         for item in visible_items:
             if os.path.isdir(os.path.join(real_path, item)):
@@ -230,20 +238,17 @@ def _list_directory(real_path: str) -> str:
         return f"Error listing directory: {e}"
 
 
-
-
-
 def _read_file_content(real_path: str, start: int | None, end: int | None) -> str:
     """Dispatches reading logic based on file extension."""
     _ext = os.path.splitext(real_path)[1].lower()
 
-    if _ext in ['.xlsx', '.xls']:
+    if _ext in [".xlsx", ".xls"]:
         return _read_excel(real_path)
-    elif _ext in ['.docx', '.doc']:
+    elif _ext in [".docx", ".doc"]:
         return _read_docx(real_path)
-    elif _ext == '.pdf':
+    elif _ext == ".pdf":
         return _read_pdf(real_path, start, end)
-    elif _ext == '.html':
+    elif _ext == ".html":
         return _read_html(real_path)
     else:
         # Code/Text Fallback. Using utils reading.
@@ -256,7 +261,8 @@ def _wrap_code_block(path: str, content: str, lang: str) -> str:
     """Reads a text file and returns it wrapped in a markdown code block."""
     filename = os.path.basename(path)
     # Special case: if lang is empty or txt, maybe use 'text' or nothing
-    if not lang: lang = "text"
+    if not lang:
+        lang = "text"
 
     # Return with markdown code block
     return f"# File: {filename}\n\n```{lang}\n{content}\n```"
@@ -264,14 +270,15 @@ def _wrap_code_block(path: str, content: str, lang: str) -> str:
 
 # --- Inspection Helpers ---
 
+
 def _inspect_excel(path: str) -> dict[str, Any]:
     xl = pd.ExcelFile(path)
     sheets_info = {}
     for sheet in xl.sheet_names:
-        df = pd.read_excel(path, sheet_name=sheet, nrows=5) # Peek top 5
+        df = pd.read_excel(path, sheet_name=sheet, nrows=5)  # Peek top 5
         sheets_info[sheet] = {
             "columns": list(df.columns),
-            "preview": df.head(2).to_dict(orient='records')
+            "preview": df.head(2).to_dict(orient="records"),
         }
     return {"sheets": list(xl.sheet_names), "details": sheets_info}
 
@@ -280,21 +287,18 @@ def _inspect_docx(path: str) -> dict[str, Any]:
     doc = docx.Document(path)
     headings = []
     for para in doc.paragraphs:
-        if para.style.name.startswith('Heading'):
+        if para.style.name.startswith("Heading"):
             headings.append({"style": para.style.name, "text": para.text})
 
     return {
         "headings_count": len(headings),
-        "headings": headings[:20] if len(headings) > 20 else headings
+        "headings": headings[:20] if len(headings) > 20 else headings,
     }
 
 
 def _inspect_pdf(path: str) -> dict[str, Any]:
     reader = PdfReader(path)
-    return {
-        "pages": len(reader.pages),
-        "metadata": reader.metadata
-    }
+    return {"pages": len(reader.pages), "metadata": reader.metadata}
 
 
 def _read_pdf(path: str, start: int | None, end: int | None) -> str:
@@ -345,6 +349,6 @@ def _read_excel(path: str) -> str:
 
 
 def _read_html(path: str) -> str:
-    with open(path, encoding='utf-8') as f:
+    with open(path, encoding="utf-8") as f:
         html_content = f.read()
     return f"# Document: {os.path.basename(path)}\n\n" + md(html_content)

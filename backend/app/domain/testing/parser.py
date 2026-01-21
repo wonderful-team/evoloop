@@ -11,6 +11,7 @@ class TestCaseFailure(BaseModel):
     file: str | None = None
     line: str | None = None
 
+
 class TestReport(BaseModel):
     total: int = 0
     failures: int = 0
@@ -21,6 +22,7 @@ class TestReport(BaseModel):
     @property
     def is_pass(self) -> bool:
         return self.failures == 0 and self.errors == 0
+
 
 class TestParser:
     @staticmethod
@@ -79,4 +81,13 @@ class TestParser:
 
         except Exception as e:
             # Fallback
-            return TestReport(failures=1, failed_cases=[TestCaseFailure(name="ParserError", message=f"Failed to parse XML: {e}", stack_trace="")])
+            return TestReport(
+                failures=1,
+                failed_cases=[
+                    TestCaseFailure(
+                        name="ParserError",
+                        message=f"Failed to parse XML: {e}",
+                        stack_trace="",
+                    )
+                ],
+            )

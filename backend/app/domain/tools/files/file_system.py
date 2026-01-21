@@ -10,20 +10,20 @@ from .actions.filesystem import handle_filesystem
 
 @evoloop_tool
 async def file_system(
-    action: Literal['mkdir', 'delete', 'move'],
+    action: Literal["mkdir", "delete", "move"],
     path: str,
     destination: str | None = None,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
     Perform file system operations: create directory, delete file/directory, or move.
-    
+
     Args:
         action: Operation to perform ('mkdir', 'delete', 'move').
         path: Target file or directory path.
         destination: Required for 'move' action - the destination path.
     """
     # Map short action names to handler-expected names
-    action_map = {'mkdir': 'create_directory', 'delete': 'delete', 'move': 'move'}
+    action_map = {"mkdir": "create_directory", "delete": "delete", "move": "move"}
     mapped_action = action_map.get(action, action)
     return await handle_filesystem(mapped_action, path, destination, config)

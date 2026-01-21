@@ -8,7 +8,13 @@ from app.utils.file import write_file_contents as utils_write_file
 from .utils import resolve_and_validate_path
 
 
-async def handle_edit(path: str, target: str | None = None, content: str | None = None, allow_multiple: bool = False, config: RunnableConfig | None = None) -> str:
+async def handle_edit(
+    path: str,
+    target: str | None = None,
+    content: str | None = None,
+    allow_multiple: bool = False,
+    config: RunnableConfig | None = None,
+) -> str:
     if not target and not content:
         return i18n.get("prompts.domain_tools.files.edit_args_required")
 
@@ -48,7 +54,9 @@ async def handle_edit(path: str, target: str | None = None, content: str | None 
         # 2. Try Fuzzy Fallback (Robust Edit Engine)
         from app.domain.tools.utils.editing.engine import EditEngine
 
-        success, new_content, log = EditEngine.apply_replacement(file_content, target, content, replace_all=allow_multiple)
+        success, new_content, log = EditEngine.apply_replacement(
+            file_content, target, content, replace_all=allow_multiple
+        )
         if success:
             utils_write_file(new_content, target_path)
             return i18n.get("prompts.domain_tools.files.edit_success_log", path=path, log=log)

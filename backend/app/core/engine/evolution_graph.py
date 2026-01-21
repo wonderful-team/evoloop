@@ -47,19 +47,18 @@ workflow.add_node("tester", tester_node)
 # Edges
 workflow.set_entry_point("system_scanner")
 
+
 # Scanner -> Planner (if issue found) OR End (if healthy)
 def route_scanner(state):
     if state.get("evolution_report"):
         return "evolution_planner"
     return END
 
+
 workflow.add_conditional_edges(
     "system_scanner",
     route_scanner,
-    {
-        "evolution_planner": "evolution_planner",
-        END: END
-    }
+    {"evolution_planner": "evolution_planner", END: END},
 )
 
 # Planner -> Coder

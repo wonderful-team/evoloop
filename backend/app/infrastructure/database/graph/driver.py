@@ -1,8 +1,11 @@
 import asyncio
+import logging
+
 from neo4j import AsyncGraphDatabase
 
 from app.core.config import settings
-from app.logging import logger
+
+logger = logging.getLogger(__name__)
 
 
 class Neo4jManager:
@@ -31,7 +34,7 @@ class Neo4jManager:
             # No explicit 'open', but verifying connectivity is good practice
             # await driver.verify_connectivity() # This is async, can't do in sync method.
             # Lazy connect is fine.
-            
+
             cls._drivers[loop] = driver
             logger.info(f"Connected to Neo4j (Loop: {id(loop)})")
             return driver
@@ -50,7 +53,7 @@ class Neo4jManager:
                 logger.info(f"Closed Neo4j connection (Loop: {id(loop)})")
         except RuntimeError:
             pass
-            
+
     @classmethod
     async def close_all(cls):
         """Close drivers for all loops (e.g. shutdown)"""

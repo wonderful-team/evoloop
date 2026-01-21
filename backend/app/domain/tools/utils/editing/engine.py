@@ -3,15 +3,17 @@ from .strategies import STRATEGIES
 
 class EditEngine:
     @staticmethod
-    def apply_replacement(content: str, old_string: str, new_string: str, replace_all: bool = False) -> tuple[bool, str, str]:
+    def apply_replacement(
+        content: str, old_string: str, new_string: str, replace_all: bool = False
+    ) -> tuple[bool, str, str]:
         """
         Attempts to replace old_string with new_string in content using multiple fuzzy strategies.
-        
+
         Returns:
             Tuple[bool, str, str]: (Success, New Content, Log/Error Message)
         """
         if old_string == new_string:
-             return False, content, "Error: old_string and new_string are identical."
+            return False, content, "Error: old_string and new_string are identical."
 
         # Strategy Loop
         for strategy in STRATEGIES:

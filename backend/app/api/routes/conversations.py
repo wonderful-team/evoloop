@@ -1,4 +1,3 @@
-import json
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
@@ -11,13 +10,15 @@ from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
 from app.core.persistence import get_db_pool
 from app.infrastructure.database.sql.database import get_db_session
-from app.infrastructure.database.sql.models import Conversation, Message, TraceEvent
-from app.logging import logger
+from app.infrastructure.database.sql.models import Conversation, Message
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
 # --- Schemas ---
+
 
 class SearchResult(BaseModel):
     thread_id: str
@@ -97,7 +98,7 @@ async def list_conversations(project_id: int | None = None):
                 title=c.title or "Untitled",
                 project_id=c.project_id,
                 updated_at=c.updated_at,
-                status=status_map.get(c.id, "idle")
+                status=status_map.get(c.id, "idle"),
             ) for c in conversations
         ]
 
@@ -128,14 +129,19 @@ async def get_conversation_messages(thread_id: str):
 
             for m in db_messages:
                 # 1. Parse References (Common)
-                refs = [
-                    ReferenceItem(
-                        id=ref.id,
-                        type=ref.type,
-                        target_id=ref.target_id,
-                        target_name=ref.target_name
-                    ) for ref in m.references
-                ] if m.references else []
+                refs = (
+                    [
+                        ReferenceItem(
+                            id=ref.id,
+                            type=ref.type,
+                            target_id=ref.target_id,
+                            target_name=ref.target_name,
+                        )
+                        for ref in m.references
+                    ]
+                    if m.references
+                    else []
+                )
 
                 # 2. Handle Message Types
                 if m.role == "human":
@@ -149,7 +155,7 @@ async def get_conversation_messages(thread_id: str):
                         run_id=m.run_id,
                         parent_id=m.parent_id,
                         references=refs,
-                        steps=[]
+                        steps=[],
                     )
                     final_items.append(item)
                     last_ai_item = None
@@ -166,7 +172,7 @@ async def get_conversation_messages(thread_id: str):
                         run_id=m.run_id,
                         parent_id=m.parent_id,
                         references=refs,
-                        steps=[]
+                        steps=[],
                     )
 
                     # Store as potential parent for subsequent tool outputs
@@ -190,7 +196,7 @@ async def get_conversation_messages(thread_id: str):
                             tool=call_info.get("name", "unknown"),
                             input=call_info.get("args", {}),
                             output=m.tool_output or m.content or "",  # Prefer tool_output column
-                            status="success"
+                            status="success",
                         )
                         last_ai_item.steps.append(step)
                     else:
@@ -231,7 +237,7 @@ async def search_conversations(q: str, project_id: int | None = None):
                 role=log.role,
                 content=log.content,
                 created_at=str(log.created_at),
-                match_snippet=log.content[:200]
+                match_snippet=log.content[:200],
             )
             for log in logs
         ]
@@ -321,7 +327,11 @@ async def rewind_conversation(thread_id: str):
             break
 
     if not to_delete:
-        return {"status": "no_human_message_found", "thread_id": thread_id, "removed_count": 0}
+        return {
+            "status": "no_human_message_found",
+            "thread_id": thread_id,
+            "removed_count": 0,
+        }
 
     updates = []
     for m in to_delete:
@@ -337,12 +347,18 @@ async def rewind_conversation(thread_id: str):
         if msg_ids:
             try:
                 async with get_db_session() as session:
-                    await session.execute(delete(Message).where(Message.id.in_(msg_ids)))
+                    await session.execute(
+                        delete(Message).where(Message.id.in_(msg_ids))
+                    )
                     await session.commit()
                 logger.info(f"DB Sync: Deleted {len(msg_ids)} messages.")
             except Exception as e:
                 logger.error(f"DB Sync Failed during rewind: {e}")
 
-        return {"status": "rewound", "removed_count": len(updates), "thread_id": thread_id}
+        return {
+            "status": "rewound",
+            "removed_count": len(updates),
+            "thread_id": thread_id,
+        }
     else:
         return {"status": "failed_no_ids", "thread_id": thread_id, "removed_count": 0}

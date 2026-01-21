@@ -3,8 +3,6 @@ import logging
 
 from langchain_core.tools import tool
 
-from app.logging import get_context
-
 logger = logging.getLogger(__name__)
 
 
@@ -12,12 +10,12 @@ logger = logging.getLogger(__name__)
 async def run_command(command: str) -> str:
     """
     Run a shell command (e.g., 'pytest', 'npm install').
-    
+
     WARNING: Use dedicated tools for standard operations:
     - Version Control -> Use `git_*` tools.
     - File Editing -> Use `edit_file` / `write_file_content`.
     - File Reading -> Use `read_file`.
-    
+
     Only use this for execution tasks like running tests, builds, or scripts.
     """
     logger.info(f"Tester [Running]: {command}")
@@ -26,19 +24,13 @@ async def run_command(command: str) -> str:
     # In production, this should be sandboxed (Docker/gVisor).
     # For this local assistant, we assume trust.
 
-    ctx = get_context()
-    # cwd = ctx.get("working_directory") 
-
     try:
         from app.domain.sandbox.factory import SandboxFactory
-        
+
         sandbox = SandboxFactory.get_sandbox()
-        
+
         # Run via Sandbox
-        stdout, stderr, returncode = await asyncio.to_thread(
-            sandbox.run_command,
-            command
-        )
+        stdout, stderr, returncode = await asyncio.to_thread(sandbox.run_command, command)
 
         output = ""
         if stdout:
@@ -53,4 +45,3 @@ async def run_command(command: str) -> str:
 
     except Exception as e:
         return f"Execution Error: {str(e)}"
-

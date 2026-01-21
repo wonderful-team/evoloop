@@ -12,15 +12,15 @@ Key Enhancements over Original:
 """
 
 import logging
-import yaml
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.i18n.service import i18n
 from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.core.llm.factory import LLMFactory
+from app.i18n.service import i18n
 
 logger = logging.getLogger("evoloop.learning.synthesizer")
 
@@ -28,6 +28,7 @@ logger = logging.getLogger("evoloop.learning.synthesizer")
 @dataclass
 class SkillParameter:
     """A parameter for a learned skill."""
+
     name: str
     type: str = "string"
     description: str = ""
@@ -38,6 +39,7 @@ class SkillParameter:
 @dataclass
 class SkillStep:
     """A single step in a skill execution plan."""
+
     action: str  # Tool name or action type
     args: dict[str, Any] = field(default_factory=dict)
     condition: str | None = None  # Optional condition for this step
@@ -50,6 +52,7 @@ class LearnedSkill:
     A complete learned skill configuration.
     This is the output of the synthesis process.
     """
+
     name: str
     description: str
     trigger_patterns: list[str] = field(default_factory=list)
@@ -167,6 +170,11 @@ class EnhancedWorkflowSynthesizer:
             tools_used=", ".join(summary["tools_used"]) if summary["tools_used"] else "None"
         )
 
+        from app.domain.system.service import SystemConfigService
+
+        user_lang = SystemConfigService.get_language_preference()
+        prompt += i18n.get("prompts.learning.synthesis_lang_constraint", lang=user_lang)
+
         messages = [
             SystemMessage(content=prompt),
             HumanMessage(content="Please analyze the trace and generate the skill YAML.")
@@ -194,30 +202,34 @@ class EnhancedWorkflowSynthesizer:
                 name="unparsed_skill",
                 description="Failed to parse generated skill",
                 source_thread_id=self.thread_id,
-                source_session_id=self.session_id
+                source_session_id=self.session_id,
             )
 
         # Extract parameters
         parameters = []
         for p in data.get("parameters", []):
             if isinstance(p, dict):
-                parameters.append(SkillParameter(
-                    name=p.get("name", "unknown"),
-                    type=p.get("type", "string"),
-                    description=p.get("description", ""),
-                    required=p.get("required", True)
-                ))
+                parameters.append(
+                    SkillParameter(
+                        name=p.get("name", "unknown"),
+                        type=p.get("type", "string"),
+                        description=p.get("description", ""),
+                        required=p.get("required", True),
+                    )
+                )
 
         # Extract steps
         steps = []
         for s in data.get("steps", []):
             if isinstance(s, dict):
-                steps.append(SkillStep(
-                    action=s.get("action", "unknown"),
-                    args=s.get("args", {}),
-                    condition=s.get("condition"),
-                    on_error=s.get("on_error")
-                ))
+                steps.append(
+                    SkillStep(
+                        action=s.get("action", "unknown"),
+                        args=s.get("args", {}),
+                        condition=s.get("condition"),
+                        on_error=s.get("on_error"),
+                    )
+                )
 
         return LearnedSkill(
             name=data.get("name", "unnamed_skill"),
@@ -228,7 +240,7 @@ class EnhancedWorkflowSynthesizer:
             steps=steps,
             source_thread_id=self.thread_id,
             source_session_id=self.session_id,
-            tools_used=list(set(sequence.tools_used))
+            tools_used=list(set(sequence.tools_used)),
         )
 
 

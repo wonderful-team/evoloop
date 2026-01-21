@@ -9,11 +9,11 @@ from .utils import resolve_and_validate_path
 
 
 async def handle_list(
-    action: Literal['list', 'list_tree'],
+    action: Literal["list", "list_tree"],
     path: str,
     max_depth: int = 3,
     with_symbols: bool = False,
-    config: RunnableConfig | None = None
+    config: RunnableConfig | None = None,
 ) -> str:
     try:
         target_path = resolve_and_validate_path(path, config)
@@ -21,9 +21,9 @@ async def handle_list(
         return str(e)
 
     if not os.path.exists(target_path):
-          return f"Error: Path does not exist: {path}"
+        return f"Error: Path does not exist: {path}"
 
-    if action == 'list':
+    if action == "list":
         # ls logic
         cmd = ["ls", target_path]
         res = utils_run_cmd(cmd)
@@ -31,21 +31,21 @@ async def handle_list(
             return f"Error: {res.stderr}"
         return res.stdout[:2000]
 
-    elif action == 'list_tree':
+    elif action == "list_tree":
         # Delegate to AnnotatedTreeGenerator
         from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
 
         try:
-             # Use provided max_depth and with_symbols
-             generator = AnnotatedTreeGenerator(
-                 target_path,
-                 max_depth=max_depth,
-                 with_symbols=with_symbols,
-                 file_limit=30
-             )
-             tree_output = await generator.generate()
-             return tree_output
+            # Use provided max_depth and with_symbols
+            generator = AnnotatedTreeGenerator(
+                target_path,
+                max_depth=max_depth,
+                with_symbols=with_symbols,
+                file_limit=30,
+            )
+            tree_output = await generator.generate()
+            return tree_output
         except Exception as e:
-             return f"Error generating tree: {e}"
+            return f"Error generating tree: {e}"
 
     return f"Error: Unknown list action {action}"

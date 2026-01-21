@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 async def analyze_image(image_source: str, question: str = "Describe this image in detail.") -> str:
     """
     Analyze an image using a multimodal LLM (GPT-4o) to answer questions about it.
-    
+
     Args:
         image_source: The absolute path to a local image file OR a public image URL.
         question: The question or instruction about the image (e.g., "What is in this image?", "Describe the layout bug").
-        
+
     Returns:
         A text description or answer derived from the image analysis.
     """

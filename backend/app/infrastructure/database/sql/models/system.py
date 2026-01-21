@@ -4,11 +4,11 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
+# Get embedding dimension from settings (Single Source of Truth)
+from app.core.config import settings
 from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
-# Get embedding dimension from settings (Single Source of Truth)
-from app.core.config import settings
 EMBEDDING_DIM = settings.EMBEDDING_DIMENSIONS
 
 
@@ -16,6 +16,7 @@ class Job(Base):
     """
     Represents a background job for the Postgres Queue.
     """
+
     __tablename__ = "jobs"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -35,6 +36,7 @@ class Tool(Base):
     """
     Represents a tool available to the agent, vectorized for semantic retrieval.
     """
+
     __tablename__ = "tools"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -57,6 +59,7 @@ class McpServer(Base):
     """
     Configuration for an MCP Server.
     """
+
     __tablename__ = "mcp_servers"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -74,6 +77,7 @@ class ProjectResource(Base):
     """
     Stores project-specific resources (pinned files, external links).
     """
+
     __tablename__ = "project_resources"
 
     id: Mapped[int] = mapped_column(primary_key=True)

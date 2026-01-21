@@ -1,8 +1,10 @@
+import logging
 from sqlalchemy import text
 
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.sql.database import get_db_session
-from app.logging import logger
+
+logger = logging.getLogger(__name__)
 
 
 async def wipe_knowledge_base():
@@ -60,14 +62,14 @@ async def wipe_knowledge_base():
                 "code_relations",
                 "code_entities",
                 "source_files",
-                "tools"
+                "tools",
             ]
 
             for t in tables_to_truncate:
-                 try:
-                     await session.execute(text(f"TRUNCATE TABLE {t} CASCADE;"))
-                 except Exception as e:
-                     logger.warning(f"Postgres: Error truncating {t}: {e}")
+                try:
+                    await session.execute(text(f"TRUNCATE TABLE {t} CASCADE;"))
+                except Exception as e:
+                    logger.warning(f"Postgres: Error truncating {t}: {e}")
 
             # SCHEMA FIX: Adjust Vector Column Dimensions
             if target_dim:
