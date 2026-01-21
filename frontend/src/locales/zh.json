@@ -864,6 +864,10 @@
     "actions": "操作"
   },
   "chat": {
+    "request": {
+      "title": "需要操作",
+      "placeholder": "请输入您的回复..."
+    },
     "limitReached": "今日对话次数已耗尽",
     "limitReachedDescription": "您已达到今日免费对话上限。请升级以继续使用。",
     "hitl": {
@@ -1018,16 +1022,16 @@
       "offlineDesc": "远程设备当前未连接。"
     },
     "context": {
-      "title": "上下文",
-      "selectProject": "选择一个项目查看上下文",
-      "tabMemory": "记忆",
+      "title": "Agent 工作台",
+      "selectProject": "请选择一个项目以查看上下文",
+      "groupContext": "上下文",
+      "groupSystem": "系统",
       "tabPlan": "计划",
+      "tabMemory": "记忆",
       "tabState": "状态",
       "tabKnowledge": "知识库",
       "tabTools": "工具",
       "tabResources": "资源",
-      "groupContext": "上下文",
-      "groupSystem": "系统",
       "memoryTitle": "记忆概念",
       "noConcepts": "未找到记忆概念。",
       "planTitle": "活跃计划",
@@ -1253,5 +1257,11 @@
     "jumpToChat": "跳转对话",
     "execute": "立即执行",
     "refresh": "刷新"
+  },
+  "hitl": {
+    "approvalRequired": "需要审批",
+    "enterResponse": "请输入您的回复...",
+    "responseSent": "回复已发送",
+    "sendFailed": "发送回复失败: "
   }
 }

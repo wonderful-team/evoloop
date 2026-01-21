@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
+import { MobileHumanRequestCard } from "./MobileHumanRequestCard"
 import type { LogMessage } from "@/hooks/useEvoLoopWebSocket"
 
 interface MessageListProps {
@@ -19,6 +20,7 @@ interface MessageListProps {
   isProjectInitialized: boolean
   isDeviceOnline: boolean
   highlight: number | null
+  onHITLResponse?: (threadId: string, response: string, commandId?: number) => void
 }
 
 function ImageViewer({
@@ -232,7 +234,7 @@ function RichContent({ content }: { content: any }) {
   )
 }
 
-function LogItem({ msg }: { msg: LogMessage }) {
+function LogItem({ msg, onHITLResponse }: { msg: LogMessage; onHITLResponse?: (threadId: string, response: string, commandId?: number) => void }) {
   const { t } = useTranslation()
   const [isOpen, setIsOpen] = useState(false)
 
@@ -293,6 +295,25 @@ function LogItem({ msg }: { msg: LogMessage }) {
     )
   }
 
+  if (msg.type === "hitl_request") {
+    // Content should be object, but check type
+    const requestData = typeof msg.content === "string" ? JSON.parse(msg.content) : msg.content
+
+    return (
+      <div className="flex flex-col mb-4 animate-in slide-in-from-left-2 fade-in duration-300 max-w-[95%]">
+        {/* HITL Card */}
+        <MobileHumanRequestCard
+          request={requestData}
+          onRespond={(response) => {
+            if (onHITLResponse && msg.thread_id) {
+              onHITLResponse(msg.thread_id, response, msg.log_id)
+            }
+          }}
+        />
+      </div>
+    )
+  }
+
   // Default Output (Agent Response or General Info)
   let content = msg.content
   let thinking = null
@@ -328,6 +349,7 @@ export function MessageList({
   isProjectInitialized,
   isDeviceOnline,
   highlight,
+  onHITLResponse
 }: MessageListProps) {
   const { t } = useTranslation()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -388,7 +410,7 @@ export function MessageList({
       ) : (
         messages.map((msg, i) => (
           <div id={msg.log_id ? `log-${msg.log_id}` : undefined} key={i}>
-            <LogItem msg={msg} />
+            <LogItem msg={msg} onHITLResponse={onHITLResponse} />
           </div>
         ))
       )}

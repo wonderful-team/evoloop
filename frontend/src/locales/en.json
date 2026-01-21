@@ -863,6 +863,10 @@
     "actions": "Actions"
   },
   "chat": {
+    "request": {
+      "title": "Action Required",
+      "placeholder": "Enter your response..."
+    },
     "limitReached": "Daily Limit Reached",
     "limitReachedDescription": "You have reached your daily free message limit. Please upgrade to continue.",
     "hitl": {
@@ -1024,16 +1028,16 @@
       "offlineDesc": "The remote device is currently not connected."
     },
     "context": {
-      "title": "Context",
+      "title": "Agent Workstation",
       "selectProject": "Select a project to view context",
-      "tabMemory": "Memory",
-      "tabPlan": "Plan",
-      "tabState": "State",
-      "tabKowledge": "Knowledge",
-      "tabKnowledge": "Knowledge",
-      "tabResources": "Resources",
       "groupContext": "Context",
       "groupSystem": "System",
+      "tabPlan": "Plan",
+      "tabMemory": "Memory",
+      "tabState": "State",
+      "tabKnowledge": "Knowledge",
+      "tabResources": "Resources",
+      "tabTools": "Tools",
       "memoryTitle": "Memory Concepts",
       "noConcepts": "No memory concepts found.",
       "planTitle": "Active Plan",
@@ -1257,5 +1261,11 @@
     "jumpToChat": "Jump to Chat",
     "execute": "Execute Task",
     "refresh": "Refresh"
+  },
+  "hitl": {
+    "approvalRequired": "Approval Required",
+    "enterResponse": "Enter your response...",
+    "responseSent": "Response sent",
+    "sendFailed": "Failed to send response: "
   }
 }

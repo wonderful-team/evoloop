@@ -6,8 +6,8 @@ import { DevicesService } from "@/client/sdk.gen"
 const WS_URL = import.meta.env.VITE_EVOLOOP_WS_URL || "wss://mall.imagicbox.cn/wss/"
 
 export interface LogMessage {
-  type: "thought" | "tool" | "output" | "error" | "user"
-  content: string
+  type: "thought" | "tool" | "output" | "error" | "user" | "hitl_request"
+  content: any
   thread_id?: string
   project_id?: number
   log_id?: number
@@ -80,7 +80,7 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
               })
             }
           } else if (
-            ["thought", "tool", "output", "error"].includes(data.type)
+            ["thought", "tool", "output", "error", "hitl_request"].includes(data.type)
           ) {
             setMessages((prev) => [
               ...prev,

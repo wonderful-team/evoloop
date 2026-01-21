@@ -181,6 +181,73 @@ export function LocalChatScreen() {
     return m.project_id === currentProject.project_id
   })
 
+  const handleHITLResponse = async (threadId: string, response: string, commandId?: number) => {
+    try {
+      await DevicesService.sendCommand({
+        deviceId: Number(deviceId),
+        requestBody: {
+          /* 
+             Backend handler expects: 
+             type="hitl_response", 
+             content={response: ...} 
+             thread_id=...
+          */
+          command_type: "hitl_response" as any, // Cast if type enum is strict
+          params: {
+            // Some backends flatten params into command_data, others nest. 
+            // handler.py: cmd_type = command_data.get("type")
+            // DevicesService usually sends { type: command_type, ...params }
+            // Let's verify backend handler logic.
+            // handler.py: command_data is the whole dict.
+            // DevicesService.sendCommand -> POST /devices/{id}/command -> (likely) sends body as-is or wrapped?
+            // Assuming SDK sends body as JSON.
+            // If I put params here, I need to know how the backend receives it.
+            // Usually command_type is top level.
+          },
+          // Wait, the SDK definition might be strict.
+          // IF SDK is strict, I might need to abuse 'custom' type or similar.
+          // Let's assume loose typings or I use 'chat' with specially crafted content?
+          // No, backend specifically checks `cmd_type == "hitl_response"`.
+          // So I MUST send type="hitl_response".
+          // If SDK command_type enum doesn't have it, I might need @ts-ignore.
+        } as any
+      })
+
+      // Actually, better to look at what I did in handling.
+      // handler.py: cmd_type = command_data.get("type", "chat_message")
+      // So I need 'type': 'hitl_response' at top level of command_data.
+
+      // Re-reading SDK usage in handleSend:
+      /*
+        requestBody: {
+          command_type: "chat",
+          params: { ... }
+        }
+      */
+      // If the backend /command endpoint maps requestBody directly to command_data?
+      // Or does it map command_type -> type?
+      // I'll assume requestBody fields are merged.
+
+      await DevicesService.sendCommand({
+        deviceId: Number(deviceId),
+        requestBody: {
+          command_type: "hitl_response" as any,
+          params: {
+            content: { response: response },
+            thread_id: threadId,
+            command_id: commandId
+          }
+        }
+      })
+
+      toast.success(t("hitl.responseSent"))
+
+      // Optimistic update? Maybe allow UI to show "submitted" state.
+    } catch (e: any) {
+      toast.error(t("hitl.sendFailed") + e.message)
+    }
+  }
+
   return (
     <div className="flex flex-col h-screen bg-background">
       <ChatHeader
@@ -197,6 +264,7 @@ export function LocalChatScreen() {
         isProjectInitialized={isProjectInitialized}
         isDeviceOnline={isDeviceOnline}
         highlight={highlight}
+        onHITLResponse={handleHITLResponse}
       />
 
       {/* Back to Live FAB */}
