@@ -122,93 +122,70 @@ class AnnotatedTreeGenerator:
 
     def _build_tree_structure(self) -> TreeNode:
         from app.domain.codebase.filter import FileFilter
+        from app.utils.file import walk_tree
 
         self.file_filter = FileFilter()
 
         root_node = TreeNode(os.path.basename(self.root_path), "dir")
+        
+        # Map: abs_path -> TreeNode (for efficient retrieval during reconstruction)
         nodes_map = {self.root_path: root_node}
 
-        for root, dirs, files in os.walk(self.root_path):
-            # Calculate current depth relative to self.root_path
-            # Root path itself is depth 0.
-            # rel_path will be empty at root, "subdir" at depth 1.
-            rel_root = os.path.relpath(root, self.root_path)
-            if rel_root == ".":
-                current_depth = 0
-            else:
-                current_depth = len(rel_root.split(os.sep))
-
-            # Prune if too deep
-            # If we are AT max_depth, we process files, but prune dirs so we don't go deeper.
-            # If we are ABOVE max_depth (shouldn't happen with prune), continue.
-            if current_depth >= self.max_depth:
-                dirs[:] = []
-                # continue # If we continue, we skip files at this level too.
-                # Decision: Show files at max depth, but no subdirs.
-                # So we let execution proceed to process 'files', but cleared 'dirs' stops recursion.
-
-            # Exclude filters - Prune directories in-place (moved after depth check to save cycles)
-            # 1. Basic Blacklist (Constants)
-            # 2. Startswith .
-            d_to_remove = []
-            for d in dirs:
-                if d in BLACKLIST_DIRS or d.startswith("."):
-                    d_to_remove.append(d)
-                else:
-                    # Check if file filter excludes this directory explicitly
-                    pass
-
-            for d in d_to_remove:
-                dirs.remove(d)
-
-            current_node = nodes_map.get(root)
-            if not current_node:
+        for full_path in walk_tree(self.root_path, filter_func=self.file_filter.should_include, max_depth=self.max_depth):
+            
+            # Pattern Filter (fnmatch)
+            filename = os.path.basename(full_path)
+            if self.pattern and not fnmatch.fnmatch(filename, self.pattern):
                 continue
-
-            # Add Directories
-            for d in dirs:
-                d_abs = os.path.join(root, d)
-                d_node = TreeNode(d, "dir")
-                current_node.add_child(d_node)
-                nodes_map[d_abs] = d_node
-
-            # Add Files
-            for f in files:
-                f_abs = os.path.join(root, f)
-
-                # USE FILE FILTER
-                if not self.file_filter.should_include(f_abs):
-                    continue
-
-                # PATTERN FILTER
-                if self.pattern and not fnmatch.fnmatch(f, self.pattern):
-                    continue
-
-                f_node = TreeNode(f, "file")
-                current_node.add_child(f_node)
-
-                # Add Symbols to File
-                # Try to find matching DB chunk using suffix match if strict rel_path fails
-                rel_path = os.path.relpath(f_abs, self.root_path)
-
-                chunks = []
-                # Simple lookup first
-                if rel_path in self.db_files_map:
-                    chunks = self.db_files_map[rel_path]
+                
+            # Build Tree Path
+            rel_path = os.path.relpath(full_path, self.root_path)
+            parts = rel_path.split(os.sep)
+            
+            # Start from root and traverse/create
+            current_node = root_node
+            current_abs = self.root_path
+            
+            for i, part in enumerate(parts):
+                is_last_part = (i == len(parts) - 1)
+                current_abs = os.path.join(current_abs, part)
+                
+                if current_abs in nodes_map:
+                    current_node = nodes_map[current_abs]
                 else:
-                    # Fallback: Look for any key that ends with this rel_path (best effort for subdirs)
-                    # This is O(N) but safer for now than broken symbols
-                    # To optimize, we could check if any key in map ends with /rel_path
-                    # But keys are "backend/app/main.py". rel_path is "main.py".
-                    # Ends with checks are risky if filenames are not unique.
-                    # Ideally we use absolute path logic, but we don't have project root here.
-                    # For now, let's just stick to exact match, or use f_abs if map uses abs?
-                    # DB map uses whatever is in SourceFile.path (relative).
-                    pass
-
-                self._add_symbols_to_file_node(f_node, chunks)
+                    # Create new node
+                    node_type = "file" if is_last_part else "dir"
+                    new_node = TreeNode(part, node_type)
+                    current_node.add_child(new_node)
+                    nodes_map[current_abs] = new_node
+                    current_node = new_node
+            
+            # At end of loop, current_node is the file node
+            file_node = current_node
+            
+            # Add Symbols
+            chunks = []
+            if rel_path in self.db_files_map:
+                chunks = self.db_files_map[rel_path]
+            
+            self._add_symbols_to_file_node(file_node, chunks)
 
         # Post-process: Prune empty directories if pattern is active
+        # Or always? walk_tree only yields files. Dirs only exist if they lead to valid files.
+        # So "empty dirs" that contain no code files shouldn't logically exist in this constructed tree.
+        # Exception: Dirs created by one file that was later skipped? No.
+        # Wait, if pattern skipped the file, the dir node wasn't created.
+        # BUT: Explicitly strictly empty dirs (no files at all deep down) are auto-pruned by this logic.
+        # This is strictly better than _prune_empty_dirs!
+        # However, _prune_empty_dirs might still be needed if `pattern` is applied in the loop?
+        # If all files in a dir match pattern "exclude", then we skip them. We never create the dir node. 
+        # So _prune_empty_dirs is implicit!
+        # Unless we want to keep dirs that match pattern? But pattern usually applies to files.
+        
+        # Let's keep `_prune_empty_dirs` call just in case I missed an edge case or for legacy safety?
+        # Actually logic says: if file is skipped, loops continues. dir nodes not created.
+        # So structure is clean by definition.
+        
         if self.pattern:
             self._prune_empty_dirs(root_node)
 

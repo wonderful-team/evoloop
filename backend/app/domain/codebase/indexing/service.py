@@ -501,61 +501,33 @@ class IndexingService:
         from app.constants import BLACKLIST_DIRS
         from app.domain.codebase.filter import FileFilter
         from app.domain.codebase.ignore import GitignoreMatcher
+        from app.utils.file import walk_tree
 
         file_filter = FileFilter()
         ignore_matcher = GitignoreMatcher.from_file(repo_path, ".gitignore")
 
+        valid_exts = (
+            ".py", ".js", ".ts", ".go", ".java", ".cpp", ".cc", ".cxx", ".h", ".hpp",
+            ".rs", ".php", ".rb", ".md",
+        )
+
+        def dir_filter(d_path: str) -> bool:
+            return not ignore_matcher.should_ignore(d_path, is_dir=True)
+
+        def file_check(f_path: str) -> bool:
+            if ignore_matcher.should_ignore(f_path, is_dir=False):
+                return False
+            if not file_filter.should_include(f_path):
+                return False
+            return f_path.endswith(valid_exts)
+
         # Walk directory
-        filtered_files = []
-        for root, dirs, files in os.walk(repo_path):
-            # 1. Directory Filtering (Prune traversal)
-            # We filter 'dirs' in-place.
-
-            d_to_remove = []
-            for d in dirs:
-                full_d_path = os.path.join(root, d)
-
-                # Check 1: Hardcoded Blacklist (Fastest)
-                if d in BLACKLIST_DIRS or d.startswith("."):
-                    d_to_remove.append(d)
-                    continue
-
-                # Check 2: Gitignore (Flexible)
-                if ignore_matcher.should_ignore(full_d_path, is_dir=True):
-                    d_to_remove.append(d)
-                    continue
-
-            for d in d_to_remove:
-                dirs.remove(d)
-
-            for f in files:
-                full_path = os.path.join(root, f)
-
-                # Check 1: Gitignore
-                if ignore_matcher.should_ignore(full_path, is_dir=False):
-                    continue
-
-                # Check 2: FileFilter (Binary, size, etc.)
-                if file_filter.should_include(full_path):
-                    # Check 3: Supported Extension for Indexing
-                    valid_exts = (
-                        ".py",
-                        ".js",
-                        ".ts",
-                        ".go",
-                        ".java",
-                        ".cpp",
-                        ".cc",
-                        ".cxx",
-                        ".h",
-                        ".hpp",
-                        ".rs",
-                        ".php",
-                        ".rb",
-                        ".md",
-                    )
-                    if full_path.endswith(valid_exts):
-                        filtered_files.append(full_path)
+        filtered_files = list(walk_tree(
+            repo_path,
+            filter_func=file_check,
+            dir_filter=dir_filter,
+            exclude_dirs=BLACKLIST_DIRS
+        ))
 
         logger.info(f"Found {len(filtered_files)} valid files to index (Applied .gitignore).")
 

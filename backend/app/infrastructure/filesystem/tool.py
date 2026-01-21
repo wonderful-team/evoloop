@@ -47,38 +47,33 @@ def list_files(
                 if file_filter.should_include(full_p):
                     filtered_items.append(item)
                 elif os.path.isdir(full_p) and item not in DEFAULT_EXCLUDED_DIRS and not item.startswith("."):
-                     # Include directories if not explicitly excluded (FileFilter mostly checks files)
-                     # But we should mimic its directory logic too.
-                     # Simplified:
-                     filtered_items.append(item + "/")
+                    # Include directories if not explicitly excluded (FileFilter mostly checks files)
+                    # But we should mimic its directory logic too.
+                    # Simplified:
+                    filtered_items.append(item + "/")
             return "\n".join(sorted(filtered_items))
         except Exception as e:
             return f"Error listing files: {e}"
 
-    # Recursive: Use FileFilter walk approach similar to AnnotatedTreeGenerator but simpler output
+    # Recursive: Use standardized walk_tree
+    from app.utils.file import walk_tree
+
     file_filter = FileFilter()
     results = []
-    
+
     # Safety limit
     MAX_FILES = 1000
     count = 0
 
-    for current_root, dirs, files in os.walk(target_path):
-        # Prune dirs
-        dirs[:] = [d for d in dirs if d not in DEFAULT_EXCLUDED_DIRS and not d.startswith(".")]
-        
-        rel_dir = os.path.relpath(current_root, target_path)
-        if rel_dir == ".": rel_dir = ""
+    for full_path in walk_tree(target_path, filter_func=file_filter.should_include):
+        # list_files expects relative paths
+        rel_path = os.path.relpath(full_path, target_path)
+        results.append(rel_path)
+        count += 1
 
-        # Check files
-        for f in files:
-            full_path = os.path.join(current_root, f)
-            if file_filter.should_include(full_path):
-                results.append(os.path.join(rel_dir, f))
-                count += 1
-                if count >= MAX_FILES:
-                    results.append(f"... (Truncated at {MAX_FILES} files)")
-                    return "\n".join(results)
+        if count >= MAX_FILES:
+            results.append(f"... (Truncated at {MAX_FILES} files)")
+            return "\n".join(results)
 
     return "\n".join(sorted(results))
 
@@ -227,7 +222,7 @@ def grep_files(
     #
     # Fix: Rewrite `list_files` in `app/infrastructure/filesystem/tool.py` to use `FileFilter` + `os.walk` instead of `ls` command.
     # This aligns perfectly with "Unified Logic".
-    
+
     cmd = ["grep", "-r", "-n"]
     if case_insensitive:
         cmd.append("-i")

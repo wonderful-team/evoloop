@@ -11,6 +11,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from rapidfuzz import fuzz, process
 
+from typing import Callable, Iterator
 from app.constants import (
     BLACKLIST_FILE_EXTENSIONS,
     CODE_EXTENSION_MAP,
@@ -25,6 +26,69 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 # Path Resolution & Navigation
 # ============================================================================
+
+
+def walk_tree(
+    root_path: str,
+    filter_func: Callable[[str], bool] | None = None,
+    exclude_dirs: list[str] | None = None,
+    max_depth: int | None = None,
+    dir_filter: Callable[[str], bool] | None = None,
+) -> Iterator[str]:
+    """
+    Standardized directory walker that yields valid file paths.
+    Encapsulates directory pruning (node_modules, .git) and optional file filtering.
+
+    Args:
+        root_path: The root directory to walk.
+        filter_func: A callable that takes an absolute file path and returns True if it should be included.
+        exclude_dirs: A list of directory names to exclude (prune). Defaults to DEFAULT_EXCLUDED_DIRS.
+        max_depth: Maximum depth to traverse. 0 means only root. None means infinite.
+        dir_filter: A callable that takes an absolute directory path and returns True if it should be traversed.
+    """
+    if exclude_dirs is None:
+        exclude_dirs = DEFAULT_EXCLUDED_DIRS
+
+    root_path = os.path.abspath(root_path)
+    base_depth = root_path.rstrip(os.sep).count(os.sep)
+
+    for root, dirs, files in os.walk(root_path):
+        # Calculate depth
+        current_depth = root.rstrip(os.sep).count(os.sep) - base_depth
+
+        # Prune based on depth
+        if max_depth is not None and current_depth >= max_depth:
+            dirs[:] = []
+            # We still yield files at this level (frontier), but stop going deeper.
+
+        # Prune excluded directories
+        # We combine standard name-based pruning with custom path-based filtering
+        valid_dirs = []
+        for d in dirs:
+            if d in exclude_dirs or d.startswith("."):
+                continue
+            
+            if dir_filter:
+                dir_abs = os.path.join(root, d)
+                if not dir_filter(dir_abs):
+                    continue
+            
+            valid_dirs.append(d)
+        
+        dirs[:] = valid_dirs
+
+        for f in files:
+            # Skip hidden files (common convention)
+            if f.startswith("."):
+                continue
+
+            full_path = os.path.join(root, f)
+
+            if filter_func:
+                if filter_func(full_path):
+                    yield full_path
+            else:
+                yield full_path
 
 
 def resolve_path(file_path: str, base_path: str | None = None) -> str | None:

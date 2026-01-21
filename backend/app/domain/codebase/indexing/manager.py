@@ -172,29 +172,27 @@ class IndexingManager:
         """
         from app.domain.codebase.indexing.extractors.api_extractor import api_extractor
         from app.domain.codebase.indexing.extractors.db_extractor import db_extractor
+        from app.domain.codebase.filter import FileFilter
+        from app.utils.file import walk_tree
+
+        file_filter = FileFilter()
 
         # Walk once
         try:
-            for root, dirs, files in os.walk(repo_path):
-                if ".git" in dirs:
-                    dirs.remove(".git")
-                if "__pycache__" in dirs:
-                    dirs.remove("__pycache__")
+            for full_path in walk_tree(repo_path, filter_func=file_filter.should_include):
+                # Tier 4 specific: Only Python currently supported by these extractors
+                if not full_path.endswith(".py"):
+                    continue
 
-                for f in files:
-                    full_path = os.path.join(root, f)
+                # API Extraction
+                endpoints = await api_extractor.extract(full_path)
+                if endpoints:
+                    await api_extractor.sync_to_graph(project_id, endpoints)
 
-                    # API Extraction
-                    if f.endswith(".py"):  # Only Python supported currently
-                        # API
-                        endpoints = await api_extractor.extract(full_path)
-                        if endpoints:
-                            await api_extractor.sync_to_graph(project_id, endpoints)
-
-                        # DB
-                        tables = await db_extractor.extract(full_path)
-                        if tables:
-                            await db_extractor.sync_to_graph(project_id, tables)
+                # DB Extraction
+                tables = await db_extractor.extract(full_path)
+                if tables:
+                    await db_extractor.sync_to_graph(project_id, tables)
 
         except Exception as e:
             logger.error(f"Full Index Failed for Project {project_id}: {e}")
