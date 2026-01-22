@@ -111,7 +111,10 @@
             "analysis": "\n**Analysis:** {analysis}",
             "tool_summary": {
                 "read_file": "Reading '{path}'",
+                "read_file_result": "Read {lines} lines.",
                 "write_file": "Writing to '{path}'",
+                "file_op_result": "File operation successful.",
+                "plan_created": "Plan created with {count} steps.",
                 "edit_file": "Editing '{path}'",
                 "list_files": "Listing '{path}'",
                 "operate_file": "{action} '{path}'",

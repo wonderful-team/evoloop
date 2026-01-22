@@ -111,7 +111,10 @@
             "analysis": "\n**分析：** {analysis}",
             "tool_summary": {
                 "read_file": "正在读取 '{path}'",
+                "read_file_result": "已读取 {lines} 行。",
                 "write_file": "正在写入 '{path}'",
+                "file_op_result": "文件操作成功。",
+                "plan_created": "计划已创建，包含 {count} 个步骤。",
                 "edit_file": "正在编辑 '{path}'",
                 "list_files": "正在列出 '{path}'",
                 "operate_file": "{action} '{path}'",

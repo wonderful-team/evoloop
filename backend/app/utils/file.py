@@ -14,10 +14,11 @@ from rapidfuzz import fuzz, process
 from typing import Callable, Iterator
 from app.constants import (
     BLACKLIST_FILE_EXTENSIONS,
-    CODE_EXTENSION_MAP,
+    EXTENSION_MAP,
     DEFAULT_EXCLUDED_DIRS,
     DEFAULT_EXCLUDED_FILES,
     WHITELIST_FILE_EXTENSIONS,
+    TEST_FILE_PATTERNS,
 )
 
 logger = logging.getLogger(__name__)
@@ -293,52 +294,8 @@ def get_directory_size(path: str) -> int:
 
 def is_binary_file(file_path: str) -> bool:
     """Check if file is binary based on extension and content sampling."""
-    binary_extensions = {
-        ".pyc",
-        ".so",
-        ".dll",
-        ".exe",
-        ".bin",
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".gif",
-        ".bmp",
-        ".ico",
-        ".pdf",
-        ".zip",
-        ".tar",
-        ".gz",
-        ".tgz",
-        ".rar",
-        ".7z",
-        ".doc",
-        ".docx",
-        ".ppt",
-        ".pptx",
-        ".xls",
-        ".xlsx",
-        ".class",
-        ".jar",
-        ".war",
-        ".ear",
-        ".o",
-        ".a",
-        ".lib",
-        ".mp3",
-        ".mp4",
-        ".avi",
-        ".mov",
-        ".flv",
-        ".wmv",
-        ".wma",
-        ".ttf",
-        ".db",
-        ".DS_Store",
-    }
-
     ext = os.path.splitext(file_path)[1].lower()
-    if ext in binary_extensions:
+    if ext in BLACKLIST_FILE_EXTENSIONS:
         return True
 
     try:
@@ -387,15 +344,17 @@ def is_test_file(file_path: str) -> bool:
     """
     filename = os.path.basename(file_path)
 
-    # Common test patterns
-    if filename.startswith("test_") or filename.endswith("_test.py"):  # Python
-        return True
-    if filename.endswith((".test.js", ".spec.js", ".test.ts", ".spec.ts")):  # JS/TS
-        return True
-    if filename.endswith("_test.go"):  # Go
-        return True
-    if filename.endswith("Test.java") or filename.startswith("Test"):  # Java
-        return True
+    # Common test patterns from constants
+    for lang, patterns in TEST_FILE_PATTERNS.items():
+        for pattern in patterns:
+            if "." in pattern:
+                # Suffix match
+                if filename.endswith(pattern):
+                    return True
+            else:
+                # Prefix match or general containment
+                if filename.startswith(pattern):
+                    return True
 
     # Check for tests directory
     # Normalize path separators
@@ -436,7 +395,7 @@ def filter_code_files(
                 continue
 
         # Default check known code extensions
-        if ext in CODE_EXTENSION_MAP:
+        if ext in EXTENSION_MAP:
             code_files.append(file_path)
 
     return code_files

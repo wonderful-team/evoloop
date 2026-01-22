@@ -5,6 +5,7 @@ from langchain_core.tools import tool
 
 from app.core.engine.graph_builder import GraphBuilder
 from app.i18n.service import i18n
+from app.constants import YAML_EXTENSIONS
 
 logger = logging.getLogger("evoloop.orchestration")
 
@@ -26,7 +27,7 @@ class SkillRegistry:
             return
 
         for filename in os.listdir(AGENTS_DIR):
-            if filename.endswith(".yaml") or filename.endswith(".yml"):
+            if any(filename.endswith(ext) for ext in YAML_EXTENSIONS):
                 name = os.path.splitext(filename)[0]
                 self._skills[name] = os.path.join(AGENTS_DIR, filename)
 

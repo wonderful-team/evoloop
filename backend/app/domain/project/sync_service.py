@@ -1,10 +1,10 @@
+import logging
 import os
 
-from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.project.service import project_context_manager
 from app.infrastructure.external.evocloud import evocloud_client
-import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,6 +63,7 @@ class ProjectSyncService:
         # We use run_indexing_background which dispatches to Celery if possible.
         # This prevents blocking the main process and "massive logs" during startup reconciliation.
         try:
+            from app.domain.codebase.indexing.manager import indexing_manager
             await indexing_manager.start_watching(path, repo.id)
             await indexing_manager.run_indexing_background(repo.id)
         except Exception as e:
@@ -76,6 +77,7 @@ class ProjectSyncService:
 
         # 1. Stop Watching
         try:
+            from app.domain.codebase.indexing.manager import indexing_manager
             await indexing_manager.stop_watching(path)
         except Exception as e:
             logger.error(f"[ProjectSync] Failed to stop watching {path}: {e}")
@@ -114,6 +116,7 @@ class ProjectSyncService:
                 return
 
             # 2. Stop Old Watch
+            from app.domain.codebase.indexing.manager import indexing_manager
             await indexing_manager.stop_watching(src_path)
 
             # 3. Update Cloud (Best Effort)

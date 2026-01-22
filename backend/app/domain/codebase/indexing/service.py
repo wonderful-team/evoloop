@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from datetime import datetime, timezone
@@ -6,6 +7,10 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.codebase.indexing.base import BaseEmbedder
+from app.domain.codebase.indexing.components.content_indexer import ContentIndexer
+from app.domain.codebase.indexing.components.file_preparer import FilePreparer
+from app.domain.codebase.indexing.components.graph_syncer import GraphSyncer
+from app.domain.codebase.indexing.components.sql_persister import SQLPersister
 from app.domain.codebase.indexing.extractors.treesitter_extractor import (
     TreeSitterExtractor,
 )
@@ -27,11 +32,28 @@ logger = logging.getLogger(__name__)
 
 
 class IndexingService:
+    """
+    Orchestrates the file indexing pipeline using specialized components.
+
+    Components:
+    - FilePreparer: File filtering, reading, validation
+    - ContentIndexer: Code extraction, embedding generation
+    - SQLPersister: SQL database persistence
+    - GraphSyncer: Neo4j graph synchronization
+    """
+
     def __init__(self, session: AsyncSession = None):
         self.session_factory = AsyncSessionLocal
-        # Note: Extractor now returns ExtractionResult
+
+        # Legacy references (for backward compatibility)
         self.extractor = TreeSitterExtractor()
         self.embedder: BaseEmbedder = EmbedderFactory.get_embedder()
+
+        # New component-based architecture
+        self.file_preparer = FilePreparer()
+        self.content_indexer = ContentIndexer(self.extractor, self.embedder)
+        self.sql_persister = SQLPersister()
+        self.graph_syncer = GraphSyncer()
 
     async def get_repo_by_path(self, path: str) -> Repository | None:
         """
@@ -118,28 +140,14 @@ class IndexingService:
 
                 rel_path = os.path.relpath(file_path, repo.local_path)
 
-                # Check extension - FileFilter handled generic text check, but specific languages?
-                valid_extensions = (
-                    ".py",
-                    ".js",
-                    ".ts",
-                    ".go",
-                    ".java",
-                    ".cpp",
-                    ".cc",
-                    ".cxx",
-                    ".h",
-                    ".hpp",
-                    ".rs",
-                    ".php",
-                    ".rb",
-                    ".md",
-                )
-                if not file_path.endswith(valid_extensions):
-                    # FileFilter might pass a .txt or .json, but indexing service might strictly want code.
-                    # Let's keep this check for now to be safe, or expand it using constants.
-                    # Or rely on Extractor capability. TreeSitterExtractor supports specific languages.
-                    # Let's keep it to avoid regression but rely on FileFilter for "Bad Files"
+                # Check if the file extension is supported by ParserRegistry
+                # This replaces the hardcoded extension list with dynamic lookup
+                from app.domain.codebase.indexing.parsers import parser_registry
+                from app.utils.file import get_file_ext
+
+                ext = get_file_ext(file_path).lstrip(".")
+                # Allow markdown (.md) explicitly, and any extension with a parser
+                if ext != "md" and parser_registry.get_parser(ext) is None:
                     return
 
                 # Optimization: Check mtime first to avoid reading file content
@@ -531,8 +539,31 @@ class IndexingService:
 
         logger.info(f"Found {len(filtered_files)} valid files to index (Applied .gitignore).")
 
-        # Sequentially index files (could be parallelized)
-        for f in filtered_files:
-            await self.index_file(f, repo_id, force=force)
+        # Concurrent indexing with batch processing
+        CONCURRENT_FILES = 30  # Files per batch (adjust based on system resources)
+        total_files = len(filtered_files)
+        indexed_count = 0
+        error_count = 0
 
-        logger.info("Full indexing complete.")
+        for i in range(0, total_files, CONCURRENT_FILES):
+            batch = filtered_files[i:i+CONCURRENT_FILES]
+
+            # Create tasks for concurrent execution
+            tasks = [self.index_file(f, repo_id, force=force) for f in batch]
+
+            # Execute batch concurrently, capture exceptions
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            # Process results
+            for idx, result in enumerate(results):
+                if isinstance(result, Exception):
+                    error_count += 1
+                    logger.error(f"Failed to index {batch[idx]}: {result}")
+                else:
+                    indexed_count += 1
+
+            # Progress logging
+            progress = min(i + CONCURRENT_FILES, total_files)
+            logger.info(f"Progress: {progress}/{total_files} files ({indexed_count} success, {error_count} errors)")
+
+        logger.info(f"Full indexing complete. Indexed: {indexed_count}, Errors: {error_count}")

@@ -9,6 +9,7 @@ from typing import Any
 
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
+from app.utils.file import get_file_ext
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,8 @@ class CodeAnalyzer:
         if not content:
             return {}
 
-        ext = file_path.split(".")[-1].lower()
+        ext_dot = get_file_ext(file_path)
+        ext = ext_dot.lstrip(".")
 
         parser_info = parser_registry.get_parser(ext)
         if not parser_info:

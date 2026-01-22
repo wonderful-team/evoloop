@@ -1,12 +1,10 @@
 import os
 
 from app.constants import (
-    # Wait, EXTENSION_MAP was in document_reader.py in the original code, but I moved `app/domain/codebase/constants.py` to `app/constants.py`.
-    # `app/domain/codebase/constants.py` had `CODE_EXTENSION_MAP` and `FILE_EXTENSION_TO_TYPE` but NOT `EXTENSION_MAP` (which was specific to document reader).
-    # I should merge them or use what's available. `CODE_EXTENSION_MAP` is good.
-    CODE_EXTENSION_MAP,
+    EXTENSION_MAP,
     FILE_EXTENSION_TO_TYPE,
     DocumentType,
+    SHEBANG_MAP,
 )
 
 # If EXTENSION_MAP is missing in constants, I should probably define a comprehensive one here or rely on CODE_EXTENSION_MAP.
@@ -24,20 +22,15 @@ def detect_language(file_path: str, content: str | None = None) -> str:
     ext = ext.lower()
 
     # Check known extensions
-    if ext in CODE_EXTENSION_MAP:
-        return CODE_EXTENSION_MAP[ext]
+    if ext in EXTENSION_MAP:
+        return EXTENSION_MAP[ext]
 
-    # Fallback/Additional from document_reader legacy
-    # If not found, maybe return 'text' or try content analysis (shebang)
-
+    # Fallback: shebang detection
     if content and content.startswith("#!"):
-        first_line = content.split("\n")[0]
-        if "python" in first_line:
-            return "python"
-        if "bash" in first_line or "sh" in first_line:
-            return "bash"
-        if "node" in first_line:
-            return "javascript"
+        first_line = content.splitlines()[0]
+        for lang, patterns in SHEBANG_MAP.items():
+            if any(pattern in first_line for pattern in patterns):
+                return lang
 
     return "text"
 
@@ -63,10 +56,10 @@ def is_code_file(file_path: str, _content: str | None = None) -> bool:
     Check if the file is a code file based on extension or filename.
     """
     filename = os.path.basename(file_path)
-    if filename in CODE_EXTENSION_MAP:
+    if filename in EXTENSION_MAP:
         return True
 
     _, ext = os.path.splitext(filename)
     ext = ext.lower()
 
-    return ext in CODE_EXTENSION_MAP
+    return ext in EXTENSION_MAP

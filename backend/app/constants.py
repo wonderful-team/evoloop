@@ -67,6 +67,10 @@ AUDIO_EXTENSIONS = [
 # Compressed and binary file extensions
 BINARY_EXTENSIONS = [
     ".zip", ".rar", ".7z", ".zlib", ".dll", ".ipynb",  # Jupyter notebooks
+    ".pyc", ".so", ".exe", ".bin",
+    ".tar", ".gz", ".tgz", ".jar", ".war", ".ear",
+    ".o", ".a", ".lib",
+    ".db", ".class",
 ]
 
 # System and low-level programming languages
@@ -78,6 +82,13 @@ LOW_LEVEL_EXTENSIONS = [
 SCRIPT_EXTENSIONS = [
     ".py", ".rb", ".js", ".mjs", ".php", ".pl", ".pm", ".lua", ".sh", ".swift",
 ]
+# Common Testing Related Patterns
+TEST_FILE_PATTERNS = {
+    "python": ["test_", "_test.py"],
+    "javascript": [".test.js", ".spec.js", ".test.ts", ".spec.ts"],
+    "go": ["_test.go"],
+    "java": ["Test.java"],
+}
 
 # Functional programming languages
 FUNCTIONAL_EXTENSIONS = [
@@ -93,6 +104,9 @@ WEB_EXTENSIONS = [
 CONFIG_EXTENSIONS = [
     ".cfg", ".conf", ".ini", ".json", ".properties", ".toml", ".xml", ".yaml", ".yml",
 ]
+
+# YAML specific extensions
+YAML_EXTENSIONS = [".yaml", ".yml"]
 
 # Documentation and text files
 DOC_TEXT_EXTENSIONS = [
@@ -144,7 +158,7 @@ SOURCE_MAP_EXTENSIONS = [".map", ".sourcemap"]
 
 # Development environment blacklisted directories
 DEV_ENV_DIRS = [
-    ".venv", "venv", "env", ".idea", ".vscode", ".git", ".github", ".gitlab",
+    ".venv", "venv", "env", ".idea", ".vscode", ".git", ".github", ".gitlab", ".vs",
 ]
 
 # Cache and temporary file directories
@@ -157,12 +171,18 @@ BUILD_DEPLOY_DIRS = [
     "dist",
     "build",
     "node_modules",
+    "vendor",
     "cdk.out",
     ".aws-sam",
     ".terraform",
     ".angular",
     ".next",
     "_nuxt",
+    "bin",
+    "obj",
+    "packages",
+    "coverage",
+    ".output",
 ]
 
 # All blacklisted directories
@@ -187,6 +207,7 @@ EXCLUDED_PATTERNS = [
     r"\.git/",
     r"\.github/",
     r"node_modules/",
+    r"vendor/",
     r"venv/",
     r"__pycache__/",
     r"\.pyc",
@@ -229,6 +250,31 @@ LIKELY_COMPRESSED_CODE_DIRS = [
     "public/assets",
     "static/vendor",
 ]
+
+# Software project identification indicators
+SOFTWARE_INDICATORS = {
+    "package.json",
+    "go.mod",
+    "pom.xml",
+    "build.gradle",
+    "requirements.txt",
+    "Cargo.toml",
+    "Gemfile",
+    "composer.json",
+    "Makefile",
+    "tsconfig.json",
+    "pyproject.toml",
+    "setup.py",
+    "pnpm-lock.yaml",
+}
+
+SOFTWARE_DIRECTORIES = {
+    "src",
+    "app",
+    "lib",
+    "pkg",
+    "cmd",
+}
 
 # Identification patterns for main files: Entry point patterns
 ENTRY_PATTERNS = [
@@ -286,6 +332,9 @@ COMPRESSED_FILE_PATTERNS = [
     r"vendors\-[a-f0-9]{6,}\.(js|css)$",  # Vendor files
 ]
 
+# Extensions that are commonly compressed or minified
+COMPRESSIBLE_EXTENSIONS = {".js", ".css", ".html", ".map", ".json"}
+
 # Code quality thresholds (for compressed code detection)
 CODE_QUALITY_THRESHOLDS = {
     "max_line_length": 500,  # Maximum line length
@@ -300,47 +349,6 @@ CODE_QUALITY_THRESHOLDS = {
 # File encoding attempt order
 FILE_ENCODINGS = ["utf-8", "latin-1", "utf-16", "ascii"]
 
-# Code File Extension Map
-CODE_EXTENSION_MAP = {
-    # Python
-    ".py": "python",
-    ".pyi": "python",
-    # JavaScript/TypeScript
-    ".js": "javascript",
-    ".jsx": "javascript",
-    ".ts": "typescript",
-    ".tsx": "typescript",
-    # Vue
-    ".vue": "Vue",
-    # Java
-    ".java": "java",
-    # C/C++
-    ".c": "c",
-    ".h": "c",
-    ".cpp": "cpp",
-    ".cc": "cpp",
-    ".cxx": "cpp",
-    ".hpp": "cpp",
-    # Go
-    ".go": "go",
-    # Ruby
-    ".rb": "ruby",
-    # PHP
-    ".php": "php",
-    # C#
-    ".cs": "c_sharp",
-    # Rust
-    ".rs": "rust",
-    # Swift
-    ".swift": "swift",
-    ".html": "html",
-    ".css": "css",
-    ".scss": "scss",
-    ".sql": "sql",
-    ".sh": "shell",
-    ".md": "markdown",
-}
-
 # Merged from document_reader.py
 EXTENSION_MAP = {
     # Python
@@ -351,6 +359,10 @@ EXTENSION_MAP = {
     ".jsx": "javascript",
     ".ts": "typescript",
     ".tsx": "typescript",
+    ".mts": "typescript",
+    ".cts": "typescript",
+    ".mjs": "javascript",
+    ".cjs": "javascript",
     # Web
     ".html": "html",
     ".css": "css",
@@ -396,6 +408,34 @@ EXTENSION_MAP = {
     ".vue": "vue",
     ".svelte": "svelte",
 }
+
+# Mapping shebang patterns to language
+SHEBANG_MAP = {
+    "python": ["python"],
+    "bash": ["bash", "sh"],
+    "javascript": ["node"],
+}
+
+# ====================== Semantic / Structural Analysis Constants ======================
+# Languages supported for semantic extraction (API, DB, etc.)
+SEMANTIC_LANGUAGE_MAP = {
+    # Core languages
+    "python": [".py", ".pyi"],
+    "typescript": [".ts", ".tsx", ".mts", ".cts"],
+    "javascript": [".js", ".jsx", ".mjs", ".cjs"],
+    "java": [".java"],
+    "go": [".go"],
+    "csharp": [".cs"],
+    # Extended languages
+    "php": [".php"],
+    "ruby": [".rb"],
+    "rust": [".rs"],
+    "kotlin": [".kt", ".kts"],
+    "swift": [".swift"],
+    "sql": [".sql"],
+    "vue": [".vue"],
+}
+SEMANTIC_EXTENSIONS = {ext for exts in SEMANTIC_LANGUAGE_MAP.values() for ext in exts}
 
 # ====================== Model Constants ======================
 MODEL_GPT4O = "gpt-4o"

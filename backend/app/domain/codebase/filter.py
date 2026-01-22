@@ -15,6 +15,10 @@ from app.constants import (
     LIKELY_COMPRESSED_CODE_DIRS,
     SOURCE_MAP_EXTENSIONS,
     SUSPICIOUS_JS_PATTERNS,
+    COMPRESSIBLE_EXTENSIONS,
+    SEMANTIC_LANGUAGE_MAP,
+    DEFAULT_EXCLUDED_DIRS,
+    DEFAULT_EXCLUDED_FILES,
 )
 from app.utils.file import get_file_ext, is_encrypted_path, is_text_file
 
@@ -82,7 +86,19 @@ class FileFilter:
             return False
 
         # Exclude hidden files and directories
-        if any(part.startswith(".") for part in file_path.split(os.path.sep)):
+        path_parts = file_path.split(os.path.sep)
+        if any(part.startswith(".") for part in path_parts):
+            self._file_inclusion_cache[cache_key] = False
+            return False
+
+        # Exclude blacklisted directories
+        if any(d in path_parts for d in DEFAULT_EXCLUDED_DIRS):
+            self._file_inclusion_cache[cache_key] = False
+            return False
+
+        # Exclude blacklisted files
+        file_name = os.path.basename(file_path)
+        if any(file_name.endswith(ef) for ef in DEFAULT_EXCLUDED_FILES):
             self._file_inclusion_cache[cache_key] = False
             return False
 
@@ -163,7 +179,8 @@ class FileFilter:
                 return True
 
         # Valid extensions for content check
-        if file_path.endswith((".js", ".css", ".html")):
+        ext = get_file_ext(file_path)
+        if ext in COMPRESSIBLE_EXTENSIONS:
             return self._is_compressed_content(file_path)
 
         return False
@@ -225,7 +242,8 @@ class FileFilter:
                 return True
 
             # 4. Semicolon density (for JS)
-            if file_path.endswith(".js"):
+            ext = get_file_ext(file_path)
+            if ext in SEMANTIC_LANGUAGE_MAP["javascript"]:
                 semicolon_ratio = content.count(";") / max(len(content), 1)
                 if semicolon_ratio > CODE_QUALITY_THRESHOLDS["max_semicolon_ratio"]:
                     return True
@@ -241,7 +259,7 @@ class FileFilter:
                 return True
 
             # 6. Variable Name Analysis (Short vars)
-            if file_path.endswith((".js", ".ts")):
+            if ext in SEMANTIC_LANGUAGE_MAP["javascript"] or ext in SEMANTIC_LANGUAGE_MAP["typescript"]:
                 short_vars = len(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]?\b", content))
                 total_words = len(re.findall(r"\b[a-zA-Z_][a-zA-Z0-9_]*\b", content))
 

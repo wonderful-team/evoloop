@@ -11,7 +11,7 @@ from app.domain.codebase.indexing.base import (
 )
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
-from app.utils.file import is_test_file
+from app.utils.file import get_file_ext, is_test_file
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,8 @@ class TreeSitterExtractor(BaseExtractor):
             module_path: Relative path or unique module identifier. Used for 'full_name' uniqueness.
                          If None, defaults to file_path (which might be absolute, less ideal).
         """
-        extension = file_path.split(".")[-1]
+        ext_dot = get_file_ext(file_path)
+        extension = ext_dot.lstrip(".")
 
         # Default module_path to file_name if not provided, or full path
         if not module_path:
@@ -98,12 +99,25 @@ class TreeSitterExtractor(BaseExtractor):
 
         lang_key = parser_registry.get_language_key(extension)
 
-        query_data = TREE_SITTER_QUERIES.get(lang_key)
-        if not query_data or "defs" not in query_data:
-            logger.debug(f"No queries for language {lang_key}")
+        # Priority: Use provider's get_structure_query() if available
+        # Fallback: Use TREE_SITTER_QUERIES dictionary
+        from .provider_registry import semantic_provider_registry
+        provider = semantic_provider_registry.get(lang_key)
+
+        query_str = None
+        if provider:
+            query_str = provider.get_structure_query()
+
+        # Fallback to queries.py if provider doesn't have structure query
+        if not query_str:
+            query_data = TREE_SITTER_QUERIES.get(lang_key)
+            if query_data and "defs" in query_data:
+                query_str = query_data["defs"]
+
+        if not query_str:
+            logger.debug(f"No structure query for language {lang_key}")
             return ExtractionResult(documents=[], entities=[], relations=[])
 
-        query_str = query_data["defs"]
         try:
             query = language.query(query_str)
 

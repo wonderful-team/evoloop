@@ -52,9 +52,9 @@ class CodeEntity(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     file_id: Mapped[int] = mapped_column(ForeignKey("source_files.id"))
 
-    name: Mapped[str] = mapped_column(String(255), index=True)
+    name: Mapped[str] = mapped_column(String(1024), index=True)
     type: Mapped[str] = mapped_column(String(50))  # class, function, variable
-    full_name: Mapped[str] = mapped_column(String(512), index=True)  # FQN, e.g. module.Class.method
+    full_name: Mapped[str] = mapped_column(String(1024), index=True)  # FQN, e.g. module.Class.method
 
     start_line: Mapped[int] = mapped_column(Integer)
     end_line: Mapped[int] = mapped_column(Integer)
@@ -87,7 +87,7 @@ class CodeRelation(Base):
 
     source_entity_id: Mapped[int] = mapped_column(ForeignKey("code_entities.id"))
     target_entity_id: Mapped[int | None] = mapped_column(ForeignKey("code_entities.id"), nullable=True)
-    target_name: Mapped[str | None] = mapped_column(String(512), index=True)  # Unresolved target name
+    target_name: Mapped[str | None] = mapped_column(String(1024), index=True)  # Unresolved target name
 
     relation_type: Mapped[str] = mapped_column(String(50))  # calls, inherits, imports, defines
 
@@ -119,7 +119,7 @@ class CodeChunk(Base):
 
     # Chunk Metadata
     chunk_type: Mapped[str] = mapped_column(String(50))  # e.g. "function", "class", "module"
-    identifier: Mapped[str] = mapped_column(String(255))  # e.g. "MyClass.my_method"
+    identifier: Mapped[str] = mapped_column(String(1024))  # e.g. "MyClass.my_method"
     start_line: Mapped[int] = mapped_column(Integer)
     end_line: Mapped[int] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)

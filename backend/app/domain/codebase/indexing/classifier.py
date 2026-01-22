@@ -2,6 +2,8 @@ import logging
 import os
 from enum import Enum
 
+from app.constants import EXTENSION_MAP, SOFTWARE_DIRECTORIES, SOFTWARE_INDICATORS
+
 logger = logging.getLogger(__name__)
 
 
@@ -17,42 +19,8 @@ class ProjectClassifier:
     Used to gate resource-intensive indexing steps (API/DB extraction).
     """
 
-    SOFTWARE_INDICATORS = {
-        # Files
-        "package.json",
-        "go.mod",
-        "pom.xml",
-        "build.gradle",
-        "requirements.txt",
-        "Cargo.toml",
-        "Gemfile",
-        "composer.json",
-        "Makefile",
-        "tsconfig.json",
-        "pyproject.toml",
-        # Directories
-        "src",
-        "app",
-        "lib",
-        "pkg",
-        "cmd",
-    }
-
-    CODE_EXTENSIONS = {
-        ".py",
-        ".js",
-        ".ts",
-        ".go",
-        ".java",
-        ".cpp",
-        ".c",
-        ".h",
-        ".rs",
-        ".php",
-        ".rb",
-        ".kt",
-        ".swift",
-    }
+    SOFTWARE_MARKERS = SOFTWARE_INDICATORS | SOFTWARE_DIRECTORIES
+    CODE_EXTENSIONS = set(EXTENSION_MAP.keys())
 
     def classify(self, root_path: str) -> ProjectType:
         """
@@ -65,7 +33,7 @@ class ProjectClassifier:
         try:
             # 1. Check for Strong Indicators (Config files) in Root
             entries = set(os.listdir(root_path))
-            intersection = self.SOFTWARE_INDICATORS.intersection(entries)
+            intersection = self.SOFTWARE_MARKERS.intersection(entries)
 
             if intersection:
                 logger.info(f"[Classifier] Classified {root_path} as SOFTWARE (Indicators: {intersection})")

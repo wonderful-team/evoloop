@@ -1,8 +1,11 @@
 import logging
-import re
+import os
 from dataclasses import dataclass
 
+from app.constants import SEMANTIC_LANGUAGE_MAP
 from app.utils.file import read_file_content
+
+from .sem_provider import LanguageSemanticProvider
 
 logger = logging.getLogger(__name__)
 
@@ -17,17 +20,29 @@ class DBTable:
 class DBExtractor:
     """
     Extracts Database Schema from code.
-    Supports SQLAlchemy models.
+    Acts as a dispatcher to language-specific providers.
     """
 
-    # Class inheriting from Base or something with __tablename__
-    # This is hard with Regex. But let's try finding __tablename__ = "..."
-    TABLENAME_PATTERN = re.compile(r'__tablename__\s*=\s*["\']([^"\']+)["\']')
-    COLUMN_PATTERN = re.compile(r"([a-zA-Z0-9_]+)\s*:\s*Mapped\[.*\]\s*=\s*mapped_column")  # SQLAlchemy 2.0 style
+    def __init__(self):
+        # Use shared provider registry instead of creating own instances
+        from .provider_registry import semantic_provider_registry
+        self._registry = semantic_provider_registry
+
+    def _get_provider(self, lang_name: str) -> LanguageSemanticProvider | None:
+        """Get provider from shared registry."""
+        return self._registry.get(lang_name)
 
     async def extract(self, file_path: str) -> list[DBTable]:
-        tables = []
-        if not file_path.endswith(".py"):
+        ext = os.path.splitext(file_path)[1].lower()
+
+        lang_name = None
+        for name, exts in SEMANTIC_LANGUAGE_MAP.items():
+            if ext in exts:
+                lang_name = name
+                break
+
+        provider = self._get_provider(lang_name) if lang_name else None
+        if not provider:
             return []
 
         try:
@@ -35,39 +50,9 @@ class DBExtractor:
             if not content:
                 return []
 
-            # Simple State Machine or context aware scan
-            lines = content.splitlines()
-            current_table = None
-            current_columns = []
-
-            for line in lines:
-                # Check for table definition
-                cls_match = re.search(r"class\s+([a-zA-Z0-9_]+)\(Base\)", line)  # Strict Base check
-                if cls_match:
-                    # New class started, save previous if valid
-                    if current_table and current_columns:
-                        tables.append(DBTable(current_table, file_path, list(current_columns)))
-                    current_table = None  # Reset until we find tablename
-                    current_columns = []
-                    continue
-
-                name_match = self.TABLENAME_PATTERN.search(line)
-                if name_match:
-                    current_table = name_match.group(1)
-                    continue
-
-                if current_table:
-                    # Look for columns
-                    col_match = self.COLUMN_PATTERN.search(line)
-                    if col_match:
-                        current_columns.append(col_match.group(1))
-
-            # End of file
-            if current_table and current_columns:
-                tables.append(DBTable(current_table, file_path, list(current_columns)))
-
-            return tables
-        except Exception:
+            return provider.extract_db(file_path, content)
+        except Exception as e:
+            logger.error(f"DB Extraction failed for {file_path}: {e}")
             return []
 
     async def sync_to_graph(self, project_id: int, tables: list[DBTable]):

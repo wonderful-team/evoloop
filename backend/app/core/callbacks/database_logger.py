@@ -28,9 +28,16 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         self.project_id = project_id
         self.run_id = run_id  # Phase 3: Associate messages with runs
         self._sequence_counter = start_sequence  # Track message order within thread
+        self._run_tool_map = {}  # Map run_id to tool_name for visibility filtering
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         pass
+
+    async def on_tool_start(self, serialized: dict[str, Any], input_str: str, *, run_id: UUID, **kwargs: Any) -> Any:
+        """Track which tool is running for a given run_id."""
+        tool_name = serialized.get("name")
+        if tool_name:
+            self._run_tool_map[str(run_id)] = tool_name
 
     async def on_chat_model_start(
         self,
@@ -214,12 +221,109 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     ) -> Any:
         # Capture tool output
         # Used for history and debugging
+
+        # 1. Determine Tool Name and Visibility
+        run_id_str = str(run_id)
+        tool_name = self._run_tool_map.get(run_id_str, "unknown_tool")
+
+        # Clean up map
+        if run_id_str in self._run_tool_map:
+            del self._run_tool_map[run_id_str]
+
+        visibility = self._get_tool_visibility(tool_name)
+        if visibility == "HIDDEN":
+            return
+
+        # 2. Process Content (Folding/Summarizing)
+        content_to_show = str(output)
+        if visibility == "FOLDED":
+            content_to_show = self._summarize_tool_output(tool_name, str(output))
+
         await self._save_log(
             role="tool",
-            content=str(output),
+            content=content_to_show,
             status="completed",
-            tool_output=str(output),
+            tool_output=str(output),  # Always persist full output in tool_output column
         )
+
+    def _get_tool_visibility(self, tool_name: str) -> str:
+        """
+        Classify tool visibility.
+        VISIBLE: Store naturally.
+        HIDDEN: Do not store message at all.
+        FOLDED: Store summary in content, full data in tool_output.
+        """
+        # A. Visible (High Value)
+        if tool_name in [
+            "analyze_feasibility",
+            "search_web",
+            "deep_research",
+            "run_command",
+            "run_shell_command",
+            "request_human_input",
+            "request_approval",
+            "query_graph_natural_language",
+            "manage_git",
+        ]:
+            return "VISIBLE"
+
+        # B. Hidden (Internal/Noisy)
+        if tool_name in [
+            "consult_lsp",
+            "update_step_status",
+            "list_files",
+            "file_system",
+            "manage_memory",
+            "explore_codebase",
+            "search_codebase",  # Usually summarized by Planner, raw output is noisy
+            "view_code_item",
+        ]:
+            return "HIDDEN"
+
+        # C. Folded (Summarized)
+        if tool_name in [
+            "read_file",
+            "write_file",
+            "edit_file",
+            "manage_file",
+            "create_plan",  # JSON state
+        ]:
+            return "FOLDED"
+
+        # Default
+        return "VISIBLE"
+
+    def _summarize_tool_output(self, tool_name: str, output: str) -> str:
+        """Create a user-friendly summary for folded tools."""
+        try:
+            if tool_name == "read_file":
+                # "Read 500 lines..."
+                line_count = len(output.splitlines())
+                return i18n.get("prompts.database_logger.tool_summary.read_file_result", lines=line_count)
+
+            elif tool_name in ["write_file", "edit_file", "manage_file"]:
+                # The tools usually return "File updated successfully" or similar.
+                # We can just show that short message, or a standard one.
+                # If output is short (< 200 chars), just show it.
+                if len(output) < 200:
+                    return output
+                return i18n.get("prompts.database_logger.tool_summary.file_op_result")
+
+            elif tool_name == "create_plan":
+                # Output is JSON. Parse to get step count.
+                try:
+                    data = json.loads(output)
+                    steps = data.get("steps", [])
+                    return i18n.get("prompts.database_logger.tool_summary.plan_created", count=len(steps))
+                except:
+                    return "Plan Created."
+        except Exception:
+            pass
+
+        # Fallback: Truncate
+        if len(output) > 200:
+            return output[:200] + "... (See Details)"
+        return output
 
     async def _save_log(
         self,

@@ -14,8 +14,8 @@ engine = create_async_engine(
     str(settings.SQLALCHEMY_DATABASE_URI),
     echo=settings.DB_ECHO,
     future=True,
-    pool_size=20,
-    max_overflow=10,
+    pool_size=50,  # Increased for concurrent indexing (was 20)
+    max_overflow=100,  # Increased for burst capacity (was 10)
 )
 
 # Create Session Factory

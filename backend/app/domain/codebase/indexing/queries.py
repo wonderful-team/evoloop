@@ -31,7 +31,7 @@ TREE_SITTER_QUERIES = {
             (import_declaration name: (scoped_identifier) @module) @import
         """,
     },
-    "c_sharp": {
+    "csharp": {
         "defs": """
             (class_declaration name: (identifier) @name body: (declaration_list) @body) @class
             (method_declaration name: (identifier) @name body: (block) @body) @function
@@ -99,6 +99,44 @@ TREE_SITTER_QUERIES = {
         """,
         "imports": """
             (call method: (identifier) @method arguments: (argument_list (string) @module) (#match? @method "^(require|require_relative)$")) @import
+        """,
+    },
+    "kotlin": {
+        "defs": """
+            (function_declaration (simple_identifier) @name) @function
+            (class_declaration (simple_identifier) @name) @class
+            (object_declaration (simple_identifier) @name) @class
+        """,
+        "imports": """
+            (import_header (identifier) @module) @import
+        """,
+    },
+    "swift": {
+        "defs": """
+            (function_declaration name: (simple_identifier) @name) @function
+            (class_declaration name: (simple_identifier) @name) @class
+            (struct_declaration name: (simple_identifier) @name) @class
+            (enum_declaration name: (simple_identifier) @name) @class
+        """,
+        "imports": """
+            (import_declaration (identifier) @module) @import
+        """,
+    },
+    "sql": {
+        "defs": """
+            (create_table_statement name: (object_reference (identifier) @name)) @function
+            (create_view_statement name: (object_reference (identifier) @name)) @function
+            (create_function_statement name: (identifier) @name) @function
+        """,
+        "imports": "",
+    },
+    "vue": {
+        "defs": """
+            (script_element (raw_text) @script)
+            (template_element (raw_text) @template)
+        """,
+        "imports": """
+            (import_statement source: (string) @module) @import
         """,
     },
 }

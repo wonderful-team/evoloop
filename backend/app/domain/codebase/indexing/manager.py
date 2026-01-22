@@ -138,13 +138,13 @@ class IndexingManager:
                             p_type = project_classifier.classify(repo.local_path)
 
                             if p_type == ProjectType.SOFTWARE:
-                                logger.info("Project classified as SOFTWARE. Running Tier 4 Indexing (API/DB)...")
-                                await self._run_tier4_indexing(repo.local_path, repo.project_id)
+                                logger.info("Project classified as SOFTWARE. Running Semantic Extraction (API/DB)...")
+                                await self._run_semantic_extraction(repo.local_path, repo.project_id)
                             else:
-                                logger.info(f"Project classified as {p_type}. Skipping Tier 4 Indexing.")
+                                logger.info(f"Project classified as {p_type}. Skipping Semantic Extraction.")
 
                         except Exception as e:
-                            logger.error(f"Tier 4 Indexing Failed: {e}")
+                            logger.error(f"Semantic Extraction Failed: {e}")
 
                 self._active_jobs[project_id] = "done"
 
@@ -166,13 +166,14 @@ class IndexingManager:
             logger.error(f"Failed to dispatch indexing task: {e}")
             self._active_jobs[project_id] = "error_dispatch"
 
-    async def _run_tier4_indexing(self, repo_path: str, project_id: int):
+    async def _run_semantic_extraction(self, repo_path: str, project_id: int):
         """
-        Run specialized extractors for Software Projects (API, DB, Tech Debt).
+        Run semantic extractors for Software Projects (API endpoints, DB schemas).
         """
+        from app.constants import SEMANTIC_EXTENSIONS, SEMANTIC_LANGUAGE_MAP
+        from app.domain.codebase.filter import FileFilter
         from app.domain.codebase.indexing.extractors.api_extractor import api_extractor
         from app.domain.codebase.indexing.extractors.db_extractor import db_extractor
-        from app.domain.codebase.filter import FileFilter
         from app.utils.file import walk_tree
 
         file_filter = FileFilter()
@@ -180,8 +181,10 @@ class IndexingManager:
         # Walk once
         try:
             for full_path in walk_tree(repo_path, filter_func=file_filter.should_include):
-                # Tier 4 specific: Only Python currently supported by these extractors
-                if not full_path.endswith(".py"):
+                ext = os.path.splitext(full_path)[1].lower()
+
+                # Check if file is a supported semantic language type
+                if ext not in SEMANTIC_EXTENSIONS:
                     continue
 
                 # API Extraction
@@ -189,10 +192,11 @@ class IndexingManager:
                 if endpoints:
                     await api_extractor.sync_to_graph(project_id, endpoints)
 
-                # DB Extraction
-                tables = await db_extractor.extract(full_path)
-                if tables:
-                    await db_extractor.sync_to_graph(project_id, tables)
+                # DB Extraction (Currently limited to Python)
+                if ext in SEMANTIC_LANGUAGE_MAP["python"]:
+                    tables = await db_extractor.extract(full_path)
+                    if tables:
+                        await db_extractor.sync_to_graph(project_id, tables)
 
         except Exception as e:
             logger.error(f"Full Index Failed for Project {project_id}: {e}")
