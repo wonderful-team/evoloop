@@ -1,14 +1,13 @@
 from typing import Any
-
 from .sem_provider import LanguageSemanticProvider
 
 
-class TSJSSemanticProvider(LanguageSemanticProvider):
+class JavaScriptSemanticProvider(LanguageSemanticProvider):
     def get_language_name(self) -> str:
-        return "typescript"  # Also used for javascript
+        return "javascript"
 
     def get_structure_query(self) -> str:
-        """Query for TS/JS function and class definitions."""
+        """Query for JavaScript function and class definitions."""
         return """
             (function_declaration name: (identifier) @name) @function
             (class_declaration name: (identifier) @name) @class
@@ -16,7 +15,7 @@ class TSJSSemanticProvider(LanguageSemanticProvider):
         """
 
     def get_imports_query(self) -> str:
-        """Query for TS/JS imports."""
+        """Query for JavaScript imports."""
         return """
             (import_statement source: (string) @module) @import
             (call_expression function: (identifier) @func arguments: (arguments (string) @module) (#eq? @func "require")) @import
@@ -47,10 +46,7 @@ class TSJSSemanticProvider(LanguageSemanticProvider):
             return []
 
         method = method_node.text.decode("utf8").lower()
-        # HTTP_METHODS check is usually done in dispatcher or here
-
         path_text = path_node.text.decode("utf8")
-        # Remove quotes or backticks
         if path_text.startswith(("'", '"', "`")):
             path = path_text[1:-1]
         else:
@@ -67,3 +63,23 @@ class TSJSSemanticProvider(LanguageSemanticProvider):
             file_path=file_path,
             line_number=method_node.start_point[0] + 1
         )]
+
+
+class TypeScriptSemanticProvider(JavaScriptSemanticProvider):
+    def get_language_name(self) -> str:
+        return "typescript"
+
+    def get_structure_query(self) -> str:
+        """Query for TypeScript function, class, and interface definitions."""
+        return """
+            (function_declaration name: (identifier) @name) @function
+            (class_declaration name: (_) @name) @class
+            (method_definition name: (property_identifier) @name) @function
+            (interface_declaration name: (_) @name) @class
+        """
+
+    def get_imports_query(self) -> str:
+        """Query for TypeScript imports."""
+        return """
+            (import_statement source: (string) @module) @import
+        """

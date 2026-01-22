@@ -40,13 +40,13 @@ class SemanticProviderRegistry:
         from .rust_provider import RustSemanticProvider
         from .sql_provider import SQLSemanticProvider
         from .swift_provider import SwiftSemanticProvider
-        from .ts_js_provider import TSJSSemanticProvider
+        from .ts_js_provider import TypeScriptSemanticProvider, JavaScriptSemanticProvider
         from .vue_provider import VueSemanticProvider
 
         # Register core providers
         self.register("python", PythonSemanticProvider())
-        self.register("typescript", TSJSSemanticProvider())
-        self.register("javascript", TSJSSemanticProvider())
+        self.register("typescript", TypeScriptSemanticProvider())
+        self.register("javascript", JavaScriptSemanticProvider())
         self.register("java", JavaSemanticProvider())
         self.register("go", GoSemanticProvider())
         self.register("csharp", CSharpSemanticProvider())
