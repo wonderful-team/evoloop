@@ -34,8 +34,7 @@ class PromptOptimizer:
         Reflects on the failure and returns a better prompt.
         """
         try:
-            provider = await SystemConfigService.get_value("provider") or "openai"
-            llm = LLMFactory.create_llm(provider=provider, smart=True)
+            llm = LLMFactory.create_llm(temperature=0.0)
 
             user_content = f"""
 ## Current Prompt

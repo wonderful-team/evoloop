@@ -1,5 +1,9 @@
+import logging
+
 from app.core.config import settings
 from app.core.llm.adaptive import AdaptiveChatOpenAI
+
+logger = logging.getLogger(__name__)
 
 
 class LLMFactory:
@@ -26,12 +30,7 @@ class LLMFactory:
         api_key = db_api_key or settings.OPENAI_API_KEY
         final_model = model_name or db_model or settings.OPENAI_MODEL_NAME
 
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.info(
-            f"LLM Config - Provider: {db_provider}, Base URL: {base_url}, Model: {final_model}"
-        )
+        logger.info(f"LLM Config - Provider: {db_provider}, Base URL: {base_url}, Model: {final_model}")
 
         # Anthropic / Claude Protocol Support
         if db_provider == "anthropic" or "api/anthropic" in (base_url or ""):

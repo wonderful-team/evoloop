@@ -16,11 +16,8 @@ class QueryRewriter:
     def __init__(self):
         # Use a cheap/fast model for rewriting if possible (e.g. gpt-3.5-turbo or haiku)
         # For now, default to configured GENERAL_AGENT_MODEL
-        self.llm = LLMFactory.get_llm(
-            provider=settings.EMBEDDING_PROVIDER
-            if settings.EMBEDDING_PROVIDER != "local"
-            else "openai",  # Fallback logic
-            model=settings.GENERAL_AGENT_MODEL,
+        self.llm = LLMFactory.create_llm(
+            model_name=settings.GENERAL_AGENT_MODEL,
             temperature=0.0,
         )
         self.enabled = settings.ENABLE_QUERY_REWRITING

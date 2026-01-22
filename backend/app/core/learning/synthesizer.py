@@ -90,8 +90,7 @@ class WorkflowSynthesizer:
 
     async def _generate_yaml(self, trace_text: str) -> str:
         # Get LLM (Use smart model for synthesis)
-        provider = await SystemConfigService.get_value("provider") or "openai"
-        llm = LLMFactory.create_llm(provider=provider, smart=True)
+        llm = LLMFactory.create_llm(temperature=0.0)
 
         user_lang = SystemConfigService.get_language_preference()
         sys_prompt = META_ARCHITECT_PROMPT + i18n.get("prompts.learning.synthesis_lang_constraint", lang=user_lang)
