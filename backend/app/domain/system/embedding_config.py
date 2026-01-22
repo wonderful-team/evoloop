@@ -21,12 +21,8 @@ class EmbeddingConfigService:
         try:
             # We temporarily override factory logic by instantiating directly or using a temp override
             # Easier to just instantiate based on provider
-            from app.domain.codebase.indexing.vectors.ollama_embedder import (
-                OllamaEmbedder,
-            )
-            from app.domain.codebase.indexing.vectors.openai_embedder import (
-                GenericOpenAIEmbedder,
-            )
+            from app.domain.codebase.indexing.vectors.ollama_embedder import OllamaEmbedder
+            from app.domain.codebase.indexing.vectors.openai_embedder import GenericOpenAIEmbedder
 
             embedder = None
             if provider in ["openai", "generic", "qwen"]:

@@ -29,12 +29,12 @@ class ContextInjector:
             try:
                 if key == "memory":
                     # Lazy Import to avoid circular deps
-                    from app.domain.memory.service import MemoryService
+                    from app.domain.memory.service import memory_service
 
                     # Fetch concepts from Long-Term Memory (Knowledge Graph / Vector DB)
                     # We assume we want ALL concepts for the project for now,
                     # or perhaps context-relevant ones if 'context.snippets' exists.
-                    context["memory"] = await MemoryService.get_project_concepts(project_id)
+                    context["memory"] = await memory_service.get_project_concepts(project_id)
 
                 elif key == "files":
                     # Flatten retrieval context files if present

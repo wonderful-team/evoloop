@@ -1,9 +1,11 @@
 import importlib
 import logging
+import os
+
+import yaml
 from functools import partial
 from typing import Any
 
-import yaml
 from langgraph.graph import END, StateGraph
 
 from app.core.engine.schema import AgentConfig
@@ -46,9 +48,10 @@ class GraphBuilder:
         for node in agent_config.nodes:
             if node.type == "subgraph":
                 # Recursive Sub-Graph Construction
-                import os
-
                 # Resolve relative path
+                if not node.subgraph_config:
+                    logger.error(f"Subgraph node {node.id} missing configuration path.")
+                    continue
                 base_dir = os.path.dirname(os.path.abspath(config_path))
                 sub_config_path = os.path.join(base_dir, node.subgraph_config)
 
@@ -110,6 +113,9 @@ class GraphBuilder:
                     workflow.add_conditional_edges(edge.from_node, router_func, mapping)
                 else:
                     # Legacy: Python Router Function
+                    if not edge.router:
+                        logger.error(f"Conditional edge from {edge.from_node} missing router path.")
+                        continue
                     router_func = self._import_obj(edge.router)
                     mapping = edge.map.copy() if edge.map else {}
 

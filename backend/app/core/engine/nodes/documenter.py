@@ -178,7 +178,6 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
         
         if isinstance(handoff, str):
             try:
-                import json
                 handoff = json.loads(handoff)
             except Exception:
                 handoff = {}

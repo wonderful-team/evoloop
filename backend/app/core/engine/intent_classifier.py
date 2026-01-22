@@ -69,7 +69,10 @@ Rules:
                 HumanMessage(content=message)
             ], config={"callbacks": []})
 
-            predicted_label = response.content.strip().replace("'", "").replace('"', "")
+            # Extract content safely (Language models can return lists for multimodal responses)
+            from app.core.engine.message_utils import get_message_text
+            content = get_message_text(response)
+            predicted_label = content.strip().replace("'", "").replace('"', "")
 
             if predicted_label in cls.INTENTS:
                 logger.info(f"[IntentClassifier] Routable Intent: '{predicted_label}'")

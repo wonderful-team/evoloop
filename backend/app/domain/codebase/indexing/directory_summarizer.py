@@ -162,7 +162,7 @@ class DirectorySummarizer:
         user_prompt = f"Directory: {dir_path}\n\nContents:\n{context}\n\nProvide a concise, high-level summary (1-2 sentences) of what this module does."
 
         try:
-            response = await llm.invoked([
+            response = await llm.ainvoke([
                 SystemMessage(content=system_prompt),
                 HumanMessage(content=user_prompt),
             ])

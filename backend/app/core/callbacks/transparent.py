@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any
 
@@ -197,8 +198,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         logger.info(f"[Tool Start] {tool_name} Input: {input_str[:500]}...")
 
         if self.thread_id:
-            import json
-
             # 1. Handle Task Boundary (Agent State)
             if tool_name == "task_boundary":
                 try:
