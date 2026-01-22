@@ -262,7 +262,9 @@ class IndexingService:
                     file_summary_content = content[:15000] + "\n...(truncated)"
 
                 # We create a pseudo-Document for this
-                from app.domain.codebase.indexing.extractors.treesitter_extractor import Document
+                from app.domain.codebase.indexing.extractors.treesitter_extractor import (
+                    Document,
+                )
 
                 summary_doc = Document(
                     content=file_summary_content,

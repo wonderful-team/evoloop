@@ -119,7 +119,7 @@ async def run_async_command(
             return CommandResult(-1, "", "Command timed out")
 
         return CommandResult(
-            returncode=process.returncode,
+            returncode=process.returncode if process.returncode is not None else -1,
             stdout=stdout.decode().strip() if stdout else "",
             stderr=stderr.decode().strip() if stderr else "",
         )

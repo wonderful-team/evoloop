@@ -4,11 +4,11 @@ import re
 import time
 from typing import Any
 from uuid import UUID
-from sqlalchemy import desc, select
 
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
+from sqlalchemy import desc, select
 
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
@@ -315,7 +315,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                     data = json.loads(output)
                     steps = data.get("steps", [])
                     return i18n.get("prompts.database_logger.tool_summary.plan_created", count=len(steps))
-                except:
+                except Exception:
                     return "Plan Created."
         except Exception:
             pass
@@ -329,11 +329,11 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         self,
         role: str,
         content: str,
-        thinking: str = None,
+        thinking: str | None = None,
         status: str = "completed",
-        references: list[dict] = None,
-        tool_calls: list = None,
-        tool_output: str = None,
+        references: list[dict] | None = None,
+        tool_calls: list | None = None,
+        tool_output: str | None = None,
     ):
         if not content and not thinking and not tool_calls:
             return
@@ -438,7 +438,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             # For now, just logging ERROR is better than silent 'pass'.
             import logging
             logging.getLogger(__name__).error(f"CRITICAL: Failed to persist message log: {e}", exc_info=True)
-            # We don't re-raise to avoid killing the agent execution loop, 
+            # We don't re-raise to avoid killing the agent execution loop,
             # but this error will now be visible in logs.
 
     async def snapshot_steps_to_last_message(self, steps: list):

@@ -72,7 +72,7 @@ class AutoDiscoveryRegistry:
 
         # Walk through all modules in the package
         if hasattr(package, "__path__"):
-            for _, name, ispkg in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
+            for _, name, _ispkg in pkgutil.walk_packages(package.__path__, package.__name__ + "."):
                 try:
                     module = importlib.import_module(name)
                     self._register_tools_from_module(module)

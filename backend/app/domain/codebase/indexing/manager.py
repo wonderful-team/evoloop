@@ -62,7 +62,7 @@ class IndexingManager:
     async def stop_all(self):
         """Stop all watchers."""
         async with self._lock:
-            for path, watcher in self._watchers.items():
+            for _path, watcher in self._watchers.items():
                 watcher.stop()
             self._watchers.clear()
             logger.info("Stopped all watchers")
@@ -122,7 +122,9 @@ class IndexingManager:
                         # --- Phase 9: Standards & Patterns Analysis ---
                         # Sample code to extract implicit style guidelines for the Agent to follow.
                         try:
-                            from app.domain.codebase.indexing.standards import project_standards_analyst
+                            from app.domain.codebase.indexing.standards import (
+                                project_standards_analyst,
+                            )
                             await project_standards_analyst.analyze_standards(repo.project_id, repo.local_path)
                         except Exception as e:
                             logger.error(f"Standards Analysis Failed: {e}")

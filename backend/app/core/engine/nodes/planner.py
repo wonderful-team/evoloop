@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # --- Planner Prompt ---
 planner_prompt = ChatPromptTemplate.from_messages([
     ("system", """You are the **Lead Architect** (Planner) of the system.
-    
+
 **Your Goal**: Analyze the user's request and the current project context to create a robust, step-by-step **Implementation Plan**.
 
 **Context**:
@@ -144,7 +144,7 @@ async def planner_node(state: AgentState, config: RunnableConfig):
     # Max 3 turns to avoid infinite planning loops
     plan_finalized = False
 
-    for i in range(3):
+    for _i in range(3):
         # Invoke LLM
         response = await chain.ainvoke({"messages": messages}, config=config)
         messages.append(response)

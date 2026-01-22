@@ -3,8 +3,8 @@ import os
 from app.constants import (
     EXTENSION_MAP,
     FILE_EXTENSION_TO_TYPE,
-    DocumentType,
     SHEBANG_MAP,
+    DocumentType,
 )
 
 # If EXTENSION_MAP is missing in constants, I should probably define a comprehensive one here or rely on CODE_EXTENSION_MAP.
@@ -46,7 +46,7 @@ def detect_document_type(file_path: str) -> str:
     if ext_key in FILE_EXTENSION_TO_TYPE:
         # If it's an enum member, get value
         val = FILE_EXTENSION_TO_TYPE[ext_key]
-        return val.value if hasattr(val, "value") else val
+        return str(val.value) if hasattr(val, "value") else str(val)
 
     return DocumentType.UNKNOWN.value
 

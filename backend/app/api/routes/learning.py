@@ -14,6 +14,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
+from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
 from app.domain.tools.human_input import (
     cancel_request,
     cleanup_old_requests,
@@ -22,9 +23,13 @@ from app.domain.tools.human_input import (
     get_pending_request,
     get_pending_requests_for_thread,
 )
-from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import Conversation, LearnedSkill, Message, TraceEvent
+from app.infrastructure.database.sql.models import (
+    Conversation,
+    LearnedSkill,
+    Message,
+    TraceEvent,
+)
 
 logger = logging.getLogger("evoloop.learning")
 
@@ -416,7 +421,7 @@ async def list_skills(active_only: bool = True):
 
         stmt = select(LearnedSkill)
         if active_only:
-            stmt = stmt.where(LearnedSkill.is_active == True)
+            stmt = stmt.where(LearnedSkill.is_active is True)
         stmt = stmt.order_by(LearnedSkill.created_at.desc())
 
         result = await db.execute(stmt)

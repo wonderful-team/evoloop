@@ -6,19 +6,19 @@ import re
 import shutil
 import tempfile
 import urllib.request
-
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from urllib.parse import urlparse
+
 from rapidfuzz import fuzz, process
 
-from typing import Callable, Iterator
 from app.constants import (
     BLACKLIST_FILE_EXTENSIONS,
-    EXTENSION_MAP,
     DEFAULT_EXCLUDED_DIRS,
     DEFAULT_EXCLUDED_FILES,
-    WHITELIST_FILE_EXTENSIONS,
+    EXTENSION_MAP,
     TEST_FILE_PATTERNS,
+    WHITELIST_FILE_EXTENSIONS,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,14 +68,14 @@ def walk_tree(
         for d in dirs:
             if d in exclude_dirs or d.startswith("."):
                 continue
-            
+
             if dir_filter:
                 dir_abs = os.path.join(root, d)
                 if not dir_filter(dir_abs):
                     continue
-            
+
             valid_dirs.append(d)
-        
+
         dirs[:] = valid_dirs
 
         for f in files:
@@ -284,7 +284,7 @@ def write_file(file_path: str, content: str) -> bool:
 
 def get_directory_size(path: str) -> int:
     total_size = 0
-    for dirpath, dirnames, filenames in os.walk(path):
+    for dirpath, _dirnames, filenames in os.walk(path):
         for f in filenames:
             fp = os.path.join(dirpath, f)
             if not os.path.islink(fp):
@@ -345,7 +345,7 @@ def is_test_file(file_path: str) -> bool:
     filename = os.path.basename(file_path)
 
     # Common test patterns from constants
-    for lang, patterns in TEST_FILE_PATTERNS.items():
+    for _lang, patterns in TEST_FILE_PATTERNS.items():
         for pattern in patterns:
             if "." in pattern:
                 # Suffix match
@@ -367,9 +367,9 @@ def is_test_file(file_path: str) -> bool:
 
 def filter_code_files(
     all_files: list[str],
-    excluded_dirs: list[str] = None,
-    excluded_files: list[str] = None,
-    include_extensions: list[str] = None,
+    excluded_dirs: list[str] | None = None,
+    excluded_files: list[str] | None = None,
+    include_extensions: list[str] | None = None,
 ) -> list[str]:
     """Filter list of files to keep only relevant code files."""
     excluded_dirs = excluded_dirs or DEFAULT_EXCLUDED_DIRS

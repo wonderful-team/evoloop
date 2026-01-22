@@ -39,7 +39,7 @@ class PHPSemanticProvider(LanguageSemanticProvider):
         """
 
     def parse_api_match(self, captured_nodes: dict, file_path: str) -> list:
-        from app.domain.codebase.indexing.base import APIEndpoint
+        from .api_extractor import APIEndpoint
 
         endpoints = []
         obj = self._get_node(captured_nodes, "obj")
@@ -48,10 +48,9 @@ class PHPSemanticProvider(LanguageSemanticProvider):
         handler = self._get_node(captured_nodes, "handler")
 
         if obj and method and path:
-            obj.text.decode() if obj else ""
-            method_text = method.text.decode() if method else ""
-            path_text = path.text.decode().strip("\"'") if path else ""
-            handler_text = handler.text.decode() if handler else "anonymous"
+            method_text = method.text.decode() if method and hasattr(method, "text") else ""
+            path_text = path.text.decode().strip("\"'") if path and hasattr(path, "text") else ""
+            handler_text = handler.text.decode() if handler and hasattr(handler, "text") else "anonymous"
 
             http_methods = {"get": "GET", "post": "POST", "put": "PUT", "delete": "DELETE", "patch": "PATCH"}
             http_method = http_methods.get(method_text.lower(), "GET")
@@ -59,7 +58,7 @@ class PHPSemanticProvider(LanguageSemanticProvider):
             endpoints.append(APIEndpoint(
                 method=http_method,
                 path=path_text,
-                handler=handler_text,
+                handler_name=handler_text,
                 file_path=file_path
             ))
 

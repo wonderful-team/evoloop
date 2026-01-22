@@ -43,7 +43,7 @@ class RustSemanticProvider(LanguageSemanticProvider):
         """
 
     def parse_api_match(self, captured_nodes: dict, file_path: str) -> list:
-        from app.domain.codebase.indexing.base import APIEndpoint
+        from .api_extractor import APIEndpoint
 
         endpoints = []
         method = self._get_node(captured_nodes, "method")
@@ -51,9 +51,9 @@ class RustSemanticProvider(LanguageSemanticProvider):
         handler = self._get_node(captured_nodes, "handler")
 
         if method and path:
-            method_text = method.text.decode() if method else ""
-            path_text = path.text.decode().strip("\"") if path else ""
-            handler_text = handler.text.decode() if handler else "handler"
+            method_text = method.text.decode() if method and hasattr(method, "text") else ""
+            path_text = path.text.decode().strip("\"") if path and hasattr(path, "text") else ""
+            handler_text = handler.text.decode() if handler and hasattr(handler, "text") else "handler"
 
             http_methods = {"get": "GET", "post": "POST", "put": "PUT", "delete": "DELETE", "patch": "PATCH"}
             http_method = http_methods.get(method_text.lower(), "GET")
@@ -62,7 +62,7 @@ class RustSemanticProvider(LanguageSemanticProvider):
                 endpoints.append(APIEndpoint(
                     method=http_method,
                     path=path_text,
-                    handler=handler_text,
+                    handler_name=handler_text,
                     file_path=file_path
                 ))
 

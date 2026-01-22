@@ -14,15 +14,19 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingConfigService:
     @staticmethod
-    async def validate_connection(provider: str, base_url: str, model: str, api_key: str = None) -> bool:
+    async def validate_connection(provider: str, base_url: str, model: str, api_key: str = None) -> tuple[bool, int]:
         """
         Pre-flight check: Validates that the embedder can actually embed text.
         """
         try:
             # We temporarily override factory logic by instantiating directly or using a temp override
             # Easier to just instantiate based on provider
-            from app.domain.codebase.indexing.vectors.ollama_embedder import OllamaEmbedder
-            from app.domain.codebase.indexing.vectors.openai_embedder import GenericOpenAIEmbedder
+            from app.domain.codebase.indexing.vectors.ollama_embedder import (
+                OllamaEmbedder,
+            )
+            from app.domain.codebase.indexing.vectors.openai_embedder import (
+                GenericOpenAIEmbedder,
+            )
 
             embedder = None
             if provider in ["openai", "generic", "qwen"]:

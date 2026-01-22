@@ -7,7 +7,7 @@ from app.utils.process import run_command
 
 
 @evoloop_tool
-async def find_definition(symbol_name: str, file_pattern: str | None = None, config: RunnableConfig = None) -> str:
+async def find_definition(symbol_name: str, file_pattern: str | None = None, config: RunnableConfig | None = None) -> str:
     """
     Find the definition (class/function) of a symbol in the codebase using Knowledge Graph.
     Falls back to Grep if not found in Graph.
@@ -54,7 +54,7 @@ async def find_definition(symbol_name: str, file_pattern: str | None = None, con
 
 
 @evoloop_tool
-async def analyze_impact(symbol_name: str, config: RunnableConfig = None) -> str:
+async def analyze_impact(symbol_name: str, config: RunnableConfig | None = None) -> str:
     """
     Analyze the impact of changing a symbol (Dependants/Usages).
     Uses Graph Database to find who calls/uses this symbol.

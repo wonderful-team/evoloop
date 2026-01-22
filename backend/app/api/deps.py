@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Generator
 from datetime import datetime
 from typing import Annotated
@@ -10,9 +11,9 @@ from sqlmodel import Session
 from app.core.config import settings
 from app.core.db import engine
 from app.infrastructure.external.evocloud import evocloud_client
-import logging
-logger = logging.getLogger(__name__)
 from app.models import User
+
+logger = logging.getLogger(__name__)
 
 
 def get_db() -> Generator[Session, None, None]:

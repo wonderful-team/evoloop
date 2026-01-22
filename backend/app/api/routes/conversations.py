@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
@@ -11,7 +12,7 @@ from app.core.monitoring.activity import activity_monitor
 from app.core.persistence import get_db_pool
 from app.infrastructure.database.sql.database import get_db_session
 from app.infrastructure.database.sql.models import Conversation, Message
-import logging
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()

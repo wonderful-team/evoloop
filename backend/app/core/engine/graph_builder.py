@@ -1,11 +1,10 @@
 import importlib
 import logging
 import os
-
-import yaml
 from functools import partial
 from typing import Any
 
+import yaml
 from langgraph.graph import END, StateGraph
 
 from app.core.engine.schema import AgentConfig
@@ -98,7 +97,7 @@ class GraphBuilder:
                     # New: Expression Router
                     from app.core.engine.routers import make_expression_router
 
-                    router_func = make_expression_router(edge.conditions, edge.default)
+                    router_func = make_expression_router(edge.conditions, edge.default or "")
 
                     # Construct mapping automatically from conditions
                     mapping = {c["to"]: c["to"] for c in edge.conditions}

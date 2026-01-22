@@ -1,3 +1,4 @@
+import ast
 import json
 import logging
 from typing import Any
@@ -157,8 +158,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             "manage_file",
             "list_files",
         ]:
-            import ast
-
             data = None
             try:
                 # Agent inputs are often JSON strings

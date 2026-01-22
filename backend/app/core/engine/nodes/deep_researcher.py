@@ -1,3 +1,5 @@
+import logging
+
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
@@ -6,7 +8,7 @@ from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.domain.research.engine import DeepResearchEngine
 from app.i18n.service import i18n
-import logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -42,7 +44,7 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
     if not topic:
         scratchpad = state.get("scratchpad", {})
         handoff = scratchpad.get("handoff_context", {})
-        
+
         if isinstance(handoff, str):
             try:
                 import json
@@ -52,7 +54,7 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
 
         # Try common keys
         topic = handoff.get("topic") or handoff.get("research_topic") or handoff.get("query") or ""
-        
+
         if topic:
             logger.info(f"[DeepResearcher] 🔗 Context Handoff: Found topic '{topic}' in scratchpad.")
 

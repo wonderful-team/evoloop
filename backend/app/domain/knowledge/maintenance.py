@@ -1,4 +1,5 @@
 import logging
+
 from sqlalchemy import text
 
 from app.infrastructure.database.graph.driver import get_graph_db

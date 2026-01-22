@@ -23,7 +23,9 @@ class ContextInjector:
         This isolates the Node from the complexity of fetching data (DB calls, API calls, File IO).
         """
         context = {}
-        project_id = state.get("project_id", 1)  # Default to 1 if missing
+        # Ensure project_id is int
+        raw_pid = state.get("project_id", 1)
+        project_id = int(raw_pid) if raw_pid is not None else 1
 
         for key in injectables:
             try:

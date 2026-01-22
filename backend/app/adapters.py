@@ -27,7 +27,7 @@ class EventAdapter:
         **System Notification**: NiuShop Task Assigned
         **Task ID**: {task_id}
         **Title**: {title}
-        **Description**: 
+        **Description**:
         {desc}
 
         Please analyze this task and start execution.

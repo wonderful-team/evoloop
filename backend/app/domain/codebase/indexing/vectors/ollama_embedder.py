@@ -1,4 +1,5 @@
 import logging
+
 import httpx
 
 from app.domain.codebase.indexing.base import BaseEmbedder

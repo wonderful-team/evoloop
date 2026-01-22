@@ -110,7 +110,9 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
                 try:
                     # Trigger Deep Research Loop
                     # Use Builder for prompt
-                    from app.core.prompts.documenter_builder import DocumenterPromptBuilder
+                    from app.core.prompts.documenter_builder import (
+                        DocumenterPromptBuilder,
+                    )
                     prompt_content = DocumenterPromptBuilder.build_page_generation_prompt(topic, filename)
 
                     content = await engine.run(topic=prompt_content, max_iterations=3, config=config)
@@ -175,13 +177,13 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
         # [FIX] Phase 21: Context Handoff (Cure Blindness)
         scratchpad = state.get("scratchpad", {})
         handoff = scratchpad.get("handoff_context", {})
-        
+
         if isinstance(handoff, str):
             try:
                 handoff = json.loads(handoff)
             except Exception:
                 handoff = {}
-                
+
         focus_paths = handoff.get("focus_paths", [])
 
         if focus_paths:

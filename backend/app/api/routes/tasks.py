@@ -3,15 +3,16 @@ Project Tasks API Routes.
 Handles CRUD for Project Tasks (Tickets/Requirements).
 """
 
+import logging
 import time
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 from pydantic import BaseModel
 
-from app.api.deps import TokenDep
+from app.api.deps import TokenDep, TokenDepOptional
 from app.infrastructure.external.evocloud import evocloud_client
-import logging
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["tasks"])
@@ -72,7 +73,7 @@ async def get_project_tasks(
     page: int = 1,
     page_size: int = 50,
     status: int | None = None,
-    token: TokenDep = None,
+    token: TokenDepOptional = None,
 ):
     """
     Get a list of tasks for a specific project.
@@ -163,7 +164,7 @@ async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, autho
     Update task status and progress.
     """
     token = get_token(authorization)
-    res = await evocloud_client.update_task_status(task_id, req.status, req.progress, token=token)
+    res = await evocloud_client.update_task_status(task_id, req.status, req.progress or 0, token=token)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400, detail=res.get("message", "Failed to update task status")

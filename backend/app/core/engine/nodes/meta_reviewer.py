@@ -1,3 +1,5 @@
+import logging
+
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
@@ -5,7 +7,7 @@ from langchain_core.runnables import RunnableConfig
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
-import logging
+
 logger = logging.getLogger(__name__)
 
 

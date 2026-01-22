@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
+from typing import Any, cast
 
 import sentry_sdk
 from fastapi import FastAPI
@@ -63,7 +64,7 @@ async def lifespan(_app: FastAPI):
     await checkpointer.setup()
 
     # Set globals
-    set_db_pool(db_pool)
+    set_db_pool(cast(Any, db_pool))
     set_checkpointer(checkpointer)
 
     # 3. Graph (Dynamic Build)

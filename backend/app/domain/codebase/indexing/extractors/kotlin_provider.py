@@ -37,7 +37,7 @@ class KotlinSemanticProvider(LanguageSemanticProvider):
         """
 
     def parse_api_match(self, captured_nodes: dict, file_path: str) -> list:
-        from app.domain.codebase.indexing.base import APIEndpoint
+        from .api_extractor import APIEndpoint
 
         endpoints = []
         annotation = self._get_node(captured_nodes, "annotation")
@@ -56,13 +56,13 @@ class KotlinSemanticProvider(LanguageSemanticProvider):
         if annotation:
             ann_text = annotation.text.decode() if annotation else ""
             if ann_text in rest_annotations:
-                path_text = path.text.decode().strip("\"") if path else "/"
-                handler_text = handler.text.decode() if handler else "handler"
+                path_text = path.text.decode().strip("\"") if path and hasattr(path, "text") else "/"
+                handler_text = handler.text.decode() if handler and hasattr(handler, "text") else "handler"
 
                 endpoints.append(APIEndpoint(
                     method=rest_annotations[ann_text],
                     path=path_text,
-                    handler=handler_text,
+                    handler_name=handler_text,
                     file_path=file_path
                 ))
 

@@ -1,9 +1,11 @@
+import logging
+
 from fastapi import APIRouter
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models.planning import Plan, PlanStep
-import logging
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/conversations/{thread_id}/plan", tags=["planning"])

@@ -346,7 +346,10 @@ class SupervisorNode:
         active_plan_context = i18n.get("prompts.supervisor.no_active_plan")
         try:
             async with session_scope() as session:
-                from app.infrastructure.database.sql.models.planning import Plan, PlanStep
+                from app.infrastructure.database.sql.models.planning import (
+                    Plan,
+                    PlanStep,
+                )
                 thread_id = config.get("configurable", {}).get("thread_id")
 
                 if thread_id:

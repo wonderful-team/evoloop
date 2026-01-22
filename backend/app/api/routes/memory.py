@@ -1,8 +1,10 @@
+import logging
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.domain.memory.service import memory_service
-import logging
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["memory"])

@@ -1,14 +1,15 @@
+import logging
 import os
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.api.deps import TokenDep
+from app.api.deps import TokenDep, TokenDepOptional
 from app.core.config import settings
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.project.service import project_context_manager
 from app.infrastructure.external.evocloud import evocloud_client
-import logging
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["projects"])
@@ -31,7 +32,7 @@ class UpdateProjectRequest(BaseModel):
 
 
 @router.get("/")
-async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDep = None):
+async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDepOptional = None):
     return await evocloud_client.get_projects(page, page_size)
 
 

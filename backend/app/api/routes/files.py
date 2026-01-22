@@ -9,7 +9,6 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from app.constants import BLACKLIST_DIRS
 from app.domain.project.service import project_context_manager
 
 logger = logging.getLogger(__name__)
@@ -325,12 +324,11 @@ async def search_files(project_id: int, q: str):
         # -n: show line number
         # -I: ignore binary files
         # --exclude-dir: ignore common junk
+        from app.constants import DEFAULT_EXCLUDED_DIRS
         from app.utils.process import run_async_command
 
-        from app.constants import DEFAULT_EXCLUDED_DIRS
-
         excludes = [f"--exclude-dir={d}" for d in DEFAULT_EXCLUDED_DIRS]
-        
+
         cmd = [
             "grep", "-r", "-i", "-n", "-I",
             *excludes,
@@ -409,7 +407,7 @@ async def search_files_by_name(project_id: int, q: str):
         # 100k files might take 1s.
 
         from app.constants import DEFAULT_EXCLUDED_DIRS
-        
+
         q_lower = q.lower()
         count = 0
         # Use standard excludes

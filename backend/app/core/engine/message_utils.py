@@ -62,7 +62,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
 
     for msg in messages:
         # Check for empty content
-        if not msg.content and not isinstance(msg, (ToolMessage, AIMessage)):
+        if not msg.content and not isinstance(msg, ToolMessage | AIMessage):
             # AI/Tool messages can have tool_calls instead of content
             continue
 
@@ -96,7 +96,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
         # 2. Strict Role Alternation (Merge consecutive same-role)
         if repaired:
             last = repaired[-1]
-            if type(last) is type(msg) and isinstance(msg, (HumanMessage, AIMessage)):
+            if type(last) is type(msg) and isinstance(msg, HumanMessage | AIMessage):
                 # Merge content
                 new_content = f"{last.content}\n\n{msg.content}"
                 # Update last message in place

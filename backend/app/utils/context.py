@@ -4,7 +4,8 @@ from typing import Any
 # ContextVars for Request/Task Scope
 _request_context = contextvars.ContextVar("request_context", default={})
 
-def set_context(thread_id: str = None, project_id: int = None, working_directory: str = None):
+
+def set_context(thread_id: str | None = None, project_id: int | None = None, working_directory: str | None = None):
     """Set the context for the current task."""
     ctx = _request_context.get().copy() # Copy to avoid mutating shared dict if any (though get() returns copy usually?)
     # Actually contextvars default is immutable if not careful.

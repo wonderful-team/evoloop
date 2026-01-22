@@ -59,7 +59,7 @@ class DeepResearchEngine:
         context_str = ""
         if previous_history:
             # Filter for vital info
-            relevant_msgs = [m for m in previous_history if isinstance(m, (HumanMessage, AIMessage, ToolMessage))]
+            relevant_msgs = [m for m in previous_history if isinstance(m, HumanMessage | AIMessage | ToolMessage)]
             relevant_msgs = relevant_msgs[-10:]  # Limit to last 10 messages
 
             history_text = "\n".join([f"{m.type}: {str(m.content)[:500]}" for m in relevant_msgs])

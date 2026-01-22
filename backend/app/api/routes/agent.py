@@ -1,3 +1,4 @@
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
@@ -23,9 +24,9 @@ from app.infrastructure.database.sql.models import (
     Message,
     MessageReference,
 )
-import logging
-logger = logging.getLogger(__name__)
 from app.utils.context import set_context
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

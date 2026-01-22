@@ -24,7 +24,7 @@ class CoderNode:
     """
 
     async def __call__(
-        self, state: AgentState, config: RunnableConfig, context: dict[str, Any] = None
+        self, state: AgentState, config: RunnableConfig, context: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """Entry point for Coder Node."""
 
@@ -36,7 +36,9 @@ class CoderNode:
         # Merge Middleware Context + State Context
         mw_context = context or {}
 
-        plan = mw_context.get("current_plan") or state.get("current_plan", "")
+        plan = mw_context.get("current_plan") or state.get("current_plan") or ""
+        # Ensure plan is a string for the prompt builder
+        plan_str = str(plan)
         prefs = mw_context.get("user_preferences") or state.get("user_preferences", "None")
         concepts = mw_context.get("memory") or state.get("project_concepts", "None")  # Mapped to project_concepts in tasks.py
 
@@ -57,7 +59,7 @@ class CoderNode:
 
         # 3. Prompt Construction
         prompt_builder = CoderPromptBuilder(
-            plan=plan,
+            plan=plan_str,
             context={
                 "user_preferences": prefs,
                 "project_concepts": concepts,

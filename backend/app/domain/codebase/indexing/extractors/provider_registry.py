@@ -40,7 +40,10 @@ class SemanticProviderRegistry:
         from .rust_provider import RustSemanticProvider
         from .sql_provider import SQLSemanticProvider
         from .swift_provider import SwiftSemanticProvider
-        from .ts_js_provider import TypeScriptSemanticProvider, JavaScriptSemanticProvider
+        from .ts_js_provider import (
+            JavaScriptSemanticProvider,
+            TypeScriptSemanticProvider,
+        )
         from .vue_provider import VueSemanticProvider
 
         # Register core providers

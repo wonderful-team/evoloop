@@ -72,8 +72,9 @@ class PlanningTool(BaseTool):
         if action == "create":
             title = kwargs.get("title")
             step_titles = kwargs.get("steps", [])
-            steps = [Step(title=t) for t in step_titles]
-            plan = Plan(title=title, steps=steps)
+            title_str = str(title) if title is not None else "Untitled Plan"
+            steps = [Step(title=str(t)) for t in step_titles]
+            plan = Plan(title=title_str, steps=steps)
             if steps:
                 plan.current_step_id = steps[0].id
                 steps[0].status = "in_progress"
@@ -160,7 +161,7 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
             # 4. Construct Return Object (Pydantic-like for Planner state)
             # We return the structure matching domain.planning.models.Plan
             # But populated with the DB IDs so future tools can reference them.
-            
+
             return json.dumps({
                 "id": plan_id,
                 "title": title,
@@ -185,9 +186,9 @@ async def update_step_status(
     plan_id: str,
     step_id: str,
     status: str,
-    result: str = None,
-    execution_run_id: str = None,
-):
+    result: str = "",
+    execution_run_id: str = "",
+) -> str:
     """
     Update the status of a step in the plan.
     Args:
@@ -242,9 +243,11 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
     root = ctx.get("working_directory", ".")
 
     try:
-        # Retrieval
+        from app.core.llm.factory import get_default_llm
         from app.domain.codebase.retrieval.service import RetrievalService
+        from app.domain.system.service import SystemConfigService
 
+        # Retrieval
         retrieval_service = RetrievalService()
         search_results = await retrieval_service.search(proposed_plan, project_id=project_id, limit=5)
 
@@ -259,11 +262,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         tree = await generator.generate()
 
         # LLM Analysis
-        from app.core.llm.factory import get_default_llm
-
         llm = get_default_llm()
-        from app.domain.system.service import SystemConfigService
-
         user_lang = SystemConfigService.get_language_preference()
 
         chain = FEASIBILITY_ANALYSIS_PROMPT | llm | StrOutputParser()

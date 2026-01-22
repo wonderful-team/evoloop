@@ -7,6 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 import websockets
+from websockets.legacy.client import WebSocketClientProtocol
 
 from app.core.config import settings
 from app.domain.system.service import SystemConfigService
@@ -41,7 +42,7 @@ class DeviceLinkManager:
         self.client_id: str | None = None
 
         # Connection
-        self.ws: websockets.WebSocketClientProtocol | None = None
+        self.ws: WebSocketClientProtocol | None = None
         self._running = False
         self._reconnect_delay = 5
 
@@ -133,7 +134,7 @@ class DeviceLinkManager:
                     self.ws = ws
                     logger.info("[EvoCloud] WS Connected")
                     async for message in ws:
-                        await self._handle_ws_message(message)
+                        await self._handle_ws_message(str(message))
             except Exception as e:
                 logger.warning(f"[EvoCloud] WS Connection Error: {e}")
 
@@ -179,10 +180,11 @@ class DeviceLinkManager:
         cmd_id = cmd_data.get("command_id")
         await self.api.update_command_status(cmd_id, 2)  # Running
         try:
-            if asyncio.iscoroutinefunction(self._command_handler):
-                await self._command_handler(cmd_data)
-            else:
-                await run_in_thread(self._command_handler, cmd_data)
+            if self._command_handler:
+                if asyncio.iscoroutinefunction(self._command_handler):
+                    await self._command_handler(cmd_data)
+                else:
+                    await run_in_thread(self._command_handler, cmd_data)
             await self.api.update_command_status(cmd_id, 3)  # Completed
         except Exception as e:
             logger.error(f"Command execution error: {e}")

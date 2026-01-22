@@ -68,7 +68,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     tool_summary = "None"
     if tool_history:
         # Extract unique tool names for summary
-        unique_tools = list(set([sig.split(":")[0] for sig in tool_history if ":" in sig]))
+        unique_tools = list({sig.split(":")[0] for sig in tool_history if ":" in sig})
         tool_summary = ", ".join(unique_tools) if unique_tools else "None"
 
     # Optional: Git diff context (if available)
@@ -214,7 +214,7 @@ Analyze the conversation and respond with the SessionConclusion structure.
 
             # Extract concept names for linking
             concept_names = [c.name for c in conclusion.harvested_concepts] if conclusion.harvested_concepts else []
-            
+
             await sync_thread_to_graph(
                 thread_id=thread_id,
                 project_id=project_id,

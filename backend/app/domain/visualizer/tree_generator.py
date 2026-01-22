@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.constants import BLACKLIST_DIRS
 from app.core.config import settings
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import CodeChunk, SourceFile
@@ -127,29 +126,29 @@ class AnnotatedTreeGenerator:
         self.file_filter = FileFilter()
 
         root_node = TreeNode(os.path.basename(self.root_path), "dir")
-        
+
         # Map: abs_path -> TreeNode (for efficient retrieval during reconstruction)
         nodes_map = {self.root_path: root_node}
 
         for full_path in walk_tree(self.root_path, filter_func=self.file_filter.should_include, max_depth=self.max_depth):
-            
+
             # Pattern Filter (fnmatch)
             filename = os.path.basename(full_path)
             if self.pattern and not fnmatch.fnmatch(filename, self.pattern):
                 continue
-                
+
             # Build Tree Path
             rel_path = os.path.relpath(full_path, self.root_path)
             parts = rel_path.split(os.sep)
-            
+
             # Start from root and traverse/create
             current_node = root_node
             current_abs = self.root_path
-            
+
             for i, part in enumerate(parts):
                 is_last_part = (i == len(parts) - 1)
                 current_abs = os.path.join(current_abs, part)
-                
+
                 if current_abs in nodes_map:
                     current_node = nodes_map[current_abs]
                 else:
@@ -159,15 +158,15 @@ class AnnotatedTreeGenerator:
                     current_node.add_child(new_node)
                     nodes_map[current_abs] = new_node
                     current_node = new_node
-            
+
             # At end of loop, current_node is the file node
             file_node = current_node
-            
+
             # Add Symbols
             chunks = []
             if rel_path in self.db_files_map:
                 chunks = self.db_files_map[rel_path]
-            
+
             self._add_symbols_to_file_node(file_node, chunks)
 
         # Post-process: Prune empty directories if pattern is active
@@ -178,14 +177,14 @@ class AnnotatedTreeGenerator:
         # BUT: Explicitly strictly empty dirs (no files at all deep down) are auto-pruned by this logic.
         # This is strictly better than _prune_empty_dirs!
         # However, _prune_empty_dirs might still be needed if `pattern` is applied in the loop?
-        # If all files in a dir match pattern "exclude", then we skip them. We never create the dir node. 
+        # If all files in a dir match pattern "exclude", then we skip them. We never create the dir node.
         # So _prune_empty_dirs is implicit!
         # Unless we want to keep dirs that match pattern? But pattern usually applies to files.
-        
+
         # Let's keep `_prune_empty_dirs` call just in case I missed an edge case or for legacy safety?
         # Actually logic says: if file is skipped, loops continues. dir nodes not created.
         # So structure is clean by definition.
-        
+
         if self.pattern:
             self._prune_empty_dirs(root_node)
 

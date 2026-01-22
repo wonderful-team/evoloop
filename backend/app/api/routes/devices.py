@@ -41,7 +41,7 @@ async def get_recent_logs(
     device_id: int,
     limit: int = 20,
     project_id: int | None = None,
-    token: TokenDep = None,
+    _token: TokenDep = None,
 ):
     """Get recent logs from device"""
     res = await evocloud_client.get_device_logs(device_id, limit, project_id)
@@ -56,7 +56,7 @@ async def search_logs(
     query: str,
     limit: int = 20,
     project_id: int | None = None,
-    token: TokenDep = None,
+    _token: TokenDep = None,
 ):
     """Search logs"""
     res = await evocloud_client.search_device_logs(device_id, query, limit, project_id)

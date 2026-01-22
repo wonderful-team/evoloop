@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class LLMConfigService:
     @staticmethod
-    async def validate_connection(provider: str, base_url: str, model: str, api_key: str = None) -> bool:
+    async def validate_connection(provider: str, base_url: str, model: str, api_key: str = None) -> tuple[bool, str]:
         """
         Pre-flight check: Validates that the LLM can actually generate text.
         """

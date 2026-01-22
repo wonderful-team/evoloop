@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
 from langchain_core.messages import AIMessage, SystemMessage
@@ -10,7 +11,7 @@ from app.core.llm.factory import LLMFactory
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models.learning import TraceEvent
-import logging
+
 logger = logging.getLogger(__name__)
 
 

@@ -1,3 +1,4 @@
+import ast
 import json
 from typing import Any
 
@@ -67,8 +68,6 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
             "manage_file",
             "list_files",
         ]:
-            import ast
-
             data = None
             try:
                 # Agent inputs are often JSON strings

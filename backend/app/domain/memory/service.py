@@ -65,7 +65,7 @@ class MemoryService:
 
                     should_recreate = False
                     if record:
-                        logger.info(f"MemoryService: Found existing index 'concept_embeddings'. Checking dimensions...")
+                        logger.info("MemoryService: Found existing index 'concept_embeddings'. Checking dimensions...")
                         # Parse existing options to check dimension
                         try:
                             # Record is compliant with dict access

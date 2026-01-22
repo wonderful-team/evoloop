@@ -92,7 +92,7 @@ class ProjectStandardsAnalyst:
         valid_exts = (".py", ".js", ".ts", ".go", ".java", ".rs")
         candidates = []
 
-        for root, dirs, files in os.walk(root_path):
+        for root, _dirs, files in os.walk(root_path):
             if any(p in root for p in [".git", "__pycache__", "node_modules", "venv", ".venv"]):
                 continue
 

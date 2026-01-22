@@ -1,5 +1,4 @@
 import os
-
 from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
@@ -38,7 +37,7 @@ def list_files(
         # Simple listdir with filter
         try:
             items = os.listdir(target_path)
-            # Filter? FileFilter is mostly for files. 
+            # Filter? FileFilter is mostly for files.
             # But let's basic filter hidden/excluded.
             file_filter = FileFilter()
             filtered_items = []
@@ -160,7 +159,7 @@ def grep_files(
     # Option A: List all files with `os.walk` + `FileFilter`, then grep each (too slow for large codebase).
     # Option B: Translate `FileFilter` logic into `grep` arguments as best as possible.
     #
-    # Given the user request to "use FileFilter logic", for `grep_files` (which is a rough search), 
+    # Given the user request to "use FileFilter logic", for `grep_files` (which is a rough search),
     # relying on `DEFAULT_EXCLUDED_DIRS` is usually close enough to FileFilter's directory logic.
     # But if we want to be strict, we might need to exclusions from FileFilter if it has global state.
     # `FileFilter` currently uses `DEFAULT_EXCLUDED_DIRS` implicitly via `BLACKLIST_DIRS` check in `_is_likely_compressed_file` etc?
@@ -169,23 +168,23 @@ def grep_files(
     # The user example `AnnotatedTreeGenerator` uses `self.file_filter = FileFilter()` and checks files one by one.
     # grep is a bulk operation.
     #
-    # Let's keep using `DEFAULT_EXCLUDED_DIRS` as a robust approximation for grep, 
+    # Let's keep using `DEFAULT_EXCLUDED_DIRS` as a robust approximation for grep,
     # BUT we can add a comment acknowledging the alignment.
     # OR if we want to support `tool.py`'s `list_files` which could use FileFilter?
     # The user specifically mentioned "Unified file filtering logic... refer to AnnotatedTreeGenerator".
-    # `list_files` (lines 16-41) currently just runs `ls`. 
+    # `list_files` (lines 16-41) currently just runs `ls`.
     # Let's upgrade `list_files` to use `FileFilter` instead of `ls` if reasonable?
-    # `list_files` description says "simple ls". 
+    # `list_files` description says "simple ls".
     #
     # However, `grep_files` at line 105 is the one I touched.
     # I will stick to the previous `DEFAULT_EXCLUDED_DIRS` fix for `grep_files` as `grep` cannot easily run python logic per file during search.
     #
     # I WILL update `list_files` to use `FileFilter` if specific pattern/recursive is requested, or just respect it is `ls`.
     # Actually, the user's intent "Unified... filter.py" strongly suggests using it where file traversal happens.
-    # The `grep_files` tool delegates to `grep` binary for speed. 
+    # The `grep_files` tool delegates to `grep` binary for speed.
     # It seems `find_definition` (analysis/tools.py) falls back to `grep` too.
     #
-    # Wait, `AnnotatedTreeGenerator` is for *listing/visualizing* structure. 
+    # Wait, `AnnotatedTreeGenerator` is for *listing/visualizing* structure.
     # Maybe the user wants me to apply it to `list_files`?
     #
     # Let's update `list_files` to support smart filtering too?
@@ -204,7 +203,7 @@ def grep_files(
     # Re-reading `grep_files` in `infrastructure/filesystem/tool.py`:
     # It uses `grep -r`. It's hard to inject `FileFilter` there.
     #
-    # Let's update `find_definition` in `domain/codebase/analysis/tools.py`? 
+    # Let's update `find_definition` in `domain/codebase/analysis/tools.py`?
     # It also uses `grep`.
     #
     # Perhaps I should leave `grep` logic as "fast path" but update any Python iteration.
@@ -215,7 +214,7 @@ def grep_files(
     # If I look at `app/domain/codebase/analysis/tools.py`:
     # It doesn't walk files. It asks Graph or Greps.
     #
-    # Maybe I missed a spot? 
+    # Maybe I missed a spot?
     # `app/infrastructure/filesystem/tool.py` has `list_files`.
     # `ls -R` dumps everything including `.git` if not careful (though I added excludes to grep).
     # `ls` tool doesn't use the excludes!

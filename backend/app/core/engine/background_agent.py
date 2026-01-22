@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 # from celery import shared_task # Removed Celery
@@ -20,11 +21,9 @@ from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import Conversation, Message
 from app.infrastructure.external.evocloud import evocloud_client
-import logging
-logger = logging.getLogger(__name__)
-
-# Utils
 from app.utils.context import set_context
+
+logger = logging.getLogger(__name__)
 
 
 def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:

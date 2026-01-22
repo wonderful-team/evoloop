@@ -3,7 +3,6 @@ import logging
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.llm.factory import LLMFactory
-from app.domain.system.service import SystemConfigService
 from app.i18n.service import i18n
 
 logger = logging.getLogger("evoloop.learning.optimizer")
