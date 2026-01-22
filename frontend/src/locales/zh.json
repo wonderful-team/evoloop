@@ -1232,26 +1232,26 @@
       "setDate": "设置日期",
       "categoryPlaceholder": "分类",
       "priorityPlaceholder": "优先级",
-      "success": "任务已创建",
-      "error": "创建任务失败"
+      "success": "待办事项已创建",
+      "error": "创建待办事项失败"
     },
     "update": {
-      "success": "任务已更新",
-      "error": "更新任务失败"
+      "success": "待办事项已更新",
+      "error": "更新待办事项失败"
     },
     "delete": {
-      "success": "任务已删除",
-      "error": "删除任务失败"
+      "success": "待办事项已删除",
+      "error": "删除待办事项失败"
     },
     "empty": {
       "loading": "加载中...",
-      "noFilterMatch": "没有符合当前筛选条件的任务。",
-      "noActive": "暂无待办任务。请在上方添加！"
+      "noFilterMatch": "没有符合当前筛选条件的事项。",
+      "noActive": "暂无待办事项。请在上方添加！"
     },
     "headers": {
-      "allTasks": "所有任务",
-      "pendingTasks": "待办任务",
-      "completedTasks": "已完成任务"
+      "allTasks": "所有事项",
+      "pendingTasks": "待办事项",
+      "completedTasks": "已完成事项"
     },
     "noDueDate": "无截止日期",
     "jumpToChat": "跳转对话",
