@@ -229,9 +229,6 @@ class CSharpLanguageServer(SolidLanguageServer):
 
         self.initialization_complete = threading.Event()
 
-    def is_ignored_dirname(self, dirname: str) -> bool:
-        return super().is_ignored_dirname(dirname) or dirname in ["bin", "obj", "packages", ".vs"]
-
     @classmethod
     def _ensure_server_installed(cls, config: LanguageServerConfig, solidlsp_settings: SolidLSPSettings) -> tuple[str, str]:
         """

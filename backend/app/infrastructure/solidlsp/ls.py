@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from copy import copy
 from pathlib import Path, PurePath
 from time import sleep
-from typing import Self, Union, cast
+from typing import Self, cast
 
 import pathspec
 
@@ -48,7 +48,7 @@ from app.infrastructure.solidlsp.lsp_protocol_handler.server import (
 from app.infrastructure.solidlsp.settings import SolidLSPSettings
 from app.infrastructure.solidlsp.util.cache import load_cache, save_cache
 
-GenericDocumentSymbol = Union[LSPTypes.DocumentSymbol, LSPTypes.SymbolInformation, ls_types.UnifiedSymbolInformation]
+GenericDocumentSymbol = LSPTypes.DocumentSymbol | LSPTypes.SymbolInformation | ls_types.UnifiedSymbolInformation
 log = logging.getLogger(__name__)
 
 
@@ -179,7 +179,9 @@ class SolidLanguageServer(ABC):
         A language-specific condition for directories that should always be ignored. For example, venv
         in Python and node_modules in JS/TS should be ignored always.
         """
-        return dirname.startswith(".")
+        from app.constants import BLACKLIST_DIRS
+
+        return dirname.startswith(".") or dirname in BLACKLIST_DIRS
 
     @staticmethod
     def _determine_log_level(line: str) -> int:
@@ -705,7 +707,7 @@ class SolidLanguageServer(ABC):
                     new_item["range"] = item[LSPConstants.TARGET_SELECTION_RANGE]  # type: ignore
                     ret.append(ls_types.Location(**new_item))  # type: ignore
                 else:
-                    assert False, f"Unexpected response from Language Server: {item}"
+                    raise AssertionError(f"Unexpected response from Language Server: {item}")
         elif isinstance(response, dict):
             # response is of type Location
             assert LSPConstants.URI in response
@@ -721,7 +723,7 @@ class SolidLanguageServer(ABC):
             # This is expected for certain symbol types like generics or types with incomplete information
             log.warning(f"Language server returned None for definition request at {relative_file_path}:{line}:{column}")
         else:
-            assert False, f"Unexpected response from Language Server: {response}"
+            raise AssertionError(f"Unexpected response from Language Server: {response}")
 
         return ret
 
@@ -926,14 +928,14 @@ class SolidLanguageServer(ABC):
                     completion_item["completionText"] = item["textEdit"]["newText"]
                     completion_item["kind"] = item["kind"]
                 elif "textEdit" in item and "insert" in item["textEdit"]:
-                    assert False
+                    raise AssertionError()
                 else:
-                    assert False
+                    raise AssertionError()
 
                 completion_item = ls_types.CompletionItem(**completion_item)  # type: ignore
                 completions_list.append(completion_item)
 
-            return [json.loads(json_repr) for json_repr in set(json.dumps(item, sort_keys=True) for item in completions_list)]
+            return [json.loads(json_repr) for json_repr in {json.dumps(item, sort_keys=True) for item in completions_list}]
 
     def _request_document_symbols(
         self, relative_file_path: str, file_data: LSPFileBuffer | None
@@ -1734,6 +1736,7 @@ class SolidLanguageServer(ABC):
             legacy_cache_file = self.cache_dir / self.RAW_DOCUMENT_SYMBOL_CACHE_FILENAME_LEGACY_FALLBACK
             if legacy_cache_file.exists():
                 try:
+                    from .util.cache import load_pickle
                     legacy_cache: dict[
                         str, tuple[str, tuple[list[ls_types.UnifiedSymbolInformation], list[ls_types.UnifiedSymbolInformation]]]
                     ] = load_pickle(legacy_cache_file)

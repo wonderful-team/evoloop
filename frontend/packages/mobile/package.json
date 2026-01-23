@@ -1,0 +1,15 @@
+{
+    "name": "@evoloop/mobile",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite --port 5174",
+        "build": "tsc -p tsconfig.build.json && vite build",
+        "preview": "vite preview",
+        "tauri:android": "tauri android dev --config tauri.mobile.conf.json"
+    },
+    "dependencies": {
+        "@evoloop/shared": "workspace:*"
+    }
+}

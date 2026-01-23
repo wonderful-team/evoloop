@@ -64,6 +64,7 @@ export default function AddProject() {
       return ProjectsService.createProject({
         requestBody: {
           name: data.name,
+          path: data.name, // Use name as path for new projects
         },
       })
     },

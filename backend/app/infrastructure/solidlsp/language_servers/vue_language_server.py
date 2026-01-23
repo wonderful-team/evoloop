@@ -12,6 +12,7 @@ from pathlib import Path
 from time import sleep
 from typing import Any
 
+from app.constants import SEMANTIC_LANGUAGE_MAP
 from app.infrastructure.solidlsp import ls_types
 from app.infrastructure.solidlsp.language_servers.common import (
     RuntimeDependency,
@@ -61,18 +62,12 @@ class VueTypeScriptServer(TypeScriptLanguageServer):
         return ["typescript-language-server", "--stdio"]
 
     def _get_language_id_for_file(self, relative_file_path: str) -> str:
-        """Return the correct language ID for files.
-
-        Vue files must be opened with language ID "vue" for the @vue/typescript-plugin
-        to process them correctly. The plugin is configured with "languages": ["vue"]
-        in the initialization options.
-        """
         ext = os.path.splitext(relative_file_path)[1].lower()
-        if ext == ".vue":
+        if ext in SEMANTIC_LANGUAGE_MAP["vue"]:
             return "vue"
-        elif ext in (".ts", ".tsx", ".mts", ".cts"):
+        elif ext in SEMANTIC_LANGUAGE_MAP["typescript"]:
             return "typescript"
-        elif ext in (".js", ".jsx", ".mjs", ".cjs"):
+        elif ext in SEMANTIC_LANGUAGE_MAP["javascript"]:
             return "javascript"
         else:
             return "typescript"
@@ -156,30 +151,20 @@ class VueLanguageServer(SolidLanguageServer):
         self._vue_files_indexed = False
         self._indexed_vue_file_uris: list[str] = []
 
-    def is_ignored_dirname(self, dirname: str) -> bool:
-        return super().is_ignored_dirname(dirname) or dirname in [
-            "node_modules",
-            "dist",
-            "build",
-            "coverage",
-            ".nuxt",
-            ".output",
-        ]
-
     def _get_language_id_for_file(self, relative_file_path: str) -> str:
         ext = os.path.splitext(relative_file_path)[1].lower()
-        if ext == ".vue":
+        if ext in SEMANTIC_LANGUAGE_MAP["vue"]:
             return "vue"
-        elif ext in (".ts", ".tsx", ".mts", ".cts"):
+        elif ext in SEMANTIC_LANGUAGE_MAP["typescript"]:
             return "typescript"
-        elif ext in (".js", ".jsx", ".mjs", ".cjs"):
+        elif ext in SEMANTIC_LANGUAGE_MAP["javascript"]:
             return "javascript"
         else:
             return "vue"
 
     def _is_typescript_file(self, file_path: str) -> bool:
         ext = os.path.splitext(file_path)[1].lower()
-        return ext in (".ts", ".tsx", ".mts", ".cts", ".js", ".jsx", ".mjs", ".cjs")
+        return ext in SEMANTIC_LANGUAGE_MAP["typescript"] or ext in SEMANTIC_LANGUAGE_MAP["javascript"]
 
     def _find_all_vue_files(self) -> list[str]:
         vue_files = []

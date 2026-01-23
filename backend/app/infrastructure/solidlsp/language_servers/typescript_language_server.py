@@ -80,14 +80,6 @@ class TypeScriptLanguageServer(SolidLanguageServer):
         self.server_ready = threading.Event()
         self.initialize_searcher_command_available = threading.Event()
 
-    def is_ignored_dirname(self, dirname: str) -> bool:
-        return super().is_ignored_dirname(dirname) or dirname in [
-            "node_modules",
-            "dist",
-            "build",
-            "coverage",
-        ]
-
     @staticmethod
     def _determine_log_level(line: str) -> int:
         """Classify typescript-language-server stderr output to avoid false-positive errors."""
@@ -257,7 +249,7 @@ class TypeScriptLanguageServer(SolidLanguageServer):
             """
             Also listen for experimental/serverStatus as a backup signal
             """
-            if params.get("quiescent") == True:
+            if params.get("quiescent") is True:
                 self.server_ready.set()
                 self.completions_available.set()
 
