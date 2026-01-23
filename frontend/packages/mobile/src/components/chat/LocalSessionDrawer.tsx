@@ -1,7 +1,7 @@
 import { History, Plus } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { LogsService } from "../client"
+import { LogsService } from "../../client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
     Sheet,

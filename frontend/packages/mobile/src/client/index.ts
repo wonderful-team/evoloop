@@ -46,6 +46,12 @@ export interface ApiResponse<T = any> {
     data: T
 }
 
+export interface ApiError {
+    status: number
+    message: string
+    data?: any
+}
+
 export interface Device {
     device_id: number
     device_name: string
@@ -231,6 +237,42 @@ export class ProjectsService {
      */
     public static async getCurrentProject(): Promise<ApiResponse<any>> {
         return client.get("/projectmanage/api/projectOpen/current")
+    }
+}
+
+export class ConfigService {
+    /**
+     * Get AI Config (Support, etc.)
+     * GET /api/config/ai
+     */
+    public static async getAiConfig(): Promise<ApiResponse<any>> {
+        return client.get("/api/config/ai")
+    }
+}
+
+export class MemberService {
+    /**
+     * Get Cancellation Info
+     * GET /api/member/cancellation/info
+     */
+    public static async getCancellationInfo(): Promise<ApiResponse> {
+        return client.get("/api/member/cancellation/info")
+    }
+
+    /**
+     * Apply Cancellation
+     * POST /api/member/cancellation/apply
+     */
+    public static async applyCancellation(): Promise<ApiResponse> {
+        return client.post("/api/member/cancellation/apply")
+    }
+
+    /**
+     * Cancel Cancellation Request
+     * POST /api/member/cancellation/cancel
+     */
+    public static async cancelCancellation(): Promise<ApiResponse> {
+        return client.post("/api/member/cancellation/cancel")
     }
 }
 
@@ -516,8 +558,23 @@ export class LoginService {
         })) as ApiResponse
 
         if (res.code >= 0) {
-            return { access_token: res.data.token } // Map to OAuth2 structure if UI expects it
+            return { access_token: res.data.token, member_id: res.data.member_id }
         }
         throw new Error(res.message)
+    }
+
+    /**
+     * Login Alias
+     */
+    public static async login(data: { username: string; password: string }): Promise<ApiResponse<{ token: string; member_id: number }>> {
+        return client.post("/api/login/login", data)
+    }
+
+    /**
+     * Logout
+     * POST /api/login/logout
+     */
+    public static async logout(): Promise<ApiResponse> {
+        return client.post("/api/login/logout")
     }
 }

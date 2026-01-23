@@ -16,11 +16,11 @@ import {
 } from "@tanstack/react-router"
 import { StrictMode } from "react"
 import ReactDOM from "react-dom/client"
-import { ThemeProvider } from "./components/theme-provider"
+import { ThemeProvider } from "@evoloop/shared/components/theme-provider"
 import { Toaster } from "@evoloop/shared/components/ui/sonner"
 
 // Mobile-specific i18n and styles
-import "./i18n"
+import "@evoloop/shared/i18n"
 import "./index.css"
 
 // Use the isolated route tree

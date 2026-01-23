@@ -41,7 +41,7 @@ function ProfileSupportButton() {
 function ProfileCancellation() {
   const { t } = useTranslation()
   const { info, apply, cancel, isApplying, isCanceling } =
-    useMemberCancellation("mobile")
+    useMemberCancellation()
 
   // Status: 1=audit, 2=success, 3=refuse, -1=cancel/none?
   // Need to verify exact status codes from MemberCancel model.

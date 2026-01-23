@@ -10,9 +10,9 @@ import {
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { FilesService } from "../client"
+import { FilesService } from "../../client"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { useVoice } from "../hooks/useVoice"
+import { useVoice } from "@evoloop/shared/hooks/useVoice"
 
 interface ChatInputProps {
   isConnected: boolean

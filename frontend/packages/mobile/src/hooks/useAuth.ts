@@ -5,8 +5,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { AuthService, LoginService } from "../client"
-import { handleError } from "../utils"
-import useCustomToast from "./useCustomToast"
+
+import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 
 const isLoggedIn = () => {
   return localStorage.getItem("evoloop_token") !== null

@@ -1,5 +1,5 @@
-import { Appearance } from "../components/Common/Appearance"
-import { Logo } from "../components/Common/Logo"
+import { Appearance } from "./Appearance"
+import { Logo } from "@evoloop/shared/components/Logo"
 import { Footer } from "./Footer"
 
 interface AuthLayoutProps {

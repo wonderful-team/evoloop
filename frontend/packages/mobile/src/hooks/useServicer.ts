@@ -4,11 +4,11 @@
  */
 import { useQuery } from "@tanstack/react-query"
 import { ConfigService } from "../client"
-import useCustomToast from "./useCustomToast"
+import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 
 type Platform = "mobile" | "desktop"
 
-export const useServicer = (platform: Platform = "mobile") => {
+export const useServicer = (_platform: Platform = "mobile") => {
   const { showErrorToast } = useCustomToast()
 
   const { data: config, isLoading } = useQuery({

@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@evoloop/shared/components/ui/dialog"
 import { MobileHumanRequestCard } from "./MobileHumanRequestCard"
-import type { LogMessage } from "../hooks/useEvoLoopWebSocket"
+import type { LogMessage } from "../../hooks/useEvoLoopWebSocket"
 
 interface MessageListProps {
   messages: LogMessage[]

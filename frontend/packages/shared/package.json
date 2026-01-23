@@ -7,7 +7,9 @@
     "types": "./src/index.ts",
     "exports": {
         ".": "./src/index.ts",
-        "./components/ui/*": "./src/components/ui/*",
+        "./components/*": "./src/components/*",
+        "./hooks/*": "./src/hooks/*",
+        "./i18n": "./src/i18n.ts",
         "./lib/*": "./src/lib/*",
         "./locales/*": "./src/locales/*"
     },

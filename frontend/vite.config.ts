@@ -8,7 +8,8 @@ import { defineConfig } from "vite"
 export default defineConfig({
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "./packages/desktop/src"),
+      "@evoloop/shared": path.resolve(__dirname, "./packages/shared/src"),
     },
   },
   envDir: "../",
@@ -16,6 +17,8 @@ export default defineConfig({
     tanstackRouter({
       target: "react",
       autoCodeSplitting: true,
+      routesDirectory: "./packages/desktop/src/routes",
+      generatedRouteTree: "./packages/desktop/src/routeTree.gen.ts",
     }),
     react(),
     tailwindcss(),
@@ -23,8 +26,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: path.resolve(__dirname, "index.html"),
-        mobile: path.resolve(__dirname, "mobile.html"),
+        main: path.resolve(__dirname, "packages/desktop/index.html"),
+        mobile: path.resolve(__dirname, "packages/mobile/index.html"),
       },
     },
   },

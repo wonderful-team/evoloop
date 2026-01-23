@@ -23,6 +23,12 @@
         "paths": {
             "@shared/*": [
                 "./src/*"
+            ],
+            "@evoloop/shared/*": [
+                "./src/*"
+            ],
+            "@evoloop/shared": [
+                "./src/index.ts"
             ]
         }
     },

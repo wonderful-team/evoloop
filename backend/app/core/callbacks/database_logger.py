@@ -235,95 +235,22 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             return
 
         # 2. Process Content (Folding/Summarizing)
-        content_to_show = str(output)
-        if visibility == "FOLDED":
-            content_to_show = self._summarize_tool_output(tool_name, str(output))
-
+        # Phase 17: Deprecate Folding. Store strict raw output in content with action_type='tool_output'.
+        # Frontend handles display logic (Accordion).
+        
         await self._save_log(
             role="tool",
-            content=content_to_show,
+            content=str(output),
             status="completed",
-            tool_output=str(output),  # Always persist full output in tool_output column
+            action_type="tool_output",
         )
 
     def _get_tool_visibility(self, tool_name: str) -> str:
-        """
-        Classify tool visibility.
-        VISIBLE: Store naturally.
-        HIDDEN: Do not store message at all.
-        FOLDED: Store summary in content, full data in tool_output.
-        """
-        # A. Visible (High Value)
-        if tool_name in [
-            "analyze_feasibility",
-            "search_web",
-            "deep_research",
-            "run_command",
-            "run_shell_command",
-            "request_human_input",
-            "request_approval",
-            "query_graph_natural_language",
-            "manage_git",
-        ]:
-            return "VISIBLE"
+        # ... (Keep existing visibility logic if needed for HIDDEN check)
+        # But FOLDED logic is now handled by frontend via action_type
+        return "VISIBLE" 
 
-        # B. Hidden (Internal/Noisy)
-        if tool_name in [
-            "consult_lsp",
-            "update_step_status",
-            "list_files",
-            "file_system",
-            "manage_memory",
-            "explore_codebase",
-            "search_codebase",  # Usually summarized by Planner, raw output is noisy
-            "view_code_item",
-        ]:
-            return "HIDDEN"
-
-        # C. Folded (Summarized)
-        if tool_name in [
-            "read_file",
-            "write_file",
-            "edit_file",
-            "manage_file",
-            "create_plan",  # JSON state
-        ]:
-            return "FOLDED"
-
-        # Default
-        return "VISIBLE"
-
-    def _summarize_tool_output(self, tool_name: str, output: str) -> str:
-        """Create a user-friendly summary for folded tools."""
-        try:
-            if tool_name == "read_file":
-                # "Read 500 lines..."
-                line_count = len(output.splitlines())
-                return i18n.get("prompts.database_logger.tool_summary.read_file_result", lines=line_count)
-
-            elif tool_name in ["write_file", "edit_file", "manage_file"]:
-                # The tools usually return "File updated successfully" or similar.
-                # We can just show that short message, or a standard one.
-                # If output is short (< 200 chars), just show it.
-                if len(output) < 200:
-                    return output
-                return i18n.get("prompts.database_logger.tool_summary.file_op_result")
-
-            elif tool_name == "create_plan":
-                # Output is JSON. Parse to get step count.
-                try:
-                    data = json.loads(output)
-                    steps = data.get("steps", [])
-                    return i18n.get("prompts.database_logger.tool_summary.plan_created", count=len(steps))
-                except Exception:
-                    return "Plan Created."
-        except Exception:
-            pass
-
-        # Fallback: Truncate
-        if len(output) > 200:
-            return output[:200] + "... (See Details)"
-        return output
+    # _summarize_tool_output is now unused but can be kept for reference or deleted.
 
     async def _save_log(
         self,
@@ -333,20 +260,19 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         status: str = "completed",
         references: list[dict] | None = None,
         tool_calls: list | None = None,
-        tool_output: str | None = None,
+        tool_output: str | None = None, # Deprecated
+        action_type: str = "text",
     ):
         if not content and not thinking and not tool_calls:
             return
 
-        # Improved Deduplication: Hash + Role + Time Window (2 seconds)
-        # This allows legitimately repeated messages while preventing rapid-fire duplicates
+        # ... (Dedup logic unchanged)
         current_time = time.time()
         current_hash = hash((role, content, str(tool_calls))) if content else 0
 
         last_hash = getattr(self, "_last_logged_hash", None)
         last_time = getattr(self, "_last_logged_time", 0)
 
-        # Dedup: Same hash AND role within 2 second window
         if current_hash == last_hash and (current_time - last_time) < 2.0:
             return
 
@@ -356,8 +282,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         try:
             self._sequence_counter += 1
             async with session_scope() as session:
-                # Phase 4: Threading - Find parent (Last message in thread)
-                # Ideally we should pass parent_id explicitly, but for now linear threading is fine.
+                # ... (Parent ID logic unchanged)
                 parent_id = None
                 stmt = (
                     select(Message.id)
@@ -375,33 +300,38 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                     content=content,
                     thinking=thinking,
                     sequence_number=self._sequence_counter,
-                    # Phase 3: Message-Run Association
                     run_id=self.run_id,
                     status=status,
-                    # Phase 4: Threading
                     parent_id=parent_id,
-                    # Tool Data
                     tool_calls=tool_calls,
-                    tool_output=tool_output,
+                    # tool_output=tool_output, # DEPRECATED
+                    action_type=action_type,
                 )
                 session.add(log)
                 await session.flush()  # Get ID
 
                 # Phase 11: Real-time History Sync
                 try:
-                    # Access activity_monitor lazily to avoid circular imports at module level
                     from app.core.monitoring.activity import activity_monitor
 
-                    # Serialize minimal data needed for frontend append
+                    # Map action_type to frontend type
+                    # Mobile expects: 'user', 'thought', 'tool', 'error', 'hitl_request'
+                    frontend_type = "text"
+                    if log.role == "user":
+                        frontend_type = "user"
+                    elif log.action_type == "tool_output":
+                        frontend_type = "tool"
+                    elif log.action_type == "thinking":
+                        frontend_type = "thought"
+                    
                     msg_data = {
                         "id": str(log.id),
                         "role": log.role,
                         "content": log.content,
-                        # "created_at": log.created_at.isoformat() if log.created_at else None, # Created_at might be None until commit?
-                        # Use current time if None?
                         "thinking": log.thinking,
-                        "type": "text",
-                        "tool_calls": log.tool_calls,  # Phase 24: Support Frontend Folding
+                        "type": frontend_type, 
+                        "action_type": log.action_type,
+                        "tool_calls": log.tool_calls,
                     }
 
                     # Fire and forget

@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
-import { Logo } from "../components/Common/Logo"
+import { Logo } from "@evoloop/shared/components/Logo"
 import { ChatInput } from "../components/chat/ChatInput"
 // import { Menu } from "lucide-react"
 // import { Button } from "@evoloop/shared/components/ui/button"

@@ -8,7 +8,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { z } from "zod"
 import { AuthService } from "../client"
-import { Logo } from "../components/Common/Logo"
+import { Logo } from "@evoloop/shared/components/Logo"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
   Form,

@@ -22,18 +22,18 @@
         "baseUrl": ".",
         "paths": {
             "@/*": [
-                "../../src/mobile/*"
+                "./src/*"
             ],
-            "@mobile/*": [
-                "../../src/mobile/*"
-            ],
-            "@shared/*": [
+            "@evoloop/shared/*": [
                 "../shared/src/*"
+            ],
+            "@evoloop/shared": [
+                "../shared/src/index.ts"
             ]
         }
     },
     "include": [
-        "../../src/mobile/**/*"
+        "src/**/*"
     ],
     "exclude": []
 }

@@ -4,7 +4,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { MemberService } from "../client"
-import useCustomToast from "./useCustomToast"
+import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 
 export const useMemberCancellation = () => {
   const { showSuccessToast, showErrorToast } = useCustomToast()

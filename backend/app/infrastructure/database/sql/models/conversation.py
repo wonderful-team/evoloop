@@ -33,7 +33,12 @@ class Message(Base):
 
     # New columns for tool calls
     tool_calls: Mapped[list[dict] | None] = mapped_column(JSON)
+    # Deprecated: usage migrated to content + action_type='tool_output'
     tool_output: Mapped[str | None] = mapped_column(Text)
+
+    # Phase 17: Action Type Discriminator
+    # values: 'text' (default), 'tool_output', 'thinking', 'system'
+    action_type: Mapped[str] = mapped_column(String(50), default="text", server_default="text")
 
     # Phase 3: Message-Run Association
     run_id: Mapped[str | None] = mapped_column(String(255), index=True)  # Associate with a specific execution run

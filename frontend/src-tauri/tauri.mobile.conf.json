@@ -15,7 +15,7 @@
         "title": "EvoLoop Mobile",
         "width": 800,
         "height": 600,
-        "url": "mobile.html"
+        "url": "packages/mobile/index.html"
       }
     ],
     "security": {

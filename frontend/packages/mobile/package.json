@@ -5,7 +5,7 @@
     "type": "module",
     "scripts": {
         "dev": "vite --port 5174",
-        "build": "tsc -p tsconfig.build.json && vite build",
+        "build": "tsc && vite build",
         "preview": "vite preview",
         "tauri:android": "tauri android dev --config tauri.mobile.conf.json"
     },

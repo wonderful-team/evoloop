@@ -13,7 +13,8 @@
     "tauri": "tauri",
     "tauri:mobile": "tauri android dev --config src-tauri/tauri.mobile.conf.json",
     "dev:mobile": "vite --port 5174",
-    "mobile:android": "export JAVA_HOME=$(/usr/libexec/java_home -v 17) && npm run tauri:mobile"
+    "mobile:android": "export JAVA_HOME=$(/usr/libexec/java_home -v 17) && npm run tauri:mobile",
+    "build:android": "export JAVA_HOME=$(/usr/libexec/java_home -v 17) && tauri android build --config src-tauri/tauri.mobile.conf.json"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
