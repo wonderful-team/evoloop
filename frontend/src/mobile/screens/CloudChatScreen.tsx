@@ -3,7 +3,7 @@ import { ArrowLeft, Bot, Menu } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { ConversationsService } from "@/client/sdk.gen"
+import { ConversationsService } from "@/mobile/client"
 import { Button } from "@/components/ui/button"
 import { streamChat } from "@/lib/streamHelper"
 import { ConversationDrawer } from "../components/ConversationDrawer"
@@ -42,16 +42,18 @@ export function CloudChatScreen() {
     if (!isNew && conversationId) {
       setIsLoading(true)
       // Remove Number() cast to support UUIDs
-      ConversationsService.getConversationMessages({ threadId: conversationId })
-        .then((res: any) => {
-          const list = Array.isArray(res) ? res : res.data || []
-          const formatted = list.reverse().map((msg: any) => ({
-            type: msg.role === "user" ? "user" : "output",
-            content: msg.content,
-            timestamp: msg.create_time * 1000,
-            log_id: msg.id,
-          }))
-          setMessages(formatted)
+      ConversationsService.getConversationMessages({ thread_id: conversationId })
+        .then((res) => {
+          if (res.code >= 0 && res.data?.list) {
+            const list = res.data.list
+            const formatted = list.reverse().map((msg: any) => ({
+              type: msg.role === "user" ? "user" : "output",
+              content: msg.content,
+              timestamp: msg.create_time * 1000,
+              log_id: msg.id,
+            }))
+            setMessages(formatted)
+          }
         })
         .catch(() => toast.error(t("cloudChat.historyFailed")))
         .finally(() => setIsLoading(false))
@@ -180,7 +182,7 @@ export function CloudChatScreen() {
           ...prev,
           {
             type: "error",
-            content: e.message || "Error",
+            content: e.message || t("common.error.title"),
             timestamp: Date.now(),
           },
         ])

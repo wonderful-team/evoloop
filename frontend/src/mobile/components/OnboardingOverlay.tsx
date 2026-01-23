@@ -75,7 +75,7 @@ export function OnboardingOverlay() {
 
   const copyDownloadLink = () => {
     navigator.clipboard.writeText("https://develop-assistant.cn/download")
-    toast.success("下载链接已复制")
+    toast.success(t("devices.linkCopied"))
   }
 
   if (!isVisible) return null
@@ -262,11 +262,7 @@ export function OnboardingOverlay() {
             {slides.map((_, index) => (
               <div
                 key={index}
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  index === currentSlide
-                    ? "w-8 bg-primary"
-                    : "w-2 bg-primary/20"
-                }`}
+                className={`h-2 rounded-full transition-all duration-300 ${index === currentSlide ? "w-8 bg-primary" : "w-2 bg-primary/20"}`}
               />
             ))}
           </div>

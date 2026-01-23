@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query"
 import { redirect, useNavigate } from "@tanstack/react-router"
 import { Activity, Monitor, Smartphone } from "lucide-react"
 import { Trans, useTranslation } from "react-i18next"
-import { DevicesService } from "@/client/sdk.gen"
+import { toast } from "sonner"
+import { DevicesService } from "@/mobile/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -13,7 +14,7 @@ import {
 } from "@/components/ui/card"
 
 export async function devicesLoader() {
-  const token = localStorage.getItem("evoloop_token")
+  const token = localStorage.getItem("evoloop_token") || localStorage.getItem("access_token")
   if (!token) {
     throw redirect({ to: "/login" as any })
   }
@@ -22,7 +23,7 @@ export async function devicesLoader() {
 export function DevicesScreen() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const token = localStorage.getItem("evoloop_token")
+  const token = localStorage.getItem("evoloop_token") || localStorage.getItem("access_token")
   const isGuest = !token
 
   const {
@@ -32,13 +33,11 @@ export function DevicesScreen() {
   } = useQuery({
     queryKey: ["evoloop", "devices"],
     queryFn: async () => {
-      const res: any = await DevicesService.getDevices()
-      // Backend returns { code: 0, data: [...] } or just array?
-      // EvoCloudClient.get_devices returns result of _request which returns response.json()
-      // _request returns { code: ..., data: ... } usually for Member Center APIs.
-      // Let's handle both cases validly
-      if (Array.isArray(res)) return res
-      if (res && Array.isArray(res.data)) return res.data
+      const res = await DevicesService.getDevices()
+      // res is ApiResponse<Device[]>
+      if (res.code >= 0 && Array.isArray(res.data)) {
+        return res.data
+      }
       return []
     },
     refetchInterval: 5000,
@@ -66,11 +65,10 @@ export function DevicesScreen() {
           </div>
           <div className="max-w-xs space-y-2">
             <h3 className="text-lg font-semibold">
-              {t("devices.guestTitle") || "Login to View Devices"}
+              {t("devices.guestTitle")}
             </h3>
             <p className="text-sm text-muted-foreground">
-              {t("devices.guestDesc") ||
-                "Access your remote devices and control them from anywhere."}
+              {t("devices.guestDesc")}
             </p>
           </div>
           <div className="flex gap-3 w-full max-w-xs">
@@ -189,8 +187,7 @@ export function DevicesScreen() {
                     navigator.clipboard.writeText(
                       "https://develop-assistant.cn/download",
                     )
-                    // Assuming toast is available or just let user know
-                    alert(t("devices.linkCopied"))
+                    toast.success(t("devices.linkCopied"))
                   }}
                 >
                   {t("devices.copyLink")}

@@ -146,7 +146,12 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
 
         try:
             callbacks = [callback, db_callback]
-            callbacks.append(EvoLoopCallbackHandler(evocloud_client, thread_id, command_id=evoloop_command_id))
+            callbacks.append(EvoLoopCallbackHandler(
+                evocloud_client,
+                thread_id,
+                project_id=project_id,
+                command_id=evoloop_command_id
+            ))
 
             config["callbacks"] = callbacks
             config["recursion_limit"] = settings.RECURSION_LIMIT

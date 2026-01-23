@@ -2,7 +2,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { Plus, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { ConversationsService } from "@/client/sdk.gen"
+import { ConversationsService } from "@/mobile/client"
 import { Button } from "@/components/ui/button"
 import {
   Sheet,
@@ -27,21 +27,9 @@ export function ConversationDrawer({
   const [isOpen, setIsOpen] = useState(false)
 
   const fetchConversations = () => {
-    // List conversations (new API doesn't use page for listConversations? Check ConversationsService.listConversations)
-    // sdk.gen.ts: listConversations(data: { projectId?: ... })
-    // It returns list.
-    ConversationsService.listConversations().then((res: any) => {
-      // new endpoint returns { count, conversations: [...] } or just array?
-      // conversations.py: return {"count": ..., "conversations": ...} ? No, wait.
-      // conversations.py `list_conversations`: returns `List[ConversationListItem]`.
-      // So res IS the array.
-      // Legacy expect { list: [] }.
-      if (Array.isArray(res)) {
-        setConversations(res)
-      } else if (res && Array.isArray(res.conversations)) {
-        setConversations(res.conversations)
-      } else if (res && Array.isArray(res.list)) {
-        setConversations(res.list)
+    ConversationsService.listConversations().then((res) => {
+      if (res.code >= 0 && res.data?.list) {
+        setConversations(res.data.list)
       }
     })
   }
@@ -55,7 +43,7 @@ export function ConversationDrawer({
     e.stopPropagation()
     if (confirm(t("conversation.deleteConfirm"))) {
       // ID can be string UUID
-      await ConversationsService.deleteConversation({ threadId: id })
+      await ConversationsService.deleteConversation({ thread_id: id })
       fetchConversations()
       if (activeId === id) {
         navigate({ to: "/cloud-chat/new" as any })

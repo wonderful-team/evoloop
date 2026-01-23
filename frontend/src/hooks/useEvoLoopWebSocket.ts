@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { DevicesService } from "@/client/sdk.gen"
+import { DevicesService } from "@/mobile/client"
 
 const WS_URL = import.meta.env.VITE_EVOLOOP_WS_URL || "wss://mall.imagicbox.cn/wss/"
 
@@ -46,17 +46,8 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
             console.log("[EvoLoop] Got client_id:", clientId)
             // Bind mobile client to user
             try {
-              // Bind mobile to current device
-              // If deviceId is null (not yet connected to specific), we might fail?
-              // But usually WS connects first.
-              // If deviceId is passed to hook, use it.
-              if (deviceId) {
-                await DevicesService.bindClient({
-                  deviceId,
-                  requestBody: { client_id: clientId },
-                })
-                console.log("[EvoLoop] Mobile Bound")
-              }
+              await DevicesService.bindMobile(clientId)
+              console.log("[EvoLoop] Mobile Bound")
             } catch (e) {
               console.error("[EvoLoop] Bind failed", e)
               toast.error(t("toast.bindFailed"))

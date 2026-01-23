@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from "uuid"
-import { AgentService, OpenAPI } from "@/client"
+import { AgentService } from "@/mobile/client"
+import { OpenAPI } from "@/client"
 
 interface StreamChatParams {
   message: string
@@ -9,39 +10,21 @@ interface StreamChatParams {
 
 /**
  * Helper to stream chat from /api/v1/stream/chat/{thread_id}
- * 1. Post user message to /api/v1/chat (unified endpoint)
- * 2. Connect to SSE stream
  */
 export const streamChat = async (
   params: StreamChatParams,
   onChunk: (chunk: string, meta?: any) => void,
 ): Promise<void> => {
-  // 1. Send Message
-  // If conversation_id is "new" or undefined, we need to generate one?
-  // AgentService.chatEndpoint requires guest_id/token.
-  // However, if we are internal (authenticated via token), we might not need guest_id?
-  // SDK uses OpenAPI.TOKEN for auth.
-  // The chatEndpoint takes query params: guest_id, token.
-  // But it also takes headers.
-
-  // We need to know the thread_id AHEAD of time to subscribe to correct stream?
-  // Or chatEndpoint returns it?
-  // chatEndpoint returns `AgentChatEndpointResponse`.
-
-  // For "new" conversation, usually frontend generates UUID.
   let threadId = params.conversation_id
   if (!threadId || threadId === "new") {
     threadId = uuidv4()
   }
 
   // Call Chat Endpoint
-  // Payload: message (str), thread_id
   await AgentService.chatEndpoint({
-    requestBody: {
-      message: params.message,
-      thread_id: threadId,
-      attachments: params.attachments
-    },
+    message: params.message,
+    thread_id: threadId,
+    attachments: params.attachments
   })
 
   // 2. Subscribe to Valid Stream

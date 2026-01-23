@@ -14,10 +14,10 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import {
-  ConversationsService,
   DevicesService,
   ProjectsService,
-} from "@/client/sdk.gen"
+  LogsService,
+} from "@/mobile/client"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -61,8 +61,8 @@ export function SearchScreen() {
   const { data: devices } = useQuery({
     queryKey: ["evoloop", "devices"],
     queryFn: async () => {
-      const res: any = await DevicesService.getDevices()
-      return (res.data || res || []) as any[]
+      const res = await DevicesService.getDevices()
+      return res.code >= 0 ? res.data : []
     },
   })
 
@@ -70,37 +70,31 @@ export function SearchScreen() {
   const { data: projectsData } = useQuery({
     queryKey: ["evoloop", "projects"],
     queryFn: async () => {
-      const res: any = await ProjectsService.getProjects()
-      return res // normalize in 'projects' below
+      const res = await ProjectsService.getProjects()
+      return res.code >= 0 ? res.data : { list: [] }
     },
   })
-  const projects =
-    (projectsData as any)?.list || (projectsData as any)?.data?.list || []
+  const projects = (projectsData as any)?.list || []
 
   const performSearch = async (term: string) => {
     if (!term.trim()) return
     setIsSearching(true)
     addToHistory(term)
     try {
-      // Use ConversationsService for agent/chat logs
-      const res: any = await ConversationsService.searchConversations({
+      const res = await LogsService.searchLogs({
         q: term,
-        projectId: selectedProjectId || undefined,
+        project_id: selectedProjectId || undefined,
+        device_id: selectedDeviceId || undefined,
       })
-      // res should be { data: [...] } or [...]
-      // Map result to match UI expectations
-      const list = Array.isArray(res) ? res : res.data || []
+      const list = res.code >= 0 ? res.data : []
       setResults(
         list.map((item: any) => ({
           ...item,
-          log_id: item.id, // ID mapping
-          create_time: new Date(item.created_at).getTime() / 1000,
-          device_id: 0, // No device ID in new agent logs
-          project_id: item.project_id,
+          create_time: item.create_time || item.timestamp || Date.now() / 1000,
         })),
       )
     } catch (e: any) {
-      toast.error(`Search failed: ${e.message}`)
+      toast.error(`${t("search.failedPrefix")}${e.message}`)
     } finally {
       setIsSearching(false)
     }
@@ -275,14 +269,17 @@ export function SearchScreen() {
                   )}
 
                   <span>
-                    {new Date(log.create_time * 1000).toLocaleString("en-US", {
-                      month: "2-digit",
-                      day: "2-digit",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      second: "2-digit",
-                      hour12: false,
-                    })}
+                    {new Date(log.create_time * 1000).toLocaleString(
+                      t("common.locale") || "en-US",
+                      {
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        second: "2-digit",
+                        hour12: false,
+                      },
+                    )}
                   </span>
                 </div>
                 <span className="px-1.5 py-0.5 bg-muted rounded text-[10px]">

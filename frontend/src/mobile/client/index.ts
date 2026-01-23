@@ -12,19 +12,26 @@ const client = axios.create({
     },
 })
 
+// Add request interceptor to attach token
+client.interceptors.request.use((config) => {
+    const token = localStorage.getItem("evoloop_token") || localStorage.getItem("access_token")
+    if (token) {
+        config.params = {
+            ...config.params,
+            token,
+        }
+    }
+    return config
+})
+
 // Add response interceptor for standard error handling
 client.interceptors.response.use(
     (response) => response.data,
     (error) => {
-        // Return a structured error that front-end expects/can handle or rethrow
         if (error.response) {
-            // Backend returned an error response
             return Promise.reject({
                 status: error.response.status,
-                message:
-                    error.response.data?.message ||
-                    error.response.statusText ||
-                    "Network Error",
+                message: error.response.data?.message || error.response.statusText || "Network Error",
                 data: error.response.data,
             })
         }
@@ -32,7 +39,202 @@ client.interceptors.response.use(
     },
 )
 
-// Types matching the frontend expectations (simplified/inferred)
+// --- Types ---
+export interface ApiResponse<T = any> {
+    code: number
+    message: string
+    data: T
+}
+
+export interface Device {
+    device_id: number
+    device_name: string
+    device_key: string
+    device_type: string
+    os_info: string
+    status: number
+    client_id: string
+    last_heartbeat: number
+}
+
+// --- Services ---
+
+export class DevicesService {
+    /**
+     * Get Devices List
+     * GET /evolooplink/api/device/list
+     */
+    public static async getDevices(): Promise<ApiResponse<Device[]>> {
+        return client.get("/evolooplink/api/device/list")
+    }
+
+    /**
+     * Bind Mobile Client to User (for receiving logs)
+     * POST /evolooplink/api/device/bindMobile
+     */
+    public static async bindMobile(clientId: string): Promise<ApiResponse> {
+        return client.post("/evolooplink/api/device/bindMobile", { client_id: clientId })
+    }
+
+    /**
+     * Legacy/Support: Bind Client ID to specific Device
+     * POST /evolooplink/api/device/bind
+     */
+    public static async bindClient(data: { deviceId: number; client_id: string }): Promise<ApiResponse> {
+        return client.post("/evolooplink/api/device/bind", {
+            device_id: data.deviceId,
+            client_id: data.client_id
+        })
+    }
+}
+
+export class CommandService {
+    /**
+     * Send Command to Device
+     * POST /evolooplink/api/command/send
+     */
+    public static async sendCommand(data: {
+        device_id: number;
+        content: any;
+        thread_id?: string;
+        project_id?: number
+    }): Promise<ApiResponse> {
+        return client.post("/evolooplink/api/command/send", data)
+    }
+}
+
+export class LogsService {
+    /**
+     * Get Recent Logs
+     * GET /evolooplink/api/log/recent
+     */
+    public static async getRecentLogs(params: {
+        device_id: number;
+        limit?: number;
+        project_id?: number
+    }): Promise<ApiResponse<any[]>> {
+        return client.get("/evolooplink/api/log/recent", { params })
+    }
+
+    /**
+     * Get Logs by Thread (Session)
+     * GET /evolooplink/api/log/list
+     */
+    public static async getLogsByThread(params: {
+        thread_id: string;
+        since_id?: number
+    }): Promise<ApiResponse<any[]>> {
+        return client.get("/evolooplink/api/log/list", { params })
+    }
+
+    /**
+     * Search Logs
+     * GET /evolooplink/api/log/search
+     */
+    public static async searchLogs(params: {
+        q: string;
+        device_id?: number;
+        project_id?: number;
+        limit?: number
+    }): Promise<ApiResponse<any[]>> {
+        return client.get("/evolooplink/api/log/search", { params })
+    }
+
+    /**
+     * Get Recent Threads (Sessions)
+     * GET /evolooplink/api/log/threads
+     */
+    public static async getRecentThreads(params: {
+        device_id: number;
+        project_id?: number;
+        limit?: number
+    }): Promise<ApiResponse<any[]>> {
+        return client.get("/evolooplink/api/log/threads", { params })
+    }
+}
+
+export class ConversationsService {
+    /**
+     * Get Conversation Messages
+     * GET /api/ai/messages
+     */
+    public static async getConversationMessages(data: { thread_id: string }): Promise<ApiResponse<{ list: any[]; count: number }>> {
+        return client.get('/api/ai/messages', { params: { conversation_id: data.thread_id } })
+    }
+
+    /**
+     * Get List of Conversations
+     * GET /api/ai/conversations
+     */
+    public static async listConversations(): Promise<ApiResponse<{ list: any[]; count: number }>> {
+        return client.get("/api/ai/conversations")
+    }
+
+    /**
+     * Delete Conversation
+     * POST /api/ai/deleteConversation
+     */
+    public static async deleteConversation(data: { thread_id: string }): Promise<ApiResponse> {
+        return client.post("/api/ai/deleteConversation", { conversation_id: data.thread_id })
+    }
+}
+
+export class AgentService {
+    /**
+     * Chat Endpoint (AI)
+     * POST /api/ai/chat
+     */
+    public static async chatEndpoint(data: {
+        message: string;
+        thread_id?: string;
+        attachments?: any[];
+        stream?: boolean
+    }): Promise<ApiResponse> {
+        return client.post("/api/ai/chat", {
+            message: data.message,
+            conversation_id: data.thread_id,
+            attachments: data.attachments,
+            stream: data.stream
+        })
+    }
+}
+
+export class FilesService {
+    /**
+     * Upload File to Cloud
+     * POST /api/upload/chatimg or /api/upload/chatfile
+     */
+    public static async uploadFile(data: { file: File | Blob; type: 'image' | 'file' }): Promise<ApiResponse<{ url: string }>> {
+        const formData = new FormData()
+        formData.append('file', data.file)
+        const endpoint = data.type === 'image' ? '/api/upload/chatimg' : '/api/upload/chatfile'
+        return client.post(endpoint, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        })
+    }
+}
+
+export class ProjectsService {
+    /**
+     * Get Projects List from Cloud
+     * GET /projectmanage/api/projectOpen/projects
+     */
+    public static async getProjects(params: { page?: number; page_size?: number } = {}): Promise<ApiResponse<{ list: any[] }>> {
+        return client.get("/projectmanage/api/projectOpen/projects", { params })
+    }
+
+    /**
+     * Get Current Project
+     * GET /projectmanage/api/projectOpen/current
+     */
+    public static async getCurrentProject(): Promise<ApiResponse<any>> {
+        return client.get("/projectmanage/api/projectOpen/current")
+    }
+}
+
+// Support types for AuthService
 export interface CaptchaConfigResponse {
     code: number
     message: string
@@ -63,12 +265,6 @@ export interface CaptchaResponse {
         id: string
         img: string
     }
-}
-
-export interface ApiResponse {
-    code: number
-    message: string
-    data: any
 }
 
 export class AuthService {

@@ -13,9 +13,10 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
     Callback Handler that pushes logs to EvoLoop Link (Server-side Plugin).
     """
 
-    def __init__(self, client: Any, thread_id: str, command_id: int | None = None):
+    def __init__(self, client: Any, thread_id: str, project_id: int | None = None, command_id: int | None = None):
         self.client = client
         self.thread_id = thread_id
+        self.project_id = project_id
         self.command_id = command_id
         self.token_buffer = ""
 
@@ -27,6 +28,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
             log_type="thought",
             content=i18n.get("prompts.evoloop_logger.thinking"),
             command_id=self.command_id,
+            project_id=self.project_id,
         )
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
@@ -47,6 +49,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
                 log_type="thought",
                 content=text,
                 command_id=self.command_id,
+                project_id=self.project_id,
             )
 
     async def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> Any:
@@ -107,6 +110,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
                 input=input_str[:200],
             ),
             command_id=self.command_id,
+            project_id=self.project_id,
         )
 
     async def on_tool_end(self, output: str, **kwargs: Any) -> Any:
@@ -150,6 +154,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
             log_type="tool",
             content=content_to_log,
             command_id=self.command_id,
+            project_id=self.project_id,
         )
 
     async def on_chain_error(self, error: BaseException, **kwargs: Any) -> Any:
@@ -158,4 +163,5 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
             log_type="error",
             content=str(error),
             command_id=self.command_id,
+            project_id=self.project_id,
         )

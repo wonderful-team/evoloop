@@ -139,11 +139,10 @@ export function ProfileScreen() {
           </div>
           <div className="max-w-xs space-y-2">
             <h2 className="text-xl font-semibold">
-              {t("profile.guestTitle") || "Welcome Guest"}
+              {t("profile.guestTitle")}
             </h2>
             <p className="text-sm text-muted-foreground">
-              {t("profile.guestDesc") ||
-                "Log in to sync your devices and access cloud features."}
+              {t("profile.guestDesc")}
             </p>
           </div>
           <div className="grid gap-3 w-full max-w-xs mt-4">

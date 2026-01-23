@@ -108,7 +108,8 @@ export function RegisterScreen() {
         if (Number(capConf) === 1) refreshCaptcha()
       } catch (e) {
         console.error(e)
-        toast.error("Failed to load configuration")
+        const msg = t("auth.errors.loadConfigFailed") || "Failed to load configuration"
+        toast.error(msg)
       }
     }
     loadConfigs()
@@ -517,7 +518,7 @@ export function RegisterScreen() {
       <Dialog open={showAgreement} onOpenChange={setShowAgreement}>
         <DialogContent className="max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>{agreementContent?.title || "Agreements"}</DialogTitle>
+            <DialogTitle>{agreementContent?.title || t("auth.register.agreementsTitle")}</DialogTitle>
           </DialogHeader>
           {/* Render HTML content safely if possible, or plain text */}
           <div

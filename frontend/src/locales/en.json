@@ -19,7 +19,8 @@
       "title": "Error",
       "oops": "Oops!",
       "message": "Something went wrong. Please try again.",
-      "goHome": "Go Home"
+      "goHome": "Go Home",
+      "unknown": "Unknown Error"
     },
     "notFound": {
       "title": "404",
@@ -295,6 +296,7 @@
       "getCode": "Get Code",
       "agree": "I agree to the",
       "policy": "Service & Privacy Policy",
+      "agreementsTitle": "Agreements",
       "submit": "Sign Up",
       "hasAccount": "Already have an account?",
       "login": "Login"
@@ -355,7 +357,8 @@
       "fullNameRequired": "Full Name is required",
       "passwordMin8": "Password must be at least 8 characters",
       "confirmPasswordRequired": "Password confirmation is required",
-      "passwordsNoMatch": "The passwords don't match"
+      "passwordsNoMatch": "The passwords don't match",
+      "loadConfigFailed": "Failed to load configuration"
     },
     "success": {
       "codeSent": "Code sent!",
@@ -416,6 +419,8 @@
     "guestTitle": "Login to View Projects",
     "guestDesc": "Manage your cloud projects and sync them across devices.",
     "id": "ID: ",
+    "errorMissingDeviceId": "Project missing device ID",
+    "failedToLoad": "Failed to load projects",
     "loading": "Loading projects...",
     "refresh": "Refresh",
     "new": "New Project",
@@ -600,7 +605,8 @@
     "clear": "Clear",
     "noResults": "No results found.",
     "searching": "Searching...",
-    "logLabel": "Log #{{id}}"
+    "logLabel": "Log #{{id}}",
+    "failedPrefix": "Search failed: "
   },
   "cloudChat": {
     "title": "Cloud Agent",
@@ -947,7 +953,8 @@
       "connectingServer": "Connecting to Server...",
       "backToLive": "Back to Live",
       "sendFailed": "Failed to send command: ",
-      "deliveryFailed": "Failed to deliver message: "
+      "deliveryFailed": "Failed to deliver message: ",
+      "sessions": "Local Sessions"
     },
     "steps": {
       "collapsedSummary": "{{count}} previously completed steps...",

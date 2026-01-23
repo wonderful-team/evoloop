@@ -170,21 +170,22 @@ class EvoCloudClient:
     async def reset_password_by_mobile(self, mobile, code, key, password) -> dict:
         return await self.api.reset_password_by_mobile(mobile, code, key, password)
 
-    async def get_devices(self) -> dict:
-        return await self.api.get_devices()
+    async def get_devices(self, token: str | None = None) -> dict:
+        return await self.api.get_devices(token=token)
 
-    async def send_command_to_device(self, device_id, cmd_data) -> dict:
-        return await self.api.send_command_to_device(device_id, cmd_data)
+    async def send_command_to_device(self, device_id: int, cmd_data: dict, token: str | None = None) -> dict:
+        return await self.api.send_command_to_device(device_id, cmd_data, token=token)
 
-    async def get_device_logs(self, device_id, limit=20, project_id=None) -> dict:
-        return await self.api.get_device_logs(device_id, limit, project_id)
+    async def get_device_logs(self, device_id: int, limit: int = 20, project_id: int | None = None, token: str | None = None) -> dict:
+        return await self.api.get_device_logs(device_id, limit, project_id, token=token)
 
-    async def search_device_logs(self, device_id, query, limit=20, project_id=None) -> dict:
-        return await self.api.search_device_logs(device_id, query, limit, project_id)
+    async def search_device_logs(self, device_id: int, query: str, limit: int = 20, project_id: int | None = None, token: str | None = None) -> dict:
+        return await self.api.search_device_logs(device_id, query, limit, project_id, token=token)
 
     async def upload_log(self, thread_id, log_type, content, command_id=None, project_id=None):
         # Requires device_id from Link
         if not self.link.device_id:
+            logger.warning(f"[EvoCloud] Skip upload log: No device_id (thread={thread_id})")
             return
         await self.api.upload_log(self.link.device_id, thread_id, log_type, content, command_id, project_id)
 

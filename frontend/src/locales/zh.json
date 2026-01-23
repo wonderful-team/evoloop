@@ -19,7 +19,8 @@
       "title": "错误",
       "oops": "哎呀!",
       "message": "出错了。请重试。",
-      "goHome": "返回首页"
+      "goHome": "返回首页",
+      "unknown": "未知错误"
     },
     "notFound": {
       "title": "404",
@@ -290,6 +291,7 @@
       "getCode": "获取验证码",
       "agree": "我已阅读并同意",
       "policy": "《服务协议 & 隐私政策》",
+      "agreementsTitle": "服务协议",
       "submit": "注册",
       "hasAccount": "已有账号？",
       "login": "登录"
@@ -350,7 +352,8 @@
       "fullNameRequired": "全名不能为空",
       "passwordMin8": "密码长度至少为 8 位",
       "confirmPasswordRequired": "请确认密码",
-      "passwordsNoMatch": "两次输入的密码不一致"
+      "passwordsNoMatch": "两次输入的密码不一致",
+      "loadConfigFailed": "加载配置失败"
     },
     "success": {
       "codeSent": "验证码已发送",
@@ -411,6 +414,8 @@
     "guestTitle": "登录查看项目",
     "guestDesc": "管理您的云端项目并跨设备同步。",
     "id": "ID：",
+    "errorMissingDeviceId": "项目缺少设备 ID",
+    "failedToLoad": "加载项目失败",
     "loading": "加载项目中...",
     "refresh": "刷新",
     "new": "新建项目",
@@ -596,7 +601,8 @@
     "clear": "清除",
     "noResults": "未找到结果。",
     "searching": "搜索中...",
-    "logLabel": "日志 #{{id}}"
+    "logLabel": "日志 #{{id}}",
+    "failedPrefix": "搜索失败："
   },
   "cloudChat": {
     "title": "云端智能体",
@@ -948,7 +954,8 @@
       "connectingServer": "连接服务器中...",
       "backToLive": "回到实时",
       "sendFailed": "发送指令失败：",
-      "deliveryFailed": "消息投递失败："
+      "deliveryFailed": "消息投递失败：",
+      "sessions": "本地会话"
     },
     "steps": {
       "collapsedSummary": "{{count}} 个已完成步骤...",

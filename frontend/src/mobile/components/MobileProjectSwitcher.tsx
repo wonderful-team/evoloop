@@ -1,8 +1,9 @@
+import { useQuery } from "@tanstack/react-query"
 import { Check, ChevronsUpDown, FolderOpen, Search } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { ProjectsService } from "@/client/sdk.gen"
+import { ProjectsService } from "@/mobile/client"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -27,66 +28,55 @@ export function MobileProjectSwitcher({
 }: MobileProjectSwitcherProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const [projects, setProjects] = useState<any[]>([])
   const [internalProject, setInternalProject] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
   const displayProject = project || internalProject
 
-  // Fetch Projects and Init
+  // Use useQuery for Projects List (Consistent with ProjectsScreen)
+  const { data: projectsData, isLoading } = useQuery({
+    queryKey: ["evoloop", "projects"],
+    queryFn: async () => {
+      const res = await ProjectsService.getProjects()
+      // Cloud returns { code: 0, data: { list: [...] } }
+      if (res.code >= 0) return res.data
+      throw new Error(res.message || t("projects.failedToLoad"))
+    },
+    staleTime: 30000,
+  })
+
+  const projects = (projectsData as any)?.list || []
+
+  // Initialize current project if not provided via props
   useEffect(() => {
-    let isMounted = true
-    const init = async () => {
-      // Only fetch list if empty? Or always refresh? Always refresh is safer.
-      try {
-        // Fetch list
-        const listRes: any = await ProjectsService.getProjects()
-
-        if (!isMounted) return
-
-        // Normalize list
-        const list =
-          listRes.list || listRes.projects || listRes.data?.list || []
-
-        if (Array.isArray(list)) {
-          setProjects(list)
-        }
-
-        // If no external project provided, try to fetch current from Server or default to first
-        if (!project) {
-          try {
-            const currentRes: any = await ProjectsService.getCurrentProject()
-            if (currentRes?.project_id) {
-              setInternalProject(currentRes)
-              onProjectChange?.(currentRes) // Sync up
-              onLoaded?.(currentRes)
-            } else if (list.length > 0) {
-              const first = list[0]
-              setInternalProject(first)
-              onProjectChange?.(first)
-              onLoaded?.(first)
-            }
-          } catch {
-            // If current fail, use first
-            if (list.length > 0) {
-              const first = list[0]
-              setInternalProject(first)
-              onProjectChange?.(first)
-              onLoaded?.(first)
-            }
+    if (!project && !internalProject) {
+      const fetchCurrent = async () => {
+        try {
+          const currentRes = await ProjectsService.getCurrentProject()
+          if (currentRes.code >= 0 && currentRes.data?.project_id) {
+            const current = currentRes.data
+            setInternalProject(current)
+            onLoaded?.(current)
+          } else if (projects.length > 0) {
+            // Fallback to first project in list if no "current" set on cloud
+            const first = projects[0]
+            setInternalProject(first)
+            onLoaded?.(first)
+          }
+        } catch (e) {
+          // If getCurrentProject fails, fallback to first in list
+          if (projects.length > 0) {
+            const first = projects[0]
+            setInternalProject(first)
+            onLoaded?.(first)
           }
         }
-      } catch (e) {
-        console.error("Failed to load projects", e)
       }
+      fetchCurrent()
     }
-    init()
-    return () => {
-      isMounted = false
-    }
-  }, [onLoaded, onProjectChange, project]) // Run once on mount
+  }, [project, projects, onLoaded, internalProject])
 
-  // Sync internal if prop changes (not strictly needed since we use displayProject, but good for consistency)
+  // Sync internal if prop changes
   useEffect(() => {
     if (project) {
       setInternalProject(project)
@@ -124,7 +114,7 @@ export function MobileProjectSwitcher({
     }
   }
 
-  const filteredProjects = projects.filter((p) =>
+  const filteredProjects = projects.filter((p: any) =>
     p.project_name.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
@@ -168,12 +158,16 @@ export function MobileProjectSwitcher({
 
         <div className="flex-1 overflow-y-auto -mx-4 px-4">
           <div className="space-y-1 pb-6">
-            {filteredProjects.length === 0 ? (
+            {isLoading ? (
+              <div className="flex justify-center p-8">
+                <span className="animate-spin mr-2">◌</span> {t("common.loading")}
+              </div>
+            ) : filteredProjects.length === 0 ? (
               <div className="text-center py-8 text-sm text-muted-foreground">
                 {t("projectSwitcher.noProjects")}
               </div>
             ) : (
-              filteredProjects.map((p) => (
+              filteredProjects.map((p: any) => (
                 <div
                   key={p.project_id}
                   className={cn(

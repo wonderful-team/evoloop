@@ -36,10 +36,7 @@ class MemoryService:
             except Exception as e:
                 logger.warning(f"Failed to create composite constraint for CodeEntity: {e}")
 
-            # Vector Index for Concepts
-            # Syntax for Neo4j 5.x+
-            # IF NOT EXISTS is supported in newer versions.
-            # Strategy: Use settings.EMBEDDING_DIMENSIONS as source of truth.
+            # Vector Index for Concepts & Episodes
             target_dim = settings.EMBEDDING_DIMENSIONS
 
             try:
@@ -54,49 +51,29 @@ class MemoryService:
                     logger.warning(
                         f"MemoryService: Embedder check failed ({e}). Using configured dimension: {target_dim}")
 
-                # Check existing index dimension if it exists
+                # Check existing index dimensions and recreate if mismatch
+                for index_name in ['concept_embeddings', 'episode_embeddings']:
+                    try:
+                        index_check = await session.run(
+                            "SHOW INDEXES YIELD name, options WHERE name = $name",
+                            name=index_name
+                        )
+                        record = await index_check.single()
 
-                # Check existing index dimension if it exists
-                # Using YIELD to be explicit about what we want
-                try:
-                    index_check = await session.run(
-                        "SHOW INDEXES YIELD name, options WHERE name = 'concept_embeddings'")
-                    record = await index_check.single()
-
-                    should_recreate = False
-                    if record:
-                        logger.info("MemoryService: Found existing index 'concept_embeddings'. Checking dimensions...")
-                        # Parse existing options to check dimension
-                        try:
-                            # Record is compliant with dict access
-                            options = record["options"]
-                            # options is often a map like {'indexConfig': {'vector.similarity_function': 'cosine', 'vector.dimensions': 1536}}
+                        if record:
+                            options = record.get("options", {})
                             idx_config = options.get("indexConfig", {})
                             current_dim = idx_config.get("vector.dimensions")
 
-                            logger.info(f"MemoryService: Existing Index Dimension: {current_dim}")
-
                             if current_dim and int(current_dim) != target_dim:
-                                logger.warning(
-                                    f"Vector Index dimension mismatch! Index: {current_dim}, Config: {target_dim}. Recreating index...")
-                                should_recreate = True
-                            else:
-                                logger.info("MemoryService: Index dimension matches.")
-                        except Exception as e:
-                            logger.warning(
-                                f"Failed to parse existing index options keys: {e}. Record keys: {record.keys()}")
-                    else:
-                        logger.info("MemoryService: Index 'concept_embeddings' not found via SHOW INDEXES.")
+                                logger.warning(f"Index '{index_name}' dimension mismatch! Index: {current_dim}, Config: {target_dim}. Recreating...")
+                                await session.run(f"DROP INDEX {index_name} IF EXISTS")
+                        else:
+                            logger.info(f"MemoryService: Index '{index_name}' not found, will create.")
+                    except Exception as e:
+                        logger.warning(f"Error checking index '{index_name}': {e}")
 
-                    if should_recreate:
-                        logger.info("MemoryService: Dropping old index...")
-                        await session.run("DROP INDEX concept_embeddings IF EXISTS")
-                        # Also drop episode index if concept one was wrong, likely created together
-                        await session.run("DROP INDEX episode_embeddings IF EXISTS")
-
-                except Exception as e:
-                    logger.error(f"Error checking/dropping index: {e}")
-
+                # Create Vector Indexes
                 await session.run(f"""
                     CREATE VECTOR INDEX concept_embeddings IF NOT EXISTS
                     FOR (c:Concept)
@@ -107,7 +84,6 @@ class MemoryService:
                     }}}}
                 """)
 
-                # Same for Episode embeddings if used
                 await session.run(f"""
                      CREATE VECTOR INDEX episode_embeddings IF NOT EXISTS
                      FOR (e:Episode)
@@ -121,28 +97,13 @@ class MemoryService:
 
             except Exception as e:
                 logger.error(f"Failed to initialize Vector Index: {e}")
+                raise  # Re-raise to allow app startup to catch and log if critical
 
             # Episode Constraints
             try:
                 await session.run("CREATE CONSTRAINT episode_unique IF NOT EXISTS FOR (e:Episode) REQUIRE e.id IS UNIQUE")
             except Exception as e:
                 logger.warning(f"Failed to create Episode constraint: {e}")
-
-            # Vector Index for Episodes (Features: Goal)
-            try:
-                # Use safely determined target_dim
-                await session.run(f"""
-                    CREATE VECTOR INDEX episode_embeddings IF NOT EXISTS
-                    FOR (e:Episode)
-                    ON (e.embedding)
-                    OPTIONS {{indexConfig: {{
-                        `vector.dimensions`: {target_dim},
-                        `vector.similarity_function`: 'cosine'
-                    }}}}
-                """)
-                logger.info(f"Vector Index 'episode_embeddings' ensured (dim={target_dim}).")
-            except Exception as e:
-                logger.warning(f"Failed to create Episode Vector Index: {e}")
 
     async def add_user_preference(
         self,

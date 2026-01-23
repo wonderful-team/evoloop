@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate, useParams, useSearch } from "@tanstack/react-router"
 import { ArrowDownCircle } from "lucide-react"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { DevicesService } from "@/client/sdk.gen"
+import { DevicesService, CommandService, LogsService } from "@/mobile/client"
 import { Button } from "@/components/ui/button"
 import { useEvoLoopWebSocket } from "@/hooks/useEvoLoopWebSocket"
 import { ChatHeader } from "../components/chat/ChatHeader"
@@ -21,6 +21,7 @@ export function LocalChatScreen() {
     : null
   const navigate = useNavigate()
   const initializedRef = useRef(false)
+  const [activeThreadId, setActiveThreadId] = useState<string | undefined>(undefined)
 
   const handleSend = async (content: string, attachments: any[] = []) => {
     // Optimistic UI
@@ -44,9 +45,9 @@ export function LocalChatScreen() {
     })
 
     try {
-      await DevicesService.sendCommand({
-        deviceId: Number(deviceId),
-        requestBody: {
+      await CommandService.sendCommand({
+        device_id: Number(deviceId),
+        content: {
           command_type: "chat",
           params: {
             message: content,
@@ -54,6 +55,7 @@ export function LocalChatScreen() {
             project_id: currentProject?.project_id,
           },
         },
+        project_id: currentProject?.project_id,
       })
     } catch (e: any) {
       toast.error(t("chat.local.sendFailed") + e.message)
@@ -87,33 +89,28 @@ export function LocalChatScreen() {
     if (deviceId && isProjectInitialized) {
       let promise
       if (highlight) {
-        // Get Context Logs (Device Logs around query?)
-        // Actually legacy getContextLogs API not mapped to DevicesService directly? Or searchLogs?
-        // Assuming DevicesService.getDeviceLogs works or similar.
-        // If legacy endpoint was /device/logs/context?
-        // DevicesService.searchLogs? Or getRecentLogs with params?
-        // Looking at sdk.gen.ts, we have getRecentLogs and searchLogs.
-        // I will use searchLogs if highlight is ID? Or maybe getRecentLogs doesn't support highlight.
-        // Legacy getContextLogs(did, mid).
-        // I'll assume for now I can't easily replicate context fetch without logic.
-        // But I can fallback to getRecentLogs or implement context support in backend.
-        // Given time constraints, I'll use getRecentLogs for now.
-        promise = DevicesService.getRecentLogs({
-          deviceId: Number(deviceId),
+        promise = LogsService.getRecentLogs({
+          device_id: Number(deviceId),
           limit: 20,
         })
+      } else if (activeThreadId) {
+        // LogsService.list is mapped to /api/log/list which takes thread_id
+        promise = LogsService.getLogsByThread({
+          thread_id: activeThreadId,
+        })
       } else {
-        promise = DevicesService.getRecentLogs({
-          deviceId: Number(deviceId),
+        promise = LogsService.getRecentLogs({
+          device_id: Number(deviceId),
           limit: 50,
-          projectId: currentProject?.project_id,
+          project_id: currentProject?.project_id,
         })
       }
 
       promise
-        .then((logs) => {
-          if (Array.isArray(logs)) {
-            const formatted = logs.map((log) => ({
+        .then((res: any) => {
+          if (res.code >= 0 && Array.isArray(res.data)) {
+            const logs = res.data
+            const formatted = logs.map((log: any) => ({
               type: log.type || "info",
               content: log.content,
               thread_id: log.thread_id,
@@ -131,7 +128,7 @@ export function LocalChatScreen() {
             }
           }
         })
-        .catch((err) => {
+        .catch((err: any) => {
           console.error("Failed to fetch history", err)
         })
     }
@@ -141,12 +138,16 @@ export function LocalChatScreen() {
     currentProject?.project_id,
     isProjectInitialized,
     highlight,
+    activeThreadId,
   ])
 
   // Device Status
   const { data: devices } = useQuery({
     queryKey: ["evoloop", "devices"],
-    queryFn: () => DevicesService.getDevices(),
+    queryFn: async () => {
+      const res = await DevicesService.getDevices()
+      return res.code >= 0 ? res.data : []
+    },
     refetchInterval: 5000,
   })
 
@@ -175,69 +176,23 @@ export function LocalChatScreen() {
 
 
 
-  const displayMessages = messages.filter((m) => {
-    if (!currentProject) return true
-    if (m.project_id === undefined || m.project_id === null) return true
-    return m.project_id === currentProject.project_id
-  })
+  // Display all messages from the device in Local Chat.
+  // Filtering by project_id is often unreliable due to desktop/cloud ID differences.
+  const displayMessages = messages
 
   const handleHITLResponse = async (threadId: string, response: string, commandId?: number) => {
     try {
-      await DevicesService.sendCommand({
-        deviceId: Number(deviceId),
-        requestBody: {
-          /* 
-             Backend handler expects: 
-             type="hitl_response", 
-             content={response: ...} 
-             thread_id=...
-          */
-          command_type: "hitl_response" as any, // Cast if type enum is strict
-          params: {
-            // Some backends flatten params into command_data, others nest. 
-            // handler.py: cmd_type = command_data.get("type")
-            // DevicesService usually sends { type: command_type, ...params }
-            // Let's verify backend handler logic.
-            // handler.py: command_data is the whole dict.
-            // DevicesService.sendCommand -> POST /devices/{id}/command -> (likely) sends body as-is or wrapped?
-            // Assuming SDK sends body as JSON.
-            // If I put params here, I need to know how the backend receives it.
-            // Usually command_type is top level.
-          },
-          // Wait, the SDK definition might be strict.
-          // IF SDK is strict, I might need to abuse 'custom' type or similar.
-          // Let's assume loose typings or I use 'chat' with specially crafted content?
-          // No, backend specifically checks `cmd_type == "hitl_response"`.
-          // So I MUST send type="hitl_response".
-          // If SDK command_type enum doesn't have it, I might need @ts-ignore.
-        } as any
-      })
-
-      // Actually, better to look at what I did in handling.
-      // handler.py: cmd_type = command_data.get("type", "chat_message")
-      // So I need 'type': 'hitl_response' at top level of command_data.
-
-      // Re-reading SDK usage in handleSend:
-      /*
-        requestBody: {
-          command_type: "chat",
-          params: { ... }
-        }
-      */
-      // If the backend /command endpoint maps requestBody directly to command_data?
-      // Or does it map command_type -> type?
-      // I'll assume requestBody fields are merged.
-
-      await DevicesService.sendCommand({
-        deviceId: Number(deviceId),
-        requestBody: {
-          command_type: "hitl_response" as any,
+      await CommandService.sendCommand({
+        device_id: Number(deviceId),
+        content: {
+          command_type: "hitl_response",
           params: {
             content: { response: response },
             thread_id: threadId,
             command_id: commandId
           }
-        }
+        },
+        project_id: currentProject?.project_id,
       })
 
       toast.success(t("hitl.responseSent"))
@@ -256,6 +211,8 @@ export function LocalChatScreen() {
         statusText={statusText}
         statusColor={statusColor}
         statusShadow={statusShadow}
+        activeThreadId={activeThreadId}
+        onThreadSelect={setActiveThreadId}
         onClear={clearMessages}
       />
 

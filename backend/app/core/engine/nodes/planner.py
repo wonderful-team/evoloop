@@ -1,3 +1,4 @@
+import json
 import logging
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
@@ -132,7 +133,15 @@ async def planner_node(state: AgentState, config: RunnableConfig):
     # [FIX] Phase 21: Supervisor Instruction Injection (Cure Planner Deafness)
     scratchpad = state.get("scratchpad", {})
     handoff = scratchpad.get("handoff_context", {})
-    instruction = handoff.get("instruction") or scratchpad.get("route_reason")
+
+    if isinstance(handoff, str):
+        try:
+            handoff = json.loads(handoff)
+        except Exception:
+            handoff = {}
+
+    instruction = handoff.get("instruction") if isinstance(handoff, dict) else None
+    instruction = instruction or scratchpad.get("route_reason")
 
     if instruction:
         logger.info(f"[Planner] 🎯 Injected Supervisor Instruction: {instruction}")

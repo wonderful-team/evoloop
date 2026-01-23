@@ -135,3 +135,19 @@ async def reset_knowledge_base():
 
     await wipe_knowledge_base()
     return {"status": "success", "message": "Knowledge Base Wiped."}
+
+
+@router.get("/cloud-status")
+async def get_cloud_status():
+    """
+    Debug endpoint to check EvoCloud connection status.
+    """
+    from app.infrastructure.external.evocloud import evocloud_client
+    
+    return {
+        "is_logged_in": bool(evocloud_client.api.get_token()),
+        "device_id": evocloud_client.link.device_id,
+        "is_linked": evocloud_client.link.is_connected(),
+        "device_name": evocloud_client.link.device_name,
+        "api_url": evocloud_client.api.base_url
+    }

@@ -1,9 +1,10 @@
 import { useNavigate } from "@tanstack/react-router"
-import { ArrowLeft, Search } from "lucide-react"
+import { ArrowLeft, Menu, Search } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Button } from "@/components/ui/button"
 import { MobileProjectSwitcher } from "../../components/MobileProjectSwitcher"
 import { useMobileStore } from "../../stores/useMobileStore"
+import { LocalSessionDrawer } from "./LocalSessionDrawer"
 
 interface ChatHeaderProps {
   device: any
@@ -11,6 +12,8 @@ interface ChatHeaderProps {
   statusColor: string
   statusShadow: string
   deviceId: string
+  activeThreadId?: string
+  onThreadSelect: (id: string) => void
   onClear: () => void
 }
 
@@ -20,6 +23,8 @@ export function ChatHeader({
   statusColor,
   statusShadow,
   deviceId,
+  activeThreadId,
+  onThreadSelect,
   onClear,
 }: ChatHeaderProps) {
   const { t } = useTranslation()
@@ -37,6 +42,19 @@ export function ChatHeader({
       >
         <ArrowLeft className="w-5 h-5" />
       </Button>
+
+      <LocalSessionDrawer
+        deviceId={Number(deviceId)}
+        projectId={currentProject?.project_id}
+        activeThreadId={activeThreadId}
+        onSelect={onThreadSelect}
+        trigger={
+          <Button variant="ghost" size="icon" className="-ml-2 border-none">
+            <Menu className="w-5 h-5" />
+          </Button>
+        }
+      />
+
       <div className="flex-1 overflow-hidden">
         <div className="flex items-center gap-1.5 mb-0.5">
           <h1 className="font-semibold text-sm truncate max-w-[120px]">

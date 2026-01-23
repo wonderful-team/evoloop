@@ -10,7 +10,7 @@ import {
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { FilesService } from "@/client/sdk.gen"
+import { FilesService } from "@/mobile/client"
 import { Button } from "@/components/ui/button"
 import { useVoice } from "@/hooks/useVoice"
 
@@ -122,20 +122,14 @@ export function ChatInput({
       }
 
       // 2. Upload
-      // FilesService.uploadFile expects { projectId, formData: { file } }
-      // Wait, formData param in SDK is wrapper for params: { file: ... }
-      // Let's check sdk types or assumption.
-      // Usually: uploadFile(data: { projectId: number, formData: { file: Blob | File } })
-      const res: any = await FilesService.uploadFile({
-        projectId,
-        formData: {
-          file: file,
-        },
+      const res = await FilesService.uploadFile({
+        file,
+        type,
       })
 
       // 3. Update state with server URL
-      // API returns { url, filename, path }
-      const serverUrl = res.url
+      // API returns { code, data: { url, ... } }
+      const serverUrl = res.data.url
 
       setAttachments((prev) =>
         prev.map((att) => {

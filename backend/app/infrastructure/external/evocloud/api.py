@@ -348,24 +348,24 @@ class EvoCloudAPI:
         )
 
     # Device Specific via API
-    async def get_devices(self) -> dict:
-        return await self.request("GET", "/evolooplink/api/device/list")
+    async def get_devices(self, token: str | None = None) -> dict:
+        return await self.request("GET", "/evolooplink/api/device/list", token=token)
 
-    async def send_command_to_device(self, device_id: int, cmd_data: dict) -> dict:
+    async def send_command_to_device(self, device_id: int, cmd_data: dict, token: str | None = None) -> dict:
         data = {"device_id": device_id, **cmd_data}
-        return await self.request("POST", "/evolooplink/api/command/send", data=data)
+        return await self.request("POST", "/evolooplink/api/command/send", data=data, token=token)
 
-    async def get_device_logs(self, device_id: int, limit=20, project_id=None) -> dict:
+    async def get_device_logs(self, device_id: int, limit=20, project_id=None, token: str | None = None) -> dict:
         params = {"device_id": device_id, "limit": limit}
         if project_id:
             params["project_id"] = project_id
-        return await self.request("GET", "/evolooplink/api/log/recent", params=params)
+        return await self.request("GET", "/evolooplink/api/log/recent", params=params, token=token)
 
-    async def search_device_logs(self, device_id: int, query: str, limit=20, project_id=None) -> dict:
+    async def search_device_logs(self, device_id: int, query: str, limit=20, project_id=None, token: str | None = None) -> dict:
         params = {"device_id": device_id, "query": query, "limit": limit}
         if project_id:
             params["project_id"] = project_id
-        return await self.request("GET", "/evolooplink/api/log/search", params=params)
+        return await self.request("GET", "/evolooplink/api/log/search", params=params, token=token)
 
     async def register_device(self, key: str, name: str, os_info: str) -> dict:
         """Raw API call to register device."""

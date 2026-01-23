@@ -24,6 +24,7 @@ from app.infrastructure.database.sql.models import (
     Message,
     MessageReference,
 )
+from app.infrastructure.external.evocloud import evocloud_client
 from app.utils.context import set_context
 
 logger = logging.getLogger(__name__)
@@ -157,6 +158,17 @@ async def chat_endpoint(
             session.add(user_msg)
             await session.flush()  # Ensure FK consistency
             logger.info(f"Persisted user message for thread {req.thread_id} (seq={user_msg.sequence_number})")
+
+            # 4.5 Sync to EvoCloud (Device Logs)
+            try:
+                await evocloud_client.upload_log(
+                    thread_id=req.thread_id,
+                    log_type="input",
+                    content=req.message,
+                    project_id=req.project_id
+                )
+            except Exception as sync_e:
+                logger.warning(f"Failed to sync human message to cloud: {sync_e}")
 
             # 5. Upsert References (Phase 9)
             if req.attachments:
@@ -318,6 +330,17 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
                     )
                     session.add(user_msg)
                     logger.info(f"Persisted RESUME message for thread {req.thread_id}")
+
+                    # Sync to EvoCloud
+                    try:
+                        await evocloud_client.upload_log(
+                            thread_id=req.thread_id,
+                            log_type="input",
+                            content=req.user_input,
+                            project_id=conversation.project_id
+                        )
+                    except Exception as sync_e:
+                        logger.warning(f"Failed to sync resume message to cloud: {sync_e}")
         except Exception as e:
             logger.error(f"Failed to persist resume message: {e}")
             # Non-blocking, continue resume flow

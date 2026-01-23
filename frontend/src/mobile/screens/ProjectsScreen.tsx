@@ -3,7 +3,7 @@ import { useNavigate } from "@tanstack/react-router"
 import { FolderOpen, Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { ProjectsService } from "@/client/sdk.gen"
+import { ProjectsService } from "@/mobile/client"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -23,8 +23,8 @@ export function ProjectsScreen() {
   const { data, isLoading } = useQuery({
     queryKey: ["evoloop", "projects"],
     queryFn: async () => {
-      const res = (await ProjectsService.getProjects()) as any
-      return res
+      const res = await ProjectsService.getProjects()
+      return res.code >= 0 ? res.data : { list: [] }
     },
     enabled: !!token,
   })
@@ -42,11 +42,10 @@ export function ProjectsScreen() {
           </div>
           <div className="max-w-xs space-y-2">
             <h3 className="text-lg font-semibold">
-              {t("projects.guestTitle") || "Login to View Projects"}
+              {t("projects.guestTitle")}
             </h3>
             <p className="text-sm text-muted-foreground">
-              {t("projects.guestDesc") ||
-                "Manage your cloud projects and sync them across devices."}
+              {t("projects.guestDesc")}
             </p>
           </div>
           <div className="flex gap-3 w-full max-w-xs">
@@ -69,7 +68,7 @@ export function ProjectsScreen() {
     )
   }
 
-  const projects = (data as any)?.projects || []
+  const projects = (data as any)?.list || []
 
   const handleProjectClick = async (project: any) => {
     if (project.device_id) {
@@ -81,7 +80,7 @@ export function ProjectsScreen() {
 
       navigate({ to: `/chat/${project.device_id}` as any })
     } else {
-      toast.error("Project missing device_id")
+      toast.error(t("projects.errorMissingDeviceId"))
     }
   }
 
