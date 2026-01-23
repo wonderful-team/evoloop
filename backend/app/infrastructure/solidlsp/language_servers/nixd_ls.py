@@ -166,7 +166,7 @@ class NixLanguageServer(SolidLanguageServer):
         if not shutil.which("nix"):
             return None
 
-        print("Installing nixd using nix... This may take a few minutes.")
+        log.info("Installing nixd using nix... This may take a few minutes.")
         try:
             # Try to install nixd using nix profile
             result = subprocess.run(
@@ -181,7 +181,7 @@ class NixLanguageServer(SolidLanguageServer):
                 # Check if nixd is now in PATH
                 nixd_path = shutil.which("nixd")
                 if nixd_path:
-                    print(f"Successfully installed nixd at: {nixd_path}")
+                    log.info(f"Successfully installed nixd at: {nixd_path}")
                     return nixd_path
             else:
                 # Try nix-env as fallback
@@ -195,14 +195,14 @@ class NixLanguageServer(SolidLanguageServer):
                 if result.returncode == 0:
                     nixd_path = shutil.which("nixd")
                     if nixd_path:
-                        print(f"Successfully installed nixd at: {nixd_path}")
+                        log.info(f"Successfully installed nixd at: {nixd_path}")
                         return nixd_path
-                print(f"Failed to install nixd: {result.stderr}")
+                log.error(f"Failed to install nixd: {result.stderr}")
 
         except subprocess.TimeoutExpired:
-            print("Nix install timed out after 10 minutes")
+            log.warning("Nix install timed out after 10 minutes")
         except Exception as e:
-            print(f"Error installing nixd with nix: {e}")
+            log.error(f"Error installing nixd with nix: {e}")
 
         return None
 
@@ -214,13 +214,13 @@ class NixLanguageServer(SolidLanguageServer):
         """
         # First check if Nix is available (nixd needs it at runtime)
         if not shutil.which("nix"):
-            print("WARNING: Nix is not installed. nixd requires Nix to function properly.")
+            log.warning("WARNING: Nix is not installed. nixd requires Nix to function properly.")
             raise RuntimeError("Nix is required for nixd. Please install Nix from https://nixos.org/download.html")
 
         nixd_path = NixLanguageServer._get_nixd_path()
 
         if not nixd_path:
-            print("nixd not found. Attempting to install...")
+            log.warning("nixd not found. Attempting to install...")
 
             # Try to install with nix if available
             nixd_path = NixLanguageServer._install_nixd_with_nix()

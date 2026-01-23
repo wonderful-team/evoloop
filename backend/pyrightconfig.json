@@ -1,0 +1,30 @@
+{
+    "include": [
+        "app"
+    ],
+    "exclude": [
+        "**/node_modules",
+        "**/__pycache__",
+        "alembic",
+        "tests",
+        "scripts"
+    ],
+    "venvPath": ".",
+    "venv": ".venv",
+    "typeCheckingMode": "basic",
+    "reportGeneralTypeIssues": true,
+    "reportPropertyTypeMismatch": true,
+    "reportFunctionMemberAccess": true,
+    "reportMissingImports": "none",
+    "reportMissingTypeStubs": "none",
+    "reportUnknownMemberType": "none",
+    "reportUnknownVariableType": "none",
+    "reportUnknownArgumentType": "none",
+    "reportAttributeAccessIssue": "error",
+    "reportCallIssue": "error",
+    "reportOptionalMemberAccess": "error",
+    "reportArgumentType": "error",
+    "reportReturnType": "error",
+    "reportOptionalIterable": "error",
+    "reportOptionalContextManager": "error"
+}

@@ -104,7 +104,7 @@ class LuaLanguageServer(SolidLanguageServer):
         install_dir.mkdir(parents=True, exist_ok=True)
 
         # Download the file
-        print(f"Downloading lua-language-server from {download_url}...")
+        log.info(f"Downloading lua-language-server from {download_url}...")
         response = requests.get(download_url, stream=True)
         response.raise_for_status()
 
@@ -114,7 +114,7 @@ class LuaLanguageServer(SolidLanguageServer):
             for chunk in response.iter_content(chunk_size=8192):
                 f.write(chunk)
 
-        print(f"Extracting lua-language-server to {install_dir}...")
+        log.info(f"Extracting lua-language-server to {install_dir}...")
         if download_name.endswith(".tar.gz"):
             with tarfile.open(download_path, "r:gz") as tar:
                 tar.extractall(install_dir)
@@ -147,9 +147,9 @@ class LuaLanguageServer(SolidLanguageServer):
         lua_ls_path = LuaLanguageServer._get_lua_ls_path()
 
         if not lua_ls_path:
-            print("lua-language-server not found. Downloading...")
+            log.info("lua-language-server not found. Downloading...")
             lua_ls_path = LuaLanguageServer._download_lua_ls()
-            print(f"lua-language-server installed at: {lua_ls_path}")
+            log.info(f"lua-language-server installed at: {lua_ls_path}")
 
         return lua_ls_path
 

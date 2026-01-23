@@ -64,7 +64,7 @@ class ALLanguageServer(SolidLanguageServer):
 
         self._project_load_check_supported: bool = True
         """Whether the AL server supports the project load status check request.
-        
+
         Some AL server versions don't support the 'al/hasProjectClosureLoadedRequest'
         custom LSP request. This flag starts as True and is set to False if the
         request fails, preventing repeated unsuccessful attempts.

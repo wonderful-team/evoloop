@@ -32,12 +32,12 @@ import dataclasses
 import json
 import logging
 import os
-from typing import Any, Union
+from typing import Any
 
 from .lsp_types import ErrorCodes
 
 StringDict = dict[str, Any]
-PayloadLike = Union[list[StringDict], StringDict, None, bool]
+PayloadLike = list[StringDict] | StringDict | None | bool
 CONTENT_LENGTH = "Content-Length: "
 ENCODING = "utf-8"
 log = logging.getLogger(__name__)

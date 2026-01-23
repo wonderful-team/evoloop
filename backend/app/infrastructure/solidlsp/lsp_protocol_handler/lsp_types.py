@@ -708,7 +708,7 @@ DocumentSelector = list["DocumentFilter"]
 
 The use of a string as a document filter is deprecated @since 3.16.0. """
 
-ProgressToken = Union[int, str]
+ProgressToken = int | str
 
 ChangeAnnotationIdentifier = str
 """ An identifier to refer to a change annotation stored with a workspace edit. """

@@ -1,0 +1,1278 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "actions": "Actions",
+    "search": "Search",
+    "themes": {
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System",
+      "appearance": "Appearance",
+      "toggle": "Toggle theme"
+    },
+    "error": {
+      "title": "Error",
+      "oops": "Oops!",
+      "message": "Something went wrong. Please try again.",
+      "goHome": "Go Home",
+      "unknown": "Unknown Error"
+    },
+    "notFound": {
+      "title": "404",
+      "oops": "Oops!",
+      "message": "The page you are looking for was not found.",
+      "goBack": "Go Back"
+    },
+    "toast": {
+      "success": "Success!",
+      "error": "Something went wrong!",
+      "bindFailed": "Failed to bind to server notifications"
+    },
+    "add": "Add",
+    "approve": "Approve",
+    "close": "Close",
+    "name": "Name",
+    "no": "No",
+    "reject": "Reject",
+    "run": "Run",
+    "saved": "Saved",
+    "send": "Send",
+    "stop": "Stop",
+    "submit": "Submit",
+    "success": "Success",
+    "url": "URL",
+    "yes": "Yes",
+    "next": "Next",
+    "previous": "Previous",
+    "morePages": "More pages"
+  },
+  "toast": {
+    "success": "Success!",
+    "error": "Something went wrong!",
+    "bindFailed": "Failed to bind to server notifications"
+  },
+  "sidebar": {
+    "dashboard": "Dashboard",
+    "chat": "Chat",
+    "projects": "Projects",
+    "todos": "Todos",
+    "mcpServers": "MCP Servers",
+    "settings": "Settings",
+    "collapse": "Collapse Sidebar",
+    "open": "Open Sidebar",
+    "toggle": "Toggle Sidebar",
+    "mobileTitle": "Sidebar",
+    "mobileDescription": "Displays the mobile sidebar."
+  },
+  "footer": {
+    "copyright": "Full Stack FastAPI Template"
+  },
+  "user": {
+    "contactSupport": "Contact Support",
+    "manageSubscription": "Manage Subscription",
+    "upgradeToPro": "Upgrade to PRO",
+    "settings": "User Settings",
+    "logout": "Log Out",
+    "login": "Log In",
+    "expireTime": "Exp: ",
+    "defaultName": "User"
+  },
+  "onboarding": {
+    "skip": "Skip",
+    "start": "Start",
+    "next": "Next",
+    "slide1": {
+      "title": "EvoLoop AI",
+      "subtitle": "Your personal intelligent assistant.\nWhether writing code, answering questions,\nor brainstorming, start here anytime."
+    },
+    "slide2": {
+      "device": "Local",
+      "cloud": "Cloud",
+      "title": "Dual Worlds",
+      "subtitle": "EvoLoop has two sides.\nTry <bold>swiping left/right</bold>?\nSeamlessly switch between Cloud AI and Device Management."
+    },
+    "slide3": {
+      "online": "Online",
+      "title": "Connect Your Workstation",
+      "subtitle": "Install the client on your PC to unlock remote control capabilities.\nExecute commands, manage files remotely, all in control."
+    },
+    "slide4": {
+      "voice": "Voice Input",
+      "vision": "Visual Analysis",
+      "title": "Efficiency Tips",
+      "subtitle": "Click icons near the input box to experience more capabilities.\nNow, start your EvoLoop journey!"
+    }
+  },
+  "tour": {
+    "prev": "Previous",
+    "next": "Next",
+    "finish": "Get Started",
+    "skip": "Skip Tour",
+    "replayTitle": "Replay Tour",
+    "replayDesc": "View the product feature introduction again",
+    "step1": {
+      "title": "Welcome to EvoLoop",
+      "content": "Your intelligent development assistant is ready. Let's take a minute to explore the core features and help you get started."
+    },
+    "step2": {
+      "title": "Intelligent Chat",
+      "content": "This is your main interface for interacting with the AI Agent. Supports natural language programming, code generation, problem diagnosis, and more. The Agent automatically understands your intent and executes actions."
+    },
+    "step3": {
+      "title": "Project Management",
+      "content": "Manage your codebase projects here. Features include file browsing, semantic search, task tracking, Gantt charts, and more. Projects are automatically indexed for knowledge."
+    },
+    "step4": {
+      "title": "Extend Capabilities",
+      "content": "Connect external tool services via MCP protocol (like Git, databases, search engines) to infinitely expand the Agent's capabilities."
+    },
+    "step5": {
+      "title": "Personalization",
+      "content": "Configure LLM models, API keys, themes, and more. First-time users should configure their AI model first for the best experience."
+    },
+    "step6": {
+      "title": "Chat History",
+      "content": "Manage all your conversations in the left sidebar. Create, delete, and search chats to revisit historical context anytime."
+    },
+    "step7": {
+      "title": "Message Area",
+      "content": "This displays your complete conversation with the Agent. Responses stream in real-time, including thinking process, execution steps, and final results."
+    },
+    "step8": {
+      "title": "Context Panel",
+      "content": "The right panel shows current project context: pinned file resources, available tools, and more. Helps you understand the Agent's working environment."
+    },
+    "step9": {
+      "title": "Start Chatting",
+      "content": "Now, try typing your first command! For example: 'Analyze this project's architecture' or 'Explain this function'. Image and file uploads are supported."
+    }
+  },
+  "wizard": {
+    "title": "Initial Setup",
+    "description": "Complete the necessary system configuration",
+    "stepOf": "Step {{current}} / {{total}}",
+    "prev": "Previous",
+    "next": "Next",
+    "saveSuccess": "Configuration saved",
+    "saveError": "Failed to save",
+    "welcome": {
+      "title": "Welcome to EvoLoop",
+      "subtitle": "Your intelligent development assistant is almost ready! Just 2 minutes to complete the setup.",
+      "feature1": "Configure AI model connection",
+      "feature2": "Set up projects directory",
+      "feature3": "Start your smart coding journey",
+      "start": "Get Started"
+    },
+    "llm": {
+      "title": "Configure AI Model",
+      "subtitle": "Select and configure your language model service — the core of EvoLoop's capabilities.",
+      "provider": "Service Provider",
+      "selectProvider": "Select a provider",
+      "baseUrl": "API URL",
+      "model": "Model Name",
+      "apiKey": "API Key",
+      "optional": "optional",
+      "testConnection": "Test Connection",
+      "testSuccess": "Connection successful! Model responded.",
+      "testFailed": "Connection failed, please check your configuration",
+      "testError": "Connection error",
+      "testRequired": "Please test the connection to ensure correct configuration",
+      "providers": {
+        "openai": "OpenAI",
+        "qwen": "Qwen / DashScope",
+        "deepseek": "DeepSeek",
+        "ollama": "Ollama (Local)",
+        "generic": "LMStudio / Generic (OpenAI Compatible)"
+      }
+    },
+    "projects": {
+      "title": "Set Projects Directory",
+      "subtitle": "Choose your code projects root directory. EvoLoop will scan and index projects within.",
+      "label": "Projects Root",
+      "browse": "Browse",
+      "browseError": "Failed to open directory selector",
+      "infoTitle": "What will EvoLoop do?",
+      "info1": "Scan code projects in this directory",
+      "info2": "Build knowledge index for smart assistance",
+      "info3": "All data stays local, nothing uploaded",
+      "suggestions": "Common paths"
+    },
+    "completion": {
+      "title": "Setup Complete!",
+      "subtitle": "You're all set to use EvoLoop. Next, let's take a quick tour of the features.",
+      "chat": "Intelligent Chat",
+      "projects": "Project Management",
+      "ai": "AI Capabilities",
+      "start": "Start Using EvoLoop"
+    }
+  },
+  "help": {
+    "title": "User Manual",
+    "intro": {
+      "title": "Quick Start",
+      "desc": "EvoLoop is your dual-mode intelligent assistant. Simply swipe left or right to seamlessly switch between <bold>Cloud AI</bold> and <bold>Local Device</bold>."
+    },
+    "capabilities": {
+      "title": "Core Capabilities",
+      "cloud": {
+        "title": "Cloud Assistant",
+        "desc": "Q&A, Coding, Creative"
+      },
+      "device": {
+        "title": "Device Control",
+        "desc": "Remote Commands, File Access"
+      }
+    },
+    "faq": {
+      "title": "FAQ",
+      "q1": "How to connect my computer?",
+      "a1": "Download and install the EvoLoop client on your Mac/Windows PC and log in with the same account. Once connected, it will automatically appear in the 'Devices' list.",
+      "q2": "Difference between Cloud and Local Mode?",
+      "a2": "<bold>Cloud Mode</bold>: Interact with AI running on servers, independent of your computer.<br /><bold>Local Mode</bold>: AI operates directly on your computer. Can read local files, run terminal commands.",
+      "q3": "Is Voice Input supported?",
+      "a3": "Yes. Click the microphone icon to the left of the chat input box to start speaking. Supports Chinese and English commands."
+    },
+    "tips": {
+      "title": "Pro Tips",
+      "gesture": {
+        "title": "Global Gestures",
+        "desc": "Swipe left/right on any screen to quickly switch between Cloud / Local."
+      },
+      "slash": {
+        "title": "Slash Commands",
+        "desc": "Type <code>/</code> to bring up the command menu for quick model switching or tools (e.g. /search, /draw)."
+      }
+    },
+    "replayParams": "Replay Onboarding"
+  },
+  "conversation": {
+    "list": "Conversations",
+    "new": "New",
+    "deleteConfirm": "Are you sure you want to delete this conversation?",
+    "untitled": "Untitled",
+    "empty": "No conversations"
+  },
+  "auth": {
+    "login": {
+      "title": "EvoLoop AI",
+      "subtitle": "Mobile Access",
+      "desktopTitle": "Login to your account",
+      "emailOrUsername": "Email or Username",
+      "tabMobile": "Mobile",
+      "tabAccount": "Account",
+      "mobilePlaceholder": "Mobile Number",
+      "usernamePlaceholder": "Username",
+      "passwordPlaceholder": "Password",
+      "captchaPlaceholder": "Captcha",
+      "smsCodePlaceholder": "SMS Code",
+      "getCode": "Get Code",
+      "submit": "Login",
+      "forgotPassword": "Forgot Password?",
+      "noAccount": "Don't have an account?",
+      "signUp": "Sign Up",
+      "back": "Back",
+      "captchaNote": "Note: Captcha for password login not fully integrated yet."
+    },
+    "register": {
+      "title": "Sign Up",
+      "desktopTitle": "Create an account",
+      "fullName": "Full Name",
+      "email": "Email",
+      "emailPlaceholder": "user@example.com",
+      "mobilePlaceholder": "Mobile Number",
+      "navBack": "Back",
+      "tabMobile": "Mobile",
+      "tabAccount": "Username",
+      "smsCodePlaceholder": "SMS Code",
+      "usernamePlaceholder": "Username (Alphanumeric)",
+      "passwordPlaceholder": "Password (Min 6 chars)",
+      "confirmPasswordPlaceholder": "Confirm Password",
+      "captchaPlaceholder": "Captcha",
+      "getCode": "Get Code",
+      "agree": "I agree to the",
+      "policy": "Service & Privacy Policy",
+      "agreementsTitle": "Agreements",
+      "submit": "Sign Up",
+      "hasAccount": "Already have an account?",
+      "login": "Login"
+    },
+    "forgotPassword": {
+      "title": "Forgot Password",
+      "step0": "Verify your mobile number",
+      "step1": "Enter verification code",
+      "step2": "Set new password",
+      "mobilePlaceholder": "Mobile Number",
+      "captchaPlaceholder": "Captcha",
+      "next": "Next",
+      "sentTo": "Sent to",
+      "code4DigitPlaceholder": "4-digit Code",
+      "resend": "Resend Code",
+      "resendIn": "Resend in",
+      "newPasswordPlaceholder": "New Password",
+      "confirmPasswordPlaceholder": "Confirm Password",
+      "submit": "Reset Password",
+      "back": "Back",
+      "restart": "Restart"
+    },
+    "recover": {
+      "title": "Password Recovery",
+      "email": "Email",
+      "emailPlaceholder": "user@example.com",
+      "submit": "Continue",
+      "rememberPassword": "Remember your password?",
+      "login": "Log in",
+      "success": "Password recovery email sent successfully",
+      "notImplemented": "Password recovery not implemented in SDK"
+    },
+    "reset": {
+      "title": "Reset Password",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm Password",
+      "submit": "Reset Password",
+      "rememberPassword": "Remember your password?",
+      "login": "Log in",
+      "success": "Password updated successfully",
+      "notImplemented": "Password update not implemented in SDK"
+    },
+    "errors": {
+      "invalidEmail": "Invalid email address",
+      "invalidMobile": "Invalid mobile number",
+      "codeRequired": "Code is required",
+      "passwordRequired": "Password is required",
+      "passwordTooShort": "Password too short",
+      "passwordMismatch": "Passwords do not match",
+      "captchaRequired": "Captcha required",
+      "sendCodeFirst": "Please send code first",
+      "mustAgree": "Must agree to terms",
+      "loginFailed": "Login failed",
+      "registerFailed": "Registration failed",
+      "resetFailed": "Reset failed",
+      "errorSendingCode": "Error sending code",
+      "usernameRequired": "Username or Email is required",
+      "fullNameRequired": "Full Name is required",
+      "passwordMin8": "Password must be at least 8 characters",
+      "confirmPasswordRequired": "Password confirmation is required",
+      "passwordsNoMatch": "The passwords don't match",
+      "loadConfigFailed": "Failed to load configuration"
+    },
+    "success": {
+      "codeSent": "Code sent!",
+      "login": "Login successful",
+      "register": "Registration successful",
+      "reset": "Password reset successful!"
+    }
+  },
+  "profile": {
+    "title": "Profile",
+    "contactSupport": "Contact Support",
+    "manageSubscription": "Manage Subscription",
+    "upgradeNow": "Upgrade Now",
+    "deleteAccount": "Delete Account",
+    "withdrawDeletion": "Withdraw Deletion Request",
+    "processing": "Processing...",
+    "currentPlan": "Current Plan",
+    "freePlan": "Free Plan",
+    "pro": "PRO",
+    "validUntil": "Valid until: ",
+    "autoRenewalOff": "Auto-renewal: Off",
+    "upgradeHint": "Upgrade to unlock full potential.",
+    "balance": "Balance",
+    "points": "Points",
+    "manual": "User Manual & Help",
+    "logout": "Logout",
+    "confirmDelete": "Are you sure you want to delete your account? This action cannot be undone immediately.",
+    "confirmWithdraw": "Withdraw account deletion request?",
+    "language": "Language",
+    "english": "English",
+    "chinese": "Chinese",
+    "guestTitle": "Guest Access",
+    "guestDesc": "Log in to view your profile"
+  },
+  "devices": {
+    "title": "Devices",
+    "loading": "Loading...",
+    "statusFormat": "{{online}} Online / {{total}} Total",
+    "online": "Online",
+    "offline": "Offline",
+    "active": "Active",
+    "unknownOS": "Unknown OS",
+    "connectFirst": "Connect your first device",
+    "connectDesc": "To activate EvoLoop remote control capabilities, you need to install the client on your computer.",
+    "step1": "Visit <1>develop-assistant.cn</1> on your computer",
+    "step2": "Download and install Windows/Mac client",
+    "step3": "Log in with current account",
+    "copyLink": "Copy Download Link",
+    "linkCopied": "Download link copied",
+    "errorLoading": "Error loading devices: ",
+    "guestTitle": "Login to View Devices",
+    "guestDesc": "Access your remote devices and control them from anywhere."
+  },
+  "projects": {
+    "title": "Projects",
+    "subtitle": "Manage and analyze your codebase projects.",
+    "noProjects": "No projects found.",
+    "guestTitle": "Login to View Projects",
+    "guestDesc": "Manage your cloud projects and sync them across devices.",
+    "id": "ID: ",
+    "errorMissingDeviceId": "Project missing device ID",
+    "failedToLoad": "Failed to load projects",
+    "loading": "Loading projects...",
+    "refresh": "Refresh",
+    "new": "New Project",
+    "noDescription": "No description available.",
+    "active": "Active",
+    "filesCount": "Files",
+    "emptyState": "No projects found. Try scanning or creating one.",
+    "tabs": {
+      "overview": "Overview",
+      "files": "Files",
+      "tasks": "Tasks",
+      "gantt": "Gantt",
+      "timesheet": "Timesheet",
+      "budget": "Budget",
+      "reports": "Reports"
+    },
+    "tasks": {
+      "title": "Tasks",
+      "new": "New Task",
+      "execute": "Confirm & Execute",
+      "filter": "Filter",
+      "status": "Status",
+      "priority": "Priority",
+      "assignee": "Assignee",
+      "aiAnalysis": "AI Analysis",
+      "matchScore": "Match Score",
+      "techDifficulty": "Tech Difficulty",
+      "keyModules": "Key Modules",
+      "implementation": "Implementation",
+      "empty": "No tasks found",
+      "refresh": "Refresh",
+      "create": "Create Task",
+      "failedToLoad": "Failed to load tasks",
+      "createSuccess": "Task created successfully",
+      "columns": {
+        "id": "ID",
+        "title": "Title",
+        "aiScore": "AI Score",
+        "priority": "Priority",
+        "status": "Status",
+        "progress": "Progress"
+      },
+      "statusLabel": {
+        "pending": "Pending",
+        "inProgress": "In Progress",
+        "completed": "Done",
+        "unknown": "Unknown"
+      },
+      "priorityLabel": {
+        "urgent": "Urgent",
+        "high": "High",
+        "normal": "Normal",
+        "low": "Low"
+      },
+      "executeTaskPrefix": "Execute task: "
+    },
+    "gantt": {
+      "title": "Timeline & Gantt",
+      "taskColumn": "Task",
+      "refresh": "Refresh",
+      "noTasks": "No tasks found."
+    },
+    "timesheet": {
+      "title": "Timesheets",
+      "logTime": "Log Time",
+      "refresh": "Refresh",
+      "dialog": {
+        "title": "Log Work Time",
+        "desc": "Record your hours for this project log.",
+        "type": "Type",
+        "selectType": "Select type",
+        "hours": "Hours",
+        "hoursPlaceholder": "e.g. 2.5",
+        "description": "Description",
+        "descPlaceholder": "What did you work on?",
+        "save": "Save Log",
+        "success": "Time log added successfully",
+        "error": "Failed to add time log",
+        "fillRequired": "Please fill in all required fields"
+      },
+      "types": {
+        "development": "Development",
+        "design": "Design",
+        "testing": "Testing",
+        "meeting": "Meeting",
+        "other": "Other"
+      },
+      "table": {
+        "date": "Date",
+        "member": "Member",
+        "type": "Type",
+        "desc": "Description",
+        "hours": "Hours",
+        "noLogs": "No time logs found."
+      }
+    },
+    "reports": {
+      "title": "Reports",
+      "comingSoon": "Coming Soon",
+      "description": "Project reports and analytics for Project #{{id}} are under development."
+    },
+    "create": {
+      "title": "Create New Project",
+      "description": "Create a new project directory. This will also sync with the Member Center.",
+      "nameLabel": "Project Name",
+      "submit": "Create Project",
+      "success": "Project created successfully",
+      "errorNameRequired": "Project name is required",
+      "errorNameFormat": "Project name must contain only letters, numbers, underscores, or hyphens"
+    },
+    "actions": {
+      "label": "Actions",
+      "delete": "Delete Project",
+      "deleteSuccess": "Project deleted successfully",
+      "confirmTitle": "Are you sure?",
+      "confirmDesc": "This will permanently delete the project <bold>{{name}}</bold>. This action cannot be undone.",
+      "deleting": "Deleting...",
+      "deleteConfirm": "Delete"
+    },
+    "status": {
+      "indexing": "Indexing"
+    },
+    "backToList": "Back to Project List",
+    "stats": {
+      "totalTasks": "Total Tasks",
+      "completed": "Completed",
+      "inProgress": "In Progress",
+      "members": "Members"
+    },
+    "details": {
+      "description": "Description",
+      "noDescription": "No description provided.",
+      "created": "Created",
+      "tabs": {
+        "ai": "AI Analysis",
+        "discussion": "Discussion"
+      }
+    },
+    "overview": {
+      "title": "Project Overview",
+      "recentActivity": "Recent Activity",
+      "noActivity": "No recent activity",
+      "quickActions": "Quick Actions"
+    }
+  },
+  "files": {
+    "title": "Files",
+    "loading": "Loading...",
+    "error": "Failed to load files",
+    "empty": "Empty",
+    "selectPrompt": "Select a file to view content",
+    "pinToResources": "Pin to Resources",
+    "pinnedSuccess": "File pinned successfully",
+    "pinnedError": "Failed to pin file"
+  },
+  "voice": {
+    "micError": "Mic Error: ",
+    "notSupported": "Speech recognition not supported on this device.",
+    "webSpeechNotSupported": "Web Speech API not supported in this browser."
+  },
+  "deleteAccount": {
+    "loading": "Loading...",
+    "pendingReview": "Cancellation request is pending review.",
+    "withdrawRequest": "Withdraw Request",
+    "withdrawTitle": "Withdraw Cancellation?",
+    "withdrawDescription": "You can withdraw your account deletion request and continue using the service.",
+    "cancel": "Cancel",
+    "confirmWithdraw": "Confirm Withdraw",
+    "deleteButton": "Delete Account",
+    "deleteTitle": "Delete Account?",
+    "deleteDescription": "This will submit a request to <strong>permanently delete your account</strong>.<br /><br />This process may require administrator approval. Once approved, all your data will be removed.",
+    "confirmDelete": "Apply for Deletion"
+  },
+  "search": {
+    "placeholder": "Search logs...",
+    "cancel": "Cancel",
+    "deviceLabel": "Device #{{id}}",
+    "allDevices": "Searching all devices",
+    "projectLabel": "Project #{{id}}",
+    "allProjects": "All projects",
+    "recent": "Recent Searches",
+    "clear": "Clear",
+    "noResults": "No results found.",
+    "searching": "Searching...",
+    "logLabel": "Log #{{id}}",
+    "failedPrefix": "Search failed: "
+  },
+  "cloudChat": {
+    "title": "Cloud Agent",
+    "loadingHistory": "Loading history...",
+    "typing": "AI is typing...",
+    "placeholder": "Ask Cloud AI...",
+    "historyFailed": "Failed to load history",
+    "sendFailed": "Failed to send: "
+  },
+  "projectSwitcher": {
+    "label": "Project",
+    "select": "Select",
+    "title": "Switch Project",
+    "description": "Select a project to switch to or manage your projects.",
+    "searchPlaceholder": "Search project...",
+    "desktopSearchPlaceholder": "Search projects by name or description...",
+    "noProjects": "No projects found.",
+    "noDesc": "No description",
+    "switching": "Switching to {{name}}...",
+    "switched": "Switched to {{name}}",
+    "failed": "Failed to switch: ",
+    "manage": "Manage Projects",
+    "showing": "Showing {{count}} projects",
+    "unknown": "Unknown",
+    "tasks": "tasks",
+    "lastSync": "Last Sync",
+    "never": "Never",
+    "indexing": "Indexing",
+    "analyzing": "Analyzing",
+    "indexingTooltip": "Indexing..."
+  },
+  "tabs": {
+    "cloud": "Cloud",
+    "local": "Local",
+    "home": "Home",
+    "me": "Me",
+    "devices": "Devices",
+    "projects": "Projects"
+  },
+  "index": {
+    "loginRequired": "Please login to continue",
+    "subtitle": "Your Intelligent Mobile Agent",
+    "placeholder": "Ask anything or command..."
+  },
+  "settings": {
+    "title": "Settings",
+    "intro": "Manage your account and EvoLoop configurations.",
+    "tabs": {
+      "general": "General",
+      "models": "AI Models",
+      "profile": "My profile",
+      "password": "Password",
+      "appearance": "Appearance",
+      "danger": "Danger zone",
+      "evolution": "Safety & Evolution"
+    },
+    "general": {
+      "title": "General Settings",
+      "description": "Configure global system preferences and paths.",
+      "language": "Language",
+      "selectLanguage": "Select language",
+      "selectLanguageDesc": "Select your preferred interface language.",
+      "deviceName": "Device Name",
+      "deviceNamePlaceholder": "My Device",
+      "deviceNameDesc": "This name identifies this device in the EvoLoop network.",
+      "projectsRoot": "Projects Root Directory",
+      "browse": "Browse",
+      "projectsRootDesc": "The implementation requires read/write access to this directory.",
+      "save": "Save changes",
+      "success": "Settings saved successfully",
+      "error": "Failed to save settings",
+      "loadError": "Failed to load system settings",
+      "browseError": "Failed to open directory selector",
+      "agentBehavior": {
+        "title": "Agent Behavior (HITL)",
+        "description": "Configure how the agent interacts with you."
+      },
+      "intentThreshold": {
+        "label": "Intent Threshold (0.0 - 1.0)",
+        "description": "Lower = Faster (More matching). Higher = Smarter (More LLM fallback). Default: 0.35"
+      },
+      "planApproval": {
+        "label": "Require Plan Approval",
+        "description": "If unchecked, the agent will auto-execute generated plans without waiting for your confirmation."
+      },
+      "validation": {
+        "pathRequired": "Path cannot be empty",
+        "deviceNameRequired": "Device name cannot be empty"
+      }
+    },
+    "mcp": {
+      "title": "MCP Servers",
+      "description": "Manage Model Context Protocol servers for external tool integration.",
+      "name": "Name",
+      "command": "Command",
+      "args": "Args (Space separated)",
+      "add": "Add",
+      "table": {
+        "name": "Name",
+        "status": "Status",
+        "tools": "Tools",
+        "command": "Command"
+      },
+      "loading": "Loading servers...",
+      "noServers": "No MCP servers configured.",
+      "toolsCount": "tools",
+      "unknown": "unknown"
+    },
+    "profile": {
+      "title": "User Information",
+      "nickname": "Nickname",
+      "email": "Email",
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "na": "N/A"
+    },
+    "password": {
+      "title": "Change Password",
+      "current": "Current Password",
+      "new": "New Password",
+      "confirm": "Confirm Password",
+      "update": "Update Password",
+      "success": "Password updated successfully",
+      "notImplemented": "Password update not implemented"
+    },
+    "appearance": {
+      "title": "Theme Preferences",
+      "description": "Customize the look and feel of the application.",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "danger": {
+      "title": "Delete Account",
+      "description": "Permanently delete your account and all associated data.",
+      "kb_reset_title": "Reset Knowledge Base & Index",
+      "kb_reset_desc": "Wipe all indexed code, file summaries, and memory concepts. Use this if the AI seems confused or hallucinations persist.",
+      "kb_reset_btn": "Reset Knowledge Base",
+      "kb_reset_confirm_title": "Are you absolutely sure?",
+      "kb_reset_confirm_desc": "This will delete all indexed code, file summaries, and memory concepts. The system will need to re-index everything from scratch.",
+      "kb_reset_success": "Knowledge Base wiped successfully.",
+      "kb_reset_error": "Failed to wipe Knowledge Base."
+    },
+    "llm": {
+      "title": "LLM Model Settings",
+      "description": "Configure the Language Model used by the Agent.",
+      "provider": "Provider",
+      "provider_placeholder": "Select a provider",
+      "base_url": "Base URL",
+      "model_name": "Model Name",
+      "api_key": "API Key",
+      "api_key_desc": "Key is stored securely. Leave blank if not changing.",
+      "test_connection": "Test Connection",
+      "apply_btn": "Apply Changes",
+      "connected": "Connected successfully",
+      "connection_failed": "Connection Failed",
+      "connection_error": "Connection Error",
+      "saved": "LLM Configuration Saved",
+      "save_failed": "Failed to save configuration"
+    },
+    "embedding": {
+      "title": "Model Settings",
+      "description": "Configure the embedding model used for Code Search and Memory.",
+      "warning": "Warning",
+      "warning_desc": "Changing this setting will require a full re-index of your codebase.",
+      "provider": "Provider",
+      "base_url": "Base URL",
+      "model_name": "Model Name",
+      "api_key": "API Key",
+      "api_key_desc": "Optional for local models",
+      "test_connection": "Test Connection",
+      "apply_btn": "Apply & Re-Index",
+      "confirm_switch": "WARNING: Switching embedding models will DELETE all existing knowledge indices (Vectors) and trigger a full re-index. This process cannot be undone. Are you sure?",
+      "success_connected": "Connected! Dimensions: {{dim}}",
+      "success_updated": "Embedding Model Updated & Re-indexing Triggered",
+      "error_connection": "Connection Error",
+      "error_update": "Failed to update embedding model"
+    },
+    "evolution": {
+      "title": "Meta-Evolution Loop",
+      "description": "Allow the agent to autonomously diagnose and fix its own code.",
+      "env_disabled_title": "Disabled by Environment",
+      "env_disabled_desc": "The master switch is disabled in the backend environment variables. You cannot enable this feature dynamically.",
+      "caution_title": "Caution",
+      "caution_desc": "Enabling this allows the Agent to modify the backend source code. Ensure you have Git version control enabled to revert unexpected changes.",
+      "enable_title": "Enable Self-Evolution",
+      "enable_desc": "Automatically trigger Evolution Planner on system errors.",
+      "switch_label": "Enable Self-Evolution Loop"
+    },
+    "modelFields": {
+      "provider": "Provider",
+      "baseUrl": "Base URL",
+      "modelName": "Model Name",
+      "apiKey": "API Key",
+      "apiKeyDesc": "Key is stored securely. Leave blank if not changing."
+    }
+  },
+  "mcp": {
+    "title": "MCP Servers",
+    "description": "Manage Model Context Protocol servers for external tool integration.",
+    "addTitle": "Add MCP Server",
+    "editTitle": "Edit MCP Server",
+    "addDesc": "Connect a new Model Context Protocol server.",
+    "editDesc": "Update the configuration for this Model Context Protocol server.",
+    "nameLabel": "Name",
+    "commandLabel": "Command",
+    "argsLabel": "Args (Space separated)",
+    "namePlaceholder": "e.g. git",
+    "commandPlaceholder": "e.g. uvx",
+    "argsPlaceholder": "e.g. mcp-server-git .",
+    "envLabel": "Environment Variables",
+    "envKeyPlaceholder": "Key (e.g. GITHUB_TOKEN)",
+    "envValuePlaceholder": "Value",
+    "addEnv": "Add Variable",
+    "cancel": "Cancel",
+    "submit": "Save Server",
+    "successAdded": "MCP server added successfully",
+    "successUpdated": "MCP server updated successfully",
+    "deleteTitle": "Delete Server",
+    "deleteDesc": "Are you sure you want to delete this MCP server?",
+    "deleteConfirm": "Delete",
+    "deleteSuccess": "MCP server deleted successfully",
+    "nameRequired": "Name is required",
+    "commandRequired": "Command is required",
+    "table": {
+      "name": "Name",
+      "status": "Status",
+      "tools": "Tools",
+      "command": "Command",
+      "toolsCount": "{{count}} tools",
+      "unknown": "unknown"
+    },
+    "delete": "Delete",
+    "serverTitle": "EvoLoop MCP Server",
+    "serverInstruction": "To use EvoLoop as an MCP Server in other tools (like Claude Desktop), configure it with the following command:"
+  },
+  "system": {
+    "initializationTitle": "System Integration Required",
+    "initializationDesc": "Please configure the following system settings to proceed."
+  },
+  "startup": {
+    "backendReady": "Backend Ready! Launching...",
+    "initializing": "Initializing System Services...",
+    "waitingLogs": "Waiting for backend logs...",
+    "systemCheckPassed": "✓ System checks passed. Ready."
+  },
+  "pending": {
+    "items": {
+      "id": "ID",
+      "title": "Title",
+      "description": "Description"
+    },
+    "users": {
+      "fullName": "Full Name",
+      "email": "Email",
+      "role": "Role",
+      "status": "Status"
+    },
+    "actions": "Actions"
+  },
+  "chat": {
+    "request": {
+      "title": "Action Required",
+      "placeholder": "Enter your response..."
+    },
+    "limitReached": "Daily Limit Reached",
+    "limitReachedDescription": "You have reached your daily free message limit. Please upgrade to continue.",
+    "hitl": {
+      "waiting": "Agent is waiting for your input..."
+    },
+    "interrupted": {
+      "title": "Agent Paused",
+      "description": "The agent is waiting for your input or confirmation to continue.",
+      "inputPlaceholder": "Enter additional instructions (optional)...",
+      "resume": "Resume",
+      "addInput": "Add Instructions",
+      "cancel": "Cancel"
+    },
+    "status": {
+      "working": "Working...",
+      "busy": "BUSY"
+    },
+    "modes": {
+      "PLANNING": "PLANNING",
+      "RESEARCHING": "RESEARCHING",
+      "DEEP_RESEARCH": "DEEP RESEARCH",
+      "CODING": "CODING",
+      "REVIEWING": "REVIEWING",
+      "VERIFICATION": "VERIFICATION"
+    },
+    "artifacts": {
+      "title": "Generated Files",
+      "testReport": "Test Execution Report",
+      "rootCause": "Root Cause Analysis",
+      "fixSuggestion": "Suggested Fix"
+    },
+    "canvas": {
+      "title": "Live Activity",
+      "response": "Response",
+      "thoughts": "Thoughts",
+      "plan": "Action Plan",
+      "artifacts": "Artifacts",
+      "waiting": "WAITING INPUT",
+      "statusRunning": "Agent is working...",
+      "statusWaiting": "Waiting for your input",
+      "statusSummarizing": "Summarizing..."
+    },
+    "sources": {
+      "title": "Sources:",
+      "more": "more",
+      "showLess": "Show less"
+    },
+    "stateContext": "Context",
+    "stateProject": "Project",
+    "stateWorkDir": "Work Dir",
+    "stateScratchpad": "Scratchpad",
+    "stateEmpty": "Empty",
+    "toolsTitle": "Runtime Tools",
+    "toolsActive": "{{count}} active",
+    "toolsDynamic": "dynamic",
+    "noTools": "No runtime tools found.",
+    "addLink": "Add Link",
+    "addLinkTitle": "Add External Link",
+    "pinnedFiles": "Pinned Files",
+    "noPinnedFiles": "Right click files in file explorer to pin them here.",
+    "externalLinks": "External Links",
+    "resourceRemoved": "Resource removed",
+    "linkAdded": "Link added",
+    "linkFailed": "Failed to add link",
+    "sidebar": {
+      "tabChats": "Chats",
+      "tabFiles": "Files",
+      "untitled": "Untitled Chat",
+      "deleteConfirm": "Are you sure you want to delete this chat?",
+      "noHistory": "No chat history found.",
+      "newChat": "New Chat",
+      "searchPlaceholder": "Search conversations..."
+    },
+    "local": {
+      "connecting": "Connecting...",
+      "agentOnline": "Agent Online",
+      "deviceOffline": "Device Offline",
+      "connectingServer": "Connecting to Server...",
+      "backToLive": "Back to Live",
+      "sendFailed": "Failed to send command: ",
+      "deliveryFailed": "Failed to deliver message: ",
+      "sessions": "Local Sessions"
+    },
+    "steps": {
+      "collapsedSummary": "{{count}} previously completed steps...",
+      "hideHistory": "Hide history",
+      "execution": "Execution",
+      "steps": "steps",
+      "initializingPhase": "Initializing phase..."
+    },
+    "process": {
+      "executing": "Executing: {{tool}}...",
+      "summary": "Processed {{count}} Steps",
+      "show": "Show",
+      "hide": "Hide",
+      "path": "Path: {{path}}",
+      "query": "Query: {{query}}",
+      "command": "Cmd: {{command}}",
+      "truncated": "... (truncated)"
+    },
+    "interface": {
+      "inputDisabled": "Please respond to the active request above...",
+      "inputHint": "Enter to send, Shift + Enter for new line",
+      "errorSend": "Failed to send message",
+      "welcome": "How can I help you today?",
+      "learnedFromChat": "Learned from chat",
+      "exportSuccess": "Chat exported successfully",
+      "startPrompt": "Start a new conversation or choose a task below.",
+      "thinking": "Thinking...",
+      "deepResearching": "Deep Researching...",
+      "copy": "Copy",
+      "memorize": "Memorize",
+      "export": "Export",
+      "rewind": "Rewind",
+      "thinkingProcess": "Reasoning Process",
+      "retry": "Retry",
+      "retrying": "Retrying from last user message...",
+      "retryFailed": "Retry failed, please try again",
+      "agentWorking": "Agent is working... See details in the side panel →",
+      "stop": "Stop Generation",
+      "askProject": "Ask {{project}}...",
+      "selectProject": "Select a project to start chatting",
+      "footer": "EvoLoop AI Assistant",
+      "uploadSuccess": "File uploaded successfully",
+      "uploadError": "Upload failed",
+      "exportPrompt": "Enter file path to save chat export:",
+      "quote": "Quote"
+    },
+    "reference": {
+      "searchPlaceholder": "Search...",
+      "files": "Files",
+      "messages": "Messages",
+      "noResults": "No results found",
+      "typeToSearch": "Type to search..."
+    },
+    "input": {
+      "waitUpload": "Please wait for files to upload",
+      "uploadFailed": "Upload failed",
+      "placeholder": {
+        "connecting": "Connecting to server...",
+        "offline": "Device is offline",
+        "listening": "Listening...",
+        "default": "Message..."
+      }
+    },
+    "header": {
+      "clear": "Clear",
+      "deviceFallback": "Device #{{id}}"
+    },
+    "messageList": {
+      "imageViewer": "Image Viewer",
+      "clickToOpen": "Click to open",
+      "copy": "Copy",
+      "agentThought": "Agent Thought Process",
+      "toolExecution": "Tool Execution",
+      "initializing": "Initializing...",
+      "ready": "Ready to Connect",
+      "offline": "Device Offline",
+      "readyDesc": "Send instructions to control the remote agent.",
+      "offlineDesc": "The remote device is currently not connected."
+    },
+    "context": {
+      "title": "Agent Workstation",
+      "selectProject": "Select a project to view context",
+      "groupContext": "Context",
+      "groupSystem": "System",
+      "tabPlan": "Plan",
+      "tabMemory": "Memory",
+      "tabState": "State",
+      "tabKnowledge": "Knowledge",
+      "tabResources": "Resources",
+      "tabTools": "Tools",
+      "memoryTitle": "Memory Concepts",
+      "noConcepts": "No memory concepts found.",
+      "planTitle": "Active Plan",
+      "statusOffline": "Offline",
+      "statusIdle": "Idle",
+      "statusActive": "Active",
+      "noPlan": "No active plan for this session.",
+      "stateTitle": "Agent State",
+      "noState": "No state data available.",
+      "searchPlaceholder": "Search project files...",
+      "noMatches": "No matches found for some reason.",
+      "searchPrompt": "Search to find code snippets.",
+      "resourcesTitle": "Files & Resources",
+      "filesTitle": "Project Files",
+      "externalLinksTitle": "External Links",
+      "stateContext": "Context",
+      "stateProject": "Project",
+      "stateWorkDir": "Work Dir",
+      "stateScratchpad": "Scratchpad",
+      "stateEmpty": "Empty",
+      "toolsTitle": "Runtime Tools",
+      "toolsActive": "{{count}} active",
+      "toolsDynamic": "dynamic",
+      "noTools": "No runtime tools found.",
+      "addLink": "Add Link",
+      "addLinkTitle": "Add External Link",
+      "pinnedFiles": "Pinned Files",
+      "noPinnedFiles": "Right click files in file explorer to pin them here.",
+      "externalLinks": "External Links",
+      "noFiles": "No files found.",
+      "linkAdded": "Link added",
+      "linkFailed": "Failed to add link",
+      "starter": {
+        "analyze": "Analyze current codebase structure",
+        "analyzeLabel": "Analyze Codebase",
+        "analyzeDesc": "Explore architecture & files",
+        "plan": "Create a new implementation plan",
+        "planLabel": "Create Plan",
+        "planDesc": "Draft a roadmap for changes",
+        "tasks": "What tasks are currently pending?",
+        "tasksLabel": "Check Tasks",
+        "tasksDesc": "Review active todo items",
+        "help": "Help me understand this project",
+        "helpLabel": "Project Help",
+        "helpDesc": "Get guidance on the system"
+      },
+      "resourceRemoved": "Resource removed",
+      "addMemory": {
+        "title": "Add Memory",
+        "name": "Name",
+        "desc": "Description",
+        "success": "Memory added successfully"
+      },
+      "openImagicBox": "Open IMagicBox"
+    }
+  },
+  "learning": {
+    "inputRequired": "Input Required",
+    "approvalRequired": "Approval Required",
+    "responseSubmitted": "Response Submitted",
+    "responseFailed": "Failed to Submit Response",
+    "requestCancelled": "Request Cancelled",
+    "enterResponse": "Enter your response...",
+    "approve": "Approve",
+    "reject": "Reject",
+    "startRecording": "Record",
+    "stopRecording": "Stop",
+    "recordingStarted": "Recording started, capturing your actions",
+    "recordingStopped": "Recording stopped, captured {{count}} events",
+    "recordingFailed": "Failed to start recording",
+    "recordingTooltip": "Recording your actions for imitation learning",
+    "startRecordingTooltip": "Start recording your actions",
+    "skillLibrary": "Skill Library",
+    "skills": "Learned Skills",
+    "noSkills": "No skills found. Try recording actions to synthesize a new skill.",
+    "synthesize": "Synthesize Skill",
+    "viewDetails": "View Details",
+    "deactivate": "Deactivate",
+    "confirmDeactivate": "Are you sure you want to deactivate this skill?",
+    "runSkill": "Run Skill",
+    "toolsCount": "{{count}} tools",
+    "successCount": "{{count}} success",
+    "stats": "Stats",
+    "successExecutions": "Success executions",
+    "created": "Created",
+    "synthesisDate": "Synthesis date",
+    "na": "N/A",
+    "table": {
+      "name": "Name",
+      "type": "Type",
+      "description": "Description"
+    },
+    "execution": {
+      "title": "Run Skill: {{name}}",
+      "description": "Configure parameters to run this skill.",
+      "noParams": "No parameters required.",
+      "runNow": "Run Now",
+      "starting": "Starting..."
+    },
+    "editor": {
+      "title": "Edit Skill: {{name}}",
+      "description": "Modify the skill definition. Be careful with Parameters JSON.",
+      "skillName": "Skill Name",
+      "skillDescription": "Description",
+      "triggerPatterns": "Trigger Patterns (Comma separated)",
+      "triggerHelp": "Phrases that will auto-suggest this skill.",
+      "parameters": "Parameters (JSON Schema)",
+      "invalidJson": "Invalid Parameters JSON",
+      "saveChanges": "Save Changes"
+    },
+    "triggerPatterns": "Trigger Patterns",
+    "parameters": "Parameters",
+    "steps": "Steps",
+    "successRate": "Success Rate"
+  },
+  "table": {
+    "noResults": "No results found.",
+    "rowsPerPage": "Rows per page",
+    "page": "Page",
+    "of": "of",
+    "showing": "Showing {{start}} to {{end}} of {{total}} entries",
+    "sr": {
+      "first": "Go to first page",
+      "previous": "Go to previous page",
+      "next": "Go to next page",
+      "last": "Go to last page"
+    }
+  },
+  "dashboard": {
+    "greeting": {
+      "morning": "Good morning",
+      "afternoon": "Good afternoon",
+      "evening": "Good evening",
+      "welcome": "Welcome to your EvoLoop command center. Here is your system overview."
+    },
+    "stats": {
+      "activeProjects": "Active Projects",
+      "activeProjectsDesc": "Locally available projects",
+      "totalTasks": "Total Tasks",
+      "totalTasksDesc": "Across all projects",
+      "pendingTasks": "Pending Tasks",
+      "pendingTasksDesc": "Tasks awaiting action",
+      "systemServices": "System Services",
+      "systemServicesDesc": "Connected MCP Servers"
+    },
+    "projects": {
+      "recent": "Recent Projects",
+      "viewAll": "View All",
+      "noProjects": "No projects found",
+      "noProjectsDesc": "Get started by creating your first project workspace.",
+      "remote": "Remote",
+      "openWorkspace": "Open Workspace"
+    },
+    "ecosystem": {
+      "title": "System Ecosystem",
+      "subtitle": "Connected Tools & Resources",
+      "noServers": "No MCP servers connected.",
+      "toolsAvailable": "{{count}} tools available",
+      "coreAgent": "Core Agent",
+      "evaluationLoop": "Evaluation Loop",
+      "online": "Online",
+      "active": "Active",
+      "manage": "Manage Integrations"
+    }
+  },
+  "todos": {
+    "title": "Todos",
+    "list": "List",
+    "calendar": "Calendar",
+    "filters": "Filters",
+    "status": {
+      "title": "Status",
+      "all": "All",
+      "pending": "Pending",
+      "completed": "Completed"
+    },
+    "priority": {
+      "title": "Priority",
+      "all": "All Priorities",
+      "high": "High",
+      "medium": "Medium",
+      "low": "Low"
+    },
+    "category": {
+      "title": "Category",
+      "all": "All Categories"
+    },
+    "sort": {
+      "newest": "Newest",
+      "priority": "Priority",
+      "dueDate": "Due Date"
+    },
+    "create": {
+      "placeholder": "What needs to be done?",
+      "add": "Add",
+      "setDate": "Set date",
+      "categoryPlaceholder": "Category",
+      "priorityPlaceholder": "Priority",
+      "success": "Todo created",
+      "error": "Failed to create todo"
+    },
+    "update": {
+      "success": "Todo updated",
+      "error": "Failed to update todo"
+    },
+    "delete": {
+      "success": "Todo deleted",
+      "error": "Failed to delete todo"
+    },
+    "empty": {
+      "loading": "Loading todos...",
+      "noFilterMatch": "No tasks match current filters.",
+      "noActive": "No active todos. Add one above!"
+    },
+    "headers": {
+      "allTasks": "All Tasks",
+      "pendingTasks": "Pending Tasks",
+      "completedTasks": "Completed Tasks"
+    },
+    "noDueDate": "No Due Date",
+    "jumpToChat": "Jump to Chat",
+    "execute": "Execute Task",
+    "refresh": "Refresh"
+  },
+  "hitl": {
+    "approvalRequired": "Approval Required",
+    "enterResponse": "Enter your response...",
+    "responseSent": "Response sent",
+    "sendFailed": "Failed to send response: "
+  }
+}

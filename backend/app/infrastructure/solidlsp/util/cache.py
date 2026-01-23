@@ -22,6 +22,16 @@ def load_cache(path: str, version: Any) -> Any | None:
     return data["obj"]
 
 
+def load_pickle(path: str) -> Any | None:
+    """Simple pickle loader for legacy migrations"""
+    try:
+        with open(path, "rb") as f:
+            return pickle.load(f)
+    except Exception as e:
+        log.warning("Failed to load pickle from %s: %s", path, e)
+        return None
+
+
 def save_cache(path: str, version: Any, obj: Any) -> None:
     data = {"__cache_version": version, "obj": obj}
     try:
