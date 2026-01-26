@@ -13,7 +13,7 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 import remarkGfm from "remark-gfm"
 import rehypeRaw from "rehype-raw"
 import { toast } from "sonner"
-import { OpenAPI } from "@/client"
+import { WikiService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Mermaid } from "@/components/Common/Mermaid"
 import {
@@ -44,29 +44,21 @@ function WikiPage() {
     const { data: pages, isLoading } = useQuery({
         queryKey: ["wiki", projectId],
         queryFn: async () => {
-            const token = localStorage.getItem("access_token")
-            const res = await fetch(`${OpenAPI.BASE}/api/v1/wiki/${projectId}`, {
-                headers: { Authorization: `Bearer ${token}` },
-            })
-            if (!res.ok) throw new Error("Failed to fetch wiki pages")
-            return (await res.json()) as WikiPageItem[]
+            const res = await WikiService.getWikiPages({ projectId: Number(projectId) })
+            return res as WikiPageItem[]
         },
     })
 
     // Generate Mutation
     const generateMutation = useMutation({
         mutationFn: async () => {
-            const token = localStorage.getItem("access_token")
-            const res = await fetch(`${OpenAPI.BASE}/api/v1/wiki/generate`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify({ project_id: Number(projectId), topic: "Full Documentation", force_regenerate: true }),
+            return WikiService.generateWiki({
+                requestBody: {
+                    project_id: Number(projectId),
+                    topic: t("wiki.topic.full_documentation"),
+                    force_regenerate: true
+                }
             })
-            if (!res.ok) throw new Error("Failed to start generation")
-            return res.json()
         },
         onSuccess: () => {
             toast.success(t('wiki.toast.start'))

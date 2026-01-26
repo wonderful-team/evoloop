@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query"
 import { BookOpen, MoreVertical, Trash2 } from "lucide-react"
 import { useState } from "react"
 import { Trans, useTranslation } from "react-i18next"
-import { ProjectsService } from "@/client"
+import { ProjectsService, WikiService } from "@/client"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,17 +54,13 @@ export function ProjectActions({ project }: ProjectActionsProps) {
 
   const { mutate: handleGenerateWiki } = useMutation({
     mutationFn: async () => {
-      const token = localStorage.getItem("access_token")
-      const res = await fetch(`${import.meta.env.VITE_API_URL || "http://localhost:8000"}/api/v1/wiki/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ project_id: project.id, topic: "Full Documentation", force_regenerate: true }),
+      return WikiService.generateWiki({
+        requestBody: {
+          project_id: project.id,
+          topic: t("wiki.topic.full_documentation"),
+          force_regenerate: true
+        }
       })
-      if (!res.ok) throw new Error("Failed to start generation")
-      return res.json()
     },
     onSuccess: () => {
       showSuccessToast(t('wiki.toast.start'))
