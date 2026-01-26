@@ -19,7 +19,18 @@
             "lang_instruction": "\n用户语言偏好: {language}\n请使用该语言进行交流。"
         },
         "wiki": {
-            "doc_generation": "\n你是一位技术文档专家。请为以下代码实体编写详细的文档章节。\n\n实体: {entity_name} ({entity_type})\n文件: {file_path}\n\n代码:\n```{lang}\n{code_snippet}\n```\n\n格式要求:\n- **概述**: 这个实体的功能是什么？\n- **用法**: 如何使用它？\n- **细节**: 关键逻辑或算法说明。\n- 请使用 Markdown 格式。\n"
+            "doc_generation": "\n你是一位技术文档专家。请为以下代码实体编写详细的文档章节。\n\n实体: {entity_name} ({entity_type})\n文件: {file_path}\n\n代码:\n```{lang}\n{code_snippet}\n```\n\n格式要求:\n- **概述**: 这个实体的功能是什么？\n- **用法**: 如何使用它？\n- **细节**: 关键逻辑或算法说明。\n- 请使用 Markdown 格式。\n",
+            "fallback": {
+                "overview": "项目概览",
+                "architecture": "架构说明",
+                "setup": "安装与配置"
+            },
+            "generated_content": {
+                "relevant_files": "相关源文件",
+                "files_used": "生成此页面使用了以下文件作为上下文："
+            },
+            "error_generating_content": "生成内容错误：{error}",
+            "generation_queued": "Wiki 生成已排队 (Celery)"
         },
         "deep_research": {
             "protocol": "\n<language_protocol>\nUser Language: {user_lang}\n请务必使用中文（{user_lang}）编写你的计划、更新和结论。\n</language_protocol>\n",

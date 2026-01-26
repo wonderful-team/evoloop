@@ -19,7 +19,18 @@
             "lang_instruction": "\nUser Language Preference: {language}\nCommunicate in this language."
         },
         "wiki": {
-            "doc_generation": "\nYou are a technical documentation expert. Write a comprehensive documentation section for the following code entity.\n\nEntity: {entity_name} ({entity_type})\nFile: {file_path}\n\nCode:\n```{lang}\n{code_snippet}\n```\n\nFormat:\n- **Overview**: What does this do?\n- **Usage**: How to use it?\n- **Details**: Key logic or algorithms.\n- Markdown format.\n"
+            "doc_generation": "\nYou are a technical documentation expert. Write a comprehensive documentation section for the following code entity.\n\nEntity: {entity_name} ({entity_type})\nFile: {file_path}\n\nCode:\n```{lang}\n{code_snippet}\n```\n\nFormat:\n- **Overview**: What does this do?\n- **Usage**: How to use it?\n- **Details**: Key logic or algorithms.\n- Markdown format.\n",
+            "fallback": {
+                "overview": "Project Overview",
+                "architecture": "Architecture",
+                "setup": "Setup & Installation"
+            },
+            "generated_content": {
+                "relevant_files": "Relevant source files",
+                "files_used": "The following files were used as context for generating this wiki page:"
+            },
+            "error_generating_content": "Error generating content: {error}",
+            "generation_queued": "Wiki generation queued (Celery)"
         },
         "deep_research": {
             "protocol": "\n<language_protocol>\nUser Language: {user_lang}\nYou MUST write your plans, updates, and conclusions in {user_lang}.\n</language_protocol>\n",

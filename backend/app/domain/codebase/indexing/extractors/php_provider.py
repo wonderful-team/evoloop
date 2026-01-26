@@ -15,26 +15,30 @@ class PHPSemanticProvider(LanguageSemanticProvider):
         PHP API frameworks: Laravel, Symfony, Slim, etc.
         """
         return """
-        ; Laravel/Lumen Route definitions
-        (function_call_expression
-          function: (member_access_expression
-            object: (name) @obj
-            name: (name) @method)
-          arguments: (arguments
-            (string) @path
-            [(closure_expression) (name) (array_creation_expression)] @handler
+        ; Laravel/Lumen Route definitions (Static: Route::get)
+        (scoped_call_expression
+          (name) @obj
+          (name) @method
+          (arguments
+            (argument (string) @path)
+            (argument [(anonymous_function) (array_creation_expression) (string)] @handler)
+          )
+        )
+        
+        ; Laravel/Lumen Instance definitions ($router->get)
+        (member_call_expression
+          (variable_name) @obj
+          (name) @method
+          (arguments
+            (argument (string) @path)
+            (argument [(anonymous_function) (array_creation_expression) (string)] @handler)
           )
         )
 
-        ; Symfony annotations
+        ; Symfony annotations (PHP 8 Attributes)
         (attribute
-          (name) @annotation
-          (arguments (string) @path)?
-        )
-
-        ; Function with route comment
-        (method_declaration
-          name: (name) @handler
+            (name) @annotation
+            (arguments (argument (string) @path))?
         )
         """
 
@@ -55,11 +59,14 @@ class PHPSemanticProvider(LanguageSemanticProvider):
             http_methods = {"get": "GET", "post": "POST", "put": "PUT", "delete": "DELETE", "patch": "PATCH"}
             http_method = http_methods.get(method_text.lower(), "GET")
 
+            line_number = method.start_point[0] + 1 if method else 0
+
             endpoints.append(APIEndpoint(
                 method=http_method,
                 path=path_text,
                 handler_name=handler_text,
-                file_path=file_path
+                file_path=file_path,
+                line_number=line_number
             ))
 
         return endpoints

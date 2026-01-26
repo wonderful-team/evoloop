@@ -33,7 +33,59 @@ class UpdateProjectRequest(BaseModel):
 
 @router.get("/")
 async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDepOptional = None):
-    return await evocloud_client.get_projects(page, page_size)
+    # 1. Fetch from Cloud
+    res = await evocloud_client.get_projects(page, page_size)
+    
+    # Check structure. Usually it returns dict or list.
+    # evocloud_client usually returns { "list": [...], "total": ... } or [...]
+    # We need to handle safely.
+    projects = []
+    if isinstance(res, dict) and "list" in res:
+        projects = res["list"]
+    elif isinstance(res, list):
+        projects = res
+        
+    if not projects:
+        return res
+
+    # 2. Enrich with Local System Status (Redis) and Wiki Existence (DB)
+    from app.core.monitoring.activity import activity_monitor
+    from app.domain.wiki.service import wiki_service
+    
+    # Collect IDs for batch DB query
+    project_ids = []
+    for p in projects:
+        pid = p.get("project_id") or p.get("id")
+        if pid:
+            project_ids.append(pid)
+            
+    # Batch check wiki existence
+    projects_with_wiki = set()
+    try:
+        projects_with_wiki = wiki_service.get_projects_with_wiki(project_ids)
+    except Exception as e:
+        logger.warning(f"Failed to check wiki existence: {e}")
+
+    # Enrich loop
+    for p in projects:
+        try:
+            pid = p.get("project_id") or p.get("id")
+            if pid:
+                # Local Status
+                wiki_status = await activity_monitor.get_activity(f"sys:{pid}:wiki")
+                indexing_status = await activity_monitor.get_activity(f"sys:{pid}:indexing")
+                summarization_status = await activity_monitor.get_activity(f"sys:{pid}:summarization")
+                
+                p["wiki_status"] = wiki_status.get("status", "idle") if wiki_status else "idle"
+                p["indexing_status"] = indexing_status.get("status", "idle") if indexing_status else "idle"
+                p["summarization_status"] = summarization_status.get("status", "idle") if summarization_status else "idle"
+                
+                # Wiki Existence
+                p["has_wiki"] = pid in projects_with_wiki
+        except Exception as e:
+            logger.warning(f"Failed to enrich project {p.get('id')} status: {e}")
+            
+    return res
 
 
 @router.get("/current")
@@ -90,11 +142,13 @@ async def get_project_status(project_id: int):
 
     indexing_key = f"sys:{project_id}:indexing"
     summarization_key = f"sys:{project_id}:summarization"
+    wiki_key = f"sys:{project_id}:wiki"
 
     indexing = await activity_monitor.get_activity(indexing_key)
     summarization = await activity_monitor.get_activity(summarization_key)
+    wiki = await activity_monitor.get_activity(wiki_key)
 
-    return {"indexing": indexing, "summarization": summarization}
+    return {"indexing": indexing, "summarization": summarization, "wiki": wiki}
 
 
 @router.delete("/{project_id}")

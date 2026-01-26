@@ -23,6 +23,7 @@ from app.api.routes import (
     tools,
     users,
     utils,
+    wiki,
 )
 
 api_router = APIRouter()
@@ -57,3 +58,6 @@ api_router.include_router(learning.router, prefix="/learning", tags=["learning"]
 
 # SSE Streaming
 api_router.include_router(stream.router, tags=["stream"])
+
+# Wiki Generation
+api_router.include_router(wiki.router, prefix="/wiki", tags=["wiki"])

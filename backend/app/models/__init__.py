@@ -1,6 +1,7 @@
 from sqlmodel import SQLModel
 
 from .config import SystemConfig as SystemConfig
+from .wiki import WikiPage
 
 
 # Generic message

@@ -10,6 +10,7 @@ celery_app = Celery(
         "app.domain.codebase.indexing.tasks",
         "app.domain.project.summarizer",
         "app.domain.project.sync_tasks",
+        "app.domain.wiki.tasks",
     ],
 )
 

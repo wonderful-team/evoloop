@@ -560,3 +560,17 @@ MAX_TOKENS_PER_CHUNK = {
     },
     "default": 2048,
 }
+
+# ====================== Language Constants ======================
+LANGUAGE_MAP = {
+    "en": "English",
+    "zh": "Mandarin Chinese (中文)",
+    "zh-tw": "Traditional Chinese (繁體中文)",
+    "ja": "Japanese (日本語)",
+    "es": "Spanish (Español)",
+    "fr": "French (Français)",
+    "ru": "Russian (Русский)",
+    "pt-br": "Brazilian Portuguese (Português Brasileiro)",
+    "ko": "Korean (한국어)",
+    "vi": "Vietnamese (Tiếng Việt)",
+}

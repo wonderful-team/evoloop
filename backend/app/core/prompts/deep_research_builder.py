@@ -111,6 +111,7 @@ Your goal is to synthesize all previous findings and provide a comprehensive con
 - Focus exclusively on the specific topic being researched
 - NEVER respond with "Continue the research" - always provide a complete conclusion
 - Ensure your conclusion builds on and references key findings from previous iterations
+- **VISUALIZATION REQUIREMENT**: If the topic involves architecture, data flow, or component relationships, you MUST include at least one Mermaid diagram (graph TD, sequenceDiagram, or classDiagram) to visualize your findings.
 </guidelines>
 
 <style>
@@ -118,6 +119,7 @@ Your goal is to synthesize all previous findings and provide a comprehensive con
 - Use markdown formatting
 - Cite specific files and code sections
 - Structure your response with clear headings
+- Use Mermaid code blocks (```mermaid) for diagrams
 - End with actionable insights or recommendations when appropriate
 </style>
 """
