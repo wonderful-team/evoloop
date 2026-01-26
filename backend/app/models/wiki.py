@@ -19,8 +19,8 @@ class WikiPage(WikiPageBase, table=True):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Self-referential relationship for hierarchy
-    # parent: Optional["WikiPage"] = Relationship(back_populates="children", sa_relationship_kwargs={"remote_side": "WikiPage.id"})
-    # children: List["WikiPage"] = Relationship(back_populates="parent")
+    parent: Optional["WikiPage"] = Relationship(back_populates="children", sa_relationship_kwargs={"remote_side": "WikiPage.id"})
+    children: List["WikiPage"] = Relationship(back_populates="parent")
 
 
 class WikiPageCreate(WikiPageBase):

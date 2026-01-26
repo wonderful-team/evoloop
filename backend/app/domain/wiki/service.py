@@ -105,6 +105,8 @@ class WikiService:
         """
         if not os.path.exists(path):
             return ""
+        if os.path.isdir(path):
+            return ""
         try:
             with open(path, 'r', encoding='utf-8', errors='ignore') as f:
                 return f.read(max_chars)
@@ -182,54 +184,85 @@ class WikiService:
 
         saved_pages = []
 
-        # 2. Phase 2: Generate Content
-        for i, page_plan in enumerate(pages_to_generate):
-            page_title = page_plan.get("title", f"Page {i}")
-            page_slug = page_plan.get("id", f"page-{i}")
-            relevant_files_hint = page_plan.get("relevant_files", [])
+        # 2. Phase 2: Generate Content (Recursive)
+        async def process_page_recursive(plan, parent_id=None, order=0):
+            page_title = plan.get("title", "Untitled")
+            page_slug = plan.get("id", f"page-{order}")
+            relevant_files_hint = plan.get("relevant_files", [])
             
             logger.info(f"Phase 2: Generating content for '{page_title}' (slug: {page_slug})")
-
-            # Check existence - if page exists (e.g. from previous run without force, or partial run), skip it.
-            # Since we cleared DB on force_regenerate, this only safeguards normal generation or partial restarts.
+            
+            page_content = None
+            
+            # Check existence
             if not force_regenerate:
                 with Session(engine) as session:
                     stmt = select(WikiPage).where(
                         WikiPage.project_id == project_id,
                         WikiPage.slug == page_slug
                     )
-                    existing = session.exec(stmt).first()
-                    if existing and existing.content:
+                    existing_page = session.exec(stmt).first()
+                    if existing_page and existing_page.content:
                         logger.info(f"Skipping '{page_title}' - already exists.")
-                        saved_pages.append(existing)
-                        continue
+                        # Ensure hierarchy is up to date
+                        if existing_page.parent_id != parent_id or existing_page.order != order:
+                             existing_page.parent_id = parent_id
+                             existing_page.order = order
+                             session.add(existing_page)
+                             session.commit()
+                             session.refresh(existing_page)
+                        
+                        saved_pages.append(existing_page)
+                        
+                        # Recurse Children even if skipped
+                        children = plan.get("children", [])
+                        for i, child_plan in enumerate(children):
+                            await process_page_recursive(child_plan, parent_id=existing_page.id, order=i)
+                        return
 
-            # Gather context from relevant files
+            # Gather context
             context_buffer = []
             valid_paths = []
             
-            # If no files suggested, try to find some intuitively (simplified)
-            # In a real impl, we might do a vector search here. 
-            # For now, we rely on the planner's suggestion.
+            # Helper to expand directories
+            from app.utils.file import walk_tree, filter_code_files
+            final_files_to_read = []
             
             for rel_path in relevant_files_hint:
+                full_path = os.path.join(project_path, rel_path)
+                if os.path.exists(full_path) and os.path.isdir(full_path):
+                     # Expand directory
+                     try:
+                         # Get all files recursively
+                         child_files = list(walk_tree(full_path))
+                         # Convert to relative paths
+                         child_rels = [os.path.relpath(f, project_path) for f in child_files]
+                         # Filter code files
+                         filtered_children = filter_code_files(child_rels)
+                         # Limit to avoid explosion (e.g. max 10 files per directory hint)
+                         final_files_to_read.extend(filtered_children[:10]) 
+                     except Exception as e:
+                         logger.warning(f"Failed to expand directory {rel_path}: {e}")
+                else:
+                    final_files_to_read.append(rel_path)
+            
+            # Remove duplicates while preserving order
+            final_files_to_read = list(dict.fromkeys(final_files_to_read))
+
+            for rel_path in final_files_to_read:
                 full_path = os.path.join(project_path, rel_path)
                 content = self._read_file_safe(full_path, max_chars=50000)
                 if content:
                     context_buffer.append(f"--- FILE: {rel_path} ---\n{content}\n")
                     valid_paths.append(rel_path)
             
-            # Usage of README as fallback context if buffer is empty
             if not context_buffer:
                 context_buffer.append(f"--- FILE: README.md ---\n{readme_content}\n")
                 valid_paths.append("README.md")
 
             joined_context = "\n".join(context_buffer)
-
-            # Build Prompt
             content_prompt = WikiBuilder.build_content_prompt(page_title, joined_context, valid_paths)
             
-            # Generate
             try:
                 content_response = await llm.ainvoke([HumanMessage(content=content_prompt)])
                 page_content = content_response.content
@@ -244,29 +277,42 @@ class WikiService:
                     WikiPage.project_id == project_id,
                     WikiPage.slug == page_slug
                 )
-                existing_page = session.exec(stmt).first()
+                existing_page_db = session.exec(stmt).first()
                 
-                if existing_page:
-                    existing_page.content = page_content
-                    existing_page.updated_at = datetime.utcnow()
-                    existing_page.title = page_title
-                    existing_page.order = i
-                    session.add(existing_page)
+                if existing_page_db:
+                    existing_page_db.content = page_content
+                    existing_page_db.updated_at = datetime.utcnow()
+                    existing_page_db.title = page_title
+                    existing_page_db.order = order
+                    existing_page_db.parent_id = parent_id
+                    session.add(existing_page_db)
                     session.commit()
-                    session.refresh(existing_page)
-                    saved_pages.append(existing_page)
+                    session.refresh(existing_page_db)
+                    saved_page = existing_page_db
                 else:
                     new_page = WikiPage(
                         project_id=project_id,
                         title=page_title,
                         slug=page_slug,
                         content=page_content,
-                        order=i
+                        order=order,
+                        parent_id=parent_id
                     )
                     session.add(new_page)
                     session.commit()
                     session.refresh(new_page)
-                    saved_pages.append(new_page)
+                    saved_page = new_page
+            
+            saved_pages.append(saved_page)
+            
+            # Recurse Children
+            children = plan.get("children", [])
+            for i, child_plan in enumerate(children):
+                await process_page_recursive(child_plan, parent_id=saved_page.id, order=i)
+
+        # Kickoff recursion
+        for i, page_plan in enumerate(pages_to_generate):
+            await process_page_recursive(page_plan, parent_id=None, order=i)
         
         return saved_pages
 

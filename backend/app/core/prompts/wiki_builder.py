@@ -64,11 +64,19 @@ Output a JSON object with the following structure:
         "path/to/file1.py",
         "path/to/file2.ts"
       ],
-      "importance": "high"
+      "importance": "high",
+      "children": [
+        {{
+           "id": "subpage-id",
+           "title": "Subpage Title",
+           ...
+        }}
+      ]
     }},
     ...
   ]
 }}
+Use hierarchical structure (folders/groups) grouping related pages together where logical.
 """
 
     @staticmethod

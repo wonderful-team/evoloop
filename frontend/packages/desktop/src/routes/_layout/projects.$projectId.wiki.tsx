@@ -4,8 +4,12 @@ import {
     BookOpen,
     Loader2,
     RefreshCw,
+    ChevronRight,
+    ChevronDown,
+    Folder,
+    FileText
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
@@ -32,6 +36,97 @@ type WikiPageItem = {
     slug: string
     content: string
     created_at: string
+    parent_id?: number | null
+    children?: WikiPageItem[]
+}
+
+function buildTree(pages: WikiPageItem[]): WikiPageItem[] {
+    const map = new Map<number, WikiPageItem>();
+    const roots: WikiPageItem[] = [];
+
+    // Initialize map with independent copies
+    pages.forEach(p => {
+        map.set(p.id, { ...p, children: [] });
+    });
+
+    // Build tree
+    pages.forEach(p => {
+        const node = map.get(p.id)!;
+        if (p.parent_id) {
+            const parent = map.get(p.parent_id);
+            if (parent) {
+                parent.children?.push(node);
+            } else {
+                roots.push(node); // Parent not found in set, treat as root
+            }
+        } else {
+            roots.push(node);
+        }
+    });
+
+    return roots;
+}
+
+function WikiTreeItem({
+    node,
+    level = 0,
+    selectedPage,
+    onSelect
+}: {
+    node: WikiPageItem,
+    level?: number,
+    selectedPage: WikiPageItem | null,
+    onSelect: (p: WikiPageItem) => void
+}) {
+    const [isOpen, setIsOpen] = useState(true)
+    const hasChildren = node.children && node.children.length > 0
+
+    return (
+        <div>
+            <button
+                onClick={() => {
+                    onSelect(node)
+                    if (hasChildren) setIsOpen(!isOpen)
+                }}
+                className={`flex items-center w-full text-left px-2 py-1.5 rounded text-sm transition-colors ${selectedPage?.id === node.id
+                        ? "bg-primary/10 text-primary font-medium"
+                        : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                style={{ paddingLeft: `${(level * 12) + 8}px` }}
+            >
+                {hasChildren ? (
+                    <span
+                        className="mr-1 opacity-50 hover:opacity-100 cursor-pointer"
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            setIsOpen(!isOpen)
+                        }}
+                    >
+                        {isOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                    </span>
+                ) : (
+                    <span className="mr-1 w-3" />
+                )}
+
+                {hasChildren ? <Folder className="h-3.5 w-3.5 mr-2 opacity-70" /> : <FileText className="h-3.5 w-3.5 mr-2 opacity-70" />}
+                <span className="truncate">{node.title}</span>
+            </button>
+
+            {hasChildren && isOpen && (
+                <div>
+                    {node.children!.map(child => (
+                        <WikiTreeItem
+                            key={child.id}
+                            node={child}
+                            level={level + 1}
+                            selectedPage={selectedPage}
+                            onSelect={onSelect}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    )
 }
 
 function WikiPage() {
@@ -49,6 +144,11 @@ function WikiPage() {
         },
     })
 
+    const treeData = useMemo(() => {
+        if (!pages) return []
+        return buildTree(pages)
+    }, [pages])
+
     // Generate Mutation
     const generateMutation = useMutation({
         mutationFn: async () => {
@@ -62,6 +162,7 @@ function WikiPage() {
         },
         onSuccess: () => {
             toast.success(t('wiki.toast.start'))
+            queryClient.invalidateQueries({ queryKey: ["wiki"] })
         },
         onError: () => {
             toast.error(t('wiki.toast.error'))
@@ -74,7 +175,10 @@ function WikiPage() {
 
     // Auto-select first page if none selected
     if (pages && pages.length > 0 && !selectedPage) {
-        setSelectedPage(pages[0])
+        // Find first leaf node preferably, or structured root
+        if (treeData.length > 0 && !selectedPage) {
+            setSelectedPage(treeData[0])
+        }
     }
 
     return (
@@ -97,18 +201,14 @@ function WikiPage() {
                         <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
                             {t('common.loading')}
                         </div>
-                    ) : pages && pages.length > 0 ? (
-                        pages.map((page) => (
-                            <button
-                                key={page.id}
-                                onClick={() => setSelectedPage(page)}
-                                className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${selectedPage?.id === page.id
-                                    ? "bg-primary/10 text-primary font-medium"
-                                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                                    }`}
-                            >
-                                {page.title}
-                            </button>
+                    ) : treeData.length > 0 ? (
+                        treeData.map((node) => (
+                            <WikiTreeItem
+                                key={node.id}
+                                node={node}
+                                selectedPage={selectedPage}
+                                onSelect={setSelectedPage}
+                            />
                         ))
                     ) : (
                         <div className="text-center py-8 px-2">
