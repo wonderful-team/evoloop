@@ -590,7 +590,8 @@
       "timesheet": "Timesheet",
       "files": "Files",
       "overview": "Overview",
-      "tasks": "Tasks"
+      "tasks": "Tasks",
+      "wiki": "Wiki"
     },
     "details": {
       "created": "Created",
@@ -626,6 +627,19 @@
     },
     "noDescription": "No description available.",
     "loading": "Loading projects..."
+  },
+  "wiki": {
+    "pageList": "Pages",
+    "noDocs": "No documentation yet.",
+    "generate": "Generate Wiki",
+    "regenerate_action": "Re-Generate Wiki",
+    "regenerate": "Re-Generate All",
+    "lastUpdated": "Last updated",
+    "selectPage": "Select a page to view",
+    "toast": {
+      "start": "Wiki generation started! It will run in the background.",
+      "error": "Failed to start generation"
+    }
   },
   "mcp": {
     "nameLabel": "Name",

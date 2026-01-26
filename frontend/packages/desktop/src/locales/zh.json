@@ -585,7 +585,8 @@
       "timesheet": "工时",
       "files": "文件",
       "overview": "概览",
-      "tasks": "任务"
+      "tasks": "任务",
+      "wiki": "百科"
     },
     "details": {
       "created": "创建时间",
@@ -621,6 +622,19 @@
     },
     "noDescription": "暂无描述。",
     "loading": "加载项目中..."
+  },
+  "wiki": {
+    "pageList": "页面列表",
+    "noDocs": "暂无文档。",
+    "generate": "生成百科",
+    "regenerate_action": "重新生成百科",
+    "regenerate": "重新生成全部",
+    "lastUpdated": "最后更新",
+    "selectPage": "请选择页面查看",
+    "toast": {
+      "start": "百科生成已开始！将在后台运行。",
+      "error": "启动生成失败"
+    }
   },
   "mcp": {
     "nameLabel": "名称",

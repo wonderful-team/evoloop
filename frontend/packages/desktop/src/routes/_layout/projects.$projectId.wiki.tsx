@@ -1,0 +1,199 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { createFileRoute } from "@tanstack/react-router"
+import {
+    BookOpen,
+    Loader2,
+    RefreshCw,
+} from "lucide-react"
+import { useState } from "react"
+import { useTranslation } from "react-i18next"
+import ReactMarkdown from "react-markdown"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
+import remarkGfm from "remark-gfm"
+import rehypeRaw from "rehype-raw"
+import { toast } from "sonner"
+import { OpenAPI } from "@/client"
+import { Button } from "@evoloop/shared/components/ui/button"
+import { Mermaid } from "@/components/Common/Mermaid"
+import {
+    ResizableHandle,
+    ResizablePanel,
+    ResizablePanelGroup,
+} from "@evoloop/shared/components/ui/resizable"
+
+export const Route = createFileRoute("/_layout/projects/$projectId/wiki")({
+    component: WikiPage,
+})
+
+type WikiPageItem = {
+    id: number
+    title: string
+    slug: string
+    content: string
+    created_at: string
+}
+
+function WikiPage() {
+    const { t } = useTranslation() // Hook
+    const { projectId } = Route.useParams()
+    const queryClient = useQueryClient()
+    const [selectedPage, setSelectedPage] = useState<WikiPageItem | null>(null)
+
+    // Fetch Pages
+    const { data: pages, isLoading } = useQuery({
+        queryKey: ["wiki", projectId],
+        queryFn: async () => {
+            const token = localStorage.getItem("access_token")
+            const res = await fetch(`${OpenAPI.BASE}/api/v1/wiki/${projectId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            })
+            if (!res.ok) throw new Error("Failed to fetch wiki pages")
+            return (await res.json()) as WikiPageItem[]
+        },
+    })
+
+    // Generate Mutation
+    const generateMutation = useMutation({
+        mutationFn: async () => {
+            const token = localStorage.getItem("access_token")
+            const res = await fetch(`${OpenAPI.BASE}/api/v1/wiki/generate`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify({ project_id: Number(projectId), topic: "Full Documentation", force_regenerate: true }),
+            })
+            if (!res.ok) throw new Error("Failed to start generation")
+            return res.json()
+        },
+        onSuccess: () => {
+            toast.success(t('wiki.toast.start'))
+        },
+        onError: () => {
+            toast.error(t('wiki.toast.error'))
+        },
+    })
+
+    const handleGenerate = () => {
+        generateMutation.mutate()
+    }
+
+    // Auto-select first page if none selected
+    if (pages && pages.length > 0 && !selectedPage) {
+        setSelectedPage(pages[0])
+    }
+
+    return (
+        <ResizablePanelGroup direction="horizontal" className="h-full w-full">
+            <ResizablePanel
+                defaultSize={20}
+                minSize={15}
+                maxSize={30}
+                className="bg-muted/5 flex flex-col min-w-[200px] border-r"
+            >
+                <div className="h-10 border-b px-4 flex items-center justify-between bg-muted/5 shrink-0">
+                    <span className="font-semibold text-sm">{t('wiki.pageList')}</span>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => queryClient.invalidateQueries({ queryKey: ["wiki"] })}>
+                        <RefreshCw className="h-3.5 w-3.5" />
+                    </Button>
+                </div>
+
+                <div className="flex-1 overflow-auto p-2 space-y-1">
+                    {isLoading ? (
+                        <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
+                            {t('common.loading')}
+                        </div>
+                    ) : pages && pages.length > 0 ? (
+                        pages.map((page) => (
+                            <button
+                                key={page.id}
+                                onClick={() => setSelectedPage(page)}
+                                className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${selectedPage?.id === page.id
+                                    ? "bg-primary/10 text-primary font-medium"
+                                    : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                                    }`}
+                            >
+                                {page.title}
+                            </button>
+                        ))
+                    ) : (
+                        <div className="text-center py-8 px-2">
+                            <p className="text-xs text-muted-foreground mb-4">{t('wiki.noDocs')}</p>
+                            <Button size="sm" onClick={handleGenerate} disabled={generateMutation.isPending}>
+                                {generateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : <BookOpen className="h-3 w-3 mr-2" />}
+                                {t('wiki.generate')}
+                            </Button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Bottom Actions */}
+                {pages && pages.length > 0 && (
+                    <div className="p-2 border-t">
+                        <Button variant="outline" size="sm" className="w-full" onClick={handleGenerate} disabled={generateMutation.isPending}>
+                            {generateMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-2" /> : t('wiki.regenerate')}
+                        </Button>
+                    </div>
+                )}
+            </ResizablePanel>
+
+            <ResizableHandle withHandle />
+
+            <ResizablePanel defaultSize={80}>
+                <div className="h-full flex flex-col bg-background min-w-0">
+                    {selectedPage ? (
+                        <>
+                            <div className="h-10 border-b px-6 flex items-center bg-white/50 shrink-0">
+                                <h1 className="font-semibold text-sm">{selectedPage.title}</h1>
+                                <span className="ml-auto text-xs text-muted-foreground">
+                                    {t('wiki.lastUpdated')}: {new Date(selectedPage.created_at).toLocaleDateString()}
+                                </span>
+                            </div>
+                            <div className="flex-1 overflow-auto p-8 prose prose-slate dark:prose-invert max-w-none">
+                                <ReactMarkdown
+                                    remarkPlugins={[remarkGfm]}
+                                    rehypePlugins={[rehypeRaw]}
+                                    components={{
+                                        code({ node: _node, className, children, ...props }) {
+                                            const match = /language-(\w+)/.exec(className || "")
+                                            const isMermaid = match && match[1] === 'mermaid'
+
+                                            if (isMermaid) {
+                                                return <Mermaid chart={String(children)} />
+                                            }
+
+                                            return match ? (
+                                                <SyntaxHighlighter
+                                                    // @ts-expect-error
+                                                    style={vscDarkPlus}
+                                                    language={match[1]}
+                                                    PreTag="div"
+                                                    {...props}
+                                                >
+                                                    {String(children).replace(/\n$/, "")}
+                                                </SyntaxHighlighter>
+                                            ) : (
+                                                <code className={className} {...props}>
+                                                    {children}
+                                                </code>
+                                            )
+                                        },
+                                    }}
+                                >
+                                    {selectedPage.content}
+                                </ReactMarkdown>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/50 bg-muted/5">
+                            <BookOpen className="h-16 w-16 mb-4 opacity-10" />
+                            <p>{t('wiki.selectPage')}</p>
+                        </div>
+                    )}
+                </div>
+            </ResizablePanel>
+        </ResizablePanelGroup>
+    )
+}

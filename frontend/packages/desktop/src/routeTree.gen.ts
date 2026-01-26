@@ -22,6 +22,7 @@ import { Route as LayoutChatRouteImport } from './routes/_layout/chat'
 import { Route as LayoutProjectsIndexRouteImport } from './routes/_layout/projects.index'
 import { Route as LayoutProjectsProjectIdRouteImport } from './routes/_layout/projects.$projectId'
 import { Route as LayoutProjectsProjectIdIndexRouteImport } from './routes/_layout/projects.$projectId.index'
+import { Route as LayoutProjectsProjectIdWikiRouteImport } from './routes/_layout/projects.$projectId.wiki'
 import { Route as LayoutProjectsProjectIdTimesheetRouteImport } from './routes/_layout/projects.$projectId.timesheet'
 import { Route as LayoutProjectsProjectIdTasksRouteImport } from './routes/_layout/projects.$projectId.tasks'
 import { Route as LayoutProjectsProjectIdReportsRouteImport } from './routes/_layout/projects.$projectId.reports'
@@ -93,6 +94,12 @@ const LayoutProjectsProjectIdIndexRoute =
     path: '/',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
+const LayoutProjectsProjectIdWikiRoute =
+  LayoutProjectsProjectIdWikiRouteImport.update({
+    id: '/wiki',
+    path: '/wiki',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
 const LayoutProjectsProjectIdTimesheetRoute =
   LayoutProjectsProjectIdTimesheetRouteImport.update({
     id: '/timesheet',
@@ -141,6 +148,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
+  '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
 }
 export interface FileRoutesByTo {
@@ -159,6 +167,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
+  '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/projects/$projectId': typeof LayoutProjectsProjectIdIndexRoute
 }
 export interface FileRoutesById {
@@ -180,6 +189,7 @@ export interface FileRoutesById {
   '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
   '/_layout/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/_layout/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
+  '/_layout/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/_layout/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
 }
 export interface FileRouteTypes {
@@ -201,6 +211,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/reports'
     | '/projects/$projectId/tasks'
     | '/projects/$projectId/timesheet'
+    | '/projects/$projectId/wiki'
     | '/projects/$projectId/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/reports'
     | '/projects/$projectId/tasks'
     | '/projects/$projectId/timesheet'
+    | '/projects/$projectId/wiki'
     | '/projects/$projectId'
   id:
     | '__root__'
@@ -239,6 +251,7 @@ export interface FileRouteTypes {
     | '/_layout/projects/$projectId/reports'
     | '/_layout/projects/$projectId/tasks'
     | '/_layout/projects/$projectId/timesheet'
+    | '/_layout/projects/$projectId/wiki'
     | '/_layout/projects/$projectId/'
   fileRoutesById: FileRoutesById
 }
@@ -343,6 +356,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdIndexRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
+    '/_layout/projects/$projectId/wiki': {
+      id: '/_layout/projects/$projectId/wiki'
+      path: '/wiki'
+      fullPath: '/projects/$projectId/wiki'
+      preLoaderRoute: typeof LayoutProjectsProjectIdWikiRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
     '/_layout/projects/$projectId/timesheet': {
       id: '/_layout/projects/$projectId/timesheet'
       path: '/timesheet'
@@ -387,6 +407,7 @@ interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdReportsRoute: typeof LayoutProjectsProjectIdReportsRoute
   LayoutProjectsProjectIdTasksRoute: typeof LayoutProjectsProjectIdTasksRoute
   LayoutProjectsProjectIdTimesheetRoute: typeof LayoutProjectsProjectIdTimesheetRoute
+  LayoutProjectsProjectIdWikiRoute: typeof LayoutProjectsProjectIdWikiRoute
   LayoutProjectsProjectIdIndexRoute: typeof LayoutProjectsProjectIdIndexRoute
 }
 
@@ -398,6 +419,7 @@ const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren
     LayoutProjectsProjectIdTasksRoute: LayoutProjectsProjectIdTasksRoute,
     LayoutProjectsProjectIdTimesheetRoute:
       LayoutProjectsProjectIdTimesheetRoute,
+    LayoutProjectsProjectIdWikiRoute: LayoutProjectsProjectIdWikiRoute,
     LayoutProjectsProjectIdIndexRoute: LayoutProjectsProjectIdIndexRoute,
   }
 

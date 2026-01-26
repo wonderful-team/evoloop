@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router"
-import { FolderOpen, Layers, ListTodo, RefreshCw } from "lucide-react"
+import { BookOpen, FolderOpen, Layers, ListTodo, RefreshCw } from "lucide-react"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useProjectStore } from "@/stores/projectStore"
@@ -87,11 +87,13 @@ export function ProjectList() {
                 )}
                 {(proj.summarization_status === "running" ||
                   proj.summarization_status === "SUMMARIZING") && (
-                  <Badge
-                    variant="secondary"
-                    className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200 gap-1"
-                  >
-                    <ListTodo className="h-3 w-3 animate-pulse" /> Analyzing
+                    <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200 gap-1">
+                      <ListTodo className="h-3 w-3 animate-pulse" /> Analyzing
+                    </Badge>
+                  )}
+                {proj.wiki_status === "running" && (
+                  <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-200 border-green-200 gap-1">
+                    <BookOpen className="h-3 w-3 animate-pulse" /> {t("wiki.nav", "Wiki")}
                   </Badge>
                 )}
                 <Badge variant="outline">

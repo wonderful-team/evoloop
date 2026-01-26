@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   Clock,
   FileCode,
+  FileText,
 } from "lucide-react"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
@@ -84,6 +85,12 @@ function ProjectLayout() {
       label: t("projects.tabs.timesheet"),
       icon: Clock,
       path: "/timesheet",
+    },
+    {
+      id: "wiki",
+      label: "Wiki", // Hardcoded for now, should be t('projects.tabs.wiki')
+      icon: FileText,
+      path: "/wiki",
     },
     // { id: 'reports', label: t('projects.tabs.reports'), icon: PieChart, path: '/reports' },
   ]

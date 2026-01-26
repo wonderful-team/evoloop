@@ -44,6 +44,8 @@ export interface Project {
   priority_text: string
   indexing_status?: string
   summarization_status?: string
+  wiki_status?: string
+  has_wiki?: boolean
 }
 
 interface ProjectState {

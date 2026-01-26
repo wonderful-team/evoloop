@@ -10,7 +10,9 @@
         "tauri": "tauri"
     },
     "dependencies": {
-        "@evoloop/shared": "workspace:*"
+        "@evoloop/shared": "workspace:*",
+        "mermaid": "^11.12.2",
+        "rehype-raw": "^7.0.0"
     },
     "devDependencies": {
         "@radix-ui/react-alert-dialog": "^1.1.15",
