@@ -11,21 +11,8 @@ class VueSemanticProvider(LanguageSemanticProvider):
         return "vue"
 
     def get_api_query(self) -> str:
-        """
-        Vue API calls (axios, fetch, etc.) - parsed from script section.
-        Note: Vue uses HTML-like syntax, so we focus on script content.
-        """
-        return """
-        ; API calls in script
-        (call_expression
-          function: (member_expression
-            object: (identifier) @obj
-            property: (property_identifier) @method)
-          arguments: (arguments
-            [(string) (template_string)] @path
-          )
-        )
-        """
+        # Currently we cannot parse JS inside Vue script blocks directly
+        return ""
 
     def parse_api_match(self, captured_nodes: dict, file_path: str) -> list:
         # Vue API parsing delegated to TSJSProvider for script content
@@ -34,36 +21,26 @@ class VueSemanticProvider(LanguageSemanticProvider):
     def get_structure_query(self) -> str:
         """
         Vue component structure extraction.
-        Since Vue files are parsed as HTML, we extract key elements.
         """
         return """
-        ; Vue script content (treated as JS)
+        ; Vue script content
         (script_element
-          (raw_text) @script.content
+          (text) @script.content
         )
 
         ; Vue template content
         (template_element
-          (raw_text) @template.content
+          (text) @template.content
         )
 
-        ; Directives
-        (directive_attribute
-          (directive_name) @directive.name
-        )
-
-        ; Components (in template)
+        ; Components (PascalCase only)
         (element
           (start_tag
             (tag_name) @component.name
           )
+          (#match? @component.name "^[A-Z]")
         )
         """
 
     def get_imports_query(self) -> str:
-        return """
-        ; Import statements in script
-        (import_statement
-          source: (string) @import.source
-        )
-        """
+        return ""

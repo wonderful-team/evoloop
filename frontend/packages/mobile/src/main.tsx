@@ -20,11 +20,16 @@ import { ThemeProvider } from "@evoloop/shared/components/theme-provider"
 import { Toaster } from "@evoloop/shared/components/ui/sonner"
 
 // Mobile-specific i18n and styles
-import "@evoloop/shared/i18n"
+import i18n from "@evoloop/shared/i18n"
+import enLocal from "./locales/en.json"
+import zhLocal from "./locales/zh.json"
 import "./index.css"
 
 // Use the isolated route tree
 import { routeTree } from "./router"
+
+i18n.addResourceBundle("en", "translation", enLocal, true, true)
+i18n.addResourceBundle("zh", "translation", zhLocal, true, true)
 
 // Error Handling (Simplified for Mobile)
 const handleApiError = (error: Error) => {

@@ -172,6 +172,13 @@ async def lifespan(_app: FastAPI):
         except Exception as e:
             logger.warning(f"[EvoLoop] Failed to read token from Redis: {e}")
 
+    # Fallback: Check if client has persisted token (auth.json)
+    if not evoloop_token:
+        persisted_token = evocloud_client.api.get_token()
+        if persisted_token:
+            evoloop_token = persisted_token
+            logger.info("[EvoLoop] Found persisted token in auth.json, auto-connecting...")
+
     if evoloop_token:
         try:
             # This will set the token on client and start the loop

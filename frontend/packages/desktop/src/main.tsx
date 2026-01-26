@@ -10,9 +10,14 @@ import ReactDOM from "react-dom/client"
 import { ApiError, OpenAPI } from "./client"
 import { ThemeProvider } from "@evoloop/shared/components/theme-provider"
 import { Toaster } from "@evoloop/shared/components/ui/sonner"
-import "@evoloop/shared/i18n"
+import i18n from "@evoloop/shared/i18n"
+import enLocal from "./locales/en.json"
+import zhLocal from "./locales/zh.json"
 import "./index.css"
 import { routeTree } from "./routeTree.gen"
+
+i18n.addResourceBundle("en", "translation", enLocal, true, true)
+i18n.addResourceBundle("zh", "translation", zhLocal, true, true)
 
 OpenAPI.BASE = import.meta.env.VITE_API_URL || "http://localhost:8000"
 OpenAPI.TOKEN = async () => {

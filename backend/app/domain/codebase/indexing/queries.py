@@ -132,11 +132,9 @@ TREE_SITTER_QUERIES = {
     },
     "vue": {
         "defs": """
-            (script_element (raw_text) @script)
-            (template_element (raw_text) @template)
+            (script_element (text) @script)
+            (template_element (text) @template)
         """,
-        "imports": """
-            (import_statement source: (string) @module) @import
-        """,
+        "imports": "",
     },
 }
