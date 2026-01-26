@@ -355,9 +355,10 @@ export function ChatInterface() {
         {/* Center Chat Panel */}
         <ResizablePanel defaultSize={showContextPanel ? 60 : 80} minSize={40}>
           <div className="flex flex-col h-full relative min-h-0">
-            {/* Toggle Context Panel Button */}
-            {!showContextPanel && (
-              <div className="absolute top-4 right-4 z-20">
+            {/* Top Right Controls */}
+            <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+              {/* Toggle Context Panel Button */}
+              {!showContextPanel && (
                 <Button
                   variant="ghost"
                   size="icon"
@@ -366,8 +367,8 @@ export function ChatInterface() {
                 >
                   <Brain className="h-5 w-5 text-muted-foreground" />
                 </Button>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Breadcrumb Status */}
             <BreadcrumbStatus />

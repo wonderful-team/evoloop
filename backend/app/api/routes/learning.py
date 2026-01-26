@@ -216,6 +216,68 @@ class StopRecordingResponse(BaseModel):
 _active_sessions: dict[str, dict] = {}
 
 
+class GlobalRecordedEvent(BaseModel):
+    timestamp: float
+    event_type: str  # "key_press", "mouse_click", "window_change"
+    key: str | None = None
+    mouse_button: str | None = None
+    position: tuple[int, int] | None = None
+    window_title: str | None = None
+    app_name: str | None = None
+    process_id: int | None = None
+
+
+class RecordGlobalEventsRequest(BaseModel):
+    thread_id: str
+    session_id: str | None = None
+    events: list[GlobalRecordedEvent]
+
+
+@router.post("/traces/global-events", response_model=RespondResponse)
+async def record_global_events(body: RecordGlobalEventsRequest):
+    """
+    Record global observation events from Rust layer.
+    """
+    try:
+        async with session_scope() as db:
+            events_saved = 0
+            for idx, event in enumerate(body.events):
+                # Ensure we have a valid step number, maybe increment from last?
+                # For simplicity in global recording, we just use idx if session tracking is loose
+                # Or better, fetch last step number. But for high throughput, maybe just auto-increment via DB or loose idx
+                # Using 0-indexed relative to batch for now
+                
+                trace_event = TraceEvent(
+                    thread_id=body.thread_id,
+                    step_number=idx, # Logic to be refined for continuity
+                    node_name="global_observation",
+                    action_type=event.event_type,
+                    is_human_action=True,
+                    source="global",
+                    window_title=event.window_title,
+                    app_name=event.app_name,
+                    process_id=event.process_id,
+                    mouse_x=event.position[0] if event.position else None,
+                    mouse_y=event.position[1] if event.position else None,
+                    key_name=event.key,
+                    mouse_button=event.mouse_button,
+                    state_snapshot=json.dumps({"context": "global_recording"}),
+                    action_payload=json.dumps({}),
+                    recording_session_id=body.session_id,
+                    # Compatibility fields
+                    session_id=body.session_id,
+                    timestamp=event.timestamp,
+                    event_type=event.event_type,
+                )
+                db.add(trace_event)
+                events_saved += 1
+            
+            return RespondResponse(success=True, message=f"Recorded {events_saved} global events")
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save global events: {e}")
+
+
 @router.post("/traces/start", response_model=StartRecordingResponse)
 async def start_recording(body: StartRecordingRequest):
     """
@@ -496,6 +558,8 @@ class UpdateSkillRequest(BaseModel):
     description: str | None = None
     trigger_patterns: list[str] | None = None
     parameters: list[dict[str, Any]] | None = None
+    steps: list[dict[str, Any]] | None = None
+    preconditions: list[dict[str, Any]] | None = None
 
 
 @router.put("/skills/{skill_id}")
@@ -533,6 +597,12 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
         if body.parameters is not None:
             # Just dump the list of dicts directly
             skill.parameters = json.dumps(body.parameters)
+
+        if body.steps is not None:
+            skill.steps = json.dumps(body.steps)
+            
+        if body.preconditions is not None:
+            skill.preconditions = json.dumps(body.preconditions)
 
         # 3. Commit (Automatic via session_scope exit, but we want to return updated data)
         await db.flush()

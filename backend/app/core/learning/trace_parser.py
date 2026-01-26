@@ -40,6 +40,7 @@ class ActionCategory(str, Enum):
     COMMAND = "command"  # System command execution
     INTERACTION = "interaction"  # UI interaction
     DECISION = "decision"  # Approval/choice
+    SYSTEM_INTERACTION = "system_interaction"  # Global system interaction
     OTHER = "other"
 
 
@@ -175,7 +176,11 @@ class TraceParser:
         sequence = TraceSequence(thread_id=self.thread_id, session_id=self.session_id)
 
         for event in events:
-            step = self._parse_event(event)
+            if event.source == "global":
+                step = self._parse_global_event(event)
+            else:
+                step = self._parse_event(event)
+                
             if step:
                 sequence.steps.append(step)
 
@@ -190,6 +195,43 @@ class TraceParser:
                     sequence.tools_used.append(step.action_name)
 
         return sequence
+
+    def _parse_global_event(self, event: TraceEvent) -> TraceStep:
+        """Parse a global observation event."""
+        # Map event types to readable actions
+        action_mapping = {
+            "key_press": "key_press",
+            "mouse_click": "mouse_click",
+            "window_change": "window_change"
+        }
+        
+        # Construct meaningful action name
+        app_prefix = f"[{event.app_name}] " if event.app_name else ""
+        action_name = f"{app_prefix}{action_mapping.get(event.action_type, event.action_type)}"
+        
+        # Build args
+        action_args = {}
+        if event.key_name:
+            action_args["key"] = event.key_name
+        if event.mouse_button:
+            action_args["button"] = event.mouse_button
+        if event.mouse_x is not None:
+            action_args["position"] = (event.mouse_x, event.mouse_y)
+            
+        return TraceStep(
+            step_number=event.step_number,
+            source=ActionSource.HUMAN,
+            category=ActionCategory.SYSTEM_INTERACTION,
+            action_type=event.action_type,
+            action_name=action_name,
+            action_args=action_args,
+            node_name="global_observation",
+            state_context={
+                "window_title": event.window_title,
+                "app_name": event.app_name,
+            },
+            timestamp=event.timestamp or 0.0
+        )
 
     def _parse_event(self, event: TraceEvent) -> TraceStep | None:
         """Convert a single TraceEvent to TraceStep."""

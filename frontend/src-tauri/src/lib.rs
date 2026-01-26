@@ -11,9 +11,15 @@ use tauri::tray::TrayIcon;
 use tauri::WindowEvent;
 
 #[cfg(desktop)]
+mod global_observer;
+#[cfg(desktop)]
+use global_observer::GlobalObserver;
+
+#[cfg(desktop)]
 struct AppServiceState {
     children: Arc<Mutex<Vec<CommandChild>>>,
     tray: Arc<Mutex<Option<TrayIcon>>>,
+    global_observer: Arc<GlobalObserver>,
 }
 
 #[tauri::command]
@@ -52,6 +58,72 @@ async fn capture_screenshot() -> Result<String, String> {
     Err("Screen capture is not supported on mobile.".to_string())
 }
 
+#[tauri::command]
+#[cfg(desktop)]
+async fn start_global_recording(state: tauri::State<'_, AppServiceState>, app: tauri::AppHandle) -> Result<(), String> {
+    state.global_observer.start(app);
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn start_global_recording() -> Result<(), String> {
+    Err("Global recording is not supported on mobile".to_string())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn stop_global_recording(state: tauri::State<'_, AppServiceState>) -> Result<(), String> {
+    state.global_observer.stop();
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn stop_global_recording() -> Result<(), String> {
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+fn is_global_recording(state: tauri::State<'_, AppServiceState>) -> bool {
+    state.global_observer.is_recording()
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+fn is_global_recording() -> bool {
+    false
+}
+
+// ... existing capture_screenshot ...
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn check_accessibility_permission() -> bool {
+    macos_accessibility_client::accessibility::application_is_trusted()
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn check_accessibility_permission() -> bool {
+    true
+}
+
+#[cfg(target_os = "macos")]
+#[tauri::command]
+fn open_accessibility_settings() {
+     let _ = std::process::Command::new("open")
+        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        .spawn();
+}
+
+#[cfg(not(target_os = "macos"))]
+#[tauri::command]
+fn open_accessibility_settings() {}
+
+// ... existing run() function ...
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -74,6 +146,7 @@ pub fn run() {
              let service_state = AppServiceState {
                  children: Arc::new(Mutex::new(Vec::new())),
                  tray: Arc::new(Mutex::new(None)),
+                 global_observer: Arc::new(GlobalObserver::new()),
              };
              _app.manage(service_state);
 
@@ -101,6 +174,9 @@ pub fn run() {
                  .on_menu_event(|app, event| match event.id.as_ref() {
                      "quit" => {
                          let state = app.state::<AppServiceState>();
+                         // Kill observer first?
+                         state.global_observer.stop();
+                         
                          let mut children = state.children.lock().unwrap();
                          while let Some(child) = children.pop() {
                             let _ = child.kill();
@@ -222,7 +298,15 @@ pub fn run() {
                 // Let's ensure the webview is created with media access.
              }
         })
-        .invoke_handler(tauri::generate_handler![greet, capture_screenshot])
+        .invoke_handler(tauri::generate_handler![
+            greet, 
+            capture_screenshot,
+            start_global_recording,
+            stop_global_recording,
+            is_global_recording,
+            check_accessibility_permission,
+            open_accessibility_settings
+        ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
 
@@ -237,6 +321,9 @@ pub fn run() {
         #[cfg(desktop)]
         tauri::RunEvent::Exit => {
              let state = app_handle.state::<AppServiceState>();
+             // Stop global observer
+             state.global_observer.stop();
+
              let mut children = state.children.lock().unwrap();
              while let Some(child) = children.pop() {
                 let _ = child.kill();

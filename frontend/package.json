@@ -4,15 +4,15 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "cd packages/desktop && vite",
     "build": "tsc -p tsconfig.build.json && vite build",
     "lint": "biome check --write --unsafe --no-errors-on-unmatched --files-ignore-unknown=true ./",
     "lint:mobile": "npx eslint src/mobile --config eslint.mobile.config.mjs",
-    "preview": "vite preview",
+    "preview": "cd packages/desktop && vite preview",
     "generate-client": "openapi-ts",
     "tauri": "tauri",
     "tauri:mobile": "tauri android dev --config src-tauri/tauri.mobile.conf.json",
-    "dev:mobile": "vite --port 5174",
+    "dev:mobile": "cd packages/mobile && vite --port 5174",
     "mobile:android": "export JAVA_HOME=$(/usr/libexec/java_home -v 17) && npm run tauri:mobile",
     "build:android": "export JAVA_HOME=$(/usr/libexec/java_home -v 17) && tauri android build --config src-tauri/tauri.mobile.conf.json"
   },

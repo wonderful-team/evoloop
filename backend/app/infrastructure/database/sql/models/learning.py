@@ -61,6 +61,22 @@ class TraceEvent(Base):
     target_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # NEW: Global Observation Fields (Phase 2)
+    source: Mapped[str | None] = mapped_column(String(20), nullable=True, default="dom")  # "dom", "global"
+    
+    # Window Context (Global only)
+    window_title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    app_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    process_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    
+    # Mouse Position (Global only, screen coordinates)
+    mouse_x: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mouse_y: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    
+    # Key Info (Global only)
+    key_name: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    mouse_button: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
 
 class LearnedSkill(Base):
     """

@@ -26,4 +26,8 @@ tauri-plugin-tts = { git = "https://github.com/brenogonzaga/tauri-plugin-tts" }
 xcap = "0.0.9" # Cross-platform screen capture
 base64 = "0.22" # For encoding images
 image = "0.25" # For image processing
+rdev = "0.5" # Global keyboard/mouse listener
+active-win-pos-rs = "0.8" # Active window info
+parking_lot = "0.12" # Efficient mutex
+macos-accessibility-client = "0.0.2" # Check accessibility permissions
 

@@ -1,11 +1,4 @@
-/**
- * RecordingButton - Visual control for imitation learning recording.
- *
- * Displays a pulsing record button when recording is active.
- * Shows event count and recording status.
- */
-
-import { Circle, Square } from "lucide-react"
+import { Circle, Square, Monitor, ShieldAlert } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -18,6 +11,8 @@ import {
   TooltipTrigger,
 } from "@evoloop/shared/components/ui/tooltip"
 import { useActionRecorder } from "@/hooks/useActionRecorder"
+import { useGlobalRecorder } from "@/hooks/useGlobalRecorder"
+import { useAccessibilityPermission } from "@/hooks/useAccessibilityPermission"
 
 interface RecordingButtonProps {
   threadId: string
@@ -35,84 +30,161 @@ export function RecordingButton({
   const [showSynthesizeDialog, setShowSynthesizeDialog] = useState(false)
   const [lastSessionId, setLastSessionId] = useState<string>("")
 
-  const { isRecording, startRecording, stopRecording, eventCount } =
-    useActionRecorder({
-      threadId,
-      taskName,
-      enabled,
-    })
+  // Scope State
+  const [isGlobalMode, setIsGlobalMode] = useState(false)
+  const { hasPermission, requestPermission } = useAccessibilityPermission()
 
-  const handleClick = async () => {
-    if (isRecording) {
-      const sessionId = await stopRecording()
-      toast.success(
+  // DOM Recorder
+  const domRecorder = useActionRecorder({
+    threadId,
+    taskName,
+    enabled,
+    scope: isGlobalMode ? "both" : "dom"
+  })
+
+  // Global Recorder
+  const globalRecorder = useGlobalRecorder({
+    threadId,
+    sessionId: domRecorder.sessionId,
+    enabled: isGlobalMode
+  })
+
+  // Unified State
+  const isRecording = domRecorder.isRecording || globalRecorder.isRecording
+  const eventCount = domRecorder.eventCount + globalRecorder.eventCount
+
+  const handleStart = async () => {
+    if (isGlobalMode && hasPermission === false) {
+      requestPermission() // Just open settings, don't start yet
+      return
+    }
+
+    setIsStarting(true)
+    try {
+      await domRecorder.startRecording()
+      if (isGlobalMode) {
+        await globalRecorder.startRecording()
+      }
+      toast.info(
         t(
-          "learning.recordingStopped",
-          `Recording stopped. ${eventCount} events captured.`,
+          "learning.recordingStarted",
+          "Recording started. Your actions are being captured.",
         ),
       )
+    } catch (_error) {
+      toast.error(t("learning.recordingFailed", "Failed to start recording"))
+    } finally {
+      setIsStarting(false)
+    }
+  }
 
-      if (sessionId) {
-        setLastSessionId(sessionId)
-        setShowSynthesizeDialog(true)
-      }
+  const handleStop = async () => {
+    setIsStarting(true) // Show loading state
+
+    // Stop Global first
+    if (isGlobalMode) {
+      await globalRecorder.stopRecording()
+    }
+
+    // Stop DOM and get session
+    const sessionId = await domRecorder.stopRecording()
+
+    setIsStarting(false)
+
+    toast.success(
+      t(
+        "learning.recordingStopped",
+        {
+          defaultValue: "Recording stopped. {{count}} events captured.",
+          count: eventCount
+        }
+      ),
+    )
+
+    if (sessionId) {
+      setLastSessionId(sessionId)
+      setShowSynthesizeDialog(true)
+    }
+  }
+
+  const handleClick = () => {
+    if (isRecording) {
+      handleStop()
     } else {
-      setIsStarting(true)
-      try {
-        await startRecording()
-        toast.info(
-          t(
-            "learning.recordingStarted",
-            "Recording started. Your actions are being captured.",
-          ),
-        )
-      } catch (_error) {
-        toast.error(t("learning.recordingFailed", "Failed to start recording"))
-      } finally {
-        setIsStarting(false)
-      }
+      handleStart()
     }
   }
 
   if (!enabled) return null
 
   return (
-    <>
+    <div className="flex items-center gap-1">
+      {/* Scope Toggle - Only show when not recording */}
+      {!isRecording && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={`h-8 w-8 ${isGlobalMode ? "text-blue-600 bg-blue-50 hover:bg-blue-100" : "text-muted-foreground"}`}
+              onClick={() => setIsGlobalMode(!isGlobalMode)}
+            >
+              <Monitor className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {isGlobalMode
+              ? t("learning.globalMode", "System Monitoring Active (Global)")
+              : t("learning.domMode", "App Only (DOM)")}
+          </TooltipContent>
+        </Tooltip>
+      )}
+
+      {/* Permission Indicator */}
+      {isGlobalMode && hasPermission === false && !isRecording && (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-amber-500 hover:text-amber-600"
+              onClick={requestPermission}
+            >
+              <ShieldAlert className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            {t("learning.permissionRequired", "Permission required for global recording")}
+          </TooltipContent>
+        </Tooltip>
+      )}
+
+      {/* Main Record Button */}
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant={isRecording ? "destructive" : "outline"}
+            variant={isRecording ? "destructive" : "ghost"}
             size="sm"
             onClick={handleClick}
-            disabled={isStarting}
-            className={`relative ${isRecording ? "animate-pulse" : ""}`}
+            disabled={isStarting || (isGlobalMode && hasPermission === false)}
+            className={`h-8 px-2 relative ${isRecording ? "animate-pulse" : "text-muted-foreground hover:text-destructive"}`}
           >
             {isRecording ? (
-              <>
-                <Square className="h-3 w-3 mr-1.5 fill-current" />
-                <span>{t("learning.stopRecording", "Stop")}</span>
-                <Badge variant="secondary" className="ml-2 text-xs">
+              <span className="flex items-center gap-1">
+                <Square className="h-3 w-3 fill-current" />
+                <Badge variant="secondary" className="px-1 py-0 h-4 text-[10px] min-w-[1.5rem]">
                   {eventCount}
                 </Badge>
-              </>
+              </span>
             ) : (
-              <>
-                <Circle className="h-3 w-3 mr-1.5 text-red-500 fill-red-500" />
-                <span>{t("learning.startRecording", "Record")}</span>
-              </>
+              <Circle className="h-4 w-4 fill-current" />
             )}
           </Button>
         </TooltipTrigger>
         <TooltipContent>
           {isRecording
-            ? t(
-                "learning.recordingTooltip",
-                "Recording your actions for learning",
-              )
-            : t(
-                "learning.startRecordingTooltip",
-                "Start recording your actions",
-              )}
+            ? t("learning.stopRecording", "Stop Recording")
+            : t("learning.startRecording", "Start Recording")}
         </TooltipContent>
       </Tooltip>
 
@@ -122,6 +194,6 @@ export function RecordingButton({
         sessionId={lastSessionId}
         threadId={threadId}
       />
-    </>
+    </div>
   )
 }

@@ -28,6 +28,7 @@ interface UseActionRecorderOptions {
   taskName?: string
   autoFlushInterval?: number // ms, default 5000
   enabled?: boolean
+  scope?: "dom" | "global" | "both" // NEW: scope selection
 }
 
 interface UseActionRecorderReturn {
@@ -88,6 +89,7 @@ export function useActionRecorder(
     taskName,
     autoFlushInterval = 5000,
     enabled = true,
+    scope = "dom", // Default to DOM only
   } = options
 
   const [isRecording, setIsRecording] = useState(false)
@@ -185,7 +187,7 @@ export function useActionRecorder(
 
   // Auto-capture click events when recording
   useEffect(() => {
-    if (!isRecording || !enabled) return
+    if (!isRecording || !enabled || scope === "global") return
 
     const handleClick = async (e: MouseEvent) => {
       const target = e.target as Element
