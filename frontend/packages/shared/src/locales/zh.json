@@ -27,6 +27,7 @@
       "title": "错误"
     },
     "reject": "拒绝",
+    "cancel": "取消",
     "close": "关闭",
     "morePages": "更多页面",
     "submit": "提交",
@@ -99,5 +100,44 @@
   },
   "footer": {
     "copyright": "Full Stack FastAPI Template"
+  },
+  "wiki": {
+    "topic": {
+      "full_documentation": "项目完整文档"
+    },
+    "toast": {
+      "start": "Wiki 生成已开始",
+      "error": "Wiki 生成失败"
+    },
+    "generate": "生成 Wiki",
+    "regenerate": "重新生成",
+    "regenerate_action": "重新生成 Wiki",
+    "pageList": "页面列表",
+    "noDocs": "暂无文档",
+    "selectPage": "选择一个页面以查看详情",
+    "lastUpdated": "最后更新"
+  },
+  "learning": {
+    "recordingStarted": "录制已开始。正在捕获您的操作。",
+    "recordingFailed": "启动录制失败",
+    "recordingStopped": "录制已停止。共捕获 {{count}} 个事件。",
+    "stopRecording": "停止录制",
+    "startRecording": "开始录制",
+    "recordingTooltip": "正在录制您的操作以用于学习",
+    "startRecordingTooltip": "开始录制您的操作",
+    "globalMode": "系统监控已激活 (全局)",
+    "domMode": "仅应用内 (DOM)",
+    "permissionRequired": "全局录制需要权限",
+    "synthesisSuccess": "技能创建成功！",
+    "synthesisFailed": "创建技能失败",
+    "synthesisError": "合成过程中发生错误",
+    "skillCreated": "技能已创建！",
+    "createSkill": "创建技能？",
+    "skillCreatedDesc": "该技能已添加到您的库中。",
+    "createSkillDesc": "分析录制的操作以创建可重用的技能。",
+    "skillName": "技能名称",
+    "synthesisPrompt": "这将使用 AI 分析您的操作并生成可供稍后使用的参数化技能。",
+    "synthesizing": "正在合成...",
+    "synthesize": "合成技能"
   }
 }

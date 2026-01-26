@@ -461,6 +461,98 @@ export const FileNodeSchema = {
     title: 'FileNode'
 } as const;
 
+export const GlobalRecordedEventSchema = {
+    properties: {
+        timestamp: {
+            type: 'number',
+            title: 'Timestamp'
+        },
+        event_type: {
+            type: 'string',
+            title: 'Event Type'
+        },
+        key: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Key'
+        },
+        mouse_button: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Mouse Button'
+        },
+        position: {
+            anyOf: [
+                {
+                    prefixItems: [
+                        {
+                            type: 'integer'
+                        },
+                        {
+                            type: 'integer'
+                        }
+                    ],
+                    type: 'array',
+                    maxItems: 2,
+                    minItems: 2
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Position'
+        },
+        window_title: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Window Title'
+        },
+        app_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'App Name'
+        },
+        process_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Process Id'
+        }
+    },
+    type: 'object',
+    required: ['timestamp', 'event_type'],
+    title: 'GlobalRecordedEvent'
+} as const;
+
 export const HTTPValidationErrorSchema = {
     properties: {
         detail: {
@@ -813,6 +905,36 @@ export const RecordEventsRequestSchema = {
     title: 'RecordEventsRequest'
 } as const;
 
+export const RecordGlobalEventsRequestSchema = {
+    properties: {
+        thread_id: {
+            type: 'string',
+            title: 'Thread Id'
+        },
+        session_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Session Id'
+        },
+        events: {
+            items: {
+                '$ref': '#/components/schemas/GlobalRecordedEvent'
+            },
+            type: 'array',
+            title: 'Events'
+        }
+    },
+    type: 'object',
+    required: ['thread_id', 'events'],
+    title: 'RecordGlobalEventsRequest'
+} as const;
+
 export const RecordedEventSchema = {
     properties: {
         timestamp: {
@@ -909,6 +1031,30 @@ export const RenameRequestSchema = {
     type: 'object',
     required: ['title'],
     title: 'RenameRequest'
+} as const;
+
+export const ResetPasswordMobileRequestSchema = {
+    properties: {
+        mobile: {
+            type: 'string',
+            title: 'Mobile'
+        },
+        key: {
+            type: 'string',
+            title: 'Key'
+        },
+        code: {
+            type: 'string',
+            title: 'Code'
+        },
+        password: {
+            type: 'string',
+            title: 'Password'
+        }
+    },
+    type: 'object',
+    required: ['mobile', 'key', 'code', 'password'],
+    title: 'ResetPasswordMobileRequest'
 } as const;
 
 export const ResourceCreateSchema = {
@@ -1862,6 +2008,36 @@ export const UpdateSkillRequestSchema = {
                 }
             ],
             title: 'Parameters'
+        },
+        steps: {
+            anyOf: [
+                {
+                    items: {
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Steps'
+        },
+        preconditions: {
+            anyOf: [
+                {
+                    items: {
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Preconditions'
         }
     },
     type: 'object',
@@ -2048,4 +2224,80 @@ export const WebhookRequestSchema = {
     type: 'object',
     required: ['source', 'event_type', 'payload'],
     title: 'WebhookRequest'
+} as const;
+
+export const WikiGenerationRequestSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        topic: {
+            type: 'string',
+            title: 'Topic',
+            default: 'Project Documentation'
+        },
+        force_regenerate: {
+            type: 'boolean',
+            title: 'Force Regenerate',
+            default: false
+        }
+    },
+    type: 'object',
+    required: ['project_id'],
+    title: 'WikiGenerationRequest'
+} as const;
+
+export const WikiPageReadSchema = {
+    properties: {
+        project_id: {
+            type: 'integer',
+            title: 'Project Id'
+        },
+        title: {
+            type: 'string',
+            title: 'Title'
+        },
+        slug: {
+            type: 'string',
+            title: 'Slug'
+        },
+        content: {
+            type: 'string',
+            title: 'Content'
+        },
+        parent_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Parent Id'
+        },
+        order: {
+            type: 'integer',
+            title: 'Order',
+            default: 0
+        },
+        id: {
+            type: 'integer',
+            title: 'Id'
+        },
+        created_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Created At'
+        },
+        updated_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Updated At'
+        }
+    },
+    type: 'object',
+    required: ['project_id', 'title', 'slug', 'content', 'id', 'created_at', 'updated_at'],
+    title: 'WikiPageRead'
 } as const;

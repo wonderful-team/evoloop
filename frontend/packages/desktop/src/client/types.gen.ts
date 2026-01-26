@@ -108,6 +108,20 @@ export type FileNode = {
     children?: (Array<FileNode> | null);
 };
 
+export type GlobalRecordedEvent = {
+    timestamp: number;
+    event_type: string;
+    key?: (string | null);
+    mouse_button?: (string | null);
+    position?: ([
+    number,
+    number
+] | null);
+    window_title?: (string | null);
+    app_name?: (string | null);
+    process_id?: (number | null);
+};
+
 export type HTTPValidationError = {
     detail?: Array<ValidationError>;
 };
@@ -207,6 +221,12 @@ export type RecordEventsRequest = {
     events: Array<RecordedEvent>;
 };
 
+export type RecordGlobalEventsRequest = {
+    thread_id: string;
+    session_id?: (string | null);
+    events: Array<GlobalRecordedEvent>;
+};
+
 export type ReferenceItem = {
     id: string;
     type: string;
@@ -216,6 +236,13 @@ export type ReferenceItem = {
 
 export type RenameRequest = {
     title: string;
+};
+
+export type ResetPasswordMobileRequest = {
+    mobile: string;
+    key: string;
+    code: string;
+    password: string;
 };
 
 export type ResourceCreate = {
@@ -399,6 +426,12 @@ export type UpdateSkillRequest = {
     parameters?: (Array<{
     [key: string]: unknown;
 }> | null);
+    steps?: (Array<{
+    [key: string]: unknown;
+}> | null);
+    preconditions?: (Array<{
+    [key: string]: unknown;
+}> | null);
 };
 
 export type UserPublic = {
@@ -431,6 +464,24 @@ export type WebhookRequest = {
         [key: string]: unknown;
     };
     thread_id?: (string | null);
+};
+
+export type WikiGenerationRequest = {
+    project_id: number;
+    topic?: string;
+    force_regenerate?: boolean;
+};
+
+export type WikiPageRead = {
+    project_id: number;
+    title: string;
+    slug: string;
+    content: string;
+    parent_id?: (number | null);
+    order?: number;
+    id: number;
+    created_at: string;
+    updated_at: string;
 };
 
 export type AgentChatEndpointData = {
@@ -520,9 +571,7 @@ export type AuthCheckMobileData = {
 export type AuthCheckMobileResponse = (unknown);
 
 export type AuthResetPasswordData = {
-    requestBody: {
-        [key: string]: unknown;
-    };
+    requestBody: ResetPasswordMobileRequest;
 };
 
 export type AuthResetPasswordResponse = (unknown);
@@ -609,6 +658,8 @@ export type DevicesBindCurrentDeviceData = {
 };
 
 export type DevicesBindCurrentDeviceResponse = (unknown);
+
+export type DevicesGetDebugStatusResponse = (unknown);
 
 export type FilesListFilesData = {
     path?: (string | null);
@@ -700,6 +751,12 @@ export type LearningCleanupRequestsData = {
 };
 
 export type LearningCleanupRequestsResponse = (RespondResponse);
+
+export type LearningRecordGlobalEventsData = {
+    requestBody: RecordGlobalEventsRequest;
+};
+
+export type LearningRecordGlobalEventsResponse = (RespondResponse);
 
 export type LearningStartRecordingData = {
     requestBody: StartRecordingRequest;
@@ -1001,6 +1058,8 @@ export type SystemApplyLlmConfigResponse = (unknown);
 
 export type SystemResetKnowledgeBaseResponse = (unknown);
 
+export type SystemGetCloudStatusResponse = (unknown);
+
 export type TasksGetProjectTasksData = {
     page?: number;
     pageSize?: number;
@@ -1102,3 +1161,15 @@ export type UtilsHealthCheckResponse = (boolean);
 export type UtilsGetEvoloopStatusResponse = (unknown);
 
 export type UtilsGetAiConfigResponse = (unknown);
+
+export type WikiGetWikiPagesData = {
+    projectId: number;
+};
+
+export type WikiGetWikiPagesResponse = (Array<WikiPageRead>);
+
+export type WikiGenerateWikiData = {
+    requestBody: WikiGenerationRequest;
+};
+
+export type WikiGenerateWikiResponse = (unknown);

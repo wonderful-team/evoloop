@@ -27,6 +27,7 @@
       "title": "Error"
     },
     "reject": "Reject",
+    "cancel": "Cancel",
     "close": "Close",
     "morePages": "More pages",
     "submit": "Submit",
@@ -99,5 +100,44 @@
   },
   "footer": {
     "copyright": "Full Stack FastAPI Template"
+  },
+  "wiki": {
+    "topic": {
+      "full_documentation": "Full Documentation"
+    },
+    "toast": {
+      "start": "Wiki generation started",
+      "error": "Wiki generation failed"
+    },
+    "generate": "Generate Wiki",
+    "regenerate": "Regenerate",
+    "regenerate_action": "Regenerate Wiki",
+    "pageList": "Page List",
+    "noDocs": "No documentation yet",
+    "selectPage": "Select a page to view details",
+    "lastUpdated": "Last updated"
+  },
+  "learning": {
+    "recordingStarted": "Recording started. Your actions are being captured.",
+    "recordingFailed": "Failed to start recording",
+    "recordingStopped": "Recording stopped. {{count}} events captured.",
+    "stopRecording": "Stop Recording",
+    "startRecording": "Start Recording",
+    "recordingTooltip": "Recording your actions for learning",
+    "startRecordingTooltip": "Start recording your actions",
+    "globalMode": "System Monitoring Active (Global)",
+    "domMode": "App Only (DOM)",
+    "permissionRequired": "Permission required for global recording",
+    "synthesisSuccess": "Skill created successfully!",
+    "synthesisFailed": "Failed to create skill",
+    "synthesisError": "An error occurred during synthesis",
+    "skillCreated": "Skill Created!",
+    "createSkill": "Create Skill?",
+    "skillCreatedDesc": "The skill has been added to your library.",
+    "createSkillDesc": "Analyze the recorded actions to create a reusable skill.",
+    "skillName": "Skill Name",
+    "synthesisPrompt": "This will use AI to analyze your actions and generate a parameterized skill that can be used later.",
+    "synthesizing": "Synthesizing...",
+    "synthesize": "Synthesize Skill"
   }
 }
