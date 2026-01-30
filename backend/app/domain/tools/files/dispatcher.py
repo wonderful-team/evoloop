@@ -14,17 +14,7 @@ from .actions.write import handle_write
 
 @evoloop_tool
 async def manage_file(
-    action: Literal[
-        "read",
-        "create",
-        "update_block",
-        "overwrite",
-        "list",
-        "list_tree",
-        "create_directory",
-        "delete",
-        "move",
-    ],
+    action: Literal["read", "create", "update_block", "overwrite", "list", "list_tree", "create_directory", "delete", "move"],
     path: str,
     content: str | None = None,
     target: str | None = None,
