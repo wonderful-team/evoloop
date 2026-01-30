@@ -123,3 +123,100 @@ GUIDELINES:
 
 Do NOT include any preface or chatty intro. Start directly with the `<details>` block.
 """
+
+    @staticmethod
+    def build_concept_extraction_prompt(page_title: str, page_content: str) -> str:
+        """
+        Prompt to extract key knowledge concepts from a generated Wiki page.
+        These concepts will be stored in Agent memory for future reference.
+        """
+        # Truncate content to avoid context overflow
+        truncated_content = page_content[:6000] if len(page_content) > 6000 else page_content
+        
+        return f"""You are a Knowledge Engineer analyzing a Wiki page to extract key concepts worth remembering.
+
+Page Title: "{page_title}"
+
+Page Content:
+<wiki_content>
+{truncated_content}
+</wiki_content>
+
+{WikiBuilder._get_lang_instruction()}
+
+### Extraction Criteria
+Extract concepts that are:
+1. **Project-Specific Decisions**: e.g., "Uses Neo4j for knowledge graph storage"
+2. **Development Patterns**: e.g., "Service layer uses async/await pattern"
+3. **Configuration Details**: e.g., "Vector dimensions configured in settings.EMBEDDING_DIMENSIONS"
+4. **Architecture Patterns**: e.g., "Two-phase Wiki generation workflow"
+5. **Key Business Logic**: e.g., "Order status transitions through 5 states"
+
+Do NOT extract:
+- Generic programming terms (function, class, variable)
+- Standard library usage
+- Obvious implementation details
+
+### Output Format
+Return a JSON object:
+{{
+  "concepts": [
+    {{
+      "name": "Concept Name (usually English/technical term)",
+      "description": "Concise description in target language explaining what it is and why it matters"
+    }}
+  ]
+}}
+
+Extract at most 5 concepts. Return empty list if nothing noteworthy.
+"""
+
+    @staticmethod
+    def build_validation_prompt(structure: dict, project_context: str = "") -> str:
+        """
+        Prompt to validate Wiki structure completeness.
+        Uses LLM to dynamically identify what should be covered based on project type,
+        NOT a hardcoded checklist.
+        """
+        import json
+        structure_json = json.dumps(structure, ensure_ascii=False, indent=2)
+        
+        return f"""You are a Documentation Completeness Analyst.
+
+Your task is to analyze a proposed Wiki structure and identify any significant gaps.
+
+### Project Context
+{project_context if project_context else "Analyze the structure to infer project type."}
+
+### Proposed Wiki Structure
+<wiki_structure>
+{structure_json}
+</wiki_structure>
+
+{WikiBuilder._get_lang_instruction()}
+
+### Analysis Instructions
+1. First, INFER the project type from the structure (e.g., software project, business process documentation, research notes, hardware manual, etc.)
+2. Based on the project type, identify what key areas SHOULD typically be documented
+3. Compare against the proposed structure
+4. List any significant gaps
+
+### Output Format
+Return a JSON object:
+{{
+  "project_type": "Inferred type (e.g., 'Python Backend Service', 'E-commerce System', 'Hardware Manual')",
+  "expected_coverage": ["Area 1", "Area 2", "..."],
+  "gaps": [
+    {{
+      "area": "Missing area name",
+      "reason": "Why this should be included",
+      "suggested_title": "Suggested page title"
+    }}
+  ],
+  "is_complete": true/false
+}}
+
+If the structure is reasonably complete for its project type, return is_complete=true with empty gaps.
+Be practical - not every project needs exhaustive documentation.
+"""
+

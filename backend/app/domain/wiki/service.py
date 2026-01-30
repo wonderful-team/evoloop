@@ -1,16 +1,35 @@
 import logging
 import os
+import re
+import json
 from typing import List, Optional
 from sqlmodel import Session, select
 from datetime import datetime
 
+from pydantic import BaseModel, Field
+
 from app.core.db import engine
+from app.core.config import settings
 from app.models.wiki import WikiPage, WikiPageCreate
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
+
+# --- Pydantic models for structured LLM output ---
+class ExtractedConcept(BaseModel):
+    name: str = Field(description="Name of the concept")
+    description: str = Field(description="Description of what it is and why it matters")
+
+
+class ConceptExtractionResult(BaseModel):
+    concepts: List[ExtractedConcept] = Field(default_factory=list)
+
 class WikiService:
+    """
+    Service for Wiki page management and generation.
+    Integrates with MemoryService to extract and store knowledge concepts.
+    """
     def get_pages(self, project_id: int) -> List[WikiPage]:
         with Session(engine) as session:
             statement = select(WikiPage).where(WikiPage.project_id == project_id).order_by(WikiPage.order)
@@ -114,6 +133,121 @@ class WikiService:
             logger.warning(f"Failed to read file {path}: {e}")
             return ""
 
+    async def _extract_and_store_concepts(
+        self,
+        page_title: str,
+        page_content: str,
+        project_id: int,
+        llm,
+    ) -> List[str]:
+        """
+        Extract knowledge concepts from a Wiki page and store them in Agent memory.
+        Returns list of concept names that were stored.
+        """
+        # Check if feature is enabled
+        if not getattr(settings, 'WIKI_EXTRACT_CONCEPTS', True):
+            return []
+
+        from app.core.prompts.wiki_builder import WikiBuilder
+        from app.domain.memory.service import memory_service
+        from langchain_core.messages import HumanMessage
+
+        try:
+            # Build extraction prompt
+            extraction_prompt = WikiBuilder.build_concept_extraction_prompt(page_title, page_content)
+
+            # Try structured output first
+            try:
+                structured_llm = llm.with_structured_output(ConceptExtractionResult)
+                result = await structured_llm.ainvoke([HumanMessage(content=extraction_prompt)])
+            except Exception:
+                # Fallback to raw JSON extraction
+                response = await llm.ainvoke([HumanMessage(content=extraction_prompt)])
+                json_match = re.search(r'\{.*\}', response.content, re.DOTALL)
+                if json_match:
+                    result_dict = json.loads(json_match.group(0))
+                    result = ConceptExtractionResult(**result_dict)
+                else:
+                    result = ConceptExtractionResult(concepts=[])
+
+            stored_names = []
+            if result and result.concepts:
+                for concept in result.concepts[:5]:  # Max 5 concepts per page
+                    await memory_service.add_concept(
+                        name=concept.name,
+                        description=concept.description,
+                        project_id=project_id,
+                        related_files=[],
+                    )
+                    stored_names.append(concept.name)
+                    logger.info(f"Wiki Concept Harvested: {concept.name}")
+
+            return stored_names
+
+        except Exception as e:
+            logger.warning(f"Failed to extract concepts from wiki page '{page_title}': {e}")
+            return []
+
+    async def _validate_structure(
+        self,
+        structure_data: dict,
+        project_context: str,
+        llm,
+    ) -> dict:
+        """
+        Validate Wiki structure completeness using LLM-based dynamic analysis.
+        Returns updated structure with any missing pages added.
+        """
+        from app.core.prompts.wiki_builder import WikiBuilder
+        from langchain_core.messages import HumanMessage
+
+        try:
+            validation_prompt = WikiBuilder.build_validation_prompt(structure_data, project_context)
+            response = await llm.ainvoke([HumanMessage(content=validation_prompt)])
+            response_text = response.content
+
+            # Extract JSON
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if not json_match:
+                logger.info("Structure validation: No JSON in response, assuming complete")
+                return structure_data
+
+            validation_result = json.loads(json_match.group(0))
+            is_complete = validation_result.get("is_complete", True)
+            gaps = validation_result.get("gaps", [])
+
+            if is_complete or not gaps:
+                logger.info("Structure validation: Structure is complete")
+                return structure_data
+
+            # Add missing pages
+            logger.info(f"Structure validation: Found {len(gaps)} gaps, adding pages")
+            pages = structure_data.get("pages", [])
+
+            for gap in gaps:
+                suggested_title = gap.get("suggested_title", gap.get("area", "Additional Page"))
+                # Generate a slug from the title
+                slug = suggested_title.lower().replace(" ", "-").replace("_", "-")
+                slug = re.sub(r'[^a-z0-9-]', '', slug)[:50]
+
+                new_page = {
+                    "id": f"gap-{slug}",
+                    "title": suggested_title,
+                    "description": gap.get("reason", ""),
+                    "relevant_files": [],
+                    "importance": "medium",
+                    "children": []
+                }
+                pages.append(new_page)
+                logger.info(f"  -> Added page: {suggested_title}")
+
+            structure_data["pages"] = pages
+            return structure_data
+
+        except Exception as e:
+            logger.warning(f"Structure validation failed: {e}. Proceeding with original structure.")
+            return structure_data
+
     async def generate_wiki(self, project_id: int, topic: str, llm, force_regenerate: bool = False):
         """
         Generates Wiki content using a 'Technical Writer' workflow (Structure -> Content).
@@ -179,6 +313,18 @@ class WikiService:
                 {"title": i18n.get("prompts.wiki.fallback.architecture"), "id": "architecture", "relevant_files": []},
                 {"title": i18n.get("prompts.wiki.fallback.setup"), "id": "setup", "relevant_files": []}
             ]
+            structure_data = {"pages": pages_to_generate}
+
+        # 1.5 Phase 1.5: Validate Structure Completeness
+        logger.info("Phase 1.5: Validating Wiki Structure...")
+        project_context = f"Project path: {project_path}\nREADME preview: {readme_content[:500] if readme_content else 'No README'}"
+        
+        validated_structure = await self._validate_structure(
+            structure_data=structure_data,
+            project_context=project_context,
+            llm=llm,
+        )
+        pages_to_generate = validated_structure.get("pages", pages_to_generate)
 
         logger.info(f"Planned {len(pages_to_generate)} pages: {[p.get('title') for p in pages_to_generate]}")
 
@@ -304,6 +450,17 @@ class WikiService:
                     saved_page = new_page
             
             saved_pages.append(saved_page)
+
+            # Phase 2.5: Extract and store knowledge concepts
+            if page_content:
+                extracted = await self._extract_and_store_concepts(
+                    page_title=page_title,
+                    page_content=page_content,
+                    project_id=project_id,
+                    llm=llm,
+                )
+                if extracted:
+                    logger.info(f"Extracted {len(extracted)} concepts from '{page_title}'")
             
             # Recurse Children
             children = plan.get("children", [])

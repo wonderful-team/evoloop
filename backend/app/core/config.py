@@ -119,6 +119,9 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str = "text-embedding-3-small"  # Qwen / Aliyun Compatible
     EMBEDDING_DIMENSIONS: int = 768  # Nomic / Local Default
 
+    # Wiki Generation
+    WIKI_EXTRACT_CONCEPTS: bool = True  # Extract and store concepts from Wiki pages to Agent memory
+
     # Search Optimization
     ENABLE_QUERY_REWRITING: bool = True  # P1: Cross-Lingual Query Rewriting
 

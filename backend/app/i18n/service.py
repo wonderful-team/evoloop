@@ -2,6 +2,7 @@ import json
 import logging
 from pathlib import Path
 
+from app.constants import LANGUAGE_MAP
 from app.domain.system.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,8 @@ class I18nService:
             logger.warning(f"Locales directory not found: {base_path}")
             return
 
-        for code in ["en", "zh"]:
+        # Use LANGUAGE_MAP to determine which locales to attempt to load
+        for code in LANGUAGE_MAP.keys():
             file_path = base_path / f"{code}.json"
             if file_path.exists():
                 try:
@@ -50,10 +52,13 @@ class I18nService:
 
         # 1. Determine Language
         # Try to get from kwargs first (override), then system config
-        lang = kwargs.pop("lang", None)
+        # We use .get() instead of .pop() because {lang} might be used as a placeholder in the string
+        lang = kwargs.get("lang")
         if not lang:
             # We use "zh" as default if SystemConfig isn't set, per previous logic
             lang = SystemConfigService.get_value("LANGUAGE", "zh")
+            # Ensure derived lang is available for formatting if needed
+            kwargs["lang"] = lang
 
         # 2. Fetch Template
         template = self._get_template(lang, key)
