@@ -227,7 +227,7 @@ async def execute_task(
     from datetime import datetime, timezone
 
     from app.infrastructure.database.sql.database import session_scope
-    from app.infrastructure.database.sql.models import Conversation, Message
+    from app.models import Conversation, Message
 
     try:
         async with session_scope() as session:

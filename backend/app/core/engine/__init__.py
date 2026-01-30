@@ -13,7 +13,7 @@ from app.core.engine.message_utils import repair_message_history, smart_window_s
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
-from app.domain.system.service import SystemConfigService
+from app.core.system import SystemConfigService
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)

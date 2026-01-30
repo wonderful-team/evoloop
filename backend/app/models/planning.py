@@ -8,7 +8,7 @@ from app.infrastructure.database.sql.database import Base
 from app.utils.time import utcnow
 
 if TYPE_CHECKING:
-    from app.infrastructure.database.sql.models.conversation import Conversation
+    from app.models.conversation import Conversation
 
 
 class Plan(Base):

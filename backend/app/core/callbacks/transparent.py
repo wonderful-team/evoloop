@@ -6,7 +6,7 @@ from typing import Any
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
-from app.schemas.events import TokenEvent
+from app.models.schemas.events import TokenEvent
 
 # Use standard logger instead of rich Console
 logger = logging.getLogger("evoloop.callbacks")

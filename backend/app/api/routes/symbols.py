@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.infrastructure.database.sql.models import CodeEntity, Repository
+from app.models import CodeEntity, Repository
 
 router = APIRouter()
 
@@ -34,7 +34,7 @@ async def search_symbols(
     # Join with SourceFile to filter by repo_ids
     from sqlalchemy.orm import selectinload
 
-    from app.infrastructure.database.sql.models import SourceFile
+    from app.models import SourceFile
 
     query = select(CodeEntity).join(SourceFile, CodeEntity.file_id == SourceFile.id)\
             .where(SourceFile.repository_id.in_(repo_ids))\

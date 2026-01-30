@@ -33,7 +33,7 @@ async def handle_list(
 
     elif action == "list_tree":
         # Delegate to AnnotatedTreeGenerator
-        from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+        from app.core.context import AnnotatedTreeGenerator
 
         try:
             # Use provided max_depth and with_symbols

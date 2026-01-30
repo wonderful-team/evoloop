@@ -170,7 +170,7 @@ class EnhancedWorkflowSynthesizer:
             tools_used=", ".join(summary["tools_used"]) if summary["tools_used"] else "None"
         )
 
-        from app.domain.system.service import SystemConfigService
+        from app.core.system import SystemConfigService
 
         user_lang = SystemConfigService.get_language_preference()
         prompt += i18n.get("prompts.learning.synthesis_lang_constraint", lang=user_lang)

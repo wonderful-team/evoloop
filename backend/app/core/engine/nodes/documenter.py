@@ -110,9 +110,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
                 try:
                     # Trigger Deep Research Loop
                     # Use Builder for prompt
-                    from app.core.prompts.documenter_builder import (
-                        DocumenterPromptBuilder,
-                    )
+                    from app.core.prompts import DocumenterPromptBuilder
                     prompt_content = DocumenterPromptBuilder.build_page_generation_prompt(topic, filename)
 
                     content = await engine.run(topic=prompt_content, max_iterations=3, config=config)
@@ -139,7 +137,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     # 2. Get Project Structure
     tree_output = ""
     try:
-        from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+        from app.core.context import AnnotatedTreeGenerator
 
         root_path = config.get("configurable", {}).get("working_directory", ".")
         generator = AnnotatedTreeGenerator(root_path, max_depth=3, with_symbols=False, file_limit=30)
@@ -162,12 +160,12 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     structured_llm = llm.with_structured_output(WikiPlan)
 
     # Language Preference
-    from app.domain.system.service import SystemConfigService
+    from app.core.system import SystemConfigService
 
     # user_lang = SystemConfigService.get_language_preference()
 
     try:
-        from app.core.prompts.documenter_builder import DocumenterPromptBuilder
+        from app.core.prompts import DocumenterPromptBuilder
 
         # Builder handles language injection internally now
         prompt_content = DocumenterPromptBuilder.build_file_structure_prompt(tree_output)

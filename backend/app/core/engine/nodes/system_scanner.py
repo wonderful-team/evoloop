@@ -10,7 +10,7 @@ from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models.learning import TraceEvent
+from app.models.learning import TraceEvent
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ async def system_scanner_node(_state: AgentState, _config: RunnableConfig):
     Analyzes Trace Memory for recurrent failures.
     """
     # 0. Check if Evolution is Enabled
-    from app.domain.system.evolution_config import EvolutionConfigService
+    from app.core.system import EvolutionConfigService
 
     if not EvolutionConfigService.is_enabled():
         return {

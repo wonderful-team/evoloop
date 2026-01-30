@@ -7,7 +7,7 @@ from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
 from app.core.tools.base import evoloop_tool
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models.learning import LearnedSkill
+from app.models.learning import LearnedSkill
 
 
 @evoloop_tool

@@ -27,7 +27,7 @@ async def meta_reviewer_node(state: AgentState, config: RunnableConfig):
 
     import os
 
-    from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+    from app.core.context import AnnotatedTreeGenerator
 
     # Resolve root
     root = config.get("configurable", {}).get("working_directory") or os.getcwd()
@@ -39,7 +39,7 @@ async def meta_reviewer_node(state: AgentState, config: RunnableConfig):
     except Exception as e:
         tree_context = f"Error fetching architecture: {e}"
 
-    from app.core.prompts.meta_reviewer_builder import MetaReviewerPromptBuilder
+    from app.core.prompts import MetaReviewerPromptBuilder
 
     system_prompt_str = MetaReviewerPromptBuilder.build_system_prompt(
         project_id=project_id,

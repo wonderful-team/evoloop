@@ -4,7 +4,7 @@ from fastapi import APIRouter
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models.planning import Plan, PlanStep
+from app.models.planning import Plan, PlanStep
 
 logger = logging.getLogger(__name__)
 

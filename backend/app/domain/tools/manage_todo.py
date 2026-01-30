@@ -9,7 +9,7 @@ from sqlalchemy import desc, select
 from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models.todo import (
+from app.models.todo import (
     TodoItem,
     TodoPriority,
     TodoStatus,

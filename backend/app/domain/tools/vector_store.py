@@ -5,7 +5,7 @@ from sqlalchemy import delete, select
 from app.core.config import settings
 from app.domain.codebase.indexing.vectors.openai_embedder import OpenAIEmbedder
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import Tool
+from app.models import Tool
 
 logger = logging.getLogger(__name__)
 

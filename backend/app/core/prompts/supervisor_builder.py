@@ -9,7 +9,7 @@ import json
 
 from langchain_core.runnables import RunnableConfig
 
-from app.domain.system.service import SystemConfigService
+from app.core.system import SystemConfigService
 
 
 class SupervisorPromptBuilder:

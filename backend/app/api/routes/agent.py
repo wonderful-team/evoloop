@@ -9,7 +9,7 @@ from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
-from app.adapters import EventAdapter
+from app.domain.integration.adapters import EventAdapter
 from app.api.deps import CurrentUserOptional, verify_guest_access
 
 # --- Background Worker ---
@@ -19,7 +19,7 @@ from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import (
+from app.models import (
     Conversation,
     Message,
     MessageReference,

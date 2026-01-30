@@ -12,7 +12,7 @@ from mcp.client.stdio import stdio_client
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import McpServer
+from app.models import McpServer
 
 logger = logging.getLogger("evoloop.mcp_client")
 

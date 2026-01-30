@@ -25,7 +25,7 @@ async def run_command(command: str) -> str:
     # For this local assistant, we assume trust.
 
     try:
-        from app.domain.sandbox.factory import SandboxFactory
+        from app.core.execution import SandboxFactory
 
         sandbox = SandboxFactory.get_sandbox()
 

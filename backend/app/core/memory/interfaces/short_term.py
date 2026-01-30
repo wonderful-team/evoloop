@@ -1,6 +1,6 @@
 """Short-term memory interface for managing conversation context."""
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import List
 
 from langchain_core.messages import BaseMessage

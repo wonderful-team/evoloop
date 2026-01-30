@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from app.core.memory import memory_manager
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import TraceEvent
+from app.models import TraceEvent
 
 logger = logging.getLogger("evoloop.learning")
 

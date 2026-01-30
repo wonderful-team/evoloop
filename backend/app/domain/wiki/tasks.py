@@ -4,7 +4,8 @@ from celery import shared_task
 from app.domain.wiki.service import wiki_service
 from app.core.llm.factory import get_default_llm
 
-@shared_task(name="wiki.generate")
+
+@shared_task(name="wiki_generate")
 def generate_wiki_task(project_id: int, topic: str, force_regenerate: bool = False):
     """
     Celery task to generate wiki pages in background.

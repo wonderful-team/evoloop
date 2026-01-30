@@ -1,8 +1,8 @@
 import logging
 import shutil
 
-from app.domain.sandbox.base import Sandbox
-from app.domain.terminal.manager import terminal_manager
+from app.core.execution.sandbox.base import Sandbox
+from app.core.execution.terminal.manager import terminal_manager
 
 logger = logging.getLogger(__name__)
 

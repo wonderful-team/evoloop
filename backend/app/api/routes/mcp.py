@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, HTTPException
 
 from app.infrastructure.mcp.client import mcp_client_manager
-from app.schemas.mcp import McpServerCreate
+from app.models.schemas.mcp import McpServerCreate
 
 router = APIRouter()
 

@@ -17,7 +17,7 @@ class LLMFactory:
         Create a standard ChatOpenAI instance.
         Prioritizes SystemConfig (Dynamic) > Settings (Env Checks).
         """
-        from app.domain.system.service import SystemConfigService
+        from app.core.system.service import SystemConfigService
 
         # 1. Fetch Config
         db_provider = SystemConfigService.get_value("LLM_PROVIDER")

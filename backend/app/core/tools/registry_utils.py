@@ -26,12 +26,12 @@ from app.domain.tools.facades import (
 from app.domain.tools.files import (
     edit_file,
     file_system,
+    grep_files,
     list_files,
     read_file,
     write_file,
 )
 from app.domain.tools.human_input import request_approval
-from app.infrastructure.filesystem.tool import grep_files
 
 logger = logging.getLogger(__name__)
 

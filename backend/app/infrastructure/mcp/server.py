@@ -205,7 +205,7 @@ async def get_annotated_tree(path: str = ".") -> str:
     Shows structure + key symbols.
     """
     try:
-        from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+        from app.core.context import AnnotatedTreeGenerator
 
         target_path = os.path.abspath(path)
         if not os.path.exists(target_path):

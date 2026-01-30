@@ -22,7 +22,7 @@ from app.core.monitoring.activity import activity_monitor
 from app.core.tools.executor import ToolExecutor
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import LearnedSkill as LearnedSkillModel
+from app.models import LearnedSkill as LearnedSkillModel
 
 logger = logging.getLogger("evoloop.learning.executor")
 

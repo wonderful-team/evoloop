@@ -1,17 +1,16 @@
+import json
 import logging
 import os
 import re
-import json
-from typing import List, Optional
-from sqlmodel import Session, select
 from datetime import datetime
 
 from pydantic import BaseModel, Field
+from sqlmodel import Session, select
 
-from app.core.db import engine
 from app.core.config import settings
-from app.models.wiki import WikiPage, WikiPageCreate
+from app.core.db import engine
 from app.i18n.service import i18n
+from app.models.wiki import WikiPage
 
 logger = logging.getLogger(__name__)
 
@@ -23,24 +22,26 @@ class ExtractedConcept(BaseModel):
 
 
 class ConceptExtractionResult(BaseModel):
-    concepts: List[ExtractedConcept] = Field(default_factory=list)
+    concepts: list[ExtractedConcept] = Field(default_factory=list)
+
 
 class WikiService:
     """
     Service for Wiki page management and generation.
     Integrates with MemoryService to extract and store knowledge concepts.
     """
-    def get_pages(self, project_id: int) -> List[WikiPage]:
+
+    def get_pages(self, project_id: int) -> list[WikiPage]:
         with Session(engine) as session:
             statement = select(WikiPage).where(WikiPage.project_id == project_id).order_by(WikiPage.order)
             results = session.exec(statement)
             return results.all()
 
-    def get_page(self, page_id: int) -> Optional[WikiPage]:
+    def get_page(self, page_id: int) -> WikiPage | None:
         with Session(engine) as session:
             return session.get(WikiPage, page_id)
 
-    def get_projects_with_wiki(self, project_ids: List[int]) -> set[int]:
+    def get_projects_with_wiki(self, project_ids: list[int]) -> set[int]:
         """
         Efficiently check which projects have wiki pages.
         """
@@ -58,39 +59,40 @@ class WikiService:
         Generates a simplified file tree string using standard file utilities.
         """
         try:
-            from app.utils.file import walk_tree, filter_code_files, normalize_path
-            
+            from app.core.file.service import filter_code_files, walk_tree
+            from app.utils.file import normalize_path
+
             # 1. Get all valid file paths (absolute)
             # walk_tree handles standard directory exclusion (node_modules, .git, etc.)
             all_files_abs = list(walk_tree(root_path))
-            
+
             # 2. Convert to relative and normalize
             all_files_rel = []
             for f in all_files_abs:
                 rel = os.path.relpath(f, root_path)
                 all_files_rel.append(normalize_path(rel))
-            
+
             # 3. Apply code file filtering (extensions, specific exclusion lists)
             # Check exclusions that might not be in walk_tree default
             valid_files = filter_code_files(all_files_rel)
-            
+
             # 4. Build Tree String
             return self._paths_to_tree_string(valid_files)
-            
+
         except Exception as e:
             logger.error(f"Error generating file tree: {e}")
             return "(Error generating file tree)"
 
-    def _paths_to_tree_string(self, paths: List[str]) -> str:
+    def _paths_to_tree_string(self, paths: list[str]) -> str:
         """
         Converts a list of file paths into a visual tree string.
         """
         paths.sort()
         tree_lines = []
         prev_parts = []
-        
+
         for path in paths:
-            parts = path.split("/") # paths are normalized
+            parts = path.split("/")  # paths are normalized
             # Determine common depth
             common_depth = 0
             for i in range(min(len(parts), len(prev_parts))):
@@ -98,7 +100,7 @@ class WikiService:
                     common_depth += 1
                 else:
                     break
-            
+
             # Print new parts
             for i in range(common_depth, len(parts)):
                 indent = "  " * i
@@ -109,13 +111,13 @@ class WikiService:
                 else:
                     # File
                     tree_lines.append(f"{indent}{name}")
-            
+
             prev_parts = parts
-            
+
             if len(tree_lines) > 5000:
                 tree_lines.append("... (truncated)")
                 break
-                
+
         return "\n".join(tree_lines)
 
     def _read_file_safe(self, path: str, max_chars: int = 50000) -> str:
@@ -127,7 +129,7 @@ class WikiService:
         if os.path.isdir(path):
             return ""
         try:
-            with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            with open(path, encoding='utf-8', errors='ignore') as f:
                 return f.read(max_chars)
         except Exception as e:
             logger.warning(f"Failed to read file {path}: {e}")
@@ -139,7 +141,7 @@ class WikiService:
         page_content: str,
         project_id: int,
         llm,
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Extract knowledge concepts from a Wiki page and store them in Agent memory.
         Returns list of concept names that were stored.
@@ -148,9 +150,10 @@ class WikiService:
         if not getattr(settings, 'WIKI_EXTRACT_CONCEPTS', True):
             return []
 
-        from app.core.prompts.wiki_builder import WikiBuilder
-        from app.core.memory import memory_manager
         from langchain_core.messages import HumanMessage
+
+        from app.core.memory import memory_manager
+        from app.core.prompts import WikiBuilder
 
         try:
             # Build extraction prompt
@@ -195,8 +198,9 @@ class WikiService:
         Validate Wiki structure completeness using LLM-based dynamic analysis.
         Returns updated structure with any missing pages added.
         """
-        from app.core.prompts.wiki_builder import WikiBuilder
         from langchain_core.messages import HumanMessage
+
+        from app.core.prompts import WikiBuilder
 
         try:
             validation_prompt = WikiBuilder.build_validation_prompt(structure_data, project_context)
@@ -251,11 +255,10 @@ class WikiService:
         Phase 1: Determine Structure (Planner).
         Phase 2: Generate Page Content (Writer).
         """
+        from langchain_core.messages import HumanMessage
+
+        from app.core.prompts import WikiBuilder
         from app.domain.project.service import project_context_manager
-        from app.core.prompts.wiki_builder import WikiBuilder
-        from langchain_core.messages import SystemMessage, HumanMessage
-        import json
-        import re
 
         logger.info(f"Starting Wiki Generation for project {project_id}")
 
@@ -264,13 +267,13 @@ class WikiService:
         if not project_data or not project_data.get('path'):
             logger.error(f"Project path not found for id {project_id}")
             return []
-            
+
         project_path = project_data['path']
         logger.info(f"Using project path: {project_path}")
 
         # 1. Phase 1: Determine Structure
         logger.info("Phase 1: Determining Wiki Structure...")
-        
+
         # Handle cleanup if force regenerating
         if force_regenerate:
             logger.info("Force regenerate: deleting existing wiki pages.")
@@ -284,12 +287,12 @@ class WikiService:
         readme_content = self._read_file_safe(readme_path)
 
         structure_prompt = WikiBuilder.build_structure_prompt(file_tree, readme_content)
-        
+
         try:
             # Call LLM for structure
             structure_response = await llm.ainvoke([HumanMessage(content=structure_prompt)])
             response_text = structure_response.content
-            
+
             # Extract JSON
             json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
             if json_match:
@@ -301,7 +304,7 @@ class WikiService:
                     raise ValueError("Invalid JSON structure: missing 'pages' list")
             else:
                 raise ValueError("No JSON found in response")
-                
+
         except Exception as e:
             logger.error(f"Failed to determine wiki structure: {e}. Falling back to default.")
             # Fallback structure
@@ -315,7 +318,7 @@ class WikiService:
         # 1.5 Phase 1.5: Validate Structure Completeness
         logger.info("Phase 1.5: Validating Wiki Structure...")
         project_context = f"Project path: {project_path}\nREADME preview: {readme_content[:500] if readme_content else 'No README'}"
-        
+
         validated_structure = await self._validate_structure(
             structure_data=structure_data,
             project_context=project_context,
@@ -332,11 +335,11 @@ class WikiService:
             page_title = plan.get("title", "Untitled")
             page_slug = plan.get("id", f"page-{order}")
             relevant_files_hint = plan.get("relevant_files", [])
-            
+
             logger.info(f"Phase 2: Generating content for '{page_title}' (slug: {page_slug})")
-            
+
             page_content = None
-            
+
             # Check existence
             if not force_regenerate:
                 with Session(engine) as session:
@@ -349,14 +352,14 @@ class WikiService:
                         logger.info(f"Skipping '{page_title}' - already exists.")
                         # Ensure hierarchy is up to date
                         if existing_page.parent_id != parent_id or existing_page.order != order:
-                             existing_page.parent_id = parent_id
-                             existing_page.order = order
-                             session.add(existing_page)
-                             session.commit()
-                             session.refresh(existing_page)
-                        
+                            existing_page.parent_id = parent_id
+                            existing_page.order = order
+                            session.add(existing_page)
+                            session.commit()
+                            session.refresh(existing_page)
+
                         saved_pages.append(existing_page)
-                        
+
                         # Recurse Children even if skipped
                         children = plan.get("children", [])
                         for i, child_plan in enumerate(children):
@@ -366,29 +369,29 @@ class WikiService:
             # Gather context
             context_buffer = []
             valid_paths = []
-            
+
             # Helper to expand directories
-            from app.utils.file import walk_tree, filter_code_files
+            from app.core.file.service import filter_code_files, walk_tree
             final_files_to_read = []
-            
+
             for rel_path in relevant_files_hint:
                 full_path = os.path.join(project_path, rel_path)
                 if os.path.exists(full_path) and os.path.isdir(full_path):
-                     # Expand directory
-                     try:
-                         # Get all files recursively
-                         child_files = list(walk_tree(full_path))
-                         # Convert to relative paths
-                         child_rels = [os.path.relpath(f, project_path) for f in child_files]
-                         # Filter code files
-                         filtered_children = filter_code_files(child_rels)
-                         # Limit to avoid explosion (e.g. max 10 files per directory hint)
-                         final_files_to_read.extend(filtered_children[:10]) 
-                     except Exception as e:
-                         logger.warning(f"Failed to expand directory {rel_path}: {e}")
+                    # Expand directory
+                    try:
+                        # Get all files recursively
+                        child_files = list(walk_tree(full_path))
+                        # Convert to relative paths
+                        child_rels = [os.path.relpath(f, project_path) for f in child_files]
+                        # Filter code files
+                        filtered_children = filter_code_files(child_rels)
+                        # Limit to avoid explosion (e.g. max 10 files per directory hint)
+                        final_files_to_read.extend(filtered_children[:10])
+                    except Exception as e:
+                        logger.warning(f"Failed to expand directory {rel_path}: {e}")
                 else:
                     final_files_to_read.append(rel_path)
-            
+
             # Remove duplicates while preserving order
             final_files_to_read = list(dict.fromkeys(final_files_to_read))
 
@@ -398,14 +401,14 @@ class WikiService:
                 if content:
                     context_buffer.append(f"--- FILE: {rel_path} ---\n{content}\n")
                     valid_paths.append(rel_path)
-            
+
             if not context_buffer:
                 context_buffer.append(f"--- FILE: README.md ---\n{readme_content}\n")
                 valid_paths.append("README.md")
 
             joined_context = "\n".join(context_buffer)
             content_prompt = WikiBuilder.build_content_prompt(page_title, joined_context, valid_paths)
-            
+
             try:
                 content_response = await llm.ainvoke([HumanMessage(content=content_prompt)])
                 page_content = content_response.content
@@ -421,7 +424,7 @@ class WikiService:
                     WikiPage.slug == page_slug
                 )
                 existing_page_db = session.exec(stmt).first()
-                
+
                 if existing_page_db:
                     existing_page_db.content = page_content
                     existing_page_db.updated_at = datetime.utcnow()
@@ -445,7 +448,7 @@ class WikiService:
                     session.commit()
                     session.refresh(new_page)
                     saved_page = new_page
-            
+
             saved_pages.append(saved_page)
 
             # Phase 2.5: Extract and store knowledge concepts
@@ -458,7 +461,7 @@ class WikiService:
                 )
                 if extracted:
                     logger.info(f"Extracted {len(extracted)} concepts from '{page_title}'")
-            
+
             # Recurse Children
             children = plan.get("children", [])
             for i, child_plan in enumerate(children):
@@ -467,7 +470,8 @@ class WikiService:
         # Kickoff recursion
         for i, page_plan in enumerate(pages_to_generate):
             await process_page_recursive(page_plan, parent_id=None, order=i)
-        
+
         return saved_pages
+
 
 wiki_service = WikiService()

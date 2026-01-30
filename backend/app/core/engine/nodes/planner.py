@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
@@ -61,14 +62,11 @@ async def planner_node(state: AgentState, config: RunnableConfig):
     project_id = state.get("project_id", 1)
 
     # 1. Access System Config / Context
-    import os
-
-
     cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
 
     # 4. Prepare Chain
     # Generate Project Structure dynamically
-    from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+    from app.core.context import AnnotatedTreeGenerator
 
     project_structure = "Tree not available"
     try:

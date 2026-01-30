@@ -6,7 +6,7 @@ from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.database.sql.database import get_db
-from app.infrastructure.database.sql.models.todo import (
+from app.models.todo import (
     TodoItem,
     TodoPriority,
     TodoStatus,

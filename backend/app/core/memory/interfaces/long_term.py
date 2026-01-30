@@ -1,6 +1,6 @@
 """Long-term memory interface for persistent knowledge and experiences."""
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import List, Optional
 
 from app.core.memory.interfaces.base import IMemoryProvider

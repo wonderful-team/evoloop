@@ -1,4 +1,3 @@
-
 import asyncio
 import json
 import logging
@@ -20,6 +19,7 @@ from app.infrastructure.database.sql.models import LearnedSkill
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 async def main():
     logger.info("Starting Skill Execution Verification...")
@@ -110,12 +110,13 @@ async def main():
 
         # Check execution flag
         if result.get("skill_execution_attempted"):
-           logger.info("✅ skill_execution_attempted flag is True")
+            logger.info("✅ skill_execution_attempted flag is True")
         else:
-           logger.warning("⚠️ skill_execution_attempted flag missing or False")
+            logger.warning("⚠️ skill_execution_attempted flag missing or False")
 
     except Exception as e:
         logger.error(f"❌ Execution failed: {e}", exc_info=True)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

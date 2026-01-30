@@ -11,7 +11,7 @@ from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
 from app.core.persistence import get_db_pool
 from app.infrastructure.database.sql.database import get_db_session
-from app.infrastructure.database.sql.models import Conversation, Message
+from app.models import Conversation, Message
 
 logger = logging.getLogger(__name__)
 

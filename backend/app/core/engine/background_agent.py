@@ -19,8 +19,8 @@ from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import Conversation, Message
 from app.infrastructure.external.evocloud import evocloud_client
+from app.models import Conversation, Message
 from app.utils.context import set_context
 
 logger = logging.getLogger(__name__)

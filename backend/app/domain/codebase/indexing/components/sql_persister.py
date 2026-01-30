@@ -7,7 +7,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.codebase.indexing.components.content_indexer import IndexedContent
-from app.infrastructure.database.sql.models import (
+from app.models import (
     CodeChunk,
     CodeEntity,
     CodeRelation,

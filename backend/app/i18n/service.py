@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 
 from app.constants import LANGUAGE_MAP
-from app.domain.system.service import SystemConfigService
+from app.core.system import SystemConfigService
 
 logger = logging.getLogger(__name__)
 

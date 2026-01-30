@@ -5,10 +5,10 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from sqlalchemy import select
 
 from app.core.llm.factory import LLMFactory
-from app.domain.system.service import SystemConfigService
+from app.core.system import SystemConfigService
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import TraceEvent
+from app.models import TraceEvent
 
 logger = logging.getLogger("evoloop.learning.synthesizer")
 

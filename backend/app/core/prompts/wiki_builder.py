@@ -1,9 +1,8 @@
-
 from typing import List
-from app.core.config import settings
-from app.domain.system.service import SystemConfigService
+from app.core.system import SystemConfigService
 from app.constants import LANGUAGE_MAP
 from app.i18n.service import i18n
+
 
 class WikiBuilder:
     """
@@ -84,6 +83,8 @@ Use hierarchical structure (folders/groups) grouping related pages together wher
         """
         Prompt to generate the content of a single Wiki page.
         """
+        relevant_files = i18n.get("prompts.wiki.generated_content.relevant_files")
+        files_used = i18n.get("prompts.wiki.generated_content.files_used")
         files_list_md = "\n".join([f"- {path}" for path in relevant_file_paths])
         
         return f"""You are an expert technical writer and software architect.
@@ -101,9 +102,9 @@ CRITICAL STARTING INSTRUCTION:
 The very first thing on the page MUST be a `<details>` block listing ALL the source files you used.
 Format it exactly like this:
 <details>
-<summary>{i18n.get("prompts.wiki.generated_content.relevant_files")}</summary>
+<summary>{relevant_files}</summary>
 
-{i18n.get("prompts.wiki.generated_content.files_used")}
+{files_used}
 
 {files_list_md}
 </details>

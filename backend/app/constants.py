@@ -5,6 +5,8 @@ Ported from evoloop-engineer.
 
 from enum import Enum
 
+from app.core.config import settings
+
 
 # ====================== Document Type Enum ======================
 class DocumentType(Enum):
@@ -437,6 +439,13 @@ SEMANTIC_LANGUAGE_MAP = {
 }
 SEMANTIC_EXTENSIONS = {ext for exts in SEMANTIC_LANGUAGE_MAP.values() for ext in exts}
 
+# Extensions allowed for full repository indexing (Searchable Codebase)
+# Includes all semantic languages + documentation + common text-based configs
+INDEXABLE_EXTENSIONS = SEMANTIC_EXTENSIONS | {
+    ".md", ".markdown", ".txt", ".sh", ".bash", ".c", ".h", ".cpp", ".hpp",
+    ".yaml", ".yml", ".toml", ".json", ".sql"
+}
+
 # ====================== Model Constants ======================
 MODEL_GPT4O = "gpt-4o"
 MODEL_CLAUDE_SONNET = "claude-3-5-sonnet-20240620"
@@ -453,19 +462,19 @@ SUSPICIOUS_JS_PATTERNS = [
 
 # ====================== RAG / Search Constants ======================
 # Search related
-DEFAULT_SEARCH_TOP_K = 10
-MAX_SEARCH_DEPTH = 3
-MIN_RELEVANCE_SCORE = 0.6
+DEFAULT_SEARCH_TOP_K = settings.DEFAULT_SEARCH_TOP_K
+MAX_SEARCH_DEPTH = settings.MAX_SEARCH_DEPTH
+MIN_RELEVANCE_SCORE = settings.MIN_RELEVANCE_SCORE
 
 # Chunking related
-DEFAULT_CHUNK_SIZE = 1000
-MAX_CHUNK_SIZE = 4000
-DEFAULT_CHUNK_OVERLAP = 200
+DEFAULT_CHUNK_SIZE = settings.DEFAULT_CHUNK_SIZE
+MAX_CHUNK_SIZE = settings.MAX_CHUNK_SIZE
+DEFAULT_CHUNK_OVERLAP = settings.DEFAULT_CHUNK_OVERLAP
 
 # Memory related
-MAX_SESSION_HISTORY = 20
-MEMORY_RELEVANCE_THRESHOLD = 0.75
-MAX_MEMORY_ITEMS = 1000
+MAX_SESSION_HISTORY = settings.MAX_SESSION_HISTORY
+MEMORY_RELEVANCE_THRESHOLD = settings.MEMORY_RELEVANCE_THRESHOLD
+MAX_MEMORY_ITEMS = settings.MAX_MEMORY_ITEMS
 
 
 # ====================== Workflow / Task Constants ======================

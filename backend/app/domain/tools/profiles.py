@@ -49,7 +49,7 @@ PROFILES: dict[str, dict[str, any]] = {
 
 def get_profile_static_tools(profile_name: str) -> list[BaseTool]:
     """Retrieve the static tool instances for a given profile."""
-    from app.domain.tools.registry import get_tools_by_names
+    from app.core.tools.registry import get_tools_by_names
 
     profile = PROFILES.get(profile_name, PROFILES["GENERAL"])
     tool_names = profile.get("static_tools", [])

@@ -1,7 +1,56 @@
 from sqlmodel import SQLModel
 
+from .codebase import CodeChunk as CodeChunk, CodeEntity as CodeEntity, CodeRelation as CodeRelation, Repository as Repository, SourceFile as SourceFile
 from .config import SystemConfig as SystemConfig
-from .wiki import WikiPage
+from .conversation import Conversation as Conversation, HumanRequest as HumanRequest, MessageReference as MessageReference, Message as SQLMessage
+from .learning import LearnedSkill as LearnedSkill, TraceEvent as TraceEvent
+from .memory import MemoryConcept as MemoryConcept
+from .persistence import (
+    Checkpoint as Checkpoint,
+    CheckpointBlob as CheckpointBlob,
+    CheckpointMigration as CheckpointMigration,
+    CheckpointWrite as CheckpointWrite,
+)
+from .planning import Plan as Plan, PlanStep as PlanStep
+from .system import Job as Job, McpServer as McpServer, ProjectResource as ProjectResource, Tool as Tool
+from .todo import TodoItem as TodoItem, TodoPriority as TodoPriority, TodoStatus as TodoStatus
+from .wiki import WikiPage as WikiPage
+
+__all__ = [
+    "CodeChunk",
+    "CodeEntity",
+    "CodeRelation",
+    "Repository",
+    "SourceFile",
+    "SystemConfig",
+    "Conversation",
+    "HumanRequest",
+    "MessageReference",
+    "SQLMessage",
+    "LearnedSkill",
+    "TraceEvent",
+    "MemoryConcept",
+    "Checkpoint",
+    "CheckpointBlob",
+    "CheckpointMigration",
+    "CheckpointWrite",
+    "Plan",
+    "PlanStep",
+    "Job",
+    "McpServer",
+    "ProjectResource",
+    "Tool",
+    "TodoItem",
+    "TodoPriority",
+    "TodoStatus",
+    "WikiPage",
+    "Message",
+    "Token",
+    "TokenPayload",
+    "User",
+    "UserPublic",
+    "UsersPublic",
+]
 
 
 # Generic message

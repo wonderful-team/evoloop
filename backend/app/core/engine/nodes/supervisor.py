@@ -19,7 +19,7 @@ from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models.todo import (
+from app.models.todo import (
     TodoItem,
     TodoPriority,
     TodoStatus,
@@ -81,7 +81,7 @@ class SupervisorNode:
         tools = context["tools"] + [route_to]
 
         # Use Builder for unified prompt construction
-        from app.core.prompts.supervisor_builder import SupervisorPromptBuilder
+        from app.core.prompts import SupervisorPromptBuilder
 
         prompt_builder = SupervisorPromptBuilder(
             project_id=project_id,
@@ -260,7 +260,7 @@ class SupervisorNode:
     ) -> dict[str, Any]:
         """Build context for LLM planning."""
         from app.core.tools.registry_utils import get_node_tools
-        from app.domain.system.service import SystemConfigService
+        from app.core.system import SystemConfigService
         from app.domain.tools.retrieval import tool_retriever
         from app.infrastructure.mcp.client import mcp_client_manager
 
@@ -309,7 +309,7 @@ class SupervisorNode:
         cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
         project_structure = "Tree not available"
         try:
-            from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+            from app.core.context import AnnotatedTreeGenerator
             generator = AnnotatedTreeGenerator(cwd, max_depth=3, with_symbols=False, file_limit=30)
             project_structure = await generator.generate()
         except Exception as e:
@@ -348,10 +348,7 @@ class SupervisorNode:
         active_plan_context = i18n.get("prompts.supervisor.no_active_plan")
         try:
             async with session_scope() as session:
-                from app.infrastructure.database.sql.models.planning import (
-                    Plan,
-                    PlanStep,
-                )
+                from app.models.planning import Plan, PlanStep
                 thread_id = config.get("configurable", {}).get("thread_id")
 
                 if thread_id:

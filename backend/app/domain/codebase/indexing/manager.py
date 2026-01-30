@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.watchers import RepoWatcher
 from app.infrastructure.database.sql.database import AsyncSessionLocal
-from app.infrastructure.database.sql.models import Repository
+from app.models import Repository
 
 logger = logging.getLogger(__name__)
 
@@ -173,10 +173,10 @@ class IndexingManager:
         Run semantic extractors for Software Projects (API endpoints, DB schemas).
         """
         from app.constants import SEMANTIC_EXTENSIONS, SEMANTIC_LANGUAGE_MAP
+        from app.core.file.service import walk_tree
         from app.domain.codebase.filter import FileFilter
         from app.domain.codebase.indexing.extractors.api_extractor import api_extractor
         from app.domain.codebase.indexing.extractors.db_extractor import db_extractor
-        from app.utils.file import walk_tree
 
         file_filter = FileFilter()
 

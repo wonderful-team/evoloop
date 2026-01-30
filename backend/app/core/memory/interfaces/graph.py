@@ -1,6 +1,6 @@
 """Graph navigation interface for structural insights (GraphRAG)."""
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Any, Dict, List
 
 from app.core.memory.interfaces.base import IMemoryProvider

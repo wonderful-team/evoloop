@@ -1,7 +1,7 @@
 """Preference management interface for hierarchical user settings."""
 
-from abc import ABC, abstractmethod
-from typing import Dict, Optional
+from abc import abstractmethod
+from typing import Optional
 
 from app.core.memory.interfaces.base import IMemoryProvider
 

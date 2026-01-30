@@ -1,8 +1,8 @@
 import logging
 
 from app.core.config import settings
-from app.domain.sandbox.base import Sandbox
-from app.domain.sandbox.local import LocalSandbox
+from app.core.execution.sandbox.base import Sandbox
+from app.core.execution.sandbox.local import LocalSandbox
 
 # Defer import of DockerSandbox to prevent failure if docker not installed?
 # Or just import it.
@@ -25,7 +25,7 @@ class SandboxFactory:
 
         if mode == "docker":
             try:
-                from app.domain.sandbox.docker import DockerSandbox
+                from app.core.execution.sandbox.docker import DockerSandbox
 
                 cls._instance = DockerSandbox(image_name=image)
             except Exception as e:

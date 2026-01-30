@@ -48,7 +48,7 @@ Keep responses concise and friendly.
     cleaned_messages = repair_message_history(history_messages)
 
     # Language preference
-    from app.domain.system.service import SystemConfigService
+    from app.core.system import SystemConfigService
 
     user_lang = SystemConfigService.get_language_preference()
 

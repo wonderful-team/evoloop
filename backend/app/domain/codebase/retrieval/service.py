@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 from app.infrastructure.database.sql.database import AsyncSessionLocal
-from app.infrastructure.database.sql.models import (
+from app.models import (
     CodeEntity,
     CodeRelation,
     Repository,

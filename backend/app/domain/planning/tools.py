@@ -105,8 +105,8 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
     """
     # Imports inside to avoid circular dependencies during initial load
     from app.infrastructure.database.sql.database import session_scope
-    from app.infrastructure.database.sql.models.planning import Plan as DBPlan
-    from app.infrastructure.database.sql.models.planning import PlanStep as DBPlanStep
+    from app.models.planning import Plan as DBPlan
+    from app.models.planning import PlanStep as DBPlanStep
     from app.utils.id import gen_uuid
 
     thread_id = config.get("configurable", {}).get("thread_id")
@@ -202,7 +202,7 @@ async def update_step_status(
     from app.infrastructure.database.sql.database import session_scope
 
     # Use the shared models from infrastructure to match session definition
-    from app.infrastructure.database.sql.models import PlanStep
+    from app.models import PlanStep
 
     try:
         async with session_scope() as session:
@@ -245,7 +245,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
     try:
         from app.core.llm.factory import get_default_llm
         from app.domain.codebase.retrieval.service import RetrievalService
-        from app.domain.system.service import SystemConfigService
+        from app.core.system import SystemConfigService
 
         # Retrieval
         retrieval_service = RetrievalService()
@@ -255,7 +255,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
 
         # Get Project Structure
         # Use underlying Generator directly (no longer a tool)
-        from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+        from app.core.context import AnnotatedTreeGenerator
 
         # Smart Truncation enabled to avoid context overflow
         generator = AnnotatedTreeGenerator(root, max_depth=3, with_symbols=False, file_limit=30)

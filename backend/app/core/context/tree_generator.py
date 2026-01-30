@@ -7,7 +7,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import CodeChunk, SourceFile
+from app.models import CodeChunk, SourceFile
 
 
 @dataclass
@@ -121,7 +121,7 @@ class AnnotatedTreeGenerator:
 
     def _build_tree_structure(self) -> TreeNode:
         from app.domain.codebase.filter import FileFilter
-        from app.utils.file import walk_tree
+        from app.core.file.service import walk_tree
 
         self.file_filter = FileFilter()
 

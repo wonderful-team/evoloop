@@ -6,8 +6,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
+from app.core.tools.registry import get_all_tools
 from app.domain.research.generator import ReportGenerator
-from app.domain.tools.registry import get_all_tools
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class DeepResearchEngine:
         logger.info(f"{log_prefix} Phase 1: Planning")
 
         # Construct the planning prompt using Builder
-        from app.core.prompts.deep_research_builder import DeepResearchPromptBuilder
+        from app.core.prompts import DeepResearchPromptBuilder
 
         # Context Formatting
         context_str = ""

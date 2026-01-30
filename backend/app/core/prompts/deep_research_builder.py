@@ -1,4 +1,4 @@
-from app.domain.system.service import SystemConfigService
+from app.core.system import SystemConfigService
 
 
 class DeepResearchPromptBuilder:

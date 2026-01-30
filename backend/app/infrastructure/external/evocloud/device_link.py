@@ -10,7 +10,7 @@ import websockets
 from websockets.legacy.client import WebSocketClientProtocol
 
 from app.core.config import settings
-from app.domain.system.service import SystemConfigService
+from app.core.system.service import SystemConfigService
 from app.utils import file as file_utils
 from app.utils.async_utils import run_in_thread
 from app.utils.id import gen_uuid

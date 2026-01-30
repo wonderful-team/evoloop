@@ -10,8 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.codebase.filter import FileFilter
-from app.domain.codebase.indexing.parsers import parser_registry
-from app.infrastructure.database.sql.models import Repository, SourceFile
+from app.models import Repository, SourceFile
 from app.utils.file import get_file_ext, read_file_content
 from app.utils.hash import compute_md5
 
@@ -45,15 +44,12 @@ class FilePreparer:
 
     def should_index(self, file_path: str) -> bool:
         """Check if file should be indexed (filter + extension check)."""
+        from app.constants import INDEXABLE_EXTENSIONS
         if not self.file_filter.should_include(file_path):
             return False
 
-        ext = get_file_ext(file_path).lstrip(".")
-        # Allow markdown explicitly, and any extension with a parser
-        if ext != "md" and parser_registry.get_parser(ext) is None:
-            return False
-
-        return True
+        ext = get_file_ext(file_path)
+        return ext in INDEXABLE_EXTENSIONS
 
     async def prepare(
         self,

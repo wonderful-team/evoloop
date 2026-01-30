@@ -57,7 +57,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     current_plan = state.get("current_plan", "")
 
     # Language preference
-    from app.domain.system.service import SystemConfigService
+    from app.core.system import SystemConfigService
 
     user_lang = SystemConfigService.get_language_preference()
 

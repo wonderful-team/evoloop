@@ -2,7 +2,7 @@ import logging
 
 from langchain_openai import ChatOpenAI
 
-from app.domain.system.service import SystemConfigService
+from app.core.system.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 

@@ -23,7 +23,7 @@ from app.domain.tools.memory import (
     save_preference,
     search_concepts,
 )
-from app.infrastructure.filesystem.tool import edit_file, grep_files
+from app.domain.tools.files import edit_file, grep_files
 from app.utils.context import get_context
 
 # ... (Delegate imports removed as they are now in actions)
@@ -202,9 +202,7 @@ async def manage_memory(
     if action == "save_preference":
         if not key or not value:
             return "Error: key/value required."
-        return await save_preference.ainvoke(
-            {"key": key, "value": value}, config=config
-        )
+        return await save_preference.ainvoke({"key": key, "value": value}, config=config)
 
     elif action == "retrieve_preferences":
         return await get_user_preferences.ainvoke({"user_id": user_id}, config=config)

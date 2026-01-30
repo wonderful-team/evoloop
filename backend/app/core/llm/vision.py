@@ -41,7 +41,7 @@ class VisionLLMFactory:
         Create a Vision-capable LLM instance.
         Prioritizes SystemConfig -> Settings.
         """
-        from app.domain.system.service import SystemConfigService
+        from app.core.system import SystemConfigService
 
         # Fetch dynamic config
         db_base_url = SystemConfigService.get_value("LLM_BASE_URL")

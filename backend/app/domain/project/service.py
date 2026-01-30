@@ -3,7 +3,7 @@ import os
 from threading import Lock
 
 from app.core.config import settings
-from app.domain.system.service import SystemConfigService
+from app.core.system import SystemConfigService
 from app.infrastructure.external.evocloud import evocloud_client
 
 logger = logging.getLogger(__name__)

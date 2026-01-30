@@ -12,9 +12,9 @@ from sqlalchemy import desc, select
 
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import Message
+from app.models import Message
 from app.infrastructure.external.evocloud import evocloud_client
-from app.schemas.events import MessageEvent
+from app.models.schemas.events import MessageEvent
 
 
 class DatabaseCallbackHandler(AsyncCallbackHandler):
@@ -345,7 +345,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
                 # Phase 9: Save References
                 if references:
-                    from app.infrastructure.database.sql.models import MessageReference
+                    from app.models import MessageReference
 
                     for ref in references:
                         mr = MessageReference(

@@ -1,5 +1,5 @@
 from app.core.config import settings
-from app.domain.system.service import SystemConfigService
+from app.core.system.service import SystemConfigService
 
 
 class EvolutionConfigService:

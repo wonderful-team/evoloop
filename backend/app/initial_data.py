@@ -18,7 +18,7 @@ def init() -> None:
 
     # Seed System Configuration from Environment/Settings
     # This ensures that on first run, the database is populated with valid defaults
-    from app.domain.system.service import SystemConfigService
+    from app.core.system import SystemConfigService
 
     # 1. PROJECTS_ROOT
     if not SystemConfigService.get_value("PROJECTS_ROOT"):

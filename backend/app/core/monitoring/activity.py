@@ -6,7 +6,7 @@ from typing import Any
 import redis.asyncio as redis
 
 from app.core.config import settings
-from app.schemas.events import AgentStateEvent, ArtifactEvent, StatusEvent, StepEvent
+from app.models.schemas.events import AgentStateEvent, ArtifactEvent, StatusEvent, StepEvent
 
 
 class ActivityMonitor:

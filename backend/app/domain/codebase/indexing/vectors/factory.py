@@ -1,8 +1,8 @@
 from app.core.config import settings
+from app.core.system.service import SystemConfigService
 from app.domain.codebase.indexing.base import BaseEmbedder
 from app.domain.codebase.indexing.vectors.ollama_embedder import OllamaEmbedder
 from app.domain.codebase.indexing.vectors.openai_embedder import GenericOpenAIEmbedder
-from app.domain.system.service import SystemConfigService
 
 
 class EmbedderFactory:

@@ -3,7 +3,7 @@ import platform
 from langchain_core.runnables import RunnableConfig
 
 from app.core.tools.base import get_working_directory
-from app.domain.system.service import SystemConfigService
+from app.core.system import SystemConfigService
 
 
 class PlannerPromptBuilder:

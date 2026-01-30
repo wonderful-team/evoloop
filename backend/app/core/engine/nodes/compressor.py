@@ -44,7 +44,7 @@ async def compress_history_delta(messages: list[BaseMessage], keep_last: int = 1
         conversation_text = conversation_text[:25000] + "\n...[HEAVILY TRUNCATED DUE TO LENGTH]"
 
     # Language Preference
-    from app.domain.system.service import SystemConfigService
+    from app.core.system import SystemConfigService
 
     user_lang = SystemConfigService.get_language_preference()
 

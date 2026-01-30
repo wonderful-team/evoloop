@@ -51,7 +51,7 @@ class TesterNode:
         cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
         project_structure = "Tree not available"
         try:
-            from app.domain.visualizer.tree_generator import AnnotatedTreeGenerator
+            from app.core.context import AnnotatedTreeGenerator
             generator = AnnotatedTreeGenerator(cwd, max_depth=3, with_symbols=False, file_limit=30)
             project_structure = await generator.generate()
         except Exception:

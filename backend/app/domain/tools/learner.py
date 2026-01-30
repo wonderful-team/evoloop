@@ -77,7 +77,7 @@ async def harvest_knowledge():
     llm = LLMFactory.create_llm()
     structured_llm = llm.with_structured_output(ExtractionResult)
 
-    from app.domain.system.service import SystemConfigService
+    from app.core.system import SystemConfigService
 
     user_lang = SystemConfigService.get_language_preference()
 

@@ -4,7 +4,7 @@ import docker
 from docker.errors import NotFound
 
 from app.core.config import settings
-from app.domain.sandbox.base import Sandbox
+from app.core.execution.sandbox.base import Sandbox
 
 logger = logging.getLogger(__name__)
 

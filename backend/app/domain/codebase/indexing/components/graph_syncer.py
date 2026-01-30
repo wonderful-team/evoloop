@@ -3,10 +3,10 @@ GraphSyncer: Handles Neo4j graph database synchronization.
 """
 import logging
 
+from app.core.file.service import is_test_file
 from app.domain.codebase.indexing.components.content_indexer import IndexedContent
 from app.domain.codebase.indexing.components.file_preparer import PreparedFile
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.utils.file import is_test_file
 
 logger = logging.getLogger(__name__)
 

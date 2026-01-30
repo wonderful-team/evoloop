@@ -10,7 +10,7 @@ from app.core.engine.middleware import context_aware
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
-from app.domain.tools.registry import get_tools_by_names
+from app.core.tools.registry import get_tools_by_names
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)

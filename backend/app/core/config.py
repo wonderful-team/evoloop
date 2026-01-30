@@ -214,6 +214,21 @@ class Settings(BaseSettings):
     # Meta-Evolution
     ENABLE_SELF_EVOLUTION: bool = False  # Dangerous! Requires sandbox.
 
+    # --- RAG & Search Tunable Parameters ---
+    DEFAULT_SEARCH_TOP_K: int = 10
+    MAX_SEARCH_DEPTH: int = 3
+    MIN_RELEVANCE_SCORE: float = 0.6
+
+    # Chunking
+    DEFAULT_CHUNK_SIZE: int = 1000
+    MAX_CHUNK_SIZE: int = 4000
+    DEFAULT_CHUNK_OVERLAP: int = 200
+
+    # Memory
+    MAX_SESSION_HISTORY: int = 20
+    MEMORY_RELEVANCE_THRESHOLD: float = 0.75
+    MAX_MEMORY_ITEMS: int = 1000
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def CHECKPOINTER_DATABASE_URI(self) -> str:

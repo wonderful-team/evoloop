@@ -5,8 +5,7 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.db import engine
-from app.domain.codebase.indexing.manager import indexing_manager
-from app.domain.system.service import SystemConfigService
+from app.core.system.service import SystemConfigService
 from app.infrastructure.database.graph.driver import get_graph_db
 
 logger = logging.getLogger(__name__)
@@ -135,12 +134,13 @@ class EmbeddingConfigService:
             # Repo is tied to project_id in SQL models.
             repo = None
             with Session(engine) as session:
-                from app.infrastructure.database.sql.models import Repository
+                from app.models import Repository
                 repo = session.exec(select(Repository).where(Repository.project_id == current_project_id)).first()
 
             if repo:
                 logger.info(f"Triggering re-index for active project {current_project_id} (Repo {repo.id})")
                 # Run in background via manager
+                from app.domain.codebase.indexing.manager import indexing_manager
                 await indexing_manager.run_indexing_background(repo.id)
                 # Note: The route handler should handle the background task dispatch.
                 # This service method prepares the state.

@@ -2,9 +2,9 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user
-from app.domain.system.embedding_config import EmbeddingConfigService
-from app.domain.system.llm_config import LLMConfigService
-from app.domain.system.service import SystemConfigService
+from app.core.system import EmbeddingConfigService
+from app.core.system import LLMConfigService
+from app.core.system import SystemConfigService
 from app.models.config import SystemConfig
 
 router = APIRouter(prefix="/system", tags=["system"])
@@ -31,8 +31,8 @@ def update_system_config(config: SystemConfig) -> SystemConfig:
 @router.get("/evolution-status", dependencies=[Depends(get_current_user)])
 def get_evolution_status():
     from app.core.config import settings
-    from app.domain.system.evolution_config import EvolutionConfigService
-    from app.domain.system.service import SystemConfigService
+    from app.core.system import EvolutionConfigService
+    from app.core.system import SystemConfigService
 
     db_value = SystemConfigService.get_value(EvolutionConfigService.KEY, default="false")
     db_enabled = str(db_value).lower() == "true"

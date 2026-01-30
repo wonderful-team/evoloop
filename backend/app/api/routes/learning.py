@@ -24,7 +24,7 @@ from app.domain.tools.human_input import (
     get_pending_requests_for_thread,
 )
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import (
+from app.models import (
     Conversation,
     LearnedSkill,
     Message,

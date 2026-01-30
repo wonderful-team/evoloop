@@ -5,7 +5,7 @@ from sqlalchemy import select
 from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 from app.domain.codebase.retrieval.rewriter import query_rewriter
 from app.infrastructure.database.sql.database import AsyncSessionLocal
-from app.infrastructure.database.sql.models import CodeChunk, Repository, SourceFile
+from app.models import CodeChunk, Repository, SourceFile
 
 
 class HybridSearcher:
