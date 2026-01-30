@@ -87,7 +87,7 @@ async def planner_node(state: AgentState, config: RunnableConfig):
     # 2. Retrieve Past Episodes (Graph-RAG) - Episodic Memory
     past_episodes = ""
     try:
-        from app.domain.memory.service import memory_service
+        from app.core.memory import memory_manager
 
         # Determine Goal from Context (Last Human Message)
         user_goal = "General planning"
@@ -96,7 +96,7 @@ async def planner_node(state: AgentState, config: RunnableConfig):
                 user_goal = get_message_text(m)
                 break
 
-        past_episodes = await memory_service.find_similar_episodes(user_goal, project_id)
+        past_episodes = await memory_manager.long_term.retrieve_experience(user_goal, project_id)
     except Exception as e:
         logger.warning(f"Failed to retrieve past episodes: {e}")
 

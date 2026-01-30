@@ -5,7 +5,7 @@ from mcp.server.fastmcp import FastMCP
 # Import existing domain tools
 from app.domain.codebase.indexing.tools import index_path
 from app.domain.codebase.retrieval.tools import search_codebase
-from app.domain.memory.service import memory_service
+from app.core.memory import memory_manager
 
 # Expose Facades via MCP
 from app.domain.tools.facades import (
@@ -225,10 +225,8 @@ async def remember_preference(key: str, value: str, description: str = "") -> st
     """
     try:
         # Ensure schema
-        await memory_service.initialize_schema()
-
-        # Assume default user "user_default" for now
-        await memory_service.add_user_preference("user_default", key, value, description)
+        await memory_manager.initialize()
+        await memory_manager.preferences.set_preference("user_default", key, value, description)
         return f"Stored preference: {key}={value}"
     except Exception as e:
         return f"Error: {e}"
@@ -243,8 +241,10 @@ async def remember_concept(name: str, description: str, related_files: list[str]
     if related_files is None:
         related_files = []
     try:
-        await memory_service.initialize_schema()
-        await memory_service.add_concept(name, description, related_files)
+        await memory_manager.initialize()
+        from app.core.memory.interfaces.long_term import Concept
+        concept = Concept(name, description, 0, related_files)
+        await memory_manager.long_term.store_concept(concept)
         return f"Stored concept: {name}"
     except Exception as e:
         return f"Error: {e}"
@@ -256,11 +256,10 @@ async def query_memory(query: str) -> str:
     Search project memory (Concepts and Preferences).
     """
     try:
-        await memory_service.initialize_schema()
-
-        prefs = await memory_service.get_user_preferences("user_default")
-        concepts = await memory_service.search_concepts(query)
-
-        return f"{prefs}\n\n**Relevant Concepts:**\n{concepts}"
+        await memory_manager.initialize()
+        prefs = await memory_manager.preferences.get_merged_preferences("user_default")
+        results = await memory_manager.long_term.search_concepts(query, 0)
+        formatted_results = "\n".join([f"- **{r.name}**: {r.description}" for r in results]) if results else "No concepts found."
+        return f"{prefs}\n\n**Relevant Concepts:**\n{formatted_results}"
     except Exception as e:
         return f"Error: {e}"

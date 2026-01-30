@@ -1,9 +1,11 @@
+"""Pruning strategy for managing conversation context."""
+
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 
 from app.i18n.service import i18n
 
 
-class ContextPruner:
+class SmartPruningStrategy:
     """
     Implements 'Smart Pruning' strategy from OpenCode.
     - Monitors total token count (heuristic).
@@ -12,7 +14,7 @@ class ContextPruner:
     """
 
     # Constants
-    PRUNE_PROTECT_TOKENS = 30000  # Start pruning if history > 30k chars (~7k tokens) - Adjust based on model
+    PRUNE_PROTECT_TOKENS = 30000  # Start pruning if history > 30k chars (~7k tokens)
     MIN_TURNS_TO_KEEP = 2  # Keep last 2 user/assistant turns intact
 
     @staticmethod
@@ -28,7 +30,7 @@ class ContextPruner:
         total_chars = sum(len(m.content) for m in messages)
 
         # If we are safe, just return
-        if total_chars < ContextPruner.PRUNE_PROTECT_TOKENS:
+        if total_chars < SmartPruningStrategy.PRUNE_PROTECT_TOKENS:
             return messages
 
         # Identify protected range (last N turns)
@@ -40,7 +42,7 @@ class ContextPruner:
             msg = messages[i]
             if isinstance(msg, HumanMessage):
                 turns += 1
-            if turns >= ContextPruner.MIN_TURNS_TO_KEEP:
+            if turns >= SmartPruningStrategy.MIN_TURNS_TO_KEEP:
                 protected_index = i
                 break
 
@@ -54,7 +56,6 @@ class ContextPruner:
                     continue
 
                 # Prune it!
-                # But typically we want to return a new list
                 pruned_msg = ToolMessage(
                     content=i18n.get("prompts.memory.pruned_output"),
                     tool_call_id=msg.tool_call_id,
@@ -69,4 +70,5 @@ class ContextPruner:
 
     @staticmethod
     def get_token_usage_proxy(messages: list[BaseMessage]) -> int:
+        """Estimate token usage using character count."""
         return sum(len(str(m.content)) for m in messages) // 4

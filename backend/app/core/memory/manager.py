@@ -1,0 +1,41 @@
+"""Unified Memory Manager facade."""
+
+import logging
+
+from app.core.memory.backends.neo4j_graph import Neo4jGraphNavigator
+from app.core.memory.backends.neo4j_long_term import Neo4jLongTermMemory
+from app.core.memory.backends.neo4j_preferences import Neo4jPreferenceStore
+
+logger = logging.getLogger(__name__)
+
+
+class MemoryManager:
+    """
+    Unified facade for the memory system.
+    Provides a single entry point for all memory operations.
+    """
+
+    def __init__(self):
+        """Initialize memory components."""
+        self.long_term = Neo4jLongTermMemory()
+        self.preferences = Neo4jPreferenceStore()
+        self.graph = Neo4jGraphNavigator()
+        logger.info("MemoryManager: Initialized with Neo4j backends")
+
+    async def initialize(self) -> None:
+        """Initialize all memory components."""
+        await self.long_term.initialize()
+        await self.preferences.initialize()
+        await self.graph.initialize()
+        logger.info("MemoryManager: All components initialized")
+
+    async def flush(self) -> None:
+        """Flush all memory components (for testing)."""
+        await self.long_term.flush()
+        await self.preferences.flush()
+        await self.graph.flush()
+        logger.info("MemoryManager: All components flushed")
+
+
+# Global instance
+memory_manager = MemoryManager()

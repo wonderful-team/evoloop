@@ -58,9 +58,9 @@ class AgentEngine:
 
         # 3.0 Context Pruning (Optional Feature)
         try:
-            from app.core.memory.pruner import ContextPruner
+            from app.core.memory.strategies.pruning import SmartPruningStrategy
 
-            raw_messages = ContextPruner.prune_messages(raw_messages)
+            raw_messages = SmartPruningStrategy.prune_messages(raw_messages)
         except ImportError:
             pass
 

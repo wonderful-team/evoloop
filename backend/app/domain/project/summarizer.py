@@ -8,7 +8,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.celery_app import celery_app
 from app.core.llm.factory import LLMFactory
 from app.domain.codebase.filter import FileFilter
-from app.domain.memory.service import memory_service
+from app.core.memory import memory_manager
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.external.evocloud import evocloud_client
@@ -184,12 +184,9 @@ async def _summarize_project_logic(name: str, path: str):
             c_name = c.get("name")
             c_desc = c.get("description")
             if c_name and c_desc:
-                await memory_service.add_concept(
-                    name=c_name,
-                    description=c_desc,
-                    project_id=project_id,
-                    related_files=[path],
-                )
+                from app.core.memory.interfaces.long_term import Concept
+                concept = Concept(c_name, c_desc, project_id, [path])
+                await memory_manager.long_term.store_concept(concept)
 
         # Done
         await activity_monitor.end_run(sys_tid, "done")

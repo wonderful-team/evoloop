@@ -5,7 +5,7 @@ import random
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.llm.factory import LLMFactory
-from app.domain.memory.service import memory_service
+from app.core.memory import memory_manager
 from app.utils.file import read_file_content
 
 logger = logging.getLogger(__name__)
@@ -72,12 +72,9 @@ class ProjectStandardsAnalyst:
 
             # 4. Save to Memory
             # We treat this as a high-level concept: "Project Standards"
-            await memory_service.add_concept(
-                name="Project Coding Standards",
-                description=standards_report,
-                project_id=project_id,
-                related_files=sample_files,
-            )
+            from app.core.memory.interfaces.long_term import Concept
+            concept = Concept("Project Coding Standards", standards_report, project_id, sample_files)
+            await memory_manager.long_term.store_concept(concept)
 
             # Also save as generic preference?
             # Ideally this feeds into the Coder's system prompt dynamically.

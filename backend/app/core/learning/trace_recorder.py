@@ -6,7 +6,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 from sqlalchemy import select
 
-from app.domain.memory.service import memory_service
+from app.core.memory import memory_manager
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.database.sql.models import TraceEvent
 
@@ -196,21 +196,17 @@ async def sync_thread_to_graph(
             continue
 
     # 3. Store Episode to Graph
-    episode_id = await memory_service.store_episode(
-        goal=final_goal[:2000],
-        result=final_result[:2000] if final_result else "Success",
-        plan_summary=plan_snapshot[:5000],
-        error_msg=error,
-        project_id=project_id,
-    )
+    from app.core.memory.interfaces.long_term import Episode
+    episode = Episode(final_goal[:2000], final_result[:2000] if final_result else "Success", plan_snapshot[:5000], error, project_id)
+    episode_id = await memory_manager.long_term.record_episode(episode)
 
     # 4. Link Episode to Concepts (NEW)
     if concept_names and episode_id:
         try:
-            await memory_service.link_episode_to_concepts(
+            await memory_manager.long_term.link_episode_to_concepts(
                 episode_id=episode_id,
                 concept_names=concept_names,
-                project_id=project_id,
+                project_id=project_id
             )
             logger.info(f"Linked Episode {episode_id} to {len(concept_names)} concepts")
         except Exception as e:

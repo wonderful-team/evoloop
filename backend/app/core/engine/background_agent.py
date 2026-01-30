@@ -137,10 +137,11 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         await activity_monitor.start_run(thread_id)
 
         # Memory Injection
-        from app.domain.memory.service import memory_service
+        from app.core.memory import memory_manager
 
-        user_prefs = await memory_service.get_user_preferences("user_default")
-        concepts_text = await memory_service.search_concepts("", project_id)
+        user_prefs = await memory_manager.preferences.get_merged_preferences("user_default")
+        concepts_text = await memory_manager.long_term.get_project_concepts(project_id)
+        concepts_formatted = "\n".join(concepts_text) if concepts_text else "No concepts stored yet."
         inputs["user_preferences"] = user_prefs
         inputs["project_concepts"] = concepts_text
 

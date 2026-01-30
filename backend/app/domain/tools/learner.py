@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from app.core.llm.factory import LLMFactory
-from app.domain.memory.service import memory_service
+from app.core.memory import memory_manager
 from app.i18n.service import i18n
 from app.logging import get_context, logger
 
@@ -98,12 +98,9 @@ async def harvest_knowledge():
     if result and result.concepts:
         for concept in result.concepts:
             # Add to Neo4j
-            await memory_service.add_concept(
-                name=concept.name,
-                description=concept.description,
-                project_id=project_id,
-                related_files=concept.related_files,
-            )
+            from app.core.memory.interfaces.long_term import Concept as MemConcept
+            mem_concept = MemConcept(concept.name, concept.description, project_id, concept.related_files)
+            await memory_manager.long_term.store_concept(mem_concept)
             saved_count += 1
             response_lines.append(f"- {concept.name}")
 

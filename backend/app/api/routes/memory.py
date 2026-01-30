@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from app.domain.memory.service import memory_service
+from app.core.memory import memory_manager
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +41,7 @@ async def list_concepts(project_id: int):
     Get all concepts for a project (legacy endpoint).
     """
     try:
-        results = await memory_service.search_concepts_data("", project_id)
+        results = await memory_manager.long_term.search_concepts_data("", project_id)
         return results
     except Exception as e:
         logger.warning(f"Failed to list concepts: {e}")
@@ -54,7 +54,7 @@ async def list_concepts_with_counts(project_id: int, limit: int = 50):
     Get all concepts with episode counts.
     """
     try:
-        results = await memory_service.list_concepts(project_id, limit)
+        results = await memory_manager.long_term.list_concepts(project_id, limit)
         return results
     except Exception as e:
         logger.warning(f"Failed to list concepts: {e}")
@@ -67,7 +67,9 @@ async def add_concept(project_id: int, req: ConceptCreate):
     Manually add a concept/memory.
     """
     try:
-        await memory_service.add_concept(req.name, req.description, project_id, req.related_files)
+        from app.core.memory.interfaces.long_term import Concept
+        concept = Concept(req.name, req.description, project_id, req.related_files)
+        await memory_manager.long_term.store_concept(concept)
         return {"status": "success", "name": req.name}
     except Exception as e:
         logger.error(f"Failed to add concept: {e}")
@@ -81,7 +83,7 @@ async def search_memory(project_id: int, q: str):
     """
     if not q:
         return []
-    result = await memory_service.search_concepts_data(q, project_id)
+    result = await memory_manager.long_term.search_concepts_data(q, project_id)
     return result
 
 
@@ -93,7 +95,7 @@ async def get_episodes_by_concept(project_id: int, concept: str, limit: int = 10
     if not concept:
         return []
     try:
-        results = await memory_service.find_episodes_by_concept(concept, project_id, limit)
+        results = await memory_manager.long_term.find_episodes_by_concept(concept, project_id, limit)
         return results
     except Exception as e:
         logger.error(f"Failed to find episodes by concept: {e}")

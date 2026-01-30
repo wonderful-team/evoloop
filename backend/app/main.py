@@ -48,9 +48,9 @@ async def lifespan(_app: FastAPI):
 
     # 2. Graph/Memory Init
     try:
-        from app.domain.memory.service import memory_service
+        from app.core.memory import memory_manager
 
-        await memory_service.initialize_schema()
+        await memory_manager.initialize()
         logger.info("Memory Service schema initialized.")
     except Exception as e:
         logger.warning(f"Failed to initialize Memory Service schema: {e}")

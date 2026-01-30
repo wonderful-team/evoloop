@@ -458,6 +458,7 @@ async def synthesize_skill(body: SynthesizeRequest):
                 tools_used=json.dumps(skill.tools_used),
                 source_thread_id=skill.source_thread_id,
                 source_session_id=skill.source_session_id,
+                is_active=True,
             )
             db.add(db_skill)
             await db.flush()  # Get ID
@@ -470,6 +471,7 @@ async def synthesize_skill(body: SynthesizeRequest):
             }
 
     except Exception as e:
+        logger.exception(f"Skill synthesis failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
 
 
@@ -483,7 +485,7 @@ async def list_skills(active_only: bool = True):
 
         stmt = select(LearnedSkill)
         if active_only:
-            stmt = stmt.where(LearnedSkill.is_active is True)
+            stmt = stmt.where(LearnedSkill.is_active == True)
         stmt = stmt.order_by(LearnedSkill.created_at.desc())
 
         result = await db.execute(stmt)

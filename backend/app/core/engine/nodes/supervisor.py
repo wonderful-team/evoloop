@@ -294,10 +294,12 @@ class SupervisorNode:
         # 2. Get Project Concepts
         project_concepts = ""
         try:
-            from app.domain.memory.service import memory_service
+            from app.core.memory import memory_manager
 
             if last_msg:
-                found = await memory_service.search_concepts(last_msg, project_id)
+                results = await memory_manager.long_term.search_concepts(last_msg, project_id)
+                if results:
+                    found = "\n".join([f"- **{r.name}**: {r.description}" for r in results[:3]])
                 if found and "No relevant concepts" not in found:
                     project_concepts = f"\nRelevant Project Concepts:\n{found}"
         except Exception as e:

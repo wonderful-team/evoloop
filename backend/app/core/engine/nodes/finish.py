@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from app.core.engine.message_utils import get_message_text, smart_window_slice
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
-from app.domain.memory.service import memory_service
+from app.core.memory import memory_manager
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
@@ -145,12 +145,9 @@ Analyze the conversation and respond with the SessionConclusion structure.
     if conclusion.harvested_concepts:
         for concept in conclusion.harvested_concepts:
             try:
-                await memory_service.add_concept(
-                    name=concept.name,
-                    description=concept.description,
-                    project_id=project_id,
-                    related_files=[],
-                )
+                from app.core.memory.interfaces.long_term import Concept as MemConcept
+                mem_concept = MemConcept(concept.name, concept.description, project_id, [])
+                await memory_manager.long_term.store_concept(mem_concept)
                 logger.info(f"Harvested concept: {concept.name}")
             except Exception as e:
                 logger.warning(f"Failed to store concept {concept.name}: {e}")

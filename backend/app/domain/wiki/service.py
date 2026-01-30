@@ -149,7 +149,7 @@ class WikiService:
             return []
 
         from app.core.prompts.wiki_builder import WikiBuilder
-        from app.domain.memory.service import memory_service
+        from app.core.memory import memory_manager
         from langchain_core.messages import HumanMessage
 
         try:
@@ -173,12 +173,9 @@ class WikiService:
             stored_names = []
             if result and result.concepts:
                 for concept in result.concepts[:5]:  # Max 5 concepts per page
-                    await memory_service.add_concept(
-                        name=concept.name,
-                        description=concept.description,
-                        project_id=project_id,
-                        related_files=[],
-                    )
+                    from app.core.memory.interfaces.long_term import Concept as MemConcept
+                    mem_concept = MemConcept(concept.name, concept.description, project_id, [])
+                    await memory_manager.long_term.store_concept(mem_concept)
                     stored_names.append(concept.name)
                     logger.info(f"Wiki Concept Harvested: {concept.name}")
 
