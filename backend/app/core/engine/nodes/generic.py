@@ -6,7 +6,6 @@ from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel
 
 from app.core.engine.message_utils import smart_window_slice
-from app.core.engine.middleware import context_aware
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
@@ -23,12 +22,10 @@ class GenericNodeConfig(BaseModel):
     temperature: float = 0.7
 
 
-@context_aware(inject=["user_preferences"])
 async def generic_node(
     state: AgentState,
     config: RunnableConfig,
     node_config: dict[str, Any] = None,
-    context: dict = None,
 ):
     """
     A Generic LLM Node that behaves according to the injected `node_config`.
@@ -57,7 +54,7 @@ async def generic_node(
     messages = state["messages"]
 
     # Inject user language preference if available
-    user_lang = context.get("user_preferences", "en")
+    user_lang = state.get("user_preferences", "en")
     system_msg = f"{cfg.system_prompt}\n\nUser Language Preference: {user_lang}"
 
     loop_messages = [SystemMessage(content=system_msg)] + smart_window_slice(messages, window_size=10)
@@ -97,13 +94,6 @@ async def generic_node(
                     if tool_name == "update_scratchpad":
                         key = tool_args.get("key")
                         val = tool_args.get("value")
-                        # We return a dict that will be merged by the graph due to Annotated[Dict, operator.ior]
-                        # But wait, generic_node loop runs multiple times.
-                        # We should accumulate updates?
-                        # Or just return them at the end.
-                        # Since 'operator.ior' merges, we can return it immediately if we were yielding.
-                        # But we are returning one dict at the end.
-                        # Let's accumulate.
                         if "scratchpad" not in state_updates:
                             state_updates["scratchpad"] = {}
                         state_updates["scratchpad"][key] = val

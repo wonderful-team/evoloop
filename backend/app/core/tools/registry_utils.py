@@ -148,6 +148,25 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
 
         return tools
 
+    elif node_role == "developer":
+        # Developer: Coder + Tester + Plan/Git/LSP
+        return [
+            read_file,
+            write_file,
+            edit_file,
+            list_files,
+            file_system,
+            consult_lsp,
+            manage_git,
+            manage_memory,
+            consult_architecture,
+            request_approval,
+            create_plan,
+            update_step_status,
+            analyze_feasibility,
+            *common_read,
+        ]
+
     elif node_role == "coder":
         # Coder: Full Write + LSP + Git + Memory + HITL (Phase 18: Atomic Tools)
         return [

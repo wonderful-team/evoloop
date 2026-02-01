@@ -12,9 +12,7 @@ from langchain_core.tools import tool
 
 # Define valid routing targets
 ROUTING_TARGETS = Literal[
-    "planner",
-    "coder",
-    "tester",
+    "developer",
     "deep_researcher",
     "documenter",
     "chat",
@@ -34,9 +32,7 @@ def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) 
     hand off to a specialist. This is the ONLY way to proceed to the next step.
 
     Available targets:
-    - "planner": Task is complex and needs architectural planning before coding
-    - "coder": You have a clear plan and the task is ready for implementation
-    - "tester": User wants to run tests or verify code
+    - "developer": Consolidates planning, coding, and testing. Use this for ANY task involving code modification, bug fixing, or feature implementation.
     - "deep_researcher": Need to search the web or gather more information
     - "documenter": Need to generate documentation, wiki, or README
     - "chat": Need to ask the user clarifying questions (ambiguous request)
@@ -49,9 +45,16 @@ def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) 
         target: The specialist node to route to.
         reason: Brief explanation of why.
         context: Structured context to pass to the specialist (Attention Guidance).
-                 Schema:
-                 - focus_paths: list[str] (Files the specialist MUST look at/edit)
-                 - constraints: list[str] (Specific limitations)
+                 MUST follow this schema for 'developer' target:
+                 {
+                    "ticket_type": "bugfix" | "feature" | "refactor",
+                    "priority": "high" | "normal",
+                    "focus_paths": ["path/to/file.py"],  # CRITICAL: Files you want the dev to read
+                    "acceptance_criteria": [              # CRITICAL: How to verify success
+                        "Login returns 200 OK",
+                        "Error message is displayed"
+                    ]
+                 }
 
     Returns:
         Confirmation message (the actual routing is handled by the system)
@@ -60,7 +63,3 @@ def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) 
     # The actual routing logic is in AgentEngine
     context_str = json.dumps(context, ensure_ascii=False) if context else "{}"
     return f"[ROUTE_SIGNAL] → {target}: {reason} | Context: {context_str}"
-
-
-# Note: Routing tool identification is done by name check in AgentEngine
-# (tc["name"] == "route_to") rather than a marker attribute

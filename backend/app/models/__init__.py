@@ -2,7 +2,7 @@ from sqlmodel import SQLModel
 
 from .codebase import CodeChunk as CodeChunk, CodeEntity as CodeEntity, CodeRelation as CodeRelation, Repository as Repository, SourceFile as SourceFile
 from .config import SystemConfig as SystemConfig
-from .conversation import Conversation as Conversation, HumanRequest as HumanRequest, MessageReference as MessageReference, Message as SQLMessage
+from .conversation import Conversation as Conversation, HumanRequest as HumanRequest, MessageReference as MessageReference, Message as Message
 from .learning import LearnedSkill as LearnedSkill, TraceEvent as TraceEvent
 from .memory import MemoryConcept as MemoryConcept
 from .persistence import (
@@ -26,7 +26,6 @@ __all__ = [
     "Conversation",
     "HumanRequest",
     "MessageReference",
-    "SQLMessage",
     "LearnedSkill",
     "TraceEvent",
     "MemoryConcept",
@@ -45,6 +44,7 @@ __all__ = [
     "TodoStatus",
     "WikiPage",
     "Message",
+    "GenericMessage",
     "Token",
     "TokenPayload",
     "User",
@@ -54,7 +54,7 @@ __all__ = [
 
 
 # Generic message
-class Message(SQLModel):
+class GenericMessage(SQLModel):
     message: str
 
 

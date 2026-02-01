@@ -194,42 +194,7 @@ class SupervisorNode:
         if not last_human_msg:
             return None
 
-        # 1. Intent Classification
-        try:
-            from app.core.engine.intent_classifier import IntentClassifier
-
-            fast_route = await IntentClassifier.classify(last_human_msg)
-            if fast_route:
-                logger.info(f"[Supervisor] ⚡ Fast-Track routing to '{fast_route}'")
-
-                # [FIX] Phase 21: Auto-Populate Handoff Context for Fast Path
-                # Specialized Logic used to map User Message -> Node Context
-                handoff_context = {}
-                scratchpad_update = {}
-
-                if fast_route == "deep_researcher":
-                    # Assume user message is the research topic
-                    handoff_context = {"topic": last_human_msg}
-                elif fast_route == "planner":
-                    # Assume user message is the updated instruction
-                    handoff_context = {"instruction": last_human_msg}
-
-                if handoff_context:
-                    scratchpad_update = {
-                        "handoff_context": handoff_context,
-                        "route_reason": "Fast-Track Intent",
-                    }
-
-                return {
-                    "next_node": fast_route,
-                    "messages": [],
-                    "current_plan": state.get("current_plan"),
-                    "scratchpad": scratchpad_update,  # Inject context
-                }
-        except Exception as e:
-            logger.warning(f"IntentClassifier failed: {e}")
-
-        # 2. Skill Matching
+        # Skill Matching
         if not state.get("skill_execution_attempted"):
             try:
                 # Dynamic import for runtime matching
@@ -305,15 +270,25 @@ class SupervisorNode:
         except Exception as e:
             project_concepts = f"\n(Concept Search Failed: {e})"
 
-        # 3. Get Project Structure
+        # 3. Get Project Structure (With Caching)
         cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
-        project_structure = "Tree not available"
-        try:
-            from app.core.context import AnnotatedTreeGenerator
-            generator = AnnotatedTreeGenerator(cwd, max_depth=3, with_symbols=False, file_limit=30)
-            project_structure = await generator.generate()
-        except Exception as e:
-            project_structure = f"Tree error: {e}"
+        project_context = state.get("project_context") or {}
+        cached_tree = project_context.get("structure")
+        
+        # Check cache validity (could add time-based expiry here if needed)
+        if cached_tree:
+            project_structure = cached_tree
+            logger.info("[Supervisor] 🌳 Cache Hit: Using cached project structure")
+        else:
+            project_structure = "Tree not available"
+            try:
+                from app.core.context import AnnotatedTreeGenerator
+                generator = AnnotatedTreeGenerator(cwd, max_depth=3, with_symbols=False, file_limit=30)
+                project_structure = await generator.generate()
+                # Note: We rely on the return value of this node to update the state with the new structure
+                # The actual state update happens in the return dict below
+            except Exception as e:
+                project_structure = f"Tree error: {e}"
 
         # 4. Build System Info
         user_lang = SystemConfigService.get_language_preference()
@@ -390,13 +365,20 @@ class SupervisorNode:
         # 7. ATTENTION GUIDANCE PROTOCOL (Phase 21)
         protocol_prompt = """
 ### ATTENTION GUIDANCE PROTOCOL (CRITICAL)
-You act as the **SCOUT** for the Coder/Tester. They are blind until you guide them.
-When you call `route_to(target='coder', ...)` or `route_to(target='tester', ...)`:
+You act as the **SCOUT** for the Coder/Tester. They rely on your ticket for context.
+When you call `route_to(target='developer', ...)`:
 1. **Consult the File Tree** above.
 2. Identify 1-3 files that are CRITICAL for the task.
-3. Pass them in the `context` argument: `context={"focus_paths": ["src/main.py", "tests/test_main.py"]}`.
+3. Define how to verify success (Acceptance Criteria).
+4. **Construct the Ticket**:
+   `route_to(target="developer", reason="Implement login", context={
+       "ticket_type": "feature",
+       "priority": "normal",
+       "focus_paths": ["src/main.py"],
+       "acceptance_criteria": ["Login endpoint returns 200", "Token is returned"]
+   })`
 
-**DO NOT** make the Coder guess where the code is. Point to it.
+**DO NOT** make the Coder guess. Point to the file strategies.
 """
 
         sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}{todo_context}\n{protocol_prompt}"
@@ -408,10 +390,13 @@ When you call `route_to(target='coder', ...)` or `route_to(target='tester', ...)
             "sys_info": sys_info,
             "user_lang": user_lang,
             "cwd": cwd,
-            "current_plan": state.get("current_plan", "No plan yet."),
             "active_plan_context": active_plan_context,
             "iteration_count": state.get("iteration_count", 0),
             "last_human_msg": last_msg,  # Pass for ambiguity check
+            "_structure_update": {
+                "structure": project_structure,
+                "structure_updated_at": 0.0 # Placeholder, actual timestamp added in reducer if needed
+            } if not cached_tree else None
         }
 
 

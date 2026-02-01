@@ -1,31 +1,21 @@
-name: "evoloop_primary"
-version: "2.1"
+name: "evoloop_functional"
+version: "3.0"
 state_schema: "app.core.engine.state.AgentState"
 
-# Interrupt configuration (Empty by default to prevent stalls, enable if HITL is needed)
 interrupt_before: []
 
 nodes:
   - id: "supervisor"
     path: "app.core.engine.nodes.supervisor.supervisor_node"
 
-  - id: "coder"
-    path: "app.core.engine.nodes.coder.coder_node"
-  
-  - id: "tester"
-    path: "app.core.engine.nodes.tester.tester_node"
-    
+  - id: "developer"
+    path: "app.core.engine.nodes.developer.developer_node"
+
   - id: "deep_researcher"
     path: "app.core.engine.nodes.deep_researcher.deep_researcher_node"
 
-  - id: "planner"
-    path: "app.core.engine.nodes.planner.planner_node"
-
   - id: "documenter"
     path: "app.core.engine.nodes.documenter.documenter_node"
-
-  - id: "meta_reviewer"
-    path: "app.core.engine.nodes.meta_reviewer.meta_reviewer_node"
 
   - id: "finish"
     path: "app.core.engine.nodes.finish.finish_node"
@@ -33,96 +23,42 @@ nodes:
   - id: "chat"
     path: "app.core.engine.nodes.chat.chat_node"
 
-  # Executor Nodes (for direct platform control)
-  - id: "browser_executor"
-    path: "app.core.engine.nodes.generic.generic_node"
-    config:
-      system_prompt: "You are an expert Browser Automation Agent. You can navigate the web, click elements, and extract data. Execute the user's request using the available tools."
-      tools: ["browse_web"]
-      model: "gpt-4o"
-
-  - id: "computer_executor"
-    path: "app.core.engine.nodes.generic.generic_node"
-    config:
-      system_prompt: "You are an expert Computer Control Agent. You can use the mouse and keyboard to interact with the OS. Execute the request carefully."
-      tools: ["computer_execute"]
-      model: "gpt-4o"
-
-  - id: "mobile_executor"
-    path: "app.core.engine.nodes.generic.generic_node"
-    config:
-      system_prompt: "You are an expert Mobile Automation Agent. You can control a mobile device/emulator."
-      tools: ["control_mobile"]
-      model: "gpt-4o"
-
 edges:
-  # 1. Supervisor (Main Entry Point) - Routes to all nodes
+  # 1. Supervisor (Router)
   - from: "supervisor"
     type: "conditional"
     router: "app.core.engine.routers.route_supervisor"
     map:
-      coder: "coder"
-      planner: "planner"
+      developer: "developer"
       deep_researcher: "deep_researcher"
       documenter: "documenter"
-
       chat: "chat"
-      browser_executor: "browser_executor"
-      computer_executor: "computer_executor"
-      mobile_executor: "mobile_executor"
       supervisor: "supervisor"
       finish: "finish"
 
-  # 2. Chat -> END
-  - from: "chat"
-    to: "END"
-    type: "simple"
-  
-  # 3. Executors -> Supervisor (Return path)
-  - from: "browser_executor"
-    to: "supervisor"
-    type: "simple"
-  - from: "computer_executor"
-    to: "supervisor"
-    type: "simple"
-  - from: "mobile_executor"
+  # 2. Developer Loop (Self-Correcting)
+  # Developer node handles its own loops via max_steps.
+  # When it returns, it yields control back to Supervisor.
+  - from: "developer"
     to: "supervisor"
     type: "simple"
 
-  # 4. Deep Researcher (Loop)
+  # 3. Researcher
   - from: "deep_researcher"
-    type: "conditional"
-    router: "app.core.engine.routers.route_by_next_node_field"
-    map:
-      deep_researcher: "deep_researcher"
-      supervisor: "supervisor"
-
-  # 5. Coder -> Tester
-  - from: "coder"
-    to: "tester"
+    to: "supervisor"
     type: "simple"
 
-  # 6. Tester
-  - from: "tester"
-    type: "conditional"
-    router: "app.core.engine.routers.route_tester"
-    map:
-      supervisor: "supervisor"
-      coder: "coder"
-      meta_reviewer: "meta_reviewer"
-
-  # 7. Documenter & MetaReviewer -> Supervisor
+  # 4. Documenter
   - from: "documenter"
     to: "supervisor"
     type: "simple"
-  - from: "meta_reviewer"
-    to: "supervisor"
-    type: "simple"
-  - from: "planner"
-    to: "supervisor"
+
+  # 5. Chat -> End
+  - from: "chat"
+    to: "END"
     type: "simple"
 
-  # 8. Finish
+  # 6. Finish -> End
   - from: "finish"
     to: "END"
     type: "simple"

@@ -25,12 +25,7 @@ class VueSemanticProvider(LanguageSemanticProvider):
         return """
         ; Vue script content
         (script_element
-          (text) @script.content
-        )
-
-        ; Vue template content
-        (template_element
-          (text) @template.content
+          (raw_text) @script.content
         )
 
         ; Components (PascalCase only)

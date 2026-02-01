@@ -5,6 +5,14 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
 
+class ProjectContext(TypedDict):
+    """
+    Shared project context cache to reduce redundant IO.
+    """
+    structure: str | None
+    structure_updated_at: float | None  # Timestamp
+    
+    
 class RetrievalContext(TypedDict):
     repo_id: int
     files: list[str]  # Paths
@@ -38,6 +46,9 @@ class AgentState(TypedDict):
 
     # Context retrieved by Researcher
     context: RetrievalContext | None
+    
+    # [NEW] Shared Project Context Cache
+    project_context: ProjectContext | None
 
     # Code generated (diff or content)
     generated_code: str | None

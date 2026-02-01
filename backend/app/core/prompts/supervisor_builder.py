@@ -52,20 +52,17 @@ You do NOT write application code yourself.
 You MUST call `route_to` when you are ready to proceed. This is the ONLY way to move forward.
 
 Available targets for route_to:
-- "planner": Task is complex, needs architectural planning BEFORE coding
-- "coder": You have a clear plan or the task is simple enough to implement directly
-- "tester": User wants to run tests or verify code
-- "deep_researcher": Need to search the web or gather more information
-- "documenter": Need to generate documentation, wiki, or README
-- "chat": Request is AMBIGUOUS - need to ask user clarifying questions
-- "finish": Task is COMPLETE or question has been fully answered
+- "developer": The primary worker. Use this for ANY technical task including architecture, coding, bug fixing, and testing. It handles the "Write-Test-Fix" inner loop.
+- "deep_researcher": Need to search the web or gather more information.
+- "documenter": Need to generate documentation, wiki, or README.
+- "chat": Request is AMBIGUOUS - need to ask user clarifying questions.
+- "finish": Task is COMPLETE or question has been fully answered.
 
 ## Decision Guidelines
 - If request is vague (e.g., "Build an app") → route_to("chat") to ask clarifying questions
-- If request is complex but clear → route_to("planner") for architecture planning
-- If you have a plan or task is simple → route_to("coder") for implementation
-- If user asks a question and you answered it → route_to("finish")
+- If request is technical (coding, refactoring, testing, bug fixing) → route_to("developer")
 - If you need more information from internet → route_to("deep_researcher")
+- If user asks a question and you answered it → route_to("finish")
 {plan_status_section}
 {visited_nodes_warning}
 {self._build_ambiguity_warning()}
@@ -73,12 +70,11 @@ Available targets for route_to:
 {self.active_plan_context}
 
 ## Important Rules
-## Important Rules
 - **You do NOT have permission to write ANY files (code or text).**
 - For documentation (.md, .txt), route to "documenter".
-- For code (.py, .ts), route to "coder".
+- For code and technical tasks, route to "developer".
 - DO NOT hallucinate the tool `write_file`. You do NOT have it.
-- Always use `route_to` - never just end with text when a handoff is needed
+- Always use `route_to` - never just end with text when a handoff is needed.
 
 ## System Info
 Project ID: {self.project_id}
@@ -114,14 +110,14 @@ Communicate in this language.
         plan_approved = scratchpad.get("plan_approved", False)
 
         if plan_approved:
-            # Plan already approved - proceed to coder
+            # Plan already approved - proceed to developer
             return f"""
 ## 📋 PLAN APPROVED ✅
 **Title**: {title}
 **Steps**:
 {step_summary}
 
-**IMPORTANT**: The user has approved this plan. Route to "coder" for implementation.
+**IMPORTANT**: The user has approved this plan. Route to "developer" for implementation.
 """
         else:
             # Plan exists but not yet approved - ask user first
@@ -132,13 +128,12 @@ Communicate in this language.
 {step_summary}
 
 **CRITICAL**: This plan has NOT been approved by the user yet.
-- Do NOT route to "planner" (plan already exists)
-- Do NOT route to "coder" (user must approve first)
+- Do NOT route to "developer" until approval is received.
 - **You MUST use the `request_approval` tool to ask for user confirmation.**
   - action_description: "Approve Implementation Plan"
   - risk_level: "high"
   - details: "Plan Title: {title}"
-  - consequences: "Will proceed to Coder for implementation immediately after approval."
+  - consequences: "Will proceed to Developer for implementation immediately after approval."
 
 Only after the tool returns "Approved", can you route to different nodes.
 """
@@ -159,10 +154,8 @@ Only after the tool returns "Approved", can you route to different nodes.
             warning += f"- Nodes visited this session: {', '.join(visited)}\n"
         warning += """- **Do NOT route to the same node repeatedly.** If stuck, route to 'chat' to ask user for guidance.
 - **CRITICAL**: DO NOT hallucinate tool names.
-  - ❌ `route_to_coder` (INVALID)
-  - ❌ `route_to_planner` (INVALID)
-  - ✅ `route_to(target="coder")` (CORRECT)
-  - ✅ `route_to(target="planner")` (CORRECT)
+  - ✅ `route_to(target="developer")` (CORRECT)
+  - ✅ `route_to(target="documenter")` (CORRECT)
 """
         return warning
 

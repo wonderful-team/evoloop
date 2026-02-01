@@ -23,7 +23,9 @@ class GraphSyncer:
         self,
         prepared: PreparedFile,
         indexed: IndexedContent,
-        file_line_count: int
+        file_line_count: int,
+        source_file_pg_id: int,
+        entity_pg_ids: dict[str, int]
     ):
         """
         Sync file and its entities to Neo4j.
@@ -37,12 +39,13 @@ class GraphSyncer:
                 await n4j.run(
                     """
                     MERGE (f:File {path: $path, project_id: $pid})
-                    SET f.lines = $lines, f.is_test = $is_test, f.updated_at = timestamp()
+                    SET f.lines = $lines, f.is_test = $is_test, f.updated_at = timestamp(), f.pg_id = $pg_id
                 """,
                     path=prepared.rel_path,
                     pid=project_id,
                     lines=file_line_count,
                     is_test=is_test_file(prepared.file_path),
+                    pg_id=source_file_pg_id,
                 )
 
                 # Sync Entities
@@ -50,7 +53,7 @@ class GraphSyncer:
                     await n4j.run(
                         """
                         MERGE (e:CodeEntity {full_name: $fname, project_id: $pid})
-                        SET e.name = $name, e.type = $type, e.start_line = $start, e.end_line = $end
+                        SET e.name = $name, e.type = $type, e.start_line = $start, e.end_line = $end, e.pg_id = $pg_id
                         WITH e
                         MATCH (f:File {path: $fpath, project_id: $pid})
                         MERGE (f)-[:CONTAINS]->(e)
@@ -62,6 +65,7 @@ class GraphSyncer:
                         start=ent.start_line,
                         end=ent.end_line,
                         fpath=prepared.rel_path,
+                        pg_id=entity_pg_ids.get(ent.full_name),
                     )
 
                 # Sync Relations

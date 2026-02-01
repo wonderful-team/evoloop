@@ -1,3 +1,8 @@
+"""
+Routers - Functional Architecture (v3.0)
+
+Simplified routing logic that supports the flattened graph topology.
+"""
 import logging
 from collections.abc import Callable
 
@@ -8,29 +13,21 @@ from app.core.engine.state import AgentState
 logger = logging.getLogger(__name__)
 
 
-def route_supervisor(state: AgentState):
+def route_supervisor(state: AgentState) -> str | list[Send]:
     """
     Decides the next node after Supervisor.
-    Supports parallel research dispatch via Send().
     """
-    next_node = state["next_node"]
+    next_node = state.get("next_node")
 
-    # [HITL Hardening] Phase 5: Intercept Unapproved Plans
-    # If Supervisor tries to skip approval, we FORCE it back.
-    if next_node == "coder":
-        plan = state.get("structured_plan")
-        scratchpad = state.get("scratchpad", {})
-        # Check if plan implies it needs approval (has title/steps) and is NOT approved
-        if isinstance(plan, dict) and plan.get("steps") and not scratchpad.get("plan_approved"):
-            # Hard Stop: Bounce back to Supervisor
-            # The Supervisor will see the "AWAITING APPROVAL" prompt context and retry correctly.
-            # Loop detection in prompt builder will prevent infinite spinning.
-            return "supervisor"
+    # [Compatibility] Remap legacy targets if LLM hallucinates
+    if next_node in ["coder", "tester", "planner"]:
+        logger.info(f"[Router] Remapping legacy routing '{next_node}' -> 'developer'")
+        return "developer"
 
+    # Parallel Research
     if next_node == "map_research":
         tasks = state.get("parallel_research_tasks", [])
         project_id = state.get("project_id", 1)
-        # Pass full context needed for research
         return [Send("deep_researcher", {
             "research_topic": topic,
             "project_id": project_id,
@@ -39,43 +36,24 @@ def route_supervisor(state: AgentState):
     if next_node == "finish":
         return "finish"
 
-    return next_node
-
-
-def route_tester(state: AgentState):
-    """
-    Decides next node based on test results (Pass/Fail) and retry count.
-    """
-    if state.get("test_results") == "PASS":
-        return "supervisor"  # Let supervisor decide if we are done
-    else:
-        # Simple retry logic: if fail, go back to coder
-        # In V3 advanced, we might go back to researcher or supervisor
-        if state.get("iteration_count", 0) > 3:
-            return "meta_reviewer"  # Intervention!
-        return "coder"
+    # Valid functional nodes: developer, deep_researcher, documenter, etc.
+    return next_node or "finish"
 
 
 def route_by_next_node_field(state: AgentState):
     """
     Generic router that simply returns state["next_node"].
-    Used by 'router', 'deep_researcher', etc.
     """
-    return state["next_node"]
+    return state.get("next_node", "supervisor")
 
 
 def make_expression_router(conditions: list[dict[str, str]], default: str) -> Callable[[AgentState], str]:
     """
     Factory that creates a router function based on a list of expression conditions.
-
-    Args:
-        conditions: List of dicts, e.g. [{"expr": "state['scratchpad']['score'] > 5", "to": "finish"}]
-        default: Fallback node if no conditions match.
     """
 
     def expression_router(state: AgentState) -> str:
         # Prepare evaluation context
-        # We provide 'state' and 'scratchpad' for convenience
         scratchpad = state.get("scratchpad", {})
         eval_context = {
             "state": state,
@@ -91,8 +69,7 @@ def make_expression_router(conditions: list[dict[str, str]], default: str) -> Ca
             to_node = case.get("to")
 
             try:
-                # Basic safety: Ensure expression is reasonably short and doesn't contain unsafe keywords
-                # Note: This is NOT a secure sandbox. Do not run untrusted configs.
+                # Basic safety
                 if "import" in expr or "__" in expr:
                     logger.warning(f"Unsafe expression detected and skipped: {expr}")
                     continue

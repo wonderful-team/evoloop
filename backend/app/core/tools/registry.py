@@ -47,26 +47,12 @@ def get_tools_by_names(names: list[str]) -> list[BaseTool]:
     return selected_tools
 
 
-def get_coder_tools() -> list[BaseTool]:
+def get_developer_tools() -> list[BaseTool]:
     """
-    Return standard tools for the Coder agent.
+    Return standard tools for the Developer agent.
     """
-    # Phase 18: Using atomic file tools instead of manage_file
-    tool_names = [
-        "consult_architecture",
-        "read_file",
-        "write_file",
-        "edit_file",
-        "list_files",
-        "file_system",
-        "explore_codebase",
-        "manage_git",
-        "manage_memory",
-        "consult_lsp",
-        "run_command",
-        "query_graph_natural_language",
-    ]
-    return get_tools_by_names(tool_names) + mcp_client_manager.get_tools()
+    from app.core.tools.registry_utils import get_node_tools
+    return get_node_tools("developer") + mcp_client_manager.get_tools()
 
 
 def get_supervisor_tools() -> list[BaseTool]:
