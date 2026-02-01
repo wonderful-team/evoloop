@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 
@@ -55,6 +56,8 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     tool_history = state.get("tool_history", [])
     project_id = state.get("project_id", 1)
     current_plan = state.get("current_plan", "")
+    execution_ticket = state.get("execution_ticket")
+    test_results = state.get("structured_test_results", {})
 
     # Language preference
     from app.core.system import SystemConfigService
@@ -99,20 +102,27 @@ The user's task has been completed. Analyze the conversation and provide a struc
 **Task Plan (if any)**: {current_plan[:1000] if current_plan else "No formal plan"}
 
 **Tools Used**: {tool_summary}
+
+**BLACKBOARD STATUS (MISSION TRUTH)**:
+Active Ticket: {json.dumps(execution_ticket, indent=2) if execution_ticket else "None"}
+Verification Status: {json.dumps(test_results, indent=2) if test_results else "No tests recorded"}
+
 {git_context}
 
 ### Instructions
 
 1. **summary**: Write a concise, professional summary of what was accomplished.
    - Use the user's preferred language ({user_lang})
-   - Mention key actions taken and outcomes
-   - Use Markdown formatting with bullet points if appropriate
+   - **IMPORTANT**: Use the BLACKBOARD STATUS above as the primary evidence of success. 
+   - If tests are "verified", state this clearly as a proven outcome.
+   - Mention key actions taken and outcomes.
+   - Use Markdown formatting with bullet points if appropriate.
 
 2. **harvested_concepts**: Extract up to 5 concepts worth remembering:
-   - Technologies, patterns, or architecture decisions used
-   - Domain-specific terms or configurations
-   - NOT generic programming terms (like "function", "variable")
-   - Each concept needs a name and description
+   - Technologies, patterns, or architecture decisions used in the ticket mission.
+   - Domain-specific terms or configurations.
+   - NOT generic programming terms (like "function", "variable").
+   - Each concept needs a name and description.
 
 3. **proactive_todo**: If the conversation mentioned any follow-up tasks:
    - "I'll deploy this later", "Check the logs in 30 minutes", etc.

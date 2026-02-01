@@ -45,15 +45,27 @@ def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) 
         target: The specialist node to route to.
         reason: Brief explanation of why.
         context: Structured context to pass to the specialist (Attention Guidance).
-                 MUST follow this schema for 'developer' target:
+                 MUST follow the appropriate schema for the target.
+
+                 **For 'developer'**:
                  {
-                    "ticket_type": "bugfix" | "feature" | "refactor",
-                    "priority": "high" | "normal",
-                    "focus_paths": ["path/to/file.py"],  # CRITICAL: Files you want the dev to read
-                    "acceptance_criteria": [              # CRITICAL: How to verify success
-                        "Login returns 200 OK",
-                        "Error message is displayed"
-                    ]
+                    "ticket_type": "bugfix" | "feature",
+                    "focus_paths": ["src/app.py"],
+                    "acceptance_criteria": ["Test pass"]
+                 }
+
+                 **For 'deep_researcher'**:
+                 {
+                    "ticket_type": "research",
+                    "topic": "How to use Redis with LangGraph",
+                    "acceptance_criteria": ["Detailed report with code examples"]
+                 }
+
+                 **For 'documenter'**:
+                 {
+                    "ticket_type": "documentation",
+                    "focus_paths": ["src/api/"],
+                    "acceptance_criteria": ["README updated"]
                  }
 
     Returns:

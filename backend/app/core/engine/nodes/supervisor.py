@@ -58,6 +58,14 @@ class SupervisorNode:
             logger.warning("[Supervisor] No messages found in state. Exiting.")
             return {"next_node": "finish"}
 
+        # Phase 0: Ticket Cleanup (Blackboard Lifecycle)
+        # We ensure any stale ticket from a previous specialist run is cleared
+        # so it doesn't pollute the Supervisor's prompt or next routing.
+        cleanup_state = {}
+        if state.get("execution_ticket"):
+            logger.info("[Supervisor] 🧹 Clearing stale ExecutionTicket")
+            cleanup_state["execution_ticket"] = None
+
         # Emit initial status
         await self._emit_status(config, i18n.get("prompts.supervisor.status_analyzing"))
 
@@ -116,20 +124,39 @@ class SupervisorNode:
 
             # Phase 21: Extract Context Handoff
             routing_reason = engine_result.get("_routing_reason", "")
-            routing_context = engine_result.get("_routing_context", {})  # <--- NEW: Capture context
+            routing_context = engine_result.get("_routing_context", {})
+
+            # [NEW] Phase 8/9: Universal Blackboard Ticket Population
+            execution_ticket = None
+            specialists = ["developer", "deep_researcher", "documenter"]
+            
+            if routing_target in specialists:
+                execution_ticket = {
+                    "ticket_type": routing_context.get("ticket_type", "task"),
+                    "priority": routing_context.get("priority", "normal"),
+                    "focus_paths": routing_context.get("focus_paths", []),
+                    "topic": routing_context.get("topic") or routing_context.get("query"),
+                    "acceptance_criteria": routing_context.get("acceptance_criteria", []),
+                    "constraints": routing_context.get("constraints", []),
+                    "expected_outcomes": routing_context.get("expected_outcomes", []),
+                    "parameters": routing_context.get("parameters", {}),
+                }
 
             return {
+                **cleanup_state, # Clear old ticket first
                 "messages": engine_result.get("messages", []),
                 "next_node": routing_target,
                 "current_plan": state.get("current_plan"),
-                "structured_plan": state.get("structured_plan"),  # Propagate plan for prompt builder
+                "structured_plan": state.get("structured_plan"),
+                "execution_ticket": execution_ticket,  # <--- NEW (Overwrites cleanup if present)
                 "scratchpad": {
                     **existing_scratchpad,
                     "last_supervisor_route": routing_target,
                     "route_reason": routing_reason,
-                    "handoff_context": routing_context,  # <--- NEW: Persist context
+                    "handoff_context": routing_context,
                     "visited_nodes": visited_nodes,
                 },
+                "project_context": state.get("project_context") or context.get("_structure_update") # Persist cache
             }
 
         # Phase 5: Fallback - LLM did not call route_to
@@ -144,6 +171,7 @@ class SupervisorNode:
                     "messages": new_messages,
                     "next_node": "finish",
                     "current_plan": state.get("current_plan"),
+                    **cleanup_state
                 }
 
         # Ultimate fallback: default to deep_researcher
@@ -152,6 +180,7 @@ class SupervisorNode:
             "messages": new_messages,
             "next_node": "deep_researcher",
             "current_plan": state.get("current_plan"),
+            **cleanup_state
         }
 
     async def _emit_status(self, config: RunnableConfig, status: str):

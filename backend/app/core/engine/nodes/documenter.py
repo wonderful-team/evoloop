@@ -25,14 +25,28 @@ logger = logging.getLogger(__name__)
 # Or we can just include the "Deep Research" loop inside here if we want tighter control.
 # For now, let's make it a high-level orchestrator.
 
-
 async def documenter_node(state: AgentState, config: RunnableConfig):
     """
     Documenter Agent:
     Phase 1: Analyzes project structure -> Generates Plan -> Requests Approval.
     Phase 2: Resumes -> Checks Approval -> Generates Content.
     """
-    # Check for pending plan in hitl_state
+    execution_ticket = state.get("execution_ticket")
+    scratchpad = state.get("scratchpad", {})
+    route_reason = scratchpad.get("route_reason")
+    
+    # 0. Blackboard Isolation (v3.2)
+    if execution_ticket:
+        logger.info("[Documenter] 🎫 Ticket Match - Enabling Blackboard Isolation")
+        focus_paths = execution_ticket.get("focus_paths", [])
+        criteria = "\n".join([f"- {c}" for c in execution_ticket.get("acceptance_criteria", [])])
+        
+        isolated_msg = f"### DOCUMENTATION MISSION\nGoal: {route_reason or 'Generate Docs'}\n\nFocus Files:\n{', '.join(focus_paths)}\n\nAcceptance Criteria:\n{criteria}\n\nPlease proceed with documentation plan."
+        messages = [HumanMessage(content=isolated_msg)]
+    else:
+        messages = list(state.get("messages", []))
+
+    # 1. Check for pending plan in hitl_state
     hitl = state.get("hitl_state")
     pending_plan_json = hitl.get("context", {}).get("wiki_plan") if hitl else None
 
@@ -170,11 +184,15 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
         # Builder handles language injection internally now
         prompt_content = DocumenterPromptBuilder.build_file_structure_prompt(tree_output)
 
-        msgs = [HumanMessage(content=prompt_content)]
+        # [NEW] Blackboard standard: Start with isolated messages if available, else empty or prev history
+        msgs = list(messages) if messages else []
+        msgs.append(HumanMessage(content=prompt_content))
 
         # [FIX] Phase 21: Context Handoff (Cure Blindness)
+        # We've already handled isolation at the top, but focus_paths injection is still useful.
         scratchpad = state.get("scratchpad", {})
         handoff = scratchpad.get("handoff_context", {})
+        # ... (rest of old code)
 
         if isinstance(handoff, str):
             try:

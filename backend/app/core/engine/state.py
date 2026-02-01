@@ -11,6 +11,25 @@ class ProjectContext(TypedDict):
     """
     structure: str | None
     structure_updated_at: float | None  # Timestamp
+
+
+class ExecutionTicket(TypedDict):
+    """
+    Structured mission ticket for any Specialist Node.
+    """
+    ticket_type: str  # e.g., "bugfix", "web_research", "wiki_update"
+    priority: str
+    acceptance_criteria: list[str]
+    
+    # Target-specific context
+    focus_paths: list[str] | None  # Primary for Developer/Documenter
+    topic: str | None              # Primary for Researcher
+    
+    # Catch-all for specialized parameters
+    parameters: dict[str, Any] | None 
+    
+    constraints: list[str] | None
+    expected_outcomes: list[str] | None
     
     
 class RetrievalContext(TypedDict):
@@ -53,8 +72,10 @@ class AgentState(TypedDict):
     # Code generated (diff or content)
     generated_code: str | None
 
-    # Test Reuslts
-    test_results: str | None
+    # [NEW] Structured Execution & Verification
+    execution_ticket: ExecutionTicket | None
+    test_results: str | None  # RAW logs (kept for backward compatibility)
+    structured_test_results: dict[str, Any] | None  # Aggregated counters, pass/fail status
 
     # Loop Control
     iteration_count: int

@@ -1,6 +1,6 @@
 import logging
 
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
@@ -34,29 +34,32 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
     # Pass specific tools to engine
     engine = DeepResearchEngine(llm, tools=tools)
 
-    messages = state.get("messages", [])
-
-    # Initialize state variables if missing
     topic = state.get("research_topic", "")
-
-    # [FIX] Phase 21: Context Handoff from Supervisor
-    # Supervisor puts context in scratchpad['handoff_context'], but we need it locally.
-    if not topic:
-        scratchpad = state.get("scratchpad", {})
-        handoff = scratchpad.get("handoff_context", {})
-
-        if isinstance(handoff, str):
-            try:
-                import json
-                handoff = json.loads(handoff)
-            except Exception:
-                handoff = {}
-
-        # Try common keys
-        topic = handoff.get("topic") or handoff.get("research_topic") or handoff.get("query") or ""
-
-        if topic:
-            logger.info(f"[DeepResearcher] 🔗 Context Handoff: Found topic '{topic}' in scratchpad.")
+    execution_ticket = state.get("execution_ticket")
+    
+    # 1. Blackboard Context Handoff (v3.2)
+    if execution_ticket:
+        logger.info("[DeepResearcher] 🎫 Ticket Match - Enabling Blackboard Isolation")
+        topic = execution_ticket.get("topic") or execution_ticket.get("parameters", {}).get("topic")
+        
+        # Isolation: prune history
+        criteria = "\n".join([f"- {c}" for c in execution_ticket.get("acceptance_criteria", [])])
+        isolated_msg = f"### RESEARCH MISSION\nTopic: {topic}\n\nAcceptance Criteria:\n{criteria}\n\nPlease proceed with deep research."
+        messages = [HumanMessage(content=isolated_msg)]
+    else:
+        # Fallback to legacy context handoff
+        messages = list(state.get("messages", []))
+        if not topic:
+            scratchpad = state.get("scratchpad", {})
+            handoff = scratchpad.get("handoff_context", {})
+            # ... (rest of old logic for compatibility)
+            if isinstance(handoff, str):
+                try:
+                    import json
+                    handoff = json.loads(handoff)
+                except Exception:
+                    handoff = {}
+            topic = handoff.get("topic") or handoff.get("research_topic") or handoff.get("query") or ""
 
     max_iter = state.get("max_research_iterations", settings.RESEARCH_MAX_ITERATIONS)
 

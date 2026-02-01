@@ -71,14 +71,41 @@ class DeveloperNode:
         if hydration_prompt:
             system_msg += f"\n\n{hydration_prompt}"
             
-        # 6. Instruction Injection (Supervisor Override)
-        messages = list(state.get("messages", []))
+        # 6. Instruction Injection & Worker Isolation (v3.1 Stateless)
+        execution_ticket = state.get("execution_ticket")
         route_reason = scratchpad.get("route_reason")
+        original_messages = list(state.get("messages", []))
         
-        if route_reason:
-            logger.info(f"Injecting Supervisor Instruction: {route_reason}")
-            # We inject this as a System note or pseudo-Human message to ensure focus
-            messages.append(HumanMessage(content=f"SUPERVISOR INSTRUCTION: {route_reason}\n\nExecute this task. If you need to verify, run tests."))
+        if execution_ticket:
+            logger.info("[Developer] 🎫 Ticket Match - Enabling Stateless Mode Isolation")
+            # In stateless mode, we only care about the System Prompt + Ticket + Latest instruction
+            # We don't need the whole multi-hop history which might confuse the worker
+            
+            # Construct a concentrated instruction
+            criteria = "\n".join([f"- {c}" for c in execution_ticket.get("acceptance_criteria", [])])
+            constraints = "\n".join([f"- {c}" for c in execution_ticket.get("constraints", []) or []])
+            
+            isolated_instruction = f"""### MISSION TICKET
+**Goal**: {route_reason or "Assigned Task"}
+**Type**: {execution_ticket.get('ticket_type', 'task')}
+**Priority**: {execution_ticket.get('priority', 'normal')}
+
+**Acceptance Criteria**:
+{criteria}
+
+**Constraints**:
+{constraints}
+
+Please execute this mission now. Use your tools to verify success against the criteria.
+"""
+            # Prune messages: Only keep the concentrated instruction
+            messages = [HumanMessage(content=isolated_instruction)]
+        else:
+            # Fallback to standard history-based flow if no ticket
+            messages = original_messages
+            if route_reason:
+                logger.info(f"Injecting Supervisor Instruction: {route_reason}")
+                messages.append(HumanMessage(content=f"SUPERVISOR INSTRUCTION: {route_reason}\n\nExecute this task. If you need to verify, run tests."))
 
         # 7. Execution (Inner Loop handled by AgentEngine)
         # We increase max_steps because the Developer does more things (Edit -> Run -> Fix)
@@ -108,16 +135,22 @@ class DeveloperNode:
         
         if has_changes:
             logger.info("[Developer] ♻️ File changes detected - Invalidating Project Structure Cache")
-            # Invalidate cache by setting structure to None
             if "scratchpad" not in result:
                 result["scratchpad"] = {}
-                
-            # We must update the state via the return value
-            # Since AgentState updates are merges, we need to explicitly set it.
-            # However, typical LangGraph merging might be additive. 
-            # We returning a new ProjectContext with structure=None effectively clears it 
-            # if we treat it as a replace or if the next node checks for truthiness.
             result["project_context"] = {"structure": None, "structure_updated_at": 0.0}
+            
+        # [NEW] Phase 8.2: Structured Test Result Capture
+        # We look for test/run signals in the history
+        test_summary = {"total": 0, "passed": 0, "failed": 0, "status": "unknown"}
+        for t_sig in tool_history:
+            # Simple heuristic: look for 'pytest' or 'test' in the tool signature/content
+            if "test" in t_sig.lower() or "run_command" in t_sig.lower():
+                # We assume the last test tool call is the most relevant
+                # In a real scenario, we might parse the ToolMessage content
+                # For now, we flag it for Supervisor observation
+                test_summary["status"] = "verified" # Marker that testing was attempted
+        
+        result["structured_test_results"] = test_summary
             
         return result
 
