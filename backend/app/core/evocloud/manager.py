@@ -95,11 +95,16 @@ class EvoCloudManager:
         return self.api.get_token() if self.api else None
 
     # Chat Sync (Agent.py support)
-    async def upload_log(self, device_id: int, thread_id: str, log_type: str, content: Any, command_id=None, project_id=None):
-        if not self.api: return # Fail silently or raise?
-        # Only upload if we have an authenticated user/device? 
-        # API backend handles checks.
-        await self.api.upload_log(device_id, thread_id, log_type, content, command_id, project_id)
+    async def upload_log(self, thread_id: str, log_type: str, content: Any, device_id: int | None = None, command_id=None, project_id=None):
+        if not self.api: return
+        
+        # Auto-fill device_id if not provided
+        target_device_id = device_id or self.device_id
+        if not target_device_id:
+            logger.debug("Skipping upload_log: No device_id available")
+            return
+
+        await self.api.upload_log(target_device_id, thread_id, log_type, content, command_id, project_id)
 
     @property
     def device_id(self) -> int | None:
