@@ -3,7 +3,7 @@ import logging
 
 from langchain_core.tools import tool
 
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 from app.logging import get_context
 
 logger = logging.getLogger(__name__)
@@ -34,7 +34,7 @@ async def create_project_task(project_id: int | None = None, task_data: str = ""
         task_dict["project_id"] = pid
 
         # Call EvoCloud Client (Business Logic) - Async
-        response = await evocloud_client.create_task(data=task_dict)
+        response = await evocloud_manager.api.create_task(data=task_dict)
 
         if response.get("code") == 0:
             return f"Success: Task created with ID {response.get('data', {}).get('task_id')}"

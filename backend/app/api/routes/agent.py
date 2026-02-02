@@ -24,7 +24,7 @@ from app.models import (
     Message,
     MessageReference,
 )
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 from app.utils.context import set_context
 
 logger = logging.getLogger(__name__)
@@ -161,7 +161,7 @@ async def chat_endpoint(
 
             # 4.5 Sync to EvoCloud (Device Logs)
             try:
-                await evocloud_client.upload_log(
+                await evocloud_manager.upload_log(
                     thread_id=req.thread_id,
                     log_type="input",
                     content=req.message,
@@ -333,7 +333,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
 
                     # Sync to EvoCloud
                     try:
-                        await evocloud_client.upload_log(
+                        await evocloud_manager.upload_log(
                             thread_id=req.thread_id,
                             log_type="input",
                             content=req.user_input,

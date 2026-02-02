@@ -10,7 +10,7 @@ from sqlmodel import Session
 
 from app.core.config import settings
 from app.core.db import engine
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 from app.models import User
 
 logger = logging.getLogger(__name__)
@@ -33,10 +33,8 @@ TokenDepOptional = Annotated[str | None, Depends(oauth2_scheme_optional)]
 
 async def get_current_user(token: TokenDep) -> User:
     try:
-        from app.infrastructure.external.evocloud import evocloud_client
-
         # Pass the token directly to Member Center API via unified client
-        result = await evocloud_client.get_user_info(token)
+        result = await evocloud_manager.api.get_user_info(token)
 
         if result.get("code") != 0:
             # Map error
@@ -77,7 +75,7 @@ async def get_current_user_optional(token: TokenDepOptional) -> User | None:
     if not token:
         return None
     try:
-        result = await evocloud_client.get_user_info(token)
+        result = await evocloud_manager.api.get_user_info(token)
 
         if result.get("code") != 0:
             return None
@@ -114,7 +112,7 @@ async def verify_guest_access(
         try:
             # We must import inside function to avoid circular imports layout if any,
             # though get_current_user_optional imports it too.
-            result = await evocloud_client.get_user_info(token)
+            result = await evocloud_manager.api.get_user_info(token)
             if result.get("code") == 0:
                 user_data = result.get("data", {})
                 if user_data:
@@ -142,7 +140,7 @@ async def verify_guest_access(
         # 1. Get Global Config
         try:
             # Async call to global config
-            config_res = await evocloud_client.get_ai_global_config()
+            config_res = await evocloud_manager.api.get_ai_global_config()
             limit = 10  # Default
             if config_res and config_res.get("code") == 0:
                 limit = int(config_res.get("data", {}).get("guest_daily_limit", 10))

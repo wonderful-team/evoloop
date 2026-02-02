@@ -7,7 +7,8 @@ from typing import Any
 
 import httpx
 
-from app.core.config import settings
+from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
+from app.core.evocloud.schemas import EvoCloudConfig
 from app.utils import file as file_utils
 from app.utils import http as http_utils
 from app.utils import json as json_utils
@@ -16,19 +17,17 @@ from app.utils.security import generate_hmac_signature
 logger = logging.getLogger(__name__)
 
 
-class EvoCloudAPI:
+class EvoCloudHTTPClient(EvoCloudClientProtocol):
     """
-    REST API Wrapper for EvoCloud.
-    Handles auth, projects, tasks, and devices.
+    Standardized HTTP Client for EvoCloud.
     """
 
-    def __init__(self):
-        self.base_url = str(settings.EVOCLOUD_API_URL).rstrip("/")
-        self.api_key = settings.EVOCLOUD_API_KEY
-        self.api_secret = settings.EVOCLOUD_API_SECRET
+    def __init__(self, config: EvoCloudConfig):
+        self.config = config
+        self.base_url = str(config.api_url).rstrip("/")
         self.timeout = 30.0
 
-        self._user_token: str | None = None
+        self._user_token: str | None = config.access_token
         self._member_id: int | None = None
         self._clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
 
@@ -59,12 +58,21 @@ class EvoCloudAPI:
 
     # --- Auth Helpers ---
 
+    def set_token(self, token: str | None) -> None:
+        self._user_token = token
+    
+    def get_token(self) -> str | None:
+        return self._user_token
+
+    def get_member_id(self) -> int | None:
+        return self._member_id
+
     def _load_token(self):
         try:
-            if settings.EVOCLOUD_ACCESS_TOKEN:
-                self._user_token = settings.EVOCLOUD_ACCESS_TOKEN
+            if self._user_token:
                 return
 
+            # Keep compatibility with existing auth file
             auth_file = os.path.join(os.getcwd(), ".evoloop", "auth.json")
             if os.path.exists(auth_file):
                 content = file_utils.read_file(auth_file)
@@ -97,17 +105,13 @@ class EvoCloudAPI:
         except Exception:
             pass
 
-    def get_token(self) -> str | None:
-        return self._user_token
-
-    def get_member_id(self) -> int | None:
-        return self._member_id
-
     # --- Request Core ---
 
     def _generate_signature(self, method: str, uri: str, body: str, timestamp: int) -> str:
+        if not self.config.api_secret:
+            return ""
         string_to_sign = f"{method}\\n{uri}\\n{body}\\n{timestamp}"
-        return generate_hmac_signature(self.api_secret, string_to_sign)
+        return generate_hmac_signature(self.config.api_secret, string_to_sign)
 
     async def request(
         self,
@@ -116,6 +120,7 @@ class EvoCloudAPI:
         params: dict | None = None,
         data: dict | None = None,
         token: str | None = None,
+        headers: dict | None = None
     ) -> dict:
         client = await self.get_client()
         active_token = token or self._user_token
@@ -124,11 +129,15 @@ class EvoCloudAPI:
         timestamp = int(time.time())
         body_str = json_utils.dumps(data) if data else ""
 
-        headers = {"Content-Type": "application/json", "X-Timestamp": str(timestamp)}
+        req_headers = headers or {}
+        req_headers.update({
+            "Content-Type": "application/json", 
+            "X-Timestamp": str(timestamp)
+        })
 
-        if self.api_key and self.api_secret:
-            headers["X-API-Key"] = self.api_key
-            headers["X-Signature"] = self._generate_signature(method, endpoint, body_str, timestamp)
+        if self.config.api_key and self.config.api_secret:
+            req_headers["X-API-Key"] = self.config.api_key
+            req_headers["X-Signature"] = self._generate_signature(method, endpoint, body_str, timestamp)
 
         if params is None:
             params = {}
@@ -137,7 +146,7 @@ class EvoCloudAPI:
 
         try:
             logger.debug(f"Req: {method} {endpoint}")
-            resp = await client.request(method, url, params=params, json=data, headers=headers)
+            resp = await client.request(method, url, params=params, json=data, headers=req_headers)
 
             if resp.status_code >= 400:
                 logger.error(f"API Error {resp.status_code}: {resp.text[:200]}")

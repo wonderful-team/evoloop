@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
 from app.i18n.service import i18n
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger("evoloop.tools.human_input")
 
@@ -234,18 +234,21 @@ async def request_human_input(
     )
 
     # Sync to EvoCloud (Mobile)
-    await evocloud_client.upload_log(
-        thread_id=thread_id,
-        log_type="hitl_request",
-        content={
-            "id": request.id,
-            "type": input_type,
-            "prompt": prompt,
-            "options": options,
-            "context": context,
-            "default_value": default_value,
-        },
-    )
+    try:
+        await evocloud_manager.upload_log(
+            thread_id=thread_id,
+            log_type="hitl_request",
+            content={
+                "id": request.id,
+                "type": input_type,
+                "prompt": prompt,
+                "options": options,
+                "context": context,
+                "default_value": default_value,
+            },
+        )
+    except Exception as e:
+        logger.warning(f"Failed to sync HITL request: {e}")
 
     # Raise Interrupt Exception to pause execution
     # This ensures the graph stops immediately
@@ -331,18 +334,21 @@ async def request_approval(
     )
 
     # Sync to EvoCloud (Mobile)
-    await evocloud_client.upload_log(
-        thread_id=thread_id,
-        log_type="hitl_request",
-        content={
-            "id": request.id,
-            "type": "approval",
-            "prompt": action_description,
-            "context": approval_context,
-            "default_value": "REJECTED",
-            "risk_level": risk_level,
-        },
-    )
+    try:
+        await evocloud_manager.upload_log(
+            thread_id=thread_id,
+            log_type="hitl_request",
+            content={
+                "id": request.id,
+                "type": "approval",
+                "prompt": action_description,
+                "context": approval_context,
+                "default_value": "REJECTED",
+                "risk_level": risk_level,
+            },
+        )
+    except Exception as e:
+        logger.warning(f"Failed to sync HITL request: {e}")
 
     # Raise Interrupt Exception to pause execution
     raise AgentHumanInterruptException(request.id, response_text)

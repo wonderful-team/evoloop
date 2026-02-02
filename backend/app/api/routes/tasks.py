@@ -11,7 +11,7 @@ from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 from pydantic import BaseModel
 
 from app.api.deps import TokenDep, TokenDepOptional
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +78,7 @@ async def get_project_tasks(
     """
     Get a list of tasks for a specific project.
     """
-    res = await evocloud_client.get_project_tasks(
+    res = await evocloud_manager.api.get_project_tasks(
         project_id=project_id,
         page=page,
         page_size=page_size,
@@ -98,7 +98,7 @@ async def get_task_detail(task_id: int, token: TokenDep):
     """
     Get details of a specific task.
     """
-    res = await evocloud_client.get_task_detail(task_id, token=token)
+    res = await evocloud_manager.api.get_task_detail(task_id, token=token)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400, detail=res.get("message", "Failed to get task detail")
@@ -116,7 +116,7 @@ async def create_task(req: TaskCreateRequest, authorization: str | None = Header
     # Convert Pydantic model to dict, exclude None to let backend handle defaults
     data = req.model_dump(exclude_none=True)
 
-    res = await evocloud_client.create_task(data, token=token)
+    res = await evocloud_manager.api.create_task(data, token=token)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400, detail=res.get("message", "Failed to create task")
@@ -134,7 +134,7 @@ async def update_task(task_id: int, req: TaskUpdateRequest, authorization: str |
     data = req.model_dump(exclude_none=True)
     data["task_id"] = task_id  # Ensure ID is passed if needed by backend, though URL param usually sufficient for routing
 
-    res = await evocloud_client.update_task(task_id, data, token=token)
+    res = await evocloud_manager.api.update_task(task_id, data, token=token)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400, detail=res.get("message", "Failed to update task")
@@ -149,7 +149,7 @@ async def delete_task(task_id: int, authorization: str | None = Header(None)):
     Delete a task.
     """
     token = get_token(authorization)
-    res = await evocloud_client.delete_task(task_id, token=token)
+    res = await evocloud_manager.api.delete_task(task_id, token=token)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400, detail=res.get("message", "Failed to delete task")
@@ -164,7 +164,7 @@ async def update_task_status_endpoint(task_id: int, req: TaskStatusUpdate, autho
     Update task status and progress.
     """
     token = get_token(authorization)
-    res = await evocloud_client.update_task_status(task_id, req.status, req.progress or 0, token=token)
+    res = await evocloud_manager.api.update_task_status(task_id, req.status, req.progress or 0, token=token)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400, detail=res.get("message", "Failed to update task status")
@@ -183,7 +183,7 @@ async def execute_task(
     token = get_token(authorization)
 
     # 1. Fetch Task Detail
-    task_res = await evocloud_client.get_task_detail(task_id, token=token)
+    task_res = await evocloud_manager.api.get_task_detail(task_id, token=token)
     if task_res.get("code") != 0:
         raise HTTPException(status_code=400, detail="Failed to fetch task details")
 

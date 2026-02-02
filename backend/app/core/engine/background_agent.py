@@ -19,7 +19,7 @@ from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 from app.models import Conversation, Message
 from app.utils.context import set_context
 
@@ -148,7 +148,7 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         try:
             callbacks = [callback, db_callback]
             callbacks.append(EvoLoopCallbackHandler(
-                evocloud_client,
+                evocloud_manager,
                 thread_id,
                 project_id=project_id,
                 command_id=evoloop_command_id
@@ -231,7 +231,7 @@ async def _upload_final_log(graph, config, thread_id, command_id):
             if messages:
                 last_msg = messages[-1]
                 if hasattr(last_msg, "content") and last_msg.content:
-                    await evocloud_client.upload_log(
+                    await evocloud_manager.upload_log(
                         thread_id=thread_id,
                         log_type="output",
                         content=last_msg.content,

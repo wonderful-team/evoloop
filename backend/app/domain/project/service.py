@@ -4,7 +4,7 @@ from threading import Lock
 
 from app.core.config import settings
 from app.core.system import SystemConfigService
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class ProjectContextManager:
         """
         try:
             # 1. Fetch from API
-            resp = await evocloud_client.get_projects(page=1, page_size=100)
+            resp = await evocloud_manager.api.get_projects(page=1, page_size=100)
 
             if resp.get("code") != 0:
                 logger.error(f"Failed to fetch projects from API: {resp.get('message')}")

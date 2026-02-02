@@ -3,7 +3,7 @@ import os
 
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.project.service import project_context_manager
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +122,7 @@ class ProjectSyncService:
             # 3. Update Cloud (Best Effort)
             if repo.project_id:
                 try:
-                    await evocloud_client.update_project(
+                    await evocloud_manager.api.update_project(
                         project_id=repo.project_id,
                         name=new_name,
                         path=dest_path

@@ -142,12 +142,12 @@ async def get_cloud_status():
     """
     Debug endpoint to check EvoCloud connection status.
     """
-    from app.infrastructure.external.evocloud import evocloud_client
+    from app.core.evocloud import evocloud_manager
     
     return {
-        "is_logged_in": bool(evocloud_client.api.get_token()),
-        "device_id": evocloud_client.link.device_id,
-        "is_linked": evocloud_client.link.is_connected(),
-        "device_name": evocloud_client.link.device_name,
-        "api_url": evocloud_client.api.base_url
+        "is_logged_in": bool(evocloud_manager.get_token()),
+        "device_id": evocloud_manager.device_id,
+        "is_linked": evocloud_manager.link.is_connected() if evocloud_manager.link else False,
+        "device_name": evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
+        "api_url": evocloud_manager.api.base_url if evocloud_manager.api else "Unknown"
     }

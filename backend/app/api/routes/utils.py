@@ -12,16 +12,19 @@ async def health_check() -> bool:
 
 @router.get("/evoloop-status")
 async def get_evoloop_status():
-    status = evocloud_client.get_status()
+    # Construct status from manager properties
+    is_connected = evocloud_manager.link.is_connected() if evocloud_manager.link else False
+    device_id = evocloud_manager.device_id
+    device_name = evocloud_manager.link.device_name if evocloud_manager.link else "Unknown"
 
     return {
-        "connected": status.get("device_connected", False),
-        "device_id": status.get("device_id"),
-        "device_name": evocloud_client.device_name,  # Access prop directly
+        "connected": is_connected,
+        "device_id": device_id,
+        "device_name": device_name,
     }
 
 
 @router.get("/ai/config")
 async def get_ai_config():
     """Get global AI config (Models, Prices)"""
-    return await evocloud_client.get_ai_global_config()
+    return await evocloud_manager.api.get_ai_global_config()

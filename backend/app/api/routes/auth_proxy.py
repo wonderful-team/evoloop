@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 
 router = APIRouter()
 
@@ -51,31 +51,31 @@ class ResetPasswordMobileRequest(BaseModel):
 @router.post("/captcha/config")
 async def get_captcha_config() -> Any:
     """Get Captcha Configuration"""
-    return await evocloud_client.get_captcha_config()
+    return await evocloud_manager.api.get_captcha_config()
 
 
 @router.get("/captcha/{captcha_id}")
 async def get_captcha(captcha_id: str) -> Any:
     """Get Captcha Image"""
-    return await evocloud_client.get_captcha(captcha_id)
+    return await evocloud_manager.api.get_captcha(captcha_id)
 
 
 @router.get("/register/config")
 async def get_register_config() -> Any:
     """Get Registration Config"""
-    return await evocloud_client.get_register_config()
+    return await evocloud_manager.api.get_register_config()
 
 
 @router.get("/register/agreement")
 async def get_register_agreement() -> Any:
     """Get Registration Agreement"""
-    return await evocloud_client.get_register_agreement()
+    return await evocloud_manager.api.get_register_agreement()
 
 
 @router.post("/sms/send")
 async def send_sms(data: dict) -> Any:
     """Send Mobile Verification Code"""
-    return await evocloud_client.send_mobile_code(
+    return await evocloud_manager.api.send_mobile_code(
         data.get("mobile"),
         data.get("captcha_id"),
         data.get("captcha_code"),
@@ -86,28 +86,28 @@ async def send_sms(data: dict) -> Any:
 @router.post("/register/mobile")
 async def register_mobile(data: dict) -> Any:
     """Register with Mobile"""
-    return await evocloud_client.register_mobile(data)
+    return await evocloud_manager.api.register_mobile(data)
 
 
 @router.post("/register/username")
 async def register_username(data: dict) -> Any:
     """Register with Username/Password"""
-    return await evocloud_client.register_username(data)
+    return await evocloud_manager.api.register_username(data)
 
 
 @router.post("/login/mobile")
 async def login_mobile(req: LoginMobileRequest) -> Any:
     """Login with Mobile Code"""
-    return await evocloud_client.login_mobile(req.mobile, req.key, req.code)
+    return await evocloud_manager.api.login_mobile(req.mobile, req.key, req.code)
 
 
 @router.post("/mobile/check")
 async def check_mobile(data: dict) -> Any:
     """Check if mobile is registered"""
-    return await evocloud_client.check_mobile_exist(data.get("mobile"))
+    return await evocloud_manager.api.check_mobile_exist(data.get("mobile"))
 
 
 @router.post("/password/reset/mobile")
 async def reset_password(req: ResetPasswordMobileRequest) -> Any:
     """Reset password with Mobile Code"""
-    return await evocloud_client.reset_password_by_mobile(req.mobile, req.code, req.key, req.password)
+    return await evocloud_manager.api.reset_password_by_mobile(req.mobile, req.code, req.key, req.password)

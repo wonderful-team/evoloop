@@ -6,11 +6,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
 from app.core.config import settings
-from app.infrastructure.external.evocloud import evocloud_client
-from app.infrastructure.external.evocloud.handler import (
+from app.core.evocloud import evocloud_manager
+from app.core.evocloud.bridge.handlers import (
     handle_project_switch_event,
     handle_remote_command,
 )
+from app.utils.security import create_access_token
+
 from app.models import Token
 
 logger = logging.getLogger(__name__)
@@ -18,25 +20,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["login"])
 
 
-@router.post("/login/access-token")
-async def login_access_token(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-) -> Token:
+@router.post("/login/access-token", response_model=Token)
+async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
     """
-    OAuth2 compatible token login, proxied to Member Center.
+    OAuth2 compatible token login, get an access token for future requests.
+    Also logs into EvoLoop Cloud.
     """
     try:
-        # 1. Config Handlers (Idempotent)
-        evocloud_client.set_command_handler(handle_remote_command)
+        # 1. Login to EvoLoop Cloud
+        # Handlers should already be set by main.py, but we can ensure it here or if main startup failed to auth.
+        evocloud_manager.set_command_handler(handle_remote_command)
 
         async def event_router(etype, edata):
             if etype == "project_switch":
                 await handle_project_switch_event(edata)
 
-        evocloud_client.set_event_handler(event_router)
+        evocloud_manager.set_event_handler(event_router)
 
-        # 2. Login (This triggers device link start if successful)
-        result = await evocloud_client.login(form_data.username, form_data.password)
+        result = await evocloud_manager.login(form_data.username, form_data.password)
 
         if not result.get("success"):
             raise HTTPException(
@@ -44,6 +45,13 @@ async def login_access_token(
                 detail=result.get("message", "Incorrect email or password"),
             )
 
+        user_data = result.get("data", {}) # or check structure of result
+        # API might return {"success": True, "token": ...} or the full response.
+        # Base on `http_client.py` implementation: return {"success": True, "token": token}
+        
+        # We might need to verify the return shape from `http_client.login`. 
+        # It returns {"success": True, "token": token}
+        
         token_str = result.get("token")
         if not token_str:
             raise HTTPException(

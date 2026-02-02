@@ -2,7 +2,7 @@ import logging
 
 from app.celery_app import celery_app
 from app.domain.codebase.indexing.service import IndexingService
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ def sync_project_to_cloud_task(_self, repo_id: int):
 
             try:
                 logger.info(f"[SyncTask] Creating project '{repo.name}' in Cloud...")
-                res = await evocloud_client.create_project(
+                res = await evocloud_manager.api.create_project(
                     name=repo.name,
                     description=f"Imported from {repo.local_path}",
                     path=repo.local_path,

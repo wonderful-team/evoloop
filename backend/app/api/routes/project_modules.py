@@ -2,7 +2,7 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel
 
 from app.api.deps import TokenDep
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 
 router = APIRouter()
 
@@ -30,12 +30,12 @@ class TimesheetQuickAddRequest(BaseModel):
 
 @router.get("/budget/list")
 async def get_budget_list(project_id: int, page: int = 1, page_size: int = 50, token: TokenDep = None):
-    return await evocloud_client.get_budget_list(project_id, page, page_size, token)
+    return await evocloud_manager.api.get_budget_list(project_id, page, page_size, token)
 
 
 @router.get("/budget/overview")
 async def get_budget_overview(project_id: int, token: TokenDep = None):
-    return await evocloud_client.get_budget_overview(project_id, token)
+    return await evocloud_manager.api.get_budget_overview(project_id, token)
 
 
 @router.get("/timesheet/list")
@@ -46,7 +46,7 @@ async def get_timesheet_list(
     authorization: str | None = Header(None),
 ):
     token = get_token(authorization)
-    res = await evocloud_client.get_timesheet_list(project_id, page, page_size, token=token)
+    res = await evocloud_manager.api.get_timesheet_list(project_id, page, page_size, token=token)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400, detail=res.get("message", "Failed to get timesheet list")
@@ -76,7 +76,7 @@ async def get_project_statistics(
     project_id: int | None = None, authorization: str | None = Header(None)
 ):
     token = get_token(authorization)
-    res = await evocloud_client.get_project_statistics(project_id, token=token)
+    res = await evocloud_manager.api.get_project_statistics(project_id, token=token)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400,

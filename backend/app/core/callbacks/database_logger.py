@@ -13,7 +13,7 @@ from sqlalchemy import desc, select
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 from app.models.schemas.events import MessageEvent
 
 
@@ -100,8 +100,8 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                             task_match = re.search(r"task-(\d+)-", self.thread_id)
                             if task_match:
                                 task_id = int(task_match.group(1))
-                                if evocloud_client:
-                                    asyncio.create_task(evocloud_client.update_task_status(task_id, 3, 100))
+                                if evocloud_manager.api:
+                                    asyncio.create_task(evocloud_manager.api.update_task_status(task_id, 3, 100))
 
                             return  # Do not log 'finish' JSON to chat
 

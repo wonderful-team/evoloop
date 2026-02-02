@@ -11,7 +11,7 @@ from app.domain.codebase.filter import FileFilter
 from app.core.memory import memory_manager
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 from app.utils import file as file_utils
 from app.utils import json as json_utils
 
@@ -172,7 +172,7 @@ async def _summarize_project_logic(name: str, path: str):
             if description:
                 try:
                     # This is an async call call now
-                    await evocloud_client.update_project(project_id, description)
+                    await evocloud_manager.api.update_project(project_id, description)
                     logger.info(f"[ProjectSummarizer] Uploaded summary for {name}")
                 except Exception as up_e:
                     logger.error(f"Failed to upload summary: {up_e}")

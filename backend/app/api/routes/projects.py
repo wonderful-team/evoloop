@@ -8,7 +8,7 @@ from app.api.deps import TokenDep, TokenDepOptional
 from app.core.config import settings
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.project.service import project_context_manager
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +34,10 @@ class UpdateProjectRequest(BaseModel):
 @router.get("/")
 async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDepOptional = None):
     # 1. Fetch from Cloud
-    res = await evocloud_client.get_projects(page, page_size)
+    res = await evocloud_manager.api.get_projects(page, page_size)
     
     # Check structure. Usually it returns dict or list.
-    # evocloud_client usually returns { "list": [...], "total": ... } or [...]
+    # evocloud_manager.api usually returns { "list": [...], "total": ... } or [...]
     # We need to handle safely.
     projects = []
     if isinstance(res, dict) and "list" in res:
@@ -94,7 +94,7 @@ async def get_current_project(_token: TokenDep):
     Get current project from Cloud (User's focus on Web/Mobile).
     Also returns Local Focus if configured.
     """
-    cloud_res = await evocloud_client.get_current_project()
+    cloud_res = await evocloud_manager.api.get_current_project()
     # Add local context if needed
     # ...
     return cloud_res
@@ -120,7 +120,7 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
             f.write(f'{{"name": "{req.name}", "description": "Created via EvoLoop"}}')
 
         # Sync with Member Center
-        res = await evocloud_client.create_project(req.name, "Created via EvoLoop", project_path)
+        res = await evocloud_manager.api.create_project(req.name, "Created via EvoLoop", project_path)
         if res.get("code") != 0:
             logger.warning(f"Failed to sync project creation to Member Center: {res}")
 
@@ -155,7 +155,7 @@ async def get_project_status(project_id: int):
 async def delete_project(project_id: int):
     """Delete a project (Unlink from Member Center)."""
     try:
-        res = await evocloud_client.delete_project(project_id)
+        res = await evocloud_manager.api.delete_project(project_id)
         if res.get("code") == 0:
             return {"status": "success", "id": project_id}
         else:

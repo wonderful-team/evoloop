@@ -9,36 +9,32 @@ from typing import Any
 import websockets
 from websockets.legacy.client import WebSocketClientProtocol
 
-from app.core.config import settings
-from app.core.system.service import SystemConfigService
+from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
+from app.core.evocloud.interfaces.link import DeviceLinkProtocol
+from app.core.evocloud.schemas import EvoCloudConfig
 from app.utils import file as file_utils
 from app.utils.async_utils import run_in_thread
 from app.utils.id import gen_uuid
 
-from .api import EvoCloudAPI
-
 logger = logging.getLogger(__name__)
 
 
-class DeviceLinkManager:
+class EvoCloudWebSocketLink(DeviceLinkProtocol):
     """
-    Manages WebSocket Connection and Device State for EvoCloud.
-    Dependencies: EvoCloudAPI (for registration and status updates).
+    Standardized WebSocket Link for EvoCloud.
     """
 
-    def __init__(self, api: EvoCloudAPI):
-        self.api = api
+    def __init__(self, config: EvoCloudConfig, api_client: EvoCloudClientProtocol):
+        self.config = config
+        self.api = api_client
 
-        # Config
-        self.ws_url = str(settings.EVOCLOUD_WS_URL)
-
-        # Identity
-        db_device_name = SystemConfigService.get_value("EVOCLOUD_DEVICE_NAME")
-        self.device_name = settings.EVOCLOUD_DEVICE_NAME or db_device_name or f"{platform.node()}"
+        # Device Identity
+        self.device_name = self.config.device_name or f"{platform.node()}"
         self.device_key = self._get_or_create_device_key()
 
         # State
-        self.device_id: int | None = None
+        # State
+        self._device_id: int | None = None
         self.client_id: str | None = None
 
         # Connection
@@ -50,7 +46,12 @@ class DeviceLinkManager:
         self._command_handler: Callable[[dict[str, Any]], None] | None = None
         self._event_handler: Callable[[str, dict[str, Any]], None] | None = None
 
+    @property
+    def device_id(self) -> int | None:
+        return self._device_id
+
     def _get_or_create_device_key(self) -> str:
+        # TODO: This should probably also be configurable path or abstracted
         key_file = os.path.expanduser("~/.evoloop_device_key")
         if os.path.exists(key_file):
             return file_utils.read_file(key_file).strip()
@@ -104,33 +105,25 @@ class DeviceLinkManager:
         res = await self.api.register_device(self.device_key, self.device_name, os_info)
 
         if res.get("code") == 0:
-            self.device_id = res["data"]["device_id"]
-            logger.info(f"[EvoCloud] Device Registered ID: {self.device_id}")
+            self._device_id = res["data"]["device_id"]
+            logger.info(f"[EvoCloud] Device Registered ID: {self._device_id}")
             return True
-
-        logger.error(f"[EvoCloud] Register Failed: {res.get('message')}")
-        return False
 
     async def _heartbeat_loop(self):
         while self._running:
-            if self.device_id:
+            if self._device_id:
                 try:
-                    await self.api.send_heartbeat(self.device_id)
+                    await self.api.send_heartbeat(self._device_id)
                 except Exception as e:
                     logger.debug(f"Heartbeat failed: {e}")
             await asyncio.sleep(30)
-
+ 
     async def _ws_connect_loop(self):
         while self._running:
             try:
-                logger.info(f"[EvoCloud] Connecting WS to {self.ws_url}...")
-                # Pass token in header or use cookie/ticket if needed?
-                # Original implementation didn't show headers, assuming API handles auth?
-                # Actually, WS usually needs auth. But `EvoCloudClient` didn't pass headers to `websockets.connect`.
-                # Maybe it is IP based or Key based?
-                # Only relies on subsequent bind?
-
-                async with websockets.connect(self.ws_url) as ws:
+                logger.info(f"[EvoCloud] Connecting WS to {self.config.ws_url}...")
+                
+                async with websockets.connect(self.config.ws_url) as ws:
                     self.ws = ws
                     logger.info("[EvoCloud] WS Connected")
                     async for message in ws:
@@ -167,10 +160,10 @@ class DeviceLinkManager:
             logger.error(f"[EvoCloud] WS Handle Error: {e}")
 
     async def _bind_client_id(self, client_id: str):
-        if not self.device_id:
+        if not self._device_id:
             return
         try:
-            await self.api.bind_client_id(self.device_id, client_id)
+            await self.api.bind_client_id(self._device_id, client_id)
             self.client_id = client_id
             logger.info(f"[EvoCloud] Bound Client ID: {client_id}")
         except Exception as e:

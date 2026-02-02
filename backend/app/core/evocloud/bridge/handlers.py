@@ -15,14 +15,6 @@ async def handle_remote_command(command_data: dict):
     Common handler for remote commands from EvoLoop Cloud.
     Can be used by both login.py (auto-connect) and main.py (startup recovery).
     """
-    # agent.py imports get_evoloop_client which is in client.py
-    # client.py imports nothing, but main.py sets up everything.
-    # If handler is imported at top level in main, it's fine.
-    # But if handler depends on agent, and agent depends on client (which might use handler type hint), it can be tricky.
-    # The error "No module named 'core'" suggests a deeper issue or misconfiguration in execution context,
-    # but based on the code structure, agent.py <-> infrastructure/evoloop_link is a likely cycle.
-    # from app.api.routes.agent import run_agent_background
-
     cmd_type = command_data.get("type", "chat_message")
 
     # [HITL Inbound Logic]
@@ -73,12 +65,7 @@ async def handle_remote_command(command_data: dict):
                         "type": "image_url",
                         "image_url": {"url": att.get("url")}
                     })
-                # Note: File/Other attachments might need different handling or explicit text mention?
-                # For now handled as image or ignored if not visual.
-                # If file, we might append a link to text block?
                 elif att.get("type") == "file":
-                    # Append file link to text if not already there?
-                    # Or just add a text block?
                     content_blocks.append({
                         "type": "text",
                         "text": f"\n[File: {att.get('url')}]"
@@ -101,32 +88,11 @@ async def handle_remote_command(command_data: dict):
 async def handle_project_switch_event(event_data: dict):
     """
     Handle project switch event from Cloud.
-    Payload (event_data) structure:
-    {
-        "project_id": 1,
-        "project_name": "...",
-        "external_path": "/path/to/project", // If available
-        ...
-    }
     """
-    # Circular dependency risk with agent.py depending on how it's imported.
-    # But this handler is imported by main/client.
-
     project_id = event_data.get("project_id")
     project_name = event_data.get("project_name")
 
-    # Check if we have a path.
-    # Cloud should send 'external_path' if it knows the local path (sync mode).
-    # Or we might need to look it up locally if we have a mapping.
-    # For now, assume cloud sends 'external_path' which corresponds to local path
-    # OR we use project_id to find it if we have a local lookup.
-
-    # Logic:
-    # 1. Prefer external_path from payload.
-    # 2. If not, try to find by ID in local DB? (Not implemented fully yet)
-
     path = event_data.get("external_path")
-
     if not path:
         # Fallback: maybe it's passed as 'path'
         path = event_data.get("path")
@@ -135,11 +101,6 @@ async def handle_project_switch_event(event_data: dict):
         logger.info(f"[EvoLoop] Received Switch Project Event: {project_id} ({project_name}) -> {path}")
 
         # 1. Update Context (Global / Thread agnostic)
-        # Note: set_working_directory sets it for a specific thread.
-        # But here we want to switch the "Global Active Project" or "The Device's Current Focus".
-        # If the device is single-user single-focus, we might want to update a default context.
-        # Let's update "default" thread context, and maybe "remote-default".
-
         project_context_manager.set_working_directory("remote-default", path)
         project_context_manager.set_working_directory("default", path)
 
@@ -156,7 +117,6 @@ async def handle_project_switch_event(event_data: dict):
             logger.info(f"[EvoLoop] Started watching {path}")
 
             # NEW: Trigger Smart Full-Indexing for "Staleness Check"
-            # Since index_repository is incremental (MD5 check), this is cheap.
             indexing_manager.run_indexing_background(repo.id)
 
         except Exception as e:

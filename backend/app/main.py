@@ -139,56 +139,42 @@ async def lifespan(_app: FastAPI):
         logger.error(f"Failed to start startup watcher: {e}")
 
     # 7. EvoLoop Link Client (Unified)
-    # Restore session if token exists
-
-    # Imports
-    from app.infrastructure.external.evocloud import evocloud_client
-    from app.infrastructure.external.evocloud.handler import (
+    from app.core.evocloud import evocloud_manager
+    from app.core.evocloud.bridge.handlers import (
         handle_project_switch_event,
         handle_remote_command,
     )
 
+    # Initialize Core Module
+    evocloud_manager.initialize()
+
     # Config Handlers
-    evocloud_client.set_command_handler(handle_remote_command)
+    evocloud_manager.set_command_handler(handle_remote_command)
 
     async def event_router(etype, edata):
         if etype == "project_switch":
             await handle_project_switch_event(edata)
 
-    evocloud_client.set_event_handler(event_router)
-
-    # Try to load token from Redis to auto-connect
-    evoloop_token = settings.EVOCLOUD_ACCESS_TOKEN  # Check config first
-
-    if not evoloop_token:
-        try:
-            import redis.asyncio as redis
-
-            redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
-            async with redis_client:
-                evoloop_token = await redis_client.get("evoloop:link:token")
-                if evoloop_token:
-                    logger.info("[EvoLoop] Found persisted token in Redis, auto-connecting...")
-        except Exception as e:
-            logger.warning(f"[EvoLoop] Failed to read token from Redis: {e}")
-
     # Fallback: Check if client has persisted token (auth.json)
-    if not evoloop_token:
-        persisted_token = evocloud_client.api.get_token()
-        if persisted_token:
-            evoloop_token = persisted_token
+    # The manager's API backend should have loaded it if implemented correctly.
+    # Otherwise we try to load it or check if it's already set.
+    evoloop_token = None
+    if evocloud_manager.api:
+        evoloop_token = evocloud_manager.api.get_token()
+        if evoloop_token:
             logger.info("[EvoLoop] Found persisted token in auth.json, auto-connecting...")
 
-    if evoloop_token:
+    if evoloop_token and evocloud_manager.link:
         try:
             # This will set the token on client and start the loop
-            await evocloud_client.start_device_link(token=evoloop_token)
+            # Ensure link uses the same token (already set in api)
+            await evocloud_manager.link.start()
             logger.info("EvoLoop Link Client started in background.")
 
             # Fetch Current Project from Member Center
             try:
                 # Give it a small delay? No, http request is independent of WS.
-                res = await evocloud_client.get_current_project()
+                res = await evocloud_manager.api.get_current_project()
                 if res.get("code") == 0:
                     project_data = res.get("data", {})
                     cloud_path = project_data.get("external_path")
@@ -196,13 +182,6 @@ async def lifespan(_app: FastAPI):
                         logger.info(f"[Startup] Synced active project from Cloud: {cloud_path}")
                         # Update context immediately for default thread
                         project_context_manager.set_working_directory("default", cloud_path)
-
-                        # Trigger indexing for this scoped project immediately?
-                        # The watcher block above (step 6) might have already run with default?
-                        # Actually, step 6 runs BEFORE step 7 in current file structure?
-                        # Wait, I see step 6 is before step 7 in line 72 vs 105.
-                        # This means watchers start with potentially STALE default, then we fetch cloud.
-                        # We should RE-TRIGGER watcher if cloud differs.
 
                         project_id = project_data.get("project_id")
 
@@ -235,9 +214,10 @@ async def lifespan(_app: FastAPI):
 
     # Stop EvoLoop Link
     try:
-        from app.infrastructure.external.evocloud import evocloud_client
+        from app.core.evocloud import evocloud_manager
 
-        await evocloud_client.stop_device_link()
+        if evocloud_manager.link:
+            await evocloud_manager.link.stop()
     except Exception as e:
         logger.warning(f"Failed to stop EvoLoop Link: {e}")
 
