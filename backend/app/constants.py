@@ -486,6 +486,15 @@ TASK_TYPES = [
     "architecture_analysis",
 ]
 
+ROUTING_TARGETS = {
+    "developer": "Primary worker for coding, testing, and architecture.",
+    "deep_researcher": "Web search and information gathering.",
+    "documenter": "Documentation and wiki generation.",
+    "chat": "Ambiguous requests requiring clarification.",
+    "finish": "Task completion.",
+    "dynamic_specialist": "Temporary, specialized sub-agent (e.g., SQLRunner).",
+}
+
 WORKFLOW_STATUS = ["pending", "running", "completed", "failed", "cancelled"]
 
 

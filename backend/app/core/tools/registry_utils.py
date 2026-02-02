@@ -229,3 +229,61 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
 
     # Fallback to safe defaults (read-only)
     return [read_file, list_files]
+
+def get_tools_by_names(tool_names: list[str]) -> list[BaseTool]:
+    """
+    Hydrate a list of tool names into actual BaseTool objects.
+    Useful for Dynamic Sub-Agents.
+    """
+    # 1. Collect all known static tools
+    # This is a bit inefficient (re-listing everything), but safe
+    all_known_tools = {
+        # File Operations
+        "read_file": read_file,
+        "write_file": write_file,
+        "edit_file": edit_file,
+        "list_files": list_files,
+        "grep_files": grep_files,
+        "file_system": file_system,
+        
+        # Coding
+        "consult_lsp": consult_lsp,
+        "explore_codebase": explore_codebase,
+        "manage_git": manage_git,
+        
+        # Planning & Memory
+        "create_plan": create_plan,
+        "update_step_status": update_step_status,
+        "analyze_feasibility": analyze_feasibility,
+        "manage_memory": manage_memory,
+        "consult_architecture": consult_architecture,
+        
+        # Research
+        "search_web": search_web,
+        
+        # Human Input
+        "request_approval": request_approval,
+    }
+
+    # Add dynamically imported tools if available
+    try:
+        from app.domain.research.tools import crawl_url
+        all_known_tools["crawl_url"] = crawl_url
+    except ImportError:
+        pass
+        
+    try:
+        all_known_tools["learn_skill_from_trace"] = learn_skill_from_trace
+    except ImportError:
+        pass
+
+
+    hydrated_tools = []
+    for name in tool_names:
+        if name in all_known_tools:
+            hydrated_tools.append(all_known_tools[name])
+        else:
+            # We don't raise here, we let the caller handle missing tools (e.g. check MCP)
+            pass
+            
+    return hydrated_tools

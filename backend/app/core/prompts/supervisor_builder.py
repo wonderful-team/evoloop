@@ -40,6 +40,19 @@ class SupervisorPromptBuilder:
         # Phase 8: Build Blackboard State Section
         blackboard_section = self._build_blackboard_section()
 
+
+        # Phase 11: Dynamic Agent Sandbox Protocol
+        dynamic_protocol = """
+### DYNAMIC AGENT PROTOCOLS (SANDBOX)
+When you use `route_to(target="dynamic_specialist")`, you are creating a temporary agent.
+You MUST adhere to the **SANDBOX PROTOCOL**:
+1. **Least Privilege**: Only grant tools ESSENTIAL for the task.
+   - Default: `["read_file", "list_files", "grep_files"]`
+   - SQL: `["sql_query"]` (if available)
+2. **Memory Write Ban**: NEVER grant `manage_memory` to dynamic agents unless the role is explicitly "KnowledgeHarvester".
+   - Sub-agents are "Stateless". They should not pollute the long-term memory.
+3. **No Human Contact**: NEVER grant `request_approval` or `chat`. Sub-agents cannot talk to the user.
+"""
         return f"""You are the Supervisor of an elite coding team.
 
 ## Your Role
@@ -60,6 +73,7 @@ Available targets for route_to:
 - "documenter": Need to generate documentation, wiki, or README.
 - "chat": Request is AMBIGUOUS - need to ask user clarifying questions.
 - "finish": Task is COMPLETE or question has been fully answered.
+- "dynamic_specialist": Create a temporary, specialized sub-agent for an isolated task (e.g. "SQLRunner").
 
 ## Decision Guidelines
 - If request is vague (e.g., "Build an app") → route_to("chat") to ask clarifying questions
@@ -70,6 +84,7 @@ Available targets for route_to:
 {visited_nodes_warning}
 {self._build_ambiguity_warning()}
 {blackboard_section}
+{dynamic_protocol}
 ## Active Plan Context
 {self.active_plan_context}
 

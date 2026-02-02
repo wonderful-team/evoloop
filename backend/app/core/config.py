@@ -229,6 +229,9 @@ class Settings(BaseSettings):
     MEMORY_RELEVANCE_THRESHOLD: float = 0.75
     MAX_MEMORY_ITEMS: int = 1000
 
+    # Dynamic Agents
+    DYNAMIC_AGENT_MAX_STEPS: int = 10
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def CHECKPOINTER_DATABASE_URI(self) -> str:

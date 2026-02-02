@@ -13,6 +13,15 @@ class ProjectContext(TypedDict):
     structure_updated_at: float | None  # Timestamp
 
 
+class AgentConfig(TypedDict):
+    """
+    Blueprint for a Dynamic Sub-Agent.
+    """
+    role_name: str
+    system_instructions: str
+    tools: list[str]  # List of tool names to hydrate
+    model_override: str | None  # Optional model override (e.g. "gpt-4o")
+
 class ExecutionTicket(TypedDict):
     """
     Structured mission ticket for any Specialist Node.
@@ -27,6 +36,9 @@ class ExecutionTicket(TypedDict):
     
     # Catch-all for specialized parameters
     parameters: dict[str, Any] | None 
+    
+    # Dynamic Agent Configuration (v4.0)
+    agent_config: AgentConfig | None
     
     constraints: list[str] | None
     expected_outcomes: list[str] | None

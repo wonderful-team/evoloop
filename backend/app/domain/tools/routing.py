@@ -20,6 +20,7 @@ ROUTING_TARGETS = Literal[
     "browser_executor",
     "computer_executor",
     "mobile_executor",
+    "dynamic_specialist", # New v4.0 target
 ]
 
 
@@ -40,6 +41,7 @@ def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) 
     - "browser_executor": Need to interact with web pages
     - "computer_executor": Need to execute system commands
     - "mobile_executor": Need to control mobile devices
+    - "dynamic_specialist": Need a specialized, temporary sub-agent (e.g., "SQL Runner", "Log Analyzer")
 
     Args:
         target: The specialist node to route to.
@@ -66,6 +68,17 @@ def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) 
                     "ticket_type": "documentation",
                     "focus_paths": ["src/api/"],
                     "acceptance_criteria": ["README updated"]
+                 }
+
+                 **For 'dynamic_specialist'**:
+                 {
+                    "ticket_type": "adhoc_task",
+                    "agent_config": {
+                        "role_name": "SQL Runner",
+                        "system_instructions": "Execute SQL queries only.",
+                        "tools": ["sql_query"]
+                    },
+                    "acceptance_criteria": ["Query result returned"]
                  }
 
     Returns:

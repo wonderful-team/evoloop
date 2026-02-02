@@ -141,6 +141,24 @@ class SupervisorNode:
                     "expected_outcomes": routing_context.get("expected_outcomes", []),
                     "parameters": routing_context.get("parameters", {}),
                 }
+            elif routing_target == "dynamic_specialist":
+                 # [NEW] v4.0 Dynamic Agent Ticket Population
+                 agent_config = routing_context.get("agent_config")
+                 if agent_config:
+                     execution_ticket = {
+                        "ticket_type": routing_context.get("ticket_type", "adhoc_task"),
+                        "priority": "normal",
+                        "topic": "Dynamic Task",
+                        "acceptance_criteria": routing_context.get("acceptance_criteria", []),
+                        "agent_config": agent_config, # The Blueprint
+                        # Dynamic specialist doesn't usually use focus_paths like Developer, 
+                        # but we can pass them if tools support it.
+                        "parameters": routing_context.get("parameters", {}),
+                        # Required fields (nullable in TypeDict but good to have keys)
+                        "focus_paths": None,
+                        "constraints": None,
+                        "expected_outcomes": None
+                    }
 
             return {
                 **cleanup_state, # Clear old ticket first
