@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.infrastructure.external.evocloud import evocloud_client
+from app.core.evocloud import evocloud_manager
 
 router = APIRouter(prefix="/utils", tags=["utils"])
 

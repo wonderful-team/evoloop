@@ -60,7 +60,7 @@ async def quick_add_timesheet(
 ):
     token = get_token(authorization)
     data = req.model_dump()
-    res = await evocloud_client.add_timesheet_quick(data, token=token)
+    res = await evocloud_manager.api.add_timesheet_quick(data, token=token)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400, detail=res.get("message", "Failed to add timesheet")
