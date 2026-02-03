@@ -63,17 +63,6 @@ class GraphBuilder:
 
                 node_func = compiled_subgraph
 
-            elif node.path == "app.core.engine.nodes.generic.GenericLLMNode" or getattr(node, "type", "") == "generic":
-                # Universal Agent: "No-Code" Node
-                # We import the generic handler and bind the specific config from YAML
-                from app.core.engine.nodes.generic import generic_node
-
-                logger.info(f"Hydrating Generic Node: {node.id} with config keys: {list(node.config.keys())}")
-                # Partial binding: node_config is passed as a keyword argument
-                node_func = partial(generic_node, node_config=node.config)
-
-                # Set metadata to look like a real function for LangGraph inspection if needed
-                node_func.__name__ = node.id
             else:
                 # Legacy: Dynamic Import of Python Function
                 node_func = self._import_obj(node.path)

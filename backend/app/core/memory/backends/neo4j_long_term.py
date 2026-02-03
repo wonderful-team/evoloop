@@ -119,6 +119,9 @@ class Neo4jLongTermMemory(ILongTermMemory):
                 await session.run(
                     "CREATE CONSTRAINT episode_unique IF NOT EXISTS FOR (e:Episode) REQUIRE e.id IS UNIQUE"
                 )
+                await session.run(
+                    "CREATE INDEX episode_message_id IF NOT EXISTS FOR (e:Episode) ON (e.source_message_id)"
+                )
             except Exception as e:
                 logger.warning(f"Failed to create Episode constraint: {e}")
 
@@ -262,7 +265,8 @@ class Neo4jLongTermMemory(ILongTermMemory):
             error: $error,
             project_id: $pid,
             timestamp: timestamp(),
-            embedding: $embedding
+            embedding: $embedding,
+            source_message_id: $mid
         })
         RETURN e
         """
@@ -277,6 +281,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
                 error=episode.error_msg,
                 pid=pid_val,
                 embedding=embedding,
+                mid=episode.source_message_id,
             )
             logger.info(f"Stored Episode: {episode_id} (Result: {episode.result})")
 
@@ -428,3 +433,28 @@ class Neo4jLongTermMemory(ILongTermMemory):
             return []
 
         return [f"{r['name']}: {r['description']}" for r in records]
+
+    async def delete_episodes_by_message_ids(self, message_ids: List[str]) -> int:
+        """Delete episodes linked to specific message IDs."""
+        if not message_ids:
+            return 0
+
+        driver = await get_graph_db()
+        query = """
+        MATCH (e:Episode)
+        WHERE e.source_message_id IN $message_ids
+        DETACH DELETE e
+        RETURN count(e) as deleted_count
+        """
+
+        try:
+            async with driver.session() as session:
+                result = await session.run(query, message_ids=message_ids)
+                record = await result.single()
+                count = record["deleted_count"] if record else 0
+                if count > 0:
+                    logger.info(f"Deleted {count} episodes linked to rolled-back messages.")
+                return count
+        except Exception as e:
+            logger.error(f"Failed to delete episodes by message IDs: {e}")
+            return 0

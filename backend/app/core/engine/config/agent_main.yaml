@@ -23,6 +23,9 @@ nodes:
   - id: "chat"
     path: "app.core.engine.nodes.chat.chat_node"
 
+  - id: "flash_brain"
+    path: "app.core.brain.node.flash_brain_node"
+
 edges:
   # 1. Supervisor (Router)
   - from: "supervisor"
@@ -35,6 +38,7 @@ edges:
       chat: "chat"
       supervisor: "supervisor"
       finish: "finish"
+      flash_brain: "flash_brain"
 
   # 2. Developer Loop (Self-Correcting)
   # Developer node handles its own loops via max_steps.
@@ -61,4 +65,9 @@ edges:
   # 6. Finish -> End
   - from: "finish"
     to: "END"
+    type: "simple"
+
+  # 7. Flash Brain -> Supervisor
+  - from: "flash_brain"
+    to: "supervisor"
     type: "simple"

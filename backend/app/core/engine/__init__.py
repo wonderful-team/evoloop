@@ -168,8 +168,17 @@ class AgentEngine:
                 if tc["name"] == "route_to":
                     target = tc["args"].get("target", "finish")
                     reason = tc["args"].get("reason", "")
-                    context = tc["args"].get("context", {})  # <--- NEW
-                    logger.info(f"[{name}] 🚀 Routing Signal: → {target} ({reason}) | Ctx: {len(context) if context else 0} keys")
+                    context = tc["args"].get("context", {})
+                    
+                    # Robustly handle JSON strings if passed by LLM instead of object
+                    if isinstance(context, str):
+                        try:
+                            context = json.loads(context)
+                        except Exception:
+                            logger.warning(f"[{name}] Failed to parse routing context JSON: {context[:100]}...")
+                            context = {}
+
+                    logger.info(f"[{name}] 🚀 Routing Signal: → {target} ({reason}) | Ctx: {len(context) if isinstance(context, dict) else 0} keys")
 
                     # Return immediately with routing information
                     return {

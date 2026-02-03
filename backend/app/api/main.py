@@ -24,6 +24,7 @@ from app.api.routes import (
     users,
     utils,
     wiki,
+    brain,
 )
 
 api_router = APIRouter()
@@ -61,3 +62,6 @@ api_router.include_router(stream.router, tags=["stream"])
 
 # Wiki Generation
 api_router.include_router(wiki.router, prefix="/wiki", tags=["wiki"])
+
+# Cognitive Brain (Flash Mode)
+api_router.include_router(brain.router, prefix="/brain", tags=["brain"])

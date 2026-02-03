@@ -25,6 +25,7 @@ from app.models import (
     MessageReference,
 )
 from app.core.evocloud import evocloud_manager
+from app.core.engine.cleanup import cleanup_side_effects
 from app.utils.context import set_context
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,6 @@ async def chat_endpoint(
     req: ChatRequest,
     bg_tasks: BackgroundTasks,  # Injected
     _current_user: CurrentUserOptional,  # Used for context if needed, though verified by deps
-    _x_guest_id: Annotated[str | None, Header()] = None,
 ):
     """
     Unified entry point for User Chat (Local Background Task).
@@ -241,7 +241,24 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
         retry_message_content = last_human_msg.content
         last_msg_id = last_human_msg.id
 
-        # 2. Delete all messages AFTER this human message
+        # 2. Get IDs of messages to be deleted (Context Awareness)
+        msgs_to_delete_stmt = (
+            select(Message.id)
+            .where(Message.thread_id == req.thread_id)
+            .where(Message.id > last_msg_id)
+        )
+        msgs_to_delete_result = await session.execute(msgs_to_delete_stmt)
+        msg_ids_to_clean = [str(r) for r in msgs_to_delete_result.scalars().all()]
+
+        # 2.5 Trigger Cleanup of Side Effects (Closed Loop)
+        if msg_ids_to_clean:
+            # Run cleanup *before* deletion to ensure IDs exist if validity checks needed (though here we just need IDs)
+            # Actually, we can run it here.
+            # Ideally this should be async or background, but since we are awaiting session execution anyway...
+            # Cleanup service handles its own errors.
+            await cleanup_side_effects(msg_ids_to_clean)
+
+        # 3. Delete all messages AFTER this human message
         del_stmt = (
             delete(Message)
             .where(Message.thread_id == req.thread_id)

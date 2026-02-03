@@ -220,4 +220,3 @@ Return a JSON object:
 If the structure is reasonably complete for its project type, return is_complete=true with empty gaps.
 Be practical - not every project needs exhaustive documentation.
 """
-

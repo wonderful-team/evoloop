@@ -41,13 +41,6 @@
             "status_analyzing": "Analyzing context...",
             "no_active_plan": "No active plan found. Please create one if the task is complex."
         },
-        "system_scanner": {
-            "start": "🏥 System Scanner: Starting Health Check...",
-            "high_failure_rate": "⚠️ High Failure Rate: Meta-Reviewer intervened {count} times in the last 24h.",
-            "recurring_failure": "⚠️ Recurring Failure Pattern: Concept '{concept}' has failed {count} times recently.",
-            "healthy": "✅ System Healthy. No evolutionary pressure detected.",
-            "complete": "🩺 Health Scan Complete.\n\n{report}"
-        },
         "tester": {
             "report_header": "TEST REPORT PARSED:\nFailed: {failures}\nDetails:\n{details}",
             "report_pass": "TEST REPORT: ALL PASSED.",

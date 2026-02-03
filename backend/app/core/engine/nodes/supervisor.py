@@ -69,10 +69,10 @@ class SupervisorNode:
         # Emit initial status
         await self._emit_status(config, i18n.get("prompts.supervisor.status_analyzing"))
 
-        # Phase 0: Context Compression (optional optimization)
-        compression_result = await self._try_compression(state)
-        if compression_result:
-            return compression_result
+        # Phase 0: Context Trimming (Determinstic sliding window)
+        trim_result = await self._try_trimming(state)
+        if trim_result:
+            return trim_result
 
         # Phase 1: Fast Path (IntentClassifier + SkillMatcher)
         fast_result = await self._try_fast_path(state, config)
@@ -85,8 +85,11 @@ class SupervisorNode:
         # Phase 3: Single ReAct Loop with route_to tool (Core Change)
         # Import route_to tool and add to tools list
         from app.domain.tools.routing import route_to
+        from app.core.brain.tools.retrieval import recall_memory
+        from app.core.brain.tools.management import update_focus, memorize
 
-        tools = context["tools"] + [route_to]
+        # Add memory tools to the toolkit
+        tools = context["tools"] + [route_to, recall_memory, update_focus, memorize]
 
         # Use Builder for unified prompt construction
         from app.core.prompts import SupervisorPromptBuilder
@@ -216,17 +219,43 @@ class SupervisorNode:
         except Exception:
             pass
 
-    async def _try_compression(self, state: AgentState) -> dict[str, Any] | None:
-        """Try to compress history if needed."""
+    async def _try_trimming(self, state: AgentState) -> dict[str, Any] | None:
+        """
+        Deterministic Sliding Window Trimming.
+        Removes oldest messages when window exceeds threshold.
+        Replaces legacy AI summarization (CompressorNode).
+        """
         try:
-            from app.core.engine.nodes.compressor import compress_history_delta
-
             current_msgs = state.get("messages", [])
-            delta = await compress_history_delta(current_msgs)
+            max_msgs = 35 # Threshold to trigger trimming
+            keep_last = 15 # Messages to keep at the end
+
+            if len(current_msgs) <= max_msgs:
+                return None
+
+            logger.info(f"[Supervisor] ✂️ Trimming history: {len(current_msgs)} -> {keep_last} + 1")
+
+            from langchain_core.messages import RemoveMessage, SystemMessage
+
+            # 1. Identify System Prompt (always keep at index 0)
+            has_sys = isinstance(current_msgs[0], SystemMessage)
+            start_index = 1 if has_sys else 0
+            end_index = len(current_msgs) - keep_last
+
+            to_remove = current_msgs[start_index:end_index]
+
+            delta = []
+            for msg in to_remove:
+                if msg.id:
+                    delta.append(RemoveMessage(id=msg.id))
+
             if delta:
+                # Return immediately to allow graph to process removals before next LLM call
                 return {"messages": delta, "next_node": "supervisor"}
-        except Exception:
-            pass
+                
+        except Exception as e:
+            logger.error(f"[Supervisor] Trimming failed: {e}")
+
         return None
 
     async def _try_fast_path(self, state: AgentState, config: RunnableConfig) -> dict[str, Any] | None:

@@ -11,6 +11,8 @@ celery_app = Celery(
         "app.domain.project.summarizer",
         "app.domain.project.sync_tasks",
         "app.domain.wiki.tasks",
+        "app.core.brain.tasks",
+        "app.core.engine.tasks",
     ],
 )
 

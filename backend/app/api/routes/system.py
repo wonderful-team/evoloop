@@ -28,26 +28,6 @@ def update_system_config(config: SystemConfig) -> SystemConfig:
     return SystemConfigService.set_value(config.key, config.value, config.description)
 
 
-@router.get("/evolution-status", dependencies=[Depends(get_current_user)])
-def get_evolution_status():
-    from app.core.config import settings
-    from app.core.system import EvolutionConfigService
-    from app.core.system import SystemConfigService
-
-    db_value = SystemConfigService.get_value(EvolutionConfigService.KEY, default="false")
-    db_enabled = str(db_value).lower() == "true"
-
-    # Optimization: Calculate effective status here instead of calling EvolutionConfigService.is_enabled()
-    # which would trigger a second DB query.
-    effective_enabled = settings.ENABLE_SELF_EVOLUTION and db_enabled
-
-    return {
-        "enabled": effective_enabled,
-        "env_enabled": settings.ENABLE_SELF_EVOLUTION,
-        "db_enabled": db_enabled,
-    }
-
-
 class EmbeddingConfigRequest(BaseModel):
     provider: str = Field(..., description="openai, ollama, or generic")
     base_url: str = Field(..., description="API Base URL")

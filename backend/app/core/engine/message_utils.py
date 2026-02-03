@@ -118,18 +118,6 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
     return repaired
 
 
-def truncate_messages(messages: list[BaseMessage], max_messages: int = 20) -> list[BaseMessage]:
-    """
-    Truncate message history to the last N messages while preserving structure.
-    Always keeps the first message (usually system context) and last N-1 messages.
-    """
-    if len(messages) <= max_messages:
-        return messages
-
-    # Keep first message + last (max_messages - 1)
-    return [messages[0]] + messages[-(max_messages - 1):]
-
-
 def smart_window_slice(messages: list[BaseMessage], window_size: int = 30) -> list[BaseMessage]:
     """
     Slice the message list to a window size, ensuring no (AI -> Tool) pair is split.

@@ -41,13 +41,6 @@
             "status_analyzing": "正在分析上下文...",
             "no_active_plan": "未找到活动计划。如果任务复杂，请创建一个计划。"
         },
-        "system_scanner": {
-            "start": "🏥 系统扫描仪：开始健康检查...",
-            "high_failure_rate": "⚠️ 高故障率：Meta-Reviewer 在过去 24 小时内介入了 {count} 次。",
-            "recurring_failure": "⚠️ 重复故障模式：概念 '{concept}' 最近失败了 {count} 次。",
-            "healthy": "✅ 系统健康。未检测到进化压力。",
-            "complete": "🩺 健康扫描完成。\n\n{report}"
-        },
         "tester": {
             "report_header": "测试报告解析结果：\n失败：{failures}\n详情：\n{details}",
             "report_pass": "测试报告：全部通过。",

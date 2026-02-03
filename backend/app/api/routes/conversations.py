@@ -12,6 +12,7 @@ from app.core.monitoring.activity import activity_monitor
 from app.core.persistence import get_db_pool
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import Conversation, Message
+from app.core.engine.cleanup import cleanup_side_effects
 
 logger = logging.getLogger(__name__)
 
@@ -347,6 +348,9 @@ async def rewind_conversation(thread_id: str):
         msg_ids = [u.id for u in updates]
         if msg_ids:
             try:
+                # 2.5 Active Cleanup (Side Effects)
+                await cleanup_side_effects(msg_ids)
+
                 async with get_db_session() as session:
                     await session.execute(
                         delete(Message).where(Message.id.in_(msg_ids))

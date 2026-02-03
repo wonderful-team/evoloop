@@ -36,12 +36,14 @@ class Episode:
         plan_summary: str,
         error_msg: Optional[str],
         project_id: int,
+        source_message_id: Optional[str] = None,
     ):
         self.goal = goal
         self.result = result
         self.plan_summary = plan_summary
         self.error_msg = error_msg
         self.project_id = project_id
+        self.source_message_id = source_message_id
 
 
 class ILongTermMemory(IMemoryProvider):
@@ -174,5 +176,18 @@ class ILongTermMemory(IMemoryProvider):
 
         Returns:
             List of formatted concept strings
+        """
+        pass
+
+    @abstractmethod
+    async def delete_episodes_by_message_ids(self, message_ids: List[str]) -> int:
+        """
+        Delete episodes associated with specific source message IDs.
+
+        Args:
+            message_ids: List of source message IDs
+
+        Returns:
+            Number of deleted episodes
         """
         pass

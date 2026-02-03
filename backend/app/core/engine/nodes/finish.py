@@ -1,6 +1,6 @@
-import json
 import logging
 import os
+import uuid
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
@@ -9,7 +9,6 @@ from pydantic import BaseModel, Field
 from app.core.engine.message_utils import get_message_text, smart_window_slice
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
-from app.core.memory import memory_manager
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
@@ -27,6 +26,12 @@ class ProactiveTodo(BaseModel):
     reason: str | None = Field(description="Why this todo is needed")
 
 
+from typing import Any
+try:
+    from pydantic import field_validator
+except ImportError:
+    from pydantic import validator as field_validator
+
 class SessionConclusion(BaseModel):
     """Unified output for finish node - combines summary, knowledge harvesting, and todo detection."""
     summary: str = Field(description="Human-readable summary of what was accomplished in this session")
@@ -38,6 +43,22 @@ class SessionConclusion(BaseModel):
         default=None,
         description="A todo item if any follow-up action was mentioned"
     )
+
+    @field_validator("proactive_todo", mode="before")
+    @classmethod
+    def parse_proactive_todo(cls, v: Any) -> Any:
+        # Robustly handle JSON strings if passed by LLM instead of object
+        if isinstance(v, str):
+            try:
+                import json
+                # If it's a string, try to decode it
+                if v.strip().lower() == "null" or v.strip() == "":
+                    return None
+                return json.loads(v)
+            except Exception:
+                # If parsing fails, return None to be safe (or log warning)
+                return None
+        return v
 
 
 async def finish_node(state: AgentState, config: RunnableConfig):
@@ -58,6 +79,9 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     current_plan = state.get("current_plan", "")
     execution_ticket = state.get("execution_ticket")
     test_results = state.get("structured_test_results", {})
+
+    # Pre-generate Message ID for consistency
+    final_message_id = str(uuid.uuid4())
 
     # Language preference
     from app.core.system import SystemConfigService
@@ -94,43 +118,17 @@ async def finish_node(state: AgentState, config: RunnableConfig):
             pass
 
     # 3. Unified Prompt
-    conclusion_prompt = f"""You are the EvoLoop Session Analyst.
-The user's task has been completed. Analyze the conversation and provide a structured conclusion.
+    from app.core.prompts.finish import FinishPromptBuilder
 
-**User Language Preference**: {user_lang}
-
-**Task Plan (if any)**: {current_plan[:1000] if current_plan else "No formal plan"}
-
-**Tools Used**: {tool_summary}
-
-**BLACKBOARD STATUS (MISSION TRUTH)**:
-Active Ticket: {json.dumps(execution_ticket, indent=2) if execution_ticket else "None"}
-Verification Status: {json.dumps(test_results, indent=2) if test_results else "No tests recorded"}
-
-{git_context}
-
-### Instructions
-
-1. **summary**: Write a concise, professional summary of what was accomplished.
-   - Use the user's preferred language ({user_lang})
-   - **IMPORTANT**: Use the BLACKBOARD STATUS above as the primary evidence of success. 
-   - If tests are "verified", state this clearly as a proven outcome.
-   - Mention key actions taken and outcomes.
-   - Use Markdown formatting with bullet points if appropriate.
-
-2. **harvested_concepts**: Extract up to 5 concepts worth remembering:
-   - Technologies, patterns, or architecture decisions used in the ticket mission.
-   - Domain-specific terms or configurations.
-   - NOT generic programming terms (like "function", "variable").
-   - Each concept needs a name and description.
-
-3. **proactive_todo**: If the conversation mentioned any follow-up tasks:
-   - "I'll deploy this later", "Check the logs in 30 minutes", etc.
-   - Set should_create=true only if a real action is needed later
-   - Ignore completed tasks or generic statements
-
-Analyze the conversation and respond with the SessionConclusion structure.
-"""
+    builder = FinishPromptBuilder(
+        user_lang=user_lang,
+        current_plan=current_plan,
+        tool_summary=tool_summary,
+        execution_ticket=execution_ticket,
+        test_results=test_results,
+        git_context=git_context
+    )
+    conclusion_prompt = builder.build()
 
     # 4. Single LLM Call with Structured Output
     llm = LLMFactory.create_llm(temperature=0.3)
@@ -151,18 +149,26 @@ Analyze the conversation and respond with the SessionConclusion structure.
 
     # 5. Process Results
 
-    # 5a. Store harvested concepts in Neo4j
+    # 5a. Dispatch Concept Harvesting (Async)
     if conclusion.harvested_concepts:
-        for concept in conclusion.harvested_concepts:
-            try:
-                from app.core.memory.interfaces.long_term import Concept as MemConcept
-                mem_concept = MemConcept(concept.name, concept.description, project_id, [])
-                await memory_manager.long_term.store_concept(mem_concept)
-                logger.info(f"Harvested concept: {concept.name}")
-            except Exception as e:
-                logger.warning(f"Failed to store concept {concept.name}: {e}")
+        try:
+            from app.core.engine.tasks import harvest_concepts_task
+            
+            # Convert Pydantic to dict for Celery serialization
+            concepts_data = [
+                {"name": c.name, "description": c.description} 
+                for c in conclusion.harvested_concepts
+            ]
+            
+            harvest_concepts_task.delay(
+                concepts_data=concepts_data, 
+                project_id=project_id
+            )
+            logger.info(f"Dispatched harvest task for {len(concepts_data)} concepts")
+        except Exception as e:
+            logger.warning(f"Failed to dispatch harvest task: {e}")
 
-    # 5b. Create proactive todo if needed
+    # 5b. Create proactive todo if needed (Keep Sync for UI Feedback)
     todo_notice = ""
     if conclusion.proactive_todo and conclusion.proactive_todo.should_create and conclusion.proactive_todo.title:
         try:
@@ -177,7 +183,7 @@ Analyze the conversation and respond with the SessionConclusion structure.
                     "priority": "medium",
                     "description": f"Auto-created: {conclusion.proactive_todo.reason}",
                 },
-                config=config,
+                config={**config, "metadata": {**config.get("metadata", {}), "message_id": final_message_id}},
             )
             todo_notice = i18n.get(
                 "prompts.finish.proactive_reminder",
@@ -203,34 +209,44 @@ Analyze the conversation and respond with the SessionConclusion structure.
     if todo_notice:
         final_summary += todo_notice
 
-    # 6. Sync Trace to Episode Graph
+    # 6. Sync Trace to Episode Graph (Async)
     try:
-        from app.core.learning.trace_recorder import sync_thread_to_graph
+        from app.core.engine.tasks import record_episode_task
 
         thread_id = config.get("configurable", {}).get("thread_id", None)
 
         if thread_id:
-            logger.info(f"Syncing thread {thread_id} to Episode Graph...")
-
-            # Extract goal from first HumanMessage
+            # Extract goal from first HumanMessage (can be done here or in task, but passing clear args is safer)
             first_goal = None
             for msg in messages:
                 if isinstance(msg, HumanMessage):
                     first_goal = get_message_text(msg)[:2000]
                     break
 
-            # Extract concept names for linking
+            # Extract concept names
             concept_names = [c.name for c in conclusion.harvested_concepts] if conclusion.harvested_concepts else []
 
-            await sync_thread_to_graph(
+            record_episode_task.delay(
                 thread_id=thread_id,
                 project_id=project_id,
                 goal=first_goal,
                 result_summary=conclusion.summary,
                 concept_names=concept_names,
+                source_message_id=final_message_id,
             )
+            logger.info(f"Dispatched episode record task for {thread_id}")
     except Exception as e:
         logger.error(f"Failed to sync episode to graph: {e}")
+
+    # 7. Trigger Brain Memory Consolidation (Async Sleep Cycle)
+    try:
+        from app.core.brain.tasks import consolidate_memory
+        
+        logger.info(f"Dispatching Brain Consolidation Task (Async) for {final_message_id}...")
+        consolidate_memory.delay(source_message_id=final_message_id)
+        
+    except Exception as e:
+        logger.warning(f"Failed to dispatch Brain Consolidation: {e}")
 
     # Return the summary as a regular AIMessage (will be logged by DatabaseCallbackHandler)
     # Note: Since this is manual AIMessage, it needs to be invoked via LLM for persistence
@@ -249,4 +265,5 @@ Analyze the conversation and respond with the SessionConclusion structure.
         # Fallback if echo fails
         final_response = AIMessage(content=final_summary)
 
+    final_response.id = final_message_id
     return {"messages": [final_response]}

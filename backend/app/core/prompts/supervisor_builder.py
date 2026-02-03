@@ -40,6 +40,11 @@ class SupervisorPromptBuilder:
         # Phase 8: Build Blackboard State Section
         blackboard_section = self._build_blackboard_section()
 
+        # Brain Integration: Episodic Memory
+        episodic_memory = self._build_episodic_memory_section()
+        
+        # Brain Integration: Core Memory (Focus)
+        core_memory = self._build_core_memory_section()
 
         # Phase 11: Dynamic Agent Sandbox Protocol
         dynamic_protocol = """
@@ -84,6 +89,8 @@ Available targets for route_to:
 {visited_nodes_warning}
 {self._build_ambiguity_warning()}
 {blackboard_section}
+{episodic_memory}
+{core_memory}
 {dynamic_protocol}
 ## Active Plan Context
 {self.active_plan_context}
@@ -93,7 +100,8 @@ Available targets for route_to:
 - **You do NOT have permission to write ANY files (code or text).**
 - For documentation (.md, .txt), route to "documenter".
 - For code and technical tasks, route to "developer".
-- DO NOT hallucinate the tool `write_file`. You do NOT have it.
+- DO NOT hallucinate the tool `write_file` or `edit_file`. You do NOT have them.
+- If you see a code snippet or fix, DELEGATE it to "developer". Do not try to apply it yourself.
 - Always use `route_to` - never just end with text when a handoff is needed.
 
 ## System Info
@@ -215,6 +223,65 @@ DO NOT Assume intent.
                 output.append("- Specialist node has attempted verification. Check history for pass/fail details.")
         
         return "\n".join(output) + "\n"
+
+    def _build_episodic_memory_section(self) -> str:
+        """Read recent journal entries to form Episodic Memory."""
+        try:
+            from app.core.config import settings
+            import os
+            
+            journal_path = os.path.join(settings.BRAIN_MEMORY_ROOT, "knowledge", "journal.md")
+            if not os.path.exists(journal_path):
+                return ""
+            
+            # Read last 20 lines
+            with open(journal_path, "r", encoding="utf-8") as f:
+                content = f.read()
+                if not content:
+                    return ""
+                lines = content.splitlines()[-20:]
+                recent_memories = "\n".join(lines)
+                
+            return f"""
+## 🧠 EPISODIC MEMORY (Recent Learnings)
+The following are consolidated summaries from your previous sessions.
+{recent_memories}
+
+**Tip**: If you need to recall older details or specific facts not shown above, use the `recall_memory` tool to search the full Knowledge Base.
+"""
+        except Exception:
+            return ""
+
+    def _build_core_memory_section(self) -> str:
+        """Read 'Focus' from working memory (The Flash Brain Scratchpad/Focus)."""
+        try:
+            from app.core.config import settings
+            import os
+            
+            focus_path = os.path.join(settings.BRAIN_MEMORY_ROOT, "working", "focus.md")
+            if not os.path.exists(focus_path):
+                 return """
+## 🎯 CORE MEMORY (FOCUS)
+[Empty]
+Use the `update_focus` tool to set high-level goals or constraints that persist here.
+"""
+            with open(focus_path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                
+            if not content:
+                 return """
+## 🎯 CORE MEMORY (FOCUS)
+[Empty]
+Use the `update_focus` tool to set high-level goals or constraints that persist here.
+"""
+            return f"""
+## 🎯 CORE MEMORY (FOCUS)
+{content}
+
+(Use `update_focus` to update this section)
+"""
+        except Exception:
+            return ""
 
     def _get_user_language(self) -> str:
         return SystemConfigService.get_language_preference()

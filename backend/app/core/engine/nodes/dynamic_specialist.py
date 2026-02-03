@@ -16,6 +16,7 @@ from app.domain.tools.vector_store import pg_tool_retriever
 
 logger = logging.getLogger(__name__)
 
+
 class DynamicSpecialistNode:
     """
     The Chameleon Node (v4.0).
@@ -113,6 +114,7 @@ class DynamicSpecialistNode:
                 "messages": [AIMessage(content=f"Dynamic Agent '{role_name}' failed: {e}")],
                 "next_node": "supervisor"
             }
+
 
 # Singleton
 dynamic_specialist_node = DynamicSpecialistNode()

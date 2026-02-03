@@ -65,6 +65,33 @@ class LLMFactory:
             streaming=True,
         )
 
+    @staticmethod
+    def create_completion_client(
+        base_url: str,
+        api_key: str,
+        model_name: str,
+        temperature: float = 0.7
+    ):
+        """
+        Create a raw Completion client (Legacy/Text-Generation) for SSM/Flash Brain.
+        Useful for endpoints that strictly use /v1/completions.
+        """
+        # Try to use standard LangChain OpenAI client
+        try:
+            from langchain_openai import OpenAI
+            return OpenAI(
+                openai_api_key=api_key,
+                openai_api_base=base_url,
+                model_name=model_name,
+                temperature=temperature,
+                max_tokens=512
+            )
+        except ImportError as e:
+            # Fallback or error if package missing
+            import sys
+            logger.error(f"Failed to import langchain_openai: {e}. Path: {sys.path}")
+            return None
+
 
 # Global instance for easy import if needed, or prefer using Factory.create()
 def get_default_llm() -> AdaptiveChatOpenAI:

@@ -134,6 +134,7 @@ async def sync_thread_to_graph(
     goal: str = None,
     result_summary: str = None,
     concept_names: list[str] = None,
+    source_message_id: str = None,
 ):
     """
     Syncs the completed thread's trace from SQL to Neo4j as an Episode.
@@ -145,6 +146,7 @@ async def sync_thread_to_graph(
         goal: User's original goal (from first HumanMessage)
         result_summary: Session summary from SessionConclusion
         concept_names: List of harvested concept names to link
+        source_message_id: ID of the final response message
     """
     # 1. Fetch Trace (for fallback extraction if params not provided)
     events = []
@@ -197,7 +199,14 @@ async def sync_thread_to_graph(
 
     # 3. Store Episode to Graph
     from app.core.memory.interfaces.long_term import Episode
-    episode = Episode(final_goal[:2000], final_result[:2000] if final_result else "Success", plan_snapshot[:5000], error, project_id)
+    episode = Episode(
+        final_goal[:2000],
+        final_result[:2000] if final_result else "Success",
+        plan_snapshot[:5000],
+        error,
+        project_id,
+        source_message_id,
+    )
     episode_id = await memory_manager.long_term.record_episode(episode)
 
     # 4. Link Episode to Concepts (NEW)

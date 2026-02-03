@@ -21,6 +21,7 @@ ROUTING_TARGETS = Literal[
     "computer_executor",
     "mobile_executor",
     "dynamic_specialist", # New v4.0 target
+    "flash_brain", # SSM Integration
 ]
 
 
@@ -42,6 +43,7 @@ def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) 
     - "computer_executor": Need to execute system commands
     - "mobile_executor": Need to control mobile devices
     - "dynamic_specialist": Need a specialized, temporary sub-agent (e.g., "SQL Runner", "Log Analyzer")
+    - "flash_brain": Need fast, low-cost reasoning or memory lookup (Use for simple queries or fact retrieval)
 
     Args:
         target: The specialist node to route to.

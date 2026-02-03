@@ -135,6 +135,16 @@ class Settings(BaseSettings):
     # General Agent / Intention
     GENERAL_AGENT_MODEL: str = "gpt-4o"
 
+    # --- Cognitive Brain Configuration ---
+    # File System
+    BRAIN_MEMORY_ROOT: str = ".brain_memory"
+
+    # Drivers: 'mock', 'local_ssm', 'remote_api'
+    SSM_MODEL_NAME: str = "local-model" # Default for LM Studio/Ollama
+    SSM_API_BASE: str = "http://localhost:1234/v1" # For LM Studio / LocalAI
+
+    REFLECTIVE_DRIVER_TYPE: str = "active"
+
     # Browser Agent
     BROWSER_USE_API_KEY: str = "sk-dummy-key-for-local-dev"
     BROWSER_MODEL_NAME: str | None = "gpt-4o"
@@ -212,7 +222,7 @@ class Settings(BaseSettings):
     RECURSION_LIMIT: int = 100  # Default LangGraph recursion limit
 
     # Meta-Evolution
-    ENABLE_SELF_EVOLUTION: bool = False  # Dangerous! Requires sandbox.
+    # ENABLE_SELF_EVOLUTION removed
 
     # --- RAG & Search Tunable Parameters ---
     DEFAULT_SEARCH_TOP_K: int = 10
