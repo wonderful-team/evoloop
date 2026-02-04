@@ -31,6 +31,9 @@ class SupervisorPromptBuilder:
         """Constructs the full system prompt."""
         user_lang = self._get_user_language()
 
+        # Awakening: Inject environment awareness at the top
+        awakening_section = self._build_awakening_section()
+
         # Solution A: Build Plan Status Section
         plan_status_section = self._build_plan_status_section()
 
@@ -59,7 +62,7 @@ You MUST adhere to the **SANDBOX PROTOCOL**:
 3. **No Human Contact**: NEVER grant `request_approval` or `chat`. Sub-agents cannot talk to the user.
 """
         return f"""You are the Supervisor of an elite coding team.
-
+{awakening_section}
 ## Your Role
 You are a MANAGER. You analyze user requests, explore the codebase when needed, and DELEGATE to specialists.
 You do NOT write application code yourself.
@@ -73,7 +76,7 @@ You do NOT write application code yourself.
 You MUST call `route_to` when you are ready to proceed. This is the ONLY way to move forward.
 
 Available targets for route_to:
-- "developer": The primary worker. Use this for ANY technical task including architecture, coding, bug fixing, and testing. It handles the "Write-Test-Fix" inner loop.
+- "developer": The primary execution specialist. Use this for ANY technical task, including architecture, coding, bug fixing, testing, **Android mobile control**, and **MacOS desktop control**. It is your only technical worker.
 - "deep_researcher": Need to search the web or gather more information.
 - "documenter": Need to generate documentation, wiki, or README.
 - "chat": Request is AMBIGUOUS - need to ask user clarifying questions.
@@ -81,8 +84,8 @@ Available targets for route_to:
 - "dynamic_specialist": Create a temporary, specialized sub-agent for an isolated task (e.g. "SQLRunner").
 
 ## Decision Guidelines
+- If request is technical (coding, refactoring, testing, bug fixing, **operating Android/Mac**) → route_to("developer")
 - If request is vague (e.g., "Build an app") → route_to("chat") to ask clarifying questions
-- If request is technical (coding, refactoring, testing, bug fixing) → route_to("developer")
 - If you need more information from internet → route_to("deep_researcher")
 - If user asks a question and you answered it → route_to("finish")
 {plan_status_section}
@@ -180,10 +183,10 @@ Only after the tool returns "Approved", can you route to different nodes.
             warning += f"- You just routed to: **{last_route}**\n"
         if visited:
             warning += f"- Nodes visited this session: {', '.join(visited)}\n"
-        warning += """- **Do NOT route to the same node repeatedly.** If stuck, route to 'chat' to ask user for guidance.
-- **CRITICAL**: DO NOT hallucinate tool names.
-  - ✅ `route_to(target="developer")` (CORRECT)
-  - ✅ `route_to(target="documenter")` (CORRECT)
+        warning += """- **CRITICAL**: DO NOT hallucinate tool names.
+  - ✅ `route_to(target="developer")` (CORRECT for all technical work)
+  - ✅ `route_to(target="documenter")` (CORRECT for docs)
+
 """
         return warning
 
@@ -280,6 +283,69 @@ Use the `update_focus` tool to set high-level goals or constraints that persist 
 
 (Use `update_focus` to update this section)
 """
+        except Exception:
+            return ""
+
+    def _build_awakening_section(self) -> str:
+        """Build the awakening section with environment awareness."""
+        try:
+            from app.core.environment import get_awakened_state
+            state = get_awakened_state()
+            
+            if not state:
+                return ""
+            
+            sections = ["\n## 🌅 I HAVE JUST AWAKENED\n"]
+            
+            # --- Environment Awareness ---
+            sections.append("### 🌐 Environment Awareness")
+            if state.macos:
+                sections.append(f"- **Host**: {state.macos.model} ({state.macos.cpu}), macOS {state.macos.os_version}, {state.macos.ram_gb}GB RAM")
+            
+            if state.android_devices:
+                for dev in state.android_devices:
+                    emoji = "✅" if dev.is_reachable else "⚠️"
+                    sections.append(f"- **Mobile**: {emoji} {dev.model} (Android {dev.os_version}), Battery: {dev.battery_percent}%")
+            else:
+                sections.append("- **Mobile**: ⚠️ No Android devices connected.")
+            
+            # --- Memory Replay ---
+            if state.recent_episodes or state.relevant_concepts or state.journal_highlights:
+                sections.append("\n### 🧠 Memory Replay (What I Remember)")
+                
+                if state.recent_episodes:
+                    sections.append("**Recent Tasks:**")
+                    for ep in state.recent_episodes[:3]:
+                        sections.append(f"- [{ep.date}] {ep.goal} → {ep.result}")
+                
+                if state.relevant_concepts:
+                    concept_names = ", ".join([c.name for c in state.relevant_concepts[:5]])
+                    sections.append(f"**Key Knowledge:** {concept_names}")
+                
+                if state.journal_highlights:
+                    sections.append(f"**Recent Learnings:**\n{state.journal_highlights}")
+            
+            # --- Preferences & Rules ---
+            if state.user_preferences or state.system_rules:
+                sections.append("\n### 🎭 My Identity & Rules")
+                
+                if state.user_preferences:
+                    prefs = ", ".join([f"{k}={v}" for k, v in list(state.user_preferences.items())[:5]])
+                    sections.append(f"- **User Preferences**: {prefs}")
+                
+                if state.system_rules:
+                    sections.append("- **Inviolable Rules**:")
+                    for rule in state.system_rules[:3]:
+                        sections.append(f"  - ❌ {rule}")
+            
+            # --- Capability Boundaries ---
+            if state.capability_boundaries:
+                sections.append("\n### ❌ What I CANNOT Do")
+                for boundary in state.capability_boundaries[:4]:
+                    sections.append(f"- {boundary}")
+            
+            return "\n".join(sections) + "\n"
+            
         except Exception:
             return ""
 

@@ -17,9 +17,6 @@ ROUTING_TARGETS = Literal[
     "documenter",
     "chat",
     "finish",
-    "browser_executor",
-    "computer_executor",
-    "mobile_executor",
     "dynamic_specialist", # New v4.0 target
     "flash_brain", # SSM Integration
 ]
@@ -34,14 +31,11 @@ def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) 
     hand off to a specialist. This is the ONLY way to proceed to the next step.
 
     Available targets:
-    - "developer": Consolidates planning, coding, and testing. Use this for ANY task involving code modification, bug fixing, or feature implementation.
+    - "developer": Consolidates planning, coding, testing, mobile (Android) and desktop (Mac) control. Use this for ANY technical implementation task.
     - "deep_researcher": Need to search the web or gather more information
     - "documenter": Need to generate documentation, wiki, or README
     - "chat": Need to ask the user clarifying questions (ambiguous request)
     - "finish": The task is complete or the question has been fully answered
-    - "browser_executor": Need to interact with web pages
-    - "computer_executor": Need to execute system commands
-    - "mobile_executor": Need to control mobile devices
     - "dynamic_specialist": Need a specialized, temporary sub-agent (e.g., "SQL Runner", "Log Analyzer")
     - "flash_brain": Need fast, low-cost reasoning or memory lookup (Use for simple queries or fact retrieval)
 

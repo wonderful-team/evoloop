@@ -20,11 +20,23 @@ from sqlalchemy import select
 from app.core.llm.factory import LLMFactory
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools.executor import ToolExecutor
+from app.core.tools.registry_utils import get_node_tools
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.models import LearnedSkill as LearnedSkillModel
 
 logger = logging.getLogger("evoloop.learning.executor")
+
+
+def build_skill_tool_registry() -> dict[str, Any]:
+    """
+    Build a tool registry for SkillExecutor from the Developer's tool set.
+    This ensures learned skills can access platform control tools like mobile_control.
+    """
+    registry = {}
+    for tool in get_node_tools("developer"):
+        registry[tool.name] = tool
+    return registry
 
 
 @dataclass

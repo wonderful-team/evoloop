@@ -285,6 +285,10 @@ def get_tools_by_names(tool_names: list[str]) -> list[BaseTool]:
     except ImportError:
         pass
 
+    # Environment Interaction Tools (Phase 22)
+    all_known_tools["desktop_control"] = desktop_control
+    all_known_tools["mobile_control"] = mobile_control
+    all_known_tools["find_element"] = find_element
 
     hydrated_tools = []
     for name in tool_names:

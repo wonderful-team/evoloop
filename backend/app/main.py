@@ -55,6 +55,19 @@ async def lifespan(_app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to initialize Memory Service schema: {e}")
 
+    # 2.5 Agent Awakening - Environment & Capability Awareness
+    try:
+        from app.core.environment import awaken, environment_watcher
+
+        await awaken()
+        logger.info("Agent Awakening complete.")
+        
+        # Start background environment watcher
+        await environment_watcher.start()
+    except Exception as e:
+        logger.warning(f"Agent Awakening failed (non-critical): {e}")
+
+
     # 3. Persistence (Checkpointer)
     db_uri = settings.CHECKPOINTER_DATABASE_URI
     # kwargs={"autocommit": True} is required for CREATE INDEX CONCURRENTLY in setup()
@@ -211,6 +224,13 @@ async def lifespan(_app: FastAPI):
         discovery_watcher.stop()
     await indexing_manager.stop_all()
     await mcp_client_manager.cleanup()
+
+    # Stop Environment Watcher
+    try:
+        from app.core.environment import environment_watcher
+        await environment_watcher.stop()
+    except Exception as e:
+        logger.warning(f"Failed to stop Environment Watcher: {e}")
 
     # Stop EvoLoop Link
     try:

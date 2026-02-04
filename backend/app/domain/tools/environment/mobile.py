@@ -148,9 +148,9 @@ async def mobile_control(
         elif action == "dump_ui":
             xml = adb_driver.dump_ui(device_id=device_id)
             
-            # Truncate if too long
-            if len(xml) > 10000:
-                xml = xml[:10000] + "\n...(truncated)"
+            # Truncate if extreme (200k chars is usually enough for complex apps)
+            if len(xml) > 200000:
+                xml = xml[:200000] + "\n...(truncated)"
             
             return f"UI Hierarchy:\n{xml}"
         

@@ -116,6 +116,24 @@ steps:
     condition: "if previous step succeeded"
 ```
 
+## Platform Control Translation Rules
+When synthesizing skills that involve Android or Mac interaction, use these mappings:
+
+**Android (via `mobile_control`):**
+- Tap at coordinates → `mobile_control(action="tap", x={{x}}, y={{y}})`
+- Swipe gesture → `mobile_control(action="swipe", x={{start_x}}, y={{start_y}}, x2={{end_x}}, y2={{end_y}})`
+- Type text → `mobile_control(action="input_text", text="{{text}}")`
+- Press key → `mobile_control(action="press_key", keycode="{{key}}")`
+- Take screenshot → `mobile_control(action="screenshot")`
+
+**MacOS (via `desktop_control`):**
+- Click at coordinates → `desktop_control(action="click", x={{x}}, y={{y}})`
+- Type text → `desktop_control(action="type_text", text="{{text}}")`
+- Open application → `desktop_control(action="open_app", app_name="{{app_name}}")`
+- Press key → `desktop_control(action="key_press", key="{{key}}")`
+
+**Best Practice**: If the trace contains UI element text (e.g., "clicked on '短信' button"), prefer using semantic element identification over fixed coordinates for better portability across devices.
+
 ## Rules
 1. **Generalize**: Replace specific values with parameters (e.g., "auth.py" → {{filename}})
 2. **Minimal Steps**: Only include necessary steps, skip redundant ones

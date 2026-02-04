@@ -12,6 +12,7 @@ from app.core.brain.cleanup import BrainCleanupHandler
 
 logger = logging.getLogger(__name__)
 
+
 class CleanupOrchestrator:
     """
     Central registry for cleanup handlers.
@@ -74,8 +75,10 @@ class CleanupOrchestrator:
 
         return results
 
+
 # Singleton instance
 _orchestrator = CleanupOrchestrator()
+
 
 async def cleanup_side_effects(message_ids: List[str]) -> dict:
     """

@@ -142,6 +142,9 @@ class TraceParser:
         "run_command": ActionCategory.COMMAND,
         "git_operations": ActionCategory.COMMAND,
         "navigate_directory": ActionCategory.NAVIGATION,
+        # Phase: Platform Control Integration
+        "mobile_control": ActionCategory.SYSTEM_INTERACTION,
+        "desktop_control": ActionCategory.SYSTEM_INTERACTION,
     }
 
     def __init__(self, thread_id: str, session_id: str | None = None):

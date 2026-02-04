@@ -7,6 +7,7 @@ from app.core.memory.manager import memory_manager
 
 logger = logging.getLogger(__name__)
 
+
 class GraphMemoryTool:
     """
     A Tool exposed to the Brain to query the Knowledge Graph.
