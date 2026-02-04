@@ -9,6 +9,7 @@ from watchdog.observers import Observer
 
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.project.sync_service import project_sync_service
+from app.domain.codebase.filter import FileFilter
 from app.utils.detect import is_code_file
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,7 @@ class IndexingEventHandler(FileSystemEventHandler):
         self.loop = loop
         self._pending_tasks: dict[str, asyncio.TimerHandle] = {}
         self._debounce_delay = 2.0  # Seconds
+        self.file_filter = FileFilter()
 
     def on_modified(self, event):
         if event.is_directory:
@@ -135,7 +137,12 @@ class IndexingEventHandler(FileSystemEventHandler):
         self._process_move(event.src_path, event.dest_path)
 
     def _is_valid_code_file(self, path: str) -> bool:
-        return is_code_file(path)
+        # 1. Check if the file is a code file (extension/shebang)
+        if not is_code_file(path):
+            return False
+            
+        # 2. Check global exclusion rules (node_modules, .git, large files, etc.)
+        return self.file_filter.should_include(path)
 
     def _process(self, path: str):
         if self._is_valid_code_file(path):
