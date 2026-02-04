@@ -74,6 +74,8 @@ dependencies = [
     # "numpy<2", # Constraint removed as heavy libs gone
     "psutil>=5.9.0",
     "docker>=7.1.0",
+    "requests>=2.32.5",
+    "pyobjc-framework-quartz>=12.1",
 ]
 
 [tool.uv]

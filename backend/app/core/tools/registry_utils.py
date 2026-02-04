@@ -33,6 +33,11 @@ from app.domain.tools.files import (
 )
 from app.domain.tools.human_input import request_approval
 
+# Phase 22: Environment Interaction Tools
+from app.domain.tools.environment.desktop import desktop_control
+from app.domain.tools.environment.mobile import mobile_control
+from app.domain.tools.environment.find_element import find_element
+
 logger = logging.getLogger(__name__)
 
 
@@ -164,6 +169,9 @@ def get_node_tools(node_role: str) -> list[BaseTool]:
             create_plan,
             update_step_status,
             analyze_feasibility,
+            desktop_control,  # Phase 22: Desktop I/O capability
+            mobile_control,   # Phase 22: Mobile I/O capability
+            find_element,     # Phase 22: Vision-guided element selection
             *common_read,
         ]
 
