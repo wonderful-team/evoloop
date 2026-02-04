@@ -1,5 +1,6 @@
 import json
 
+
 class FinishPromptBuilder:
     """
     Constructs the system prompt for the Finish Node's session analysis.
