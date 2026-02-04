@@ -9,7 +9,10 @@
             "success": "Wiki 生成完成。\n已创建页面：\n{pages}",
             "error": "文档规划出错：{error}",
             "error_loading_plan": "加载待定计划出错。请重试。",
-            "plan_cancelled": "用户取消了文档规划。"
+            "plan_cancelled": "用户取消了文档规划。",
+            "hitl_action_description": "根据项目结构创建 Wiki 文档",
+            "hitl_details_label": "**建议的文件结构：**\n\n{plan_md}",
+            "hitl_consequences": "这将在 `docs/wiki/` 中创建 {count} 个新文件。同名现有文件将被覆盖。"
         },
         "finish": {
             "brain_update": "\n\n🧠 **大脑更新**: 已保存 {count} 个新概念到记忆库: {concepts}",
@@ -51,7 +54,13 @@
         },
         "common": {
             "tool_not_found": "错误：找不到工具 {name}。",
-            "tool_execution_error": "执行工具 {name} 时出错：{error}"
+            "tool_execution_error": "执行工具 {name} 时出错：{error}",
+            "risk_levels": {
+                "low": "低",
+                "medium": "中",
+                "high": "高",
+                "critical": "严重"
+            }
         },
         "optimizer": {
             "task_name": "提示优化",

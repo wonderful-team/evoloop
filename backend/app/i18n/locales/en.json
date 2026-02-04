@@ -9,7 +9,10 @@
             "success": "Wiki Generation Complete.\nPages created:\n{pages}",
             "error": "Error planning documentation: {error}",
             "error_loading_plan": "Error loading pending plan. Please try again.",
-            "plan_cancelled": "Documentation plan cancelled by user."
+            "plan_cancelled": "Documentation plan cancelled by user.",
+            "hitl_action_description": "Create Wiki Documentation based on Project Structure",
+            "hitl_details_label": "**Proposed File Structure:**\n\n{plan_md}",
+            "hitl_consequences": "This will create {count} new files in `docs/wiki/`. Existing files with same names will be overwritten."
         },
         "finish": {
             "brain_update": "\n\n🧠 **Brain Update**: Saved {count} concept(s) to memory: {concepts}",
@@ -51,7 +54,13 @@
         },
         "common": {
             "tool_not_found": "Error: Tool {name} not found.",
-            "tool_execution_error": "Error executing tool {name}: {error}"
+            "tool_execution_error": "Error executing tool {name}: {error}",
+            "risk_levels": {
+                "low": "Low",
+                "medium": "Medium",
+                "high": "High",
+                "critical": "Critical"
+            }
         },
         "optimizer": {
             "task_name": "Prompt Optimization",

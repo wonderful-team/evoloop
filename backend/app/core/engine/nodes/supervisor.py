@@ -4,7 +4,7 @@ Supervisor Node - ReAct Architecture
 The Supervisor is the decision-making hub of the EvoLoop system.
 It analyzes user input, routes to specialized nodes via the route_to tool.
 """
-
+import json
 import logging
 import os
 import platform
@@ -128,6 +128,18 @@ class SupervisorNode:
             # Phase 21: Extract Context Handoff
             routing_reason = engine_result.get("_routing_reason", "")
             routing_context = engine_result.get("_routing_context", {})
+            
+            # Defensive check: ensure routing_context is a dict
+            if isinstance(routing_context, str):
+                try:
+                    routing_context = json.loads(routing_context)
+                    if isinstance(routing_context, str): # Handle double encoding
+                        routing_context = json.loads(routing_context)
+                except Exception:
+                    routing_context = {}
+
+            if not isinstance(routing_context, dict):
+                routing_context = {}
 
             # [NEW] Phase 8/9: Universal Blackboard Ticket Population
             execution_ticket = None

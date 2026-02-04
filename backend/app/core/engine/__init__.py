@@ -171,12 +171,14 @@ class AgentEngine:
                     context = tc["args"].get("context", {})
                     
                     # Robustly handle JSON strings if passed by LLM instead of object
-                    if isinstance(context, str):
+                    # Also handle potential double-encoding
+                    while isinstance(context, str):
                         try:
                             context = json.loads(context)
                         except Exception:
                             logger.warning(f"[{name}] Failed to parse routing context JSON: {context[:100]}...")
                             context = {}
+                            break
 
                     logger.info(f"[{name}] 🚀 Routing Signal: → {target} ({reason}) | Ctx: {len(context) if isinstance(context, dict) else 0} keys")
 

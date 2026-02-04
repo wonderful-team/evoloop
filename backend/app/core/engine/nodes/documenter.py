@@ -239,10 +239,10 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
 
         if require_approval:
             await request_approval.ainvoke({
-                "action_description": "Create Wiki Documentation based on Project Structure",
+                "action_description": i18n.get("prompts.documenter.hitl_action_description"),
                 "risk_level": "low",
-                "details": f"**Proposed File Structure:**\n\n{plan_md}",
-                "consequences": f"This will create {len(pages)} new files in `docs/wiki/`. Existing files with same names will be overwritten."
+                "details": i18n.get("prompts.documenter.hitl_details_label", plan_md=plan_md),
+                "consequences": i18n.get("prompts.documenter.hitl_consequences", count=len(pages))
             }, config=config)
 
             # Return state with HITL (wiki_plan stored in context)

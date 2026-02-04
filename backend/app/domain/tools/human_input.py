@@ -291,17 +291,19 @@ async def request_approval(
         "critical": "🔴"
     }
 
+    localized_risk = i18n.get(f"prompts.common.risk_levels.{risk_level}", default=risk_level.upper())
+    
     approval_context = f"""
-{risk_emoji.get(risk_level, '⚪')} **Risk Level**: {risk_level.upper()}
+{risk_emoji.get(risk_level, '⚪')} {i18n.get("prompts.domain_tools.human_input.risk_level", level=localized_risk)}
 
-**Action**: {action_description}
+{i18n.get("prompts.domain_tools.human_input.action", action=action_description)}
 """
 
     if details:
-        approval_context += f"\n**Details**:\n{details}\n"
+        approval_context += f"\n{i18n.get('prompts.domain_tools.human_input.details', details=details)}\n"
 
     if consequences:
-        approval_context += f"\n**Potential Consequences**:\n{consequences}\n"
+        approval_context += f"\n{i18n.get('prompts.domain_tools.human_input.consequences', conseq=consequences)}\n"
 
     # Create the request
     request = create_request(
