@@ -1922,18 +1922,6 @@ export class SystemService {
     }
     
     /**
-     * Get Evolution Status
-     * @returns unknown Successful Response
-     * @throws ApiError
-     */
-    public static getEvolutionStatus(): CancelablePromise<SystemGetEvolutionStatusResponse> {
-        return __request(OpenAPI, {
-            method: 'GET',
-            url: '/api/v1/system/evolution-status'
-        });
-    }
-    
-    /**
      * Test Embedding Connection
      * Validate connection to embedding provider.
      * @param data The data for the request.

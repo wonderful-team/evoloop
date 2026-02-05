@@ -83,17 +83,6 @@
       "title": "模型设置"
     },
     "intro": "管理您的账户和 EvoLoop 配置。",
-    "evolution": {
-      "caution_desc": "启用此功能将允许 Agent 修改后端的源代码。请确保您已启用 Git 版本控制以便回滚意外更改。",
-      "env_disabled_title": "已被环境变量禁用",
-      "enable_desc": "在系统出错时自动触发进化规划器 (Evolution Planner)。",
-      "switch_label": "启用自我进化循环",
-      "env_disabled_desc": "后端环境变量中已禁用总开关。你无法动态启用此功能。",
-      "title": "元进化循环 (Meta-Evolution Loop)",
-      "caution_title": "警告",
-      "enable_title": "启用自我进化",
-      "description": "允许 Agent 自主诊断并修复自身的代码。"
-    },
     "llm": {
       "connected": "连接成功",
       "connection_error": "连接错误",
@@ -108,7 +97,6 @@
     },
     "tabs": {
       "password": "密码",
-      "evolution": "安全与进化",
       "danger": "危险区域",
       "general": "常规",
       "appearance": "外观",

@@ -5,7 +5,6 @@ import { ModelSettings } from "@/components/Settings/ModelSettings"
 import AppearanceSettings from "@/components/UserSettings/AppearanceSettings"
 import ChangePassword from "@/components/UserSettings/ChangePassword"
 import DeleteAccount from "@/components/UserSettings/DeleteAccount"
-import EvolutionSettings from "@/components/Settings/EvolutionSettings"
 import UserInformation from "@/components/UserSettings/UserInformation"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
 import useAuth from "@/hooks/useAuth"
@@ -42,11 +41,6 @@ const TabsConfig = () => {
       value: "danger-zone",
       title: t("settings.tabs.danger"),
       component: DeleteAccount,
-    },
-    {
-      value: "evolution",
-      title: t("settings.tabs.evolution"),
-      component: EvolutionSettings,
     },
   ]
 }

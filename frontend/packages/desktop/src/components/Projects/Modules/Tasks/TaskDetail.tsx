@@ -86,17 +86,6 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
   const handleExecuteTask = async () => {
     if (!taskId) return
 
-    if (
-      !confirm(
-        t(
-          "projects.tasks.confirmExecute",
-          "Are you sure you want to AI Agent to execute this task? This will start a new chat session.",
-        ),
-      )
-    ) {
-      return
-    }
-
     setExecuting(true)
     try {
       const token = localStorage.getItem("access_token")

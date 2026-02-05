@@ -83,17 +83,6 @@
       "title": "Model Settings"
     },
     "intro": "Manage your account and EvoLoop configurations.",
-    "evolution": {
-      "caution_desc": "Enabling this allows the Agent to modify the backend source code. Ensure you have Git version control enabled to revert unexpected changes.",
-      "env_disabled_title": "Disabled by Environment",
-      "enable_desc": "Automatically trigger Evolution Planner on system errors.",
-      "switch_label": "Enable Self-Evolution Loop",
-      "env_disabled_desc": "The master switch is disabled in the backend environment variables. You cannot enable this feature dynamically.",
-      "title": "Meta-Evolution Loop",
-      "caution_title": "Caution",
-      "enable_title": "Enable Self-Evolution",
-      "description": "Allow the agent to autonomously diagnose and fix its own code."
-    },
     "llm": {
       "connected": "Connected successfully",
       "connection_error": "Connection Error",
@@ -108,7 +97,6 @@
     },
     "tabs": {
       "password": "Password",
-      "evolution": "Safety & Evolution",
       "danger": "Danger zone",
       "general": "General",
       "appearance": "Appearance",

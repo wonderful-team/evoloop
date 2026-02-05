@@ -155,11 +155,11 @@ pub fn run() {
              use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
              use tauri::image::Image;
 
-             let quit_i = MenuItem::with_id(_app, "quit", "Quit", true, None::<&str>)?;
-             let show_i = MenuItem::with_id(_app, "show", "Show App", true, None::<&str>)?;
+             let quit_i = MenuItem::with_id(_app, "quit", "彻底退出", true, Some("CmdOrCtrl+Q"))?;
+             let show_i = MenuItem::with_id(_app, "show", "显示主界面", true, None::<&str>)?;
              let menu = Menu::with_items(_app, &[&show_i, &quit_i])?;
      
-             let icon_bytes = include_bytes!("../icons/32x32.png");
+             let icon_bytes = include_bytes!("../icons/logo-tray.png");
              let image_buffer = image::load_from_memory(icon_bytes)
                 .expect("failed to load tray icon")
                 .to_rgba8();
@@ -170,7 +170,6 @@ pub fn run() {
                  .menu(&menu)
                  .icon(icon)
                  .icon_as_template(true)
-                 .title("EvoLoop")
                  .on_menu_event(|app, event| match event.id.as_ref() {
                      "quit" => {
                          let state = app.state::<AppServiceState>();
@@ -185,6 +184,8 @@ pub fn run() {
                      }
                      "show" => {
                          if let Some(window) = app.get_webview_window("main") {
+                             #[cfg(target_os = "macos")]
+                             app.set_activation_policy(tauri::ActivationPolicy::Regular).ok();
                              let _ = window.show();
                              let _ = window.set_focus();
                          }
@@ -198,6 +199,8 @@ pub fn run() {
                      } => {
                          let app = tray.app_handle();
                          if let Some(window) = app.get_webview_window("main") {
+                             #[cfg(target_os = "macos")]
+                             app.set_activation_policy(tauri::ActivationPolicy::Regular).ok();
                              let _ = window.show();
                              let _ = window.set_focus();
                          }
@@ -284,6 +287,8 @@ pub fn run() {
                 #[cfg(desktop)]
                 {
                     let _ = window.hide();
+                    #[cfg(target_os = "macos")]
+                    window.app_handle().set_activation_policy(tauri::ActivationPolicy::Accessory).ok();
                     api.prevent_close();
                 }
             }
@@ -314,6 +319,8 @@ pub fn run() {
         #[cfg(desktop)]
         tauri::RunEvent::Reopen { .. } => {
             if let Some(window) = app_handle.get_webview_window("main") {
+                #[cfg(target_os = "macos")]
+                app_handle.set_activation_policy(tauri::ActivationPolicy::Regular).ok();
                 let _ = window.show();
                 let _ = window.set_focus();
             }

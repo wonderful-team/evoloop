@@ -96,6 +96,10 @@ class ParserRegistry:
             from tree_sitter_language_pack import get_language
             return get_language("vue")
 
+        def load_bash():
+            from tree_sitter_language_pack import get_language
+            return get_language("bash")
+
         # Core languages
         self.register_loader("python", load_python)
         self.register_loader("go", load_go)
@@ -114,6 +118,7 @@ class ParserRegistry:
         self.register_loader("sql", load_sql)
         self.register_loader("html", load_html)  # For Vue SFC parsing
         self.register_loader("vue", load_vue)
+        self.register_loader("bash", load_bash)
 
     def register_loader(self, lang_name: str, loader_func: callable):
         """Register a lazy loader for a specific language."""

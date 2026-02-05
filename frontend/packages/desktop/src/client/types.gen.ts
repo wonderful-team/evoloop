@@ -1030,8 +1030,6 @@ export type SystemUpdateSystemConfigResponse = (SystemConfig);
 
 export type SystemHealthCheckResponse = (unknown);
 
-export type SystemGetEvolutionStatusResponse = (unknown);
-
 export type SystemTestEmbeddingConnectionData = {
     requestBody: EmbeddingConfigRequest;
 };

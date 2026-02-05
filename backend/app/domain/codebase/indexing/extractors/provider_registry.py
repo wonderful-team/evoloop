@@ -28,6 +28,7 @@ class SemanticProviderRegistry:
             return
 
         # Core language providers
+        from .bash_provider import BashSemanticProvider
         from .csharp_provider import CSharpSemanticProvider
         from .go_provider import GoSemanticProvider
         from .java_provider import JavaSemanticProvider
@@ -53,6 +54,7 @@ class SemanticProviderRegistry:
         self.register("java", JavaSemanticProvider())
         self.register("go", GoSemanticProvider())
         self.register("csharp", CSharpSemanticProvider())
+        self.register("bash", BashSemanticProvider())
 
         # Register extended providers
         self.register("php", PHPSemanticProvider())

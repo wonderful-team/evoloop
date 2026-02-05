@@ -13,9 +13,10 @@
     "windows": [
       {
         "title": "EvoLoop",
-        "width": 800,
-        "height": 600,
-        "url": "packages/desktop/index.html"
+        "width": 1200,
+        "height": 800,
+        "url": "packages/desktop/index.html",
+        "maximized": true
       }
     ],
     "security": {

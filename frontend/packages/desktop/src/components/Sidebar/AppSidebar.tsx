@@ -14,6 +14,7 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
+  useSidebar,
 } from "@evoloop/shared/components/ui/sidebar"
 import useAuth from "@/hooks/useAuth"
 import { type Item, Main } from "./Main"
@@ -22,6 +23,7 @@ import { User } from "./User"
 export function AppSidebar() {
   const { t } = useTranslation()
   const { user: currentUser } = useAuth()
+  const { toggleSidebar } = useSidebar()
 
   const publicItems: Item[] = [
     {
@@ -71,8 +73,9 @@ export function AppSidebar() {
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div
-          className="flex items-center justify-center py-2 h-12"
+          className="flex h-12 cursor-pointer items-center justify-center py-2 transition-opacity hover:opacity-80"
           data-tour="sidebar-logo"
+          onClick={toggleSidebar}
         >
           <Logo variant="responsive" />
         </div>

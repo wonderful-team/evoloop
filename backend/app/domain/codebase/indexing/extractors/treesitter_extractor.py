@@ -105,9 +105,12 @@ class TreeSitterExtractor(BaseExtractor):
         from .provider_registry import semantic_provider_registry
         provider = semantic_provider_registry.get(lang_key)
 
-        query_str = None
+        query_str = ""
+        imports_query_str = ""
+
         if provider:
-            query_str = provider.get_structure_query()
+            query_str = provider.get_structure_query() or ""
+            imports_query_str = provider.get_imports_query() or ""
 
         # Fallback to queries.py if provider doesn't have structure query
         if not query_str:
@@ -115,18 +118,20 @@ class TreeSitterExtractor(BaseExtractor):
             if query_data and "defs" in query_data:
                 query_str = query_data["defs"]
 
-        if not query_str:
-            logger.debug(f"No structure query for language {lang_key}")
-            return ExtractionResult(documents=[], entities=[], relations=[])
-
+        matches = []
         try:
-            query = language.query(query_str)
+            if query_str:
+                query = language.query(query_str)
+                cursor = tree_sitter.QueryCursor(query)
+                matches.extend(list(cursor.matches(tree.root_node)))
 
-            cursor = tree_sitter.QueryCursor(query)
-            matches = list(cursor.matches(tree.root_node))
+            if imports_query_str:
+                imp_query = language.query(imports_query_str)
+                imp_cursor = tree_sitter.QueryCursor(imp_query)
+                matches.extend(list(imp_cursor.matches(tree.root_node)))
         except Exception as e:
             logger.warning(f"TreeSitter query failed: {e}")
-            return ExtractionResult(documents=[], entities=[], relations=[])
+            # Continue with whatever matches we might have (or empty matches)
 
         # logger.debug(f"TreeSitter matches: {len(matches)}")
 

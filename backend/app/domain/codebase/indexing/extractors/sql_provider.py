@@ -23,40 +23,37 @@ class SQLSemanticProvider(LanguageSemanticProvider):
         """
         return """
         ; CREATE TABLE
-        (create_table_statement
-          name: (object_reference
-            (identifier) @table.name
+        (create_table
+          (object_reference
+            (identifier) @name
           )
-        ) @table.def
+        ) @class
 
         ; CREATE VIEW
-        (create_view_statement
-          name: (object_reference
-            (identifier) @view.name
+        (create_view
+          (object_reference
+            (identifier) @name
           )
-        ) @view.def
+        ) @class
 
         ; CREATE FUNCTION
-        (create_function_statement
-          name: (identifier) @function.name
-        ) @function.def
-
-        ; CREATE PROCEDURE/PROC
-        (create_procedure_statement
-          name: (identifier) @function.name
-        ) @function.def
+        (create_function
+          (object_reference
+             (identifier) @name
+          )
+        ) @function
 
         ; CREATE INDEX
-        (create_index_statement
-          name: (identifier) @index.name
-        ) @index.def
+        (create_index
+          (identifier) @name
+        ) @class
 
         ; ALTER TABLE
-        (alter_table_statement
-          name: (object_reference
-            (identifier) @table.name
+        (alter_table
+          (object_reference
+            (identifier) @name
           )
-        ) @table.alter
+        ) @class
         """
 
     def get_imports_query(self) -> str:
