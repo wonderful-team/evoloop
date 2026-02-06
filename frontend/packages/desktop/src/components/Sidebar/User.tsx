@@ -160,14 +160,7 @@ export function User({ user }: { user: any }) {
               />
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() =>
-                window.open(
-                  "https://mall.imagicbox.cn/h5/pages/member/index",
-                  "_blank",
-                )
-              }
-            >
+            <DropdownMenuItem onClick={() => window.open(import.meta.env.VITE_EVOCLOUD_MEMBER_URL, "_blank")}>
               <Crown className="text-yellow-500" />
               <span>
                 {user?.member_level_name

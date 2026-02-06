@@ -306,7 +306,7 @@ export function ChatInput({
             ref={cameraInputRef}
             className="hidden"
             accept="image/*"
-            capture="environment"
+            capture={true}
             onChange={(e) => {
               const file = e.target.files?.[0]
               if (file) handleUpload(file, "image")

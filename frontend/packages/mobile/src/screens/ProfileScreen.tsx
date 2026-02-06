@@ -239,12 +239,7 @@ export function ProfileScreen() {
                 variant="secondary"
                 size="sm"
                 className="h-8 bg-white/90 text-black hover:bg-white border-0 shadow-none font-medium"
-                onClick={() =>
-                  window.open(
-                    "https://mall.imagicbox.cn/h5/pages/member/index",
-                    "_blank",
-                  )
-                }
+                onClick={() => window.open(import.meta.env.VITE_EVOCLOUD_MEMBER_URL, "_blank")}
               >
                 {isMember
                   ? t("profile.manageSubscription")

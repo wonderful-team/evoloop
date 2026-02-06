@@ -6,7 +6,7 @@ import { DevicesService } from "../client"
 const WS_URL = import.meta.env.VITE_EVOLOOP_WS_URL || "wss://mall.imagicbox.cn/wss/"
 
 export interface LogMessage {
-  type: "thought" | "tool" | "output" | "error" | "user" | "hitl_request"
+  type: "ai" | "thought" | "tool" | "output" | "error" | "user" | "hitl_request"
   content: any
   thread_id?: string
   project_id?: number

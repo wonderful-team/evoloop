@@ -131,11 +131,7 @@ export function CloudChatScreen() {
         toast.error(t("chat.limitReached"), {
           action: {
             label: t("profile.upgradeNow"),
-            onClick: () =>
-              window.open(
-                "https://mall.imagicbox.cn/h5/pages/member/index",
-                "_blank",
-              ),
+            onClick: () => window.open(import.meta.env.VITE_EVOCLOUD_MEMBER_URL, "_blank"),
           },
           duration: 5000,
         })

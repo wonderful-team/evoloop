@@ -444,7 +444,7 @@ function LogItem({
       isGrouped ? "mb-1" : "mb-4"
     )}>
       <div className="w-8 shrink-0 flex flex-col items-center">
-        {(showAvatar && (msg.type === "ai" || !msg.type || (msg.type as any) === "hitl_request")) ? (
+        {(showAvatar && (msg.type === "ai" || msg.type === "output" || msg.type === "hitl_request")) ? (
           <Avatar className="h-8 w-8">
             <AvatarImage src="/bot-avatar.png" />
             <AvatarFallback className="bg-muted text-muted-foreground">
