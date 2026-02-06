@@ -71,7 +71,7 @@ export function LocalSessionDrawer({
                     </Button>
                 )}
             </SheetTrigger>
-            <SheetContent side="left" className="w-[80vw] sm:w-[350px] p-0 rounded-r-xl">
+            <SheetContent side="left" className="w-[80vw] sm:w-[350px] p-0 rounded-r-xl pt-safe-top [&>button[data-slot=sheet-close]]:hidden">
                 <SheetHeader className="p-4 border-b">
                     <SheetTitle className="text-left flex items-center justify-between">
                         {t("chat.local.sessions") || "Local Sessions"}

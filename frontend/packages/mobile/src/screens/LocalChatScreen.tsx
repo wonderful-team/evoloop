@@ -231,6 +231,7 @@ export function LocalChatScreen() {
         isDeviceOnline={isDeviceOnline}
         highlight={highlight}
         onHITLResponse={handleHITLResponse}
+        onStarterClick={handleSend}
       />
 
       {/* Back to Live FAB */}

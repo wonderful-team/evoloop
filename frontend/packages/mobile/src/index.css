@@ -43,6 +43,34 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+@utility pt-safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+
+@utility mt-safe-top {
+  margin-top: env(safe-area-inset-top);
+}
+
+@utility top-safe-top {
+  top: env(safe-area-inset-top);
+}
+
+@utility bottom-safe {
+  bottom: env(safe-area-inset-bottom);
+}
+
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);

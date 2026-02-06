@@ -123,17 +123,14 @@ export function MobileProjectSwitcher({
       <SheetTrigger asChild>
         <Button
           variant="ghost"
-          className="h-auto p-1 hover:bg-transparent gap-2"
+          className="h-auto p-0 hover:bg-transparent gap-1.5"
         >
-          <div className="flex flex-col items-start">
-            <span className="text-[10px] text-muted-foreground leading-none mb-0.5">
-              {t("projectSwitcher.label")}
-            </span>
+          <div className="flex flex-col items-center">
             <div className="flex items-center gap-1">
-              <span className="font-semibold text-sm truncate max-w-[140px]">
+              <span className="font-extrabold text-sm text-foreground tracking-tight truncate max-w-[160px]">
                 {displayProject?.project_name || t("projectSwitcher.select")}
               </span>
-              <ChevronsUpDown className="h-3 w-3 opacity-50" />
+              <ChevronsUpDown className="h-3 w-3 text-muted-foreground/40 shrink-0" />
             </div>
           </div>
         </Button>

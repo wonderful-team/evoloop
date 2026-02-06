@@ -232,7 +232,7 @@ export function RegisterScreen() {
     <div className="flex flex-col items-center justify-center min-h-screen p-6 bg-background relative">
       <Button
         variant="ghost"
-        className="absolute top-4 left-4 pl-0 hover:bg-transparent"
+        className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-4 pl-0 hover:bg-transparent"
         onClick={() => navigate({ to: "/login" as any })}
       >
         <ArrowLeft className="mr-2 h-6 w-6" />

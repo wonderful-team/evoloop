@@ -20,6 +20,7 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
   const [messages, setMessages] = useState<LogMessage[]>([])
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<any>(null)
+  const retryCountRef = useRef(0)
 
   const addMessage = useCallback((msg: LogMessage) => {
     setMessages((prev) => [...prev, msg])
@@ -28,6 +29,10 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
   const connect = useCallback(() => {
     if (!deviceId) return
 
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current)
+    }
+
     try {
       const ws = new WebSocket(WS_URL)
       wsRef.current = ws
@@ -35,6 +40,7 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
       ws.onopen = () => {
         console.log("[EvoLoop] WS Connected")
         setIsConnected(true)
+        retryCountRef.current = 0
       }
 
       ws.onmessage = async (event) => {
@@ -44,7 +50,6 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
           if (data.type === "init") {
             const clientId = data.data.client_id
             console.log("[EvoLoop] Got client_id:", clientId)
-            // Bind mobile client to user
             try {
               await DevicesService.bindMobile(clientId)
               console.log("[EvoLoop] Mobile Bound")
@@ -53,9 +58,8 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
               toast.error(t("toast.bindFailed"))
             }
           } else if (data.type === "ping") {
-            // ignore or pong
+            // ignore
           } else if (data.type === "new_logs") {
-            // Handle batched logs from backend "new_logs" event via Gateway
             const logs = data.data.logs || []
             const batchProjectId = data.data.project_id
             if (Array.isArray(logs)) {
@@ -65,7 +69,7 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
                   content: log.content,
                   thread_id: log.thread_id,
                   project_id: log.project_id || batchProjectId,
-                  timestamp: Date.now(), // or log.create_time ?
+                  timestamp: Date.now(),
                 }))
                 return [...prev, ...newMsgs]
               })
@@ -92,8 +96,12 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
       ws.onclose = () => {
         console.log("[EvoLoop] WS Closed")
         setIsConnected(false)
-        // Simple reconnect
-        reconnectTimeoutRef.current = setTimeout(connect, 3000)
+
+        // Exponential backoff
+        const delay = Math.min(30000, 1000 * Math.pow(2, retryCountRef.current))
+        console.log(`[EvoLoop] Reconnecting in ${delay}ms (attempt ${retryCountRef.current + 1})`)
+        retryCountRef.current += 1
+        reconnectTimeoutRef.current = setTimeout(connect, delay)
       }
 
       ws.onerror = (e) => {

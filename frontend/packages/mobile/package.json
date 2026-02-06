@@ -10,6 +10,7 @@
         "tauri:android": "tauri android dev --config tauri.mobile.conf.json"
     },
     "dependencies": {
-        "@evoloop/shared": "workspace:*"
+        "@evoloop/shared": "workspace:*",
+        "virtua": "^0.48.5"
     }
 }

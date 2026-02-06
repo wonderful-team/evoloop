@@ -202,33 +202,36 @@ export function CloudChatScreen() {
 
   // Header Logic
   const Header = (
-    <div className="flex items-center justify-between p-4 pb-2 bg-background/80 backdrop-blur-md sticky top-0 z-10 border-b">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate({ to: "/" as any })}
-        >
-          <ArrowLeft className="w-5 h-5" />
-        </Button>
+    <div className="bg-background/90 backdrop-blur-md border-b sticky top-0 z-10 shrink-0 pt-safe-top pt-2">
+      <div className="px-4 h-[56px] flex items-center justify-between">
+        <div className="flex items-center gap-1 w-[60px]">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="-ml-2 hover:bg-muted rounded-full transition-colors"
+            onClick={() => navigate({ to: "/" as any })}
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </Button>
+          <ConversationDrawer
+            activeId={conversationId === "new" ? undefined : conversationId}
+            trigger={
+              <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground hover:bg-muted rounded-full transition-colors">
+                <Menu className="w-4.5 h-4.5" />
+              </Button>
+            }
+          />
+        </div>
 
-        <ConversationDrawer
-          activeId={conversationId === "new" ? undefined : conversationId}
-          trigger={
-            <Button variant="ghost" size="icon">
-              <Menu className="w-5 h-5" />
-            </Button>
-          }
-        />
-
-        <div>
-          <h1 className="font-semibold text-lg flex items-center gap-2">
-            <Bot className="w-5 h-5 text-primary" />
+        <div className="flex-1 flex flex-col items-center justify-center overflow-hidden">
+          <h1 className="font-bold text-sm flex items-center gap-2">
+            <Bot className="w-4 h-4 text-primary" />
             {t("cloudChat.title")}
           </h1>
         </div>
+
+        <div className="w-[60px]" />
       </div>
-      <div />
     </div>
   )
 

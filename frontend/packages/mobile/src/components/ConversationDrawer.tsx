@@ -64,7 +64,7 @@ export function ConversationDrawer({
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
       <SheetTrigger asChild>{trigger}</SheetTrigger>
-      <SheetContent side="left" className="w-[80vw] sm:w-[350px] p-0">
+      <SheetContent side="left" className="w-[80vw] sm:w-[350px] p-0 pt-safe-top [&>button[data-slot=sheet-close]]:hidden">
         <SheetHeader className="p-4 border-b">
           <SheetTitle className="text-left flex items-center justify-between">
             {t("conversation.list")}

@@ -213,7 +213,7 @@ export function LoginScreen() {
       <div className="absolute top-2 left-1/2 -translate-x-1/2 w-12 h-1.5 bg-muted rounded-full opacity-50 mb-6" />
       <Button
         variant="ghost"
-        className="absolute top-4 right-4 rounded-full w-10 h-10 p-0 hover:bg-muted"
+        className="absolute top-[calc(env(safe-area-inset-top)+1rem)] right-4 rounded-full w-10 h-10 p-0 hover:bg-muted"
         onClick={() => navigate({ to: ".." as any })}
       >
         <X className="w-6 h-6 text-muted-foreground" />

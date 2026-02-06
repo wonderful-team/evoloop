@@ -112,59 +112,63 @@ export function TabsLayout() {
       <OnboardingOverlay />
 
       {/* Top Global Header with Safe Area Fix */}
-      {/* Added extra padding (pt-6) to existing safe-top to avoid overlay overlap */}
-      <div className="absolute top-0 left-0 right-0 z-30 pt-safe-top pt-8 flex justify-center items-center h-16 pointer-events-none">
-        {/* Left Button (Conversation Drawer) */}
-        <div className="absolute left-4 top-1/2 -translate-y-1/2 mt-3 pointer-events-auto">
-          {!isGuest && activeTab === "cloud" && (
-            <ConversationDrawer
-              trigger={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 rounded-full bg-background/50 backdrop-blur-md border border-border/50 shadow-sm"
-                >
-                  <Menu className="w-5 h-5 text-muted-foreground" />
-                </Button>
-              }
-            />
-          )}
-        </div>
+      <div className="absolute top-0 left-0 right-0 z-30 pt-safe-top pt-2 flex flex-col pointer-events-none transition-all">
+        <div className="px-4 h-[56px] flex items-center justify-between">
+          {/* Left Slot: Fixed Width */}
+          <div className="flex items-center w-[60px] pointer-events-auto">
+            {!isGuest && activeTab === "cloud" && (
+              <ConversationDrawer
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="-ml-2 h-10 w-10 rounded-full bg-background/60 backdrop-blur-md border border-border/50 shadow-sm transition-transform active:scale-95"
+                  >
+                    <Menu className="w-5.5 h-5.5 text-muted-foreground" />
+                  </Button>
+                }
+              />
+            )}
+          </div>
 
-        <div className="flex bg-muted/50 rounded-full p-1 relative backdrop-blur-md pointer-events-auto shadow-sm border border-border/50">
-          <motion.div
-            className="absolute top-1 bottom-1 bg-background shadow-sm rounded-full"
-            initial={false}
-            animate={{
-              left: activeTab === "cloud" ? 4 : "50%",
-              width: "calc(50% - 4px)",
-            }}
-            transition={{ type: "spring", stiffness: 400, damping: 30 }}
-          />
-          <button
-            onClick={() => handleTabSwitch("cloud")}
-            className={`relative z-10 px-6 py-1 text-sm font-medium transition-colors ${activeTab === "cloud" ? "text-primary" : "text-muted-foreground"}`}
-          >
-            {t("tabs.cloud")}
-          </button>
-          <button
-            onClick={() => handleTabSwitch("local")}
-            className={`relative z-10 px-6 py-1 text-sm font-medium transition-colors ${activeTab === "local" ? "text-primary" : "text-muted-foreground"}`}
-          >
-            {t("tabs.local")}
-          </button>
-        </div>
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 mt-3 pointer-events-auto">
-          {activeTab === "local" && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 rounded-full bg-background/50 backdrop-blur-md border border-border/50 shadow-sm"
-              onClick={() => navigate({ to: "/search" as any })}
+          {/* Middle Slot: Switcher */}
+          <div className="flex bg-muted/50 rounded-full p-1 relative backdrop-blur-md pointer-events-auto shadow-sm border border-border/50">
+            <motion.div
+              className="absolute top-1 bottom-1 bg-background shadow-sm rounded-full"
+              initial={false}
+              animate={{
+                left: activeTab === "cloud" ? 4 : "50%",
+                width: "calc(50% - 4px)",
+              }}
+              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            />
+            <button
+              onClick={() => handleTabSwitch("cloud")}
+              className={`relative z-10 px-6 py-1 text-sm font-medium transition-colors ${activeTab === "cloud" ? "text-primary" : "text-muted-foreground"}`}
             >
-              <Search className="w-4 h-4 text-muted-foreground" />
-            </Button>
-          )}
+              {t("tabs.cloud")}
+            </button>
+            <button
+              onClick={() => handleTabSwitch("local")}
+              className={`relative z-10 px-6 py-1 text-sm font-medium transition-colors ${activeTab === "local" ? "text-primary" : "text-muted-foreground"}`}
+            >
+              {t("tabs.local")}
+            </button>
+          </div>
+
+          {/* Right Slot: Fixed Width */}
+          <div className="flex items-center justify-end w-[60px] pointer-events-auto">
+            {activeTab === "local" && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="-mr-2 h-10 w-10 rounded-full bg-background/60 backdrop-blur-md border border-border/50 shadow-sm transition-transform active:scale-95"
+                onClick={() => navigate({ to: "/search" as any })}
+              >
+                <Search className="w-5 h-5 text-muted-foreground" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -175,12 +179,12 @@ export function TabsLayout() {
         onScroll={onScroll}
       >
         {/* Cloud Context Container */}
-        <div className="w-full min-w-full h-full pt-20 pb-24 overflow-y-auto no-scrollbar relative snap-center">
+        <div className="w-full min-w-full h-full pt-[calc(64px+env(safe-area-inset-top)+8px)] pb-[calc(56px+env(safe-area-inset-bottom))] overflow-y-auto no-scrollbar relative snap-center">
           {renderCloudContent()}
         </div>
 
         {/* Local Context Container */}
-        <div className="w-full min-w-full h-full pt-20 pb-24 overflow-y-auto no-scrollbar relative snap-center">
+        <div className="w-full min-w-full h-full pt-[calc(64px+env(safe-area-inset-top)+8px)] pb-[calc(56px+env(safe-area-inset-bottom))] overflow-y-auto no-scrollbar relative snap-center">
           {renderLocalContent()}
         </div>
       </div>
