@@ -98,21 +98,11 @@ export function CloudChatScreen() {
 
       await streamChat(params as any, (chunk: any, _meta: any) => {
         // Update active ID if provided (first chunk usually)
-        // streamChat helper doesn't pass meta 'conversation_id' in chunk usually,
-        // but we can rely on initial params or assume activeId is set.
-        // Actually streamChat takes conversation_id as input param, so we must have one.
-        // If new, how do we get ID?
-        // AgentService.chatEndpoint returns thread_id.
-        // My streamHelper returns Promise<void> and swallows the thread_id from initial POST.
-        // I should update streamHelper to return thread_id or set it.
-        // Limit: The current streamChat helper implementation doesn't return the ID created by POST.
-        // We need to fix streamHelper if conversationId is undefined initially ('new').
-        // BUT CloudChatScreen uses 'new' string.
-        // We need to generate a UUID if 'new'.
-        // Frontend usually generates UUID for new thread? Or backend.
-        // Backend /chat accepts thread_id.
-        // So we should generate one if missing and pass it.
-        // Let's generate one if 'new'.
+        if (_meta && _meta.conversation_id && _meta.conversation_id !== activeConversationId.current) {
+          activeConversationId.current = _meta.conversation_id
+          // Optionally update URL to reflect the new ID without full refresh
+          window.history.replaceState(null, "", `/cloud-chat/${_meta.conversation_id}`)
+        }
 
         // Update the last message
         fullResponse += chunk

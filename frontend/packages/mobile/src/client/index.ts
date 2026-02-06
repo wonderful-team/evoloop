@@ -162,33 +162,33 @@ export class LogsService {
 export class ConversationsService {
     /**
      * Get Conversation Messages
-     * GET /api/ai/messages
+     * GET /api/AI/messages
      */
     public static async getConversationMessages(data: { thread_id: string }): Promise<ApiResponse<{ list: any[]; count: number }>> {
-        return client.get('/api/ai/messages', { params: { conversation_id: data.thread_id } })
+        return client.get('/api/AI/messages', { params: { conversation_id: data.thread_id } })
     }
 
     /**
      * Get List of Conversations
-     * GET /api/ai/conversations
+     * GET /api/AI/conversations
      */
     public static async listConversations(): Promise<ApiResponse<{ list: any[]; count: number }>> {
-        return client.get("/api/ai/conversations")
+        return client.get("/api/AI/conversations")
     }
 
     /**
      * Delete Conversation
-     * POST /api/ai/deleteConversation
+     * POST /api/AI/deleteConversation
      */
     public static async deleteConversation(data: { thread_id: string }): Promise<ApiResponse> {
-        return client.post("/api/ai/deleteConversation", { conversation_id: data.thread_id })
+        return client.post("/api/AI/deleteConversation", { conversation_id: data.thread_id })
     }
 }
 
 export class AgentService {
     /**
      * Chat Endpoint (AI)
-     * POST /api/ai/chat
+     * POST /api/AI/chat
      */
     public static async chatEndpoint(data: {
         message: string;
@@ -196,7 +196,7 @@ export class AgentService {
         attachments?: any[];
         stream?: boolean
     }): Promise<ApiResponse> {
-        return client.post("/api/ai/chat", {
+        return client.post("/api/AI/chat", {
             message: data.message,
             conversation_id: data.thread_id,
             attachments: data.attachments,
@@ -243,10 +243,10 @@ export class ProjectsService {
 export class ConfigService {
     /**
      * Get AI Config (Support, etc.)
-     * GET /api/ai/globalConfig
+     * GET /api/AI/globalConfig
      */
     public static async getAiConfig(): Promise<ApiResponse<any>> {
-        return client.get("/api/ai/globalConfig")
+        return client.get("/api/AI/globalConfig")
     }
 }
 
