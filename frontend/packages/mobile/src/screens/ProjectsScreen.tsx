@@ -24,7 +24,7 @@ export function ProjectsScreen() {
     queryKey: ["evoloop", "projects"],
     queryFn: async () => {
       const res = await ProjectsService.getProjects()
-      return res.code >= 0 ? res.data : { list: [] }
+      return res.code >= 0 && res.data ? res.data : { list: [] }
     },
     enabled: !!token,
   })

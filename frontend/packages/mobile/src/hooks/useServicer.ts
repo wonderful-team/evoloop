@@ -16,7 +16,7 @@ export const useServicer = (_platform: Platform = "mobile") => {
     queryFn: async () => {
       try {
         const res = await ConfigService.getAiConfig()
-        return res.data as any
+        return res?.data ?? null
       } catch {
         return null
       }

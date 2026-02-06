@@ -39,7 +39,7 @@ export function MobileProjectSwitcher({
     queryFn: async () => {
       const res = await ProjectsService.getProjects()
       // Cloud returns { code: 0, data: { list: [...] } }
-      if (res.code >= 0) return res.data
+      if (res.code >= 0) return res.data ?? { list: [] }
       throw new Error(res.message || t("projects.failedToLoad"))
     },
     staleTime: 30000,

@@ -15,8 +15,9 @@ export const useMemberCancellation = () => {
     queryFn: async () => {
       try {
         const res = await MemberService.getCancellationInfo()
-        return res.data
-      } catch {
+        return res?.data ?? null
+      } catch (err) {
+        console.error("Failed to fetch cancellation info", err)
         return null
       }
     },
