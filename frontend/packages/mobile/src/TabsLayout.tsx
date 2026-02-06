@@ -7,7 +7,6 @@ import { Button } from "@evoloop/shared/components/ui/button"
 import { ConversationDrawer } from "./components/ConversationDrawer"
 import { OnboardingOverlay } from "./components/OnboardingOverlay"
 import { DevicesScreen } from "./screens/DevicesScreen"
-import { HelpScreen } from "./screens/HelpScreen"
 // Import Screens directly for pre-loading side-by-side
 import { IndexScreen } from "./screens/IndexScreen"
 import { ProfileScreen } from "./screens/ProfileScreen"
@@ -96,7 +95,6 @@ export function TabsLayout() {
 
   // Manual Routing for Cloud Container
   const renderCloudContent = () => {
-    if (path.startsWith("/profile/help")) return <HelpScreen />
     if (path.startsWith("/profile")) return <ProfileScreen />
     return <IndexScreen />
   }

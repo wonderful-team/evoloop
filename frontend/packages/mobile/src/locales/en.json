@@ -75,7 +75,8 @@
     },
     "header": {
       "deviceFallback": "Device #{{id}}",
-      "clear": "Clear"
+      "clear": "Clear",
+      "search": "Search Logs"
     },
     "local": {
       "sessions": "Local Sessions",
@@ -90,6 +91,7 @@
     "input": {
       "uploadFailed": "Upload failed",
       "waitUpload": "Please wait for files to upload",
+      "noProject": "Please select a project first",
       "placeholder": {
         "offline": "Device is offline",
         "connecting": "Connecting to server...",
@@ -98,7 +100,12 @@
       }
     },
     "limitReachedDescription": "You have reached your daily free message limit. Please upgrade to continue.",
-    "limitReached": "Daily Limit Reached"
+    "limitReached": "Daily Limit Reached",
+    "interface": {
+      "copy": "Copy",
+      "quote": "Quote",
+      "copied": "Copied to clipboard"
+    }
   },
   "conversation": {
     "new": "New",
@@ -226,6 +233,7 @@
     "switching": "Switching to {{name}}...",
     "searchPlaceholder": "Search project...",
     "label": "Project",
+    "select": "Select Project",
     "switched": "Switched to {{name}}"
   },
   "devices": {
@@ -267,5 +275,9 @@
   },
   "toast": {
     "bindFailed": "Failed to bind to server notifications"
+  },
+  "common": {
+    "back": "Back",
+    "routeNotFound": "Page Not Found"
   }
 }

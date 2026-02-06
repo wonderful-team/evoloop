@@ -46,6 +46,9 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         self._command_handler: Callable[[dict[str, Any]], None] | None = None
         self._event_handler: Callable[[str, dict[str, Any]], None] | None = None
 
+        # Idempotency
+        self._processed_commands: set[int] = set()
+
     @property
     def device_id(self) -> int | None:
         return self._device_id
@@ -119,20 +122,29 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             await asyncio.sleep(30)
  
     async def _ws_connect_loop(self):
+        retry_count = 0
+        base_delay = 5
+        max_delay = 60
+
         while self._running:
             try:
-                logger.info(f"[EvoCloud] Connecting WS to {self.config.ws_url}...")
+                logger.info(f"[EvoCloud) Connecting WS to {self.config.ws_url}...")
                 
                 async with websockets.connect(self.config.ws_url) as ws:
                     self.ws = ws
                     logger.info("[EvoCloud] WS Connected")
+                    retry_count = 0  # Reset on success
                     async for message in ws:
                         await self._handle_ws_message(str(message))
             except Exception as e:
                 logger.warning(f"[EvoCloud] WS Connection Error: {e}")
 
             if self._running:
-                await asyncio.sleep(self._reconnect_delay)
+                # Exponential backoff
+                delay = min(max_delay, base_delay * (2 ** retry_count))
+                logger.info(f"[EvoCloud] Reconnecting in {delay}s...")
+                await asyncio.sleep(delay)
+                retry_count += 1
 
     async def _handle_ws_message(self, message: str):
         try:
@@ -146,6 +158,18 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
             elif msg_type == "new_command":
                 cmd = data.get("data", {})
+                cmd_id = cmd.get("command_id")
+                if cmd_id and cmd_id in self._processed_commands:
+                    logger.debug(f"[EvoCloud] Skipping duplicate command: {cmd_id}")
+                    return
+                if cmd_id:
+                    self._processed_commands.add(cmd_id)
+                    # Limit cache size
+                    if len(self._processed_commands) > 500:
+                        # Convert to list to remove oldest, or just clear if too big
+                        # Simple approach: clear half to avoid frequent re-alloc
+                        self._processed_commands = set(list(self._processed_commands)[250:])
+
                 if self._command_handler:
                     asyncio.create_task(self._execute_command_wrapper(cmd))
 

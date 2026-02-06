@@ -188,7 +188,7 @@ export function LoginScreen() {
         y: window.innerHeight,
         transition: { duration: 0.2 },
       })
-      navigate({ to: ".." as any })
+      navigate({ to: "/" as any })
     } else {
       controls.start({
         y: 0,
@@ -214,7 +214,7 @@ export function LoginScreen() {
       <Button
         variant="ghost"
         className="absolute top-[calc(env(safe-area-inset-top)+1rem)] right-4 rounded-full w-10 h-10 p-0 hover:bg-muted"
-        onClick={() => navigate({ to: ".." as any })}
+        onClick={() => navigate({ to: "/" as any })}
       >
         <X className="w-6 h-6 text-muted-foreground" />
       </Button>

@@ -11,11 +11,12 @@ import {
 import { useTranslation } from "react-i18next"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@evoloop/shared/components/ui/dropdown-menu"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@evoloop/shared/components/ui/select"
 import useAuth from "../hooks/useAuth"
 import { useMemberCancellation } from "../hooks/useMemberCancellation"
 import { useServicer } from "../hooks/useServicer"
@@ -92,27 +93,17 @@ function ProfileLanguageSwitcher() {
   const { t, i18n } = useTranslation()
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="w-full gap-2 mb-4 justify-start">
-          <Globe className="w-4 h-4 ml-0.5" />
-          <span className="flex-1 text-left">{t("profile.language")}</span>
-          <span className="text-xs text-muted-foreground mr-1">
-            {i18n.language === "zh"
-              ? t("profile.chinese")
-              : t("profile.english")}
-          </span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-[200px]">
-        <DropdownMenuItem onClick={() => i18n.changeLanguage("en")}>
-          {t("profile.english")}
-        </DropdownMenuItem>
-        <DropdownMenuItem onClick={() => i18n.changeLanguage("zh")}>
-          {t("profile.chinese")}
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <Select value={i18n.language} onValueChange={(val) => i18n.changeLanguage(val)}>
+      <SelectTrigger className="w-full h-11 mb-4 justify-start gap-2 border-border shadow-xs bg-muted/20">
+        <Globe className="w-4 h-4" />
+        <span className="flex-1 text-left">{t("profile.language")}</span>
+        <SelectValue placeholder={t("profile.language")} />
+      </SelectTrigger>
+      <SelectContent align="end" className="w-[180px]">
+        <SelectItem value="zh">{t("profile.chinese")}</SelectItem>
+        <SelectItem value="en">{t("profile.english")}</SelectItem>
+      </SelectContent>
+    </Select>
   )
 }
 
@@ -130,9 +121,7 @@ export function ProfileScreen() {
   // Guest View
   if (!token) {
     return (
-      <div className="p-4 flex flex-col min-h-full bg-background animate-in fade-in duration-500">
-        <h1 className="text-xl font-bold mb-6">{t("profile.title")}</h1>
-
+      <div className="p-4 pt-4 flex flex-col min-h-full bg-background animate-in fade-in duration-500">
         <div className="flex flex-col gap-6 flex-1 items-center justify-center text-center">
           <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mb-4">
             <User className="w-12 h-12 text-muted-foreground" />
@@ -178,8 +167,7 @@ export function ProfileScreen() {
     : ""
 
   return (
-    <div className="p-4 flex flex-col min-h-full bg-background">
-      <h1 className="text-xl font-bold mb-6">{t("profile.title")}</h1>
+    <div className="p-4 pt-4 flex flex-col min-h-full bg-background">
 
       <div className="flex flex-col gap-6 flex-1">
         {/* User Info Header */}
@@ -204,9 +192,7 @@ export function ProfileScreen() {
         </div>
 
         {/* Membership Card */}
-        <div
-          className={`rounded-xl p-5 text-white relative overflow-hidden shadow-lg transition-all ${isMember ? "bg-gradient-to-br from-yellow-600 to-yellow-800" : "bg-gradient-to-br from-zinc-700 to-zinc-900"}`}
-        >
+        <div className={`rounded-xl p-5 text-white relative overflow-hidden shadow-lg transition-all ${isMember ? "bg-gradient-to-br from-yellow-600 to-yellow-800" : "bg-gradient-to-br from-zinc-700 to-zinc-900"}`}>
           {/* Background Decorative Circles */}
           <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
           <div className="absolute bottom-0 left-0 w-24 h-24 bg-black/10 rounded-full blur-xl" />

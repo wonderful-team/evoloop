@@ -39,7 +39,7 @@ export function ChatHeader({
     useMobileStore()
 
   return (
-    <div className="bg-background/90 backdrop-blur-md border-b sticky top-0 z-20 shrink-0 pt-safe-top pt-2">
+    <div className="bg-background/90 backdrop-blur-md border-b sticky top-0 z-20 shrink-0 pt-safe-top pt-4">
       <div className="px-4 h-[56px] flex items-center justify-between">
         {/* Left Area: Back - Fixed Width */}
         <div className="flex items-center w-[60px]">
@@ -47,7 +47,7 @@ export function ChatHeader({
             variant="ghost"
             size="icon"
             className="-ml-2 hover:bg-muted rounded-full transition-colors"
-            onClick={() => window.history.back()}
+            onClick={() => navigate({ to: "/devices" as any })}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>

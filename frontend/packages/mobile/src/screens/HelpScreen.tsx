@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router"
 import {
+  ArrowLeft,
   ChevronDown,
-  ChevronLeft,
   ChevronUp,
   Command,
   HelpCircle,
@@ -49,17 +49,20 @@ export function HelpScreen() {
   const navigate = useNavigate()
 
   return (
-    <div className="flex flex-col h-full bg-background relative">
+    <div className="flex flex-col h-screen bg-background relative overflow-hidden">
       {/* Header */}
-      <div className="flex items-center p-4 border-b">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => navigate({ to: "/profile" as any })}
-        >
-          <ChevronLeft className="w-5 h-5" />
-        </Button>
-        <h1 className="text-lg font-bold ml-2">{t("help.title")}</h1>
+      <div className="bg-background border-b sticky top-0 z-20 shrink-0 pt-safe-top pt-4">
+        <div className="px-4 h-[56px] flex items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="-ml-2 h-10 w-10 rounded-full transition-transform active:scale-95"
+            onClick={() => navigate({ to: "/profile" as any })}
+          >
+            <ArrowLeft className="w-5.5 h-5.5 text-muted-foreground" />
+          </Button>
+          <h1 className="text-lg font-bold ml-2">{t("help.title")}</h1>
+        </div>
       </div>
 
       <div className="p-4 overflow-y-auto pb-20">

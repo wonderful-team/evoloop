@@ -233,46 +233,54 @@ export class ProjectsService {
 
     /**
      * Get Current Project
-     * GET /projectmanage/api/projectOpen/current
+     * GET /projectmanage/api/projectOpen/getCurrentProject
      */
     public static async getCurrentProject(): Promise<ApiResponse<any>> {
-        return client.get("/projectmanage/api/projectOpen/current")
+        return client.get("/projectmanage/api/projectOpen/getCurrentProject")
     }
 }
 
 export class ConfigService {
     /**
      * Get AI Config (Support, etc.)
-     * GET /api/config/ai
+     * GET /api/ai/globalConfig
      */
     public static async getAiConfig(): Promise<ApiResponse<any>> {
-        return client.get("/api/config/ai")
+        return client.get("/api/ai/globalConfig")
     }
 }
 
 export class MemberService {
     /**
+     * Get Member Info
+     * GET /api/member/info
+     */
+    public static async getInfo(): Promise<ApiResponse> {
+        return client.get("/api/member/info")
+    }
+
+    /**
      * Get Cancellation Info
-     * GET /api/member/cancellation/info
+     * GET /membercancel/api/membercancel/info
      */
     public static async getCancellationInfo(): Promise<ApiResponse> {
-        return client.get("/api/member/cancellation/info")
+        return client.get("/membercancel/api/membercancel/info")
     }
 
     /**
      * Apply Cancellation
-     * POST /api/member/cancellation/apply
+     * POST /membercancel/api/membercancel/apply
      */
     public static async applyCancellation(): Promise<ApiResponse> {
-        return client.post("/api/member/cancellation/apply")
+        return client.post("/membercancel/api/membercancel/apply")
     }
 
     /**
      * Cancel Cancellation Request
-     * POST /api/member/cancellation/cancel
+     * POST /membercancel/api/membercancel/cancelApply
      */
     public static async cancelCancellation(): Promise<ApiResponse> {
-        return client.post("/api/member/cancellation/cancel")
+        return client.post("/membercancel/api/membercancel/cancelApply")
     }
 }
 
@@ -317,7 +325,7 @@ export class AuthService {
      */
     public static async getCaptchaConfig(): Promise<string | number> {
         try {
-            const res = (await client.get("/api/captcha/config")) as CaptchaConfigResponse
+            const res = (await client.get("/api/config/getCaptchaConfig")) as CaptchaConfigResponse
             if (res.code >= 0 && res.data?.value) {
                 // Frontend expects just the number 1 or 0 usually?
                 // Let's check original usage: `setCaptchaConfig(Number(res))`
@@ -377,11 +385,11 @@ export class AuthService {
 
     /**
      * Get Register Agreement
-     * EvoCloud: GET /api/register/agreement
+     * EvoCloud: GET /api/register/aggrement
      */
     public static async getRegisterAgreement(): Promise<any> {
         try {
-            const res = (await client.get("/api/register/agreement")) as ApiResponse
+            const res = (await client.get("/api/register/aggrement")) as ApiResponse
             if (res.code >= 0) {
                 return res.data
             }
@@ -435,11 +443,7 @@ export class AuthService {
         captcha_code?: string;
         type?: string
     }): Promise<{ key: string }> {
-        // Endpoint mapping
-        // If type === 'register', maybe `/api/login/getMobileCode`?
-        // If type === 'login', `/api/login/mobileCode`
-
-        const endpoint = data.type === 'register' ? '/api/login/getMobileCode' : '/api/login/mobileCode'
+        const endpoint = data.type === 'register' ? '/api/register/mobileCode' : '/api/login/mobileCode'
 
         const res = (await client.post(endpoint, {
             mobile: data.mobile,
@@ -497,24 +501,19 @@ export class AuthService {
      * Or ignore for now if not critical (used in ForgetPassword).
      * `ForgotPasswordScreen` uses `checkMobile`.
      */
-    public static async checkMobile(_data: { mobile: string }): Promise<any> {
-        // Placeholder /api/login/mobileExist or /api/register/mobileExist
-        // If fail, just return true?
-        try {
-            // Try implicit check via sendCode or just skip
-            // Let's assume /api/register/mobileExist exists if Register.php exists
-            // Or just return mock true to bypass explicit check if doubtful
-            return { exists: true }
-        } catch {
-            return { exists: false }
+    public static async checkMobile(data: { mobile: string }): Promise<any> {
+        const res = (await client.get("/api/member/checkmobile", { params: { mobile: data.mobile } })) as ApiResponse
+        if (res.code >= 0) {
+            return { exists: true } // Or handle based on code
         }
+        return { exists: false }
     }
 
     /**
      * Register Mobile
      */
     public static async registerMobile(data: any): Promise<{ token: string }> {
-        const res = (await client.post("/api/login/mobileRegister", data)) as ApiResponse
+        const res = (await client.post("/api/register/mobile", data)) as ApiResponse
         if (res.code >= 0) {
             return res.data
         }
@@ -525,7 +524,7 @@ export class AuthService {
    * Register Username
    */
     public static async registerUsername(data: any): Promise<{ token: string }> {
-        const res = (await client.post("/api/login/register", data)) as ApiResponse
+        const res = (await client.post("/api/register/username", data)) as ApiResponse
         if (res.code >= 0) {
             return res.data
         }

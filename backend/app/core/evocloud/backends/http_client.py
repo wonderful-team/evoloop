@@ -31,6 +31,10 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         self._member_id: int | None = None
         self._clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
 
+        # Log Batching
+        self._log_queue: asyncio.Queue = asyncio.Queue()
+        self._flush_task: asyncio.Task | None = None
+
         self._load_token()
 
     async def get_client(self) -> httpx.AsyncClient:
@@ -51,6 +55,18 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         return client
 
     async def close(self):
+        # Stop log batching and flush remaining
+        if self._flush_task:
+            self._flush_task.cancel()
+            try:
+                await self._flush_task
+            except asyncio.CancelledError:
+                pass
+            self._flush_task = None
+        
+        # Final flush
+        await self._flush_logs()
+
         for client in self._clients.values():
             if not client.is_closed:
                 await client.aclose()
@@ -411,9 +427,42 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             "thread_id": thread_id,
             "type": log_type,
             "content": json_utils.dumps(content) if isinstance(content, dict | list) else str(content),
+            "create_time": int(time.time() * 1000)
         }
         if command_id:
             data["command_id"] = command_id
         if project_id:
             data["project_id"] = project_id
-        await self.request("POST", "/evolooplink/api/log/upload", data=data)
+        
+        await self._log_queue.put(data)
+        if self._flush_task is None or self._flush_task.done():
+            self._flush_task = asyncio.create_task(self._process_log_queue())
+
+    async def _process_log_queue(self):
+        """Background loop to flush logs periodically."""
+        try:
+            while True:
+                await asyncio.sleep(2.0)  # Batch interval
+                await self._flush_logs()
+        except asyncio.CancelledError:
+            await self._flush_logs()
+        except Exception as e:
+            logger.error(f"[EvoCloud] Log queue processor error: {e}")
+
+    async def _flush_logs(self):
+        """Internal method to flush current queue to API."""
+        if self._log_queue.empty():
+            return
+
+        batch = []
+        while not self._log_queue.empty() and len(batch) < 50:
+            batch.append(await self._log_queue.get())
+
+        if batch:
+            try:
+                # Use batchUpload endpoint
+                res = await self.request("POST", "/evolooplink/api/log/batchUpload", data={"logs": batch})
+                if res.get("code", -1) < 0:
+                    logger.warning(f"[EvoCloud] Batch upload failed: {res.get('message')}")
+            except Exception as e:
+                logger.error(f"[EvoCloud] Error in batch log upload: {e}")

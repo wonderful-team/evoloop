@@ -58,7 +58,7 @@ export function DevicesScreen() {
 
   if (isGuest) {
     return (
-      <div className="p-4 space-y-4 h-full flex flex-col">
+      <div className="p-4 pt-safe-top pt-4 space-y-4 h-full flex flex-col">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold tracking-tight">
             {t("devices.title")}
@@ -98,7 +98,7 @@ export function DevicesScreen() {
   }
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 pt-safe-top pt-4 space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">

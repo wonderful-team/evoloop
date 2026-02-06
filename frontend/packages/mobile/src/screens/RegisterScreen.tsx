@@ -235,8 +235,8 @@ export function RegisterScreen() {
         className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-4 pl-0 hover:bg-transparent"
         onClick={() => navigate({ to: "/login" as any })}
       >
-        <ArrowLeft className="mr-2 h-6 w-6" />
-        <span className="sr-only">Back</span>
+        <ArrowLeft className="mr-2 h-5.5 w-5.5" />
+        <span className="sr-only">{t("common.back")}</span>
       </Button>
 
       <div className="w-full max-w-sm pt-8">

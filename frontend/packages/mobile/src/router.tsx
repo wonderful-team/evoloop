@@ -1,8 +1,11 @@
 import { createRootRoute, createRoute } from "@tanstack/react-router"
+import { useTranslation } from "react-i18next"
+import { Button } from "@evoloop/shared/components/ui/button"
 import { Layout } from "./Layout"
 import { CloudChatScreen } from "./screens/CloudChatScreen"
 import { DevicesScreen, devicesLoader } from "./screens/DevicesScreen"
 import { ForgotPasswordScreen } from "./screens/ForgotPasswordScreen"
+import { HelpScreen } from "./screens/HelpScreen"
 import { IndexScreen } from "./screens/IndexScreen"
 import { LocalChatScreen } from "./screens/LocalChatScreen"
 import { LoginScreen, loginLoader } from "./screens/LoginScreen"
@@ -15,13 +18,21 @@ import { TabsLayout } from "./TabsLayout"
 // 1. Create Route Hierarchy
 const rootRoute = createRootRoute({
   notFoundComponent: () => {
-    return (
-      <div className="p-4 bg-red-50 text-red-600">
-        <h1 className="text-xl font-bold"> Route Not Found </h1>
-      </div>
-    )
+    return <NotFound />
   },
 })
+
+function NotFound() {
+  const { t } = useTranslation()
+  return (
+    <div className="p-4 bg-red-50 text-red-600 h-screen flex flex-col items-center justify-center space-y-4">
+      <h1 className="text-xl font-bold"> {t("common.routeNotFound")} </h1>
+      <Button variant="outline" onClick={() => window.location.href = "/"}>
+        {t("common.back")}
+      </Button>
+    </div>
+  )
+}
 
 const layoutRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -83,6 +94,12 @@ const cloudChatRoute = createRoute({
   component: CloudChatScreen,
 })
 
+const helpRoute = createRoute({
+  getParentRoute: () => layoutRoute,
+  path: "/profile/help",
+  component: HelpScreen,
+})
+
 const searchRoute = createRoute({
   getParentRoute: () => layoutRoute,
   path: "/search",
@@ -104,18 +121,14 @@ const registerRoute = createRoute({
 // 2. Build the Tree
 const routeTree = rootRoute.addChildren([
   layoutRoute.addChildren([
-    tabsRoute.addChildren([
-      indexRoute,
-      devicesRoute,
-      projectsRoute,
-      profileRoute,
-    ]),
+    tabsRoute.addChildren([indexRoute, devicesRoute, projectsRoute, profileRoute]),
     loginRoute,
     localChatRoute,
     cloudChatRoute,
     searchRoute,
     forgotPasswordRoute,
     registerRoute,
+    helpRoute,
   ]),
 ])
 

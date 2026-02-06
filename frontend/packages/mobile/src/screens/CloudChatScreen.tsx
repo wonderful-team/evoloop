@@ -202,7 +202,7 @@ export function CloudChatScreen() {
 
   // Header Logic
   const Header = (
-    <div className="bg-background/90 backdrop-blur-md border-b sticky top-0 z-10 shrink-0 pt-safe-top pt-2">
+    <div className="bg-background/90 backdrop-blur-md border-b sticky top-0 z-10 shrink-0 pt-safe-top pt-4">
       <div className="px-4 h-[56px] flex items-center justify-between">
         <div className="flex items-center gap-1 w-[60px]">
           <Button

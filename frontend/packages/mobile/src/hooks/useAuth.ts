@@ -4,7 +4,7 @@
  */
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
-import { AuthService, LoginService } from "../client"
+import { AuthService, LoginService, MemberService } from "../client"
 
 import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 
@@ -29,11 +29,18 @@ const useAuth = () => {
   const { data: user } = useQuery<any | null, Error>({
     queryKey: ["currentUser"],
     queryFn: async () => {
-      // Mobile uses evoloop_token stored during login
       const token = localStorage.getItem("evoloop_token")
       if (!token) return null
-      // The mobile client handles token in axios interceptor
-      return { token } // Simplified user object for mobile
+      try {
+        const res = await MemberService.getInfo()
+        if (res.code === 0) {
+          return res.data
+        }
+        return null
+      } catch (err) {
+        console.error("Failed to fetch user info", err)
+        return null
+      }
     },
     enabled: isLoggedIn(),
   })

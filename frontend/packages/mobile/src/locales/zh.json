@@ -75,7 +75,8 @@
     },
     "header": {
       "deviceFallback": "设备 #{{id}}",
-      "clear": "清空"
+      "clear": "清空",
+      "search": "搜索日志"
     },
     "local": {
       "sessions": "本地会话",
@@ -90,6 +91,7 @@
     "input": {
       "uploadFailed": "上传失败",
       "waitUpload": "请等待文件上传完成",
+      "noProject": "请先选择一个项目",
       "placeholder": {
         "offline": "设备离线",
         "connecting": "连接服务器中...",
@@ -98,7 +100,12 @@
       }
     },
     "limitReachedDescription": "您已达到今日免费对话上限。请升级以继续使用。",
-    "limitReached": "今日对话次数已耗尽"
+    "limitReached": "今日对话次数已耗尽",
+    "interface": {
+      "copy": "复制",
+      "quote": "引用",
+      "copied": "已复制到剪贴板"
+    }
   },
   "conversation": {
     "new": "新建",
@@ -226,6 +233,7 @@
     "switching": "正在切换至 {{name}}...",
     "searchPlaceholder": "搜索项目...",
     "label": "项目",
+    "select": "选择项目",
     "switched": "已切换至 {{name}}"
   },
   "devices": {
@@ -267,5 +275,9 @@
   },
   "toast": {
     "bindFailed": "绑定服务器通知失败"
+  },
+  "common": {
+    "back": "返回",
+    "routeNotFound": "页面未找到"
   }
 }
