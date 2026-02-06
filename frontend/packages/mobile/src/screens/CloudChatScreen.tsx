@@ -209,7 +209,7 @@ export function CloudChatScreen() {
             variant="ghost"
             size="icon"
             className="-ml-2 hover:bg-muted rounded-full transition-colors"
-            onClick={() => navigate({ to: "/" as any })}
+            onClick={() => window.history.length > 1 ? window.history.back() : navigate({ to: "/" as any })}
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>

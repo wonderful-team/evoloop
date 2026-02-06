@@ -214,7 +214,7 @@ export function LoginScreen() {
       <Button
         variant="ghost"
         className="absolute top-[calc(env(safe-area-inset-top)+1rem)] right-4 rounded-full w-10 h-10 p-0 hover:bg-muted"
-        onClick={() => navigate({ to: "/" as any })}
+        onClick={() => window.history.length > 1 ? window.history.back() : navigate({ to: "/" as any })}
       >
         <X className="w-6 h-6 text-muted-foreground" />
       </Button>

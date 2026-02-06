@@ -57,7 +57,7 @@ export function HelpScreen() {
             variant="ghost"
             size="icon"
             className="-ml-2 h-10 w-10 rounded-full transition-transform active:scale-95"
-            onClick={() => navigate({ to: "/profile" as any })}
+            onClick={() => window.history.length > 1 ? window.history.back() : navigate({ to: "/profile" as any })}
           >
             <ArrowLeft className="w-5.5 h-5.5 text-muted-foreground" />
           </Button>

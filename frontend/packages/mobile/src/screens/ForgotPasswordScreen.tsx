@@ -182,6 +182,7 @@ export function ForgotPasswordScreen() {
         className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-4 pl-0 hover:bg-transparent"
         onClick={() => {
           if (step > 0) setStep(0)
+          else if (window.history.length > 1) window.history.back()
           else navigate({ to: "/login" as any })
         }}
       >

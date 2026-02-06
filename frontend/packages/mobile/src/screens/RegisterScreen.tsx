@@ -233,7 +233,7 @@ export function RegisterScreen() {
       <Button
         variant="ghost"
         className="absolute top-[calc(env(safe-area-inset-top)+1rem)] left-4 pl-0 hover:bg-transparent"
-        onClick={() => navigate({ to: "/login" as any })}
+        onClick={() => window.history.length > 1 ? window.history.back() : navigate({ to: "/login" as any })}
       >
         <ArrowLeft className="mr-2 h-5.5 w-5.5" />
         <span className="sr-only">{t("common.back")}</span>

@@ -30,23 +30,29 @@ export function TabsLayout() {
 
   const showLocalTabs = activeTab === "local"
 
+  const isMounted = useRef(false)
+
   // Sync State with URL & Scroll Position
   useEffect(() => {
     if (!scrollContainerRef.current) return
 
-    if (path === "/" || path.startsWith("/profile")) {
-      if (activeTab !== "cloud") {
-        setActiveTab("cloud")
-      }
-      // Programmatically scroll to Cloud (0)
-      scrollContainerRef.current.scrollTo({ left: 0, behavior: "smooth" })
-    } else if (path.startsWith("/devices") || path.startsWith("/projects")) {
-      if (activeTab !== "local") {
-        setActiveTab("local")
-      }
-      // Programmatically scroll to Local (width)
+    const isLocal = path.startsWith("/devices") || path.startsWith("/projects")
+    const targetLeft = isLocal ? window.innerWidth : 0
+
+    if (isLocal && activeTab !== "local") {
+      setActiveTab("local")
+    } else if (!isLocal && activeTab !== "cloud") {
+      setActiveTab("cloud")
+    }
+
+    if (!isMounted.current) {
+      // Immediate scroll on first load to prevent sliding from 0
+      scrollContainerRef.current.scrollLeft = targetLeft
+      isMounted.current = true
+    } else {
+      // Smooth scroll on subsequent path changes (tab switching)
       scrollContainerRef.current.scrollTo({
-        left: window.innerWidth,
+        left: targetLeft,
         behavior: "smooth",
       })
     }
@@ -110,7 +116,7 @@ export function TabsLayout() {
       <OnboardingOverlay />
 
       {/* Top Global Header with Safe Area Fix */}
-      <div className="absolute top-0 left-0 right-0 z-30 pt-safe-top pt-2 flex flex-col pointer-events-none transition-all">
+      <div className="absolute top-0 left-0 right-0 z-30 pt-safe-top pt-4 flex flex-col pointer-events-none transition-all">
         <div className="px-4 h-[56px] flex items-center justify-between">
           {/* Left Slot: Fixed Width */}
           <div className="flex items-center w-[60px] pointer-events-auto">
@@ -177,12 +183,12 @@ export function TabsLayout() {
         onScroll={onScroll}
       >
         {/* Cloud Context Container */}
-        <div className="w-full min-w-full h-full pt-[calc(64px+env(safe-area-inset-top)+8px)] pb-[calc(56px+env(safe-area-inset-bottom))] overflow-y-auto no-scrollbar relative snap-center">
+        <div className="w-full min-w-full h-full pt-[calc(72px+env(safe-area-inset-top)+8px)] pb-[calc(56px+env(safe-area-inset-bottom))] overflow-y-auto no-scrollbar relative snap-center">
           {renderCloudContent()}
         </div>
 
         {/* Local Context Container */}
-        <div className="w-full min-w-full h-full pt-[calc(64px+env(safe-area-inset-top)+8px)] pb-[calc(56px+env(safe-area-inset-bottom))] overflow-y-auto no-scrollbar relative snap-center">
+        <div className="w-full min-w-full h-full pt-[calc(72px+env(safe-area-inset-top)+8px)] pb-[calc(56px+env(safe-area-inset-bottom))] overflow-y-auto no-scrollbar relative snap-center">
           {renderLocalContent()}
         </div>
       </div>
