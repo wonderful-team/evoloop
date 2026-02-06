@@ -38,6 +38,10 @@ export function DevicesScreen() {
       if (res.code >= 0 && Array.isArray(res.data)) {
         return res.data
       }
+      // If data is an object with list property, common in cloud APIs
+      if (res.code >= 0 && (res.data as any)?.list) {
+        return (res.data as any).list
+      }
       return []
     },
     refetchInterval: 5000,
@@ -45,10 +49,12 @@ export function DevicesScreen() {
     enabled: !!token,
   })
 
+  // Ensure devices is an array for subsequent operations
+  const devicesList = Array.isArray(devices) ? devices : []
+  const onlineCount = devicesList.filter((d: any) => d.status === 1).length || 0
+
   // Remove auto-logout effect to allow guest view
   // useEffect(() => { ... })
-
-  const onlineCount = (devices as any[])?.filter((d: any) => d.status === 1).length || 0
 
   if (isGuest) {
     return (
@@ -103,7 +109,7 @@ export function DevicesScreen() {
               ? t("devices.loading")
               : t("devices.statusFormat", {
                 online: onlineCount,
-                total: devices?.length || 0,
+                total: devicesList.length,
               })}
           </p>
         </div>
@@ -116,7 +122,7 @@ export function DevicesScreen() {
       ) : null}
 
       <div className="grid gap-3">
-        {(devices as any[])?.map((device: any) => (
+        {devicesList.map((device: any) => (
           <Card
             key={device.device_id}
             className={`border-l-4 ${device.status === 1 ? "border-l-green-500" : "border-l-muted"} active:scale-95 transition-transform`}

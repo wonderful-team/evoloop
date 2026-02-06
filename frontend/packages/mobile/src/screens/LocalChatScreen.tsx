@@ -146,12 +146,21 @@ export function LocalChatScreen() {
     queryKey: ["evoloop", "devices"],
     queryFn: async () => {
       const res = await DevicesService.getDevices()
-      return res.code >= 0 ? res.data : []
+      if (res.code >= 0 && Array.isArray(res.data)) {
+        return res.data
+      }
+      // If data is an object with list property, common in cloud APIs
+      if (res.code >= 0 && (res.data as any)?.list) {
+        return (res.data as any).list
+      }
+      return []
     },
     refetchInterval: 5000,
   })
 
-  const currentDevice = (devices as any[])?.find(
+  // Ensure devices is an array before calling find
+  const devicesList = Array.isArray(devices) ? devices : []
+  const currentDevice = devicesList.find(
     (d: any) => d.device_id === Number(deviceId),
   )
   const isDeviceOnline = currentDevice?.status === 1
