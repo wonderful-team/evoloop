@@ -259,13 +259,18 @@ export const ChatInputArea = memo(
                   // Auto-grow hack
                   const target = e.target as HTMLTextAreaElement
                   target.style.height = "auto"
-                  target.style.height = `${Math.min(target.scrollHeight, 300)}px`
+                  target.style.height = `${Math.min(target.scrollHeight, 500)}px`
                 }}
               />
             </div>
 
             {/* Bottom: Toolbar */}
-            <div className="flex justify-between items-center p-2 bg-muted/20 border-t border-border/40">
+            <div className="relative flex items-center justify-between border-t border-border/40 bg-muted/20 p-2">
+              {/* Hint Text (Centered) */}
+              <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 select-none text-[10px] text-muted-foreground/50 whitespace-nowrap hidden sm:block">
+                {t("chat.interface.inputHint")}
+              </div>
+
               {/* Left Group: Tools */}
               <div className="flex items-center gap-1">
                 {activeThreadId && (
@@ -278,7 +283,7 @@ export const ChatInputArea = memo(
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                          title="Skill Library"
+                          title={t("learning.skillLibrary")}
                         >
                           <BookOpen size={16} />
                         </Button>
@@ -311,7 +316,7 @@ export const ChatInputArea = memo(
                     document.getElementById("chat-file-upload")?.click()
                   }
                   disabled={isUploading || !currentProject}
-                  title="Upload File"
+                  title={t("chat.interface.uploadFile")}
                 >
                   {isUploading ? (
                     <Loader2 size={16} className="animate-spin" />
@@ -357,11 +362,6 @@ export const ChatInputArea = memo(
                 </Button>
               </div>
             </div>
-          </div>
-
-          {/* Hint Text */}
-          <div className="text-[10px] text-center mt-2 text-muted-foreground/60 select-none">
-            {t("chat.interface.inputHint")}
           </div>
         </div>
       </div>

@@ -5,6 +5,7 @@ from typing import Any
 
 from langchain_core.tools import tool
 
+from app.core.file.document_reader import document_reader_service
 from app.logging import get_context
 from app.utils import json as json_utils
 from app.utils.detect import detect_language
@@ -134,34 +135,40 @@ def query_excel_sql(file_path: str, sql_query: str) -> str:
 
 
 @tool
-def read_document(file_path: str, start_page: int | None = None, end_page: int | None = None) -> str:
+async def read_document(file_path: str, start_page: int | None = None, end_page: int | None = None) -> str:
     """
-    Read and parse content from various document formats (PDF, DOCX, XLSX, MD, TXT, HTML, PY, JS, etc.).
+    Read and parse content from various document formats (PDF, DOCX, XLSX, MD, TXT, HTML, PY, JS, IMG, etc.).
     Returns the content converted to Markdown format.
-
-    For code or text files, it returns a Markdown code block with specific language highlighting.
-    For documents like PDF/Word, it returns formatted text.
 
     Args:
         file_path (str): Path to the file or URL.
         start_page (int, optional): Start page for PDF (1-based).
         end_page (int, optional): End page for PDF (1-based).
     """
-    # 1. Resolve and Validate Path
-    real_path, error_msg = _resolve_and_validate(file_path)
-    if error_msg:
-        return error_msg
-
-    # 2. Handle Directory
-    if os.path.isdir(real_path):
-        return _list_directory(real_path)
-
-    # 3. Read File Content
     try:
-        return _read_file_content(real_path, start_page, end_page)
+        real_path = _resolve_project_path(file_path)
+        real_path = ensure_local_path(real_path)
+        
+        if os.path.isdir(real_path):
+            return _list_directory(real_path)
+            
+        content = await document_reader_service.read_document(real_path, start_page, end_page)
+        
+        # Wrap in file header if not already
+        filename = os.path.basename(real_path)
+        lang = detect_language(real_path) or "text"
+        
+        if content.strip().startswith("# "): # Already has a header
+            return content
+             
+        if lang in ["python", "javascript", "typescript", "c", "cpp", "go", "rust"]:
+            return f"# File: {filename}\n\n```{lang}\n{content}\n```"
+             
+        return f"# File: {filename}\n\n{content}"
+
     except Exception as e:
         logger.error(f"Read failed: {e}")
-        return f"Error reading file {os.path.basename(real_path)}: {str(e)}"
+        return f"Error reading file {file_path}: {str(e)}"
 
 
 # --- core Logic Helpers ---

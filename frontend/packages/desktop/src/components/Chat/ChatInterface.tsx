@@ -26,11 +26,15 @@ import { Label } from "@evoloop/shared/components/ui/label"
 import { useChatStore } from "@/stores/chatStore"
 import { useProjectStore } from "@/stores/projectStore"
 import { Button } from "@evoloop/shared/components/ui/button"
+import { HITLBanner } from "./HITLBanner"
 import { ChatInputArea, type ChatInputAreaHandle } from "./ChatInputArea"
 import { MessageList } from "./MessageList"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
 import { BreadcrumbStatus } from "./BreadcrumbStatus"
+
+import { DiffDrawer } from "./DiffDrawer"
+import { RewindConfirmDialog } from "./RewindConfirmDialog"
 
 export function ChatInterface() {
 
@@ -38,6 +42,12 @@ export function ChatInterface() {
   const { currentProject } = useProjectStore()
   const projectId = currentProject?.id
   const queryClient = useQueryClient()
+
+  // --- UI State ---
+  const [selectedDiff, setSelectedDiff] = useState<{ path: string; diff: string } | null>(null)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [isRewindDialogOpen, setIsRewindDialogOpen] = useState(false)
+  const [confirmMode, setConfirmMode] = useState<"rewind" | "retry">("rewind")
 
   // --- Store State ---
   // --- Store State (Granular Selectors to avoid full re-renders) ---
@@ -223,18 +233,27 @@ export function ChatInterface() {
   })
 
   const rewindMutation = useMutation({
-    mutationFn: () =>
-      ConversationsService.rewindConversation({ threadId: activeThreadId! }),
-    onSuccess: () => {
+    // @ts-ignore
+    mutationFn: (revertFiles: boolean) =>
+      // @ts-ignore
+      ConversationsService.rewindConversation({
+        threadId: activeThreadId!,
+        requestBody: { revert_files: revertFiles }
+      } as any),
+    onSuccess: (data: any) => {
       // Reload store
       if (activeThreadId && projectId) setThread(activeThreadId, projectId)
-      toast.success("Rewinded")
+      const filesMsg = data.files_reverted && data.files_reverted > 0
+        ? ` (${data.files_reverted} files reverted)`
+        : ""
+      toast.success(`Rewinded${filesMsg}`)
+      setIsRewindDialogOpen(false)
     },
   })
 
   // Phase 6: Retry Logic
   const retryMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (revertFiles: boolean) => {
       if (!activeThreadId) throw new Error("No active thread")
       // Check if AgentService has retryChat (manually added to SDK)
       // @ts-ignore
@@ -242,14 +261,20 @@ export function ChatInterface() {
         requestBody: {
           thread_id: activeThreadId,
           message: "", // Backend finds the last user message
-          project_id: projectId
+          project_id: projectId,
+          revert_files: revertFiles
         }
-      })
+      } as any)
     },
-    onSuccess: () => {
-      toast.success(t("chat.interface.retrying", "Retrying from last user message..."))
+    // @ts-ignore
+    onSuccess: (data: any) => {
+      const filesMsg = data.files_reverted && data.files_reverted > 0
+        ? ` (${data.files_reverted} ${t("chat.interface.filesReverted", "files reverted")})`
+        : ""
+      toast.success(`${t("chat.interface.retrying", "Retrying...")}${filesMsg}`)
       // Reload store to reflect rolled back state and new streaming status
       if (activeThreadId && projectId) setThread(activeThreadId, projectId)
+      setIsRewindDialogOpen(false)
     },
     onError: () => {
       toast.error(t("chat.interface.retryFailed", "Retry failed"))
@@ -347,6 +372,10 @@ export function ChatInterface() {
             onDeleteThread={handleDeleteThread}
             onStopThread={handleStopThread}
             onNewChat={handleNewChat}
+            onSelectDiff={(path, diff) => {
+              setSelectedDiff({ path, diff })
+              setIsDrawerOpen(true)
+            }}
           />
         </ResizablePanel>
 
@@ -372,6 +401,7 @@ export function ChatInterface() {
 
             {/* Breadcrumb Status */}
             <BreadcrumbStatus />
+            <HITLBanner />
 
             <div
               className="flex-1 overflow-y-auto min-h-0 scroll-smooth"
@@ -382,13 +412,19 @@ export function ChatInterface() {
               <div className="space-y-6 max-w-3xl mx-auto pb-1">
                 <MessageList
                   messages={messages}
-                  isAgentWorking={status === "running"}
+                  isAgentWorking={status === "running" || status === "interrupted" || status === "SUMMARIZING"}
                   onAddToMemory={(txt) => {
                     setMemoryContent(txt)
                     setIsMemoryDialogOpen(true)
                   }}
-                  onRewind={() => rewindMutation.mutate()}
-                  onRetry={() => retryMutation.mutate()}
+                  onRewind={() => {
+                    setConfirmMode("rewind")
+                    setIsRewindDialogOpen(true)
+                  }}
+                  onRetry={() => {
+                    setConfirmMode("retry")
+                    setIsRewindDialogOpen(true)
+                  }}
                   onQuote={(msg) => handleQuoteMessage(msg)}
                   onStarterClick={(text) => sendMessage(text)}
                 />
@@ -485,6 +521,26 @@ export function ChatInterface() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Rewind Confirmation Dialog */}
+      <RewindConfirmDialog
+        open={isRewindDialogOpen}
+        onOpenChange={setIsRewindDialogOpen}
+        mode={confirmMode}
+        onConfirm={(revertFiles) => {
+          if (confirmMode === "rewind") {
+            rewindMutation.mutate(revertFiles)
+          } else {
+            retryMutation.mutate(revertFiles)
+          }
+        }}
+      />
+      {/* Diff Drawer */}
+      <DiffDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        path={selectedDiff?.path || null}
+        diff={selectedDiff?.diff || null}
+      />
     </div>
   )
 }

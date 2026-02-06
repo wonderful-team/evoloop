@@ -15,6 +15,7 @@ interface ChatSidebarProps {
   onDeleteThread: (id: string) => void
   onStopThread: (id: string) => void
   onNewChat: () => void
+  onSelectDiff?: (path: string, diff: string) => void
 }
 
 export const ChatSidebar = memo(
@@ -26,6 +27,7 @@ export const ChatSidebar = memo(
     onDeleteThread,
     onStopThread,
     onNewChat,
+    onSelectDiff,
   }: ChatSidebarProps) => {
     const { t } = useTranslation()
 
@@ -66,9 +68,13 @@ export const ChatSidebar = memo(
 
           <TabsContent
             value="files"
-            className="flex-1 overflow-y-auto min-h-0 data-[state=inactive]:hidden mt-0"
+            className="flex-1 flex flex-col min-h-0 data-[state=inactive]:hidden mt-0"
           >
-            <SidebarFilesTab projectId={projectId} />
+            <SidebarFilesTab
+              projectId={projectId}
+              activeThreadId={activeThreadId}
+              onSelectDiff={onSelectDiff}
+            />
           </TabsContent>
         </Tabs>
       </div>

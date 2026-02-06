@@ -1,16 +1,11 @@
-use active_win_pos_rs::get_active_window;
-use parking_lot::Mutex;
-use rdev::{listen, Event, EventType, Key};
-use serde::Serialize;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
-use std::thread;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter};
+use std::sync::{Arc, Mutex};
+use serde::{Deserialize, Serialize};
+use std::process::{Command, Stdio, Child};
+use std::io::{BufRead, BufReader};
+use std::thread;
 
-#[derive(Clone, Serialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct GlobalEvent {
     pub timestamp: u64,
     pub event_type: String,
@@ -23,112 +18,108 @@ pub struct GlobalEvent {
 }
 
 pub struct GlobalObserver {
-    is_recording: Arc<AtomicBool>,
-    // Thread handle to allow joining/stopping if needed (though rdev listen blocks)
-    // In this simple version, we just detach the thread and control logic via atomic flag
-    app_handle: Arc<Mutex<Option<AppHandle>>>,
-    last_mouse_pos: Arc<Mutex<Option<(f64, f64)>>>,
+    child: Arc<Mutex<Option<Child>>>,
 }
 
 impl GlobalObserver {
     pub fn new() -> Self {
         Self {
-            is_recording: Arc::new(AtomicBool::new(false)),
-            app_handle: Arc::new(Mutex::new(None)),
-            last_mouse_pos: Arc::new(Mutex::new(None)),
+            child: Arc::new(Mutex::new(None)),
         }
     }
 
     pub fn start(&self, app: AppHandle) {
-        if self.is_recording.load(Ordering::SeqCst) {
-            return;
+        println!("GlobalObserver::start called");
+        
+        let mut child_lock = self.child.lock().unwrap();
+        if child_lock.is_some() {
+             println!("GlobalObserver already recording");
+             return;
         }
 
-        *self.app_handle.lock() = Some(app);
-        self.is_recording.store(true, Ordering::SeqCst);
+        // Run the recorder binary directly.
+        // In dev mode (and prod if bundled correctly), it should be in the same folder as the main executable.
+        let exe_path = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("recorder"));
+        let mut cmd_path = exe_path.clone();
+        cmd_path.pop(); // Remove executable name
+        cmd_path.push("recorder"); // Add recorder binary name
 
-        let is_recording = self.is_recording.clone();
-        let app_handle = self.app_handle.clone();
-        let last_mouse_pos = self.last_mouse_pos.clone();
+        // Run the recorder binary directly.
+        // In dev mode (and prod if bundled correctly), it should be in the same folder as the main executable.
+        let exe_path = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("recorder"));
+        let mut cmd_path = exe_path.clone();
+        cmd_path.pop(); // Remove executable name
+        cmd_path.push("recorder"); // Add recorder binary name
 
-        // Spawn a thread for rdev listener
-        thread::spawn(move || {
-            if let Err(error) = listen(move |event| {
-                if !is_recording.load(Ordering::SeqCst) {
-                    return; // Just ignore events if not recording, but thread keeps running
-                            // Optimally we would stop the listener, but rdev doesn't support clean stop easily yet
-                }
+        if !cmd_path.exists() {
+             // Valid for dev mode where CWD is src-tauri
+             cmd_path = std::path::PathBuf::from("./target/debug/recorder");
+             if !cmd_path.exists() {
+                  if let Ok(cwd) = std::env::current_dir() {
+                      cmd_path = cwd.join("target/debug/recorder");
+                  }
+             }
+        }
+        
+        let mut cmd = Command::new(cmd_path);
+        cmd.stdout(Stdio::piped())
+           .stderr(Stdio::piped());
 
-                let global_event = convert_event(event, &last_mouse_pos);
+        println!("Spawning recorder process...");
+        match cmd.spawn() {
+            Ok(mut child) => {
+                println!("Recorder process spawned successfully, pid: {}", child.id());
                 
-                if let Some(mut evt) = global_event {
-                    // Enrich with active window info
-                    // Note: get_active_window() can be slow, so maybe throttle this or do it async?
-                    // For now we do it for every significant event (not mouse move)
-                    if evt.event_type != "mouse_move" {
-                         if let Ok(window) = get_active_window() {
-                            evt.window_title = Some(window.title);
-                            evt.app_name = Some(window.app_name);
-                            evt.process_id = Some(window.process_id);
+                if let Some(stdout) = child.stdout.take() {
+                    let app_handle = app.clone();
+                    thread::spawn(move || {
+                        let reader = BufReader::new(stdout);
+                        for line in reader.lines() {
+                            match line {
+                                Ok(l) => {
+                                    if let Ok(event) = serde_json::from_str::<GlobalEvent>(&l) {
+                                        let _ = app_handle.emit("global-event", event);
+                                    } else {
+                                        println!("[Recorder] {}", l);
+                                    }
+                                }
+                                Err(_) => break,
+                            }
                         }
-                    }
-
-                    // Emit to frontend
-                    if let Some(handle) = app_handle.lock().as_ref() {
-                        let _ = handle.emit("global-event", evt);
-                    }
+                    });
                 }
-            }) {
-                println!("Error: {:?}", error)
+                
+                if let Some(stderr) = child.stderr.take() {
+                     thread::spawn(move || {
+                        let reader = BufReader::new(stderr);
+                         for line in reader.lines() {
+                             if let Ok(l) = line {
+                                 eprintln!("[Recorder ERR] {}", l);
+                             }
+                         }
+                     });
+                }
+                
+                *child_lock = Some(child);
+            },
+            Err(e) => {
+                println!("Failed to spawn recorder: {:?}", e);
             }
-        });
+        }
     }
 
     pub fn stop(&self) {
-        self.is_recording.store(false, Ordering::SeqCst);
+        println!("Stop global recording requested");
+        let mut child_lock = self.child.lock().unwrap();
+        if let Some(mut child) = child_lock.take() {
+            let _ = child.kill();
+            let _ = child.wait(); // Prevent zombie
+            println!("Recorder process killed");
+        }
     }
 
     pub fn is_recording(&self) -> bool {
-        self.is_recording.load(Ordering::SeqCst)
-    }
-}
-
-fn convert_event(event: Event, _last_mouse_pos: &Arc<Mutex<Option<(f64, f64)>>>) -> Option<GlobalEvent> {
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis() as u64;
-
-    match event.event_type {
-        EventType::KeyPress(key) => Some(GlobalEvent {
-            timestamp,
-            event_type: "key_press".to_string(),
-            key: Some(format!("{:?}", key)),
-            mouse_button: None,
-            position: None,
-            window_title: None,
-            app_name: None,
-            process_id: None,
-        }),
-        EventType::KeyRelease(_) => None, // Ignore release to reduce noise
-        EventType::ButtonPress(btn) => Some(GlobalEvent {
-            timestamp,
-            event_type: "mouse_click".to_string(),
-            key: None,
-            mouse_button: Some(format!("{:?}", btn)),
-            position: None, // rdev button press doesn't have pos, need to track separate move or get current
-            window_title: None,
-            app_name: None,
-            process_id: None,
-        }),
-        EventType::MouseMove { x: _, y: _ } => {
-            // Throttle mouse moves: only emit if moved significantly or time passed?
-            // For now, let's just update internal state and NOT emit every move to avoid flooding
-            // OR emit with throttling. Let's skipping generic moves for now and only track clicks/keys
-            // but we update the last known position if needed.
-            // *last_mouse_pos.lock() = Some((x, y));
-            None 
-        }
-        _ => None,
+        let child_lock = self.child.lock().unwrap();
+        child_lock.is_some()
     }
 }

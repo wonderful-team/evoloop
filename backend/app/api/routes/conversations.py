@@ -11,7 +11,7 @@ from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
 from app.core.persistence import get_db_pool
 from app.infrastructure.database.sql.database import get_db_session
-from app.models import Conversation, Message
+from app.models import Conversation, Message, FileOperation
 from app.core.engine.cleanup import cleanup_side_effects
 
 logger = logging.getLogger(__name__)
@@ -71,10 +71,25 @@ class MessageItem(BaseModel):
     steps: list[ToolStep] = []  # Phase 24: Tool Execution Steps
 
 
+class ChangesetNode(BaseModel):
+    """Hierarchical node for file operation tree."""
+    name: str
+    path: str
+    is_dir: bool
+    operation: str | None = None  # ADD, EDIT, DELETE
+    diff: str | None = None
+    children: list["ChangesetNode"] = []
+
+
 class RewindResponse(BaseModel):
     status: str
     thread_id: str
     removed_count: int = 0
+    files_reverted: int = 0
+
+
+class RewindRequest(BaseModel):
+    revert_files: bool = True  # Whether to also revert file changes
 
 
 @router.get("/", response_model=list[ConversationListItem])
@@ -299,9 +314,10 @@ async def delete_conversation(thread_id: str):
 
 
 @router.post("/{thread_id}/rewind", response_model=RewindResponse)
-async def rewind_conversation(thread_id: str):
+async def rewind_conversation(thread_id: str, req: RewindRequest = RewindRequest()):
     """
     Rewind the conversation to the previous state (Undo last step).
+    Optionally revert file changes made by the Agent.
     """
     graph = get_graph()
 
@@ -312,11 +328,11 @@ async def rewind_conversation(thread_id: str):
     state = await graph.aget_state(config)
 
     if not state.values:
-        return {"status": "empty", "thread_id": thread_id}
+        return RewindResponse(status="empty", thread_id=thread_id)
 
     messages = state.values.get("messages", [])
     if not messages:
-        return {"status": "empty", "thread_id": thread_id}
+        return RewindResponse(status="empty", thread_id=thread_id)
 
     # Find the last HumanMessage
     to_delete = []
@@ -329,17 +345,18 @@ async def rewind_conversation(thread_id: str):
             break
 
     if not to_delete:
-        return {
-            "status": "no_human_message_found",
-            "thread_id": thread_id,
-            "removed_count": 0,
-        }
+        return RewindResponse(
+            status="no_human_message_found",
+            thread_id=thread_id,
+            removed_count=0,
+        )
 
     updates = []
     for m in to_delete:
         if hasattr(m, "id") and m.id:
             updates.append(RemoveMessage(id=m.id))
 
+    files_reverted = 0
     if updates:
         # 1. Update Graph State
         await graph.aupdate_state(config, {"messages": updates})
@@ -348,8 +365,9 @@ async def rewind_conversation(thread_id: str):
         msg_ids = [u.id for u in updates]
         if msg_ids:
             try:
-                # 2.5 Active Cleanup (Side Effects)
-                await cleanup_side_effects(msg_ids)
+                # 2.5 Active Cleanup (Side Effects + File Undo)
+                cleanup_result = await cleanup_side_effects(msg_ids, revert_files=req.revert_files)
+                files_reverted = cleanup_result.get("FileUndoHandler", 0)
 
                 async with get_db_session() as session:
                     await session.execute(
@@ -360,10 +378,81 @@ async def rewind_conversation(thread_id: str):
             except Exception as e:
                 logger.error(f"DB Sync Failed during rewind: {e}")
 
-        return {
-            "status": "rewound",
-            "removed_count": len(updates),
-            "thread_id": thread_id,
-        }
+        return RewindResponse(
+            status="rewound",
+            removed_count=len(updates),
+            thread_id=thread_id,
+            files_reverted=files_reverted,
+        )
     else:
-        return {"status": "failed_no_ids", "thread_id": thread_id, "removed_count": 0}
+        return RewindResponse(status="failed_no_ids", thread_id=thread_id, removed_count=0)
+
+
+@router.get("/{thread_id}/changeset", response_model=list[ChangesetNode])
+async def get_thread_changeset(thread_id: str):
+    """
+    Get the cumulative file changeset for a thread, formatted as a tree.
+    """
+    async with get_db_session() as session:
+        stmt = (
+            select(FileOperation)
+            .where(FileOperation.thread_id == thread_id)
+            .order_by(FileOperation.created_at.asc())
+        )
+        result = await session.execute(stmt)
+        ops = result.scalars().all()
+
+        if not ops:
+            return []
+
+        # 1. Aggregate operations by file path (Cumulative)
+        aggregated = {}  # path -> {operation, diff}
+        for op in ops:
+            if op.file_path not in aggregated:
+                aggregated[op.file_path] = {"operation": op.operation, "diff": op.diff_content}
+            else:
+                current = aggregated[op.file_path]
+                
+                # If it was ADD, keep it as ADD even if followed by EDIT
+                if current["operation"] == "ADD" and op.operation == "EDIT":
+                    pass # Keep ADD
+                else:
+                    current["operation"] = op.operation
+                
+                # For now, we show the latest diff as the cumulative view is complex without original snapshots
+                current["diff"] = op.diff_content
+
+        # 2. Build Tree structure
+        root_nodes = []
+        path_map = {} # path -> node
+
+        def get_or_create_node(full_path: str, is_dir: bool):
+            if full_path in path_map:
+                return path_map[full_path]
+            
+            parts = full_path.strip("/").split("/")
+            name = parts[-1]
+            parent_path = "/".join(parts[:-1])
+            
+            node = ChangesetNode(
+                name=name,
+                path=full_path,
+                is_dir=is_dir,
+                children=[]
+            )
+            path_map[full_path] = node
+            
+            if not parent_path:
+                root_nodes.append(node)
+            else:
+                parent_node = get_or_create_node(parent_path, True)
+                parent_node.children.append(node)
+            
+            return node
+
+        for path, info in aggregated.items():
+            node = get_or_create_node(path, False)
+            node.operation = info["operation"]
+            node.diff = info["diff"]
+
+        return root_nodes

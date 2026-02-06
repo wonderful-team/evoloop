@@ -7,8 +7,11 @@ import {
   FileSpreadsheet,
   FileText,
   Loader2,
+  Search,
+  X,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
@@ -23,6 +26,8 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@evoloop/shared/components/ui/resizable"
+import { Input } from "@evoloop/shared/components/ui/input"
+import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 
 export const Route = createFileRoute("/_layout/projects/$projectId/files")({
   component: FilesPage,
@@ -35,6 +40,40 @@ function FilesPage() {
     name: string
   } | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { t } = useTranslation()
+
+  // --- SEARCH STATE ---
+  const [searchQuery, setSearchQuery] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+  const {
+    data: searchResults,
+    isLoading: isLoadingSearch,
+    refetch: searchFiles,
+  } = useQuery({
+    queryKey: ["fileSearch", projectId, searchQuery],
+    queryFn: async () => {
+      if (!projectId || !searchQuery) return []
+      const res = await FilesService.searchFiles({
+        projectId: Number(projectId),
+        q: searchQuery,
+      })
+      return res as any[]
+    },
+    enabled: false,
+  })
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (searchQuery.trim().length >= 2) {
+      setIsSearching(true)
+      searchFiles()
+    }
+  }
+
+  const clearSearch = () => {
+    setSearchQuery("")
+    setIsSearching(false)
+  }
 
   // Determine file type
   const getFileType = (name: string) => {
@@ -109,7 +148,7 @@ function FilesPage() {
           containerRef.current!.innerHTML = `<div class="p-4 overflow-auto">${html}</div>`
         } catch (e) {
           console.error(e)
-          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">Failed to render Excel preview.</div>`
+          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">${t("sidebar.excelPreviewError", "Failed to render Excel preview.")}</div>`
         }
       } else if (fileType === "csv" && fileContent) {
         try {
@@ -126,7 +165,7 @@ function FilesPage() {
         } catch (e) {
           console.error(e)
           // Fallback will supply text view if this fails, or we can show error
-          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">Failed to render CSV table.</div>`
+          containerRef.current!.innerHTML = `<div class="p-4 text-red-500">${t("sidebar.csvPreviewError", "Failed to render CSV table.")}</div>`
         }
       }
     }
@@ -155,13 +194,76 @@ function FilesPage() {
         maxSize={40}
         className="bg-muted/5 flex flex-col min-w-[200px]"
       >
-        <div className="flex-1 overflow-auto py-2">
-          <FileTree
-            projectId={Number(projectId)}
-            onSelectFile={(node) =>
-              setSelectedFile({ path: node.path, name: node.name })
-            }
-          />
+        <div className="p-2 border-b">
+          <form onSubmit={handleSearch} className="relative">
+            <Search className="absolute left-2 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              className="pl-8 h-8 text-xs pr-7"
+              placeholder={t("sidebar.searchFilesPlaceholder", "Search project files...")}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={clearSearch}
+                className="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </form>
+        </div>
+
+        <div className="flex-1 overflow-hidden flex flex-col">
+          {!isSearching ? (
+            <div className="flex-1 overflow-auto py-2">
+              <FileTree
+                projectId={Number(projectId)}
+                onSelectFile={(node) =>
+                  setSelectedFile({ path: node.path, name: node.name })
+                }
+              />
+            </div>
+          ) : (
+            <div className="flex-1 overflow-hidden flex flex-col">
+              <div className="px-3 py-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex justify-between items-center">
+                <span>Search Results</span>
+                {isLoadingSearch && <Loader2 className="h-3 w-3 animate-spin" />}
+              </div>
+              <ScrollArea className="flex-1">
+                <div className="p-2 space-y-1">
+                  {searchResults?.map((result, i) => (
+                    <div
+                      key={i}
+                      className="p-2 rounded border border-transparent hover:border-border hover:bg-muted/50 cursor-pointer text-xs group transition-all"
+                      onClick={() =>
+                        setSelectedFile({
+                          path: result.file,
+                          name: result.file.split("/").pop() || "",
+                        })
+                      }
+                    >
+                      <div className="flex items-center gap-1.5 text-primary font-medium mb-1">
+                        <FileCode className="h-3.5 w-3.5" />
+                        <span className="truncate" title={result.file}>
+                          {result.file}:{result.line}
+                        </span>
+                      </div>
+                      <div className="text-muted-foreground font-mono truncate opacity-70 group-hover:opacity-100">
+                        {result.content}
+                      </div>
+                    </div>
+                  ))}
+                  {isSearching && !isLoadingSearch && searchResults?.length === 0 && (
+                    <div className="text-center py-8 text-muted-foreground text-xs italic">
+                      No matches found
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+          )}
         </div>
       </ResizablePanel>
 
@@ -193,7 +295,6 @@ function FilesPage() {
                 {fileType === "text" && (
                   <FileCode className="h-4 w-4 text-muted-foreground" />
                 )}
-
                 <span className="font-medium">{selectedFile.name}</span>
                 <span
                   className="text-xs text-muted-foreground ml-auto opacity-50 font-mono truncate max-w-[300px]"
@@ -208,7 +309,7 @@ function FilesPage() {
                     size="icon"
                     className="h-7 w-7"
                     onClick={handleOpenInApp}
-                    title="Open in System App"
+                    title={t("sidebar.openInSystemApp", "Open in System App")}
                   >
                     <ExternalLink className="h-4 w-4" />
                   </Button>

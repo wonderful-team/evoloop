@@ -42,6 +42,7 @@ class ChatRequest(BaseModel):
     project_id: int | None = 1
     checkpoint_id: str | None = None
     attachments: list[dict[str, Any]] | None = None  # [{"url": "...", "type": "image"}]
+    revert_files: bool = True  # For retry/undo support
 
 
 class WebhookRequest(BaseModel):
@@ -251,12 +252,11 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
         msg_ids_to_clean = [str(r) for r in msgs_to_delete_result.scalars().all()]
 
         # 2.5 Trigger Cleanup of Side Effects (Closed Loop)
+        files_reverted = 0
         if msg_ids_to_clean:
-            # Run cleanup *before* deletion to ensure IDs exist if validity checks needed (though here we just need IDs)
-            # Actually, we can run it here.
-            # Ideally this should be async or background, but since we are awaiting session execution anyway...
             # Cleanup service handles its own errors.
-            await cleanup_side_effects(msg_ids_to_clean)
+            cleanup_result = await cleanup_side_effects(msg_ids_to_clean, revert_files=req.revert_files)
+            files_reverted = cleanup_result.get("FileUndoHandler", 0)
 
         # 3. Delete all messages AFTER this human message
         del_stmt = (
@@ -285,7 +285,12 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
 
     bg_tasks.add_task(run_agent_background, req.thread_id, inputs)
 
-    return {"status": "queued", "thread_id": req.thread_id, "action": "retry"}
+    return {
+        "status": "queued",
+        "thread_id": req.thread_id,
+        "action": "retry",
+        "files_reverted": files_reverted
+    }
 
 
 class ResumeRequest(BaseModel):

@@ -1,10 +1,10 @@
 import {
   FolderOpen,
-  LayoutDashboard,
   MessageSquare,
   Server,
   Settings,
   ListTodo,
+  Database,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { SidebarAppearance } from "@/components/Common/Appearance"
@@ -27,12 +27,6 @@ export function AppSidebar() {
 
   const publicItems: Item[] = [
     {
-      icon: LayoutDashboard,
-      title: t("sidebar.dashboard"),
-      path: "/",
-      dataTour: "sidebar-dashboard",
-    },
-    {
       icon: MessageSquare,
       title: t("sidebar.chat"),
       path: "/chat",
@@ -49,6 +43,12 @@ export function AppSidebar() {
       title: t("sidebar.todos"),
       path: "/todos",
       dataTour: "sidebar-todos",
+    },
+    {
+      icon: Database,
+      title: t("sidebar.library"),
+      path: "/library",
+      dataTour: "sidebar-library",
     },
   ]
 

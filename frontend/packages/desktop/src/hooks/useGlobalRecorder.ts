@@ -31,6 +31,11 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
 
     const [isRecording, setIsRecording] = useState(false)
     const [eventCount, setEventCount] = useState(0)
+    const sessionIdRef = useRef(sessionId)
+    useEffect(() => {
+        sessionIdRef.current = sessionId
+    }, [sessionId])
+
     const eventsBuffer = useRef<GlobalEvent[]>([])
     const flushTimerRef = useRef<number | null>(null)
 
@@ -45,7 +50,7 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
             await LearningService.recordGlobalEvents({
                 requestBody: {
                     thread_id: threadId,
-                    session_id: sessionId || undefined,
+                    session_id: sessionIdRef.current || undefined,
                     events: events
                 }
             })
@@ -55,39 +60,35 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
             // Re-add to buffer
             eventsBuffer.current = [...events, ...eventsBuffer.current]
         }
-    }, [threadId, sessionId])
+    }, [threadId])
 
     // Start/Stop recording via Rust
     const startRecording = useCallback(async () => {
         try {
-            if (window.__TAURI__) {
-                await invoke("start_global_recording")
-                setIsRecording(true)
+            await invoke("start_global_recording")
+            setEventCount(0)
+            eventsBuffer.current = []
+            setIsRecording(true)
 
-                // Start flush timer
-                flushTimerRef.current = window.setInterval(flushEvents, autoFlushInterval)
-            } else {
-                console.warn("Global recording only available in Tauri")
-            }
+            // Start flush timer
+            flushTimerRef.current = window.setInterval(flushEvents, autoFlushInterval)
         } catch (err) {
-            console.error("Failed to start global recording:", err)
+            console.error("Failed to start global recording (likely not in Tauri):", err)
         }
     }, [autoFlushInterval, flushEvents])
 
     const stopRecording = useCallback(async () => {
         try {
-            if (window.__TAURI__) {
-                await invoke("stop_global_recording")
-                setIsRecording(false)
-                console.log("Stopped global recording")
+            await invoke("stop_global_recording")
+            setIsRecording(false)
+            console.log("Stopped global recording")
 
-                if (flushTimerRef.current) {
-                    clearInterval(flushTimerRef.current)
-                    flushTimerRef.current = null
-                }
-                // Final flush
-                await flushEvents()
+            if (flushTimerRef.current) {
+                clearInterval(flushTimerRef.current)
+                flushTimerRef.current = null
             }
+            // Final flush
+            await flushEvents()
         } catch (err) {
             console.error("Failed to stop global recording:", err)
         }
@@ -98,14 +99,19 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
         let unlisten: UnlistenFn | undefined
 
         const setupListener = async () => {
-            if (!enabled || !window.__TAURI__) return
+            if (!enabled) return
 
-            unlisten = await listen<GlobalEvent>("global-event", (event) => {
-                if (isRecording) {
-                    // Normalize timestamp if needed or rely on Rust's
-                    eventsBuffer.current.push(event.payload)
-                }
-            })
+            try {
+                unlisten = await listen<GlobalEvent>("global-event", (event) => {
+                    if (isRecording) {
+                        // Normalize timestamp if needed or rely on Rust's
+                        eventsBuffer.current.push(event.payload)
+                    }
+                })
+            } catch (err) {
+                // Not in Tauri or listen failed
+                console.warn("Failed to listen to global events (are you in a browser?)", err)
+            }
         }
 
         setupListener()

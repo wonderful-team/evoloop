@@ -17,8 +17,8 @@ class EvoCloudManager:
 
     def __init__(self):
         self._initialized = False
-        self.config: EvoCloudConfig | None = None
-        self.api: EvoCloudHTTPClient | None = None
+        self._config: EvoCloudConfig | None = None
+        self._api: EvoCloudHTTPClient | None = None
         self.link: EvoCloudWebSocketLink | None = None
 
     def initialize(self, config: EvoCloudConfig | None = None) -> None:
@@ -40,9 +40,9 @@ class EvoCloudManager:
                 access_token=settings.EVOCLOUD_ACCESS_TOKEN
             )
 
-        self.config = config
-        self.api = EvoCloudHTTPClient(config)
-        self.link = EvoCloudWebSocketLink(config, self.api)
+        self._config = config
+        self._api = EvoCloudHTTPClient(config)
+        self.link = EvoCloudWebSocketLink(config, self._api)
         
         self._initialized = True
         logger.info("EvoCloudManager: Initialized")
@@ -58,8 +58,8 @@ class EvoCloudManager:
         """Stop background services."""
         if self.link:
             await self.link.stop()
-        if self.api:
-            await self.api.close()
+        if self._api:
+            await self._api.close()
 
     # --- Callbacks / Bridge ---
 
@@ -79,7 +79,6 @@ class EvoCloudManager:
     
     # Auth
     async def login(self, username, password) -> dict:
-        if not self.api: raise RuntimeError("Not initialized")
         res = await self.api.login(username, password)
         if res.get("success") and self.link:
             # Token is auto-saved by API backend, but maybe we want to trigger link start here?
@@ -87,12 +86,26 @@ class EvoCloudManager:
             # To be safe and compatible with existing flow, we primarily return result.
             # But we can also ensure token is updated in memory if needed.
             if res.get("token"):
-                self.api.set_token(res.get("token"))
+                self._api.set_token(res.get("token"))
                 await self.link.start() # Auto start link on login
         return res
 
     def get_token(self) -> str | None:
-        return self.api.get_token() if self.api else None
+        return self._api.get_token() if self._api else None
+
+    # --- Properties ---
+
+    @property
+    def config(self) -> EvoCloudConfig:
+        if not self._config:
+            self.initialize()
+        return self._config
+
+    @property
+    def api(self) -> EvoCloudHTTPClient:
+        if not self._api:
+            self.initialize()
+        return self._api
 
     # Chat Sync (Agent.py support)
     async def upload_log(self, thread_id: str, log_type: str, content: Any, device_id: int | None = None, command_id=None, project_id=None):

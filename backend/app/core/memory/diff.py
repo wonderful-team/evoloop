@@ -15,31 +15,34 @@ class DiffTracker:
     def __init__(self):
         self._snapshots: dict[str, str] = {}
 
-    def capture_snapshot(self, path: str):
+    def capture_snapshot(self, path: str, thread_id: str = "default"):
         """
         Reads the current content of the file and stores it in memory.
         Call this BEFORE executing an edit tool.
         """
+        key = f"{thread_id}:{path}"
         try:
             with open(path, encoding="utf-8") as f:
-                self._snapshots[path] = f.read()
+                self._snapshots[key] = f.read()
             # logger.debug(f"Captured snapshot for {path} ({len(self._snapshots[path])} chars)")
         except FileNotFoundError:
             # File might mean to be created
-            self._snapshots[path] = ""
+            self._snapshots[key] = ""
         except Exception as e:
-            logger.warning(f"Failed to capture snapshot for {path}: {e}")
+            logger.warning(f"Failed to capture snapshot for {path} (thread {thread_id}): {e}")
 
-    def compute_diff(self, path: str) -> str:
+    def compute_diff(self, path: str, thread_id: str = "default") -> tuple[str, str, str | None]:
         """
         Reads the file AGAIN and computes diff vs snapshot.
         Call this AFTER executing an edit tool.
-        Returns empty string if no change or no snapshot.
+        Returns (operation, diff, original_content).
+        Returns ("", "", None) if no change or no snapshot.
         """
-        if path not in self._snapshots:
-            return ""
+        key = f"{thread_id}:{path}"
+        if key not in self._snapshots:
+            return "", "", None
 
-        old_content = self._snapshots.pop(path)  # Consume snapshot
+        old_content = self._snapshots.pop(key)  # Consume snapshot
 
         try:
             with open(path, encoding="utf-8") as f:
@@ -49,7 +52,14 @@ class DiffTracker:
             new_content = ""
 
         if old_content == new_content:
-            return ""
+            return "", "", None
+
+        # Determine Operation
+        operation = "EDIT"
+        if not old_content and new_content:
+            operation = "ADD"
+        elif old_content and not new_content:
+            operation = "DELETE"
 
         # Compute Unified Diff
         diff = difflib.unified_diff(
@@ -61,7 +71,11 @@ class DiffTracker:
         )
 
         diff_text = "".join(diff)
-        return diff_text
+        # Return original_content for Undo support
+        # - ADD: old_content is empty (will be None for semantics)
+        # - EDIT/DELETE: old_content is the backup
+        original = old_content if old_content else None
+        return operation, diff_text, original
 
     def clear(self):
         self._snapshots.clear()

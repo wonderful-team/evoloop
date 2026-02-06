@@ -155,12 +155,12 @@ async def run_command_ops(command: str) -> str:
 
 
 @mcp.tool()
-def read_document(path: str) -> str:
+async def read_document(path: str) -> str:
     """Read content from PDF or DOCX file."""
     try:
         from app.domain.tools.document_reader import read_document as read_doc_tool
 
-        return _truncate(read_doc_tool.invoke({"file_path": path}))
+        return _truncate(await read_doc_tool.ainvoke({"file_path": path}))
     except Exception as e:
         return f"Error reading document: {e}"
 

@@ -176,7 +176,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
         logger.info(f"Stored Concept (Vectorized): {concept.name} (Project {pid_val})")
 
     async def search_concepts(
-        self, query: str, project_id: int, min_score: float = 0.7
+        self, query: str, project_id: Optional[int] = None, min_score: float = 0.7
     ) -> List[SearchResult]:
         """Semantic search for concepts using vector index."""
         driver = await get_graph_db()
@@ -191,10 +191,14 @@ class Neo4jLongTermMemory(ILongTermMemory):
         vector_cypher = """
         CALL db.index.vector.queryNodes('concept_embeddings', $top_k, $embedding)
         YIELD node AS c, score
-        WHERE (c.project_id = $pid OR c.project_id = 0) AND score >= $min_score
+        """
+        if project_id is not None:
+            vector_cypher += "WHERE (c.project_id = $pid OR c.project_id = 0) "
         
+        vector_cypher += "AND score >= $min_score " if project_id is not None else "WHERE score >= $min_score "
+        
+        vector_cypher += """
         OPTIONAL MATCH (c)-[:REFERENCES]->(f:File)
-        
         RETURN c.name as name, c.description as desc, c.project_id as pid, score, collect(f.path) as files
         """
 
@@ -218,7 +222,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
             for r in records
         ]
 
-    async def search_concepts_data(self, query: str, project_id: int) -> List[dict]:
+    async def search_concepts_data(self, query: str, project_id: Optional[int] = None) -> List[dict]:
         """Raw data version of search (for internal use)."""
         driver = await get_graph_db()
         embedder = EmbedderFactory.get_embedder()
@@ -227,9 +231,11 @@ class Neo4jLongTermMemory(ILongTermMemory):
         vector_cypher = """
         CALL db.index.vector.queryNodes('concept_embeddings', $top_k, $embedding)
         YIELD node AS c, score
-        WHERE (c.project_id = $pid OR c.project_id = 0)
-        RETURN c.name as name, c.description as description, c.project_id as project_id
         """
+        if project_id is not None:
+            vector_cypher += "WHERE (c.project_id = $pid OR c.project_id = 0) "
+            
+        vector_cypher += "RETURN c.name as name, c.description as description, c.project_id as project_id"
         async with driver.session() as session:
             result = await session.run(
                 vector_cypher,

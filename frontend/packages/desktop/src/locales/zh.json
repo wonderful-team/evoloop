@@ -187,7 +187,21 @@
     "parameters": "参数",
     "skills": "已学习技能",
     "synthesisDate": "合成日期",
-    "skillLibrary": "技能库"
+    "skillLibrary": "技能库",
+    "globalMode": "系统全局监控",
+    "domMode": "仅应用内 (DOM)",
+    "permissionRequired": "需要全局录制权限",
+    "skillCreated": "技能已创建！",
+    "createSkill": "创建新技能？",
+    "skillCreatedDesc": "该技能已添加到您的技能库。",
+    "createSkillDesc": "分析刚刚录制的操作，生成可复用的技能。",
+    "synthesisPrompt": "系统将使用 AI 分析您的操作步骤，生成带参数的可复用技能。",
+    "skillName": "技能名称",
+    "skillSaved": "技能已保存到技能库。",
+    "synthesizing": "正在合成...",
+    "synthesisSuccess": "技能创建成功！",
+    "synthesisFailed": "创建技能失败",
+    "synthesisError": "合成过程中发生错误"
   },
   "todos": {
     "create": {
@@ -309,7 +323,11 @@
       "deleteConfirm": "确认删除此对话？",
       "newChat": "新对话",
       "untitled": "未命名对话",
-      "tabFiles": "文件"
+      "tabFiles": "文件",
+      "projectFiles": "项目文件",
+      "agentChanges": "Agent 变更",
+      "noProject": "未选择项目",
+      "searchPlaceholder": "搜索对话..."
     },
     "resourceRemoved": "资源已移除",
     "context": {
@@ -344,15 +362,25 @@
       "noConcepts": "未找到记忆概念。",
       "noMatches": "由于某些原因，未能找到匹配项。",
       "groupSystem": "系统",
-      "memoryTitle": "记忆概念",
+      "memoryTitle": "项目记忆",
       "noState": "暂无状态数据。",
       "openImagicBox": "打开 IMagicBox",
-      "tabKnowledge": "知识库",
+      "tabKnowledge": "代码搜索",
       "statusActive": "活跃",
       "statusOffline": "离线",
       "title": "Agent 工作台",
       "tabPlan": "计划",
-      "planTitle": "活跃计划"
+      "planTitle": "活跃计划",
+      "taskCount": "{{count}} 个任务",
+      "viewAllMemories": "查看所有 {{count}} 条记忆",
+      "relatedTasksTitle": "与 \"{{concept}}\" 相关的任务",
+      "relatedTasksDesc": "与此概念关联的历史任务",
+      "noEpisodesFound": "未找到相关任务",
+      "tabChanges": "变更",
+      "noChanges": "暂无已修改的文件。"
+    },
+    "diff": {
+      "tip": "提示：红线表示删除，绿线表示新增。"
     },
     "interface": {
       "learnedFromChat": "从对话中学习",
@@ -362,6 +390,7 @@
       "quote": "引用",
       "selectProject": "选择一个项目开始对话",
       "retrying": "正在从上一条用户消息重试...",
+      "filesReverted": "个文件已恢复",
       "startPrompt": "开启新对话或选择下方任务。",
       "memorize": "记住",
       "uploadSuccess": "文件上传成功",
@@ -371,8 +400,21 @@
       "thinkingProcess": "推理过程",
       "inputDisabled": "请回复上方的待处理请求...",
       "uploadError": "上传失败",
+      "uploadFile": "上传文件",
       "retry": "重试",
       "rewind": "回溯"
+    },
+    "rewind": {
+      "confirmTitle": "确认撤回",
+      "confirmDescription": "将删除此消息及其后的所有内容。",
+      "revertFiles": "同时恢复 Agent 修改过的文件内容",
+      "revertFilesHint": "（恢复到修改前的状态）",
+      "confirm": "确认撤回"
+    },
+    "retry": {
+      "confirmTitle": "确认重试",
+      "confirmDescription": "将删除后续内容并重新尝试。",
+      "confirm": "确认重试"
     },
     "toolsActive": "{{count}} 个活跃",
     "addLink": "添加链接",
@@ -487,7 +529,12 @@
     "add": "添加",
     "no": "否",
     "actions": "操作",
-    "stop": "停止"
+    "stop": "停止",
+    "loading": "加载中...",
+    "saveAndClose": "保存并关闭",
+    "search": "搜索",
+    "scanning": "扫描中...",
+    "global": "全局"
   },
   "projects": {
     "actions": {
@@ -655,7 +702,33 @@
     "todos": "待办",
     "projects": "项目",
     "chat": "对话",
-    "dashboard": "仪表盘"
+    "dashboard": "仪表盘",
+    "searchFilesPlaceholder": "搜索项目文件...",
+    "excelPreviewError": "无法渲染 Excel 预览。",
+    "csvPreviewError": "无法渲染 CSV 表格。",
+    "openInSystemApp": "在系统应用中打开",
+    "library": "知识库"
+  },
+  "library": {
+    "title": "知识库",
+    "subtitle": "跨项目搜索所有记录的内存、文档和索引知识。",
+    "searchPlaceholder": "询问关于你项目的任何事情...",
+    "emptyTitle": "未发现匹配的知识。",
+    "emptySubtitle": "尝试扩大搜索词范围。",
+    "memoryTitle": "统一记忆",
+    "memoryDesc": "搜索在所有项目的聊天会话中学习到的所有概念。",
+    "docsTitle": "文档知识",
+    "docsDesc": "从您的项目文档和维基页面中快速查找相关片段。",
+    "crossTitle": "跨项目协同",
+    "crossDesc": "借鉴以往项目的解决方案来解决当前的技术挑战。",
+    "manageTitle": "知识库管理",
+    "manageSubtitle": "上传文档、项目报告、图像或音视频，实现全局语义检索。",
+    "uploadFile": "上传资产",
+    "fileName": "资产名称",
+    "fileStatus": "索引状态",
+    "fileDate": "添加时间",
+    "noFiles": "暂无已上传的资产",
+    "indexed": "已同步"
   },
   "projectSwitcher": {
     "lastSync": "上次同步",
@@ -667,7 +740,6 @@
     "never": "从未",
     "analyzing": "分析中",
     "description": "选择要切换的项目或管理您的项目。",
-    "manage": "管理项目",
     "indexingTooltip": "索引中..."
   },
   "pending": {

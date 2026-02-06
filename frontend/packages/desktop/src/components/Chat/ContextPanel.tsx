@@ -51,6 +51,9 @@ export const ContextPanel = memo(
           setActiveTab("context")
         } else if (["state", "tools"].includes(autoSwitchToTab)) {
           setActiveTab("system")
+        } else if (autoSwitchToTab === "changes") {
+          // No longer in ContextPanel, maybe handled by ChatInterface to open sidebar?
+          // For now, avoid crashing.
         } else {
           setActiveTab(autoSwitchToTab)
         }

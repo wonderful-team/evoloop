@@ -77,7 +77,7 @@ async def add_concept(project_id: int, req: ConceptCreate):
 
 
 @router.get("/search", response_model=list[ConceptResponse])
-async def search_memory(project_id: int, q: str):
+async def search_memory(q: str, project_id: int | None = None):
     """
     Search memory concepts.
     """

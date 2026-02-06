@@ -62,9 +62,8 @@ class ILongTermMemory(IMemoryProvider):
         """
         pass
 
-    @abstractmethod
     async def search_concepts(
-        self, query: str, project_id: int, min_score: float = 0.7
+        self, query: str, project_id: Optional[int] = None, min_score: float = 0.7
     ) -> List[SearchResult]:
         """
         Semantic search for concepts.
@@ -80,7 +79,7 @@ class ILongTermMemory(IMemoryProvider):
         pass
 
     @abstractmethod
-    async def search_concepts_data(self, query: str, project_id: int) -> List[dict]:
+    async def search_concepts_data(self, query: str, project_id: Optional[int] = None) -> List[dict]:
         """
         Raw data version of search (for internal use).
 

@@ -80,6 +80,40 @@ export const Body_login_login_access_tokenSchema = {
     title: 'Body_login-login_access_token'
 } as const;
 
+export const BrainRequestSchema = {
+    properties: {
+        query: {
+            type: 'string',
+            title: 'Query'
+        },
+        max_depth: {
+            type: 'integer',
+            title: 'Max Depth',
+            default: 3
+        }
+    },
+    type: 'object',
+    required: ['query'],
+    title: 'BrainRequest'
+} as const;
+
+export const BrainResponseSchema = {
+    properties: {
+        response: {
+            type: 'string',
+            title: 'Response'
+        },
+        mode: {
+            type: 'string',
+            title: 'Mode',
+            default: 'fast'
+        }
+    },
+    type: 'object',
+    required: ['response'],
+    title: 'BrainResponse'
+} as const;
+
 export const ChatRequestSchema = {
     properties: {
         thread_id: {

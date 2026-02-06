@@ -443,7 +443,8 @@ SEMANTIC_EXTENSIONS = {ext for exts in SEMANTIC_LANGUAGE_MAP.values() for ext in
 # Includes all semantic languages + documentation + common text-based configs
 INDEXABLE_EXTENSIONS = SEMANTIC_EXTENSIONS | {
     ".md", ".markdown", ".txt", ".sh", ".bash", ".c", ".h", ".cpp", ".hpp",
-    ".yaml", ".yml", ".toml", ".json", ".sql"
+    ".yaml", ".yml", ".toml", ".json", ".sql", ".pdf", ".docx", ".xlsx", ".csv",
+    ".png", ".jpg", ".jpeg", ".bmp", ".webp", ".mp3", ".wav", ".mp4", ".mov", ".avi"
 }
 
 # ====================== Model Constants ======================

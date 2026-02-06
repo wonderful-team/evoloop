@@ -1,6 +1,6 @@
 import { BookOpen, Play, Trash2, Edit } from "lucide-react"
 import type React from "react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { LearningService } from "@/client/sdk.gen"
@@ -54,7 +54,7 @@ export function SkillLibraryDialog({
   )
   const [skillToEdit, setSkillToEdit] = useState<LearnedSkill | null>(null)
 
-  const fetchSkills = async () => {
+  const fetchSkills = useCallback(async () => {
     setLoading(true)
     try {
       const result = (await LearningService.listSkills({
@@ -67,7 +67,7 @@ export function SkillLibraryDialog({
     } finally {
       setLoading(false)
     }
-  }
+  }, [t])
 
   useEffect(() => {
     if (open) {
@@ -99,9 +99,15 @@ export function SkillLibraryDialog({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
+      <Dialog
+        open={open}
+        onOpenChange={(val) => {
+          if (val) fetchSkills();
+          onOpenChange?.(val);
+        }}
+      >
         {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-        <DialogContent className="max-w-4xl h-[80vh] flex flex-col p-0 gap-0">
+        <DialogContent className="!max-w-7xl w-[90vw] h-[85vh] flex flex-col p-0 gap-0">
           <DialogHeader className="p-6 pb-2">
             <DialogTitle className="flex items-center gap-2">
               <BookOpen className="h-5 w-5" />
@@ -114,7 +120,7 @@ export function SkillLibraryDialog({
 
           <div className="flex flex-1 overflow-hidden">
             {/* Skill List Sidebar */}
-            <div className="w-1/3 border-r flex flex-col">
+            <div className="w-1/3 min-w-[300px] border-r flex flex-col">
               <ScrollArea className="flex-1">
                 <div className="p-4 space-y-2">
                   {skills.length === 0 && !loading && (
@@ -131,7 +137,7 @@ export function SkillLibraryDialog({
                         }`}
                       onClick={() => setSelectedSkill(skill)}
                     >
-                      <div className="font-medium truncate pr-6">
+                      <div className="font-medium break-words pr-6 leading-tight">
                         {skill.name}
                       </div>
                       {/* Quick Run Button on Hover in List */}
@@ -145,7 +151,7 @@ export function SkillLibraryDialog({
                         <Play size={12} fill="currentColor" />
                       </Button>
 
-                      <div className="text-xs text-muted-foreground truncate mt-1">
+                      <div className="text-xs text-muted-foreground line-clamp-2 mt-1">
                         {skill.description}
                       </div>
                       <div className="flex gap-2 mt-2">

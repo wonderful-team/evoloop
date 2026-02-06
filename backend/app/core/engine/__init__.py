@@ -14,6 +14,8 @@ from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
 from app.core.system import SystemConfigService
+from app.infrastructure.database.sql.database import session_scope
+from app.models import FileOperation
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
@@ -212,35 +214,57 @@ class AgentEngine:
 
                     if tool:
                         try:
-                            # --- Diff Tracking Start ---
-                            snapshot_path = None
-                            from app.core.memory.diff import diff_tracker
-
                             # Phase 18: Track diffs for atomic file tools
+                            snapshot_paths = []
+                            thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+                            
                             if tool_name in ["write_file", "edit_file"] and isinstance(tool_args, dict):
                                 arg_path = tool_args.get("path")
                                 if arg_path:
-                                    snapshot_path = arg_path
-                                    diff_tracker.capture_snapshot(snapshot_path)
+                                    snapshot_paths.append(arg_path)
                             elif tool_name == "manage_file" and isinstance(tool_args, dict):
                                 arg_path = tool_args.get("absolute_path") or tool_args.get("path")
                                 action = tool_args.get("action")
-                                if arg_path and action in ["create", "update_block", "write", "overwrite"]:
-                                    snapshot_path = arg_path
-                                    diff_tracker.capture_snapshot(snapshot_path)
+                                if arg_path and action in ["create", "update_block", "write", "overwrite", "delete"]:
+                                    snapshot_paths.append(arg_path)
+                            elif tool_name == "file_system" and isinstance(tool_args, dict):
+                                arg_path = tool_args.get("path")
+                                dest_path = tool_args.get("destination")
+                                action = tool_args.get("action")
+                                if arg_path:
+                                    snapshot_paths.append(arg_path)
+                                if action == "move" and dest_path:
+                                    snapshot_paths.append(dest_path)
+
+                            # Capture Snapshots
+                            from app.core.memory.diff import diff_tracker
+                            for path in snapshot_paths:
+                                diff_tracker.capture_snapshot(path, thread_id)
 
                             # Execute Tool
                             content = await executor.execute(tool, tool_args, config=config)
 
                             # --- Diff Tracking End ---
-                            if snapshot_path:
-                                diff = diff_tracker.compute_diff(snapshot_path)
-                                if diff:
-                                    logger.info(f"📝 Diff Detected:\n{diff}")
-                                    content = str(content) + f"\n\n[Version Control] Changes Applied:\n```diff\n{diff}\n```"
-                                else:
-                                    # If no diff but success, maybe it was a create or identical replace
-                                    pass
+                            for path in snapshot_paths:
+                                try:
+                                    operation, diff, original_content = diff_tracker.compute_diff(path, thread_id)
+                                    if diff:
+                                        logger.info(f"📝 Diff Detected ({operation}) on {path}:\n{diff}")
+                                        # Persistence (Phase 24: Formal Changeset Tracking + Undo Support)
+                                        async with session_scope() as session:
+                                            # Use run_id if available for grouping, otherwise tool_id
+                                            msg_id = config.get("configurable", {}).get("run_id") or tool_id
+                                            file_op = FileOperation(
+                                                thread_id=thread_id,
+                                                message_id=str(msg_id),
+                                                file_path=path,
+                                                operation=operation,
+                                                diff_content=diff,
+                                                original_content=original_content,  # For Undo
+                                            )
+                                            session.add(file_op)
+                                except Exception as e:
+                                    logger.error(f"Failed to process diff/persistence for {path}: {e}")
 
                         except Exception as e:
                             content = f"Error executing {tool_name}: {e}"

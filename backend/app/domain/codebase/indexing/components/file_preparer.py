@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.codebase.filter import FileFilter
 from app.models import Repository, SourceFile
-from app.utils.file import get_file_ext, read_file_content
+from app.utils.file import get_file_ext
+from app.core.file.document_reader import document_reader_service
 from app.utils.hash import compute_md5
 
 logger = logging.getLogger(__name__)
@@ -90,7 +91,7 @@ class FilePreparer:
 
         # Read content
         try:
-            content, _ = read_file_content(file_path)
+            content = await document_reader_service.read_document(file_path)
             if content is None:
                 return None
         except Exception as e:

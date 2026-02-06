@@ -17,6 +17,16 @@ export type Body_login_login_access_token = {
     client_secret?: (string | null);
 };
 
+export type BrainRequest = {
+    query: string;
+    max_depth?: number;
+};
+
+export type BrainResponse = {
+    response: string;
+    mode?: string;
+};
+
 export type ChatRequest = {
     thread_id: string;
     message: string;
@@ -575,6 +585,12 @@ export type AuthResetPasswordData = {
 };
 
 export type AuthResetPasswordResponse = (unknown);
+
+export type BrainChatWithBrainData = {
+    requestBody: BrainRequest;
+};
+
+export type BrainChatWithBrainResponse = (BrainResponse);
 
 export type ConversationsListConversationsData = {
     projectId?: (number | null);

@@ -10,6 +10,7 @@ import AppSidebar from "@/components/Sidebar/AppSidebar"
 import { SidebarInset, SidebarProvider } from "@evoloop/shared/components/ui/sidebar"
 import { SetupWizard, useSetupRequired } from "@/components/Wizard"
 import useAuth from "@/hooks/useAuth"
+import { GlobalRecorderManager } from "@/components/Learning/GlobalRecorderManager"
 
 export const Route = createFileRoute("/_layout")({
   component: Layout,
@@ -38,7 +39,9 @@ function Layout() {
 
   return (
     <SpotlightTourProvider steps={desktopTourSteps}>
-      <SidebarProvider className={isFullWidth ? "h-svh overflow-hidden" : ""}>
+      <GlobalRecorderManager />
+
+      <SidebarProvider defaultOpen={false} className={isFullWidth ? "h-svh overflow-hidden" : ""}>
         <AppSidebar />
         <SidebarInset>
           <main className={`flex-1 ${isFullWidth ? "overflow-hidden" : "p-6 md:p-8"}`}>

@@ -7,7 +7,7 @@
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist"
+    "frontendDist": "../dist/packages/desktop"
   },
   "app": {
     "windows": [
@@ -15,7 +15,7 @@
         "title": "EvoLoop",
         "width": 1200,
         "height": 800,
-        "url": "packages/desktop/index.html",
+        "url": "index.html",
         "maximized": true
       }
     ],

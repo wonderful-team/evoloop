@@ -61,6 +61,7 @@ async fn capture_screenshot() -> Result<String, String> {
 #[tauri::command]
 #[cfg(desktop)]
 async fn start_global_recording(state: tauri::State<'_, AppServiceState>, app: tauri::AppHandle) -> Result<(), String> {
+    println!("Start global recording requested");
     state.global_observer.start(app);
     Ok(())
 }
@@ -74,6 +75,7 @@ async fn start_global_recording() -> Result<(), String> {
 #[tauri::command]
 #[cfg(desktop)]
 async fn stop_global_recording(state: tauri::State<'_, AppServiceState>) -> Result<(), String> {
+    println!("Stop global recording requested");
     state.global_observer.stop();
     Ok(())
 }
@@ -113,9 +115,17 @@ fn check_accessibility_permission() -> bool {
 #[cfg(target_os = "macos")]
 #[tauri::command]
 fn open_accessibility_settings() {
-     let _ = std::process::Command::new("open")
-        .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
-        .spawn();
+    println!("Requesting accessibility permission...");
+    // Force prompt first
+    let result = macos_accessibility_client::accessibility::application_is_trusted_with_prompt();
+    println!("Prompt result: {}", result);
+    
+    if !result {
+        println!("Permission not granted, opening system settings...");
+         let _ = std::process::Command::new("open")
+            .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+            .spawn();
+    }
 }
 
 #[cfg(not(target_os = "macos"))]
@@ -126,6 +136,14 @@ fn open_accessibility_settings() {}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(desktop)]
+    std::panic::set_hook(Box::new(|info| {
+        let msg = format!("Panic occurred: {:?}", info);
+        println!("{}", msg);
+        // Try to write to a file in the current working directory
+        let _ = std::fs::write("panic.log", msg);
+    }));
+
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_shell::init())
@@ -212,10 +230,11 @@ pub fn run() {
              let state = _app.state::<AppServiceState>();
              *state.tray.lock().unwrap() = Some(tray);
 
-             let shell = _app.shell();
+             let _shell = _app.shell();
 
              // Start Web Server
              // Sidecar: evoloop-backend api
+             /* COMMENTED OUT FOR DEBUGGING
              let cmd = shell.sidecar("evoloop-backend")
                  .expect("failed to create sidecar command")
                  .args(["api"]);
@@ -277,6 +296,7 @@ pub fn run() {
                      }
                  });
              }
+             */
         }
         Ok(())
     });

@@ -193,13 +193,13 @@ class Settings(BaseSettings):
 
     PROJECTS_ROOT: str = Field(default_factory=_default_projects_root, validation_alias="PROJECTS_ROOT")
 
-    # Artifacts (Relative to .gemini/evoloop in home dir for persistence, or subfolder of PROJECTS_ROOT?)
+    # Artifacts (Relative to ~/.evoloop in home dir for persistence, or subfolder of PROJECTS_ROOT?)
     # Decision: Keep them in user app data dir to avoid cluttering projects root or ephemeral CWD.
     @computed_field
     @property
     def APP_DATA_DIR(self) -> str:
         """Centralized application data directory."""
-        return os.path.join(os.path.expanduser("~"), ".gemini", "evoloop")
+        return os.path.join(os.path.expanduser("~"), ".evoloop")
 
     @computed_field
     @property
@@ -212,6 +212,14 @@ class Settings(BaseSettings):
     @property
     def SCREENSHOTS_DIR(self) -> str:
         path = os.path.join(self.APP_DATA_DIR, "artifacts", "screenshots")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    @computed_field
+    @property
+    def LIBRARY_ROOT(self) -> str:
+        """Root directory for global knowledge base files."""
+        path = os.path.join(self.APP_DATA_DIR, "library")
         os.makedirs(path, exist_ok=True)
         return path
 

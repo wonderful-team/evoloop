@@ -1,19 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import {
     Brain,
-    Database,
     ExternalLink,
     FileText,
     Layers,
     Loader2,
     Plus,
-    Search,
     X,
 } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
-import { FilesService, MemoryService, ResourcesService } from "@/client"
+import { MemoryService, ResourcesService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
     Dialog,
@@ -32,12 +30,6 @@ import { useChatStore } from "@/stores/chatStore"
 
 interface ContextGroupTabProps {
     projectId?: number
-}
-
-interface FileSearchResult {
-    file: string
-    line: number
-    content: string
 }
 
 export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
@@ -151,27 +143,6 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
         onError: () => toast.error(t("common.error.message")),
     })
 
-    // 3. KNOWLEDGE
-    const [searchQuery, setSearchQuery] = useState("")
-    const {
-        data: searchResults,
-        isLoading: isLoadingSearch,
-        refetch: searchFiles,
-        isFetched: isSearchFetched,
-    } = useQuery({
-        queryKey: ["fileSearch", projectId, searchQuery],
-        queryFn: async () => {
-            if (!projectId || !searchQuery) return []
-            const res = await FilesService.searchFiles({ projectId, q: searchQuery })
-            return res as any as FileSearchResult[]
-        },
-        enabled: false,
-    })
-
-    const handleSearch = (e: React.FormEvent) => {
-        e.preventDefault()
-        if (searchQuery.trim().length >= 2) searchFiles()
-    }
 
     if (!projectId) return null
 
@@ -270,7 +241,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                     <div className="p-3 border-b flex items-center justify-between bg-muted/20">
                         <div className="flex items-center gap-2 font-semibold text-xs text-muted-foreground uppercase tracking-wider">
                             <Brain className="h-3.5 w-3.5" />
-                            {t("chat.context.memoryTitle", "Memory")}
+                            {t("chat.context.memoryTitle", "Project Memory")}
                         </div>
                         <Dialog open={isAddMemoryOpen} onOpenChange={setIsAddMemoryOpen}>
                             <DialogTrigger asChild>
@@ -317,7 +288,7 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                                                 </span>
                                                 {hasEpisodes && (
                                                     <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-                                                        {c.episode_count} tasks
+                                                        {t("chat.context.taskCount", { count: c.episode_count })}
                                                     </span>
                                                 )}
                                             </div>
@@ -329,7 +300,9 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                                 })}
                                 {concepts.length > 8 && (
                                     <div className="text-center pt-1">
-                                        <span className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground">View all {concepts.length} memories</span>
+                                        <span className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground">
+                                            {t("chat.context.viewAllMemories", { count: concepts.length })}
+                                        </span>
                                     </div>
                                 )}
                             </div>
@@ -345,9 +318,9 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
                                 <Brain className="h-4 w-4" />
-                                Tasks related to "{selectedConcept}"
+                                {t("chat.context.relatedTasksTitle", { concept: selectedConcept })}
                             </DialogTitle>
-                            <DialogDescription>Historical episodes linked to this concept</DialogDescription>
+                            <DialogDescription>{t("chat.context.relatedTasksDesc")}</DialogDescription>
                         </DialogHeader>
                         <div className="max-h-[300px] overflow-y-auto space-y-2 py-2">
                             {isLoadingEpisodes ? (
@@ -365,55 +338,12 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                                     </div>
                                 ))
                             ) : (
-                                <div className="text-center text-muted-foreground py-4">No episodes found</div>
+                                <div className="text-center text-muted-foreground py-4">{t("chat.context.noEpisodesFound")}</div>
                             )}
                         </div>
                     </DialogContent>
                 </Dialog>
 
-                {/* === CARD 3: KNOWLEDGE === */}
-                <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
-                    <div className="p-3 border-b flex items-center justify-between bg-muted/20">
-                        <div className="flex items-center gap-2 font-semibold text-xs text-muted-foreground uppercase tracking-wider">
-                            <Database className="h-3.5 w-3.5" />
-                            {t("chat.context.tabKnowledge", "Knowledge")}
-                        </div>
-                        <form onSubmit={handleSearch} className="flex items-center gap-1">
-                            <Input
-                                className="h-6 w-32 text-[10px]"
-                                placeholder={t("chat.context.searchPlaceholder")}
-                                value={searchQuery}
-                                onChange={e => setSearchQuery(e.target.value)}
-                            />
-                            <Button size="icon" variant="ghost" className="h-6 w-6" type="submit">
-                                <Search className="h-3 w-3" />
-                            </Button>
-                        </form>
-                    </div>
-                    <div className="p-3">
-                        {isLoadingSearch ? (
-                            <div className="flex justify-center"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
-                        ) : searchResults && searchResults.length > 0 ? (
-                            <div className="space-y-2">
-                                {searchResults.slice(0, 5).map((result, i) => (
-                                    <div key={i} className="border rounded p-2 text-xs bg-muted/10 hover:bg-muted/20 cursor-pointer group">
-                                        <div className="font-medium flex items-center gap-1.5 text-primary mb-1">
-                                            <FileText className="h-3 w-3" />
-                                            {result.file}:{result.line}
-                                        </div>
-                                        <div className="font-mono text-muted-foreground truncate opacity-80 group-hover:opacity-100">
-                                            {result.content}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        ) : isSearchFetched ? (
-                            <div className="text-xs text-muted-foreground italic text-center py-2">{t("chat.context.noMatches")}</div>
-                        ) : (
-                            <div className="text-xs text-muted-foreground italic text-center py-2 opacity-50">{t("chat.context.searchPrompt")}</div>
-                        )}
-                    </div>
-                </div>
 
             </div>
         </ScrollArea>
