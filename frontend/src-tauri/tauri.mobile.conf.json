@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "EvoLoop Link Mobile",
+  "productName": "EvoLoop Mobile",
   "version": "0.1.0",
   "identifier": "com.evoloop.mobile",
   "build": {
