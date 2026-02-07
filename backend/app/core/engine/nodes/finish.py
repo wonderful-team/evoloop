@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
-from app.core.engine.message_utils import get_message_text, smart_window_slice
+from app.core.engine.message_utils import get_message_text, smart_window_slice, repair_message_history
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.i18n.service import i18n
@@ -135,6 +135,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     structured_llm = llm.with_structured_output(SessionConclusion)
 
     messages_for_analysis = [SystemMessage(content=conclusion_prompt)] + recent_history
+    messages_for_analysis = repair_message_history(messages_for_analysis)
 
     try:
         conclusion = await structured_llm.ainvoke(messages_for_analysis, config={"callbacks": []})
@@ -258,7 +259,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
 
     try:
         final_response = await echo_llm.ainvoke(
-            [SystemMessage(content=echo_prompt)],
+            repair_message_history([SystemMessage(content=echo_prompt)]),
             config=config
         )
     except Exception:

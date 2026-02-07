@@ -18,6 +18,7 @@ from app.core.config import settings
 
 # EvoLoop Imports
 from app.core.engine.graph_builder import GraphBuilder
+from app.core.events.bridge import register_event_bridge
 from app.core.globals import set_graph
 from app.core.persistence import set_checkpointer, set_db_pool
 from app.domain.codebase.indexing.manager import indexing_manager
@@ -57,8 +58,15 @@ async def lifespan(_app: FastAPI):
 
     # 2.5 Agent Awakening - Environment & Capability Awareness
     try:
-        from app.core.environment import awaken, environment_watcher
+        from app.domain.codebase.indexing.event_handlers import register_indexing_handlers
+        from app.domain.environment import awaken, environment_watcher
+        from app.domain.environment.handlers import register_default_handlers
 
+        # Register event handlers before awakening
+        register_default_handlers()
+        register_indexing_handlers()
+        register_event_bridge()
+        
         await awaken()
         logger.info("Agent Awakening complete.")
         
@@ -66,7 +74,6 @@ async def lifespan(_app: FastAPI):
         await environment_watcher.start()
     except Exception as e:
         logger.warning(f"Agent Awakening failed (non-critical): {e}")
-
 
     # 3. Persistence (Checkpointer)
     db_uri = settings.CHECKPOINTER_DATABASE_URI
@@ -215,6 +222,13 @@ async def lifespan(_app: FastAPI):
 
         except Exception as e:
             logger.error(f"Failed to start EvoLoop Link Client: {e}")
+            
+    # 8. Android Device Watcher
+    try:
+        from app.domain.tools.environment.device_watcher import device_watcher
+        device_watcher.start()
+    except Exception as e:
+        logger.warning(f"Failed to start Device Watcher: {e}")
 
     yield
 
@@ -225,12 +239,26 @@ async def lifespan(_app: FastAPI):
     await indexing_manager.stop_all()
     await mcp_client_manager.cleanup()
 
+    # Stop Mirror Sessions
+    try:
+        from app.domain.tools.environment.mirror_session import mirror_manager
+        mirror_manager.cleanup()
+    except Exception as e:
+        logger.warning(f"Failed to cleanup mirror sessions: {e}")
+
     # Stop Environment Watcher
     try:
-        from app.core.environment import environment_watcher
+        from app.domain.environment import environment_watcher
         await environment_watcher.stop()
     except Exception as e:
         logger.warning(f"Failed to stop Environment Watcher: {e}")
+
+    # Stop Device Watcher
+    try:
+        from app.domain.tools.environment.device_watcher import device_watcher
+        device_watcher.stop()
+    except Exception as e:
+        logger.warning(f"Failed to stop Device Watcher: {e}")
 
     # Stop EvoLoop Link
     try:

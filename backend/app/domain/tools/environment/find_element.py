@@ -21,32 +21,36 @@ logger = logging.getLogger(__name__)
 async def find_element(
     target: str,
     platform: Literal["macos", "android"] = "android",
+    action: Literal["None", "tap", "click"] = "None",
     device_id: str | None = None,
     return_all: bool = False,
 ) -> str:
     """
-    Find a UI element by natural language description.
+    Find a UI element by natural language description and optionally interact with it.
     
     This tool uses Fusion Perception to extract all visible UI elements
-    and returns the best match for your target description.
+    and either returns the best match or directly acts on it (tap/click).
     
     Args:
         target: Natural language description of the element to find.
                 Examples: "微信图标", "搜索按钮", "输入框", "提交按钮"
         platform: Target platform ("macos" or "android")
+        action: Optional action to perform on the found element:
+                - "None": Find only (default)
+                - "tap": Find and tap (Android only)
+                - "click": Find and click (MacOS only)
         device_id: Device serial for Android (optional)
         return_all: If True, return all detected elements
         
     Returns:
-        Information about the found element including coordinates.
+        Information about the found element and action result.
     
     Example:
-        # Find an element
-        find_element(target="微信图标", platform="android")
-        # Returns: Element found: "微信" @ (540, 1800) - Ready to tap
+        # One-shot Find & Click:
+        find_element(target="微信图标", platform="android", action="tap")
         
-        # List all elements
-        find_element(target="", platform="android", return_all=True)
+        # Just Find:
+        find_element(target="搜索按钮", platform="android")
     """
     try:
         # Step 1: Take a screenshot
@@ -121,25 +125,30 @@ async def find_element(
         scored_elements.sort(key=lambda x: x[1], reverse=True)
         best_match, score = scored_elements[0]
         
-        result = (
+        result_msg = (
             f"✅ Element found!\n"
             f"Text: \"{best_match.text}\"\n"
             f"Position: ({best_match.x}, {best_match.y})\n"
             f"Type: {best_match.element_type.value}\n"
-            f"Confidence: {best_match.confidence:.2f}\n"
-            f"Match Score: {score:.1f}\n\n"
-            f"To interact with this element:\n"
+            f"Match Score: {score:.1f}\n"
         )
         
-        if platform == "android":
-            result += f"  mobile_control(action=\"tap\", x={best_match.x}, y={best_match.y})"
+        # Step 5: Perform Action (Turbo Mode)
+        if action == "tap" and platform == "android":
+            adb_driver.tap(best_match.x, best_match.y, device_id=device_id)
+            result_msg += f"\n👉 ACTION PERFORMED: Tapped at ({best_match.x}, {best_match.y})"
+        
+        elif action == "click" and platform == "macos":
+            macos_driver.click(best_match.x, best_match.y)
+            result_msg += f"\n👉 ACTION PERFORMED: Clicked at ({best_match.x}, {best_match.y})"
+            
         else:
-            result += f"  desktop_control(action=\"click\", x={best_match.x}, y={best_match.y})"
+            result_msg += f"\nReady to interact: {platform}_control(action='tap/click', x={best_match.x}, y={best_match.y})"
         
-        # Include screenshot path for vision analysis if needed
-        result += f"\n\nScreenshot: {compressed_path or screenshot_path}"
+        # Include screenshot path
+        result_msg += f"\n\nScreenshot: {compressed_path or screenshot_path}"
         
-        return result
+        return result_msg
     
     except Exception as e:
         logger.error(f"find_element error: {e}")

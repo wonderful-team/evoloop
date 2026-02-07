@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool
 async def mobile_control(
-    action: Literal["screenshot", "tap", "long_press", "swipe", "input_text", "press_key", "dump_ui", "list_devices", "get_info", "list_apps"],
+    action: Literal["screenshot", "tap", "long_press", "swipe", "input_text", "press_key", "dump_ui", "list_devices", "get_info", "list_apps", "open_app", "push", "pull"],
     x: int | None = None,
     y: int | None = None,
     x2: int | None = None,
@@ -22,6 +22,8 @@ async def mobile_control(
     text: str | None = None,
     keycode: int | str | None = None,
     device_id: str | None = None,
+    local_path: str | None = None,
+    remote_path: str | None = None,
     duration_ms: int = 300,
     wait_after_ms: int = 0,
 ) -> str:
@@ -47,13 +49,18 @@ async def mobile_control(
             - "list_devices": List connected devices.
             - "get_info": Get device hardware, OS version, and battery status.
             - "list_apps": List installed 3rd-party application packages.
+            - "open_app": Open an application by package name.
+            - "push": Push a local file/directory to the device.
+            - "pull": Pull a remote file/directory from the device.
         x: X coordinate for tap/swipe.
         y: Y coordinate for tap/swipe.
         x2: End X coordinate for swipe.
         y2: End Y coordinate for swipe.
-        text: Text to input for input_text action.
+        text: Text to input for input_text action. Also used as package name for open_app.
         keycode: Key name (home, back, enter) or numeric keycode for press_key action.
         device_id: Optional device serial (required if multiple devices connected).
+        local_path: Full path on the host Mac (required for push/pull).
+        remote_path: Full path on the Android device (required for push/pull).
         duration_ms: Swipe duration in milliseconds (default: 300).
     
     Returns:
@@ -62,6 +69,9 @@ async def mobile_control(
     Example:
         # List connected devices
         mobile_control(action="list_devices")
+
+        # Open App (using text as package name)
+        mobile_control(action="open_app", text="com.tencent.mm")
         
         # Take a screenshot
         mobile_control(action="screenshot")
@@ -108,8 +118,10 @@ async def mobile_control(
             result = f"Tapped at ({x}, {y})"
         
         elif action == "long_press":
-            if x is None or y is None:
-                return "Error: 'x' and 'y' coordinates are required for long_press action."
+            # Validate coordinates
+            screen_w, screen_h = adb_driver.get_screen_size(device_id=device_id)
+            if isinstance(x, float) and 0.0 <= x <= 1.0: x = int(x * screen_w)
+            if isinstance(y, float) and 0.0 <= y <= 1.0: y = int(y * screen_h)
             
             # Long press = swipe to same position with longer duration
             press_duration = duration_ms if duration_ms > 300 else 800
@@ -119,6 +131,12 @@ async def mobile_control(
         elif action == "swipe":
             if any(v is None for v in [x, y, x2, y2]):
                 return "Error: 'x', 'y', 'x2', 'y2' are all required for swipe action."
+            
+            screen_w, screen_h = adb_driver.get_screen_size(device_id=device_id)
+            if isinstance(x, float) and 0.0 <= x <= 1.0: x = int(x * screen_w)
+            if isinstance(y, float) and 0.0 <= y <= 1.0: y = int(y * screen_h)
+            if isinstance(x2, float) and 0.0 <= x2 <= 1.0: x2 = int(x2 * screen_w)
+            if isinstance(y2, float) and 0.0 <= y2 <= 1.0: y2 = int(y2 * screen_h)
             
             adb_driver.swipe(x, y, x2, y2, duration_ms=duration_ms, device_id=device_id)
             result = f"Swiped from ({x}, {y}) to ({x2}, {y2})"
@@ -145,6 +163,26 @@ async def mobile_control(
             apps = adb_driver.list_installed_apps(device_id=device_id)
             return f"Installed Apps: {apps}"
         
+        elif action == "open_app":
+            if not text:
+                return "Error: 'text' (package name) is required for open_app action."
+
+            # Use 'text' argument as package name
+            adb_driver.launch_app(text, device_id=device_id)
+            result = f"Opened application: {text}"
+
+        elif action == "push":
+            if not local_path or not remote_path:
+                return "Error: Both 'local_path' and 'remote_path' are required for push action."
+            adb_driver.push(local_path, remote_path, device_id=device_id)
+            result = f"Pushed {local_path} to {remote_path}"
+
+        elif action == "pull":
+            if not local_path or not remote_path:
+                return "Error: Both 'local_path' and 'remote_path' are required for pull action."
+            adb_driver.pull(remote_path, local_path, device_id=device_id)
+            result = f"Pulled {remote_path} to {local_path}"
+
         elif action == "dump_ui":
             xml = adb_driver.dump_ui(device_id=device_id)
             

@@ -13,6 +13,8 @@ from app.core.prompts.dynamic_specialist_builder import DynamicSpecialistPromptB
 from app.core.tools.registry_utils import get_tools_by_names
 from app.infrastructure.mcp.client import mcp_client_manager
 from app.domain.tools.vector_store import pg_tool_retriever
+from app.core.learning.skill_retriever import SkillRetriever
+from app.domain.environment import get_awakened_state
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +68,43 @@ class DynamicSpecialistNode:
                  logger.error(f"[DynamicSpecialist] ❌ Definitively missing tools: {still_missing}")
                  # We proceed without them, but warn.
 
-        # 2. Construct Prompts (Using Builder)
-        prompt_builder = DynamicSpecialistPromptBuilder(agent_config, execution_ticket)
+        # 2a. Fetch Relevant Skills/Knowledge
+        topic = execution_ticket.get("topic", "")
+        skill_retriever = SkillRetriever()
+        skills = await skill_retriever.get_relevant_skills(topic)
+        if skills:
+            logger.info(f"[DynamicSpecialist] 📖 Found {len(skills)} relevant skills/SOPs.")
+
+        # 2b. Fetch Environmental Knowledge from Awakening System (Brain/Cache)
+        state = get_awakened_state()
+        known_packages = {}
+        known_macos_apps = {}
+        if state and state.relevant_concepts:
+            # Extract concepts
+            for concept in state.relevant_concepts:
+                if concept.name.startswith("android_package:"):
+                    parts = concept.name.split(":")
+                    if len(parts) >= 2:
+                        known_packages[parts[1]] = concept.description
+                elif concept.name.startswith("macos_app:"):
+                    parts = concept.name.split(":")
+                    if len(parts) >= 2:
+                        known_macos_apps[parts[1]] = concept.description
+        
+        if known_packages:
+            logger.info(f"[DynamicSpecialist] 🧠 Loaded {len(known_packages)} Android packages from Brain.")
+        if known_macos_apps:
+            logger.info(f"[DynamicSpecialist] 🧠 Loaded {len(known_macos_apps)} MacOS apps from Brain.")
+
+        # 3. Construct Prompts (Using Builder)
+        # Pass loaded skills and knowledge to the builder
+        prompt_builder = DynamicSpecialistPromptBuilder(
+            agent_config, 
+            execution_ticket, 
+            skills=skills,
+            known_packages=known_packages,
+            known_macos_apps=known_macos_apps
+        )
         system_prompt = prompt_builder.build(config)
         mission_msg = prompt_builder.build_mission_message()
         

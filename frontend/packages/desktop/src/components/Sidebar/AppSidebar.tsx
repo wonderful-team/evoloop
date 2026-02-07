@@ -5,6 +5,7 @@ import {
   Settings,
   ListTodo,
   Database,
+  GraduationCap,
 } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { SidebarAppearance } from "@/components/Common/Appearance"
@@ -58,6 +59,12 @@ export function AppSidebar() {
       title: t("sidebar.mcpServers"),
       path: "/mcp",
       dataTour: "sidebar-mcp",
+    },
+    {
+      icon: GraduationCap,
+      title: t("sidebar.learning"),
+      path: "/learning",
+      dataTour: "sidebar-learning",
     },
     {
       icon: Settings,

@@ -30,6 +30,10 @@ Your goal is to provide detailed, focused information EXCLUSIVELY about this top
 
 {context}
 
+<environment>
+{DeepResearchPromptBuilder._build_env_summary()}
+</environment>
+
 <guidelines>
 - This is the **first iteration** of a multi-turn research process focused EXCLUSIVELY on the user's query
 - Start your response with "## Research Plan"
@@ -123,3 +127,12 @@ Your goal is to synthesize all previous findings and provide a comprehensive con
 - End with actionable insights or recommendations when appropriate
 </style>
 """
+
+    @staticmethod
+    def _build_env_summary() -> str:
+        try:
+            from app.domain.environment.prompt_utils import build_environment_prompt
+            # Researcher only needs high-level awareness
+            return build_environment_prompt(relevance="auto")
+        except:
+            return ""

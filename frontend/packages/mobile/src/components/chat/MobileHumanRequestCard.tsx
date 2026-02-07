@@ -55,7 +55,7 @@ export function MobileHumanRequestCard({ request, onRespond }: HumanRequestProps
                 <div className="flex items-center justify-between mb-1">
                     <CardTitle className={cn("text-sm font-bold flex items-center gap-2", titleColor)}>
                         <MessageCircleQuestion className="h-4 w-4" />
-                        {t("chat.request.title", "Input Required")}
+                        {t("chat_request.title")}
                     </CardTitle>
                     {riskLevel && (
                         <div className={cn(
@@ -101,7 +101,7 @@ export function MobileHumanRequestCard({ request, onRespond }: HumanRequestProps
                     <Textarea
                         value={value}
                         onChange={(e) => setValue(e.target.value)}
-                        placeholder={t("chat.request.placeholder", "Enter your response...")}
+                        placeholder={t("chat_request.placeholder")}
                         className="min-h-[100px] bg-background/50 text-sm rounded-xl focus-visible:ring-amber-500/20"
                     />
                 )}
@@ -129,7 +129,7 @@ export function MobileHumanRequestCard({ request, onRespond }: HumanRequestProps
                         className="w-full h-12 rounded-xl font-bold shadow-md bg-amber-600 hover:bg-amber-700 text-white active:scale-[0.98] transition-transform"
                     >
                         <Play className="mr-2 h-4 w-4" />
-                        {t("common.submit", "Submit")}
+                        {t("common.submit")}
                     </Button>
                 )}
 
@@ -143,7 +143,7 @@ export function MobileHumanRequestCard({ request, onRespond }: HumanRequestProps
                             disabled={isSubmitting}
                         >
                             <XCircle className="w-4 h-4 mr-2" />
-                            {request.type === "approval" ? t("common.reject", "Reject") : t("common.no", "No")}
+                            {request.type === "approval" ? t("common.reject") : t("common.no")}
                         </Button>
                         <Button
                             className={cn(
@@ -154,7 +154,7 @@ export function MobileHumanRequestCard({ request, onRespond }: HumanRequestProps
                             disabled={isSubmitting}
                         >
                             <CheckCircle2 className="w-4 h-4 mr-2" />
-                            {request.type === "approval" ? t("common.approve", "Approve") : t("common.yes", "Yes")}
+                            {request.type === "approval" ? t("common.approve") : t("common.yes")}
                         </Button>
                     </div>
                 )}

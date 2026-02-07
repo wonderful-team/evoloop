@@ -17,8 +17,13 @@ class DeveloperPromptBuilder:
         user_lang = SystemConfigService.get_value("LANGUAGE", "en")
         tree = self.context.get("project_structure", "")
         
+        from app.domain.environment.prompt_utils import build_environment_prompt, detect_platform_relevance
+        
+        # Detect Platform Relevance to avoid context explosion
+        platform_relevance = detect_platform_relevance(self.state.get("messages", []))
+        
         # Inject environment awareness from awakening system
-        env_section = self._build_environment_section()
+        env_section = build_environment_prompt(relevance=platform_relevance)
         
         base_prompt = f"""You are an expert **Full-Stack Developer** agent.
 Your goal is to complete the assigned task by writing code, running commands, and verifying the output.
@@ -52,37 +57,3 @@ You are responsible for the ENTIRE lifecycle of this task. Do not ask for permis
 
 """
         return base_prompt
-
-    def _build_environment_section(self) -> str:
-        """Build environment awareness section from awakened state."""
-        try:
-            from app.core.environment import get_awakened_state
-            state = get_awakened_state()
-            
-            if not state:
-                return "- **Environment**: Not yet awakened (use default settings)"
-            
-            sections = []
-            
-            # MacOS info
-            if state.macos:
-                sections.append(f"- **Host**: {state.macos.model} ({state.macos.cpu}), macOS {state.macos.os_version}")
-            
-            # Android devices (critical for mobile_control)
-            if state.android_devices:
-                sections.append("- **Connected Android Devices**:")
-                for dev in state.android_devices:
-                    emoji = "✅" if dev.is_reachable else "⚠️"
-                    sections.append(f"  - {emoji} `{dev.device_id}`: {dev.model} (Android {dev.os_version}), Battery: {dev.battery_percent}%")
-            else:
-                sections.append("- **Connected Android Devices**: None (mobile_control will fail)")
-            
-            # Network
-            if state.network:
-                net_status = "Online" if state.network.internet_connected else "Offline"
-                sections.append(f"- **Network**: {net_status}")
-            
-            return "\n".join(sections)
-            
-        except Exception:
-            return "- **Environment**: Unable to retrieve (use default settings)"

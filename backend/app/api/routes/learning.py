@@ -15,6 +15,8 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
 from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
+from app.domain.tools.environment.drivers.adb import adb_driver
+from app.domain.tools.environment.mirror_session import mirror_manager
 from app.domain.tools.human_input import (
     cancel_request,
     cleanup_old_requests,
@@ -64,6 +66,14 @@ class RespondRequest(BaseModel):
 class RespondResponse(BaseModel):
     success: bool
     message: str
+
+
+class StartMirrorRequest(BaseModel):
+    device_id: str
+
+
+class StopMirrorRequest(BaseModel):
+    session_id: str
 
 
 # ============ Endpoints ============
@@ -225,6 +235,7 @@ class GlobalRecordedEvent(BaseModel):
     window_title: str | None = None
     app_name: str | None = None
     process_id: int | None = None
+    window_bounds: tuple[float, float, float, float] | None = None
 
 
 class RecordGlobalEventsRequest(BaseModel):
@@ -262,7 +273,7 @@ async def record_global_events(body: RecordGlobalEventsRequest):
                     key_name=event.key,
                     mouse_button=event.mouse_button,
                     state_snapshot=json.dumps({"context": "global_recording"}),
-                    action_payload=json.dumps({}),
+                    action_payload=json.dumps({"window_bounds": event.window_bounds}) if event.window_bounds else json.dumps({}),
                     recording_session_id=body.session_id,
                     # Compatibility fields
                     session_id=body.session_id,
@@ -677,3 +688,50 @@ async def execute_skill(
     bg_tasks.add_task(run_agent_background, body.thread_id, inputs)
 
     return {"success": True, "message": f"Skill execution queued for '{skill_name}'"}
+
+
+# ============ Mirror Control API (Phase 4) ============
+
+
+@router.get("/mirror/devices")
+async def list_mirror_devices():
+    """List connected Android devices for mirroring."""
+    devices = adb_driver.list_devices()
+    
+    # Check for scrcpy availability
+    import subprocess
+    scrcpy_available = False
+    try:
+        subprocess.run(["scrcpy", "--version"], capture_output=True, text=True)
+        scrcpy_available = True
+    except FileNotFoundError:
+        pass
+
+    return {
+        "devices": devices,
+        "scrcpy_available": scrcpy_available
+    }
+
+
+@router.post("/mirror/start")
+async def start_mirror_session(body: StartMirrorRequest):
+    """Start a scrcpy mirroring session."""
+    session = await mirror_manager.create_session(body.device_id)
+    if not session.is_active:
+        raise HTTPException(status_code=500, detail=session.error or "Failed to start mirroring session")
+    
+    return {
+        "success": True,
+        "session_id": session.session_id,
+        "device_id": session.device_id
+    }
+
+
+@router.post("/mirror/stop")
+async def stop_mirror_session(body: StopMirrorRequest):
+    """Stop an active mirroring session."""
+    success = mirror_manager.stop_session(body.session_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    return {"success": True, "message": "Mirroring session stopped"}

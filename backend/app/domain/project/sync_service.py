@@ -1,6 +1,7 @@
 import logging
 import os
 
+from app.core.events import system_bus
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.project.service import project_context_manager
 from app.core.evocloud import evocloud_manager
@@ -59,46 +60,57 @@ class ProjectSyncService:
             except Exception as e:
                 logger.error(f"[ProjectSync] Failed to queue sync task: {e}")
 
-        # 4. Start Indexing (Background/Celery)
-        # We use run_indexing_background which dispatches to Celery if possible.
-        # This prevents blocking the main process and "massive logs" during startup reconciliation.
+        # 4. Publish ProjectCreatedEvent (decoupled from IndexingManager)
+        # IndexingManager will subscribe to this event and handle watching/indexing
         try:
-            from app.domain.codebase.indexing.manager import indexing_manager
-            await indexing_manager.start_watching(path, repo.id)
-            await indexing_manager.run_indexing_background(repo.id)
+            from app.domain.project.events import ProjectCreatedEvent
+            
+            await system_bus.publish(ProjectCreatedEvent(
+                path=path,
+                repo_id=repo.id,
+                project_id=repo.project_id,
+                project_name=repo_name
+            ))
         except Exception as e:
-            logger.error(f"Failed to trigger background indexing for {path}: {e}")
+            logger.error(f"[ProjectSync] Failed to publish ProjectCreatedEvent: {e}")
 
     async def handle_project_deleted(self, path: str):
         """
         Handle deletion of a local project directory.
         """
         repo_name = os.path.basename(path)
+        repo_id = None
+        project_id = None
 
-        # 1. Stop Watching
-        try:
-            from app.domain.codebase.indexing.manager import indexing_manager
-            await indexing_manager.stop_watching(path)
-        except Exception as e:
-            logger.error(f"[ProjectSync] Failed to stop watching {path}: {e}")
-
-        # 2. Update Local State (Disconnect)
+        # 1. Update Local State (Disconnect)
         # We don't delete the Cloud project.
         try:
             repo = await self._indexing_service.get_repo_by_path(path)
             if repo:
+                repo_id = repo.id
+                project_id = repo.project_id
                 async with self._indexing_service.session_factory() as session:
                     r = await session.get(type(repo), repo.id)
                     if r:
                         r.sync_status = "DISCONNECTED"
-                        # We might check if we should clear local_path to avoid confusion?
-                        # Or keep it as "Last Known Location".
-                        # Let's keep it but mark disconnected.
                         session.add(r)
                         await session.commit()
                 logger.info(f"[ProjectSync] Project {repo_name} marked as DISCONNECTED.")
         except Exception as e:
             logger.error(f"[ProjectSync] Error updating disconnect status: {e}")
+
+        # 2. Publish ProjectDeletedEvent (decoupled)
+        # IndexingManager will subscribe and stop watching
+        try:
+            from app.domain.project.events import ProjectDeletedEvent
+            
+            await system_bus.publish(ProjectDeletedEvent(
+                path=path,
+                repo_id=repo_id or 0,
+                project_id=project_id
+            ))
+        except Exception as e:
+            logger.error(f"[ProjectSync] Failed to publish ProjectDeletedEvent: {e}")
 
     async def handle_project_moved(self, src_path: str, dest_path: str):
         """

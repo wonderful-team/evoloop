@@ -114,6 +114,10 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
         if isinstance(first_msg, AIMessage):
             # Prepend dummy Human Message to satisfy "User must start" rule
             repaired.insert(first_idx, HumanMessage(content=i18n.get("prompts.core_utils.conversation_continuation")))
+    else:
+        # CASE: Only SystemMessages exist, or list is empty.
+        # Strict APIs (Anthropic/Zhipu) require at least one HumanMessage.
+        repaired.append(HumanMessage(content=i18n.get("prompts.core_utils.conversation_continuation")))
 
     return repaired
 

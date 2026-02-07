@@ -19,6 +19,7 @@ import { Route as LayoutTodosRouteImport } from './routes/_layout/todos'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
 import { Route as LayoutMcpRouteImport } from './routes/_layout/mcp'
 import { Route as LayoutLibraryRouteImport } from './routes/_layout/library'
+import { Route as LayoutLearningRouteImport } from './routes/_layout/learning'
 import { Route as LayoutChatRouteImport } from './routes/_layout/chat'
 import { Route as LayoutProjectsIndexRouteImport } from './routes/_layout/projects.index'
 import { Route as LayoutProjectsProjectIdRouteImport } from './routes/_layout/projects.$projectId'
@@ -77,6 +78,11 @@ const LayoutMcpRoute = LayoutMcpRouteImport.update({
 const LayoutLibraryRoute = LayoutLibraryRouteImport.update({
   id: '/library',
   path: '/library',
+  getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutLearningRoute = LayoutLearningRouteImport.update({
+  id: '/learning',
+  path: '/learning',
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutChatRoute = LayoutChatRouteImport.update({
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/chat': typeof LayoutChatRoute
+  '/learning': typeof LayoutLearningRoute
   '/library': typeof LayoutLibraryRoute
   '/mcp': typeof LayoutMcpRoute
   '/settings': typeof LayoutSettingsRoute
@@ -164,6 +171,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/chat': typeof LayoutChatRoute
+  '/learning': typeof LayoutLearningRoute
   '/library': typeof LayoutLibraryRoute
   '/mcp': typeof LayoutMcpRoute
   '/settings': typeof LayoutSettingsRoute
@@ -186,6 +194,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/_layout/chat': typeof LayoutChatRoute
+  '/_layout/learning': typeof LayoutLearningRoute
   '/_layout/library': typeof LayoutLibraryRoute
   '/_layout/mcp': typeof LayoutMcpRoute
   '/_layout/settings': typeof LayoutSettingsRoute
@@ -210,6 +219,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/chat'
+    | '/learning'
     | '/library'
     | '/mcp'
     | '/settings'
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/chat'
+    | '/learning'
     | '/library'
     | '/mcp'
     | '/settings'
@@ -251,6 +262,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/signup'
     | '/_layout/chat'
+    | '/_layout/learning'
     | '/_layout/library'
     | '/_layout/mcp'
     | '/_layout/settings'
@@ -345,6 +357,13 @@ declare module '@tanstack/react-router' {
       path: '/library'
       fullPath: '/library'
       preLoaderRoute: typeof LayoutLibraryRouteImport
+      parentRoute: typeof LayoutRoute
+    }
+    '/_layout/learning': {
+      id: '/_layout/learning'
+      path: '/learning'
+      fullPath: '/learning'
+      preLoaderRoute: typeof LayoutLearningRouteImport
       parentRoute: typeof LayoutRoute
     }
     '/_layout/chat': {
@@ -449,6 +468,7 @@ const LayoutProjectsProjectIdRouteWithChildren =
 
 interface LayoutRouteChildren {
   LayoutChatRoute: typeof LayoutChatRoute
+  LayoutLearningRoute: typeof LayoutLearningRoute
   LayoutLibraryRoute: typeof LayoutLibraryRoute
   LayoutMcpRoute: typeof LayoutMcpRoute
   LayoutSettingsRoute: typeof LayoutSettingsRoute
@@ -460,6 +480,7 @@ interface LayoutRouteChildren {
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutChatRoute: LayoutChatRoute,
+  LayoutLearningRoute: LayoutLearningRoute,
   LayoutLibraryRoute: LayoutLibraryRoute,
   LayoutMcpRoute: LayoutMcpRoute,
   LayoutSettingsRoute: LayoutSettingsRoute,

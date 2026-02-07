@@ -29,6 +29,16 @@ class ZhipuChatAnthropic(ChatAnthropic):
     Fixes known compatibility issues like list-wrapped tool arguments.
     """
 
+    async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
+        from app.core.engine.message_utils import repair_message_history
+        repaired = repair_message_history(messages)
+        return await super()._agenerate(repaired, stop=stop, run_manager=run_manager, **kwargs)
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        from app.core.engine.message_utils import repair_message_history
+        repaired = repair_message_history(messages)
+        return super()._generate(repaired, stop=stop, run_manager=run_manager, **kwargs)
+
     def _format_output(self, data: Any, **kwargs: Any) -> ChatResult:
         data_dict = data.model_dump()
         content = data_dict["content"]

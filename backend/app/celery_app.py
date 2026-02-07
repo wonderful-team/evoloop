@@ -13,6 +13,7 @@ celery_app = Celery(
         "app.domain.wiki.tasks",
         "app.core.brain.tasks",
         "app.core.engine.tasks",
+        "app.core.learning.tasks",  # Skill embedding tasks
     ],
 )
 
@@ -22,4 +23,11 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    beat_schedule={
+        "update-skill-embeddings-every-5-minutes": {
+            "task": "learning_embed_skills",
+            "schedule": 300.0,  # 5 minutes
+            "args": (50,),     # batch size
+        },
+    },
 )

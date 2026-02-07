@@ -185,7 +185,7 @@ export function ProfileScreen() {
           </div>
           <div>
             <h2 className="text-lg font-semibold">
-              {user?.nickname || "User"}
+              {user?.nickname || t("profile.user", "User")}
             </h2>
             <p className="text-sm text-muted-foreground">{user?.email}</p>
           </div>

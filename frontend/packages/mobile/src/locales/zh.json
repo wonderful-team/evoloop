@@ -71,7 +71,11 @@
       "readyDesc": "发送指令以控制远程 Agent。",
       "agentThought": "Agent 思考过程",
       "offlineDesc": "远程设备当前未连接。",
-      "ready": "准备连接"
+      "ready": "准备连接",
+      "imageViewer": "图片查看器",
+      "clickToOpen": "点击打开",
+      "copy": "复制",
+      "toolExecution": "工具执行"
     },
     "header": {
       "deviceFallback": "设备 #{{id}}",
@@ -104,7 +108,25 @@
     "interface": {
       "copy": "复制",
       "quote": "引用",
-      "copied": "已复制到剪贴板"
+      "copied": "已复制到剪贴板",
+      "welcome": "我能为您做些什么？",
+      "startPrompt": "我已经准备好管理您的设备或回答问题。"
+    },
+    "context": {
+      "starter": {
+        "analyzeLabel": "分析",
+        "analyzeDesc": "代码库架构",
+        "analyze": "分析当前代码库结构",
+        "planLabel": "计划",
+        "planDesc": "起草路线图",
+        "plan": "创建一个新的实施计划",
+        "tasksLabel": "任务",
+        "tasksDesc": "待办事项",
+        "tasks": "目前有哪些待办任务？",
+        "helpLabel": "帮助",
+        "helpDesc": "获取指导",
+        "help": "帮我了解这个项目"
+      }
     }
   },
   "conversation": {
@@ -226,7 +248,9 @@
     "id": "ID：",
     "guestDesc": "管理您的云端项目并跨设备同步。",
     "failedToLoad": "加载项目失败",
-    "errorMissingDeviceId": "项目缺少设备 ID"
+    "errorMissingDeviceId": "项目缺少设备 ID",
+    "noProjects": "暂无项目",
+    "title": "项目"
   },
   "projectSwitcher": {
     "noDesc": "暂无描述",
@@ -265,6 +289,10 @@
     "enterResponse": "请输入您的回复...",
     "sendFailed": "发送回复失败: "
   },
+  "chat_request": {
+    "title": "需要输入",
+    "placeholder": "请输入您的回复..."
+  },
   "cloudChat": {
     "placeholder": "询问云端AI...",
     "title": "云端智能体",
@@ -278,6 +306,15 @@
   },
   "common": {
     "back": "返回",
-    "routeNotFound": "页面未找到"
+    "routeNotFound": "页面未找到",
+    "locale": "zh-CN",
+    "submit": "提交",
+    "reject": "拒绝",
+    "no": "否",
+    "approve": "允许",
+    "yes": "是",
+    "error": {
+      "title": "错误"
+    }
   }
 }

@@ -253,6 +253,32 @@ class ADBDriver:
         self._run_adb(["shell", "input", "keyevent", str(keycode)], device_id=device_id)
         logger.info(f"Pressed keycode: {keycode}")
 
+    def launch_app(self, package_name: str, device_id: str | None = None) -> None:
+        """
+        Launch an application by package name using monkey.
+        Using monkey is often more robust than establishing the main activity manually.
+        """
+        # "monkey -p package.name -c android.intent.category.LAUNCHER 1"
+        self._run_adb(
+            ["shell", "monkey", "-p", package_name, "-c", "android.intent.category.LAUNCHER", "1"],
+            device_id=device_id
+        )
+        logger.info(f"Launched app: {package_name}")
+
+    def push(self, local_path: str, remote_path: str, device_id: str | None = None) -> None:
+        """
+        Push a local file or directory to the device.
+        """
+        self._run_adb(["push", local_path, remote_path], device_id=device_id)
+        logger.info(f"Pushed {local_path} to {remote_path}")
+
+    def pull(self, remote_path: str, local_path: str, device_id: str | None = None) -> None:
+        """
+        Pull a file or directory from the device to local machine.
+        """
+        self._run_adb(["pull", remote_path, local_path], device_id=device_id)
+        logger.info(f"Pulled {remote_path} to {local_path}")
+
     def dump_ui(self, device_id: str | None = None) -> str:
         """
         Dump the current UI hierarchy as XML.

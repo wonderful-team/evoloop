@@ -4,7 +4,7 @@ Preference Priming - Loads user preferences and system rules during awakening.
 
 import logging
 
-from app.core.environment.models import PreferenceContext
+from app.domain.environment.models import PreferenceContext
 
 logger = logging.getLogger(__name__)
 

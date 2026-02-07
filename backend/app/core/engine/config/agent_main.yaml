@@ -26,6 +26,9 @@ nodes:
   - id: "flash_brain"
     path: "app.core.brain.node.flash_brain_node"
 
+  - id: "dynamic_specialist"
+    path: "app.core.engine.nodes.dynamic_specialist.dynamic_specialist_node"
+
 edges:
   # 1. Supervisor (Router)
   - from: "supervisor"
@@ -39,6 +42,7 @@ edges:
       supervisor: "supervisor"
       finish: "finish"
       flash_brain: "flash_brain"
+      dynamic_specialist: "dynamic_specialist"
 
   # 2. Developer Loop (Self-Correcting)
   # Developer node handles its own loops via max_steps.
@@ -69,5 +73,10 @@ edges:
 
   # 7. Flash Brain -> Supervisor
   - from: "flash_brain"
+    to: "supervisor"
+    type: "simple"
+
+  # 8. Dynamic Specialist -> Supervisor
+  - from: "dynamic_specialist"
     to: "supervisor"
     type: "simple"

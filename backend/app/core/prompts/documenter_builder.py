@@ -23,6 +23,9 @@ Strictly focus on internal technical documentation for developers.
 Project Root:
 {tree_output}
 
+## Environment Awareness
+{DocumenterPromptBuilder._build_env_summary()}
+
 Common Pages (create these if relevant):
 - Overview/Introduction
 - System Architecture
@@ -49,3 +52,12 @@ Output a JSON object with a "pages" key:
             topic=topic,
             filename=filename
         )
+
+    @staticmethod
+    def _build_env_summary() -> str:
+        try:
+            from app.domain.environment.prompt_utils import build_environment_prompt
+            # Documenter usually needs a balanced view
+            return build_environment_prompt(relevance="auto")
+        except:
+            return ""

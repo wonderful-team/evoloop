@@ -500,8 +500,8 @@ export function MessageList({
       let dateString = ""
       if (msg.timestamp) {
         const d = new Date(msg.timestamp)
-        dateString = d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
-        const prevDate = prevMsg?.timestamp ? new Date(prevMsg.timestamp).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }) : null
+        dateString = d.toLocaleDateString(t("common.locale"), { weekday: 'short', month: 'short', day: 'numeric' })
+        const prevDate = prevMsg?.timestamp ? new Date(prevMsg.timestamp).toLocaleDateString(t("common.locale"), { weekday: 'short', month: 'short', day: 'numeric' }) : null
         if (dateString !== prevDate) {
           showDate = true
         }
@@ -608,37 +608,37 @@ export function MessageList({
       <div className="h-full flex-1 flex flex-col items-center justify-center p-6 text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
         <Bot size={56} className="mb-4 opacity-10 text-primary" />
         <h2 className="text-xl font-bold text-foreground">
-          {isDeviceOnline ? t("chat.interface.welcome", "How can I help you?") : t("chat.messageList.offline")}
+          {isDeviceOnline ? t("chat.interface.welcome") : t("chat.messageList.offline")}
         </h2>
         <p className="text-sm text-muted-foreground mt-1 mb-8 max-w-[240px]">
-          {isDeviceOnline ? t("chat.interface.startPrompt", "I'm ready to manage your device or answer questions.") : t("chat.messageList.offlineDesc")}
+          {isDeviceOnline ? t("chat.interface.startPrompt") : t("chat.messageList.offlineDesc")}
         </p>
 
         {isDeviceOnline && (
           <div className="grid grid-cols-2 gap-3 w-full max-w-sm">
             <StarterButton
               icon={<Search className="text-blue-500" />}
-              label={t("chat.context.starter.analyzeLabel", "Analyze")}
-              desc={t("chat.context.starter.analyzeDesc", "Codebase architecture")}
-              onClick={() => onStarterClick?.(t("chat.context.starter.analyze", "Analyze current codebase structure"))}
+              label={t("chat.context.starter.analyzeLabel")}
+              desc={t("chat.context.starter.analyzeDesc")}
+              onClick={() => onStarterClick?.(t("chat.context.starter.analyze"))}
             />
             <StarterButton
               icon={<Brain className="text-purple-500" />}
-              label={t("chat.context.starter.planLabel", "Plan")}
-              desc={t("chat.context.starter.planDesc", "Draft roadmap")}
-              onClick={() => onStarterClick?.(t("chat.context.starter.plan", "Create a new implementation plan"))}
+              label={t("chat.context.starter.planLabel")}
+              desc={t("chat.context.starter.planDesc")}
+              onClick={() => onStarterClick?.(t("chat.context.starter.plan"))}
             />
             <StarterButton
               icon={<ListTodo className="text-green-500" />}
-              label={t("chat.context.starter.tasksLabel", "Tasks")}
-              desc={t("chat.context.starter.tasksDesc", "Pending items")}
-              onClick={() => onStarterClick?.(t("chat.context.starter.tasks", "What tasks are currently pending?"))}
+              label={t("chat.context.starter.tasksLabel")}
+              desc={t("chat.context.starter.tasksDesc")}
+              onClick={() => onStarterClick?.(t("chat.context.starter.tasks"))}
             />
             <StarterButton
               icon={<HelpCircle className="text-amber-500" />}
-              label={t("chat.context.starter.helpLabel", "Help")}
-              desc={t("chat.context.starter.helpDesc", "Get guidance")}
-              onClick={() => onStarterClick?.(t("chat.context.starter.help", "Help me understand this project"))}
+              label={t("chat.context.starter.helpLabel")}
+              desc={t("chat.context.starter.helpDesc")}
+              onClick={() => onStarterClick?.(t("chat.context.starter.help"))}
             />
           </div>
         )}

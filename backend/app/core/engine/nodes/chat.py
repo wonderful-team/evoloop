@@ -21,11 +21,25 @@ async def chat_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]
     # Initialize lightweight LLM
     llm = LLMFactory.create_llm(temperature=0.7)
 
+    # Detect Platform Relevance
+    from app.domain.environment.prompt_utils import build_environment_prompt, detect_platform_relevance
+    
+    # Filter out existing System Messages from history + Repair
+    raw_messages = list(state.get("messages", []))
+    history_messages = [m for m in raw_messages if not isinstance(m, SystemMessage)]
+    cleaned_messages = repair_message_history(history_messages)
+
+    relevance = detect_platform_relevance(raw_messages)
+    env_info = build_environment_prompt(relevance=relevance)
+
     # Define a simple Persona Prompt
     prompt = ChatPromptTemplate.from_messages([
         ("system", """You are EvoLoop, a helpful and intelligent AI coding assistant.
 You are currently in 'Chat Mode'.
 Your goal is to engage in helpful, friendly conversation with the user.
+
+## Environment Awareness
+{env_info}
 
 If the user asks for coding tasks, technical help, or file operations that you cannot handle in this mode, kindly suggest: "I can help with that! Let me switch to my technical workspace." (But for now, just answer generally).
 
@@ -43,9 +57,7 @@ Keep responses concise and friendly.
     # For now, pass all.
 
     # Filter out existing System Messages from history + Repair
-    raw_messages = list(state.get("messages", []))
-    history_messages = [m for m in raw_messages if not isinstance(m, SystemMessage)]
-    cleaned_messages = repair_message_history(history_messages)
+    # (Moved to top for relevance detection)
 
     # Language preference
     from app.core.system import SystemConfigService
@@ -57,6 +69,7 @@ Keep responses concise and friendly.
         {
             "messages": cleaned_messages,
             "lang_instruction": i18n.get("prompts.chat.lang_instruction", language=user_lang),
+            "env_info": env_info,
         },
         config=config,
     )

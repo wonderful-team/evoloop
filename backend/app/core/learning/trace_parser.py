@@ -208,6 +208,10 @@ class TraceParser:
             "window_change": "window_change"
         }
         
+        # Check for Mirror (scrcpy) interactions
+        # If the click happens inside the scrcpy window, we convert it to a mobile_control action
+        is_mirror = event.window_title and ("EvoLoop Mirror" in event.window_title or "scrcpy" in event.window_title.lower())
+        
         # Construct meaningful action name
         app_prefix = f"[{event.app_name}] " if event.app_name else ""
         action_name = f"{app_prefix}{action_mapping.get(event.action_type, event.action_type)}"
@@ -220,7 +224,40 @@ class TraceParser:
             action_args["button"] = event.mouse_button
         if event.mouse_x is not None:
             action_args["position"] = (event.mouse_x, event.mouse_y)
+
+        # Mirror Normalization Logic
+        if is_mirror:
+            window_bounds = None
+            if event.action_payload:
+                try:
+                    payload = json.loads(event.action_payload)
+                    window_bounds = payload.get("window_bounds")
+                except:
+                    pass
             
+            if window_bounds and len(window_bounds) == 4 and event.action_type == "mouse_click":
+                wx, wy, ww, wh = window_bounds
+                if ww > 0 and wh > 0:
+                    nx = (event.mouse_x - wx) / ww
+                    ny = (event.mouse_y - wy) / wh
+                    
+                    # Ensure it's within bounds
+                    if 0 <= nx <= 1 and 0 <= ny <= 1:
+                        return TraceStep(
+                            step_number=event.step_number,
+                            source=ActionSource.HUMAN,
+                            category=ActionCategory.SYSTEM_INTERACTION,
+                            action_type="tool_call",
+                            action_name="mobile_control",
+                            action_args={"action": "tap", "x": round(nx, 3), "y": round(ny, 3)},
+                            node_name="mobile_interaction",
+                            state_context={
+                                "window_title": event.window_title,
+                                "is_mirrored": True
+                            },
+                            timestamp=event.timestamp or 0.0
+                        )
+
         return TraceStep(
             step_number=event.step_number,
             source=ActionSource.HUMAN,

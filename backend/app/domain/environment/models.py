@@ -82,6 +82,9 @@ class AwakenedState(BaseModel):
     available_platforms: list[str] = []
     capability_boundaries: list[str] = []
     
+    # == Discovery Layer (Active Awakening) ==
+    discovery_report: dict = {} # Platform specific discovery results
+    
     def compute_platforms(self) -> list[str]:
         """Compute available platforms based on environment."""
         platforms = []

@@ -106,7 +106,7 @@ export function ChatHeader({
                 }
               >
                 <Search className="w-4 h-4 text-muted-foreground" />
-                <span>{t("chat.header.search", "Search")}</span>
+                <span>{t("chat.header.search")}</span>
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="gap-2 py-2.5 text-destructive focus:text-destructive focus:bg-destructive/10"

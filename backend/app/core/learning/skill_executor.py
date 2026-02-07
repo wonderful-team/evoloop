@@ -313,16 +313,85 @@ class SkillExecutor:
                 logger.warning(f"Tool '{action}' not found in registry, skipping")
                 results.append(i18n.get("prompts.skill_executor.step_skipped", i=i+1, action=action))
 
-        # Update usage stats
+        # Update usage stats and confidence score
         async with session_scope() as db:
             skill_record = await db.get(LearnedSkillModel, skill_id)
             if skill_record:
+                from datetime import datetime
+                import json as json_lib
+                
                 has_errors = any("Failed" in r for r in results)
+                old_status = skill_record.status
+                
                 if has_errors:
                     skill_record.failure_count += 1
+                    skill_record.last_failure_at = datetime.now()
+                    # Decrease confidence on failure
+                    skill_record.confidence_score = max(-3.0, skill_record.confidence_score - 0.5)
+                    # Deprecate if too many failures
+                    if skill_record.confidence_score <= -2:
+                        skill_record.status = "deprecated"
+                        skill_record.is_active = False
+                        logger.warning(f"⚠️ Skill '{skill_record.name}' deprecated due to low confidence")
                 else:
                     skill_record.success_count += 1
+                    skill_record.last_success_at = datetime.now()
+                    # Increase confidence on success
+                    skill_record.confidence_score += 1.0
+                    # Promotion logic
+                    if skill_record.confidence_score >= 3 and skill_record.status == "draft":
+                        skill_record.status = "candidate"
+                        logger.info(f"📈 Skill '{skill_record.name}' promoted to CANDIDATE")
+                    elif skill_record.confidence_score >= 5 and skill_record.status == "candidate":
+                        skill_record.status = "verified"
+                        logger.info(f"🎓 Skill '{skill_record.name}' promoted to VERIFIED!")
+                
+                # Track promotion history
+                if skill_record.status != old_status:
+                    history = []
+                    if skill_record.promotion_history:
+                        try:
+                            history = json_lib.loads(skill_record.promotion_history)
+                        except Exception:
+                            pass
+                    history.append({
+                        "from": old_status,
+                        "to": skill_record.status,
+                        "at": datetime.now().isoformat(),
+                        "confidence": skill_record.confidence_score
+                    })
+                    skill_record.promotion_history = json_lib.dumps(history)
+                
                 await db.commit()
+                
+                # Publish skill execution event
+                from app.domain.environment.events import (
+                    event_bus, SkillExecutedEvent, SkillPromotedEvent, SkillDeprecatedEvent
+                )
+                
+                await event_bus.publish(SkillExecutedEvent(
+                    skill_id=skill_id,
+                    skill_name=skill_record.name,
+                    success=not has_errors,
+                    confidence_delta=1.0 if not has_errors else -0.5
+                ))
+                
+                # Publish promotion/deprecation events
+                if skill_record.status != old_status:
+                    if skill_record.status in ["candidate", "verified"]:
+                        await event_bus.publish(SkillPromotedEvent(
+                            skill_id=skill_id,
+                            skill_name=skill_record.name,
+                            old_status=old_status,
+                            new_status=skill_record.status
+                        ))
+                    elif skill_record.status == "deprecated":
+                        await event_bus.publish(SkillDeprecatedEvent(
+                            skill_id=skill_id,
+                            skill_name=skill_record.name,
+                            reason="Low confidence score"
+                        ))
+
 
         success = not any("Failed" in r for r in results)
         summary = "\n".join(results)

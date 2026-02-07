@@ -71,7 +71,11 @@
       "readyDesc": "Send instructions to control the remote agent.",
       "agentThought": "Agent Thought Process",
       "offlineDesc": "The remote device is currently not connected.",
-      "ready": "Ready to Connect"
+      "ready": "Ready to Connect",
+      "imageViewer": "Image Viewer",
+      "clickToOpen": "Click to open",
+      "copy": "Copy",
+      "toolExecution": "Tool Execution"
     },
     "header": {
       "deviceFallback": "Device #{{id}}",
@@ -104,7 +108,25 @@
     "interface": {
       "copy": "Copy",
       "quote": "Quote",
-      "copied": "Copied to clipboard"
+      "copied": "Copied to clipboard",
+      "welcome": "How can I help you?",
+      "startPrompt": "I'm ready to manage your device or answer questions."
+    },
+    "context": {
+      "starter": {
+        "analyzeLabel": "Analyze",
+        "analyzeDesc": "Codebase architecture",
+        "analyze": "Analyze current codebase structure",
+        "planLabel": "Plan",
+        "planDesc": "Draft roadmap",
+        "plan": "Create a new implementation plan",
+        "tasksLabel": "Tasks",
+        "tasksDesc": "Pending items",
+        "tasks": "What tasks are currently pending?",
+        "helpLabel": "Help",
+        "helpDesc": "Get guidance",
+        "help": "Help me understand this project"
+      }
     }
   },
   "conversation": {
@@ -226,7 +248,9 @@
     "id": "ID: ",
     "guestDesc": "Manage your cloud projects and sync them across devices.",
     "failedToLoad": "Failed to load projects",
-    "errorMissingDeviceId": "Project missing device ID"
+    "errorMissingDeviceId": "Project missing device ID",
+    "noProjects": "No projects",
+    "title": "Projects"
   },
   "projectSwitcher": {
     "noDesc": "No description",
@@ -265,6 +289,10 @@
     "enterResponse": "Enter your response...",
     "sendFailed": "Failed to send response: "
   },
+  "chat_request": {
+    "title": "Input Required",
+    "placeholder": "Enter your response..."
+  },
   "cloudChat": {
     "placeholder": "Ask Cloud AI...",
     "title": "Cloud Agent",
@@ -278,6 +306,15 @@
   },
   "common": {
     "back": "Back",
-    "routeNotFound": "Page Not Found"
+    "routeNotFound": "Page Not Found",
+    "locale": "en-US",
+    "submit": "Submit",
+    "reject": "Reject",
+    "no": "No",
+    "approve": "Approve",
+    "yes": "Yes",
+    "error": {
+      "title": "Error"
+    }
   }
 }

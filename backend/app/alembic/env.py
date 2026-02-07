@@ -22,7 +22,7 @@ from app.models import SQLModel  # noqa
 from app.core.config import settings # noqa
 from app.infrastructure.database.sql.database import Base # noqa
 # Import all models to ensure they are registered in metadata
-from app.infrastructure.database.sql import models as infra_models # noqa
+from app import models # noqa
 
 target_metadata = [SQLModel.metadata, Base.metadata]
 

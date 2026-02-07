@@ -9,8 +9,8 @@ import asyncio
 import logging
 from datetime import datetime
 
-from app.core.environment.models import AwakenedState
-from app.core.environment.discovery import EnvironmentProbe
+from app.domain.environment.models import AwakenedState
+from app.domain.environment.discovery import EnvironmentProbe
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class EnvironmentWatcher:
     
     async def _watch_loop(self):
         """Main watch loop that periodically checks for changes."""
-        from app.core.environment import get_awakened_state, _refresh_state
+        from app.domain.environment import get_awakened_state, _refresh_state
         
         previous_device_ids = set()
         previous_network_status = None
@@ -82,8 +82,20 @@ class EnvironmentWatcher:
                 if not self._running:
                     break
                 
-                # Quick probe for changes (not full awakening)
-                current_devices = EnvironmentProbe.probe_android_devices()
+                # Skip polling Android if we have a real-time watcher active
+                # DeviceWatcher already calls _refresh_state() on connection/disconnection
+                # We only need to check macOS or Network here if we want periodic checks
+                
+                # For now, let's keep it but reduce frequency or scope if needed.
+                # Actually, let's just make it focus on Network/Host if those are cheap.
+                current_devices = [] 
+                try:
+                    # We still want to allow polling as a fallback, but maybe less aggressively
+                    # Or check get_awakened_state and only probe if last update was long ago
+                    current_devices = EnvironmentProbe.probe_android_devices()
+                except:
+                    pass
+
                 current_network = EnvironmentProbe.probe_network()
                 
                 current_device_ids = {d.device_id for d in current_devices}

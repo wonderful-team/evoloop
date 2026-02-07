@@ -10,19 +10,25 @@ The awakening process integrates:
 3. Preference Priming - User preferences and system rules
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
 
-from app.core.environment.models import AwakenedState
-from app.core.environment.discovery import EnvironmentProbe
-from app.core.environment.memory_replay import replay_memory
-from app.core.environment.preference_priming import prime_preferences
+from app.domain.environment.models import AwakenedState
+from app.domain.environment.discovery import EnvironmentProbe
+from app.domain.environment.memory_replay import replay_memory
+from app.domain.environment.preference_priming import prime_preferences
+from app.domain.environment.active_explorer import ActiveExplorer
+from app.domain.environment.watcher import environment_watcher
 
 logger = logging.getLogger(__name__)
 
 # Global awakened state (singleton)
 _awakened_state: AwakenedState | None = None
+
+# Background discovery task reference
+_discovery_task: asyncio.Task | None = None
 
 
 async def awaken(project_id: int | None = None) -> AwakenedState:
@@ -38,15 +44,23 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
     Returns:
         AwakenedState containing full environment context.
     """
-    global _awakened_state
+    global _awakened_state, _discovery_task
     
     logger.info("🌅 Agent awakening...")
     
-    # 1. Probe Environment
+    # 1. Probe Environment (Fast path)
     logger.info("  👁️ Probing environment...")
     macos = EnvironmentProbe.probe_macos()
     android_devices = EnvironmentProbe.probe_android_devices()
     network = EnvironmentProbe.probe_network()
+    
+    # 1b. Schedule Active Discovery in background (non-blocking)
+    # This allows the awakening to complete faster without waiting for device probing
+    logger.info("  🔍 Scheduling active discovery (background)...")
+    _discovery_task = asyncio.create_task(
+        _run_active_discovery(macos, android_devices)
+    )
+    discovery_report = {}  # Will be populated asynchronously
     
     # 2. Replay Memory
     logger.info("  🧠 Replaying memory...")
@@ -79,10 +93,36 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         system_rules=pref_context.rules,
         available_platforms=platforms,
         capability_boundaries=boundaries,
+        discovery_report=discovery_report,
     )
     
     logger.info(f"🧠 Agent awakened. Platforms: {platforms}")
+    
+    # Publish awakening complete event
+    from app.domain.environment.events import event_bus, AwakenEvent, EventType
+    await event_bus.publish(AwakenEvent(
+        event_type=EventType.AWAKENING_COMPLETE,
+        data={"platforms": platforms, "project_id": project_id}
+    ))
+    
     return _awakened_state
+
+
+async def _run_active_discovery(macos, android_devices) -> None:
+    """
+    Background task for active discovery.
+    
+    Runs device probing and app discovery asynchronously after main awakening completes.
+    Updates the global _awakened_state with discovery results when complete.
+    """
+    global _awakened_state
+    try:
+        report = await ActiveExplorer.scout(macos, android_devices)
+        if _awakened_state:
+            _awakened_state.discovery_report = report
+            logger.info("🔍 Active Discovery complete (background)")
+    except Exception as e:
+        logger.warning(f"Active Discovery failed: {e}")
 
 
 def get_awakened_state() -> AwakenedState | None:
@@ -170,7 +210,3 @@ __all__ = [
     "AwakenedState",
     "environment_watcher",
 ]
-
-# Import watcher for export
-from app.core.environment.watcher import environment_watcher
-
