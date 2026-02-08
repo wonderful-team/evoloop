@@ -14,6 +14,24 @@ from langchain_core.messages import (
 
 from app.i18n.service import i18n
 
+TRUNCATE_LIMIT = 20000
+
+
+def truncate_message_content(content: str, limit: int = TRUNCATE_LIMIT) -> str:
+    """
+    Truncate content if it exceeds the limit, adding a metadata footer.
+    """
+    if not content or len(content) <= limit:
+        return content
+
+    chars = len(content)
+    lines = content.count("\n")
+    truncated = content[:limit]
+    
+    # Add a suffix that the LLM understands as a truncation signal
+    footer = f"\n...\n[Output truncated: {lines} lines / {chars} chars total. Use specific read/search tools for more.]"
+    return truncated + footer
+
 
 def get_message_text(message: BaseMessage | str) -> str:
     """

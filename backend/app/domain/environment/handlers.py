@@ -42,7 +42,7 @@ class DeviceEventHandler:
         # Trigger app probing for new Android devices
         if device_type == "android":
             from app.domain.environment import get_awakened_state
-            from app.domain.environment.active_explorer import ActiveExplorer
+            from app.domain.environment.explorers.android import AndroidExplorer
             
             state = get_awakened_state()
             if state and state.android_devices:
@@ -50,7 +50,8 @@ class DeviceEventHandler:
                 if device:
                     logger.info(f"📱 Probing apps on device: {device_id}")
                     try:
-                        await ActiveExplorer._scout_android(device_id)
+                        explorer = AndroidExplorer()
+                        await explorer.scout(device_id)
                     except Exception as e:
                         logger.warning(f"Failed to probe device {device_id}: {e}")
     

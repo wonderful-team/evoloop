@@ -1,14 +1,12 @@
 import logging
 import os
-
-from langchain_core.tools import tool
-
+from app.core.tools import evoloop_tool
 from app.core.llm.vision import VisionLLMFactory, get_vision_llm
 
 logger = logging.getLogger(__name__)
 
 
-@tool
+@evoloop_tool
 async def analyze_image(image_source: str, question: str = "Describe this image in detail.") -> str:
     """
     Analyze an image using a multimodal LLM (GPT-4o) to answer questions about it.

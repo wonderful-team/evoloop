@@ -37,6 +37,7 @@ from app.domain.tools.human_input import request_approval
 from app.domain.tools.environment.desktop import desktop_control
 from app.domain.tools.environment.mobile import mobile_control
 from app.domain.tools.environment.find_element import find_element
+from app.domain.tools.vision import analyze_image
 
 logger = logging.getLogger(__name__)
 
@@ -289,6 +290,9 @@ def get_tools_by_names(tool_names: list[str]) -> list[BaseTool]:
     all_known_tools["desktop_control"] = desktop_control
     all_known_tools["mobile_control"] = mobile_control
     all_known_tools["find_element"] = find_element
+
+    # Vision (Multimodal)
+    all_known_tools["analyze_image"] = analyze_image
 
     hydrated_tools = []
     for name in tool_names:

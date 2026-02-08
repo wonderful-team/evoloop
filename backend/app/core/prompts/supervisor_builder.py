@@ -58,7 +58,7 @@ You MUST adhere to the **SANDBOX PROTOCOL**:
    - Default: `["read_file", "list_files", "grep_files"]`
    - SQL: `["sql_query"]`
    - Android/Mobile: `["mobile_control", "analyze_image"]`
-   - MacOS/Desktop: `["computer_control", "analyze_image"]`
+   - MacOS/Desktop: `["desktop_control", "analyze_image"]`
 2. **Memory Write Ban**: NEVER grant `manage_memory` to dynamic agents unless the role is explicitly "KnowledgeHarvester".
    - Sub-agents are "Stateless". They should not pollute the long-term memory.
 3. **No Human Contact**: NEVER grant `request_approval` or `chat`. Sub-agents cannot talk to the user.
@@ -88,7 +88,7 @@ Available targets for route_to:
 ## Decision Guidelines
 - If request is technical (coding, refactoring, testing, bug fixing) → route_to("developer")
 - If request is **operating Android/Mobile** → route_to("dynamic_specialist", role_name="Android Automation Specialist", tools=["mobile_control", "analyze_image"])
-- If request is **operating MacOS/Desktop** → route_to("dynamic_specialist", role_name="MacOS Specialist", tools=["computer_control", "analyze_image"])
+- If request is **operating MacOS/Desktop** → route_to("dynamic_specialist", role_name="MacOS Specialist", tools=["desktop_control", "analyze_image"])
 - If request is vague (e.g., "Build an app") → route_to("chat") to ask clarifying questions
 - If you need more information from internet → route_to("deep_researcher")
 - If user asks a question and you answered it → route_to("finish")
