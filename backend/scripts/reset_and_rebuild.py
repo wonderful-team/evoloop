@@ -32,7 +32,7 @@ from sqlalchemy import select, text
 from app.domain.codebase.indexing.service import IndexingService
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.sql.database import AsyncSessionLocal, get_db_session
-from app.infrastructure.database.sql.models import Repository
+from app.models import Repository
 
 logging.basicConfig(
     level=logging.INFO,
@@ -100,9 +100,9 @@ async def clean_knowledge_base():
             logger.info("🔥 执行硬重置：物理删除并重建向量相关表以对齐维度...")
             from app.infrastructure.database.sql.database import engine, Base
             # Import models to ensure they are registered with Base metadata
-            import app.infrastructure.database.sql.models.codebase
-            import app.infrastructure.database.sql.models.learning
-            import app.infrastructure.database.sql.models.system
+            import app.models.codebase
+            import app.models.learning
+            import app.models.system
             
             tables_to_recreate = ["code_chunks", "learned_skills", "tools"]
             

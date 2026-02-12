@@ -12,7 +12,7 @@ from app.api.routes.resources import (
     list_resources,
 )
 from app.infrastructure.database.sql.database import get_db_session
-from app.infrastructure.database.sql.models import ProjectResource
+from app.models import ProjectResource
 
 
 async def verify_resources_flow():

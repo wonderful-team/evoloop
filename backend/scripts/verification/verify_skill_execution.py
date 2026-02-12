@@ -14,7 +14,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.workflows.nodes.supervisor import supervisor_node
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import LearnedSkill
+from app.models import LearnedSkill
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

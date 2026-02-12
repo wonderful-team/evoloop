@@ -10,7 +10,7 @@ from app.core.globals import get_graph, set_graph
 from app.core.engine.graph_builder import GraphBuilder
 from langchain_core.messages import HumanMessage
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models.todo import TodoItem, TodoStatus
+from app.models.todo import TodoItem, TodoStatus
 from sqlalchemy import select
 from langgraph.checkpoint.memory import MemorySaver
 

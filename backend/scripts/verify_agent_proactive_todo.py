@@ -9,7 +9,7 @@ from sqlalchemy import select
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.infrastructure.database.sql.database import session_scope, engine, Base
-from app.infrastructure.database.sql.models.todo import TodoItem
+from app.models.todo import TodoItem
 
 # -------------------------------------------------------------
 # UNIT TEST: finish_node logic isolation

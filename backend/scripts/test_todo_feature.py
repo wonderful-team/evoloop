@@ -6,12 +6,12 @@ import os
 sys.path.append(os.path.join(os.path.dirname(__file__), "../"))
 
 from app.infrastructure.database.sql.database import engine, Base
-from app.infrastructure.database.sql.models.todo import TodoItem
+from app.models.todo import TodoItem
 from app.domain.tools.manage_todo import manage_todo
 from app.api.routes.todos import create_todo, TodoCreate
 
 # Import all models to ensure they are registered for create_all
-from app.infrastructure.database.sql.models import *
+from app.models import *
 
 async def init_db():
     print("Creating tables...")

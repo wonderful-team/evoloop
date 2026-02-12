@@ -10,9 +10,9 @@ from app.infrastructure.database.sql.database import engine, Base
 from app.core.config import settings
 
 # Import models to ensure they are registered with Base metadata
-import app.infrastructure.database.sql.models.codebase
-import app.infrastructure.database.sql.models.learning
-import app.infrastructure.database.sql.models.system
+import app.models.codebase
+import app.models.learning
+import app.models.system
 
 async def fix_vector_dimensions():
     print(f"🚀 [EvoLoop] Fixing Vector Dimensions to {settings.EMBEDDING_DIMENSIONS}...")

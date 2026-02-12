@@ -10,7 +10,7 @@ from sqlmodel import SQLModel
 
 # Import all models
 from app.infrastructure.database.sql.database import Base
-from app.infrastructure.database.sql.models import *
+from app.models import *
 from app.models import config # Ensures SystemConfig (SQLModel) is loaded
 
 async def init_db():

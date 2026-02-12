@@ -12,7 +12,7 @@ from datetime import datetime
 
 from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import LearnedSkill, TraceEvent
+from app.models import LearnedSkill, TraceEvent
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)

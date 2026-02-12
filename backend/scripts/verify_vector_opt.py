@@ -10,7 +10,7 @@ from app.logging import logger
 
 # Mocking modules that might fail without real ENV or DB
 sys.modules["app.infrastructure.database.sql.database"] = MagicMock()
-sys.modules["app.infrastructure.database.sql.models"] = MagicMock()
+sys.modules["app.models"] = MagicMock()
 sys.modules["app.domain.codebase.indexing.vectors.factory"] = MagicMock()
 sys.modules["app.core.llm.factory"] = MagicMock()
 

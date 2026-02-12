@@ -3,7 +3,7 @@ import logging
 from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import AsyncSessionLocal
-from app.infrastructure.database.sql.models import Repository
+from app.models import Repository
 from app.domain.codebase.indexing.service import IndexingService
 
 logging.basicConfig(level=logging.INFO)

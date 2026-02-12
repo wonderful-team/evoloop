@@ -7,7 +7,7 @@ import os
 sys.path.append(os.getcwd())
 
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.database.sql.models import Message
+from app.models import Message
 from sqlalchemy import select, func
 
 async def analyze_thread(target_thread_id):
