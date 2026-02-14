@@ -63,6 +63,16 @@ TREE_SITTER_QUERIES = {
             (import_statement source: (string) @module) @import
         """,
     },
+    "c": {
+        "defs": """
+            (function_definition declarator: (function_declarator declarator: (identifier) @name) body: (compound_statement) @body) @function
+            (struct_specifier name: (type_identifier) @name body: (field_declaration_list)? @body) @class
+        """,
+        "imports": """
+            (preproc_include path: (string_literal) @module) @import
+            (preproc_include path: (system_lib_string) @module) @import
+        """,
+    },
     "cpp": {
         "defs": """
             (function_definition declarator: (function_declarator declarator: (identifier) @name) body: (compound_statement) @body) @function

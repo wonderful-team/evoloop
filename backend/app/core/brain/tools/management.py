@@ -11,6 +11,7 @@ from app.core.brain.filesystem.manager import BrainFileSystem
 
 logger = logging.getLogger(__name__)
 
+
 @tool
 async def update_focus(content: str) -> str:
     """
@@ -27,6 +28,7 @@ async def update_focus(content: str) -> str:
     except Exception as e:
         logger.error(f"Failed to update focus: {e}")
         return f"Error updating focus: {e}"
+
 
 @tool
 async def memorize(content: str, category: str = "fact") -> str:

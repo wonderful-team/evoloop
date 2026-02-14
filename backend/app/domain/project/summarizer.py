@@ -134,7 +134,7 @@ async def _summarize_project_logic(name: str, path: str):
 
         # Note: project_context_manager needs to be safe to use here.
         # It usually is just file reading.
-        readme_content = project_context_manager._extract_description_from_readme(path)
+        readme_content = project_context_manager.extract_description_from_readme(path)
 
         # Update Status
         await activity_monitor.update_agent_state(
@@ -145,8 +145,8 @@ async def _summarize_project_logic(name: str, path: str):
         result = await chain.ainvoke({
             "name": name,
             "files": ", ".join(files[:20]),
-            "readme": readme_content[:2000], # Give more context than the simple snippet
-            "arch_summary": arch_summary[:5000] # Inject the deep summary
+            "readme": readme_content[:2000],  # Give more context than the simple snippet
+            "arch_summary": arch_summary[:5000]  # Inject the deep summary
         })
 
         # 3. Save Result

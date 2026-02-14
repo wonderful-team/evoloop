@@ -11,3 +11,4 @@ node_modules/
 /backend/dist/
 /backend/logs/
 /frontend/.tanstack/
+/frontend/src-tauri/binaries/

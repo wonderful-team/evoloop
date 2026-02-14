@@ -11,6 +11,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 @tool
 async def recall_memory(query: str, domain: Literal["journal", "graph", "both"] = "both") -> str:
     """
@@ -52,10 +53,10 @@ async def recall_memory(query: str, domain: Literal["journal", "graph", "both"] 
             # Re-use existing graph vector/keyword search
             graph_hits = await memory_manager.graph.search(query)
             if graph_hits:
-                 results.append(f"\n### Knowledge Graph Matches")
-                 results.append(graph_hits)
+                results.append(f"\n### Knowledge Graph Matches")
+                results.append(graph_hits)
             else:
-                 results.append(f"\n### Knowledge Graph: No matches for '{query}'")
+                results.append(f"\n### Knowledge Graph: No matches for '{query}'")
         except Exception as e:
             logger.error(f"Graph search failed: {e}")
             

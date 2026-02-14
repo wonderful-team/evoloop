@@ -76,12 +76,12 @@ class DynamicSpecialistNode:
             logger.info(f"[DynamicSpecialist] 📖 Found {len(skills)} relevant skills/SOPs.")
 
         # 2b. Fetch Environmental Knowledge from Awakening System (Brain/Cache)
-        state = get_awakened_state()
+        awakened_env = get_awakened_state()
         known_packages = {}
         known_macos_apps = {}
-        if state and state.relevant_concepts:
+        if awakened_env and awakened_env.relevant_concepts:
             # Extract concepts
-            for concept in state.relevant_concepts:
+            for concept in awakened_env.relevant_concepts:
                 if concept.name.startswith("android_package:"):
                     parts = concept.name.split(":")
                     if len(parts) >= 2:
@@ -116,7 +116,7 @@ class DynamicSpecialistNode:
             logger.info(f"[DynamicSpecialist] 🚀 Launching '{role_name}' atomic loop...")
             
             engine_result = await AgentEngine.run_node(
-                state={**state, "messages": messages}, # Isolated state
+                state={**state, "messages": messages},  # Isolated state (now correctly using graph state)
                 config=config,
                 system_prompt=system_prompt,
                 tools=tools,
@@ -136,6 +136,7 @@ class DynamicSpecialistNode:
             
             # Verify if tools ran
             tool_history = engine_result.get("tool_history", [])
+            logger.info(f"[DynamicSpecialist][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}")
             
             summary = f"**{role_name} Report**:\n{content}\n\n(Tools used: {len(tool_history)})"
             

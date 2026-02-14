@@ -16,16 +16,17 @@ class JavaSemanticProvider(LanguageSemanticProvider):
         return "java"
 
     def get_structure_query(self) -> str:
-        """Query for Java class and method definitions."""
+        """Query for Java class, interface and method definitions."""
         return """
-            (class_declaration name: (identifier) @name body: (class_body) @body) @class
-            (method_declaration name: (identifier) @name body: (block) @body) @function
+            (class_declaration name: (identifier) @name) @class
+            (interface_declaration name: (identifier) @name) @class
+            (method_declaration name: (identifier) @name) @function
         """
 
     def get_imports_query(self) -> str:
         """Query for Java imports."""
         return """
-            (import_declaration name: (scoped_identifier) @module) @import
+            (import_declaration [(scoped_identifier) (identifier)] @module) @import
         """
 
     def get_api_query(self) -> str:

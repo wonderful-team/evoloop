@@ -132,6 +132,26 @@ class ProjectContextManager:
                 return p
         return None
 
+    def extract_description_from_readme(self, project_path: str) -> str:
+        """
+        Helper to find and read the README file from a project path.
+        Returns empty string if not found or unreadable.
+        """
+        if not project_path or not os.path.exists(project_path):
+            return ""
+
+        candidates = ["README.md", "readme.md", "README.txt", "readme.txt", "README"]
+        for c in candidates:
+            full_path = os.path.join(project_path, c)
+            if os.path.exists(full_path) and os.path.isfile(full_path):
+                try:
+                    from app.utils.file import read_file
+                    return read_file(full_path)
+                except Exception as e:
+                    logger.warning(f"Failed to read README at {full_path}: {e}")
+                    continue
+        return ""
+
 
 # Global instance
 project_context_manager = ProjectContextManager()

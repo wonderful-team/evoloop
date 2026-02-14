@@ -29,6 +29,8 @@ class SemanticProviderRegistry:
 
         # Core language providers
         from .bash_provider import BashSemanticProvider
+        from .c_provider import CSemanticProvider
+        from .cpp_provider import CppSemanticProvider
         from .csharp_provider import CSharpSemanticProvider
         from .go_provider import GoSemanticProvider
         from .java_provider import JavaSemanticProvider
@@ -46,12 +48,15 @@ class SemanticProviderRegistry:
             TypeScriptSemanticProvider,
         )
         from .vue_provider import VueSemanticProvider
+        from .yaml_provider import YamlSemanticProvider
 
         # Register core providers
         self.register("python", PythonSemanticProvider())
         self.register("typescript", TypeScriptSemanticProvider())
         self.register("javascript", JavaScriptSemanticProvider())
         self.register("java", JavaSemanticProvider())
+        self.register("c", CSemanticProvider())
+        self.register("cpp", CppSemanticProvider())
         self.register("go", GoSemanticProvider())
         self.register("csharp", CSharpSemanticProvider())
         self.register("bash", BashSemanticProvider())
@@ -64,6 +69,7 @@ class SemanticProviderRegistry:
         self.register("swift", SwiftSemanticProvider())
         self.register("sql", SQLSemanticProvider())
         self.register("vue", VueSemanticProvider())
+        self.register("yaml", YamlSemanticProvider())
 
         self._initialized = True
 

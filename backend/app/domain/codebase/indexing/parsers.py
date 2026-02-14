@@ -45,8 +45,12 @@ class ParserRegistry:
             return tree_sitter_java.language()
 
         def load_cpp():
-            import tree_sitter_cpp
-            return tree_sitter_cpp.language()
+            from tree_sitter_language_pack import get_language
+            return get_language("cpp")
+
+        def load_c():
+            from tree_sitter_language_pack import get_language
+            return get_language("c")
 
         def load_rust():
             import tree_sitter_rust
@@ -100,11 +104,16 @@ class ParserRegistry:
             from tree_sitter_language_pack import get_language
             return get_language("bash")
 
+        def load_yaml():
+            import tree_sitter_yaml
+            return tree_sitter_yaml.language()
+
         # Core languages
         self.register_loader("python", load_python)
         self.register_loader("go", load_go)
         self.register_loader("java", load_java)
         self.register_loader("cpp", load_cpp)
+        self.register_loader("c", load_c)
         self.register_loader("rust", load_rust)
         self.register_loader("php", load_php)
         self.register_loader("ruby", load_ruby)
@@ -119,6 +128,7 @@ class ParserRegistry:
         self.register_loader("html", load_html)  # For Vue SFC parsing
         self.register_loader("vue", load_vue)
         self.register_loader("bash", load_bash)
+        self.register_loader("yaml", load_yaml)
 
     def register_loader(self, lang_name: str, loader_func: callable):
         """Register a lazy loader for a specific language."""
