@@ -117,7 +117,9 @@
             "unknown_tool": "Unknown Tool",
             "running_tool": "Running {tool}...\nInput: {input}",
             "file_output": "File: {path} (Lines: {count})",
-            "truncated_output": "{preview}\n...\n[Truncated {lines} lines / {chars} chars]"
+            "truncated_output": "{preview}\n...\n[Truncated {lines} lines / {chars} chars]",
+            "read_summary": "Read {path} ({count} lines)",
+            "list_summary": "Listed {path} ({count} items)"
         },
         "database_logger": {
             "decision": "**Decision:** Route to `{node}`",

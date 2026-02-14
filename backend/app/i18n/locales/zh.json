@@ -117,7 +117,9 @@
             "unknown_tool": "未知工具",
             "running_tool": "正在运行 {tool}...\n输入：{input}",
             "file_output": "文件：{path} (行数：{count})",
-            "truncated_output": "{preview}\n...\n[已截断 {lines} 行 / {chars} 字符]"
+            "truncated_output": "{preview}\n...\n[已截断 {lines} 行 / {chars} 字符]",
+            "read_summary": "已读取 {path} ({count} 行)",
+            "list_summary": "已列出 {path} ({count} 项)"
         },
         "database_logger": {
             "decision": "**决策：** 路由至 `{node}`",

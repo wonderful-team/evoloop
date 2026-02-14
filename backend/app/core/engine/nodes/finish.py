@@ -141,11 +141,19 @@ async def finish_node(state: AgentState, config: RunnableConfig):
         conclusion = await structured_llm.ainvoke(messages_for_analysis, config={"callbacks": []})
     except Exception as e:
         logger.error(f"Failed to generate SessionConclusion: {e}")
-        # Fallback to simple response
+        # Phase 10: Robustness Fallback
+        # Try a simple text summary if structured output fails
+        try:
+            logger.info("Retrying with simple text completion for summary...")
+            plain_summary = await llm.ainvoke(messages_for_analysis, config={"callbacks": []})
+            if plain_summary and plain_summary.content:
+                return {"messages": [AIMessage(content=plain_summary.content)]}
+        except Exception as e2:
+            logger.error(f"Double failure in finish_node: {e2}")
+
         return {"messages": [AIMessage(content="✅ Task completed.")]}
 
     if not conclusion:
-        logger.warning("LLM returned None for SessionConclusion")
         return {"messages": [AIMessage(content="✅ Task completed.")]}
 
     # 5. Process Results

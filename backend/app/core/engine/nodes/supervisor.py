@@ -114,6 +114,11 @@ class SupervisorNode:
 
         # Phase 4: Handle routing result
         routing_target = engine_result.get("_routing_target")
+        logger.info(f"[Supervisor] Engine result routing target: {routing_target}")
+        
+        new_messages = engine_result.get("messages", [])
+        if new_messages:
+            logger.info(f"[Supervisor] Last engine message: {new_messages[-1].content[:100]}...")
 
         if routing_target:
             # LLM explicitly called route_to - use its decision

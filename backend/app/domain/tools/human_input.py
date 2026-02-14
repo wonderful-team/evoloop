@@ -176,8 +176,12 @@ async def request_human_input(
     try:
         ctx = get_context()
         thread_id = ctx.get("thread_id", "unknown")
+        project_id = ctx.get("project_id")
+        command_id = ctx.get("command_id")
     except Exception:
         thread_id = "unknown"
+        project_id = None
+        command_id = None
 
     # Validate choice options
     if input_type == "choice" and not options:
@@ -246,6 +250,8 @@ async def request_human_input(
                 "context": context,
                 "default_value": default_value,
             },
+            project_id=project_id,
+            command_id=command_id,
         )
     except Exception as e:
         logger.warning(f"Failed to sync HITL request: {e}")
@@ -280,8 +286,12 @@ async def request_approval(
     try:
         ctx = get_context()
         thread_id = ctx.get("thread_id", "unknown")
+        project_id = ctx.get("project_id")
+        command_id = ctx.get("command_id")
     except Exception:
         thread_id = "unknown"
+        project_id = None
+        command_id = None
 
     # Build approval context
     risk_emoji = {
@@ -348,6 +358,8 @@ async def request_approval(
                 "default_value": "REJECTED",
                 "risk_level": risk_level,
             },
+            project_id=project_id,
+            command_id=command_id,
         )
     except Exception as e:
         logger.warning(f"Failed to sync HITL request: {e}")

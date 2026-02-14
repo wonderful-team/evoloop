@@ -9,7 +9,11 @@ from langchain_core.messages import (
 )
 from langchain_core.runnables import RunnableConfig
 
-from app.core.engine.message_utils import repair_message_history, smart_window_slice
+from app.core.engine.message_utils import (
+    repair_message_history,
+    smart_window_slice,
+    truncate_message_content,
+)
 from app.core.engine.state import AgentState
 from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
@@ -186,7 +190,7 @@ class AgentEngine:
 
                     # Return immediately with routing information
                     return {
-                        "messages": new_messages + [response],
+                        "messages": new_messages,
                         "_routing_target": target,
                         "_routing_reason": reason,
                         "_routing_context": context,  # <--- NEW
@@ -273,7 +277,7 @@ class AgentEngine:
 
                 # Create ToolMessage using utility for ID
                 tool_msg = ToolMessage(
-                    content=str(content),
+                    content=truncate_message_content(str(content)),
                     tool_call_id=tool_id,
                     name=tool_name,
                     id=gen_uuid(),

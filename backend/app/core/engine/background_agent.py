@@ -40,14 +40,14 @@ def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:
     return deserialized
 
 
-async def _setup_project_context(thread_id: str, project_id: int):
+async def _setup_project_context(thread_id: str, project_id: int, command_id: int | None = None):
     """Initialize working directory and context vars."""
     project = await project_context_manager.get_project_by_id(project_id)
     if project and project.get("path"):
         project_context_manager.set_working_directory(thread_id, project["path"])
 
     working_dir = project_context_manager.get_working_directory(thread_id)
-    set_context(thread_id=thread_id, project_id=project_id, working_directory=working_dir)
+    set_context(thread_id=thread_id, project_id=project_id, working_directory=working_dir, command_id=command_id)
     return working_dir
 
 
@@ -91,7 +91,8 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         project_id = inputs.get("project_id", 1)
 
         # 2. Context Setup
-        working_dir = await _setup_project_context(thread_id, project_id)
+        evoloop_command_id = inputs.get("command_id")
+        working_dir = await _setup_project_context(thread_id, project_id, evoloop_command_id)
 
         # 3. Config Construction
         config = {
@@ -105,8 +106,6 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         }
         if inputs.get("checkpoint_id"):
             config["configurable"]["checkpoint_id"] = inputs["checkpoint_id"]
-
-        evoloop_command_id = inputs.get("command_id")
 
         # 4. Callbacks & DB Init
         # Ensure Conversation Exists
@@ -213,7 +212,7 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             await activity_monitor.end_run(thread_id, "done")
 
             # Upload Log
-            await _upload_final_log(graph_instance, config, thread_id, evoloop_command_id)
+            await _upload_final_log(graph_instance, config, thread_id, evoloop_command_id, project_id)
 
         except AgentCancelledException:
             logger.info(f"Task {thread_id} cancelled by user.")
@@ -223,7 +222,7 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         await _handle_task_exception(thread_id, project_id, e)
 
 
-async def _upload_final_log(graph, config, thread_id, command_id):
+async def _upload_final_log(graph, config, thread_id, command_id, project_id):
     try:
         final_state = await graph.aget_state(config)
         if final_state.values and "messages" in final_state.values:
@@ -231,11 +230,15 @@ async def _upload_final_log(graph, config, thread_id, command_id):
             if messages:
                 last_msg = messages[-1]
                 if hasattr(last_msg, "content") and last_msg.content:
+                    content = last_msg.content
+                    
+                    # Upload to debug logs (for trace viewing)
                     await evocloud_manager.upload_log(
                         thread_id=thread_id,
-                        log_type="output",
-                        content=last_msg.content,
+                        log_type="model",
+                        content=content,
                         command_id=command_id,
+                        project_id=project_id,
                     )
     except Exception as e:
         logger.warning(f"Failed to send final output: {e}")

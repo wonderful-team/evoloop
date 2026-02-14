@@ -26,7 +26,7 @@ from app.models import (
 )
 from app.core.evocloud import evocloud_manager
 from app.core.engine.cleanup import cleanup_side_effects
-from app.utils.context import set_context
+from app.utils.context import set_context, get_context
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ class ChatRequest(BaseModel):
     thread_id: str
     message: str
     project_id: int | None = 1
+    command_id: int | None = None
     checkpoint_id: str | None = None
     attachments: list[dict[str, Any]] | None = None  # [{"url": "...", "type": "image"}]
     revert_files: bool = True  # For retry/undo support
@@ -65,7 +66,7 @@ async def chat_endpoint(
     Unified entry point for User Chat (Local Background Task).
     Guest Verification is handled by 'verify_guest_access' dependency.
     """
-    set_context(thread_id=req.thread_id, project_id=req.project_id)
+    set_context(thread_id=req.thread_id, project_id=req.project_id, command_id=req.command_id)
 
     # 0. Context Injection (Phase 9)
     # If referencing messages, fetch content and append to input
@@ -160,13 +161,14 @@ async def chat_endpoint(
             await session.flush()  # Ensure FK consistency
             logger.info(f"Persisted user message for thread {req.thread_id} (seq={user_msg.sequence_number})")
 
-            # 4.5 Sync to EvoCloud (Device Logs)
+            # 4.5 Sync to EvoCloud (Device Logs + Chat Stream)
             try:
                 await evocloud_manager.upload_log(
                     thread_id=req.thread_id,
-                    log_type="input",
+                    log_type="user",
                     content=req.message,
-                    project_id=req.project_id
+                    project_id=req.project_id,
+                    command_id=req.command_id
                 )
             except Exception as sync_e:
                 logger.warning(f"Failed to sync human message to cloud: {sync_e}")
@@ -296,6 +298,7 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
 class ResumeRequest(BaseModel):
     thread_id: str
     user_input: str | None = None  # Optional user response for HITL
+    command_id: int | None = None  # Explicit command_id for resumption trace
 
 
 @router.post("/chat/resume")
@@ -353,13 +356,15 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
                     session.add(user_msg)
                     logger.info(f"Persisted RESUME message for thread {req.thread_id}")
 
-                    # Sync to EvoCloud
+                    # Sync to EvoCloud (Logs + Chat Stream)
                     try:
+                        command_id = req.command_id or get_context().get("command_id")
                         await evocloud_manager.upload_log(
                             thread_id=req.thread_id,
-                            log_type="input",
+                            log_type="user",
                             content=req.user_input,
-                            project_id=conversation.project_id
+                            project_id=conversation.project_id,
+                            command_id=command_id
                         )
                     except Exception as sync_e:
                         logger.warning(f"Failed to sync resume message to cloud: {sync_e}")
