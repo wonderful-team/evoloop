@@ -5,7 +5,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.core.llm.factory import LLMFactory
 from app.i18n.service import i18n
 
-logger = logging.getLogger("evoloop.learning.optimizer")
+logger = logging.getLogger(__name__)
 
 META_OPTIMIZER_PROMPT = """
 You are an Expert Prompt Engineer and Coach for AI Agents.

@@ -10,7 +10,7 @@ from app.core.memory import memory_manager
 from app.infrastructure.database.sql.database import session_scope
 from app.models import TraceEvent
 
-logger = logging.getLogger("evoloop.learning")
+logger = logging.getLogger(__name__)
 
 
 class TraceCallbackHandler(AsyncCallbackHandler):

@@ -14,7 +14,7 @@ from sqlalchemy import select
 from app.infrastructure.database.sql.database import session_scope
 from app.models import McpServer
 
-logger = logging.getLogger("evoloop.mcp_client")
+logger = logging.getLogger(__name__)
 
 
 @contextmanager

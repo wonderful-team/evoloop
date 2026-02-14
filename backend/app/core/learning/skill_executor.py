@@ -25,7 +25,7 @@ from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.models import LearnedSkill as LearnedSkillModel
 
-logger = logging.getLogger("evoloop.learning.executor")
+logger = logging.getLogger(__name__)
 
 
 def build_skill_tool_registry() -> dict[str, Any]:

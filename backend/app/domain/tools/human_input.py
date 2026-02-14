@@ -16,7 +16,7 @@ from app.core.monitoring.activity import activity_monitor
 from app.i18n.service import i18n
 from app.core.evocloud import evocloud_manager
 
-logger = logging.getLogger("evoloop.tools.human_input")
+logger = logging.getLogger(__name__)
 
 
 # ============ Data Models ============

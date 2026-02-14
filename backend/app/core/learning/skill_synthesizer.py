@@ -22,7 +22,7 @@ from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.core.llm.factory import LLMFactory
 from app.i18n.service import i18n
 
-logger = logging.getLogger("evoloop.learning.synthesizer")
+logger = logging.getLogger(__name__)
 
 
 @dataclass

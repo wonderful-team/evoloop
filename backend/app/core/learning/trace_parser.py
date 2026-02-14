@@ -21,7 +21,7 @@ from sqlalchemy import select
 from app.infrastructure.database.sql.database import session_scope
 from app.models import TraceEvent
 
-logger = logging.getLogger("evoloop.learning.parser")
+logger = logging.getLogger(__name__)
 
 
 class ActionSource(str, Enum):

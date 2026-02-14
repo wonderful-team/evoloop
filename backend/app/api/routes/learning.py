@@ -33,7 +33,7 @@ from app.models import (
     TraceEvent,
 )
 
-logger = logging.getLogger("evoloop.learning")
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

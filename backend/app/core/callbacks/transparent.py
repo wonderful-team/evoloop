@@ -9,7 +9,7 @@ from langchain_core.outputs import LLMResult
 from app.models.schemas.events import TokenEvent
 
 # Use standard logger instead of rich Console
-logger = logging.getLogger("evoloop.callbacks")
+logger = logging.getLogger(__name__)
 
 
 class TransparentCallbackHandler(AsyncCallbackHandler):

@@ -10,7 +10,7 @@ from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.models import TraceEvent
 
-logger = logging.getLogger("evoloop.learning.synthesizer")
+logger = logging.getLogger(__name__)
 
 META_ARCHITECT_PROMPT = """
 You are the "Meta-Architect" for the EvoLoop Agent System.

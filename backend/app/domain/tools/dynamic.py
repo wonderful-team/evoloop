@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.domain.tools.runtime_registry import register_runtime_tool
 
-logger = logging.getLogger("evoloop.tools.dynamic")
+logger = logging.getLogger(__name__)
 
 DYNAMIC_TOOLS_DIR = os.path.join(os.path.dirname(__file__), "../../../tools/dynamic")
 
