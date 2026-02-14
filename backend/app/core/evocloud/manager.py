@@ -1,10 +1,12 @@
 import logging
+import time
 from typing import Any, Callable
 
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
 from app.core.evocloud.schemas import EvoCloudConfig
 from app.core.config import settings  # Only imported to provide default config initialization
+from app.utils.context import get_context
 
 logger = logging.getLogger(__name__)
 
@@ -108,16 +110,43 @@ class EvoCloudManager:
         return self._api
 
     # Chat Sync (Agent.py support)
-    async def upload_log(self, thread_id: str, log_type: str, content: Any, device_id: int | None = None, command_id=None, project_id=None):
+    async def upload_log(self, thread_id: str, log_type: str, content: Any, name: str | None = None, device_id: int | None = None, command_id=None, project_id=None, persistent: bool = True):
         if not self.api: return
         
+        # Auto-fill from context if missing
+        if not project_id or not command_id:
+            ctx = get_context()
+            project_id = project_id or ctx.get("project_id")
+            command_id = command_id or ctx.get("command_id")
+
         # Auto-fill device_id if not provided
         target_device_id = device_id or self.device_id
         if not target_device_id:
             logger.debug("Skipping upload_log: No device_id available")
             return
 
-        await self.api.upload_log(target_device_id, thread_id, log_type, content, command_id, project_id)
+        # Try WebSocket Streaming First (Real-time)
+        if self.link and self.link.is_connected():
+            # Construct payload matching Mobile App expectation
+            payload = {
+                "type": "log_streaming",  # Cloud will forward this as 'new_logs' or similar
+                "data": {
+                    "logs": [{
+                        "type": log_type,
+                        "name": name,
+                        "content": content,
+                        "thread_id": thread_id,
+                        "project_id": project_id,
+                        "timestamp": int(time.time() * 1000)
+                    }],
+                    "project_id": project_id
+                }
+            }
+            await self.link.send_message(payload)
+
+        # Persistent storage (DB)
+        if persistent:
+            await self.api.upload_log(target_device_id, thread_id, log_type, content, name=name, command_id=command_id, project_id=project_id)
 
     @property
     def device_id(self) -> int | None:

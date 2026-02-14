@@ -72,6 +72,19 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
     def is_connected(self) -> bool:
         return self._running and (self.ws is not None)
 
+    async def send_message(self, message: dict | str):
+        """Send message to Cloud via WebSocket."""
+        if not self.is_connected() or not self.ws:
+            return False
+
+        try:
+            payload = message if isinstance(message, str) else json.dumps(message)
+            await self.ws.send(payload)
+            return True
+        except Exception as e:
+            logger.warning(f"[EvoCloud] WS Send Error: {e}")
+            return False
+
     async def start(self):
         """Start the WebSocket connection and Heartbeat Loops."""
         if self._running:
@@ -147,6 +160,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 retry_count += 1
 
     async def _handle_ws_message(self, message: str):
+        logger.debug(f"[EvoCloud] Incoming WS Message: {message}")
         try:
             data = json.loads(message)
             msg_type = data.get("type")

@@ -3,6 +3,7 @@ import logging
 import os
 
 from app.core.engine.background_agent import run_agent_background
+from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.project.service import project_context_manager
@@ -34,8 +35,21 @@ async def handle_remote_command(command_data: dict):
 
     # Support both nested 'content' (legacy/cloud) and flat 'message' (mobile/local) structures
     content_obj = command_data.get("content", {})
-    message = command_data.get("message") or content_obj.get("text") or content_obj.get("message")
-    attachments = command_data.get("attachments") or content_obj.get("attachments") or []
+    params_obj = content_obj.get("params", {})
+
+    message = (
+        command_data.get("message") or 
+        content_obj.get("text") or 
+        content_obj.get("message") or
+        params_obj.get("message")
+    )
+
+    attachments = (
+        command_data.get("attachments") or 
+        content_obj.get("attachments") or 
+        params_obj.get("attachments") or
+        []
+    )
 
     if message or attachments:
         thread_id = command_data.get("thread_id") or "remote-default"
@@ -80,6 +94,17 @@ async def handle_remote_command(command_data: dict):
             "project_id": project_id,
             "command_id": command_data.get("command_id"),
         }
+
+        # Log User Message to Detailed Logs (For Tool/Thought View consistency)
+        asyncio.create_task(
+            evocloud_manager.upload_log(
+                thread_id=thread_id,
+                log_type="user",
+                content=message or "[Attachment]",
+                project_id=project_id,
+                command_id=command_data.get("command_id")
+            )
+        )
 
         # Run agent in background (Local)
         asyncio.create_task(run_agent_background(thread_id, inputs))

@@ -161,7 +161,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             params["token"] = active_token
 
         try:
-            logger.debug(f"Req: {method} {endpoint}")
+            logger.debug(f"Req: {method} {endpoint} | Params: {params} | Data: {data}")
             resp = await client.request(method, url, params=params, json=data, headers=req_headers)
 
             if resp.status_code >= 400:
@@ -421,11 +421,12 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data["result"] = result
         await self.request("POST", "/evolooplink/api/command/updateStatus", data=data)
 
-    async def upload_log(self, device_id, thread_id, log_type, content, command_id=None, project_id=None):
+    async def upload_log(self, device_id, thread_id, log_type, content, name=None, command_id=None, project_id=None):
         data = {
             "device_id": device_id,
             "thread_id": thread_id,
             "type": log_type,
+            "name": name,
             "content": json_utils.dumps(content) if isinstance(content, dict | list) else str(content),
             "create_time": int(time.time() * 1000)
         }
@@ -454,15 +455,51 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         if self._log_queue.empty():
             return
 
-        batch = []
-        while not self._log_queue.empty() and len(batch) < 50:
-            batch.append(await self._log_queue.get())
+        logger.debug(f"[EvoCloud] Flushing {self._log_queue.qsize()} logs from queue...")
 
-        if batch:
+        # Drain queue up to 50 items
+        logs_buffer = []
+        while not self._log_queue.empty() and len(logs_buffer) < 50:
+            logs_buffer.append(await self._log_queue.get())
+
+        if not logs_buffer:
+            return
+
+        # Group by device_id to ensure safe batching
+        batches = {}
+        for log in logs_buffer:
+            did = log.get("device_id")
+            if did not in batches:
+                batches[did] = []
+            batches[did].append(log)
+
+        # Send batches
+        for did, batch in batches.items():
             try:
                 # Use batchUpload endpoint
-                res = await self.request("POST", "/evolooplink/api/log/batchUpload", data={"logs": batch})
+                # Log.php expects device_id at top level for permission check
+                # We put it in BOTH body and query params to ensure BaseApi validation passes
+                payload = {
+                     "device_id": did,
+                     "logs": batch
+                }
+
+                query_params = {"device_id": did}
+
+                # Also pass project_id if consistent
+                if batch and batch[0].get("project_id"):
+                    pid = batch[0].get("project_id")
+                    payload["project_id"] = pid
+                    query_params["project_id"] = pid
+
+                res = await self.request(
+                    "POST", 
+                    "/evolooplink/api/log/upload", 
+                    params=query_params,
+                    data=payload
+                )
+
                 if res.get("code", -1) < 0:
-                    logger.warning(f"[EvoCloud] Batch upload failed: {res.get('message')}")
+                    logger.warning(f"[EvoCloud] Batch upload failed for device {did}: {res.get('message')}")
             except Exception as e:
-                logger.error(f"[EvoCloud] Error in batch log upload: {e}")
+                logger.error(f"[EvoCloud] Error in batch log upload for device {did}: {e}")
