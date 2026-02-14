@@ -1,5 +1,7 @@
 import logging
 
+from langchain_anthropic import ChatAnthropic
+
 from app.core.config import settings
 from app.core.llm.adaptive import AdaptiveChatOpenAI
 
@@ -32,21 +34,33 @@ class LLMFactory:
 
         logger.info(f"LLM Config - Provider: {db_provider}, Base URL: {base_url}, Model: {final_model}")
 
-        # Anthropic / Claude Protocol Support
-        if db_provider == "anthropic" or "api/anthropic" in (base_url or ""):
+        # Anthropic / Claude Protocol Support (Zhipu, Kimi, etc.)
+        if db_provider in ["anthropic", "kimi"] or "api/anthropic" in (base_url or ""):
+            from app.core.llm.anthropic_adapter import CompatibleChatAnthropic
+
             # Check for Zhipu GLM-4 (requires response patching)
             if "bigmodel.cn" in (base_url or ""):
-                from app.core.llm.zhipu_adapter import ZhipuChatAnthropic
-
-                return ZhipuChatAnthropic(
+                return CompatibleChatAnthropic(
                     api_key=api_key,
                     base_url=base_url,
                     model_name=final_model,
                     temperature=temperature,
                     streaming=False,
+                    fix_tool_args_list=True,
+                    repair_history=True,
                 )
 
-            from langchain_anthropic import ChatAnthropic
+            # Check for Kimi / Moonshot
+            if any(domain in (base_url or "") for domain in ["moonshot.cn", "kimi.ai", "kimi.com"]):
+                return CompatibleChatAnthropic(
+                    api_key=api_key,
+                    base_url=base_url,
+                    model_name=final_model,
+                    temperature=temperature,
+                    streaming=False,
+                    fix_tool_args_list=False,  # Kimi usually follows standard
+                    repair_history=True,       # Most compatible APIs need history repair
+                )
 
             return ChatAnthropic(
                 api_key=api_key,
