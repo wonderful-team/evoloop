@@ -39,7 +39,8 @@ class EvoCloudManager:
                 api_key=settings.EVOCLOUD_API_KEY,
                 api_secret=settings.EVOCLOUD_API_SECRET,
                 device_name=settings.EVOCLOUD_DEVICE_NAME,
-                access_token=settings.EVOCLOUD_ACCESS_TOKEN
+                access_token=settings.EVOCLOUD_ACCESS_TOKEN,
+                app_data_dir=str(settings.APP_DATA_DIR)
             )
 
         self._config = config

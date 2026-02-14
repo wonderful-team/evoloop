@@ -46,20 +46,30 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         self._command_handler: Callable[[dict[str, Any]], None] | None = None
         self._event_handler: Callable[[str, dict[str, Any]], None] | None = None
 
-        # Idempotency
+        # Idempotency & Concurrency
         self._processed_commands: set[int] = set()
+        self._command_semaphore = asyncio.Semaphore(5)
 
     @property
     def device_id(self) -> int | None:
         return self._device_id
 
     def _get_or_create_device_key(self) -> str:
-        # TODO: This should probably also be configurable path or abstracted
-        key_file = os.path.expanduser("~/.evoloop_device_key")
+        # Use centralized path if available, fallback to legacy
+        base_dir = self.config.app_data_dir or os.path.expanduser("~")
+        key_file = os.path.join(base_dir, ".evoloop_device_key")
+        
+        # Legacy check
+        if not os.path.exists(key_file) and not self.config.app_data_dir:
+             legacy_file = os.path.expanduser("~/.evoloop_device_key")
+             if os.path.exists(legacy_file):
+                 key_file = legacy_file
+
         if os.path.exists(key_file):
             return file_utils.read_file(key_file).strip()
         else:
             dk = gen_uuid()
+            os.makedirs(os.path.dirname(key_file), exist_ok=True)
             file_utils.write_file(key_file, dk)
             return dk
 
@@ -209,14 +219,15 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
     async def _execute_command_wrapper(self, cmd_data):
         cmd_id = cmd_data.get("command_id")
-        await self.api.update_command_status(cmd_id, 2)  # Running
-        try:
-            if self._command_handler:
-                if asyncio.iscoroutinefunction(self._command_handler):
-                    await self._command_handler(cmd_data)
-                else:
-                    await run_in_thread(self._command_handler, cmd_data)
-            await self.api.update_command_status(cmd_id, 3)  # Completed
-        except Exception as e:
-            logger.error(f"Command execution error: {e}")
-            await self.api.update_command_status(cmd_id, 4, str(e))  # Failed
+        async with self._command_semaphore:
+            await self.api.update_command_status(cmd_id, 2)  # Running
+            try:
+                if self._command_handler:
+                    if asyncio.iscoroutinefunction(self._command_handler):
+                        await self._command_handler(cmd_data)
+                    else:
+                        await run_in_thread(self._command_handler, cmd_data)
+                await self.api.update_command_status(cmd_id, 3)  # Completed
+            except Exception as e:
+                logger.error(f"Command execution error: {e}")
+                await self.api.update_command_status(cmd_id, 4, str(e))  # Failed

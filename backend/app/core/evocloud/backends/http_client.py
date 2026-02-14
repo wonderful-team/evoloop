@@ -32,7 +32,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         self._clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
 
         # Log Batching
-        self._log_queue: asyncio.Queue = asyncio.Queue()
+        self._log_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
         self._flush_task: asyncio.Task | None = None
 
         self._load_token()
@@ -88,8 +88,16 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             if self._user_token:
                 return
 
-            # Keep compatibility with existing auth file
-            auth_file = os.path.join(os.getcwd(), ".evoloop", "auth.json")
+            # Use centralized path if available
+            base_dir = self.config.app_data_dir or os.getcwd()
+            auth_file = os.path.join(base_dir, "auth.json")
+            
+            # Compatibility check: if not in base_dir, check .evoloop/auth.json for legacy
+            if not os.path.exists(auth_file):
+                 legacy_file = os.path.join(os.getcwd(), ".evoloop", "auth.json")
+                 if os.path.exists(legacy_file):
+                     auth_file = legacy_file
+
             if os.path.exists(auth_file):
                 content = file_utils.read_file(auth_file)
                 data = json_utils.loads(content)
@@ -103,10 +111,10 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             self._user_token = token
             self._member_id = member_id
 
-            auth_dir = os.path.join(os.getcwd(), ".evoloop")
-            os.makedirs(auth_dir, exist_ok=True)
+            base_dir = self.config.app_data_dir or os.path.join(os.getcwd(), ".evoloop")
+            os.makedirs(base_dir, exist_ok=True)
 
-            with open(os.path.join(auth_dir, "auth.json"), "w") as f:
+            with open(os.path.join(base_dir, "auth.json"), "w") as f:
                 json.dump({"token": token, "member_id": member_id}, f)
         except Exception as e:
             logger.error(f"Failed to save auth token: {e}")
@@ -435,7 +443,17 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         if project_id:
             data["project_id"] = project_id
         
-        await self._log_queue.put(data)
+        try:
+            # If queue is getting full, trigger immediate flush
+            if self._log_queue.qsize() > 100:
+                if self._flush_task is None or self._flush_task.done():
+                    self._flush_task = asyncio.create_task(self._process_log_queue())
+            
+            # Non-blocking put
+            self._log_queue.put_nowait(data)
+        except asyncio.QueueFull:
+            logger.warning("[EvoCloud] Log queue full, dropping log entry")
+        
         if self._flush_task is None or self._flush_task.done():
             self._flush_task = asyncio.create_task(self._process_log_queue())
 

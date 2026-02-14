@@ -15,6 +15,9 @@ class EvoCloudConfig(BaseModel):
     
     # Auth (Optional, can be passed dynamically)
     access_token: str | None = None
+    
+    # Path Configuration
+    app_data_dir: str | None = None
 
 
 class CommandData(BaseModel):
