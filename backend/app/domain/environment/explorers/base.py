@@ -4,9 +4,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional
 
-from app.core.config import settings
-
 logger = logging.getLogger(__name__)
+
 
 class BaseExplorer(ABC):
     """

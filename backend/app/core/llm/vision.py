@@ -9,11 +9,11 @@ from pathlib import Path
 
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
-from langchain_openai import ChatOpenAI
 
 from app.core.config import settings
+from app.core.llm.factory import LLMFactory
 
-logger = logging.getLogger("evoloop.vision")
+logger = logging.getLogger(__name__)
 
 
 class VisionLLMFactory:
@@ -24,7 +24,12 @@ class VisionLLMFactory:
 
     # Known vision-capable models
     VISION_MODELS = {
-        "openai": ["gpt-4o", "gpt-4-turbo", "gpt-4-vision-preview", "gpt-4o-mini"],
+        "openai": [
+            "gpt-4o",
+            "gpt-4-turbo",
+            "gpt-4-vision-preview",
+            "gpt-4o-mini"
+        ],
         "anthropic": [
             "claude-3-opus",
             "claude-3-sonnet",
@@ -38,33 +43,27 @@ class VisionLLMFactory:
         model_name: str | None = None, temperature: float = 0.3, max_tokens: int = 4096
     ) -> BaseChatModel:
         """
-        Create a Vision-capable LLM instance.
-        Prioritizes SystemConfig -> Settings.
+        Create a Vision-capable LLM instance using the core LLMFactory.
         """
-        from app.core.system import SystemConfigService
+        from app.core.system.service import SystemConfigService
 
-        # Fetch dynamic config
-        db_base_url = SystemConfigService.get_value("LLM_BASE_URL")
-        db_model = SystemConfigService.get_value("LLM_MODEL")
+        # Fetch dynamic config for vision specifically
         db_vision_model = SystemConfigService.get_value("VISION_MODEL")
-        db_api_key = SystemConfigService.get_value("LLM_API_KEY")
 
-        # Resolve with fallbacks
-        base_url = db_base_url or settings.OPENAI_BASE_URL
-        api_key = db_api_key or settings.OPENAI_API_KEY
+        # Priority: explicit arg > DB Vision > Default
+        final_model = model_name or db_vision_model or "gpt-4o"
 
-        # Priority: explicit arg > DB Vision > DB LLM > Default
-        final_model = model_name or db_vision_model or db_model or "gpt-4o"
+        # OpenRouter Logic: Ensure prefix if using OpenRouter
+        if "openrouter.ai" in (settings.OPENAI_BASE_URL or ""):
+            if "/" not in final_model:
+                final_model = f"openai/{final_model}"
 
-        logger.info(f"Vision LLM Config - Model: {final_model}, Base URL: {base_url}")
+        logger.info(f"Creating Vision LLM - Model: {final_model}")
 
-        return ChatOpenAI(
-            api_key=api_key,
-            base_url=base_url,
-            model=final_model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            streaming=False,
+        # Use the central LLMFactory to get provider-specific adapters (Anthropic, Moonshot, etc.)
+        return LLMFactory.create_llm(
+            model_name=final_model,
+            temperature=temperature
         )
 
     @staticmethod

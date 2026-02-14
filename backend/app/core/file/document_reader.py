@@ -1,15 +1,12 @@
 import logging
 import os
-import sqlite3
-from typing import Any
 
 import mammoth
 import pandas as pd
 from markdownify import markdownify as md
 from pypdf import PdfReader
 
-from app.domain.tools.environment.perception.providers.ocr import ocr_provider
-from app.utils.detect import detect_language
+from app.core.vision import vision_engine, VisionTask
 from app.utils.file import read_file_content
 
 logger = logging.getLogger(__name__)
@@ -91,7 +88,13 @@ class DocumentReaderService:
     async def _read_image(self, path: str) -> str:
         """Extract text from image using OCR."""
         try:
-            result = await ocr_provider.extract(screenshot_path=path)
+            result = await vision_engine.process(
+                task=VisionTask.OCR,
+                image_source=path
+            )
+            if not result.success:
+                return f"[OCR Error: {result.metadata.get('error')}]"
+
             texts = [el.text for el in result.elements if el.text]
             return "\n".join(texts)
         except Exception as e:

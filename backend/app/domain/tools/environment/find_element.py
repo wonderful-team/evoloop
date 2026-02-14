@@ -9,8 +9,8 @@ import logging
 from typing import Literal
 
 from app.core.tools import evoloop_tool
-from app.domain.tools.environment.perception.pipeline import fusion_pipeline
-from app.domain.tools.environment.perception.base import UIElement
+from app.core.vision import vision_engine, VisionTask
+from app.core.vision.pipeline.manager import pipeline_manager
 from app.domain.tools.environment.drivers.macos import macos_driver
 from app.domain.tools.environment.drivers.adb import adb_driver, ADBError
 
@@ -62,18 +62,22 @@ async def find_element(
         else:  # macos
             screenshot_path = macos_driver.screenshot()
         
-        # Step 2: Run perception pipeline
-        elements, compressed_path = await fusion_pipeline.perceive(
-            screenshot_path=screenshot_path,
+        # Step 2: Run perception pipeline via VisionEngine
+        result = await vision_engine.process(
+            task=VisionTask.DETECT,
+            image_source=screenshot_path,
             device_id=device_id,
         )
         
-        if not elements:
-            return "No UI elements detected on screen. The screen might be empty or OCR failed."
+        if not result.success or not result.elements:
+            return f"No UI elements detected on screen. Error: {result.metadata.get('error', 'None')}"
+        
+        elements = result.elements
+        compressed_path = result.screenshot_path
         
         # Step 3: Return all elements if requested
         if return_all or not target:
-            formatted = fusion_pipeline.format_for_prompt(elements)
+            formatted = pipeline_manager.format_for_prompt(elements)
             return f"Screenshot: {compressed_path or screenshot_path}\n\n{formatted}"
         
         # Step 4: Find best match
@@ -114,7 +118,7 @@ async def find_element(
         
         if not scored_elements:
             # No match found, return all elements for context
-            formatted = fusion_pipeline.format_for_prompt(elements[:15])
+            formatted = pipeline_manager.format_for_prompt(elements[:15])
             return (
                 f"No element matching '{target}' found.\n\n"
                 f"Available elements:\n{formatted}\n\n"

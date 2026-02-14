@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from io import BytesIO
 from typing import Any
 
-from app.domain.tools.environment.perception.base import UIElement
+from app.core.vision.types import UIElement
 
 logger = logging.getLogger(__name__)
 

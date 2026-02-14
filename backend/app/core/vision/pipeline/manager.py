@@ -1,26 +1,15 @@
-"""
-Fusion Pipeline - Parallel perception with result merging.
-
-Runs multiple perception providers in parallel and merges results
-for comprehensive UI element detection.
-"""
-
 import asyncio
 import logging
 import os
 import tempfile
 from datetime import datetime
-from typing import Any
+from typing import Any, List, Optional, Tuple
 
-from app.domain.tools.environment.perception.base import (
-    PerceptionProvider,
-    PerceptionResult,
-    UIElement,
-)
-from app.domain.tools.environment.perception.cache import scene_cache
-from app.domain.tools.environment.perception.providers.android_a11y import android_a11y_provider
-from app.domain.tools.environment.perception.providers.ocr import ocr_provider
-from app.domain.tools.environment.perception.providers.macos_ax import macos_ax_provider
+from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
+from app.core.vision.pipeline.cache import scene_cache
+from app.core.vision.providers.ocr.ocr_provider import LocalOCRProvider
+from app.core.vision.providers.native.android_a11y import AndroidA11yProvider
+from app.core.vision.providers.native.macos_ax import MacOSAxProvider
 
 logger = logging.getLogger(__name__)
 
@@ -28,13 +17,6 @@ logger = logging.getLogger(__name__)
 def smart_compress(image_path: str, max_width: int = 1280) -> str:
     """
     Compress screenshot while preserving UI element clarity.
-    
-    Args:
-        image_path: Path to original image
-        max_width: Maximum width (default 1280px)
-        
-    Returns:
-        Path to compressed image
     """
     try:
         from PIL import Image
@@ -69,21 +51,11 @@ def smart_compress(image_path: str, max_width: int = 1280) -> str:
         return image_path
 
 
-
-def merge_elements(results: list[PerceptionResult]) -> list[UIElement]:
+def merge_elements(results: List[VisionResult]) -> List[UIElement]:
     """
     Merge elements from multiple perception sources.
-    
-    Deduplicates overlapping elements, preferring higher confidence
-    and more complete information.
-    
-    Args:
-        results: List of perception results
-        
-    Returns:
-        Merged list of unique elements
     """
-    all_elements: list[UIElement] = []
+    all_elements: List[UIElement] = []
     
     for result in results:
         all_elements.extend(result.elements)
@@ -91,14 +63,14 @@ def merge_elements(results: list[PerceptionResult]) -> list[UIElement]:
     if not all_elements:
         return []
     
-    # Sort by confidence (descending) so higher confidence elements are processed first
+    # Sort by confidence (descending)
     all_elements.sort(key=lambda e: e.confidence, reverse=True)
     
-    merged: list[UIElement] = []
+    merged: List[UIElement] = []
     
     def is_overlapping(e1: UIElement, e2: UIElement, threshold: float = 0.5) -> bool:
         """Check if two elements significantly overlap."""
-        # Calculate intersection
+        # Intersection calculation
         x1 = max(e1.x - e1.width//2, e2.x - e2.width//2)
         y1 = max(e1.y - e1.height//2, e2.y - e2.height//2)
         x2 = min(e1.x + e1.width//2, e2.x + e2.width//2)
@@ -115,7 +87,6 @@ def merge_elements(results: list[PerceptionResult]) -> list[UIElement]:
         return intersection / min_area > threshold
     
     for element in all_elements:
-        # Check if this element overlaps with any already merged element
         overlapping = None
         for i, existing in enumerate(merged):
             if is_overlapping(element, existing):
@@ -123,7 +94,6 @@ def merge_elements(results: list[PerceptionResult]) -> list[UIElement]:
                 break
         
         if overlapping is not None:
-            # Merge: keep the one with more text or higher confidence
             existing = merged[overlapping]
             if (len(element.text) > len(existing.text) or 
                 (len(element.text) == len(existing.text) and element.confidence > existing.confidence)):
@@ -131,51 +101,36 @@ def merge_elements(results: list[PerceptionResult]) -> list[UIElement]:
         else:
             merged.append(element)
     
-    # Re-assign IDs sequentially
     for i, element in enumerate(merged):
         element.id = i
     
     return merged
 
 
-class FusionPipeline:
+class PipelineManager:
     """
     Orchestrates multiple perception providers for comprehensive UI detection.
-    
-    Features:
-    - Parallel execution of providers
-    - Intelligent scene caching
-    - Result merging and deduplication
-    - Smart screenshot compression
+    (Formerly FusionPipeline)
     """
     
     def __init__(self):
-        self.providers: list[PerceptionProvider] = [
-            android_a11y_provider,
-            macos_ax_provider,
-            ocr_provider,
+        self.providers = [
+            AndroidA11yProvider(),
+            MacOSAxProvider(),
+            LocalOCRProvider(),
         ]
     
     async def perceive(
         self,
-        screenshot_path: str | None = None,
-        device_id: str | None = None,
+        screenshot_path: Optional[str] = None,
+        device_id: Optional[str] = None,
         use_cache: bool = True,
-    ) -> tuple[list[UIElement], str | None]:
+    ) -> Tuple[List[UIElement], Optional[str]]:
         """
         Run perception pipeline to extract UI elements.
-        
-        Args:
-            screenshot_path: Optional path to screenshot
-            device_id: Optional device identifier
-            use_cache: Whether to use scene caching
-            
-        Returns:
-            Tuple of (elements, compressed_screenshot_path)
         """
         compressed_path = None
         
-        # Compress screenshot if provided
         if screenshot_path and os.path.exists(screenshot_path):
             compressed_path = smart_compress(screenshot_path)
             
@@ -193,13 +148,14 @@ class FusionPipeline:
                 available_providers.append(provider)
         
         if not available_providers:
-            logger.warning("[FusionPipeline] No providers available")
+            logger.warning("[PipelineManager] No providers available")
             return [], compressed_path
         
         # Execute in parallel
         tasks = [
-            provider.extract(
-                screenshot_path=compressed_path or screenshot_path,
+            provider.process(
+                task=VisionTask.DETECT,
+                image_source=compressed_path or screenshot_path or "",
                 device_id=device_id,
             )
             for provider in available_providers
@@ -207,7 +163,6 @@ class FusionPipeline:
         
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
-        # Filter out exceptions
         valid_results = []
         for i, result in enumerate(results):
             if isinstance(result, Exception):
@@ -223,20 +178,13 @@ class FusionPipeline:
             scene_hash = scene_cache.compute_hash(compressed_path)
             scene_cache.put(scene_hash, elements, compressed_path)
         
-        logger.info(f"[FusionPipeline] Total: {len(elements)} elements from {len(valid_results)} providers")
+        logger.info(f"[PipelineManager] Total: {len(elements)} elements from {len(valid_results)} providers")
         
         return elements, compressed_path
     
-    def format_for_prompt(self, elements: list[UIElement], max_elements: int = 30) -> str:
+    def format_for_prompt(self, elements: List[UIElement], max_elements: int = 30) -> str:
         """
         Format elements for inclusion in LLM prompt.
-        
-        Args:
-            elements: List of UI elements
-            max_elements: Maximum elements to include
-            
-        Returns:
-            Formatted string for prompt
         """
         if not elements:
             return "No UI elements detected."
@@ -259,4 +207,4 @@ class FusionPipeline:
 
 
 # Singleton
-fusion_pipeline = FusionPipeline()
+pipeline_manager = PipelineManager()

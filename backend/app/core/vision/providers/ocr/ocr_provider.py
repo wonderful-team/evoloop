@@ -1,20 +1,10 @@
-"""
-OCR Provider - Extract text elements using OCR.
-
-Uses EasyOCR (lighter weight) or PaddleOCR for text detection.
-Falls back gracefully if OCR libraries are not installed.
-"""
-
 import logging
 import os
-from typing import Any
+import time
+from typing import Optional
 
-from app.domain.tools.environment.perception.base import (
-    ElementType,
-    PerceptionProvider,
-    PerceptionResult,
-    UIElement,
-)
+from app.core.vision.providers.base import VisionProvider
+from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +25,7 @@ def _get_ocr_engine():
         import easyocr
         _ocr_engine = easyocr.Reader(['ch_sim', 'en'], gpu=False)
         _ocr_type = "easyocr"
-        logger.info("OCR Provider: Using EasyOCR")
+        logger.info("LocalOCRProvider: Using EasyOCR")
         return _ocr_engine, _ocr_type
     except ImportError:
         pass
@@ -45,80 +35,74 @@ def _get_ocr_engine():
         from paddleocr import PaddleOCR
         _ocr_engine = PaddleOCR(use_angle_cls=True, lang='ch', show_log=False)
         _ocr_type = "paddleocr"
-        logger.info("OCR Provider: Using PaddleOCR")
+        logger.info("LocalOCRProvider: Using PaddleOCR")
         return _ocr_engine, _ocr_type
     except ImportError:
         pass
     
-    logger.warning("OCR Provider: No OCR library available. Install with: pip install easyocr")
+    logger.warning("LocalOCRProvider: No OCR library available.")
     return None, None
 
 
-class OCRProvider(PerceptionProvider):
+class LocalOCRProvider(VisionProvider):
     """
-    Perception provider using OCR for text detection.
-    
-    This provider extracts text elements from screenshots,
-    useful as a fallback or supplement to native accessibility APIs.
+    Local OCR provider using EasyOCR or PaddleOCR.
     """
     
     @property
     def name(self) -> str:
-        return "ocr"
+        return "local_ocr"
     
     @property
-    def cost(self) -> float:
-        return 0.001  # Very cheap - local processing
+    def cost_factor(self) -> float:
+        return 0.1  # Low cost - local processing
     
     async def is_available(self) -> bool:
-        """Check if OCR library is installed."""
         engine, _ = _get_ocr_engine()
         return engine is not None
     
-    async def extract(
+    async def process(
         self,
-        screenshot_path: str | None = None,
-        device_id: str | None = None,
-    ) -> PerceptionResult:
-        """
-        Extract text elements from screenshot using OCR.
-        
-        Args:
-            screenshot_path: Path to screenshot image
-            device_id: Not used
-            
-        Returns:
-            PerceptionResult with text elements
-        """
-        import time
-        start = time.time()
-        
-        if not screenshot_path or not os.path.exists(screenshot_path):
-            return PerceptionResult(
-                elements=[],
-                source=self.name,
-                metadata={"error": "No screenshot provided"}
+        task: VisionTask,
+        image_source: str,
+        prompt: Optional[str] = None,
+        **kwargs
+    ) -> VisionResult:
+        """Process OCR task."""
+        if task != VisionTask.OCR:
+            return VisionResult(
+                task=task,
+                success=False,
+                metadata={"error": f"Task {task} not supported by LocalOCRProvider"}
             )
+            
+        start_time = time.time()
         
+        if not image_source or not os.path.exists(image_source):
+            return VisionResult(
+                task=task,
+                success=False,
+                metadata={"error": "Image file not found"}
+            )
+            
         engine, ocr_type = _get_ocr_engine()
         if engine is None:
-            return PerceptionResult(
-                elements=[],
-                source=self.name,
-                metadata={"error": "OCR not available"}
+            return VisionResult(
+                task=task,
+                success=False,
+                metadata={"error": "OCR engine not available"}
             )
-        
+            
         elements = []
         element_id = 0
         
         try:
             if ocr_type == "easyocr":
-                results = engine.readtext(screenshot_path)
+                results = engine.readtext(image_source)
                 for bbox, text, confidence in results:
-                    if confidence < 0.3:  # Skip low confidence
+                    if confidence < 0.3:
                         continue
                     
-                    # bbox is [[x1,y1], [x2,y1], [x2,y2], [x1,y2]]
                     x1, y1 = bbox[0]
                     x2, y2 = bbox[2]
                     
@@ -130,15 +114,14 @@ class OCRProvider(PerceptionProvider):
                         width=int(x2 - x1),
                         height=int(y2 - y1),
                         element_type=ElementType.TEXT,
-                        clickable=True,  # Assume clickable
                         confidence=float(confidence),
                         source=self.name,
                     )
                     elements.append(element)
                     element_id += 1
-            
+                    
             elif ocr_type == "paddleocr":
-                results = engine.ocr(screenshot_path, cls=True)
+                results = engine.ocr(image_source, cls=True)
                 if results and results[0]:
                     for line in results[0]:
                         bbox, (text, confidence) = line
@@ -156,31 +139,31 @@ class OCRProvider(PerceptionProvider):
                             width=int(x2 - x1),
                             height=int(y2 - y1),
                             element_type=ElementType.TEXT,
-                            clickable=True,
                             confidence=float(confidence),
                             source=self.name,
                         )
                         elements.append(element)
                         element_id += 1
-        
+            
+            success = True
+            summary = f"Extracted {len(elements)} text elements using {ocr_type}."
+            
         except Exception as e:
-            logger.error(f"OCR extraction failed: {e}")
-            return PerceptionResult(
-                elements=[],
-                source=self.name,
+            logger.error(f"LocalOCRProvider process failed: {e}")
+            return VisionResult(
+                task=task,
+                success=False,
                 metadata={"error": str(e)}
             )
+            
+        latency = (time.time() - start_time) * 1000
         
-        latency = (time.time() - start) * 1000
-        logger.info(f"[OCR] Extracted {len(elements)} text elements in {latency:.0f}ms")
-        
-        return PerceptionResult(
+        return VisionResult(
+            task=task,
+            success=success,
             elements=elements,
-            screenshot_path=screenshot_path,
-            source=self.name,
+            summary=summary,
+            screenshot_path=image_source,
             latency_ms=latency,
+            metadata={"ocr_type": ocr_type}
         )
-
-
-# Singleton
-ocr_provider = OCRProvider()

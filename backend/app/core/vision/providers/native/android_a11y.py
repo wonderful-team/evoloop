@@ -8,15 +8,11 @@ and parses it into UIElement objects.
 import logging
 import re
 import xml.etree.ElementTree as ET
-from typing import Any
+from typing import Any, Optional
 
 from app.domain.tools.environment.drivers.adb import adb_driver, ADBError
-from app.domain.tools.environment.perception.base import (
-    ElementType,
-    PerceptionProvider,
-    PerceptionResult,
-    UIElement,
-)
+from app.core.vision.providers.base import VisionProvider
+from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +51,9 @@ def _infer_element_type(node: ET.Element) -> ElementType:
         return ElementType.UNKNOWN
 
 
-class AndroidA11yProvider(PerceptionProvider):
+class AndroidA11yProvider(VisionProvider):
     """
-    Perception provider using Android UI Automator.
+    Vision provider using Android UI Automator.
     
     This is the fastest and most accurate provider for Android devices,
     as it directly reads the accessibility tree.
@@ -68,7 +64,7 @@ class AndroidA11yProvider(PerceptionProvider):
         return "android_a11y"
     
     @property
-    def cost(self) -> float:
+    def cost_factor(self) -> float:
         return 0.0  # Free - local command
     
     async def is_available(self) -> bool:
@@ -79,31 +75,43 @@ class AndroidA11yProvider(PerceptionProvider):
         except ADBError:
             return False
     
-    async def extract(
+    async def process(
         self,
-        screenshot_path: str | None = None,
-        device_id: str | None = None,
-    ) -> PerceptionResult:
+        task: VisionTask,
+        image_source: str,
+        prompt: Optional[str] = None,
+        **kwargs
+    ) -> VisionResult:
         """
         Extract UI elements from Android UI hierarchy.
         
         Args:
-            screenshot_path: Not used (we get fresh data from device)
-            device_id: Target device serial
+            task: VisionTask (detect or analyze)
+            image_source: Not used (we get fresh data from device)
+            prompt: Not used
+            **kwargs: May contain device_id
             
         Returns:
-            PerceptionResult with elements
+            VisionResult with elements
         """
+        if task not in [VisionTask.DETECT, VisionTask.ANALYZE]:
+            return VisionResult(
+                task=task,
+                success=False,
+                metadata={"error": f"Task {task} not supported by AndroidA11yProvider"}
+            )
+
         import time
         start = time.time()
+        device_id = kwargs.get("device_id")
         
         try:
             xml_content = adb_driver.dump_ui(device_id=device_id)
         except ADBError as e:
             logger.error(f"UI dump failed: {e}")
-            return PerceptionResult(
-                elements=[],
-                source=self.name,
+            return VisionResult(
+                task=task,
+                success=False,
                 metadata={"error": str(e)}
             )
         
@@ -112,9 +120,12 @@ class AndroidA11yProvider(PerceptionProvider):
         latency = (time.time() - start) * 1000
         logger.info(f"[AndroidA11y] Extracted {len(elements)} elements in {latency:.0f}ms")
         
-        return PerceptionResult(
+        return VisionResult(
+            task=task,
+            success=True,
             elements=elements,
-            source=self.name,
+            summary=f"Extracted {len(elements)} elements from Android UI tree.",
+            screenshot_path=image_source,
             latency_ms=latency,
         )
     

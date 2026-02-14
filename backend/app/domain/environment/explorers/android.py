@@ -15,6 +15,7 @@ from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
+
 class AndroidExplorer(BaseExplorer):
     """
     Android-specific discovery and probing logic.

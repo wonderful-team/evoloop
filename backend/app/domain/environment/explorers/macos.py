@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 logger = logging.getLogger(__name__)
 
+
 class MacOSExplorer(BaseExplorer):
     """
     MacOS-specific discovery logic.

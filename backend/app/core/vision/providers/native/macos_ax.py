@@ -8,15 +8,11 @@ and parses it into UIElement objects.
 import logging
 import ast
 import time
-from typing import Any
+from typing import Any, Optional
 
 from app.domain.tools.environment.drivers.macos import macos_driver
-from app.domain.tools.environment.perception.base import (
-    ElementType,
-    PerceptionProvider,
-    PerceptionResult,
-    UIElement,
-)
+from app.core.vision.providers.base import VisionProvider
+from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +41,9 @@ def _infer_element_type(role: str) -> ElementType:
         return ElementType.UNKNOWN
 
 
-class MacOSAxProvider(PerceptionProvider):
+class MacOSAxProvider(VisionProvider):
     """
-    Perception provider using MacOS Accessibility via AppleScript.
+    Vision provider using MacOS Accessibility via AppleScript.
     """
     
     @property
@@ -55,29 +51,38 @@ class MacOSAxProvider(PerceptionProvider):
         return "macos_ax"
     
     @property
-    def cost(self) -> float:
+    def cost_factor(self) -> float:
         return 0.0
     
     async def is_available(self) -> bool:
         """Check if accessibility permissions are granted."""
         return macos_driver.check_accessibility_permission()
     
-    async def extract(
+    async def process(
         self,
-        screenshot_path: str | None = None,
-        device_id: str | None = None,
-    ) -> PerceptionResult:
+        task: VisionTask,
+        image_source: str,
+        prompt: Optional[str] = None,
+        **kwargs
+    ) -> VisionResult:
         """
         Extract UI elements from the frontmost Mac application.
         """
+        if task not in [VisionTask.DETECT, VisionTask.ANALYZE]:
+            return VisionResult(
+                task=task,
+                success=False,
+                metadata={"error": f"Task {task} not supported by MacOSAxProvider"}
+            )
+            
         start = time.time()
         
         ax_output = macos_driver.dump_ax_tree()
         if ax_output.startswith("Error"):
             logger.error(f"MacOS AX dump failed: {ax_output}")
-            return PerceptionResult(
-                elements=[],
-                source=self.name,
+            return VisionResult(
+                task=task,
+                success=False,
                 metadata={"error": ax_output}
             )
         
@@ -86,9 +91,12 @@ class MacOSAxProvider(PerceptionProvider):
         latency = (time.time() - start) * 1000
         logger.info(f"[MacOSAx] Extracted {len(elements)} elements in {latency:.0f}ms")
         
-        return PerceptionResult(
+        return VisionResult(
+            task=task,
+            success=True,
             elements=elements,
-            source=self.name,
+            summary=f"Extracted {len(elements)} elements from macOS Accessibility tree.",
+            screenshot_path=image_source,
             latency_ms=latency,
         )
     
