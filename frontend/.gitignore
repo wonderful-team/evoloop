@@ -30,3 +30,4 @@ openapi.json
 /playwright/.auth/
 /src-tauri/target/
 /src-tauri/gen/**
+/src-tauri/binaries/

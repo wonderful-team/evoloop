@@ -115,6 +115,9 @@ export function LLMSettings() {
     } else if (val === "deepseek") {
       form.setValue("base_url", "https://api.deepseek.com/v1")
       form.setValue("model", "deepseek-chat")
+    } else if (val === "kimi") {
+      form.setValue("base_url", "https://api.kimi.com/coding/")
+      form.setValue("model", "kimi-latest")
     }
   }
 
@@ -218,6 +221,7 @@ export function LLMSettings() {
                         Qwen / DashScope (Aliyun)
                       </SelectItem>
                       <SelectItem value="deepseek">DeepSeek</SelectItem>
+                      <SelectItem value="kimi">Kimi (Moonshot)</SelectItem>
                       <SelectItem value="ollama">Ollama (Local)</SelectItem>
                       <SelectItem value="generic">
                         LMStudio / Generic (OpenAI Compatible)

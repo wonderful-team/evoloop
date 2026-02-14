@@ -39,12 +39,13 @@ export function LocalChatScreen() {
 
     addMessage({
       type: "user",
-      content: displayContent,
+      content: content,
       project_id: currentProject?.project_id,
       timestamp: Date.now(),
     })
 
     try {
+      // Use HTTP directly for command submission to support rich media and improve reliability
       await CommandService.sendCommand({
         device_id: Number(deviceId),
         content: {
@@ -56,6 +57,7 @@ export function LocalChatScreen() {
           },
         },
         project_id: currentProject?.project_id,
+        thread_id: activeThreadId, // Ensure session continuity across devices
       })
     } catch (e: any) {
       toast.error(t("chat.local.sendFailed") + e.message)
@@ -81,33 +83,30 @@ export function LocalChatScreen() {
   }, [searchParams.initialMessage])
 
   const { currentProject, isProjectInitialized } = useMobileStore()
-  const { isConnected, messages, clearMessages, addMessage, setMessages } =
-    useEvoLoopWebSocket(Number(deviceId))
+  const {
+    isConnected,
+    unifiedMessages, // <--- Hybrid stream
+    clearMessages,
+    addMessage,
+    setMessages,
+  } = useEvoLoopWebSocket(Number(deviceId))
 
-  // Fetch history
+  // Fetch history - Use LogsService for unified history
   useEffect(() => {
     if (deviceId && isProjectInitialized) {
-      let promise
-      if (highlight) {
-        promise = LogsService.getRecentLogs({
-          device_id: Number(deviceId),
-          limit: 20,
-        })
-      } else if (activeThreadId) {
-        // LogsService.list is mapped to /api/log/list which takes thread_id
-        promise = LogsService.getLogsByThread({
-          thread_id: activeThreadId,
-        })
-      } else {
-        promise = LogsService.getRecentLogs({
-          device_id: Number(deviceId),
-          limit: 50,
-          project_id: currentProject?.project_id,
-        })
+      if (activeThreadId === "") {
+        // Explicitly clear messages for New Chat
+        setMessages([])
+        return
       }
 
-      promise
-        .then((res: any) => {
+      // For highlight mode, use LogsService (debug context)
+      if (highlight) {
+        LogsService.getRecentLogs({
+          device_id: Number(deviceId),
+          limit: 20,
+          exclude_types: "error",
+        }).then((res: any) => {
           if (res.code >= 0 && Array.isArray(res.data)) {
             const logs = res.data
             const formatted = logs.map((log: any) => ({
@@ -118,18 +117,52 @@ export function LocalChatScreen() {
               log_id: log.log_id,
               timestamp: log.create_time ? log.create_time * 1000 : Date.now(),
             }))
+            setMessages(formatted as any)
+          }
+        }).catch(console.error)
+        return
+      }
 
-            if (highlight) {
-              // Context logs are usually ASC, so no reverse needed if backend returns ASC
-              setMessages(formatted as any)
-            } else {
-              // recent logs are DESC, so reverse for chat
-              setMessages(formatted.reverse() as any)
-            }
+      // Normal mode: Use LogsService for detailed history (tools/thoughts)
+      const promise = activeThreadId
+        ? LogsService.getLogsByThread({
+          thread_id: activeThreadId,
+          exclude_types: "error"
+        })
+        : LogsService.getRecentLogs({
+          device_id: Number(deviceId),
+          limit: 50,
+          project_id: currentProject?.project_id,
+          exclude_types: "error"
+        })
+
+      promise
+        .then((res: any) => {
+          if (res.code >= 0 && Array.isArray(res.data)) {
+            const logs = res.data
+            const formatted = logs.map((log: any) => {
+              let role = undefined
+              if (log.type === "user") role = "user"
+              if (["model", "assistant", "output", "answer"].includes(log.type)) role = "assistant"
+
+              return {
+                type: log.type || "info",
+                role: role,
+                content: log.content,
+                thread_id: log.thread_id,
+                project_id: log.project_id,
+                log_id: log.log_id,
+                timestamp: log.create_time ? log.create_time * 1000 : Date.now(),
+              }
+            })
+            // Logs are typically ASC for thread, DESC for recent
+            // If getLogsByThread sends ASC, we don't need reverse.
+            // If getRecentLogs sends DESC, we need reverse.
+            setMessages(activeThreadId ? formatted : formatted.reverse())
           }
         })
         .catch((err: any) => {
-          console.error("Failed to fetch history", err)
+          console.error("Failed to fetch logs", err)
         })
     }
   }, [
@@ -155,7 +188,8 @@ export function LocalChatScreen() {
       }
       return []
     },
-    refetchInterval: 5000,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: false,
   })
 
   // Ensure devices is an array before calling find
@@ -175,19 +209,14 @@ export function LocalChatScreen() {
       statusColor = "bg-green-500"
       statusShadow = "shadow-[0_0_8px_rgba(34,197,94,0.5)]"
     } else {
-      statusText = t("chat.local.deviceOffline")
-      statusColor = "bg-gray-400"
+      statusText = t("chat.local.agentOffline")
+      statusColor = "bg-red-500/80"
+      statusShadow = ""
     }
   } else {
     statusText = t("chat.local.connectingServer")
     statusColor = "bg-red-500"
   }
-
-
-
-  // Display all messages from the device in Local Chat.
-  // Filtering by project_id is often unreliable due to desktop/cloud ID differences.
-  const displayMessages = messages
 
   const handleHITLResponse = async (threadId: string, response: string, commandId?: number) => {
     try {
@@ -202,6 +231,7 @@ export function LocalChatScreen() {
           }
         },
         project_id: currentProject?.project_id,
+        thread_id: threadId, // Ensure HITL response goes to correct session
       })
 
       toast.success(t("hitl.responseSent"))
@@ -222,16 +252,19 @@ export function LocalChatScreen() {
         statusShadow={statusShadow}
         activeThreadId={activeThreadId}
         onThreadSelect={setActiveThreadId}
-        onClear={clearMessages}
+        onClear={() => {
+          clearMessages()
+        }}
       />
 
       <MessageList
-        messages={displayMessages}
+        messages={unifiedMessages as any} // Pass hybrid stream
         isProjectInitialized={isProjectInitialized}
         isDeviceOnline={isDeviceOnline}
         highlight={highlight}
         onHITLResponse={handleHITLResponse}
         onStarterClick={handleSend}
+        showStarters={unifiedMessages.length === 0}
       />
 
       {/* Back to Live FAB */}

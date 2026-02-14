@@ -44,7 +44,8 @@ export function DevicesScreen() {
       }
       return []
     },
-    refetchInterval: 5000,
+    refetchInterval: 10000,
+    refetchOnWindowFocus: false,
     retry: false,
     enabled: !!token,
   })

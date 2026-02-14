@@ -62,6 +62,21 @@ export function LocalSessionDrawer({
         setIsOpen(false)
     }
 
+    const getDisplayTitle = (title: string) => {
+        if (!title) return t("conversation.untitled")
+        if (title.trim().startsWith("{") && title.trim().endsWith("}")) {
+            try {
+                const parsed = JSON.parse(title)
+                if (parsed.command_type === "chat" && parsed.params?.message) {
+                    return parsed.params.message
+                }
+            } catch (e) {
+                // Not JSON or parse error, fallback to original
+            }
+        }
+        return title
+    }
+
     return (
         <Sheet open={isOpen} onOpenChange={setIsOpen}>
             <SheetTrigger asChild>
@@ -88,7 +103,7 @@ export function LocalSessionDrawer({
                             onClick={() => handleSelect(s.thread_id)}
                         >
                             <div className="font-medium text-sm truncate mb-1">
-                                {s.title || t("conversation.untitled")}
+                                {getDisplayTitle(s.title)}
                             </div>
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] text-muted-foreground truncate max-w-[180px]">

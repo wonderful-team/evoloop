@@ -230,6 +230,7 @@ export function CloudChatScreen() {
         isProjectInitialized={true} // Always true for Cloud
         isDeviceOnline={true} // Always true for Cloud
         highlight={null}
+        showStarters={false}
       />
       {isLoading && (
         <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-background/80 px-3 py-1 rounded-full text-xs shadow-sm">

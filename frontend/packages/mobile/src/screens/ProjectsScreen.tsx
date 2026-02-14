@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { FolderOpen, Loader2 } from "lucide-react"
 import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
 import { ProjectsService } from "../client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
@@ -11,12 +10,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@evoloop/shared/components/ui/card"
-import { useMobileStore } from "../stores/useMobileStore"
 
 export function ProjectsScreen() {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const { setCurrentProject } = useMobileStore()
   const token = localStorage.getItem("evoloop_token")
   const isGuest = !token
 
@@ -71,16 +68,12 @@ export function ProjectsScreen() {
   const projects = (data as any)?.list || []
 
   const handleProjectClick = async (project: any) => {
+    // If we have a preferred device/last selected device, we go there.
     if (project.device_id) {
-      setCurrentProject(project)
-      toast.info(t("projectSwitcher.switching", { name: project.project_name }))
-
-      // Sync backend
-      // await EvoLoopApi.switchCloudProject(project.project_id)
-
       navigate({ to: `/chat/${project.device_id}` as any })
     } else {
-      toast.error(t("projects.errorMissingDeviceId"))
+      // If no device_id, go to devices list
+      navigate({ to: "/devices" as any })
     }
   }
 

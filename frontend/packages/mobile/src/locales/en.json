@@ -86,6 +86,7 @@
       "sessions": "Local Sessions",
       "connectingServer": "Connecting to Server...",
       "agentOnline": "Agent Online",
+      "agentOffline": "Agent Offline",
       "deliveryFailed": "Failed to deliver message: ",
       "connecting": "Connecting...",
       "deviceOffline": "Device Offline",
@@ -127,6 +128,9 @@
         "helpDesc": "Get guidance",
         "help": "Help me understand this project"
       }
+    },
+    "toolGroup": {
+      "title": "Executed {{count}} tools"
     }
   },
   "conversation": {
@@ -258,7 +262,9 @@
     "searchPlaceholder": "Search project...",
     "label": "Project",
     "select": "Select Project",
-    "switched": "Switched to {{name}}"
+    "switched": "Switched to {{name}}",
+    "title": "Select Project",
+    "noProjects": "No projects found"
   },
   "devices": {
     "guestDesc": "Access your remote devices and control them from anywhere.",
@@ -313,6 +319,7 @@
     "no": "No",
     "approve": "Approve",
     "yes": "Yes",
+    "loading": "Loading...",
     "error": {
       "title": "Error"
     }

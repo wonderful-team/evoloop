@@ -89,28 +89,23 @@ export function MobileProjectSwitcher({
       return
     }
 
-    // Optimistic update
-    setInternalProject(selected) // Update internal immediately
-    onProjectChange?.(selected) // Notify parent
-    setOpen(false)
-
-    toast.info(t("projectSwitcher.switching", { name: selected.project_name }))
-
     try {
-      toast.info(
-        t("projectSwitcher.switching", { name: selected.project_name }),
-      )
+      toast.info(t("projectSwitcher.switching", { name: selected.project_name }))
 
-      // Deprecated: Switch logic is now client-side or implicit.
-      // await EvoLoopApi.switchCloudProject(selected.project_id)
-      // Just notify success
-      setTimeout(() => {
-        toast.success(
-          t("projectSwitcher.switched", { name: selected.project_name }),
-        )
-      }, 300)
-    } catch (_e: any) {
-      // Logic removed
+      // Sync backend
+      await ProjectsService.switchProject(selected.project_id)
+
+      // Optimistic update
+      setInternalProject(selected) // Update internal immediately
+      onProjectChange?.(selected) // Notify parent
+      setOpen(false)
+
+      toast.success(
+        t("projectSwitcher.switched", { name: selected.project_name }),
+      )
+    } catch (error: any) {
+      console.error("Switch project failed:", error)
+      toast.error(error.message || "Failed to switch project")
     }
   }
 

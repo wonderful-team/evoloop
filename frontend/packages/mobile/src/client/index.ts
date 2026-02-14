@@ -117,7 +117,8 @@ export class LogsService {
     public static async getRecentLogs(params: {
         device_id: number;
         limit?: number;
-        project_id?: number
+        project_id?: number;
+        exclude_types?: string
     }): Promise<ApiResponse<any[]>> {
         return client.get("/evolooplink/api/log/recent", { params })
     }
@@ -128,7 +129,8 @@ export class LogsService {
      */
     public static async getLogsByThread(params: {
         thread_id: string;
-        since_id?: number
+        since_id?: number;
+        exclude_types?: string
     }): Promise<ApiResponse<any[]>> {
         return client.get("/evolooplink/api/log/list", { params })
     }
@@ -141,7 +143,8 @@ export class LogsService {
         q: string;
         device_id?: number;
         project_id?: number;
-        limit?: number
+        limit?: number;
+        exclude_types?: string
     }): Promise<ApiResponse<any[]>> {
         return client.get("/evolooplink/api/log/search", { params })
     }
@@ -237,6 +240,14 @@ export class ProjectsService {
      */
     public static async getCurrentProject(): Promise<ApiResponse<any>> {
         return client.get("/projectmanage/api/projectOpen/getCurrentProject")
+    }
+
+    /**
+     * Switch Current Project
+     * POST /projectmanage/api/projectOpen/switchProject
+     */
+    public static async switchProject(projectId: number): Promise<ApiResponse<{ project_id: number; project_name: string }>> {
+        return client.post("/projectmanage/api/projectOpen/switchProject", { project_id: projectId })
     }
 }
 
