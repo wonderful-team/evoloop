@@ -190,7 +190,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
                     "due_date": conclusion.proactive_todo.due_date,
                     "category": "proactive",
                     "priority": "medium",
-                    "description": f"Auto-created: {conclusion.proactive_todo.reason}",
+                    "description": conclusion.proactive_todo.reason,
                 },
                 config={**config, "metadata": {**config.get("metadata", {}), "message_id": final_message_id}},
             )
