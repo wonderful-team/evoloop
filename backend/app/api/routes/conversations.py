@@ -69,6 +69,7 @@ class MessageItem(BaseModel):
     parent_id: int | None = None  # Phase 8: Threading
     references: list[ReferenceItem] = []  # Phase 9: Persistent References
     steps: list[ToolStep] = []  # Phase 24: Tool Execution Steps
+    has_file_operations: bool = False  # For Undo/Retry optimization
 
 
 class ChangesetNode(BaseModel):
@@ -138,6 +139,14 @@ async def get_conversation_messages(thread_id: str):
             result = await session.execute(stmt)
             db_messages = result.scalars().all()
 
+            # Phase 17: Undo Optimization - Pre-check file operations
+            file_ops_stmt = (
+                select(FileOperation.message_id)
+                .where(FileOperation.thread_id == thread_id)
+            )
+            file_ops_result = await session.execute(file_ops_stmt)
+            messages_with_files = set(file_ops_result.scalars().all())
+
             # Phase 24: Server-Side Tool Folding
             # We aggregate 'tool' messages into the 'steps' of the preceding 'ai' message.
             final_items = []
@@ -173,6 +182,7 @@ async def get_conversation_messages(thread_id: str):
                         parent_id=m.parent_id,
                         references=refs,
                         steps=[],
+                        has_file_operations=str(m.id) in messages_with_files,
                     )
                     final_items.append(item)
                     last_ai_item = None
@@ -190,6 +200,7 @@ async def get_conversation_messages(thread_id: str):
                         parent_id=m.parent_id,
                         references=refs,
                         steps=[],
+                        has_file_operations=str(m.id) in messages_with_files,
                     )
 
                     # Store as potential parent for subsequent tool outputs

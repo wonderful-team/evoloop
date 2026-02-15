@@ -73,11 +73,12 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
     """
     Ensure the message history is valid for strict LLM APIs (like Anthropic/GLM).
     1. No orphaned ToolMessages (must have preceding AIMessage with tool_calls).
-    2. No consecutive messages of same role (Human->Human, AI->AI).
-    3. No empty content allowed.
+    2. No dangling ToolCalls (must be followed by ToolMessages).
+    3. No consecutive messages of same role (Human->Human, AI->AI).
+    4. No empty content allowed.
     """
-    repaired = []
-
+    # Phase 1: Basic cleanup & Orphaned ToolMessage repair
+    stage1 = []
     for msg in messages:
         # Check for empty content
         if not msg.content and not isinstance(msg, ToolMessage | AIMessage):
@@ -88,10 +89,10 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
             continue
 
         if isinstance(msg, ToolMessage):
-            # 1. Orphan Check
+            # Orphan Check
             is_orphaned = True
-            if repaired:
-                last = repaired[-1]
+            if stage1:
+                last = stage1[-1]
                 if isinstance(last, AIMessage) and last.tool_calls:
                     ids = [tc["id"] for tc in last.tool_calls]
                     if msg.tool_call_id in ids:
@@ -106,38 +107,70 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
                         "args": {}
                     }]
                 )
-                repaired.append(dummy)
+                stage1.append(dummy)
 
-            repaired.append(msg)
+            stage1.append(msg)
             continue
 
-        # 2. Strict Role Alternation (Merge consecutive same-role)
-        if repaired:
-            last = repaired[-1]
+        # Strict Role Alternation (Merge consecutive same-role)
+        if stage1:
+            last = stage1[-1]
             if type(last) is type(msg) and isinstance(msg, HumanMessage | AIMessage):
                 # Merge content
                 new_content = f"{last.content}\n\n{msg.content}"
-                # Update last message in place
                 last.content = new_content
                 continue
 
-        repaired.append(msg)
+        stage1.append(msg)
 
-    # 3. Ensure Conversation Starts with Human (for strict APIs like Zhipu/Anthropic)
-    # Find first non-System message
-    non_system_indices = [i for i, m in enumerate(repaired) if not isinstance(m, SystemMessage)]
+    # Phase 2: Dangling ToolCall repair (AIMessage with tool_calls must be followed by ToolMessages)
+    final_repaired = []
+    open_tool_calls = {}  # id -> name
+
+    for i, msg in enumerate(stage1):
+        # If we see a Human/AI message but have open tool calls from previous AI message,
+        # we MUST close them first (Anthropic requirement).
+        if isinstance(msg, HumanMessage | AIMessage) and open_tool_calls:
+            for tcid, tname in list(open_tool_calls.items()):
+                final_repaired.append(ToolMessage(
+                    content="[System: Result omitted or context interrupted. Respond to remaining context.]",
+                    tool_call_id=tcid,
+                    name=tname
+                ))
+            open_tool_calls = {}
+
+        if isinstance(msg, AIMessage) and msg.tool_calls:
+            for tc in msg.tool_calls:
+                open_tool_calls[tc["id"]] = tc["name"]
+
+        if isinstance(msg, ToolMessage):
+            # Clear opened call
+            if msg.tool_call_id in open_tool_calls:
+                del open_tool_calls[msg.tool_call_id]
+
+        final_repaired.append(msg)
+
+    # Phase 3: Final check for trailing tool calls (history cannot end with AIMessage(tool_calls))
+    if open_tool_calls and final_repaired:
+        # If the very last message has dangling calls, we scrub them from that message
+        # rather than appending dummy ToolMessages (better for model continuation).
+        last = final_repaired[-1]
+        if isinstance(last, AIMessage) and last.tool_calls:
+            # Only keep tool calls that matched ToolMessages (which should be none if they are in open_tool_calls)
+            last.tool_calls = [tc for tc in last.tool_calls if tc["id"] not in open_tool_calls]
+            if not last.content and not last.tool_calls:
+                final_repaired.pop()
+
+    # Phase 4: Start with Human
+    non_system_indices = [idx for idx, m in enumerate(final_repaired) if not isinstance(m, SystemMessage)]
     if non_system_indices:
         first_idx = non_system_indices[0]
-        first_msg = repaired[first_idx]
-        if isinstance(first_msg, AIMessage):
-            # Prepend dummy Human Message to satisfy "User must start" rule
-            repaired.insert(first_idx, HumanMessage(content=i18n.get("prompts.core_utils.conversation_continuation")))
-    else:
-        # CASE: Only SystemMessages exist, or list is empty.
-        # Strict APIs (Anthropic/Zhipu) require at least one HumanMessage.
-        repaired.append(HumanMessage(content=i18n.get("prompts.core_utils.conversation_continuation")))
+        if isinstance(final_repaired[first_idx], AIMessage):
+            final_repaired.insert(first_idx, HumanMessage(content=i18n.get("prompts.core_utils.conversation_continuation")))
+    elif not final_repaired:
+        final_repaired.append(HumanMessage(content=i18n.get("prompts.core_utils.conversation_continuation")))
 
-    return repaired
+    return final_repaired
 
 
 def smart_window_slice(messages: list[BaseMessage], window_size: int = 30) -> list[BaseMessage]:
