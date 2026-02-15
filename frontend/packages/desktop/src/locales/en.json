@@ -171,7 +171,20 @@
       },
       "aiOptimize": "AI Optimize",
       "aiOptimizeDesc": "Refine description and triggers using AI",
-      "preview": "Live Preview"
+      "preview": "Live Preview",
+      "noLogic": "No execution logic recorded yet",
+      "effectiveness": "Effectiveness",
+      "avgDuration": "Avg. Duration",
+      "recentRuns": "RECENT RUNS",
+      "phase6Notice": "Detailed execution logs will appear here in Phase 6.",
+      "untitledSkill": "Untitled Skill",
+      "noDescription": "No description provided.",
+      "editorInsights": "EDITOR INSIGHTS",
+      "triggersCount": "Triggers Count",
+      "complexity": "Complexity",
+      "complexityMedium": "Medium",
+      "complexityLow": "Low",
+      "previewNotice": "This is a live representation of how your skill will appear in the library."
     },
     "na": "N/A",
     "synthesize": "Synthesize Skill",
@@ -190,7 +203,8 @@
       "deviceId": "Device ID",
       "found": "Found",
       "liveOverlay": "Live Overlay Active",
-      "warning": "Warning"
+      "warning": "Warning",
+      "failedToStart": "Failed to start mirror"
     },
     "execution": {
       "noParams": "No parameters required.",
@@ -249,7 +263,18 @@
     "successes": "successes",
     "noParameters": "No parameters defined.",
     "steps": "Execution Steps",
-    "status": "Status"
+    "status": "Status",
+    "quickStart": "Quick Record",
+    "statusBadge": {
+      "active": "Active",
+      "draft": "Draft"
+    },
+    "tray": {
+      "quit": "Quit",
+      "show": "Show Main Interface",
+      "startRecording": "Start Recording (⌘R)",
+      "stopRecording": "Stop Recording (⌘R)"
+    }
   },
   "todos": {
     "create": {

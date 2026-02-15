@@ -9,8 +9,8 @@ interface MessageListProps {
     messages: Message[]
     isAgentWorking: boolean
     onAddToMemory?: (text: string) => void
-    onRewind?: () => void
-    onRetry?: () => void
+    onRewind?: (msg: Message) => void
+    onRetry?: (msg: Message) => void
     onQuote?: (msg: Message) => void
     onStarterClick?: (text: string) => void
 }
@@ -71,7 +71,7 @@ export function MessageList({
 
     return (
         <div className="flex-1 overflow-y-auto min-h-0 scroll-smooth" ref={scrollRef}>
-            <div className="space-y-2 max-w-3xl mx-auto pb-4">
+            <div className="space-y-2 max-w-4xl mx-auto pb-4">
 
                 {/* Empty State */}
                 {messages.length === 0 && (
@@ -120,8 +120,8 @@ export function MessageList({
                             isGrouped={msg.isGrouped}
                             showAvatar={msg.showAvatar}
                             onAddToMemory={onAddToMemory ? (txt) => onAddToMemory(txt) : undefined}
-                            onRewind={onRewind}
-                            onRetry={onRetry}
+                            onRewind={onRewind ? () => onRewind(msg) : undefined}
+                            onRetry={onRetry ? () => onRetry(msg) : undefined}
                             onQuote={() => onQuote?.(msg)}
                         />
                     </div>

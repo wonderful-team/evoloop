@@ -6,6 +6,7 @@ import { BookOpen, GraduationCap, Sparkles, Server } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useState } from "react"
 import { McpView } from "@/components/Learning/McpView"
+import { RecordingButton } from "@/components/Chat/RecordingButton"
 
 export const Route = createFileRoute("/_layout/learning")({
     component: LearningPage,
@@ -19,16 +20,25 @@ function LearningPage() {
     return (
         <div className="flex flex-col h-full gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
             {/* Page Header */}
-            <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-3">
-                    <GraduationCap className="h-6 w-6 text-primary" />
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                        {t("learning.centerTitle", "Learning Center")}
-                    </h1>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-3">
+                        <GraduationCap className="h-6 w-6 text-primary" />
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                            {t("learning.centerTitle", "Learning Center")}
+                        </h1>
+                    </div>
+                    <p className="text-muted-foreground text-sm max-w-2xl">
+                        {t("learning.centerSubtitle", "Manage your learned skills and train the agent through interactive recording sessions.")}
+                    </p>
                 </div>
-                <p className="text-muted-foreground text-sm max-w-2xl">
-                    {t("learning.centerSubtitle", "Manage your learned skills and train the agent through interactive recording sessions.")}
-                </p>
+
+                <div className="flex items-center gap-2 bg-muted/30 p-1.5 rounded-xl border">
+                    <span className="text-xs font-medium text-muted-foreground px-2">
+                        {t("learning.quickStart", "Quick Record")}:
+                    </span>
+                    <RecordingButton threadId="global" />
+                </div>
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab as any} className="w-full h-full flex flex-col">

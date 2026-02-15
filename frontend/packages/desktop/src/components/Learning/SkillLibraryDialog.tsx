@@ -195,7 +195,7 @@ export function SkillLibraryDialog({
                           onClick={(e) => handleRunClick(selectedSkill, e)}
                         >
                           <Play className="h-4 w-4 mr-2" fill="currentColor" />
-                          {t("common.run", "Run")}
+                          {t("common.run")}
                         </Button>
                         <Button
                           variant="outline"
@@ -206,7 +206,7 @@ export function SkillLibraryDialog({
                           }}
                         >
                           <Edit className="h-4 w-4 mr-2" />
-                          {t("common.edit", "Edit")}
+                          {t("common.edit")}
                         </Button>
                         <Button
                           variant="destructive"

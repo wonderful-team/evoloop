@@ -409,7 +409,7 @@ export function ChatInterface() {
               onScroll={handleScroll}
               data-tour="chat-messages"
             >
-              <div className="space-y-6 max-w-3xl mx-auto pb-1">
+              <div className="space-y-6 max-w-4xl mx-auto pb-1">
                 <MessageList
                   messages={messages}
                   isAgentWorking={status === "running" || status === "interrupted" || status === "SUMMARIZING"}
@@ -417,13 +417,37 @@ export function ChatInterface() {
                     setMemoryContent(txt)
                     setIsMemoryDialogOpen(true)
                   }}
-                  onRewind={() => {
-                    setConfirmMode("rewind")
-                    setIsRewindDialogOpen(true)
+                  onRewind={(msg) => {
+                    // Check if any message from this point forward has file operations
+                    const index = messages.findIndex(m => m.id === msg.id)
+                    const subMessages = messages.slice(index)
+                    // messages are from backend, so we check has_file_operations (which we just added)
+                    // @ts-ignore
+                    const hasFiles = subMessages.some(m => m.has_file_operations)
+
+                    if (hasFiles) {
+                      setConfirmMode("rewind")
+                      setIsRewindDialogOpen(true)
+                    } else {
+                      rewindMutation.mutate(false) // No files to revert anyway
+                    }
                   }}
-                  onRetry={() => {
-                    setConfirmMode("retry")
-                    setIsRewindDialogOpen(true)
+                  onRetry={(_msg) => {
+                    // Retry usually implies deleting everything after the LAST user message
+                    // Finding the last human index
+                    const lastHumanIndex = [...messages].reverse().findIndex(m => m.role === "user")
+                    const actualIndex = lastHumanIndex === -1 ? 0 : messages.length - 1 - lastHumanIndex
+                    const subMessages = messages.slice(actualIndex + 1)
+
+                    // @ts-ignore
+                    const hasFiles = subMessages.some(m => m.has_file_operations)
+
+                    if (hasFiles) {
+                      setConfirmMode("retry")
+                      setIsRewindDialogOpen(true)
+                    } else {
+                      retryMutation.mutate(false) // No files to revert
+                    }
                   }}
                   onQuote={(msg) => handleQuoteMessage(msg)}
                   onStarterClick={(text) => sendMessage(text)}

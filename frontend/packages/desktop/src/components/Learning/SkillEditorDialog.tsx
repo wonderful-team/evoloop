@@ -365,7 +365,7 @@ export function SkillEditorDialog({
                                             {steps.length === 0 && (
                                                 <div className="text-center py-20 opacity-20 flex flex-col items-center">
                                                     <History className="h-16 w-16 mb-4" />
-                                                    <p className="text-sm font-medium">No execution logic recorded yet</p>
+                                                    <p className="text-sm font-medium">{t("learning.editor.noLogic")}</p>
                                                 </div>
                                             )}
                                             {steps.map((step: any, i: number) => (
@@ -406,22 +406,22 @@ export function SkillEditorDialog({
                                             <div className="bg-purple-500/5 border border-purple-500/10 p-6 rounded-3xl flex flex-col items-center text-center gap-2">
                                                 <TrendingUp className="h-8 w-8 text-purple-500 mb-2" />
                                                 <span className="text-3xl font-black text-primary">92%</span>
-                                                <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Effectiveness</span>
+                                                <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">{t("learning.editor.effectiveness")}</span>
                                             </div>
                                             <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-3xl flex flex-col items-center text-center gap-2">
                                                 <History className="h-8 w-8 text-blue-500 mb-2" />
                                                 <span className="text-3xl font-black text-primary">12s</span>
-                                                <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Avg. Duration</span>
+                                                <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">{t("learning.editor.avgDuration")}</span>
                                             </div>
                                         </div>
 
                                         <div className="bg-muted/10 border p-6 rounded-3xl space-y-4">
                                             <h4 className="text-sm font-bold opacity-60 flex items-center gap-2">
                                                 <History className="h-4 w-4" />
-                                                RECENT RUNS
+                                                {t("learning.editor.recentRuns")}
                                             </h4>
                                             <div className="space-y-2 opacity-40 italic text-xs text-center py-10">
-                                                Detailed execution logs will appear here in Phase 6.
+                                                {t("learning.editor.phase6Notice")}
                                             </div>
                                         </div>
                                     </TabsContent>
@@ -468,9 +468,9 @@ export function SkillEditorDialog({
                                         </Badge>
                                     </div>
                                     <div className="space-y-1">
-                                        <h3 className="font-bold text-lg leading-tight line-clamp-1">{name || "Untitled Skill"}</h3>
+                                        <h3 className="font-bold text-lg leading-tight line-clamp-1">{name || t("learning.editor.untitledSkill")}</h3>
                                         <p className="text-[11px] text-muted-foreground line-clamp-3 leading-relaxed">
-                                            {description || "No description provided."}
+                                            {description || t("learning.editor.noDescription")}
                                         </p>
                                     </div>
                                     <div className="flex flex-wrap gap-1.5 pt-1">
@@ -500,26 +500,26 @@ export function SkillEditorDialog({
                                 <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 space-y-3">
                                     <div className="flex items-center gap-2 text-[10px] font-bold text-primary italic">
                                         <Info className="h-3 w-3" />
-                                        EDITOR INSIGHTS
+                                        {t("learning.editor.editorInsights")}
                                     </div>
                                     <div className="grid gap-2">
                                         <div className="flex justify-between text-[9px] font-medium">
-                                            <span className="opacity-60">Triggers Count</span>
+                                            <span className="opacity-60">{t("learning.editor.triggersCount")}</span>
                                             <span className={triggers.length === 0 ? "text-destructive" : "text-green-600"}>{triggers.length}</span>
                                         </div>
                                         <div className="flex justify-between text-[9px] font-medium">
-                                            <span className="opacity-60">Parameters</span>
+                                            <span className="opacity-60">{t("learning.editor.parameters")}</span>
                                             <span className={params.length === 0 ? "text-yellow-600" : "text-primary"}>{params.length}</span>
                                         </div>
                                         <div className="flex justify-between text-[9px] font-medium">
-                                            <span className="opacity-60">Complexity</span>
-                                            <span className="font-bold">{steps.length > 5 ? "Medium" : "Low"}</span>
+                                            <span className="opacity-60">{t("learning.editor.complexity")}</span>
+                                            <span className="font-bold">{steps.length > 5 ? t("learning.editor.complexityMedium") : t("learning.editor.complexityLow")}</span>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="text-[10px] text-muted-foreground/40 text-center px-4 leading-relaxed">
-                                    This is a live representation of how your skill will appear in the library.
+                                    {t("learning.editor.previewNotice")}
                                 </div>
                             </div>
                         </ScrollArea>

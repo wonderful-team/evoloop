@@ -35,7 +35,7 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
             }
         },
         onError: (err: any) => {
-            toast.error(err.message || "Failed to start mirror");
+            toast.error(err.message || t('learning.mirror.failedToStart'));
         }
     });
 

@@ -4,9 +4,11 @@ import { useActionRecorder } from "@/hooks/useActionRecorder"
 import { useGlobalRecorder } from "@/hooks/useGlobalRecorder"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
+import { listen } from "@tauri-apps/api/event"
+import { invoke } from "@tauri-apps/api/core"
 
 export function GlobalRecorderManager() {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
     const {
         isRecording: shouldRecord,
         activeThreadId,
@@ -15,6 +17,40 @@ export function GlobalRecorderManager() {
         setSessionId,
         stopRecording // to sync back if error
     } = useRecordingStore()
+
+    // Sync static translations to tray
+    useEffect(() => {
+        invoke("sync_tray_translations", {
+            showText: t("learning.tray.show", "Show Main Interface"),
+            quitText: t("learning.tray.quit", "Quit")
+        })
+    }, [i18n.language, t])
+
+    // Sync state to tray
+    useEffect(() => {
+        invoke("sync_tray_recording_state", {
+            isRecording: shouldRecord,
+            startText: t("learning.tray.startRecording", "Start Recording (⌘R)"),
+            stopText: t("learning.tray.stopRecording", "Stop Recording (⌘R)")
+        })
+    }, [shouldRecord, i18n.language, t])
+
+    // Listen for tray events
+    useEffect(() => {
+        console.log("[GlobalRecorderManager] Setting up tray listener")
+        const unlisten = listen("tray-record-toggle", () => {
+            console.log("[GlobalRecorderManager] Tray toggle received")
+            const state = useRecordingStore.getState()
+            if (state.isRecording) {
+                state.stopRecording()
+            } else {
+                state.startRecording("global")
+            }
+        })
+        return () => {
+            unlisten.then(f => f())
+        }
+    }, [])
 
     // We use the hooks here, but control them via the store's state
     const domRecorder = useActionRecorder({

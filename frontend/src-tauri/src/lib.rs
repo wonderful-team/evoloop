@@ -1,14 +1,13 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent, TrayIcon};
+use tauri::WindowEvent;
 #[cfg(desktop)]
 use std::sync::{Arc, Mutex};
 #[cfg(desktop)]
 use tauri_plugin_shell::process::CommandChild;
 #[cfg(desktop)]
 use tauri_plugin_shell::ShellExt;
-#[cfg(desktop)]
-use tauri::tray::TrayIcon;
-use tauri::WindowEvent;
 
 #[cfg(desktop)]
 mod global_observer;
@@ -19,6 +18,9 @@ use global_observer::GlobalObserver;
 struct AppServiceState {
     children: Arc<Mutex<Vec<CommandChild>>>,
     tray: Arc<Mutex<Option<TrayIcon>>>,
+    record_item: Arc<Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>>,
+    show_item: Arc<Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>>,
+    quit_item: Arc<Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>>,
     global_observer: Arc<GlobalObserver>,
 }
 
@@ -93,10 +95,39 @@ fn is_global_recording(state: tauri::State<'_, AppServiceState>) -> bool {
 }
 
 #[tauri::command]
-#[cfg(mobile)]
-fn is_global_recording() -> bool {
-    false
+#[cfg(desktop)]
+fn sync_tray_recording_state(state: tauri::State<'_, AppServiceState>, is_recording: bool, start_text: String, stop_text: String) {
+    let item_lock = state.record_item.lock().unwrap();
+    if let Some(record_item) = item_lock.as_ref() {
+        let text = if is_recording { stop_text } else { start_text };
+        let _ = record_item.set_text(text);
+    }
 }
+
+#[tauri::command]
+#[cfg(desktop)]
+fn sync_tray_translations(state: tauri::State<'_, AppServiceState>, show_text: String, quit_text: String) {
+    {
+        let item_lock = state.show_item.lock().unwrap();
+        if let Some(show_item) = item_lock.as_ref() {
+            let _ = show_item.set_text(show_text);
+        }
+    }
+    {
+        let item_lock = state.quit_item.lock().unwrap();
+        if let Some(quit_item) = item_lock.as_ref() {
+            let _ = quit_item.set_text(quit_text);
+        }
+    }
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+fn sync_tray_recording_state() {}
+
+#[tauri::command]
+#[cfg(mobile)]
+fn sync_tray_translations() {}
 
 // ... existing capture_screenshot ...
 
@@ -161,21 +192,29 @@ pub fn run() {
 
         #[cfg(desktop)]
         {
+             let quit_i = MenuItem::with_id(_app, "quit", "退出", true, Some("CmdOrCtrl+Q"))?;
+             let show_i = MenuItem::with_id(_app, "show", "显示主界面", true, None::<&str>)?;
+             let record_i = MenuItem::with_id(_app, "record", "开始录制", true, Some("CmdOrCtrl+R"))?;
+
              let service_state = AppServiceState {
                  children: Arc::new(Mutex::new(Vec::new())),
                  tray: Arc::new(Mutex::new(None)),
+                 record_item: Arc::new(Mutex::new(Some(record_i.clone()))),
+                 show_item: Arc::new(Mutex::new(Some(show_i.clone()))),
+                 quit_item: Arc::new(Mutex::new(Some(quit_i.clone()))),
                  global_observer: Arc::new(GlobalObserver::new()),
              };
              _app.manage(service_state);
 
              // Create Tray Icon FIRST to ensure visibility
-             use tauri::menu::{Menu, MenuItem};
-             use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
              use tauri::image::Image;
 
-             let quit_i = MenuItem::with_id(_app, "quit", "退出", true, Some("CmdOrCtrl+Q"))?;
-             let show_i = MenuItem::with_id(_app, "show", "显示主界面", true, None::<&str>)?;
-             let menu = Menu::with_items(_app, &[&show_i, &quit_i])?;
+             let menu = Menu::with_items(_app, &[
+                 &show_i, 
+                 &record_i, 
+                 &PredefinedMenuItem::separator(_app)?,
+                 &quit_i
+             ])?;
      
              let icon_bytes = include_bytes!("../icons/logo-tray.png");
              let image_buffer = image::load_from_memory(icon_bytes)
@@ -207,6 +246,9 @@ pub fn run() {
                              let _ = window.show();
                              let _ = window.set_focus();
                          }
+                     }
+                     "record" => {
+                         let _ = app.emit("tray-record-toggle", ());
                      }
                      _ => {}
                  })
@@ -330,7 +372,9 @@ pub fn run() {
             stop_global_recording,
             is_global_recording,
             check_accessibility_permission,
-            open_accessibility_settings
+            open_accessibility_settings,
+            sync_tray_recording_state,
+            sync_tray_translations
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

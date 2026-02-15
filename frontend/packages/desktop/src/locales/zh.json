@@ -171,7 +171,20 @@
       },
       "aiOptimize": "AI 优化",
       "aiOptimizeDesc": "使用 AI 改进技能描述和触发短语",
-      "preview": "实时预览"
+      "preview": "实时预览",
+      "noLogic": "尚无记录的执行逻辑",
+      "effectiveness": "有效性",
+      "avgDuration": "平均时长",
+      "recentRuns": "最近运行",
+      "phase6Notice": "详细的执行日志将在第 6 阶段出现。",
+      "untitledSkill": "未命名技能",
+      "noDescription": "暂无描述。",
+      "editorInsights": "编辑器洞察",
+      "triggersCount": "触发器数量",
+      "complexity": "复杂度",
+      "complexityMedium": "中等",
+      "complexityLow": "低",
+      "previewNotice": "这是技能在库中显示效果的实时预览。"
     },
     "na": "暂无",
     "synthesize": "合成技能",
@@ -190,7 +203,8 @@
       "deviceId": "设备 ID",
       "found": "发现",
       "liveOverlay": "实时覆盖层已激活",
-      "warning": "警告"
+      "warning": "警告",
+      "failedToStart": "启动镜像失败"
     },
     "execution": {
       "noParams": "无需参数。",
@@ -249,7 +263,18 @@
     "successes": "次成功",
     "noParameters": "无自定义参数。",
     "steps": "执行步骤",
-    "status": "状态"
+    "status": "状态",
+    "quickStart": "快速录制",
+    "statusBadge": {
+      "active": "已激活",
+      "draft": "草稿"
+    },
+    "tray": {
+      "quit": "退出",
+      "show": "显示主界面",
+      "startRecording": "开始录制 (⌘R)",
+      "stopRecording": "停止录制 (⌘R)"
+    }
   },
   "todos": {
     "create": {
