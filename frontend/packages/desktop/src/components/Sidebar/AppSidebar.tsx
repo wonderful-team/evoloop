@@ -1,7 +1,6 @@
 import {
   FolderOpen,
   MessageSquare,
-  Server,
   Settings,
   ListTodo,
   Database,
@@ -54,12 +53,6 @@ export function AppSidebar() {
   ]
 
   const authItems: Item[] = [
-    {
-      icon: Server,
-      title: t("sidebar.mcpServers"),
-      path: "/mcp",
-      dataTour: "sidebar-mcp",
-    },
     {
       icon: GraduationCap,
       title: t("sidebar.learning"),

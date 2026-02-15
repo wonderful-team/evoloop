@@ -9,6 +9,8 @@ export interface LearnedSkill {
   created_at: string
   updated_at: string
   is_active: boolean
+  status?: string
+  steps?: any[] | string
 }
 
 export interface SkillParameter {

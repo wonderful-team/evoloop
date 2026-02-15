@@ -1,10 +1,11 @@
-import { Loader2, Sparkles, CheckCircle2 } from "lucide-react"
+import { Loader2, Sparkles, Info, Terminal, Settings2 } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { LearningService } from "@/client/sdk.gen"
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Button } from "@evoloop/shared/components/ui/button"
+import { Badge } from "@evoloop/shared/components/ui/badge"
 import {
   Dialog,
   DialogContent,
@@ -20,6 +21,7 @@ interface SynthesizeSkillDialogProps {
   sessionId: string
   threadId: string
   onSuccess?: () => void
+  onOpenEditor?: (skillId: number) => void
 }
 
 export function SynthesizeSkillDialog({
@@ -28,10 +30,11 @@ export function SynthesizeSkillDialog({
   sessionId,
   threadId,
   onSuccess,
+  onOpenEditor,
 }: SynthesizeSkillDialogProps) {
   const { t } = useTranslation()
   const [isSynthesizing, setIsSynthesizing] = useState(false)
-  const [result, setResult] = useState<{ id: number; name: string } | null>(null)
+  const [result, setResult] = useState<{ id: number; name: string; description?: string; trigger_patterns?: string[] } | null>(null)
   const [editedName, setEditedName] = useState("")
   const [isUpdating, setIsUpdating] = useState(false)
 
@@ -43,7 +46,12 @@ export function SynthesizeSkillDialog({
       })) as any
       if (response.success) {
         toast.success(t("learning.synthesisSuccess", "Skill created successfully!"))
-        setResult({ id: response.skill_id, name: response.skill_name })
+        setResult({
+          id: response.skill_id,
+          name: response.skill_name,
+          description: response.description,
+          trigger_patterns: response.trigger_patterns
+        })
         setEditedName(response.skill_name)
         onSuccess?.()
       } else {
@@ -58,7 +66,6 @@ export function SynthesizeSkillDialog({
   }
 
   const handleSaveAndClose = async () => {
-    // If we have a result and name is edited and different, save first
     if (result && editedName && editedName !== result.name) {
       setIsUpdating(true)
       try {
@@ -66,108 +73,98 @@ export function SynthesizeSkillDialog({
           skillId: result.id,
           requestBody: { name: editedName }
         })
-        toast.success(t("common.saved", "Saved"))
         onSuccess?.()
       } catch (error) {
         console.error("Update error:", error)
         toast.error(t("common.error.message", "Failed to update"))
-        // Don't close if error? Or close anyway? Usually keep open to retry.
         setIsUpdating(false)
         return
       }
-      setIsUpdating(false)
     }
-
-    // Close dialog
-    setResult(null)
-    setEditedName("")
-    onOpenChange(false)
+    setResult(null); setEditedName(""); onOpenChange(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-yellow-500" />
-            {result
-              ? t("learning.skillCreated", "Skill Created!")
-              : t("learning.createSkill", "Create Skill?")}
+            {result ? t("learning.skillCreated") : t("learning.createSkill")}
           </DialogTitle>
           <DialogDescription>
-            {result
-              ? t(
-                "learning.skillCreatedDesc",
-                "The skill has been added to your library.",
-              )
-              : t(
-                "learning.createSkillDesc",
-                "Analyze the recorded actions to create a reusable skill.",
-              )}
+            {result ? t("learning.skillCreatedDesc") : t("learning.createSkillDesc")}
           </DialogDescription>
         </DialogHeader>
 
         {result ? (
           <div className="py-4 space-y-4">
-            <div className="rounded-md bg-muted p-4 space-y-2">
-              <label className="text-sm font-medium text-muted-foreground">
-                {t("learning.skillName", "Skill Name")}
-              </label>
-              <div className="flex gap-2">
-                <Input
-                  value={editedName}
-                  onChange={(e) => setEditedName(e.target.value)}
-                  className="bg-background w-full"
-                />
-              </div>
+            <div className="grid gap-2">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground">{t("learning.skillName")}</label>
+              <Input value={editedName} onChange={(e) => setEditedName(e.target.value)} />
             </div>
-            <p className="text-sm text-green-600 flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4" />
-              {t("learning.skillSaved", "Skill saved to library.")}
-            </p>
+
+            {result.description && (
+              <div className="bg-muted/30 p-3 rounded-lg border border-dashed text-xs text-muted-foreground">
+                <div className="flex items-center gap-1.5 font-bold mb-1 uppercase text-[10px]">
+                  <Info className="h-3 w-3" /> {t("learning.editor.skillDescription")}
+                </div>
+                {result.description}
+              </div>
+            )}
+
+            {result.trigger_patterns && result.trigger_patterns.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 font-bold uppercase text-[10px] text-muted-foreground">
+                  <Terminal className="h-3 w-3" /> {t("learning.editor.triggerPatterns")}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {result.trigger_patterns.map((tag, i) => (
+                    <Badge key={i} variant="secondary" className="px-2 py-0 h-5 text-[10px] border">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 text-xs h-8 border-primary/20 hover:border-primary/50 text-primary"
+                onClick={() => {
+                  onOpenEditor?.(result.id)
+                  onOpenChange(false)
+                }}
+              >
+                <Settings2 className="h-3.5 w-3.5" />
+                {t("learning.centerSubtitle", "Open Full Editor")}
+              </Button>
+            </div>
           </div>
         ) : (
-          <div className="py-4 text-sm text-muted-foreground">
-            {t(
-              "learning.synthesisPrompt",
-              "This will use AI to analyze your actions and generate a parameterized skill that can be used later.",
-            )}
+          <div className="py-4 text-sm text-muted-foreground bg-muted/20 p-4 rounded-xl border border-dashed">
+            {t("learning.synthesisPrompt")}
           </div>
         )}
 
         <DialogFooter>
           {result ? (
-            <Button onClick={handleSaveAndClose} disabled={isUpdating}>
-              {isUpdating ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : null}
-              {editedName && result && editedName !== result.name
-                ? t("common.saveAndClose", "Save & Close")
-                : t("common.close", "Close")}
+            <Button onClick={handleSaveAndClose} disabled={isUpdating} className="w-full">
+              {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("common.saveAndClose")}
             </Button>
           ) : (
-            <>
-              <Button
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isSynthesizing}
-              >
-                {t("common.cancel", "Cancel")}
+            <div className="flex w-full gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSynthesizing} className="flex-1">
+                {t("common.cancel")}
               </Button>
-              <Button onClick={handleSynthesize} disabled={isSynthesizing}>
-                {isSynthesizing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t("learning.synthesizing", "Synthesizing...")}
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    {t("learning.synthesize", "Synthesize Skill")}
-                  </>
-                )}
+              <Button onClick={handleSynthesize} disabled={isSynthesizing} className="flex-1">
+                {isSynthesizing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                {t("learning.synthesize")}
               </Button>
-            </>
+            </div>
           )}
         </DialogFooter>
       </DialogContent>

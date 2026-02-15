@@ -173,7 +173,7 @@ pub fn run() {
              use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
              use tauri::image::Image;
 
-             let quit_i = MenuItem::with_id(_app, "quit", "彻底退出", true, Some("CmdOrCtrl+Q"))?;
+             let quit_i = MenuItem::with_id(_app, "quit", "退出", true, Some("CmdOrCtrl+Q"))?;
              let show_i = MenuItem::with_id(_app, "show", "显示主界面", true, None::<&str>)?;
              let menu = Menu::with_items(_app, &[&show_i, &quit_i])?;
      

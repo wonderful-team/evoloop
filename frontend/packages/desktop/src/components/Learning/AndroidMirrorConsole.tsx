@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Smartphone, RefreshCcw, Monitor, StopCircle, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { Smartphone, RefreshCcw, Monitor, StopCircle, AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { MirrorService } from '@/services/mirror';
 import { Button } from '@evoloop/shared/components/ui/button';
@@ -8,10 +8,17 @@ import { Card, CardContent, CardHeader, CardTitle } from '@evoloop/shared/compon
 import { Badge } from '@evoloop/shared/components/ui/badge';
 import { toast } from 'sonner';
 import { ScrollArea } from '@evoloop/shared/components/ui/scroll-area';
+import { SynthesizeSkillDialog } from './SynthesizeSkillDialog';
 
-export function AndroidMirrorConsole() {
+interface AndroidMirrorConsoleProps {
+    onOpenEditor?: (skillId: number) => void;
+}
+
+export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps) {
     const { t } = useTranslation();
     const [activeSession, setActiveSession] = useState<{ sessionId: string, deviceId: string } | null>(null);
+    const [synthesizeOpen, setSynthesizeOpen] = useState(false);
+    const [lastSessionId, setLastSessionId] = useState<string | null>(null);
 
     const { data, isLoading, refetch, isFetching } = useQuery({
         queryKey: ['mirror-devices'],
@@ -34,8 +41,10 @@ export function AndroidMirrorConsole() {
 
     const stopMutation = useMutation({
         mutationFn: (sessionId: string) => MirrorService.stopMirror(sessionId),
-        onSuccess: () => {
+        onSuccess: (_: any, sessionId: string) => {
             setActiveSession(null);
+            setLastSessionId(sessionId);
+            setSynthesizeOpen(true);
             toast.info(t('learning.mirror.stop'));
         }
     });
@@ -194,6 +203,28 @@ export function AndroidMirrorConsole() {
                                     {t('learning.mirror.liveOverlay')}
                                 </Badge>
                             </div>
+                        ) : lastSessionId ? (
+                            <div className="space-y-6 animate-in fade-in duration-500 text-center">
+                                <div className="relative h-20 w-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto border border-primary/20">
+                                    <Sparkles className="h-10 w-10 text-primary animate-pulse" />
+                                </div>
+                                <div className="space-y-2">
+                                    <h4 className="font-bold">{t('learning.createSkill')}</h4>
+                                    <p className="text-xs text-muted-foreground px-4">
+                                        {t('learning.createSkillDesc')}
+                                    </p>
+                                </div>
+                                <Button
+                                    className="gap-2 font-bold"
+                                    onClick={() => setSynthesizeOpen(true)}
+                                >
+                                    <Sparkles className="h-4 w-4" />
+                                    {t('learning.synthesize')}
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => setLastSessionId(null)} className="text-[10px] text-muted-foreground uppercase tracking-widest">
+                                    {t('common.cancel')}
+                                </Button>
+                            </div>
                         ) : (
                             <div className="space-y-6 opacity-40">
                                 <div className="h-20 w-20 bg-muted/50 rounded-2xl flex items-center justify-center mx-auto border-2 border-dashed border-muted-foreground/20">
@@ -211,6 +242,14 @@ export function AndroidMirrorConsole() {
                     </Card>
                 </div>
             </div>
+
+            <SynthesizeSkillDialog
+                open={synthesizeOpen}
+                onOpenChange={setSynthesizeOpen}
+                sessionId={lastSessionId || ""}
+                threadId="global"
+                onOpenEditor={onOpenEditor}
+            />
         </div>
     );
 }
