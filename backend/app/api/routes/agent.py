@@ -53,6 +53,12 @@ class WebhookRequest(BaseModel):
     thread_id: str | None = None
 
 
+class ResumeRequest(BaseModel):
+    thread_id: str
+    user_input: str | None = None  # Optional user response for HITL
+    command_id: int | None = None  # Explicit command_id for resumption trace
+
+
 # --- Endpoints ---
 
 
@@ -68,55 +74,22 @@ async def chat_endpoint(
     """
     set_context(thread_id=req.thread_id, project_id=req.project_id, command_id=req.command_id)
 
-    # 0. Context Injection (Phase 9)
-    # If referencing messages, fetch content and append to input
-    if req.attachments:
-        try:
-            async with session_scope() as session:
-                for att in req.attachments:
-                    if att.get("type") == "message" and att.get("id"):
-                        # Fetch message content
-                        try:
-                            msg_id = int(att["id"])
-                            ref_msg = await session.get(Message, msg_id)
-                            if ref_msg and ref_msg.content:
-                                # Append to user message for context
-                                # Use XML-like quoting or Markdown blockquote
-                                snippet = (
-                                    ref_msg.content[:500] + "..."
-                                    if len(ref_msg.content) > 500
-                                    else ref_msg.content
-                                )
-                                req.message += f"\n\n> Quoted Message ({att.get('name', 'Reference')}):\n{snippet}\n"
-                        except (ValueError, TypeError):
-                            logger.warning(f"Invalid message reference ID: {att.get('id')}")
-                            continue
-        except Exception as e:
-            logger.warning(f"Failed to inject reference context: {e}")
+    # --- Context Injection & Message Construction (Phase 9) ---
+    from app.core.context.reference_service import reference_service
+    
+    async with session_scope() as session:
+        ref_context = await reference_service.process_references(
+            message_text=req.message,
+            attachments=req.attachments or [],
+            session=session,
+            project_id=req.project_id
+        )
+    
+    content_blocks = ref_context.content_blocks
+    reference_notes = ref_context.reference_notes
 
-    # 1. Construct input state
-    if req.attachments:
-        # Multimodal Message Construction
-        content_blocks = []
-
-        for att in req.attachments:
-            if "url" in att:
-                content_blocks.append({
-                    "type": "image_url",
-                    "image_url": {"url": att["url"]}
-                })
-
-        # Add text block
-        if req.message:
-            content_blocks.append({
-                "type": "text",
-                "text": req.message
-            })
-
-        messages = [{"type": "human", "content": content_blocks}]
-    else:
-        # Standard Text Message
-        messages = [{"type": "human", "content": req.message}]
+    # Final LangChain message format
+    messages = [{"type": "human", "content": content_blocks}]
 
     inputs = {
         "messages": messages,
@@ -222,12 +195,13 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
     Retry the last user message.
     Rolls back history (deletes AI messages after last human msg) and restarts generation.
     """
-    from sqlalchemy import delete, select
+    from app.core.engine.history import history_service
+    from app.infrastructure.database.sql.database import session_scope
 
     retry_message_content = None
 
     async with session_scope() as session:
-        # 1. Find last human message
+        # 1. Find last human message BEFORE rewinding
         stmt = (
             select(Message)
             .where(Message.thread_id == req.thread_id)
@@ -242,34 +216,17 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
             raise HTTPException(status_code=404, detail="No human message found to retry")
 
         retry_message_content = last_human_msg.content
-        last_msg_id = last_human_msg.id
 
-        # 2. Get IDs of messages to be deleted (Context Awareness)
-        msgs_to_delete_stmt = (
-            select(Message.id)
-            .where(Message.thread_id == req.thread_id)
-            .where(Message.id > last_msg_id)
+    # 2. Perform Rewind (HistoryService handles DB, LangGraph and Files)
+    try:
+        rewind_result = await history_service.perform_rewind(
+            thread_id=req.thread_id,
+            revert_files=req.revert_files
         )
-        msgs_to_delete_result = await session.execute(msgs_to_delete_stmt)
-        msg_ids_to_clean = [str(r) for r in msgs_to_delete_result.scalars().all()]
-
-        # 2.5 Trigger Cleanup of Side Effects (Closed Loop)
-        files_reverted = 0
-        if msg_ids_to_clean:
-            # Cleanup service handles its own errors.
-            cleanup_result = await cleanup_side_effects(msg_ids_to_clean, revert_files=req.revert_files)
-            files_reverted = cleanup_result.get("FileUndoHandler", 0)
-
-        # 3. Delete all messages AFTER this human message
-        del_stmt = (
-            delete(Message)
-            .where(Message.thread_id == req.thread_id)
-            .where(Message.id > last_msg_id)
-        )
-        await session.execute(del_stmt)
-        # Session commits automatically on exit context if no error
-
-        logger.info(f"Retrying thread {req.thread_id} from message {last_msg_id}")
+        files_reverted = rewind_result.get("files_reverted", 0)
+    except Exception as e:
+        logger.error(f"History rewind failed during retry: {e}")
+        raise HTTPException(500, f"History rollback failed: {e}")
 
     # 3. Setup Context
     set_context(thread_id=req.thread_id, project_id=req.project_id)
@@ -293,12 +250,6 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
         "action": "retry",
         "files_reverted": files_reverted
     }
-
-
-class ResumeRequest(BaseModel):
-    thread_id: str
-    user_input: str | None = None  # Optional user response for HITL
-    command_id: int | None = None  # Explicit command_id for resumption trace
 
 
 @router.post("/chat/resume")

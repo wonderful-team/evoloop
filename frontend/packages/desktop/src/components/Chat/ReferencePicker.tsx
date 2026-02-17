@@ -71,10 +71,7 @@ export function ReferencePicker({ projectId, onSelect, onClose, className }: Ref
                 })
                 const mapped: ReferenceItem[] = res.map((c: any) => ({
                     type: "message",
-                    id: c.thread_id, // Use thread_id for now, or match_snippet ID if available? 
-                    // The search result has thread_id, role, content, created_at. 
-                    // Ideally we want to reference a specific message, but thread ref is also ok.
-                    // Let's assume we reference the thread or specific content.
+                    id: String(c.id), // Use specific message ID
                     name: c.content ? c.content.slice(0, 50) + "..." : "Message",
                     detail: `Thread: ${c.thread_id.slice(0, 8)}...`
                 }))

@@ -461,6 +461,7 @@
       "stop": "Stop Generation",
       "welcome": "How can I help you today?",
       "quote": "Quote",
+      "quoteFile": "Quote File",
       "selectProject": "Select a project to start chatting",
       "retrying": "Retrying from last user message...",
       "filesReverted": "files reverted",

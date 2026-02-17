@@ -7,6 +7,7 @@ import {
   RotateCcw,
   User,
   Quote,
+  Undo,
 } from "lucide-react"
 import { memo } from "react"
 import { useTranslation } from "react-i18next"
@@ -281,20 +282,20 @@ const ChatMessageItem = memo(
                         {t("chat.interface.memorize")}
                       </DropdownMenuItem>
                     )}
-                    {onRewind && (
-                      <DropdownMenuItem onClick={() => onRewind()}>
-                        <RotateCcw className="mr-2 h-4 w-4" />{" "}
-                        {t("chat.interface.rewind")}
-                      </DropdownMenuItem>
-                    )}
-                    {/* Quote Action */}
-                    {onQuote && (
-                      <DropdownMenuItem onClick={() => onQuote()}>
-                        <Quote className="mr-2 h-4 w-4" />{" "}
-                        {t("chat.interface.quote", "Quote")}
-                      </DropdownMenuItem>
-                    )}
                   </>
+                )}
+                {onRewind && (
+                  <DropdownMenuItem onClick={() => onRewind()}>
+                    <Undo className="mr-2 h-4 w-4" />{" "}
+                    {t("chat.interface.rewind")}
+                  </DropdownMenuItem>
+                )}
+                {/* Quote Action */}
+                {onQuote && (
+                  <DropdownMenuItem onClick={() => onQuote()}>
+                    <Quote className="mr-2 h-4 w-4" />{" "}
+                    {t("chat.interface.quote", "Quote")}
+                  </DropdownMenuItem>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>

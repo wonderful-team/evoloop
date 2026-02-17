@@ -60,29 +60,34 @@ async def manage_todo(
             # Parse relative time logic
             parsed_due_date = None
             if due_date:
+                raw_lower = due_date.lower().strip()
                 try:
-                    # Try ISO format first
+                    # 1. Try ISO format first
                     parsed_due_date = datetime.fromisoformat(due_date)
                 except ValueError:
-                    # Simple relative parsing logic
-                    now = utcnow()
-                    if "hour" in due_date:
-                        try:
-                            hours = int(re.search(r"(\d+)\s*hour", due_date).group(1))
-                            parsed_due_date = now + timedelta(hours=hours)
-                        except Exception:
-                            pass
-                    elif "min" in due_date:
-                        try:
-                            mins = int(re.search(r"(\d+)\s*min", due_date).group(1))
-                            parsed_due_date = now + timedelta(minutes=mins)
-                        except Exception:
-                            pass
-                    elif "tomorrow" in due_date:
-                        parsed_due_date = now + timedelta(days=1)
-
-                    if not parsed_due_date:
-                        return i18n.get("prompts.domain_tools.manage_todo.error_due_date", date=due_date)
+                    # 2. Check for "None/TBD" keywords (No date)
+                    if raw_lower in ["待定", "tbd", "none", "null", "pending", "unset"]:
+                        parsed_due_date = None
+                    else:
+                        # 3. Multilingual relative parsing
+                        now = utcnow()
+                        
+                        # Hours: (n) hours | (n) 小时
+                        h_match = re.search(r"(\d+)\s*(hour|小时)", raw_lower)
+                        # Mins: (n) mins | (n) minutes | (n) 分钟 | (n) 分
+                        m_match = re.search(r"(\d+)\s*(min|minute|分钟|分)", raw_lower)
+                        # Tomorrow: tomorrow | 明天
+                        t_match = re.search(r"(tomorrow|明天)", raw_lower)
+                        
+                        if h_match:
+                            parsed_due_date = now + timedelta(hours=int(h_match.group(1)))
+                        elif m_match:
+                            parsed_due_date = now + timedelta(minutes=int(m_match.group(1)))
+                        elif t_match:
+                            parsed_due_date = now + timedelta(days=1)
+                        
+                        if not parsed_due_date:
+                            return i18n.get("prompts.domain_tools.manage_todo.error_due_date", date=due_date)
 
             todo = TodoItem(
                 title=title,

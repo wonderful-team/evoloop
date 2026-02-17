@@ -152,6 +152,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     timestamp: m.created_at,
                     steps_snapshot: m.steps_snapshot, // Phase 6: Historical tasks
                     steps: m.steps || [], // Phase 24: Tool Execution Steps
+                    references: m.references || [], // Phase 9: Persistent References
                 }))
                 // Filter out empty messages AND 'tool' messages (which cause chat bubble explosion)
                 .filter((m: any) => (m.content || m.thinking) && m.originalType !== "tool")
@@ -437,6 +438,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             steps_snapshot: rawMsg.steps_snapshot,
             tool_calls: rawMsg.tool_calls, // Phase 24: Capture for matching
             steps: [], // Initialize empty
+            references: rawMsg.references || [], // Phase 9: Real-time references
         }
 
         // 2. Deduplicate

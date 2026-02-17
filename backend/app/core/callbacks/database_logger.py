@@ -263,6 +263,17 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         tool_output: str | None = None, # Deprecated
         action_type: str = "text",
     ):
+        # Phase 18 Fix: Sanitize content for PostgreSQL (No NUL bytes)
+        if content:
+            # 1. Strip NUL bytes which crash Postgres TEXT fields
+            content = content.replace("\x00", "")
+            
+            # 2. Truncate excessively large outputs (e.g. 300KB+ binary dumps)
+            # to keep DB and frontend performance stable.
+            LIMIT = 100000
+            if len(content) > LIMIT:
+                content = content[:LIMIT] + f"\n\n... (Truncated {len(content) - LIMIT} characters) ..."
+
         if not content and not thinking and not tool_calls:
             return
 

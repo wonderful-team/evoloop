@@ -23,6 +23,7 @@ router = APIRouter()
 
 
 class SearchResult(BaseModel):
+    id: int  # Message ID
     thread_id: str
     role: str
     content: str
@@ -91,6 +92,7 @@ class RewindResponse(BaseModel):
 
 class RewindRequest(BaseModel):
     revert_files: bool = True  # Whether to also revert file changes
+    message_id: str | None = None  # Optional: target message to rewind to
 
 
 @router.get("/", response_model=list[ConversationListItem])
@@ -182,7 +184,7 @@ async def get_conversation_messages(thread_id: str):
                         parent_id=m.parent_id,
                         references=refs,
                         steps=[],
-                        has_file_operations=str(m.id) in messages_with_files,
+                        has_file_operations=bool(str(m.id) in messages_with_files or (m.run_id and m.run_id in messages_with_files)),
                     )
                     final_items.append(item)
                     last_ai_item = None
@@ -200,7 +202,11 @@ async def get_conversation_messages(thread_id: str):
                         parent_id=m.parent_id,
                         references=refs,
                         steps=[],
-                        has_file_operations=str(m.id) in messages_with_files,
+                        has_file_operations=bool(
+                            str(m.id) in messages_with_files or 
+                            (m.run_id and m.run_id in messages_with_files) or
+                            any(tc.get("id") in messages_with_files for tc in (m.tool_calls or []) if isinstance(tc, dict))
+                        ),
                     )
 
                     # Store as potential parent for subsequent tool outputs
@@ -261,6 +267,7 @@ async def search_conversations(q: str, project_id: int | None = None):
 
         return [
             SearchResult(
+                id=log.id,
                 thread_id=log.thread_id,
                 role=log.role,
                 content=log.content,
@@ -330,73 +337,31 @@ async def rewind_conversation(thread_id: str, req: RewindRequest = RewindRequest
     Rewind the conversation to the previous state (Undo last step).
     Optionally revert file changes made by the Agent.
     """
-    graph = get_graph()
-
-    if not graph:
-        raise HTTPException(503, "Graph unavailable")
-
-    config = {"configurable": {"thread_id": thread_id}}
-    state = await graph.aget_state(config)
-
-    if not state.values:
-        return RewindResponse(status="empty", thread_id=thread_id)
-
-    messages = state.values.get("messages", [])
-    if not messages:
-        return RewindResponse(status="empty", thread_id=thread_id)
-
-    # Find the last HumanMessage
-    to_delete = []
-
-    # Iterate backwards
-    for i in range(len(messages) - 1, -1, -1):
-        msg = messages[i]
-        to_delete.append(msg)
-        if isinstance(msg, HumanMessage):
-            break
-
-    if not to_delete:
-        return RewindResponse(
-            status="no_human_message_found",
+    from app.core.engine.history import history_service
+    
+    try:
+        result = await history_service.perform_rewind(
             thread_id=thread_id,
-            removed_count=0,
+            target_message_id=req.message_id,
+            revert_files=req.revert_files
         )
-
-    updates = []
-    for m in to_delete:
-        if hasattr(m, "id") and m.id:
-            updates.append(RemoveMessage(id=m.id))
-
-    files_reverted = 0
-    if updates:
-        # 1. Update Graph State
-        await graph.aupdate_state(config, {"messages": updates})
-
-        # 2. Sync DB
-        msg_ids = [u.id for u in updates]
-        if msg_ids:
-            try:
-                # 2.5 Active Cleanup (Side Effects + File Undo)
-                cleanup_result = await cleanup_side_effects(msg_ids, revert_files=req.revert_files)
-                files_reverted = cleanup_result.get("FileUndoHandler", 0)
-
-                async with get_db_session() as session:
-                    await session.execute(
-                        delete(Message).where(Message.id.in_(msg_ids))
-                    )
-                    await session.commit()
-                logger.info(f"DB Sync: Deleted {len(msg_ids)} messages.")
-            except Exception as e:
-                logger.error(f"DB Sync Failed during rewind: {e}")
-
+        
+        if result["status"] == "empty":
+            return RewindResponse(status="empty", thread_id=thread_id)
+        if result["status"] == "message_not_found":
+            raise HTTPException(404, "Target message not found")
+        if result["status"] == "no_human_message_found":
+             return RewindResponse(status="no_human_message_found", thread_id=thread_id, removed_count=0)
+             
         return RewindResponse(
             status="rewound",
-            removed_count=len(updates),
+            removed_count=result["removed_count"],
             thread_id=thread_id,
-            files_reverted=files_reverted,
+            files_reverted=result["files_reverted"],
         )
-    else:
-        return RewindResponse(status="failed_no_ids", thread_id=thread_id, removed_count=0)
+    except Exception as e:
+        logger.error(f"Rewind failed: {e}")
+        raise HTTPException(500, str(e))
 
 
 @router.get("/{thread_id}/changeset", response_model=list[ChangesetNode])

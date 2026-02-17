@@ -48,6 +48,8 @@ export function ChatInterface() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [isRewindDialogOpen, setIsRewindDialogOpen] = useState(false)
   const [confirmMode, setConfirmMode] = useState<"rewind" | "retry">("rewind")
+  const [selectedMessageId, setSelectedMessageId] = useState<string | undefined>(undefined)
+  const [rewindContent, setRewindContent] = useState<string>("")
 
   // --- Store State ---
   // --- Store State (Granular Selectors to avoid full re-renders) ---
@@ -234,11 +236,14 @@ export function ChatInterface() {
 
   const rewindMutation = useMutation({
     // @ts-ignore
-    mutationFn: (revertFiles: boolean) =>
+    mutationFn: ({ revertFiles, messageId }: { revertFiles: boolean; messageId?: string }) =>
       // @ts-ignore
       ConversationsService.rewindConversation({
         threadId: activeThreadId!,
-        requestBody: { revert_files: revertFiles }
+        requestBody: {
+          revert_files: revertFiles,
+          message_id: messageId
+        }
       } as any),
     onSuccess: (data: any) => {
       // Reload store
@@ -246,6 +251,13 @@ export function ChatInterface() {
       const filesMsg = data.files_reverted && data.files_reverted > 0
         ? ` (${data.files_reverted} files reverted)`
         : ""
+
+      // If we are rewinding a human message, refill the input
+      if (rewindContent) {
+        chatInputRef.current?.setInput(rewindContent)
+        setRewindContent("")
+      }
+
       toast.success(`Rewinded${filesMsg}`)
       setIsRewindDialogOpen(false)
     },
@@ -294,6 +306,15 @@ export function ChatInterface() {
       // Let's use message ID.
       name: msg.content.slice(0, 50) + (msg.content.length > 50 ? "..." : ""),
       detail: msg.role
+    })
+  }
+
+  const handleQuoteFile = (file: any) => {
+    chatInputRef.current?.addReference({
+      type: 'file',
+      id: file.path,
+      name: file.name,
+      detail: file.path
     })
   }
 
@@ -376,6 +397,7 @@ export function ChatInterface() {
               setSelectedDiff({ path, diff })
               setIsDrawerOpen(true)
             }}
+            onQuoteFile={handleQuoteFile}
           />
         </ResizablePanel>
 
@@ -425,11 +447,20 @@ export function ChatInterface() {
                     // @ts-ignore
                     const hasFiles = subMessages.some(m => m.has_file_operations)
 
+                    setSelectedMessageId(msg.id.toString())
+
+                    // Capure content if it's a human message to refill later
+                    if (msg.role === "user") {
+                      setRewindContent(msg.content)
+                    } else {
+                      setRewindContent("")
+                    }
+
                     if (hasFiles) {
                       setConfirmMode("rewind")
                       setIsRewindDialogOpen(true)
                     } else {
-                      rewindMutation.mutate(false) // No files to revert anyway
+                      rewindMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
                     }
                   }}
                   onRetry={(_msg) => {
@@ -442,6 +473,7 @@ export function ChatInterface() {
                     // @ts-ignore
                     const hasFiles = subMessages.some(m => m.has_file_operations)
 
+                    setSelectedMessageId(undefined)
                     if (hasFiles) {
                       setConfirmMode("retry")
                       setIsRewindDialogOpen(true)
@@ -552,7 +584,7 @@ export function ChatInterface() {
         mode={confirmMode}
         onConfirm={(revertFiles) => {
           if (confirmMode === "rewind") {
-            rewindMutation.mutate(revertFiles)
+            rewindMutation.mutate({ revertFiles, messageId: selectedMessageId })
           } else {
             retryMutation.mutate(revertFiles)
           }

@@ -182,7 +182,7 @@
             },
             "manage_todo": {
                 "error_title": "Error: 'title' is required for adding a todo.",
-                "error_due_date": "Error: Could not parse due_date '{date}'. Please use ISO format or simple 'X hours/mins'.",
+                "error_due_date": "Error: Could not parse due_date '{date}'. Please use ISO format, relative time (e.g., '1 hour', '30 mins'), or 'TBD'.",
                 "success_add": "Todo created: [{priority}] {title} (ID: {id})",
                 "no_todos": "No todos found.",
                 "error_id": "Error: 'todo_id' is required for {action}.",

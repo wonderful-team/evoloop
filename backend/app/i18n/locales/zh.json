@@ -182,7 +182,7 @@
             },
             "manage_todo": {
                 "error_title": "错误：添加待办事项必须提供 'title'。",
-                "error_due_date": "错误：无法解析 due_date '{date}'。请使用 ISO 格式或简单的 'X hours/mins'。",
+                "error_due_date": "错误：无法解析 due_date '{date}'。请使用 ISO 格式、相对时间（如 '2小时'、'30分钟'）或 '待定'。",
                 "success_add": "待办事项已创建：[{priority}] {title} (ID: {id})",
                 "no_todos": "未找到待办事项。",
                 "error_id": "错误：{action} 操作必须提供 'todo_id'。",

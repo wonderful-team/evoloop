@@ -16,6 +16,7 @@ interface ChatSidebarProps {
   onStopThread: (id: string) => void
   onNewChat: () => void
   onSelectDiff?: (path: string, diff: string) => void
+  onQuoteFile?: (file: any) => void
 }
 
 export const ChatSidebar = memo(
@@ -28,6 +29,7 @@ export const ChatSidebar = memo(
     onStopThread,
     onNewChat,
     onSelectDiff,
+    onQuoteFile,
   }: ChatSidebarProps) => {
     const { t } = useTranslation()
 
@@ -74,6 +76,7 @@ export const ChatSidebar = memo(
               projectId={projectId}
               activeThreadId={activeThreadId}
               onSelectDiff={onSelectDiff}
+              onQuoteFile={onQuoteFile}
             />
           </TabsContent>
         </Tabs>

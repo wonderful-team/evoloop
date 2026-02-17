@@ -15,9 +15,10 @@ interface SidebarFilesTabProps {
   projectId?: number
   activeThreadId?: string
   onSelectDiff?: (path: string, diff: string) => void
+  onQuoteFile?: (file: any) => void
 }
 
-export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff }: SidebarFilesTabProps) {
+export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuoteFile }: SidebarFilesTabProps) {
   const { t } = useTranslation()
   const [isProjectOpen, setIsProjectOpen] = useState(true)
   const [isChangesOpen, setIsChangesOpen] = useState(false)
@@ -48,6 +49,7 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff }: Sid
                   navigator.clipboard.writeText(file.path)
                   toast.success(`Copied path: ${file.path}`)
                 }}
+                onQuoteFile={onQuoteFile}
               />
             ) : (
               <div className="p-4 text-center text-xs text-muted-foreground italic">
