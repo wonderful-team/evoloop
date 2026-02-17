@@ -15,6 +15,7 @@ from app.core.evocloud.schemas import EvoCloudConfig
 from app.utils import file as file_utils
 from app.utils.async_utils import run_in_thread
 from app.utils.id import gen_uuid
+from app.core.identity import identity_service
 
 logger = logging.getLogger(__name__)
 
@@ -55,23 +56,34 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         return self._device_id
 
     def _get_or_create_device_key(self) -> str:
-        # Use centralized path if available, fallback to legacy
+        # 1. Try secure storage first
+        dk = identity_service.store.get_device_key()
+        if dk:
+            return dk
+
+        # 2. Migration: Try legacy file
         base_dir = self.config.app_data_dir or os.path.expanduser("~")
         key_file = os.path.join(base_dir, ".evoloop_device_key")
         
-        # Legacy check
-        if not os.path.exists(key_file) and not self.config.app_data_dir:
-             legacy_file = os.path.expanduser("~/.evoloop_device_key")
-             if os.path.exists(legacy_file):
-                 key_file = legacy_file
+        legacy_file = os.path.expanduser("~/.evoloop_device_key")
+        if not os.path.exists(key_file) and os.path.exists(legacy_file):
+            key_file = legacy_file
 
         if os.path.exists(key_file):
-            return file_utils.read_file(key_file).strip()
-        else:
-            dk = gen_uuid()
-            os.makedirs(os.path.dirname(key_file), exist_ok=True)
-            file_utils.write_file(key_file, dk)
+            dk = file_utils.read_file(key_file).strip()
+            # Migrate to Keychain
+            identity_service.store.save_device_key(dk)
+            try:
+                os.remove(key_file)
+                logger.info(f"Migrated device key from {key_file} to secure storage")
+            except Exception as e:
+                logger.warning(f"Failed to remove legacy key file: {e}")
             return dk
+        
+        # 3. Create New
+        dk = gen_uuid()
+        identity_service.store.save_device_key(dk)
+        return dk
 
     def set_command_handler(self, handler: Callable):
         self._command_handler = handler

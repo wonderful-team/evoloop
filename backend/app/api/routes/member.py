@@ -1,8 +1,11 @@
+import json
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.api.deps import TokenDep
 from app.core.evocloud import evocloud_manager
+from app.core.identity import identity_service
 
 router = APIRouter(tags=["member"])
 
@@ -19,6 +22,26 @@ async def login(req: LoginRequest):
         raise HTTPException(
             status_code=401, detail=result.get("message", "Login failed")
         )
+    
+    # Process login via IdentityService and return local JWT
+    local_token = await identity_service.login_with_cloud_result(result)
+    if not local_token:
+         raise HTTPException(status_code=500, detail="Failed to initialize local session")
+    
+    # Update result to return local token
+    result["token"] = local_token
+
+    # Cache to Redis for fast access in deps.py
+    user_data = result.get("data", {})
+    member_id = result.get("member_id", 0)
+    if user_data and member_id:
+        try:
+            from app.infrastructure.database.redis import redis_client
+            async with redis_client:
+                await redis_client.set(f"evoloop:user:{member_id}", json.dumps(user_data), ex=86400)
+        except Exception:
+            pass
+
     return result
 
 
@@ -35,6 +58,8 @@ async def status():
 @router.post("/logout")
 async def logout():
     # Logout logic: Clear token and stop link
+    identity_service.logout()
+    
     if evocloud_manager.api:
         evocloud_manager.api.set_token(None)
     if evocloud_manager.link:

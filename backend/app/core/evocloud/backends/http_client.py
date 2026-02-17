@@ -9,10 +9,10 @@ import httpx
 
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.schemas import EvoCloudConfig
-from app.utils import file as file_utils
 from app.utils import http as http_utils
 from app.utils import json as json_utils
 from app.utils.security import generate_hmac_signature
+from app.core.identity import identity_service
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +27,11 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         self.base_url = str(config.api_url).rstrip("/")
         self.timeout = 30.0
 
-        self._user_token: str | None = config.access_token
-        self._member_id: int | None = None
         self._clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
 
         # Log Batching
         self._log_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
         self._flush_task: asyncio.Task | None = None
-
-        self._load_token()
 
     async def get_client(self) -> httpx.AsyncClient:
         """Get httpx client bound to current event loop"""
@@ -75,59 +71,28 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     # --- Auth Helpers ---
 
     def set_token(self, token: str | None) -> None:
-        self._user_token = token
+        if token:
+            identity_service.store.save_cloud_token(token)
+        else:
+            identity_service.store.delete_cloud_token()
     
     def get_token(self) -> str | None:
-        return self._user_token
+        return identity_service.get_cloud_token()
 
     def get_member_id(self) -> int | None:
-        return self._member_id
+        return identity_service.get_member_id()
 
     def _load_token(self):
-        try:
-            if self._user_token:
-                return
-
-            # Use centralized path if available
-            base_dir = self.config.app_data_dir or os.getcwd()
-            auth_file = os.path.join(base_dir, "auth.json")
-            
-            # Compatibility check: if not in base_dir, check .evoloop/auth.json for legacy
-            if not os.path.exists(auth_file):
-                 legacy_file = os.path.join(os.getcwd(), ".evoloop", "auth.json")
-                 if os.path.exists(legacy_file):
-                     auth_file = legacy_file
-
-            if os.path.exists(auth_file):
-                content = file_utils.read_file(auth_file)
-                data = json_utils.loads(content)
-                self._user_token = data.get("token")
-                self._member_id = data.get("member_id")
-        except Exception as e:
-            logger.warning(f"Failed to load auth token: {e}")
+        # Deprecated: Now handled by IdentityService/IdentityStore
+        pass
 
     def _save_token(self, token: str, member_id: int):
-        try:
-            self._user_token = token
-            self._member_id = member_id
-
-            base_dir = self.config.app_data_dir or os.path.join(os.getcwd(), ".evoloop")
-            os.makedirs(base_dir, exist_ok=True)
-
-            with open(os.path.join(base_dir, "auth.json"), "w") as f:
-                json.dump({"token": token, "member_id": member_id}, f)
-        except Exception as e:
-            logger.error(f"Failed to save auth token: {e}")
+        # Deprecated: Use IdentityService.login_with_cloud_result or IdentityStore directly
+        identity_service.store.save_cloud_token(token)
+        identity_service.store.save_member_id(member_id)
 
     def logout(self):
-        self._user_token = None
-        self._member_id = None
-        try:
-            auth_file = os.path.join(os.getcwd(), ".evoloop", "auth.json")
-            if os.path.exists(auth_file):
-                os.remove(auth_file)
-        except Exception:
-            pass
+        identity_service.logout()
 
     # --- Request Core ---
 
@@ -147,7 +112,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         headers: dict | None = None
     ) -> dict:
         client = await self.get_client()
-        active_token = token or self._user_token
+        active_token = token or self.get_token()
 
         url = f"{self.base_url}{endpoint}"
         timestamp = int(time.time())
@@ -193,10 +158,12 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
     async def login(self, username, password) -> dict:
         res = await self.request("POST", "/api/login/login", data={"username": username, "password": password})
         if res.get("code", -1) >= 0:
-            token = res.get("data", {}).get("token")
+            data = res.get("data", {})
+            token = data.get("token")
             if token:
-                self._save_token(token, 0)  # member_id 0 or unknown initially
-                return {"success": True, "token": token}
+                member_id = data.get("member_id", 0)
+                self._save_token(token, member_id)
+                return {"success": True, "token": token, "member_id": member_id, "data": data}
         return {"success": False, "message": res.get("message", "Login failed")}
 
     async def get_user_info(self, token: str | None = None) -> dict:
@@ -360,13 +327,16 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data={"mobile": mobile, "key": key, "code": code},
         )
         if res.get("code", -1) >= 0:
-            token = res.get("data", {}).get("token")
+            data = res.get("data", {})
+            token = data.get("token")
             if token:
-                self._save_token(token, 0)
+                member_id = data.get("member_id", 0)
+                self._save_token(token, member_id)
                 return {
                     "success": True,
                     "token": token,
-                    "member_id": res.get("data", {}).get("member_id"),
+                    "member_id": member_id,
+                    "data": data,
                 }
         return {"success": False, "message": res.get("message", "Login failed")}
 

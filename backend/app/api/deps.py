@@ -3,7 +3,6 @@ from collections.abc import Generator
 from datetime import datetime
 from typing import Annotated
 
-import redis.asyncio as redis
 from fastapi import Depends, Header, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session
@@ -11,6 +10,8 @@ from sqlmodel import Session
 from app.core.config import settings
 from app.core.db import engine
 from app.core.evocloud import evocloud_manager
+from app.core.identity import identity_service, decode_local_jwt
+from app.infrastructure.database.redis import redis_client
 from app.models import User
 
 logger = logging.getLogger(__name__)
@@ -33,26 +34,60 @@ TokenDepOptional = Annotated[str | None, Depends(oauth2_scheme_optional)]
 
 async def get_current_user(token: TokenDep) -> User:
     try:
-        # Pass the token directly to Member Center API via unified client
-        result = await evocloud_manager.api.get_user_info(token)
+        # 1. Decode Local JWT
+        payload = decode_local_jwt(token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired local session",
+            )
+        
+        member_id = payload.get("member_id")
+        if member_id is None:
+             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session payload")
 
-        if result.get("code") != 0:
-            # Map error
-            error_msg = result.get("message", "Validation failed")
-            if "token" in error_msg.lower() or result.get("code") in [-1, 401]:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token or expired session",
-                )
-            raise HTTPException(status_code=400, detail=error_msg)
+        # 2. Try Redis Cache first
+        user_data = None
+        try:
+            async with redis_client:
+                cached_data = await redis_client.get(f"evoloop:user:{member_id}")
+                if cached_data:
+                    import json
+                    user_data = json.loads(cached_data)
+        except Exception as e:
+            logger.debug(f"Redis cache miss/error: {e}")
 
-        user_data = result.get("data", {})
+        # 3. Fallback to Cloud fetch if cache miss
+        if not user_data:
+            cloud_token = identity_service.get_cloud_token()
+            if not cloud_token:
+                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No cloud credentials found")
+            
+            result = await evocloud_manager.api.get_user_info(cloud_token)
+            if result.get("code") != 0:
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Cloud verification failed")
+            
+            user_data = result.get("data", {})
+            # Cache it back to Redis
+            try:
+                async with redis_client:
+                    import json
+                    await redis_client.set(f"evoloop:user:{member_id}", json.dumps(user_data), ex=86400)
+            except Exception:
+                pass
 
         if user_data:
-            user_data["id"] = user_data.get("member_id")
+            user_data["id"] = user_data.get("id") or user_data.get("member_id") or member_id
 
         # Map Member Center data to User model
-        user = User.model_validate(user_data)
+        try:
+            user = User.model_validate(user_data)
+        except Exception as ve:
+            logger.error(f"User validation failed for member {member_id}: {ve} | Data: {user_data}")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Incomplete user profile: {str(ve)} | MemberID: {member_id}",
+            )
 
         if not user.is_active:
             raise HTTPException(status_code=400, detail="Inactive user")
@@ -61,10 +96,10 @@ async def get_current_user(token: TokenDep) -> User:
     except HTTPException as e:
         raise e
     except Exception as e:
-        # Log error here if logger is available
+        logger.error(f"Unexpected auth error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Could not validate credentials: {str(e)}",
+            detail=f"Auth error ({type(e).__name__}): {str(e)}",
         )
 
 
@@ -75,19 +110,7 @@ async def get_current_user_optional(token: TokenDepOptional) -> User | None:
     if not token:
         return None
     try:
-        result = await evocloud_manager.api.get_user_info(token)
-
-        if result.get("code") != 0:
-            return None
-
-        user_data = result.get("data", {})
-        if user_data:
-            user_data["id"] = user_data.get("member_id")
-
-        user = User.model_validate(user_data)
-        if not user.is_active:
-            return None
-        return user
+        return await get_current_user(token)
     except Exception:
         return None
 
@@ -110,18 +133,22 @@ async def verify_guest_access(
     # 0. Backfill User from Query Token if Header Auth missing
     if not current_user and token:
         try:
-            # We must import inside function to avoid circular imports layout if any,
-            # though get_current_user_optional imports it too.
+            # A. Try Local JWT first (Unified Flow)
+            payload = decode_local_jwt(token)
+            if payload:
+                member_id = payload.get("member_id")
+                if member_id is not None:
+                    # It's a valid local session - Success
+                    return
+            
+            # B. Fallback to Cloud fetch for direct cloud token usage (Legacy/SSE compat)
             result = await evocloud_manager.api.get_user_info(token)
             if result.get("code") == 0:
                 user_data = result.get("data", {})
                 if user_data:
-                    # It's a valid user, so we consider them authenticated.
-                    # We don't strictly need to construct the User object unless downstream needs it,
-                    # but this function just returns None on success.
                     return
-        except Exception:
-            # Token invalid, fall through to guest check
+        except Exception as e:
+            logger.debug(f"Query token validation failed: {e}")
             pass
 
     if current_user:
@@ -135,8 +162,6 @@ async def verify_guest_access(
 
     # Check Guest Limits via Redis
     try:
-        redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
-
         # 1. Get Global Config
         try:
             # Async call to global config

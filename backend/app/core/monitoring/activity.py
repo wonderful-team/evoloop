@@ -3,9 +3,7 @@ import json
 import time
 from typing import Any
 
-import redis.asyncio as redis
-
-from app.core.config import settings
+from app.infrastructure.database.redis import redis_client
 from app.models.schemas.events import AgentStateEvent, ArtifactEvent, StatusEvent, StepEvent
 
 
@@ -13,59 +11,7 @@ class ActivityMonitor:
     _instance = None
 
     def __init__(self):
-        # We use a managed pool from settings?
-        # Or just create a client. Recommendation is one client per app usually.
-        self.redis_url = settings.REDIS_URL
-        # Map: EventLoop -> RedisClient
-        self._clients = {}
-        self._global_client = None
-
-    async def get_client(self) -> redis.Redis:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            # Fallback if called outside loop (unlikely for async methods)
-            return redis.from_url(
-                self.redis_url, encoding="utf-8", decode_responses=True
-            )
-
-        if loop in self._clients:
-            client = self._clients[loop]
-            # Check if closed? Redis client doesn't expose is_closed easily, but we trust it.
-            return client
-
-        # New Client for this loop
-        client = redis.from_url(self.redis_url, encoding="utf-8", decode_responses=True)
-        self._clients[loop] = client
-        return client
-
-    @property
-    def client(self) -> redis.Redis:
-        # Deprecated property access, but kept for backward compat if synchronous?
-        # But all usages are `await self.client...` which is wrong if client is property returning object.
-        # Actually usages are `await self.client.hset(...)`.
-        # We need to change usages to `client = await self.get_client(); await client.hset(...)`
-        # OR make `client` property return a proxy?
-        # Simpler: The usages are `self.client.hset`. `self.client` returns the Redis object.
-        # If I change `client` to a method, I break all calls.
-        # BUT `client` property cannot be async.
-        # AND `asyncio.get_running_loop()` works inside property if called from async function? Yes.
-
-        # Let's try to keep property but make it smart.
-        try:
-            loop = asyncio.get_running_loop()
-            if loop not in self._clients:
-                self._clients[loop] = redis.from_url(
-                    self.redis_url, encoding="utf-8", decode_responses=True
-                )
-            return self._clients[loop]
-        except RuntimeError:
-            # If no loop running, return a default/global one?
-            if self._global_client is None:
-                self._global_client = redis.from_url(
-                    self.redis_url, encoding="utf-8", decode_responses=True
-                )
-            return self._global_client
+        pass
 
     @classmethod
     def get_instance(cls):
@@ -83,31 +29,29 @@ class ActivityMonitor:
             "verification": json.dumps({}),
             "steps": json.dumps([]),
             "artifacts": json.dumps([]),
-            "active_memories": json.dumps(
-                []
-            ),  # Phase 7: Track active memory references
+            "active_memories": json.dumps([]),  # Phase 7: Track active memory references
             "updated_at": now,
         }
         # Use HSET
-        await self.client.hset(key, mapping=data)
+        await redis_client.hset(key, mapping=data)
         # Expiry 24h
-        await self.client.expire(key, 86400)
+        await redis_client.expire(key, 86400)
 
     async def end_run(self, thread_id: str, status="done"):
         key = f"activity:{thread_id}"
         # Check current status first to handle stopping->cancelled
-        current_status = await self.client.hget(key, "status")
+        current_status = await redis_client.hget(key, "status")
 
         final_status = status
         if current_status == "stopping":
             final_status = "cancelled"
 
-        await self.client.hset(
+        await redis_client.hset(
             key, mapping={"status": final_status, "updated_at": time.time()}
         )
 
         # Mark running steps as done/cancelled
-        steps_json = await self.client.hget(key, "steps")
+        steps_json = await redis_client.hget(key, "steps")
         if steps_json:
             steps = json.loads(steps_json)
             modified = False
@@ -116,7 +60,7 @@ class ActivityMonitor:
                     t["status"] = "cancelled" if final_status == "cancelled" else "done"
                     modified = True
             if modified:
-                await self.client.hset(key, "steps", json.dumps(steps))
+                await redis_client.hset(key, "steps", json.dumps(steps))
 
                 # Publish update events for modified steps
                 # Simplification: Just publish the end-run status for now or iterate
@@ -125,7 +69,7 @@ class ActivityMonitor:
                     if t["status"] in ["done", "cancelled"] and t.get(
                         "start_time"
                     ):  # It was running
-                        await self.client.publish(
+                        await redis_client.publish(
                             f"chat:{thread_id}:events",
                             StepEvent(
                                 action="update",
@@ -135,15 +79,15 @@ class ActivityMonitor:
                         )
 
         # Publish Status Change
-        await self.client.publish(
+        await redis_client.publish(
             f"chat:{thread_id}:events", StatusEvent(status=final_status).json()
         )
 
     async def stop_run(self, thread_id: str):
         """Signal a run to stop."""
         key = f"activity:{thread_id}"
-        if await self.client.exists(key):
-            await self.client.hset(
+        if await redis_client.exists(key):
+            await redis_client.hset(
                 key, mapping={"status": "stopping", "updated_at": time.time()}
             )
 
@@ -152,7 +96,7 @@ class ActivityMonitor:
         from app.core.exceptions import AgentCancelledException
 
         key = f"activity:{thread_id}"
-        status = await self.client.hget(key, "status")
+        status = await redis_client.hget(key, "status")
         if status == "stopping":
             raise AgentCancelledException(f"Run {thread_id} cancelled by user")
 
@@ -161,8 +105,8 @@ class ActivityMonitor:
     ):
         """Mark a run as interrupted (paused for human input)."""
         key = f"activity:{thread_id}"
-        if await self.client.exists(key):
-            await self.client.hset(
+        if await redis_client.exists(key):
+            await redis_client.hset(
                 key,
                 mapping={
                     "status": "interrupted",
@@ -177,8 +121,8 @@ class ActivityMonitor:
         Replaces simple 'set_interrupted' for rich interactions.
         """
         key = f"activity:{thread_id}"
-        if await self.client.exists(key):
-            await self.client.hset(
+        if await redis_client.exists(key):
+            await redis_client.hset(
                 key,
                 mapping={
                     "status": "interrupted",
@@ -193,9 +137,9 @@ class ActivityMonitor:
     async def clear_human_request(self, thread_id: str):
         """Clear human request upon resumption."""
         key = f"activity:{thread_id}"
-        if await self.client.exists(key):
+        if await redis_client.exists(key):
             # We don't delete the key, just clear the field and set status to running
-            await self.client.hset(
+            await redis_client.hset(
                 key,
                 mapping={
                     "status": "running",
@@ -208,16 +152,16 @@ class ActivityMonitor:
     async def set_active_memory(self, thread_id: str, memory_id: str, memory_name: str):
         """Phase 7: Track which memory is currently being accessed by the Agent."""
         key = f"activity:{thread_id}"
-        if not await self.client.exists(key):
+        if not await redis_client.exists(key):
             return
 
-        memories_json = await self.client.hget(key, "active_memories")
+        memories_json = await redis_client.hget(key, "active_memories")
         memories = json.loads(memories_json) if memories_json else []
 
         # Add if not already in list
         if not any(m.get("id") == memory_id for m in memories):
             memories.append({"id": memory_id, "name": memory_name})
-            await self.client.hset(
+            await redis_client.hset(
                 key,
                 mapping={
                     "active_memories": json.dumps(memories),
@@ -228,8 +172,8 @@ class ActivityMonitor:
     async def clear_active_memories(self, thread_id: str):
         """Clear active memory highlights at end of run."""
         key = f"activity:{thread_id}"
-        if await self.client.exists(key):
-            await self.client.hset(key, "active_memories", json.dumps([]))
+        if await redis_client.exists(key):
+            await redis_client.hset(key, "active_memories", json.dumps([]))
 
     async def add_step(
         self, thread_id: str, name: str, step_type="node", parent_id: int = None
@@ -242,11 +186,11 @@ class ActivityMonitor:
         # redis-py lock is robust.
 
         try:
-            async with self.client.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
-                if not await self.client.exists(key):
+            async with redis_client.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
+                if not await redis_client.exists(key):
                     return None
 
-                steps_json = await self.client.hget(key, "steps")
+                steps_json = await redis_client.hget(key, "steps")
                 steps = json.loads(steps_json) if steps_json else []
 
                 if not name:
@@ -264,12 +208,12 @@ class ActivityMonitor:
                 }
                 steps.append(new_step)
 
-                await self.client.hset(
+                await redis_client.hset(
                     key, mapping={"steps": json.dumps(steps), "updated_at": time.time()}
                 )
 
                 # Publish Event
-                await self.client.publish(
+                await redis_client.publish(
                     f"chat:{thread_id}:events",
                     StepEvent(action="create", id=step_id, data=new_step).json(),
                 )
@@ -286,9 +230,9 @@ class ActivityMonitor:
         lock_key = f"lock:{key}"
 
         try:
-            async with self.client.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
+            async with redis_client.lock(lock_key, timeout=2.0, blocking_timeout=1.0):
                 # We need to fetch, modify, save.
-                steps_json = await self.client.hget(key, "steps")
+                steps_json = await redis_client.hget(key, "steps")
                 if not steps_json:
                     return
 
@@ -307,7 +251,7 @@ class ActivityMonitor:
                         break
 
                 if modified:
-                    await self.client.hset(
+                    await redis_client.hset(
                         key,
                         mapping={"steps": json.dumps(steps), "updated_at": time.time()},
                     )
@@ -317,7 +261,7 @@ class ActivityMonitor:
                     update_data = {"status": status}
                     if details:
                         update_data["details"] = details
-                    await self.client.publish(
+                    await redis_client.publish(
                         f"chat:{thread_id}:events",
                         StepEvent(action="update", id=step_id, data=update_data).json(),
                     )
@@ -330,10 +274,10 @@ class ActivityMonitor:
         # New method to sync Agent State (Sidebar info)
         key = f"activity:{thread_id}"
         state = {"mode": mode, "task_name": task_name, "task_status": task_status}
-        await self.client.hset(key, "agent_state", json.dumps(state))
+        await redis_client.hset(key, "agent_state", json.dumps(state))
 
         # Publish Event
-        await self.client.publish(
+        await redis_client.publish(
             f"chat:{thread_id}:events", AgentStateEvent(data=state).json()
         )
 
@@ -346,16 +290,16 @@ class ActivityMonitor:
         path: str = None,
     ):
         key = f"activity:{thread_id}"
-        arts_json = await self.client.hget(key, "artifacts")
+        arts_json = await redis_client.hget(key, "artifacts")
         artifacts = json.loads(arts_json) if arts_json else []
 
         # Check uniqueness
         for art in artifacts:
             if art["name"] == name:
                 art["status"] = "modified"
-                await self.client.hset(key, "artifacts", json.dumps(artifacts))
+                await redis_client.hset(key, "artifacts", json.dumps(artifacts))
                 # Publish Event for modification
-                await self.client.publish(
+                await redis_client.publish(
                     f"chat:{thread_id}:events",
                     ArtifactEvent(action="update", name=name, data=art).json(),
                 )
@@ -372,7 +316,7 @@ class ActivityMonitor:
             }
         )
 
-        await self.client.hset(
+        await redis_client.hset(
             key, mapping={"artifacts": json.dumps(artifacts), "updated_at": time.time()}
         )
 
@@ -381,14 +325,14 @@ class ActivityMonitor:
         target_art = next((a for a in artifacts if a["name"] == name), None)
         if target_art:
             action = "update" if status == "modified" else "create"
-            await self.client.publish(
+            await redis_client.publish(
                 f"chat:{thread_id}:events",
                 ArtifactEvent(action=action, name=name, data=target_art).json(),
             )
 
     async def get_activity(self, thread_id: str):
         key = f"activity:{thread_id}"
-        data = await self.client.hgetall(key)
+        data = await redis_client.hgetall(key)
         if not data:
             return {"status": "idle", "tasks": [], "artifacts": []}
 
@@ -427,7 +371,7 @@ class ActivityMonitor:
         if not thread_ids:
             return {}
 
-        pipeline = self.client.pipeline()
+        pipeline = redis_client.pipeline()
         for tid in thread_ids:
             pipeline.hget(f"activity:{tid}", "status")
 

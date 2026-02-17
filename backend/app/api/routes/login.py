@@ -1,7 +1,6 @@
 import logging
 from typing import Annotated
 
-import redis.asyncio as redis
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -11,8 +10,8 @@ from app.core.evocloud.bridge.handlers import (
     handle_project_switch_event,
     handle_remote_command,
 )
-from app.utils.security import create_access_token
-
+from app.core.identity import identity_service
+from app.infrastructure.database.redis import redis_client
 from app.models import Token
 
 logger = logging.getLogger(__name__)
@@ -52,22 +51,30 @@ async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Dep
         # We might need to verify the return shape from `http_client.login`. 
         # It returns {"success": True, "token": token}
         
-        token_str = result.get("token")
-        if not token_str:
+        # 2. Process login via IdentityService
+        local_token = await identity_service.login_with_cloud_result(result)
+        if not local_token:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Token not found in response",
+                detail="Failed to initialize local session",
             )
 
-        # Persist token to Redis for other services if needed
+        # 3. Persist cloud token to Redis for other services if needed (for now)
+        user_data = result.get("data", {})
+        member_id = result.get("member_id", 0)
+        
         try:
-            redis_client = redis.from_url(settings.REDIS_URL, encoding="utf-8", decode_responses=True)
             async with redis_client:
-                await redis_client.set("evoloop:link:token", token_str)
-        except Exception:
+                await redis_client.set("evoloop:link:token", result.get("token"))
+                # Store user info for fast access in deps.py
+                if user_data and member_id is not None:
+                    import json
+                    await redis_client.set(f"evoloop:user:{member_id}", json.dumps(user_data), ex=86400)
+        except Exception as e:
+            logger.warning(f"Failed to cache user to Redis: {e}")
             pass
 
-        return Token(access_token=token_str, token_type="bearer")
+        return Token(access_token=local_token, token_type="bearer")
 
     except Exception as e:
         # Re-raise HTTP exceptions
@@ -79,13 +86,3 @@ async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Dep
             detail=f"Login failed: {e}",
         )
 
-    # Note: The return above exits the function. We need to insert logic BEFORE return.
-    # But since we're replacing the whole block or appended logic, let's restructure slightly or just paste imports and func.
-    # Actually, the tool allows replacing the whole file content or chunks.
-    # It's cleaner to rewrite the function or use a helper.
-    # Due to complexity of inserting imports at top and code at bottom, I'll do this in two steps or careful chunking.
-    # Step 1: Add imports.
-    # Step 2: Add logic before return.
-
-    # Wait, I can't do two writes in one step easily if they are far apart.
-    # Let's do imports first.

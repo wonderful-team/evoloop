@@ -12,6 +12,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import verify_guest_access
 from app.core.monitoring.activity import activity_monitor
+from app.infrastructure.database.redis import redis_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
@@ -25,14 +26,19 @@ async def stream_chat(thread_id: str):
     """
 
     async def event_generator():
-        client = None
         pubsub = None
         try:
             # 1. Bootstrap: Send Initial Full State
             # This ensures frontend is up-to-date even if it missed events
-            activity = await activity_monitor.get_activity(thread_id)
+            try:
+                activity = await activity_monitor.get_activity(thread_id)
+            except Exception as e:
+                logger.warning(f"Initial activity fetch failed ({type(e).__name__}): {e}. Retrying in 1s...")
+                await asyncio.sleep(1.0)
+                activity = await activity_monitor.get_activity(thread_id)
+
             if activity:
-                # Construct snapshot using the same structure as before (for compatibility or manual merge)
+                # Construct snapshot using the same structure as before
                 snapshot = {
                     "tasks": activity.get("tasks", []),
                     "artifacts": activity.get("artifacts", []),
@@ -40,23 +46,34 @@ async def stream_chat(thread_id: str):
                     "active_memories": activity.get("active_memories", []),
                     "verification": activity.get("verification", {}),
                     "status": activity.get("status", "unknown"),
-                    "human_request": activity.get("human_request"),  # Include here
+                    "human_request": activity.get("human_request"),
                 }
                 yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
 
-                # Check Human Request immediately
                 if activity.get("human_request"):
                     yield f"event: human_request\ndata: {json.dumps(activity['human_request'])}\n\n"
 
             # 2. Subscribe to Redis Channel
-            client = await activity_monitor.get_client()
-            pubsub = client.pubsub()
+            pubsub = redis_client.pubsub()
             await pubsub.subscribe(f"chat:{thread_id}:events")
 
             # 3. Stream Events
-            # We use a loop with a small timeout on get_message to allow checking for cancellation
             while True:
-                message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                try:
+                    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                except (ConnectionError, asyncio.TimeoutError) as e:
+                    logger.warning(f"PubSub read error: {e}. Attempting to re-subscribe...")
+                    await asyncio.sleep(0.5)
+                    await pubsub.subscribe(f"chat:{thread_id}:events")
+                    continue
+                except Exception as e:
+                    if "Buffer is closed" in str(e):
+                        logger.error("Redis Buffer is closed. Re-initializing connection...")
+                        # We hope the pool handles the actual reconnect
+                        await asyncio.sleep(1.0)
+                        await pubsub.subscribe(f"chat:{thread_id}:events")
+                        continue
+                    raise e
 
                 if message and message["type"] == "message":
                     # Raw event JSON from backend
@@ -147,8 +164,6 @@ async def stream_chat(thread_id: str):
         finally:
             if pubsub:
                 await pubsub.close()
-            if client:
-                await client.close()
 
     return StreamingResponse(
         event_generator(),
