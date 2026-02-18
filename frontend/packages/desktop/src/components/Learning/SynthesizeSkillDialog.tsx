@@ -34,15 +34,16 @@ export function SynthesizeSkillDialog({
 }: SynthesizeSkillDialogProps) {
   const { t } = useTranslation()
   const [isSynthesizing, setIsSynthesizing] = useState(false)
-  const [result, setResult] = useState<{ id: number; name: string; description?: string; trigger_patterns?: string[] } | null>(null)
+  const [result, setResult] = useState<{ id: number; name: string; description?: string; trigger_patterns?: string[]; parameters?: any[] } | null>(null)
   const [editedName, setEditedName] = useState("")
+  const [autoOptimize, setAutoOptimize] = useState(true)
   const [isUpdating, setIsUpdating] = useState(false)
 
   const handleSynthesize = async () => {
     setIsSynthesizing(true)
     try {
       const response = (await LearningService.synthesizeSkill({
-        requestBody: { thread_id: threadId, session_id: sessionId },
+        requestBody: { thread_id: threadId, session_id: sessionId, auto_optimize: autoOptimize } as any,
       })) as any
       if (response.success) {
         toast.success(t("learning.synthesisSuccess", "Skill created successfully!"))
@@ -50,7 +51,8 @@ export function SynthesizeSkillDialog({
           id: response.skill_id,
           name: response.skill_name,
           description: response.description,
-          trigger_patterns: response.trigger_patterns
+          trigger_patterns: response.trigger_patterns,
+          parameters: response.parameters
         })
         setEditedName(response.skill_name)
         onSuccess?.()
@@ -128,6 +130,21 @@ export function SynthesizeSkillDialog({
               </div>
             )}
 
+            {result.parameters && result.parameters.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 font-bold uppercase text-[10px] text-muted-foreground">
+                  <Settings2 className="h-3 w-3" /> {t("learning.editor.parameters")}
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {result.parameters.map((p, i) => (
+                    <Badge key={i} variant="outline" className="px-2 py-0 h-5 text-[10px] bg-primary/5">
+                      {p.name} ({p.type})
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-center pt-2">
               <Button
                 variant="outline"
@@ -144,8 +161,30 @@ export function SynthesizeSkillDialog({
             </div>
           </div>
         ) : (
-          <div className="py-4 text-sm text-muted-foreground bg-muted/20 p-4 rounded-xl border border-dashed">
-            {t("learning.synthesisPrompt")}
+          <div className="py-4 space-y-4">
+            <div className="text-sm text-muted-foreground bg-muted/20 p-4 rounded-xl border border-dashed text-center">
+              {t("learning.synthesisPrompt")}
+            </div>
+
+            <div className="flex items-center justify-between px-1">
+              <div className="space-y-0.5">
+                <div className="text-[10px] font-bold uppercase flex items-center gap-1.5">
+                  <Sparkles className="h-3 w-3 text-yellow-500" />
+                  {t("learning.autoOptimize", "Auto-Optimize Steps")}
+                </div>
+                <div className="text-[10px] text-muted-foreground">
+                  {t("learning.autoOptimizeDesc", "Remove redundant actions and streamline logic")}
+                </div>
+              </div>
+              <Button
+                variant={autoOptimize ? "default" : "outline"}
+                size="sm"
+                className="h-7 text-[10px] px-3"
+                onClick={() => setAutoOptimize(!autoOptimize)}
+              >
+                {autoOptimize ? t("common.enabled") : t("common.disabled")}
+              </Button>
+            </div>
           </div>
         )}
 

@@ -153,17 +153,24 @@
       "title": "编辑技能：{{name}}",
       "saveChanges": "保存更改",
       "triggerHelp": "触发此技能的短语建议。",
-      "parameters": "参数定义",
-      "description": "修改技能定义。您可以添加触发短语并定义参数结构。",
+      "parameters": "用户输入项",
+      "description": "设计机器人运行此技能时需要向您询问的问题。输入项将自动转换为参数。",
       "addTrigger": "添加短语...",
-      "addParameter": "添加参数",
-      "paramName": "名称",
-      "paramType": "类型",
-      "paramDesc": "描述",
+      "nameHelp": "技能的唯一显示名称。",
+      "descHelp": "详细描述技能的功能，有助于 AI 理解和优化。",
+      "addParameter": "添加输入项",
+      "paramHelp": "定义执行此技能前需要用户提供的参数（如：搜索词、城市名）。",
+      "paramName": "引用 ID",
+      "paramType": "输入类型",
+      "paramDesc": "问题 / 标签",
+      "stats": "性能统计",
       "noTriggers": "尚未定义触发模式。",
       "nameRequired": "技能名称为必填项",
-      "paramNameRequired": "参数名称为必填项",
-      "paramNameNoSpaces": "参数名称不能包含空格",
+      "paramNameRequired": "引用 ID 为必填项",
+      "paramNameNoSpaces": "引用 ID 不能包含空格",
+      "paramNameHelp": "系统引用时的唯一 ID (例如: user_name)",
+      "paramDescHelp": "运行时机器人向您提问的文本 (例如: 请输入用户名)",
+      "insertVariable": "插入输入项",
       "tabs": {
         "general": "常规设置",
         "logic": "执行逻辑",
@@ -172,11 +179,19 @@
       "aiOptimize": "AI 优化",
       "aiOptimizeDesc": "使用 AI 改进技能描述和触发短语",
       "preview": "实时预览",
+      "showPreview": "显示预览",
+      "hidePreview": "隐藏预览",
+      "configSidebar": "技能配置",
+      "logicHelp": "技能执行的具体步骤，记录了机器人在不同场景下的动作序列。",
+      "modeHelp": "简单模式显示友好描述，JSON 模式显示底层参数详情。",
       "noLogic": "尚无记录的执行逻辑",
+      "addStep": "添加步骤",
+      "addInnerStep": "添加内部步骤",
       "effectiveness": "有效性",
       "avgDuration": "平均时长",
       "recentRuns": "最近运行",
       "phase6Notice": "详细的执行日志将在第 6 阶段出现。",
+      "instructions": "技能说明 (SKILL.md)",
       "untitledSkill": "未命名技能",
       "noDescription": "暂无描述。",
       "editorInsights": "编辑器洞察",
@@ -184,7 +199,47 @@
       "complexity": "复杂度",
       "complexityMedium": "中等",
       "complexityLow": "低",
-      "previewNotice": "这是技能在库中显示效果的实时预览。"
+      "previewNotice": "这是技能在库中显示效果的实时预览。",
+      "simpleMode": "简易模式",
+      "jsonMode": "JSON 模式",
+      "aiRefinedDesc": "AI 基于执行逻辑优化了描述。",
+      "automatedPrefix": "自动生成的 ",
+      "optimizedSuffix": " (已优化)",
+      "uploadSuccess": "截图更新成功",
+      "uploadError": "截图更新失败",
+      "inputText": "输入文本",
+      "changeScreenshot": "点击更换截图",
+      "noImage": "无图像",
+      "deviceStatus": {
+        "device": "在线",
+        "offline": "离线",
+        "unauthorized": "未授权"
+      },
+      "validationStatus": {
+        "healthy": "健康",
+        "warning": "警告",
+        "error": "错误"
+      },
+      "debug": {
+        "none": "无",
+        "status": {
+          "active": "运行中",
+          "idle": "空闲"
+        }
+      },
+      "headers": {
+        "conditionPlaceholder": "例如 1 == 1"
+      },
+      "import": {
+        "placeholder": "例如 skills/skills"
+      },
+      "statusBadge": {
+        "draft": "草稿",
+        "active": "活跃",
+        "verified": "已验证",
+        "archived": "已归档",
+        "deprecated": "已弃用"
+      }
     },
     "na": "暂无",
     "synthesize": "合成技能",
@@ -207,11 +262,65 @@
       "failedToStart": "启动镜像失败"
     },
     "execution": {
-      "noParams": "无需参数。",
-      "description": "配置参数以运行此技能。",
+      "noParams": "此技能无需任何输入。",
+      "description": "请回答以下问题以运行技能。",
       "title": "运行技能：{{name}}",
       "starting": "正在启动...",
       "runNow": "立即运行"
+    },
+    "categories": {
+      "mobile": "移动端交互",
+      "desktop": "桌面端交互",
+      "logic": "逻辑控制"
+    },
+    "actions": {
+      "mobile": {
+        "tap": "点击 (Tap)",
+        "tapDesc": "点击特定坐标",
+        "input_text": "输入文本",
+        "textDesc": "在输入框中输入文本",
+        "swipe": "滑动 (Swipe)",
+        "swipeDesc": "执行滑动该手势",
+        "home": "主屏幕",
+        "homeDesc": "返回主屏幕",
+        "back": "返回",
+        "backDesc": "返回上一页",
+        "open_app": "打开应用",
+        "openAppDesc": "通过包名打开应用",
+        "press_key": "按键",
+        "pressKeyDesc": "按下物理按键",
+        "screenshot": "截屏",
+        "screenshotDesc": "捕获屏幕截图"
+      },
+      "desktop": {
+        "click": "点击 (Click)",
+        "clickDesc": "鼠标点击",
+        "double_click": "双击",
+        "doubleClickDesc": "鼠标双击",
+        "type_text": "输入文本",
+        "typeDesc": "键盘输入",
+        "key_press": "按键",
+        "keyPressDesc": "按下键盘按键",
+        "open_app": "打开应用",
+        "openAppDesc": "打开系统应用程序",
+        "screenshot": "截屏",
+        "screenshotDesc": "捕获屏幕截图"
+      },
+      "wait": "等待",
+      "waitDesc": "暂停执行",
+      "loop": "循环",
+      "loopDesc": "重复执行步骤",
+      "condition": "条件",
+      "conditionDesc": "If/Else 分支逻辑",
+      "group": "分组",
+      "groupDesc": "步骤容器",
+      "instruction": "指令",
+      "instructionDesc": "自然语言指令"
+    },
+    "selector": {
+      "title": "选择动作",
+      "searchPlaceholder": "搜索执行动作...",
+      "noResults": "未找到相关动作。"
     },
     "viewDetails": "查看详情",
     "startRecording": "录制",
@@ -230,10 +339,41 @@
     "deactivate": "停用",
     "stats": "统计",
     "triggerPatterns": "触发模式",
-    "parameters": "参数",
+    "parameters": "输入项",
     "skills": "已学习技能",
     "synthesisDate": "合成日期",
     "skillLibrary": "技能库",
+    "import": {
+      "title": "导入外部技能",
+      "description": "批量从包含 SKILL.md 包的目录导入标准技能。",
+      "directoryLabel": "目录路径",
+      "directoryHint": "相对于项目根目录的路径或绝对路径。",
+      "stats": {
+        "found": "发现",
+        "imported": "已导入",
+        "skipped": "已跳过"
+      },
+      "errors": "错误详情",
+      "complete": "导入流程已完成。",
+      "button": "开始导入",
+      "success": "技能导入成功！",
+      "failed": "导入技能失败",
+      "error": "导入过程中出错"
+    },
+    "optimizing": {
+      "loading": "正在处理..."
+    },
+    "status": {
+      "verified": "已验证",
+      "warning": "待规范",
+      "candidate": "预选"
+    },
+    "revalidate": "强制重新验证",
+    "healthStatus": "健康评分",
+    "healthHealthy": "该技能完全符合标准解剖学结构。",
+    "optimize": {
+      "success": "AI 已成功优化指令细节"
+    },
     "globalMode": "系统全局监控",
     "domMode": "仅应用内 (DOM)",
     "permissionRequired": "需要全局录制权限",
@@ -252,7 +392,10 @@
     "centerSubtitle": "管理已学习的技能，并通过交互式录制会话训练智能体。",
     "tabs": {
       "library": "技能库",
-      "recording": "动态录制"
+      "recording": "动态录制",
+      "general": "常规设置",
+      "logic": "执行逻辑",
+      "stats": "性能统计"
     },
     "searchSkills": "搜索已学习的技能...",
     "totalSkills": "项技能",
@@ -260,10 +403,9 @@
     "uses": "次使用",
     "skillDetails": "技能详情",
     "performance": "执行表现",
-    "successes": "次成功",
+    "successes": "成功次数",
     "noParameters": "无自定义参数。",
     "steps": "执行步骤",
-    "status": "状态",
     "quickStart": "快速录制",
     "statusBadge": {
       "active": "已激活",
@@ -824,6 +966,31 @@
     "analyzing": "分析中",
     "description": "选择要切换的项目或管理您的项目。",
     "indexingTooltip": "索引中..."
+  },
+  "skills": {
+    "actions": {
+      "mobile": {
+        "tap": "点击",
+        "input_text": "输入文本",
+        "swipe": "滑动",
+        "press_key": "按键",
+        "screenshot": "截屏"
+      },
+      "desktop": {
+        "click": "鼠标点击",
+        "type_text": "键盘输入",
+        "open_app": "打开应用",
+        "key_press": "按键"
+      },
+      "wait": "等待"
+    },
+    "editor": {
+      "inputText": "输入内容",
+      "simpleMode": "简单模式",
+      "jsonMode": "JSON 模式",
+      "noImage": "暂无图片",
+      "target": "目标"
+    }
   },
   "pending": {
     "items": {

@@ -1,4 +1,4 @@
-import { Info, Terminal, Layout, Clock, TrendingUp, Play, Edit, Trash2 } from "lucide-react"
+import { Info, Terminal, Layout, Clock, TrendingUp, Play, Edit, Trash2, BookOpen } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -11,7 +11,6 @@ import {
 } from "@evoloop/shared/components/ui/sheet"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 import { Separator } from "@evoloop/shared/components/ui/separator"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@evoloop/shared/components/ui/table"
 import type { LearnedSkill } from "@/types/skill"
 
 interface SkillDetailsPanelProps {
@@ -35,12 +34,27 @@ export function SkillDetailsPanel({
 
     if (!skill) return null
 
-    // Parse steps from JSON if needed (in case they are strings in the type)
-    const steps = typeof skill.steps === 'string' ? JSON.parse(skill.steps) : (skill.steps || [])
+    // Parse fields from JSON if needed (in case they are strings in the type/DB)
+    const safeParse = (data: any, defaultVal: any) => {
+        if (!data) return defaultVal;
+        if (typeof data === 'string') {
+            try {
+                return JSON.parse(data);
+            } catch (e) {
+                console.error("Failed to parse", data, e);
+                return defaultVal;
+            }
+        }
+        return data;
+    }
+
+    const steps = safeParse(skill.steps, []);
+    const triggerPatterns = safeParse(skill.trigger_patterns, []);
+    const parameters = safeParse(skill.parameters, []);
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
-            <SheetContent className="sm:max-w-xl w-[90vw] p-0 flex flex-col">
+            <SheetContent className="sm:max-w-[800px] w-[90vw] p-0 flex flex-col">
                 <SheetHeader className="p-6 pb-2 border-b">
                     <div className="flex items-center gap-2 text-primary mb-1">
                         <Terminal className="h-5 w-5" />
@@ -80,7 +94,7 @@ export function SkillDetailsPanel({
                                 {t("learning.triggerPatterns", "Trigger Patterns")}
                             </div>
                             <div className="space-y-2">
-                                {skill.trigger_patterns?.map((pattern, i) => (
+                                {triggerPatterns?.map((pattern: string, i: number) => (
                                     <div key={i} className="bg-muted/50 px-3 py-2 rounded-lg text-xs font-mono border border-muted-foreground/10">
                                         {pattern}
                                     </div>
@@ -90,35 +104,30 @@ export function SkillDetailsPanel({
 
                         <Separator />
 
-                        {/* Parameters */}
+                        {/* User Inputs (Renamed from Parameters) */}
                         <section className="space-y-3">
                             <div className="flex items-center gap-2 text-sm font-bold">
                                 <Layout className="h-4 w-4 text-primary" />
-                                {t("learning.parameters", "Parameters")}
+                                {t("learning.parameters", "Required Inputs")}
                             </div>
-                            {skill.parameters && skill.parameters.length > 0 ? (
-                                <div className="border rounded-xl overflow-hidden">
-                                    <Table>
-                                        <TableHeader className="bg-muted/30">
-                                            <TableRow>
-                                                <TableHead className="h-9 text-xs">{t("common.name", "Name")}</TableHead>
-                                                <TableHead className="h-9 text-xs">{t("common.type", "Type")}</TableHead>
-                                                <TableHead className="h-9 text-xs">{t("common.description", "Description")}</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {skill.parameters.map((param, i) => (
-                                                <TableRow key={i} className="text-xs">
-                                                    <TableCell className="font-mono py-2">{param.name}</TableCell>
-                                                    <TableCell className="py-2"><Badge variant="outline" className="text-[9px] font-normal">{param.type}</Badge></TableCell>
-                                                    <TableCell className="py-2 text-muted-foreground">{param.description}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                            {parameters && parameters.length > 0 ? (
+                                <div className="space-y-2">
+                                    {parameters.map((param: any, i: number) => (
+                                        <div key={i} className="bg-muted/30 p-4 rounded-xl border flex flex-col gap-1.5 transition-all hover:border-primary/20">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-tight">
+                                                    {t("learning.editor.paramType")}: {param.type}
+                                                </span>
+                                                <Badge variant="outline" className="text-[9px] font-mono opacity-50">{param.name}</Badge>
+                                            </div>
+                                            <p className="text-sm font-medium leading-snug">
+                                                {param.description || param.name}
+                                            </p>
+                                        </div>
+                                    ))}
                                 </div>
                             ) : (
-                                <p className="text-xs text-muted-foreground italic">{t("learning.noParameters", "No parameters defined.")}</p>
+                                <p className="text-xs text-muted-foreground italic px-1">{t("learning.execution.noParams", "No inputs required for this skill.")}</p>
                             )}
                         </section>
 
@@ -143,7 +152,7 @@ export function SkillDetailsPanel({
                                             <div className="flex items-center justify-between mb-2">
                                                 <div className="flex items-center gap-2">
                                                     <Badge variant="secondary" className="bg-primary/5 text-primary border-primary/10 text-[10px] uppercase font-bold px-2 py-0.5">
-                                                        {step.action}
+                                                        {t(`skills.actions.${step.action}`, step.action)}
                                                     </Badge>
                                                 </div>
                                                 {step.condition && (
@@ -164,7 +173,23 @@ export function SkillDetailsPanel({
 
                         {/* Metadata */}
                         <Separator />
-                        <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
+
+                        {/* Instructions (Full Markdown) */}
+                        {skill.instructions && (
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 text-sm font-bold text-primary">
+                                    <BookOpen className="h-4 w-4" />
+                                    {t("learning.instructions", "Skill Instructions (SKILL.md)")}
+                                </div>
+                                <div className="bg-muted/30 p-4 rounded-xl border prose prose-sm dark:prose-invert max-w-none">
+                                    <div className="text-[13px] leading-relaxed whitespace-pre-wrap">
+                                        {skill.instructions}
+                                    </div>
+                                </div>
+                            </section>
+                        )}
+
+                        <div className="flex items-center gap-4 text-[10px] text-muted-foreground pt-4">
                             <div className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" />
                                 {t("learning.created", "Created")}: {new Date(skill.created_at).toLocaleString()}

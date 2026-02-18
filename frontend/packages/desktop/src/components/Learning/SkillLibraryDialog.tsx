@@ -1,4 +1,4 @@
-import { BookOpen, Play, Trash2, Edit } from "lucide-react"
+import { BookOpen, Play, Trash2, Edit, FolderDown, ShieldCheck, AlertTriangle, Wand2, Search } from "lucide-react"
 import type React from "react"
 import { useEffect, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
@@ -27,6 +27,7 @@ import {
 import type { LearnedSkill } from "@/types/skill"
 import { SkillExecutionDialog } from "./SkillExecutionDialog"
 import { SkillEditorDialog } from "./SkillEditorDialog"
+import { ImportSkillsDialog } from "./ImportSkillsDialog"
 
 interface SkillLibraryDialogProps {
   open?: boolean
@@ -49,6 +50,7 @@ export function SkillLibraryDialog({
   const [loading, setLoading] = useState(false)
   const [executionOpen, setExecutionOpen] = useState(false)
   const [editingOpen, setEditingOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
   const [skillToExecute, setSkillToExecute] = useState<LearnedSkill | null>(
     null,
   )
@@ -113,8 +115,17 @@ export function SkillLibraryDialog({
               <BookOpen className="h-5 w-5" />
               {t("learning.skillLibrary")}
             </DialogTitle>
-            <DialogDescription>
-              {t("learning.skills")} ({skills.length})
+            <DialogDescription className="flex items-center justify-between">
+              <span>{t("learning.skills")} ({skills.length})</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-[10px] gap-1.5"
+                onClick={() => setImportOpen(true)}
+              >
+                <FolderDown className="h-3 w-3" />
+                {t("learning.import.button", "Import Skills")}
+              </Button>
             </DialogDescription>
           </DialogHeader>
 
@@ -166,6 +177,18 @@ export function SkillLibraryDialog({
                         >
                           {t("learning.successCount", { count: skill.success_count })}
                         </Badge>
+                        {skill.status === "verified" && (
+                          <Badge variant="secondary" className="text-[10px] h-5 bg-green-100 text-green-700 border-green-200">
+                            <ShieldCheck className="h-2 w-2 mr-1" />
+                            {t("learning.status.verified", "Verified")}
+                          </Badge>
+                        )}
+                        {skill.validation_report?.status === "warning" && (
+                          <Badge variant="secondary" className="text-[10px] h-5 bg-yellow-100 text-yellow-700 border-yellow-200">
+                            <AlertTriangle className="h-2 w-2 mr-1" />
+                            {t("learning.status.warning", "Warning")}
+                          </Badge>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -219,6 +242,84 @@ export function SkillLibraryDialog({
                       </div>
                     </div>
 
+                    {selectedSkill.validation_report && (
+                      <Card className={`border-none shadow-none ${selectedSkill.validation_report.status === 'healthy' ? 'bg-green-50' : selectedSkill.validation_report.status === 'warning' ? 'bg-yellow-50' : 'bg-red-50'}`}>
+                        <CardHeader className="py-3 px-4 flex flex-row items-center justify-between space-y-0">
+                          <CardTitle className={`text-xs font-bold uppercase ${selectedSkill.validation_report.status === 'healthy' ? 'text-green-700' : selectedSkill.validation_report.status === 'warning' ? 'text-yellow-700' : 'text-red-700'}`}>
+                            {t("learning.healthStatus", "Health Status")}: {t(`learning.validationStatus.${selectedSkill.validation_report.status}`, selectedSkill.validation_report.status)}
+                          </CardTitle>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-[10px] gap-1"
+                              onClick={async () => {
+                                try {
+                                  toast.promise(LearningService.validateSkill({ skillId: selectedSkill.id }), {
+                                    loading: t("learning.optimizing.loading", "Validating..."),
+                                    success: () => {
+                                      fetchSkills();
+                                      return t("common.success");
+                                    },
+                                    error: t("common.error.message")
+                                  });
+                                } catch (e) { }
+                              }}
+                            >
+                              <Search className="h-3 w-3" />
+                              {t("learning.revalidate", "Re-validate")}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 text-[10px] gap-1"
+                              onClick={async () => {
+                                try {
+                                  toast.promise(LearningService.optimizeSkill({ skillId: selectedSkill.id }), {
+                                    loading: t("learning.optimizing.loading", "Optimizing..."),
+                                    success: (res: any) => {
+                                      const data = res as any;
+                                      if (data.success) {
+                                        // We'll show a diff or just success for now
+                                        return t("learning.optimize.success", "Instructions refined via AI");
+                                      }
+                                      return data.error || t("common.error.message");
+                                    },
+                                    error: t("common.error.message")
+                                  });
+                                } catch (e) { }
+                              }}
+                            >
+                              <Wand2 className="h-3 w-3" />
+                              {t("learning.autoOptimize", "Auto-Optimize")}
+                            </Button>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="px-4 pb-3">
+                          <ul className="text-xs space-y-1">
+                            {selectedSkill.validation_report.errors.map((e, idx) => (
+                              <li key={idx} className="text-red-600 flex items-start gap-1.5">
+                                <span className="mt-1 w-1 h-1 rounded-full bg-red-600 shrink-0" />
+                                {e}
+                              </li>
+                            ))}
+                            {selectedSkill.validation_report.warnings.map((w, idx) => (
+                              <li key={idx} className="text-yellow-700 flex items-start gap-1.5">
+                                <span className="mt-1 w-1 h-1 rounded-full bg-yellow-700 shrink-0" />
+                                {w}
+                              </li>
+                            ))}
+                            {selectedSkill.validation_report.is_valid && selectedSkill.validation_report.errors.length === 0 && selectedSkill.validation_report.warnings.length === 0 && (
+                              <li className="text-green-600 flex items-center gap-1.5">
+                                <ShieldCheck className="h-3 w-3" />
+                                {t("learning.healthHealthy", "Skill follows all standardization rules.")}
+                              </li>
+                            )}
+                          </ul>
+                        </CardContent>
+                      </Card>
+                    )}
+
                     <Card>
                       <CardHeader className="pb-3">
                         <CardTitle className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
@@ -253,9 +354,9 @@ export function SkillLibraryDialog({
                             <Table>
                               <TableHeader>
                                 <TableRow>
-                                  <TableHead>{t("learning.table.name")}</TableHead>
-                                  <TableHead>{t("learning.table.type")}</TableHead>
-                                  <TableHead>{t("learning.table.description")}</TableHead>
+                                  <TableHead>{t("learning.editor.paramName")}</TableHead>
+                                  <TableHead>{t("learning.editor.paramType")}</TableHead>
+                                  <TableHead>{t("learning.editor.paramDesc")}</TableHead>
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
@@ -359,6 +460,12 @@ export function SkillLibraryDialog({
           }}
         />
       )}
+
+      <ImportSkillsDialog
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={fetchSkills}
+      />
     </>
   )
 }

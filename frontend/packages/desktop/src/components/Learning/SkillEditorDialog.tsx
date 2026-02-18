@@ -1,20 +1,12 @@
 import {
     Loader2,
     Save,
-    Plus,
-    Trash2,
-    X,
-    Terminal,
     Settings2,
     Sparkles,
-    History,
-    BarChart3,
-    Info,
     Eye,
-    TrendingUp,
-    CheckCircle2
+    Play,
 } from "lucide-react"
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { LearningService } from "@/client/sdk.gen"
@@ -27,27 +19,18 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
-import { Input } from "@evoloop/shared/components/ui/input"
-import { Label } from "@evoloop/shared/components/ui/label"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
-import { Badge } from "@evoloop/shared/components/ui/badge"
-import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
-import { Separator } from "@evoloop/shared/components/ui/separator"
-import type { LearnedSkill } from "@/types/skill"
+import { EditorSidebar } from "./EditorSidebar"
+import { LogicWorkspace } from "./LogicWorkspace"
+import { EditorStatsPreview } from "./EditorStatsPreview"
+import { useChatStore } from "@/stores/chatStore"
+import type { LearnedSkill, SkillStep } from "@/types/skill"
+import type { ParamDef } from "./EditorSidebar"
 
 interface SkillEditorDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
     skill: LearnedSkill
     onSuccess: () => void
-}
-
-interface ParamDef {
-    name: string
-    type: string
-    description: string
-    required?: boolean
 }
 
 export function SkillEditorDialog({
@@ -64,22 +47,32 @@ export function SkillEditorDialog({
     const [triggers, setTriggers] = useState<string[]>([])
     const [newTrigger, setNewTrigger] = useState("")
     const [params, setParams] = useState<ParamDef[]>([])
-    const [activeTab, setActiveTab] = useState("general")
+    const [steps, setSteps] = useState<SkillStep[]>([])
+    const [isSimpleMode, setIsSimpleMode] = useState(true)
+    const [showPreview, setShowPreview] = useState(false)
 
     useEffect(() => {
         if (open && skill) {
+            const safeParse = (data: any, defaultVal: any) => {
+                if (!data) return defaultVal;
+                if (typeof data === 'string') {
+                    try {
+                        return JSON.parse(data);
+                    } catch (e) {
+                        console.error("Failed to parse", data, e);
+                        return defaultVal;
+                    }
+                }
+                return data;
+            }
+
             setName(skill.name)
             setDescription(skill.description)
-            setTriggers(skill.trigger_patterns || [])
-            const p = skill.parameters || []
-            setParams(Array.isArray(p) ? p : [])
+            setTriggers(safeParse(skill.trigger_patterns, []))
+            setParams(safeParse(skill.parameters, []))
+            setSteps(safeParse(skill.steps, []))
         }
     }, [open, skill])
-
-    const steps = useMemo(() => {
-        if (!skill?.steps) return []
-        return typeof skill.steps === 'string' ? JSON.parse(skill.steps) : skill.steps
-    }, [skill])
 
     const handleAddTrigger = () => {
         if (!newTrigger.trim()) return
@@ -109,17 +102,126 @@ export function SkillEditorDialog({
         setParams(newParams)
     }
 
+    const updateStepByPath = (steps: SkillStep[], path: number[], newStep: SkillStep): SkillStep[] => {
+        const [index, ...rest] = path;
+        const newSteps = [...steps];
+        if (rest.length === 0) {
+            newSteps[index] = newStep;
+        } else {
+            newSteps[index] = {
+                ...newSteps[index],
+                children: updateStepByPath(newSteps[index].children || [], rest, newStep)
+            };
+        }
+        return newSteps;
+    }
+
+    const deleteStepByPath = (steps: SkillStep[], path: number[]): SkillStep[] => {
+        const [index, ...rest] = path;
+        const newSteps = [...steps];
+        if (rest.length === 0) {
+            newSteps.splice(index, 1);
+        } else {
+            newSteps[index] = {
+                ...newSteps[index],
+                children: deleteStepByPath(newSteps[index].children || [], rest)
+            };
+        }
+        return newSteps;
+    }
+
+    const addStepByPath = (steps: SkillStep[], path: number[], newStep: SkillStep): SkillStep[] => {
+        if (path.length === 0) return [...steps, newStep];
+
+        const [index, ...rest] = path;
+        const newSteps = [...steps];
+        if (rest.length === 0) {
+            newSteps.splice(index, 0, newStep);
+        } else {
+            newSteps[index] = {
+                ...newSteps[index],
+                children: addStepByPath(newSteps[index].children || [], rest, newStep)
+            };
+        }
+        return newSteps;
+    }
+
+    const handleUpdateStep = (path: number[], newStep: SkillStep) => {
+        setSteps(updateStepByPath(steps, path, newStep))
+    }
+
+    const handleDeleteStep = (path: number[]) => {
+        setSteps(deleteStepByPath(steps, path))
+    }
+
+    const handleAddStepWithIndex = (path?: number[], stepBody?: SkillStep) => {
+        const newStep: SkillStep = stepBody || { action: "mobile_control", args: { action: "tap", x: 500, y: 1000 } }
+        if (path) {
+            setSteps(addStepByPath(steps, path, newStep))
+        } else {
+            setSteps([...steps, newStep])
+        }
+    }
+
+    const handleMoveStep = (path: number[], direction: 'up' | 'down') => {
+        const index = path[path.length - 1];
+        const parentPath = path.slice(0, -1);
+
+        const getParentList = (steps: SkillStep[], p: number[]): SkillStep[] => {
+            if (p.length === 0) return steps;
+            const [idx, ...rest] = p;
+            return getParentList(steps[idx].children || [], rest);
+        }
+
+        const parentList = getParentList(steps, parentPath);
+        if (direction === 'up' && index === 0) return
+        if (direction === 'down' && index === parentList.length - 1) return
+
+        const targetIndex = direction === 'up' ? index - 1 : index + 1
+
+        const swapInList = (list: SkillStep[]): SkillStep[] => {
+            const newList = [...list];
+            const temp = newList[index];
+            newList[index] = newList[targetIndex];
+            newList[targetIndex] = temp;
+            return newList;
+        }
+
+        if (parentPath.length === 0) {
+            setSteps(swapInList(steps));
+        } else {
+            const updateParent = (currentSteps: SkillStep[], p: number[]): SkillStep[] => {
+                const [idx, ...rest] = p;
+                const newCurrent = [...currentSteps];
+                if (rest.length === 0) {
+                    newCurrent[idx] = {
+                        ...newCurrent[idx],
+                        children: swapInList(newCurrent[idx].children || [])
+                    }
+                } else {
+                    newCurrent[idx] = {
+                        ...newCurrent[idx],
+                        children: updateParent(newCurrent[idx].children || [], rest)
+                    }
+                }
+                return newCurrent;
+            }
+            setSteps(updateParent(steps, parentPath));
+        }
+    }
+
     const handleAiOptimize = async () => {
         setAiOptimizing(true)
         // Mock AI optimization delay
         await new Promise(resolve => setTimeout(resolve, 1500))
 
         // Simulating AI improvement
-        const betterDescription = description || "AI refined description based on execution logic."
-        if (!triggers.includes("automated " + name.toLowerCase())) {
-            setTriggers([...triggers, "automated " + name.toLowerCase()])
+        const betterDescription = description || t("learning.editor.aiRefinedDesc", "AI refined description based on execution logic.")
+        const autoPrefix = t("learning.editor.automatedPrefix", "automated ")
+        if (!triggers.includes(autoPrefix + name.toLowerCase())) {
+            setTriggers([...triggers, autoPrefix + name.toLowerCase()])
         }
-        setDescription(betterDescription + " (Optimized)")
+        setDescription(betterDescription + t("learning.editor.optimizedSuffix", " (Optimized)"))
 
         setAiOptimizing(false)
         toast.success(t("common.success", "AI Refinement complete"))
@@ -151,7 +253,8 @@ export function SkillEditorDialog({
                     description,
                     trigger_patterns: triggers,
                     parameters: params as any[],
-                },
+                    steps: steps as any[],
+                } as any,
             })
 
             toast.success(t("common.saved"))
@@ -167,278 +270,128 @@ export function SkillEditorDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[1000px] w-[95vw] h-[85vh] flex flex-col p-0 overflow-hidden bg-background/95 backdrop-blur-xl border border-primary/10">
+            <DialogContent className="sm:max-w-[1680px] w-[95vw] h-[85vh] flex flex-col p-0 overflow-hidden bg-background border shadow-2xl">
                 <div className="flex h-full overflow-hidden">
-                    {/* Left Side: Editor */}
-                    <div className="flex-1 flex flex-col border-r bg-background/50">
-                        <DialogHeader className="p-6 pb-2 border-b bg-muted/20">
+                    <div className="flex-1 flex flex-col bg-background">
+                        <DialogHeader className="p-6 border-b bg-background">
                             <div className="flex items-center justify-between">
                                 <div className="space-y-1">
                                     <DialogTitle className="flex items-center gap-2 text-xl font-bold">
-                                        <Settings2 className="h-5 w-5 text-primary animate-pulse" />
-                                        {t("learning.editor.title", { name: skill.name })}
+                                        <div className="p-2 bg-primary/10 rounded-xl">
+                                            <Settings2 className="h-5 w-5 text-primary" />
+                                        </div>
+                                        <span className="truncate max-w-[500px]">
+                                            {t("learning.editor.title", { name: skill.name })}
+                                        </span>
                                     </DialogTitle>
-                                    <DialogDescription className="text-xs">
+                                    <DialogDescription className="text-xs px-1">
                                         {t("learning.editor.description")}
                                     </DialogDescription>
                                 </div>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="gap-2 bg-primary/5 border-primary/20 hover:bg-primary/10 transition-all text-xs font-bold"
-                                    onClick={handleAiOptimize}
-                                    disabled={aiOptimizing}
-                                >
-                                    {aiOptimizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-primary" />}
-                                    {t("learning.editor.aiOptimize")}
-                                </Button>
+                                <div className="flex items-center gap-3">
+                                    <Button
+                                        variant={showPreview ? "secondary" : "outline"}
+                                        size="sm"
+                                        className={`gap-2 text-xs font-bold transition-all ${showPreview ? "bg-primary/10 border-primary/30 text-primary" : "border-primary/20"}`}
+                                        onClick={() => setShowPreview(!showPreview)}
+                                    >
+                                        <Eye className={`h-3.5 w-3.5 ${showPreview ? "text-primary" : "text-muted-foreground"}`} />
+                                        {showPreview ? t("learning.editor.hidePreview") : t("learning.editor.showPreview")}
+                                    </Button>
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2 text-xs font-bold border-emerald-500/20 text-emerald-600 hover:bg-emerald-50"
+                                        onClick={async () => {
+                                            if (!showPreview) setShowPreview(true);
+                                            try {
+                                                const threadId = useChatStore.getState().threadId || "debug-" + Date.now();
+                                                await LearningService.executeSkill({
+                                                    skillId: skill.id,
+                                                    requestBody: {
+                                                        thread_id: threadId,
+                                                        params: {}, // In Phase 3 we will add parameter support for debug run
+                                                    }
+                                                });
+                                                toast.success(t("learning.executionStarted", "Execution started"));
+                                            } catch (e) {
+                                                toast.error(t("learning.executionFailed", "Execution failed"));
+                                            }
+                                        }}
+                                        disabled={loading}
+                                    >
+                                        <Play className="h-3.5 w-3.5 fill-current" />
+                                        {t("learning.execution.runNow", "Run Skill")}
+                                    </Button>
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="gap-2 text-xs font-bold border-primary/20 hover:bg-primary/5"
+                                        onClick={handleAiOptimize}
+                                        disabled={aiOptimizing}
+                                    >
+                                        {aiOptimizing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 text-primary" />}
+                                        {t("learning.editor.aiOptimize")}
+                                    </Button>
+                                </div>
                             </div>
                         </DialogHeader>
 
-                        <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
-                            <TabsList className="bg-transparent border-b px-6 py-0 h-12 justify-start gap-4">
-                                <TabsTrigger value="general" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full gap-2 px-1 text-xs">
-                                    <Settings2 className="h-3.5 w-3.5" />
-                                    {t("learning.editor.tabs.general")}
-                                </TabsTrigger>
-                                <TabsTrigger value="logic" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full gap-2 px-1 text-xs">
-                                    <History className="h-3.5 w-3.5" />
-                                    {t("learning.editor.tabs.logic")}
-                                </TabsTrigger>
-                                <TabsTrigger value="stats" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none h-full gap-2 px-1 text-xs">
-                                    <BarChart3 className="h-3.5 w-3.5" />
-                                    {t("learning.editor.tabs.stats")}
-                                </TabsTrigger>
-                            </TabsList>
+                        <div className="flex-1 flex overflow-hidden">
+                            <EditorSidebar
+                                name={name}
+                                setName={setName}
+                                description={description}
+                                setDescription={setDescription}
+                                triggers={triggers}
+                                newTrigger={newTrigger}
+                                setNewTrigger={setNewTrigger}
+                                handleAddTrigger={handleAddTrigger}
+                                handleRemoveTrigger={handleRemoveTrigger}
+                                params={params}
+                                handleAddParam={handleAddParam}
+                                handleRemoveParam={handleRemoveParam}
+                                handleParamChange={handleParamChange}
+                            />
 
-                            <ScrollArea className="flex-1">
-                                <div className="p-6 space-y-8 pb-12">
-                                    <TabsContent value="general" className="mt-0 space-y-8 animate-in fade-in slide-in-from-left-2">
-                                        {/* Basic Info */}
-                                        <section className="space-y-4">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <Badge variant="outline" className="h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px] font-bold">1</Badge>
-                                                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground/70">{t("learning.editor.skillName")}</h3>
-                                            </div>
-                                            <Input
-                                                value={name}
-                                                onChange={(e) => setName(e.target.value)}
-                                                className="h-10 text-base font-medium bg-muted/20 border-muted focus-visible:ring-primary/30"
-                                            />
+                            <LogicWorkspace
+                                steps={steps}
+                                params={params}
+                                isSimpleMode={isSimpleMode}
+                                setIsSimpleMode={setIsSimpleMode}
+                                handleAddStepWithIndex={handleAddStepWithIndex}
+                                handleUpdateStep={handleUpdateStep}
+                                handleDeleteStep={handleDeleteStep}
+                                handleMoveStep={handleMoveStep}
+                                showPreview={showPreview}
+                                setShowPreview={setShowPreview}
+                            />
 
-                                            <div className="flex items-center gap-2 mb-2 pt-2">
-                                                <Badge variant="outline" className="h-5 w-5 rounded-full p-0 flex items-center justify-center text-[10px] font-bold">2</Badge>
-                                                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground/70">{t("learning.editor.skillDescription")}</h3>
-                                            </div>
-                                            <Textarea
-                                                value={description}
-                                                onChange={(e) => setDescription(e.target.value)}
-                                                rows={3}
-                                                className="bg-muted/20 border-muted focus-visible:ring-primary/30"
-                                            />
-                                        </section>
+                            <EditorStatsPreview
+                                skill={skill}
+                                name={name}
+                                description={description}
+                                triggers={triggers}
+                                showPreview={showPreview}
+                                setShowPreview={setShowPreview}
+                            />
+                        </div>
 
-                                        {/* Trigger Patterns */}
-                                        <section className="space-y-4 p-5 bg-muted/30 rounded-2xl border border-dashed border-muted-foreground/20">
-                                            <div className="flex items-center justify-between gap-2">
-                                                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground/70 flex items-center gap-2">
-                                                    <Terminal className="h-4 w-4 text-primary" />
-                                                    {t("learning.editor.triggerPatterns")}
-                                                </h3>
-                                                <Badge variant="secondary" className="text-[10px] opacity-60">{triggers.length} {t("learning.mirror.found")}</Badge>
-                                            </div>
-
-                                            <div className="flex flex-wrap gap-2 min-h-[40px] p-1">
-                                                {triggers.length === 0 && (
-                                                    <span className="text-xs text-muted-foreground italic">
-                                                        {t("learning.editor.noTriggers")}
-                                                    </span>
-                                                )}
-                                                {triggers.map((trigger, i) => (
-                                                    <Badge key={i} variant="secondary" className="pl-3 pr-1 py-1 gap-1 border border-primary/10 bg-background/50 hover:border-primary/30 transition-all">
-                                                        {trigger}
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="icon"
-                                                            className="h-4 w-4 rounded-full hover:bg-destructive hover:text-white"
-                                                            onClick={() => handleRemoveTrigger(i)}
-                                                        >
-                                                            <X className="h-2.5 w-2.5" />
-                                                        </Button>
-                                                    </Badge>
-                                                ))}
-                                            </div>
-
-                                            <div className="flex gap-2">
-                                                <Input
-                                                    value={newTrigger}
-                                                    onChange={(e) => setNewTrigger(e.target.value)}
-                                                    placeholder={t("learning.editor.addTrigger")}
-                                                    className="h-9 text-xs bg-background"
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === "Enter") {
-                                                            e.preventDefault()
-                                                            handleAddTrigger()
-                                                        }
-                                                    }}
-                                                />
-                                                <Button size="sm" variant="outline" className="h-9 w-9 p-0" onClick={handleAddTrigger}>
-                                                    <Plus className="h-4 w-4" />
-                                                </Button>
-                                            </div>
-                                        </section>
-
-                                        {/* Parameters */}
-                                        <section className="space-y-4">
-                                            <div className="flex items-center justify-between border-b pb-2">
-                                                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground/70">{t("learning.editor.parameters")}</h3>
-                                                <Button size="sm" variant="outline" className="h-7 text-[10px] gap-1 bg-primary/5 hover:bg-primary/10 border-primary/10" onClick={handleAddParam}>
-                                                    <Plus className="h-3 w-3" />
-                                                    {t("learning.editor.addParameter")}
-                                                </Button>
-                                            </div>
-
-                                            <div className="space-y-3">
-                                                {params.length === 0 && (
-                                                    <div className="text-center py-10 border-2 border-dashed border-muted rounded-2xl text-muted-foreground/50 flex flex-col items-center gap-2">
-                                                        <Settings2 className="h-10 w-10 stroke-1" />
-                                                        <span className="text-xs font-medium">{t("learning.noParameters")}</span>
-                                                    </div>
-                                                )}
-                                                {params.map((param, i) => (
-                                                    <div key={i} className="grid grid-cols-[1fr,100px,1.5fr,auto] gap-3 items-start border p-4 rounded-2xl bg-background/50 shadow-sm transition-all hover:shadow-md group">
-                                                        <div className="grid gap-1.5">
-                                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground/80">{t("learning.editor.paramName")}</Label>
-                                                            <Input
-                                                                value={param.name}
-                                                                onChange={(e) => handleParamChange(i, "name", e.target.value)}
-                                                                className="h-8 text-xs font-mono bg-muted/20"
-                                                                placeholder="e.g. city"
-                                                            />
-                                                        </div>
-                                                        <div className="grid gap-1.5">
-                                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground/80">{t("learning.editor.paramType")}</Label>
-                                                            <select
-                                                                value={param.type}
-                                                                onChange={(e) => handleParamChange(i, "type", e.target.value)}
-                                                                className="flex h-8 w-full rounded-md border border-input bg-muted/20 px-3 py-1 text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                                                            >
-                                                                <option value="string">string</option>
-                                                                <option value="number">number</option>
-                                                                <option value="boolean">boolean</option>
-                                                                <option value="array">array</option>
-                                                            </select>
-                                                        </div>
-                                                        <div className="grid gap-1.5">
-                                                            <Label className="text-[10px] font-bold uppercase text-muted-foreground/80">{t("learning.editor.paramDesc")}</Label>
-                                                            <Input
-                                                                value={param.description}
-                                                                onChange={(e) => handleParamChange(i, "description", e.target.value)}
-                                                                className="h-8 text-xs bg-muted/20"
-                                                                placeholder="Context for this param"
-                                                            />
-                                                        </div>
-                                                        <div className="pt-6">
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="icon"
-                                                                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                                                onClick={() => handleRemoveParam(i)}
-                                                            >
-                                                                <Trash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </section>
-                                    </TabsContent>
-
-                                    <TabsContent value="logic" className="mt-0 space-y-6 animate-in fade-in slide-in-from-right-2">
-                                        <div className="flex items-center gap-2 mb-4">
-                                            <History className="h-5 w-5 text-primary" />
-                                            <h3 className="text-base font-bold">{t("learning.steps")}</h3>
-                                            <Badge variant="outline" className="ml-auto font-mono text-[10px]">{steps.length} Steps</Badge>
-                                        </div>
-
-                                        <div className="space-y-6 relative ml-4">
-                                            {steps.length === 0 && (
-                                                <div className="text-center py-20 opacity-20 flex flex-col items-center">
-                                                    <History className="h-16 w-16 mb-4" />
-                                                    <p className="text-sm font-medium">{t("learning.editor.noLogic")}</p>
-                                                </div>
-                                            )}
-                                            {steps.map((step: any, i: number) => (
-                                                <div key={i} className="relative pl-10 pb-6 last:pb-0 border-l-2 border-primary/20 hover:border-primary/50 transition-all">
-                                                    <div className="absolute left-[-11px] top-0 h-5 w-5 rounded-full bg-primary flex items-center justify-center text-[10px] text-white font-bold shadow-lg shadow-primary/20 z-10">
-                                                        {i + 1}
-                                                    </div>
-                                                    <div className="bg-card/50 border border-primary/5 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all group">
-                                                        <div className="flex items-center justify-between mb-3">
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-sm font-bold text-primary px-2 py-0.5 rounded-md bg-primary/5">{step.action}</span>
-                                                                {step.condition && (
-                                                                    <Badge variant="outline" className="text-[10px] font-bold border-yellow-500/30 text-yellow-600 bg-yellow-50/50">
-                                                                        IF: {step.condition}
-                                                                    </Badge>
-                                                                )}
-                                                            </div>
-                                                            <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-all">
-                                                                <X className="h-3 w-3" />
-                                                            </Button>
-                                                        </div>
-                                                        <div className="bg-black/5 p-3 rounded-xl text-[10px] font-mono leading-relaxed overflow-x-auto border border-black/5">
-                                                            {JSON.stringify(step.args, null, 2)}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </TabsContent>
-
-                                    <TabsContent value="stats" className="mt-0 space-y-6 animate-in zoom-in-95">
-                                        <div className="grid grid-cols-3 gap-4">
-                                            <div className="bg-primary/5 border border-primary/10 p-6 rounded-3xl flex flex-col items-center text-center gap-2">
-                                                <CheckCircle2 className="h-8 w-8 text-green-500 mb-2" />
-                                                <span className="text-3xl font-black text-primary">{skill.success_count || 0}</span>
-                                                <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">{t("learning.successes")}</span>
-                                            </div>
-                                            <div className="bg-purple-500/5 border border-purple-500/10 p-6 rounded-3xl flex flex-col items-center text-center gap-2">
-                                                <TrendingUp className="h-8 w-8 text-purple-500 mb-2" />
-                                                <span className="text-3xl font-black text-primary">92%</span>
-                                                <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">{t("learning.editor.effectiveness")}</span>
-                                            </div>
-                                            <div className="bg-blue-500/5 border border-blue-500/10 p-6 rounded-3xl flex flex-col items-center text-center gap-2">
-                                                <History className="h-8 w-8 text-blue-500 mb-2" />
-                                                <span className="text-3xl font-black text-primary">12s</span>
-                                                <span className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">{t("learning.editor.avgDuration")}</span>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-muted/10 border p-6 rounded-3xl space-y-4">
-                                            <h4 className="text-sm font-bold opacity-60 flex items-center gap-2">
-                                                <History className="h-4 w-4" />
-                                                {t("learning.editor.recentRuns")}
-                                            </h4>
-                                            <div className="space-y-2 opacity-40 italic text-xs text-center py-10">
-                                                {t("learning.editor.phase6Notice")}
-                                            </div>
-                                        </div>
-                                    </TabsContent>
-                                </div>
-                            </ScrollArea>
-                        </Tabs>
-
-                        <DialogFooter className="p-6 border-t bg-muted/10 mt-auto">
+                        <DialogFooter className="p-6 border-t bg-background mt-auto gap-3 shrink-0">
+                            <div className="flex-1 flex items-center gap-4 text-xs text-muted-foreground font-medium italic">
+                                <span>{t("learning.editor.phase6Notice")}</span>
+                            </div>
                             <Button
                                 variant="ghost"
                                 onClick={() => onOpenChange(false)}
                                 disabled={loading}
-                                className="text-xs font-bold uppercase tracking-widest opacity-60 hover:opacity-100"
+                                className="text-xs font-semibold px-6"
                             >
                                 {t("common.cancel")}
                             </Button>
-                            <Button onClick={handleSave} disabled={loading} className="gap-2 px-8 rounded-full font-bold shadow-lg shadow-primary/20 transition-all hover:scale-105 active:scale-95">
+                            <Button onClick={handleSave} disabled={loading} className="gap-2 px-10 h-11 font-bold shadow-lg shadow-primary/20 transition-all hover:scale-[1.02] active:scale-[0.98]">
                                 {loading ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
@@ -447,82 +400,6 @@ export function SkillEditorDialog({
                                 {t("learning.editor.saveChanges")}
                             </Button>
                         </DialogFooter>
-                    </div>
-
-                    {/* Right Side: Live Preview Panel */}
-                    <div className="w-[320px] bg-muted/10 flex flex-col border-l overflow-hidden">
-                        <div className="p-4 border-b bg-muted/20 flex items-center gap-2">
-                            <Eye className="h-4 w-4 text-primary" />
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80">{t("learning.editor.preview")}</span>
-                        </div>
-                        <ScrollArea className="flex-1">
-                            <div className="p-6 space-y-6">
-                                {/* Preview Card */}
-                                <div className="p-5 bg-card border rounded-3xl shadow-xl space-y-4 transform scale-[0.95] origin-top transition-all border-primary/20">
-                                    <div className="flex items-start justify-between gap-3">
-                                        <div className="h-10 w-10 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/10">
-                                            <Terminal className="h-5 w-5 text-primary" />
-                                        </div>
-                                        <Badge variant="outline" className="bg-green-500/5 text-green-600 border-green-500/20 text-[9px] font-bold">
-                                            {skill.status || "active"}
-                                        </Badge>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <h3 className="font-bold text-lg leading-tight line-clamp-1">{name || t("learning.editor.untitledSkill")}</h3>
-                                        <p className="text-[11px] text-muted-foreground line-clamp-3 leading-relaxed">
-                                            {description || t("learning.editor.noDescription")}
-                                        </p>
-                                    </div>
-                                    <div className="flex flex-wrap gap-1.5 pt-1">
-                                        {triggers.slice(0, 3).map((t, idx) => (
-                                            <Badge key={idx} variant="secondary" className="text-[8px] bg-muted/50 px-1.5 py-0.5 rounded-sm">
-                                                {t}
-                                            </Badge>
-                                        ))}
-                                        {triggers.length > 3 && (
-                                            <span className="text-[8px] text-muted-foreground font-bold">+{triggers.length - 3}</span>
-                                        )}
-                                    </div>
-                                    <Separator className="opacity-50" />
-                                    <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground">
-                                        <div className="flex items-center gap-1.5 text-primary">
-                                            <TrendingUp className="h-3 w-3" />
-                                            {skill.success_count || 0}
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <History className="h-3 w-3" />
-                                            {steps.length} Steps
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Preview Stats Pane */}
-                                <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 space-y-3">
-                                    <div className="flex items-center gap-2 text-[10px] font-bold text-primary italic">
-                                        <Info className="h-3 w-3" />
-                                        {t("learning.editor.editorInsights")}
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <div className="flex justify-between text-[9px] font-medium">
-                                            <span className="opacity-60">{t("learning.editor.triggersCount")}</span>
-                                            <span className={triggers.length === 0 ? "text-destructive" : "text-green-600"}>{triggers.length}</span>
-                                        </div>
-                                        <div className="flex justify-between text-[9px] font-medium">
-                                            <span className="opacity-60">{t("learning.editor.parameters")}</span>
-                                            <span className={params.length === 0 ? "text-yellow-600" : "text-primary"}>{params.length}</span>
-                                        </div>
-                                        <div className="flex justify-between text-[9px] font-medium">
-                                            <span className="opacity-60">{t("learning.editor.complexity")}</span>
-                                            <span className="font-bold">{steps.length > 5 ? t("learning.editor.complexityMedium") : t("learning.editor.complexityLow")}</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="text-[10px] text-muted-foreground/40 text-center px-4 leading-relaxed">
-                                    {t("learning.editor.previewNotice")}
-                                </div>
-                            </div>
-                        </ScrollArea>
                     </div>
                 </div>
             </DialogContent>

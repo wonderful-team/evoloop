@@ -103,8 +103,8 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                     />
                 </div>
                 <div className="flex gap-2">
-                    <Badge variant="outline" className="px-3 py-1">
-                        {skills.length} {t("learning.totalSkills", "Skills Total")}
+                    <Badge variant="outline" className="px-3 py-1 font-bold">
+                        {skills.length} {t("learning.editor.triggersCount")}
                     </Badge>
                 </div>
             </div>

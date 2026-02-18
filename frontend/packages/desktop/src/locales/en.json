@@ -153,17 +153,20 @@
       "title": "Edit Skill: {{name}}",
       "saveChanges": "Save Changes",
       "triggerHelp": "Phrases that will suggest this skill.",
-      "parameters": "Parameters",
-      "description": "Modify the skill definition by adding trigger phrases and defining parameters.",
+      "parameters": "User Inputs",
+      "description": "Design the questions the agent should ask you when running this skill. Inputs will be automatically mapped to steps.",
       "addTrigger": "Add phrase...",
-      "addParameter": "Add Parameter",
-      "paramName": "Name",
-      "paramType": "Type",
-      "paramDesc": "Description",
+      "addParameter": "Add Input Item",
+      "paramName": "Field ID",
+      "paramType": "Input Type",
+      "paramDesc": "Question / Label",
       "noTriggers": "No trigger patterns defined.",
       "nameRequired": "Name is required",
-      "paramNameRequired": "Parameter name is required",
-      "paramNameNoSpaces": "Parameter names cannot contain spaces",
+      "paramNameRequired": "Field ID is required",
+      "paramNameNoSpaces": "Field IDs cannot contain spaces",
+      "paramNameHelp": "Unique ID used by the system (e.g., user_name)",
+      "paramDescHelp": "The question the agent asks you (e.g., Please enter user name)",
+      "insertVariable": "Insert Input",
       "tabs": {
         "general": "General",
         "logic": "Logic",
@@ -177,6 +180,7 @@
       "avgDuration": "Avg. Duration",
       "recentRuns": "RECENT RUNS",
       "phase6Notice": "Detailed execution logs will appear here in Phase 6.",
+      "instructions": "Skill Instructions (SKILL.md)",
       "untitledSkill": "Untitled Skill",
       "noDescription": "No description provided.",
       "editorInsights": "EDITOR INSIGHTS",
@@ -184,7 +188,21 @@
       "complexity": "Complexity",
       "complexityMedium": "Medium",
       "complexityLow": "Low",
-      "previewNotice": "This is a live representation of how your skill will appear in the library."
+      "previewNotice": "This is a live representation of how your skill will appear in the library.",
+      "simpleMode": "Simple",
+      "jsonMode": "JSON",
+      "addStep": "Add Step",
+      "addInnerStep": "Add Inner Step",
+      "logicHelp": "Define the sequence of actions.",
+      "modeHelp": "Switch between visual and code view.",
+      "aiRefinedDesc": "AI refined description based on execution logic.",
+      "automatedPrefix": "automated ",
+      "optimizedSuffix": " (Optimized)",
+      "uploadSuccess": "Screenshot updated",
+      "uploadError": "Failed to update screenshot",
+      "inputText": "Input Text",
+      "changeScreenshot": "Click to change screenshot",
+      "noImage": "NO IMAGE"
     },
     "na": "N/A",
     "synthesize": "Synthesize Skill",
@@ -207,11 +225,65 @@
       "failedToStart": "Failed to start mirror"
     },
     "execution": {
-      "noParams": "No parameters required.",
-      "description": "Configure parameters to run this skill.",
+      "noParams": "This skill requires no inputs.",
+      "description": "Please answer the following questions to run the skill.",
       "title": "Run Skill: {{name}}",
       "starting": "Starting...",
       "runNow": "Run Now"
+    },
+    "categories": {
+      "mobile": "Mobile Interaction",
+      "desktop": "Desktop Interaction",
+      "logic": "Logic Control"
+    },
+    "actions": {
+      "mobile": {
+        "tap": "Tap",
+        "tapDesc": "Tap at specific coordinates",
+        "input_text": "Input Text",
+        "textDesc": "Type text into a field",
+        "swipe": "Swipe",
+        "swipeDesc": "Swipe gestures",
+        "home": "Home",
+        "homeDesc": "Go to home screen",
+        "back": "Back",
+        "backDesc": "Go back",
+        "open_app": "Open App",
+        "openAppDesc": "Open an app by package name",
+        "press_key": "Press Key",
+        "pressKeyDesc": "Press a physical button",
+        "screenshot": "Screenshot",
+        "screenshotDesc": "Capture screen"
+      },
+      "desktop": {
+        "click": "Click",
+        "clickDesc": "Mouse click",
+        "double_click": "Double Click",
+        "doubleClickDesc": "Mouse double click",
+        "type_text": "Type Text",
+        "typeDesc": "Keyboard input",
+        "key_press": "Key Press",
+        "keyPressDesc": "Press a keyboard key",
+        "open_app": "Open App",
+        "openAppDesc": "Open an application",
+        "screenshot": "Screenshot",
+        "screenshotDesc": "Capture screen"
+      },
+      "wait": "Wait",
+      "waitDesc": "Pause execution",
+      "loop": "Loop",
+      "loopDesc": "Repeat steps multiple times",
+      "condition": "Condition",
+      "conditionDesc": "If/Else branching logic",
+      "group": "Group",
+      "groupDesc": "Container for steps",
+      "instruction": "Instruction",
+      "instructionDesc": "Natural language instruction"
+    },
+    "selector": {
+      "title": "Select Action",
+      "searchPlaceholder": "Search implementation actions...",
+      "noResults": "No actions found."
     },
     "viewDetails": "View Details",
     "startRecording": "Record",
@@ -230,7 +302,7 @@
     "deactivate": "Deactivate",
     "stats": "Stats",
     "triggerPatterns": "Trigger Patterns",
-    "parameters": "Parameters",
+    "parameters": "Inputs",
     "skills": "Learned Skills",
     "synthesisDate": "Synthesis date",
     "skillLibrary": "Skill Library",
@@ -821,6 +893,31 @@
     "analyzing": "Analyzing",
     "description": "Select a project to switch to or manage your projects.",
     "indexingTooltip": "Indexing..."
+  },
+  "skills": {
+    "actions": {
+      "mobile": {
+        "tap": "Tap",
+        "input_text": "Input Text",
+        "swipe": "Swipe",
+        "press_key": "Press Key",
+        "screenshot": "Screenshot"
+      },
+      "desktop": {
+        "click": "Click",
+        "type_text": "Type Text",
+        "open_app": "Open App",
+        "key_press": "Key Press"
+      },
+      "wait": "Wait"
+    },
+    "editor": {
+      "inputText": "Input Text",
+      "simpleMode": "Simple",
+      "jsonMode": "JSON",
+      "noImage": "No Image",
+      "target": "Target"
+    }
   },
   "pending": {
     "items": {
