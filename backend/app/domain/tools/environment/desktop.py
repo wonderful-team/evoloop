@@ -43,7 +43,7 @@ async def desktop_control(
         x: X coordinate for click action.
         y: Y coordinate for click action.
         text: Text to type for type_text action.
-        key: Key name for key_press action (enter, escape, tab, space, delete, up, down, left, right).
+        key: Key name or combination for key_press action (e.g., "enter", "tab", "a", "command+a", "shift+tab").
         app_name: Application name for open_app action (e.g., "Safari", "Terminal").
         script: AppleScript code for applescript action.
         region: Optional region "x,y,w,h" for screenshot action.
@@ -124,6 +124,30 @@ async def desktop_control(
                 return "Error: 'script' is required for applescript action."
             
             output = macos_driver.run_applescript(script)
+            
+            # Intelligent Output Processing
+            from app.constants import MAX_OUTPUT_LENGTH
+            
+            if output:
+                # 1. Detect HTML-like content (common in Notes.app output)
+                if "</div>" in output or "</body>" in output or "<br>" in output:
+                    try:
+                        import markdownify
+                        # Convert HTML to Markdown (strips extensive tags & base64 images usually)
+                        # heading_style="ATX" ensures # Header format
+                        md_output = markdownify.markdownify(output, heading_style="ATX")
+                        if md_output.strip():
+                            output = f"[Converted from HTML to Markdown]\n{md_output}"
+                    except ImportError:
+                        pass # Fallback to raw output if lib missing
+                    except Exception as e:
+                        logger.warning(f"Markdown conversion failed: {e}")
+            
+                # 2. Truncate if still too long
+                if len(output) > MAX_OUTPUT_LENGTH:
+                    truncated_len = len(output)
+                    output = output[:MAX_OUTPUT_LENGTH] + f"\n... [Output truncated, length: {truncated_len}]"
+                
             return f"AppleScript executed.\nOutput: {output}" if output else "AppleScript executed successfully."
         
         else:

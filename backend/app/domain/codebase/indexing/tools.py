@@ -3,7 +3,7 @@ import os
 from langchain_core.tools import tool
 
 from app.domain.codebase.indexing.service import IndexingService
-from app.logging import get_context
+from app.core.context.manager import ContextManager
 
 
 @tool
@@ -14,8 +14,8 @@ async def index_path(path: str) -> str:
     """
     service = IndexingService()
     try:
-        ctx = get_context()
-        root = ctx.get("working_directory") or os.getcwd()
+        ctx = ContextManager.current()
+        root = ctx.working_directory or os.getcwd()
 
         # Ensure path is absolute relative to project root
         target_path = os.path.abspath(os.path.join(root, path))

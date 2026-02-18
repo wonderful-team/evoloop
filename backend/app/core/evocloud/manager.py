@@ -6,7 +6,7 @@ from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
 from app.core.evocloud.schemas import EvoCloudConfig
 from app.core.config import settings  # Only imported to provide default config initialization
-from app.utils.context import get_context
+from app.core.context.manager import ContextManager
 
 logger = logging.getLogger(__name__)
 
@@ -113,12 +113,12 @@ class EvoCloudManager:
     # Chat Sync (Agent.py support)
     async def upload_log(self, thread_id: str, log_type: str, content: Any, name: str | None = None, device_id: int | None = None, command_id=None, project_id=None, persistent: bool = True):
         if not self.api: return
-        
+
         # Auto-fill from context if missing
         if not project_id or not command_id:
-            ctx = get_context()
-            project_id = project_id or ctx.get("project_id")
-            command_id = command_id or ctx.get("command_id")
+            ctx = ContextManager.current()
+            project_id = project_id or ctx.project_id
+            command_id = command_id or ctx.command_id
 
         # Auto-fill device_id if not provided
         target_device_id = device_id or self.device_id

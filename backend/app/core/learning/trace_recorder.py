@@ -114,13 +114,21 @@ class TraceCallbackHandler(AsyncCallbackHandler):
         except Exception as e:
             logger.error(f"Failed to save trace event: {e}")
 
-    def _sanitize_snapshot(self, state: dict) -> dict:
+    def _sanitize_snapshot(self, state: Any) -> dict:
         """Clean up state for storage (remove huge lists, tokens, etc)."""
+        if not isinstance(state, dict):
+            # If state is not a dict (e.g. an AIMessage or string), wrap it
+            if hasattr(state, "dict"):
+                try:
+                    return state.dict()
+                except Exception:
+                    pass
+            return {"raw_input": str(state)}
+            
         clean = {}
         for k, v in state.items():
             # Filter out known huge objects if any
             if k == "messages":
-                # Maybe just keep last N messages?
                 # For learning, full context is better, but DB size...
                 # Let's keep it full for now, we can prune later.
                 pass

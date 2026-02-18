@@ -6,7 +6,7 @@ from typing import Any
 from langchain_core.tools import tool
 
 from app.core.file.document_reader import document_reader_service
-from app.logging import get_context
+from app.core.context.manager import ContextManager
 from app.utils import json as json_utils
 from app.utils.detect import detect_language
 from app.utils.file import ensure_local_path, read_file_content, resolve_path
@@ -33,8 +33,8 @@ def _resolve_project_path(file_path: str) -> str:
     if file_path.startswith(("http://", "https://")):
         return file_path
 
-    ctx = get_context()
-    root = ctx.get("working_directory") or os.getcwd()
+    ctx = ContextManager.current()
+    root = ctx.working_directory or os.getcwd()
     return resolve_path(file_path, base_path=root) or file_path
 
 

@@ -8,7 +8,8 @@ from pydantic import BaseModel, Field
 from app.core.llm.factory import LLMFactory
 from app.core.memory import memory_manager
 from app.i18n.service import i18n
-from app.logging import get_context, logger
+from app.logging import logger
+from app.core.context.manager import ContextManager
 
 
 class Concept(BaseModel):
@@ -45,9 +46,9 @@ async def harvest_knowledge():
 
     Works with both staged and unstaged changes in the working directory.
     """
-    ctx = get_context()
-    project_id = ctx.get("project_id", 1)
-    cwd = ctx.get("working_directory") or os.getcwd()
+    ctx = ContextManager.current()
+    project_id = ctx.project_id or 1
+    cwd = ctx.working_directory or os.getcwd()
 
     # 0. Check if Git repo exists
     git_dir = os.path.join(cwd, ".git")

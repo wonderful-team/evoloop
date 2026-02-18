@@ -9,12 +9,18 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException, File, UploadFile
+from pathlib import Path
+import shutil
+import os
 from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
 from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
+from app.core.learning.skill_importer import SkillImporter
+from app.core.learning.skill_validator import SkillValidator, ValidationResult
+from app.core.learning.skill_optimizer import SkillOptimizer
 from app.domain.tools.environment.drivers.adb import adb_driver
 from app.domain.tools.environment.mirror_session import mirror_manager
 from app.domain.tools.human_input import (
@@ -74,6 +80,10 @@ class StartMirrorRequest(BaseModel):
 
 class StopMirrorRequest(BaseModel):
     session_id: str
+
+
+class ImportSkillsRequest(BaseModel):
+    directory: str
 
 
 # ============ Endpoints ============
@@ -186,8 +196,6 @@ def cleanup_requests(max_age_hours: int = 24):
 
 # ============ Trace Recording API (Phase 1) ============
 
-# ============ Trace Recording API (Phase 1) ============
-
 
 class RecordedEvent(BaseModel):
     """Single recorded event from frontend."""
@@ -236,6 +244,12 @@ class GlobalRecordedEvent(BaseModel):
     app_name: str | None = None
     process_id: int | None = None
     window_bounds: tuple[float, float, float, float] | None = None
+
+
+class UploadScreenshotResponse(BaseModel):
+    success: bool
+    path: str
+    message: str
 
 
 class RecordGlobalEventsRequest(BaseModel):
@@ -434,6 +448,7 @@ async def list_recording_sessions(thread_id: str | None = None):
 class SynthesizeRequest(BaseModel):
     thread_id: str
     session_id: str | None = None
+    auto_optimize: bool = True
 
 
 class SkillResponse(BaseModel):
@@ -455,7 +470,7 @@ async def synthesize_skill(body: SynthesizeRequest):
     """
     try:
         synthesizer = EnhancedWorkflowSynthesizer(body.thread_id, body.session_id)
-        skill = await synthesizer.synthesize()
+        skill = await synthesizer.synthesize(auto_optimize=body.auto_optimize)
 
         # Persist to database
         async with session_scope() as db:
@@ -486,6 +501,22 @@ async def synthesize_skill(body: SynthesizeRequest):
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
 
 
+@router.post("/skills/import")
+async def import_skills(body: ImportSkillsRequest):
+    """
+    Bulk import skills from a local directory (containing SKILL.md folders).
+    """
+    try:
+        results = await SkillImporter.import_from_directory(body.directory)
+        return {
+            "success": True,
+            "results": results
+        }
+    except Exception as e:
+        logger.exception(f"Skill import failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+
+
 @router.get("/skills")
 async def list_skills(active_only: bool = True):
     """
@@ -510,10 +541,14 @@ async def list_skills(active_only: bool = True):
                     "description": s.description,
                     "trigger_patterns": json.loads(s.trigger_patterns),
                     "parameters": json.loads(s.parameters) if s.parameters else [],
+                    "steps": json.loads(s.steps) if s.steps else [],
                     "tools_used": json.loads(s.tools_used) if s.tools_used else [],
                     "success_count": s.success_count,
                     "failure_count": s.failure_count,
                     "is_active": s.is_active,
+                    "status": s.status,
+                    "validation_report": s.validation_report,
+                    "instructions": s.instructions,
                 }
                 for s in skills
             ]
@@ -549,6 +584,10 @@ async def get_skill(skill_id: int):
             "success_count": skill.success_count,
             "failure_count": skill.failure_count,
             "is_active": skill.is_active,
+            "status": skill.status,
+            "validation_report": skill.validation_report,
+            "instructions": skill.instructions,
+            "resource_path": skill.resource_path,
         }
 
 
@@ -629,6 +668,7 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
                 "description": skill.description,
                 "trigger_patterns": json.loads(skill.trigger_patterns),
                 "parameters": json.loads(skill.parameters),
+                "steps": json.loads(skill.steps) if skill.steps else [],
             },
         }
 
@@ -652,9 +692,8 @@ async def execute_skill(
         skill_name = skill.name
         params_str = json.dumps(body.params, indent=2)
         directive = (
-            f"Please execute the skill '{skill_name}' with the following parameters:\n"
-            f"```json\n{params_str}\n```\n"
-            f"Use the SkillExecutor to run this."
+            f"Command: execute_learned_skill(skill_name='{skill_name}', params={params_str})\n\n"
+            f"Please run the skill '{skill_name}' immediately using the provided tool and parameters."
         )
 
         # 3. Persist Message to History
@@ -735,3 +774,72 @@ async def stop_mirror_session(body: StopMirrorRequest):
         raise HTTPException(status_code=404, detail="Session not found")
     
     return {"success": True, "message": "Mirroring session stopped"}
+
+
+@router.post("/assets/upload-screenshot", response_model=UploadScreenshotResponse)
+async def upload_screenshot(file: UploadFile = File(...)):
+    """
+    Upload a screenshot for a skill step.
+    """
+    try:
+        # Ensure upload directory exists
+        upload_dir = settings.SCREENSHOTS_DIR
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename using timestamp
+        filename = f"manual_upload_{int(datetime.utcnow().timestamp())}_{file.filename}"
+        file_path = os.path.join(upload_dir, filename)
+        
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        # Return relative path consistent with other endpoints
+        rel_path = os.path.relpath(file_path, os.getcwd())
+        
+        return UploadScreenshotResponse(
+            success=True,
+            path=rel_path,
+            message="Screenshot uploaded successfully"
+        )
+    except Exception as e:
+        logger.error(f"Failed to upload screenshot: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to upload screenshot: {str(e)}")
+@router.get("/skills/{skill_id}/validate")
+async def validate_skill(skill_id: int):
+    """
+    Run the validator on a skill and return its health status.
+    """
+    async with session_scope() as db:
+        skill = await db.get(LearnedSkill, skill_id)
+        if not skill:
+            raise HTTPException(status_code=404, detail="Skill not found")
+            
+        if not skill.resource_path:
+            return {"success": False, "error": "Skill has no resource path (cannot validate)"}
+            
+        validation = SkillValidator.validate_folder(Path(skill.resource_path))
+        
+        # Update skill record with new validation report
+        skill.validation_report = validation.dict()
+        skill.status = "verified" if validation.status == "healthy" else "candidate"
+        
+        return {
+            "success": True,
+            "validation": validation.dict()
+        }
+
+@router.post("/skills/{skill_id}/optimize")
+async def optimize_skill(skill_id: int):
+    """
+    Trigger AI-driven optimization of a skill's instructions based on traces.
+    """
+    result = await SkillOptimizer.optimize_skill(skill_id)
+    if not result["success"]:
+        return result
+        
+    return {
+        "success": True,
+        "original": result["original"],
+        "optimized": result["optimized"],
+        "trace_count": result["trace_count"]
+    }

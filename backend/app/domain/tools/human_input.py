@@ -171,13 +171,13 @@ async def request_human_input(
 
     Returns the user's response as a string.
     """
-    from app.utils.context import get_context
+    from app.core.context.manager import ContextManager
 
     try:
-        ctx = get_context()
-        thread_id = ctx.get("thread_id", "unknown")
-        project_id = ctx.get("project_id")
-        command_id = ctx.get("command_id")
+        ctx = ContextManager.current()
+        thread_id = ctx.thread_id or "unknown"
+        project_id = ctx.project_id
+        command_id = ctx.command_id
     except Exception:
         thread_id = "unknown"
         project_id = None
@@ -281,13 +281,13 @@ async def request_approval(
 
     Returns "APPROVED" or "REJECTED" based on user decision.
     """
-    from app.utils.context import get_context
+    from app.core.context.manager import ContextManager
 
     try:
-        ctx = get_context()
-        thread_id = ctx.get("thread_id", "unknown")
-        project_id = ctx.get("project_id")
-        command_id = ctx.get("command_id")
+        ctx = ContextManager.current()
+        thread_id = ctx.thread_id or "unknown"
+        project_id = ctx.project_id
+        command_id = ctx.command_id
     except Exception:
         thread_id = "unknown"
         project_id = None

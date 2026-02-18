@@ -2,7 +2,7 @@ from langchain_core.tools import tool
 
 from app.domain.codebase.retrieval.graph_explorer import graph_explorer
 from app.domain.codebase.retrieval.service import RetrievalService
-from app.logging import get_context
+from app.core.context.manager import ContextManager
 
 
 @tool
@@ -24,7 +24,7 @@ async def search_codebase(query: str, project_id: int | None = None) -> str:
     output_parts = []
 
     # Resolve implicit context
-    pid = project_id or get_context().get("project_id", 1)
+    pid = project_id or ContextManager.current().project_id or 1
 
     # 1. Graph / Structure Search (Exact/Fuzzy Symbol Match)
     try:

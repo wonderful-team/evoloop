@@ -114,7 +114,9 @@ class CompatibleChatAnthropic(ChatAnthropic):
             llm_output["model_name"] = llm_output["model"]
 
         # Construct AIMessage
-        if len(content) == 1 and content[0].get("type") == "text":
+        if not content:
+            msg = AIMessage(content="")
+        elif len(content) == 1 and content[0].get("type") == "text":
             msg = AIMessage(content=content[0]["text"])
         elif any(block["type"] == "tool_use" for block in content):
             tool_calls = extract_tool_calls(content)

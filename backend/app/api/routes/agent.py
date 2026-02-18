@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from typing import Annotated, Any
@@ -25,8 +26,7 @@ from app.models import (
     MessageReference,
 )
 from app.core.evocloud import evocloud_manager
-from app.core.engine.cleanup import cleanup_side_effects
-from app.utils.context import set_context, get_context
+from app.core.context.manager import ContextManager, EvoContext
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +72,16 @@ async def chat_endpoint(
     Unified entry point for User Chat (Local Background Task).
     Guest Verification is handled by 'verify_guest_access' dependency.
     """
-    set_context(thread_id=req.thread_id, project_id=req.project_id, command_id=req.command_id)
+    # Initialize Context for Request (so reference service can use it if needed, though mostly for background task)
+    # Background task will re-initialize its own context.
+    # But we might need it here for logging or sync operations.
+    ctx = EvoContext(
+        request_id=f"req-{req.thread_id}-{int(time.time())}",
+        thread_id=req.thread_id,
+        project_id=req.project_id,
+        command_id=req.command_id
+    )
+    ContextManager.set(ctx)
 
     # --- Context Injection & Message Construction (Phase 9) ---
     from app.core.context.reference_service import reference_service
@@ -229,7 +238,8 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
         raise HTTPException(500, f"History rollback failed: {e}")
 
     # 3. Setup Context
-    set_context(thread_id=req.thread_id, project_id=req.project_id)
+    ctx = EvoContext(thread_id=req.thread_id, project_id=req.project_id)
+    ContextManager.set(ctx)
     await activity_monitor.start_run(
         req.thread_id, f"Retry: {retry_message_content[:50]}..."
     )
@@ -309,7 +319,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
 
                     # Sync to EvoCloud (Logs + Chat Stream)
                     try:
-                        command_id = req.command_id or get_context().get("command_id")
+                        command_id = req.command_id or ContextManager.current().command_id
                         await evocloud_manager.upload_log(
                             thread_id=req.thread_id,
                             log_type="user",
@@ -400,7 +410,8 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail="Could not adapt event")
 
     tid = req.thread_id or f"{req.source}-{req.payload.get('id', 'gen')}"
-    set_context(thread_id=tid)
+    ctx = EvoContext(thread_id=tid)
+    ContextManager.set(ctx)
 
     if req.event_type == "project_switched":
         new_project = req.payload.get("new_project", {})

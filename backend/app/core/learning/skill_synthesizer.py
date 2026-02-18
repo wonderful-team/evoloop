@@ -14,6 +14,7 @@ Key Enhancements over Original:
 import logging
 from dataclasses import asdict, dataclass, field
 from typing import Any
+from uuid import uuid4
 
 import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -44,6 +45,9 @@ class SkillStep:
     args: dict[str, Any] = field(default_factory=dict)
     condition: str | None = None  # Optional condition for this step
     on_error: str | None = None  # Error handling strategy
+    visual_context: dict[str, Any] | None = None  # UI element info (text, snapshot, bounds)
+    children: list["SkillStep"] = field(default_factory=list)  # Nested steps for loops/if
+    step_id: str = field(default_factory=lambda: str(uuid4()))  # Unique ID for UI tracking
 
 
 @dataclass
@@ -108,9 +112,11 @@ preconditions:
   - "Any requirement before skill can run"
 steps:
   - action: tool_name
+    trace_step_ref: 1  # Original step number from trace (crucial for visual context)
     args:
       arg1: "{{param1}}"  # Use {{param}} for parametrization
   - action: another_tool
+    trace_step_ref: 2
     args:
       target: "{{derived_value}}"
     condition: "if previous step succeeded"
@@ -133,6 +139,7 @@ When synthesizing skills that involve Android or Mac interaction, use these mapp
 - Press key → `desktop_control(action="key_press", key="{{key}}")`
 
 **Best Practice**: If the trace contains UI element text (e.g., "clicked on '短信' button"), prefer using semantic element identification over fixed coordinates for better portability across devices.
+**Requirement**: For every step that corresponds to a UI interaction (click, input), MUST include `trace_step_ref` field pointing to the original trace step number. This allows the system to attach screenshots and UI element data to the compiled skill.
 
 ## Rules
 1. **Generalize**: Replace specific values with parameters (e.g., "auth.py" → {{filename}})
@@ -140,6 +147,9 @@ When synthesizing skills that involve Android or Mac interaction, use these mapp
 3. **Human Actions**: Convert UI interactions to equivalent tool calls if possible
 4. **Trigger Patterns**: Create 2-3 natural language patterns that would trigger this skill
 5. **Valid YAML**: Output ONLY valid YAML, no explanations
+6. **Trace References**: Include `trace_step_ref` for every step derived from the trace.
+7. **Self-Correction Support**: For steps that are prone to failure (e.g., clicking a button that might not have loaded), add `on_error: "retry"` or `on_error: "ignore"`.
+8. **Dynamic Parameters**: Always favor parameters for text inputs, file paths, and target search terms.
 """
 
 
@@ -153,7 +163,7 @@ class EnhancedWorkflowSynthesizer:
         self.session_id = session_id
         self.parser = TraceParser(thread_id, session_id)
 
-    async def synthesize(self) -> LearnedSkill:
+    async def synthesize(self, auto_optimize: bool = True) -> LearnedSkill:
         """
         Main entry point: Parse trace -> Analyze with LLM -> Return LearnedSkill.
         """
@@ -173,6 +183,10 @@ class EnhancedWorkflowSynthesizer:
         # Step 4: Parse YAML to LearnedSkill
         skill = self._parse_skill_yaml(yaml_output, sequence)
 
+        # Step 5: Post-synthesis optimization (Redundancy removal)
+        if auto_optimize:
+            skill.steps = self._optimize_steps(skill.steps)
+
         return skill
 
     async def _generate_skill_yaml(self, narrative: str, summary: dict) -> str:
@@ -185,7 +199,7 @@ class EnhancedWorkflowSynthesizer:
             total_steps=summary["total_steps"],
             human_steps=summary["human_steps"],
             agent_steps=summary["agent_steps"],
-            tools_used=", ".join(summary["tools_used"]) if summary["tools_used"] else "None"
+            tools_used=", ".join(summary["tools_used"]) if summary["tools_used"] else "None",
         )
 
         from app.core.system import SystemConfigService
@@ -195,7 +209,7 @@ class EnhancedWorkflowSynthesizer:
 
         messages = [
             SystemMessage(content=prompt),
-            HumanMessage(content="Please analyze the trace and generate the skill YAML.")
+            HumanMessage(content="Please analyze the trace and generate the skill YAML."),
         ]
 
         response = await llm.ainvoke(messages, config={"callbacks": []})  # Internal thought, do not stream
@@ -215,7 +229,6 @@ class EnhancedWorkflowSynthesizer:
             data = yaml.safe_load(yaml_str)
         except yaml.YAMLError as e:
             logger.error(f"Failed to parse skill YAML: {e}")
-            # Return a minimal skill on parse failure
             return LearnedSkill(
                 name="unparsed_skill",
                 description="Failed to parse generated skill",
@@ -236,18 +249,47 @@ class EnhancedWorkflowSynthesizer:
                     )
                 )
 
+        # Create a map for quick lookup of trace steps by step_number
+        trace_steps_map = {step.step_number: step for step in sequence.steps}
+
+        # Recursive helper for parsing steps
+        def parse_step_node(s_dict: dict, trace_map: dict) -> SkillStep:
+            step = SkillStep(
+                action=s_dict.get("action", "unknown"),
+                args=s_dict.get("args", {}),
+                condition=s_dict.get("condition"),
+                on_error=s_dict.get("on_error"),
+            )
+
+            # Sub-steps nesting
+            if "children" in s_dict and isinstance(s_dict["children"], list):
+                step.children = [parse_step_node(c, trace_map) for c in s_dict["children"]]
+
+            # For Legacy "if" schemas in YAML (then/else logic)
+            if "then" in s_dict:
+                step.args["then"] = [parse_step_node(c, trace_map) for c in s_dict["then"]]
+            if "else" in s_dict:
+                step.args["else"] = [parse_step_node(c, trace_map) for c in s_dict["else"]]
+
+            # Enrich with visual context
+            ref_id = s_dict.get("trace_step_ref")
+            if ref_id is not None:
+                try:
+                    ref_idx = int(ref_id)
+                    if ref_idx in trace_map:
+                        trace_step = trace_map[ref_idx]
+                        if trace_step.ui_context:
+                            step.visual_context = asdict(trace_step.ui_context)
+                except (ValueError, TypeError):
+                    pass
+            return step
+
         # Extract steps
-        steps = []
-        for s in data.get("steps", []):
-            if isinstance(s, dict):
-                steps.append(
-                    SkillStep(
-                        action=s.get("action", "unknown"),
-                        args=s.get("args", {}),
-                        condition=s.get("condition"),
-                        on_error=s.get("on_error"),
-                    )
-                )
+        steps = [
+            parse_step_node(s, trace_steps_map)
+            for s in data.get("steps", [])
+            if isinstance(s, dict)
+        ]
 
         return LearnedSkill(
             name=data.get("name", "unnamed_skill"),
@@ -260,6 +302,40 @@ class EnhancedWorkflowSynthesizer:
             source_session_id=self.session_id,
             tools_used=list(set(sequence.tools_used)),
         )
+
+    def _optimize_steps(self, steps: list[SkillStep]) -> list[SkillStep]:
+        """
+        Apply heuristic optimizations to the synthesized steps.
+        - Removes redundant consecutive taps on the same element.
+        - Prunes empty logic blocks.
+        """
+        if not steps:
+            return []
+
+        optimized = []
+        last_step = None
+
+        for step in steps:
+            # Recursive optimization for children
+            if step.children:
+                step.children = self._optimize_steps(step.children)
+
+            # Heuristic 1: Remove redundant consecutive identical mobile/desktop actions
+            # e.g., tapping the same coordinates or same text twice in a row
+            if last_step and step.action == last_step.action and step.action in ["mobile_control", "desktop_control"]:
+                if step.args == last_step.args:
+                    logger.info(f"Pruning redundant consecutive action: {step.action}")
+                    continue
+
+            # Heuristic 2: Remove empty groups/loops
+            if step.action in ["group", "loop"] and not step.children:
+                logger.info(f"Pruning empty {step.action} block")
+                continue
+
+            optimized.append(step)
+            last_step = step
+
+        return optimized
 
 
 # Backward compatibility alias

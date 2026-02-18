@@ -292,67 +292,11 @@ Use the `update_focus` tool to set high-level goals or constraints that persist 
 
     def _build_awakening_section(self) -> str:
         """Build the awakening section with environment awareness."""
-        try:
-            from app.domain.environment import get_awakened_state
-            state = get_awakened_state()
-            
-            if not state:
-                return ""
-            
-            sections = ["\n## 🌅 I HAVE JUST AWAKENED\n"]
-            
-            from app.domain.environment.prompt_utils import build_environment_prompt, detect_platform_relevance
-            
-            # Detect Relevance from context (if available) or iteration
-            # messages are expected in self.context["messages"] based on supervisor calling pattern
-            messages = self.context.get("messages", [])
-            relevance = detect_platform_relevance(messages)
-            
-            sections = ["\n## 🌅 I HAVE JUST AWAKENED\n"]
-            
-            # --- Environment Awareness (Using Centralized Logic) ---
-            sections.append("### 🌐 Environment Awareness")
-            sections.append(build_environment_prompt(relevance=relevance))
-            
-            # --- Memory Replay ---
-            if state.recent_episodes or state.relevant_concepts or state.journal_highlights:
-                sections.append("\n### 🧠 Memory Replay (What I Remember)")
-                
-                if state.recent_episodes:
-                    sections.append("**Recent Tasks:**")
-                    for ep in state.recent_episodes[:3]:
-                        sections.append(f"- [{ep.date}] {ep.goal} → {ep.result}")
-                
-                if state.relevant_concepts:
-                    concept_names = ", ".join([c.name for c in state.relevant_concepts[:5]])
-                    sections.append(f"**Key Knowledge:** {concept_names}")
-                
-                if state.journal_highlights:
-                    sections.append(f"**Recent Learnings:**\n{state.journal_highlights}")
-            
-            # --- Preferences & Rules ---
-            if state.user_preferences or state.system_rules:
-                sections.append("\n### 🎭 My Identity & Rules")
-                
-                if state.user_preferences:
-                    prefs = ", ".join([f"{k}={v}" for k, v in list(state.user_preferences.items())[:5]])
-                    sections.append(f"- **User Preferences**: {prefs}")
-                
-                if state.system_rules:
-                    sections.append("- **Inviolable Rules**:")
-                    for rule in state.system_rules[:3]:
-                        sections.append(f"  - ❌ {rule}")
-            
-            # --- Capability Boundaries ---
-            if state.capability_boundaries:
-                sections.append("\n### ❌ What I CANNOT Do")
-                for boundary in state.capability_boundaries[:4]:
-                    sections.append(f"- {boundary}")
-            
-            return "\n".join(sections) + "\n"
-            
-        except Exception:
-            return ""
+        from app.domain.environment.prompt import AppEnvironmentPrompt
+        
+        # messages are expected in self.context["messages"] based on supervisor calling pattern
+        messages = self.context.get("messages", [])
+        return AppEnvironmentPrompt.build(messages=messages)
 
     def _get_user_language(self) -> str:
         return SystemConfigService.get_language_preference()

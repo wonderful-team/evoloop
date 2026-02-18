@@ -1,52 +1,85 @@
 import logging
 import os
 import subprocess
+from dataclasses import dataclass, field
+from typing import Dict
 
 from app.i18n.service import i18n
+from app.core.context.manager import ContextManager
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class TerminalSession:
+    """
+    Represents a persistent shell session for a specific context (Thread/Task).
+    """
+    cwd: str
+    env: Dict[str, str] = field(default_factory=lambda: os.environ.copy())
+    
+    def __post_init__(self):
+        # Ensure minimal env
+        if "TERM" not in self.env:
+            self.env["TERM"] = "xterm-256color"
+
+
 class TerminalManager:
     """
-    Manages a persistent shell session context (CWD + Env).
-    Does NOT use PTY for now (to avoid WebSocket complexity), but emulates statefulness.
+    Manages terminal sessions based on the current execution context.
+    No longer a singleton with shared state. State is stored in Context or Memory.
+    For V1 refactor, we will maintain an in-memory map keyed by thread_id/context_id 
+    until we move to a proper Kernel/Sandbox architecture.
     """
+    
+    # In-memory storage for active sessions
+    # Key: thread_id or session_id
+    _sessions: Dict[str, TerminalSession] = {}
 
-    _instance = None
+    @classmethod
+    def _get_session_key(cls) -> str:
+        ctx = ContextManager.current()
+        # Prefer thread_id, fallback to request_id
+        return ctx.thread_id or ctx.request_id or "global"
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls._instance.cwd = os.getcwd()
-            cls._instance.env = os.environ.copy()
-            # Default to reasonable path
-            cls._instance.env["TERM"] = "xterm-256color"
-        return cls._instance
+    @classmethod
+    def get_session(cls) -> TerminalSession:
+        key = cls._get_session_key()
+        if key not in cls._sessions:
+             # Initialize with context working directory if available
+            ctx = ContextManager.current()
+            initial_cwd = ctx.working_directory or os.getcwd()
+            
+            # Create new session
+            cls._sessions[key] = TerminalSession(cwd=initial_cwd)
+            logger.debug(f"Created new TerminalSession for {key} at {initial_cwd}")
+            
+        return cls._sessions[key]
 
-    def run_command(self, command: str, timeout: int = 60) -> tuple[str, str, int]:
+    @classmethod
+    def run_command(cls, command: str, timeout: int = 60) -> tuple[str, str, int]:
         """
-        Runs a command in the persistent context.
-        Supports 'cd' and variable exports by parsing them.
+        Runs a command in the current context's persistent session.
         """
+        session = cls.get_session()
         command = command.strip()
 
         # 1. Handle 'cd' manually
         if command.startswith("cd "):
             path = command[3:].strip()
-            return self._change_directory(path)
+            return cls._change_directory(session, path)
 
         # 2. Handle 'export' manually (simple case)
         if command.startswith("export "):
-            return self._handle_export(command)
+            return cls._handle_export(session, command)
 
         # 3. Run actual subprocess
         try:
-            logger.info(f"Running command: '{command}' in {self.cwd}")
+            # logger.debug(f"Running command: '{command}' in {session.cwd}")
             process = subprocess.run(
                 command,
-                cwd=self.cwd,
-                env=self.env,
+                cwd=session.cwd,
+                env=session.env,
                 shell=True,
                 capture_output=True,
                 text=True,
@@ -64,17 +97,23 @@ class TerminalManager:
         except Exception as e:
             return "", str(e), 1
 
-    def _change_directory(self, path: str) -> tuple[str, str, int]:
+    @classmethod
+    def _change_directory(cls, session: TerminalSession, path: str) -> tuple[str, str, int]:
         # Resolve absolute path relative to current tracked CWD
-        new_path = os.path.abspath(os.path.join(self.cwd, path))
+        # Handle ~ expansion
+        if path.startswith("~"):
+            path = os.path.expanduser(path)
+            
+        new_path = os.path.abspath(os.path.join(session.cwd, path))
 
         if os.path.isdir(new_path):
-            self.cwd = new_path
-            return i18n.get("prompts.domain_tools.terminal.cd_success", path=self.cwd), "", 0
+            session.cwd = new_path
+            return f"Changed directory to {new_path}", "", 0 # i18n? keeping simple for now to avoid circulars
         else:
-            return "", i18n.get("prompts.domain_tools.terminal.cd_error", path=path, resolved=new_path), 1
+            return "", f"cd: no such file or directory: {path}", 1
 
-    def _handle_export(self, command: str) -> tuple[str, str, int]:
+    @classmethod
+    def _handle_export(cls, session: TerminalSession, command: str) -> tuple[str, str, int]:
         # export KEY=VALUE
         # Remove 'export '
         kv = command[7:].strip()
@@ -82,11 +121,11 @@ class TerminalManager:
             key, value = kv.split("=", 1)
             # Remove quotes
             value = value.strip("'").strip('"')
-            self.env[key] = value
-            return i18n.get("prompts.domain_tools.terminal.export_success", key=key), "", 0
+            session.env[key] = value
+            return f"Exported {key}", "", 0
 
-        return "", i18n.get("prompts.domain_tools.terminal.export_error"), 1
+        return "", "export: invalid format", 1
 
 
-# Global singleton
-terminal_manager = TerminalManager()
+# Global Accessor (Stateless Class)
+terminal_manager = TerminalManager

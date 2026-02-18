@@ -3,13 +3,8 @@ import sys
 from datetime import datetime, timezone
 
 from app.core.config import settings
+from app.core.context.manager import ContextManager
 from app.utils import json as json_utils
-from app.utils.context import get_context
-
-# Re-export set_context/get_context for backwards compatibility if needed,
-# or consumers should import from utils.context directly.
-# For now, we keep them here but implementation delegates to utils.
-# set_context and get_context are imported from app.utils.context
 
 
 class ContextFilter(logging.Filter):
@@ -18,9 +13,9 @@ class ContextFilter(logging.Filter):
     """
 
     def filter(self, record):
-        ctx = get_context()
-        record.thread_id = ctx.get("thread_id", "-")
-        record.project_id = ctx.get("project_id", "-")
+        ctx = ContextManager.current()
+        record.thread_id = ctx.thread_id or "-"
+        record.project_id = ctx.project_id or "-"
         return True
 
 

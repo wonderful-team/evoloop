@@ -14,7 +14,7 @@ class LocalSandbox(Sandbox):
     """
 
     def run_command(self, command: str, timeout: int = 120) -> tuple[str, str, int]:
-        # Delegate to the stateful TerminalManager
+        # Delegate to the stateless TerminalManager
         return terminal_manager.run_command(command, timeout=timeout)
 
     def upload_file(self, local_path: str, remote_path: str) -> None:

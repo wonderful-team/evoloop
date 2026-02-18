@@ -5,7 +5,7 @@ import os
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool as langchain_tool
 
-from app.logging import get_context
+from app.core.context.manager import ContextManager
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +15,13 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
     Extracts the working directory from the context or configuration.
     Prioritizes:
     1. Context variable 'working_directory'
-    2. Config 'measurable' > 'working_directory'
-    3. utils.file logic (if needed)
-    4. os.getcwd()
+    2. Config 'measurable' > 'working_directory' (Legacy)
+    3. os.getcwd()
     """
     # 1. Check ContextVar
-    ctx = get_context()
-    if ctx.get("working_directory"):
-        return ctx["working_directory"]
+    ctx = ContextManager.current()
+    if ctx.working_directory:
+        return ctx.working_directory
 
     # 2. Check RunnableConfig
     if config and "configurable" in config:

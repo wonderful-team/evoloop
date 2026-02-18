@@ -4,6 +4,8 @@ Shared message utilities for agent nodes.
 Contains common functions for message processing, history repair, and extraction.
 """
 
+import logging
+
 from langchain_core.messages import (
     AIMessage,
     BaseMessage,
@@ -12,21 +14,60 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
+from app.constants import MAX_OUTPUT_LENGTH
 from app.i18n.service import i18n
 
-TRUNCATE_LIMIT = 20000
+logger = logging.getLogger(__name__)
+
+# Legacy fallback constant
+_DEFAULT_WINDOW_SIZE = 30
 
 
-def truncate_message_content(content: str, limit: int = TRUNCATE_LIMIT) -> str:
+def _get_truncate_limit(model: str | None = None) -> int:
+    """Get truncate limit from ModelProfile, falling back to MAX_OUTPUT_LENGTH."""
+    try:
+        from app.core.llm.model_profile import get_profile
+        profile = get_profile(model) if model else None
+        if profile:
+            return profile.truncate_limit_chars
+    except ImportError:
+        pass
+    return MAX_OUTPUT_LENGTH
+
+
+def _get_window_size(model: str | None = None) -> int:
+    """Get window size from ModelProfile, falling back to default."""
+    try:
+        from app.core.llm.model_profile import get_profile
+        profile = get_profile(model) if model else None
+        if profile:
+            return profile.window_size
+    except ImportError:
+        pass
+    return _DEFAULT_WINDOW_SIZE
+
+
+def truncate_message_content(
+    content: str,
+    limit: int | None = None,
+    model: str | None = None,
+) -> str:
     """
     Truncate content if it exceeds the limit, adding a metadata footer.
+    
+    Args:
+        content: The content string to truncate.
+        limit: Explicit character limit. If None, derived from ModelProfile or MAX_OUTPUT_LENGTH.
+        model: Model name for profile-aware limit derivation.
     """
-    if not content or len(content) <= limit:
+    effective_limit = limit or _get_truncate_limit(model)
+
+    if not content or len(content) <= effective_limit:
         return content
 
     chars = len(content)
     lines = content.count("\n")
-    truncated = content[:limit]
+    truncated = content[:effective_limit]
     
     # Add a suffix that the LLM understands as a truncation signal
     footer = f"\n...\n[Output truncated: {lines} lines / {chars} chars total. Use specific read/search tools for more.]"
@@ -173,22 +214,29 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
     return final_repaired
 
 
-def smart_window_slice(messages: list[BaseMessage], window_size: int = 30) -> list[BaseMessage]:
+def smart_window_slice(
+    messages: list[BaseMessage],
+    window_size: int | None = None,
+    model: str | None = None,
+) -> list[BaseMessage]:
     """
     Slice the message list to a window size, ensuring no (AI -> Tool) pair is split.
     If the window start falls on a ToolMessage, it backtracks to include the parent AIMessage.
 
     Args:
         messages: Full list of messages.
-        window_size: Desired window size.
+        window_size: Explicit window size. If None, derived from ModelProfile.
+        model: Model name for profile-aware window sizing.
 
     Returns:
         Sliced list of messages.
     """
-    if len(messages) <= window_size:
+    effective_window = window_size or _get_window_size(model)
+
+    if len(messages) <= effective_window:
         return messages
 
-    start_index = max(0, len(messages) - window_size)
+    start_index = max(0, len(messages) - effective_window)
 
     # If we are cutting off, and the first message in window is a ToolMessage,
     # step back to include the parent AIMessage (if possible).

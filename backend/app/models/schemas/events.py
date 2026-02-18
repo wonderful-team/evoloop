@@ -50,7 +50,20 @@ class MessageEvent(EventBase):
     data: dict[str, Any]  # Serialized Message model
 
 
+# --- Human Request Events ---
+class HumanRequestEvent(EventBase):
+    type: Literal["human_request"] = "human_request"
+    action: Literal["create", "update", "clear"] = "create"
+    data: dict[str, Any]
+
+
 # Union type for easy parsing if needed
 StreamEvent = (
-    StepEvent | ArtifactEvent | AgentStateEvent | TokenEvent | StatusEvent | MessageEvent
+    StepEvent
+    | ArtifactEvent
+    | AgentStateEvent
+    | TokenEvent
+    | StatusEvent
+    | MessageEvent
+    | HumanRequestEvent
 )

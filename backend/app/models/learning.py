@@ -129,6 +129,11 @@ class LearnedSkill(Base):
     project_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
 
+    # Phase 5: External Skill Support
+    instructions: Mapped[str | None] = mapped_column(Text, nullable=True)  # Markdown instructions
+    resource_path: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Path to external resource folder
+    validation_report: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # JSON report from SkillValidator
+
 
 class RouterTrainingData(Base):
     """

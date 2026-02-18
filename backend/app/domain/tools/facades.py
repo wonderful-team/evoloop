@@ -24,7 +24,7 @@ from app.domain.tools.memory import (
     search_concepts,
 )
 from app.domain.tools.files import edit_file, grep_files
-from app.utils.context import get_context
+from app.core.context.manager import ContextManager
 
 # ... (Delegate imports removed as they are now in actions)
 # Import the new dispatched tool
@@ -222,8 +222,8 @@ async def manage_memory(
     elif action == "find_related_episodes":
         if not key:
             return "Error: key (concept_name) required."
-        ctx = get_context()
-        project_id = ctx.get("project_id", 1)
+        ctx = ContextManager.current()
+        project_id = ctx.project_id or 1
         episodes = await memory_manager.long_term.find_episodes_by_concept(key, project_id)
         if not episodes:
             return f"No historical episodes found related to '{key}'."
@@ -248,8 +248,8 @@ async def consult_architecture(path: str = ""):
     Args:
         path: The relative path of the directory to inspect (e.g., "backend/app/core"). Defaults to root ("").
     """
-    ctx = get_context()
-    project_id = ctx.get("project_id")
+    ctx = ContextManager.current()
+    project_id = ctx.project_id
 
     if not project_id:
         return "Error: No active project context."

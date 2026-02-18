@@ -45,3 +45,43 @@ async def run_command(command: str) -> str:
 
     except Exception as e:
         return f"Execution Error: {str(e)}"
+
+
+@tool
+async def execute_learned_skill(skill_name: str, params: dict = None) -> str:
+    """
+    Execute a previously learned or imported skill by its name.
+    Use this when you see a directive to run a specific skill.
+
+    Args:
+        skill_name: The exact name of the skill to execute (e.g., 'algorithmic-art').
+        params: Key-value parameters required by the skill.
+    """
+    from app.core.learning.skill_executor import SkillExecutor, build_skill_tool_registry, skill_matcher
+    from app.core.context.manager import ContextManager
+    
+    logger.info(f"SkillExecutor [Running]: {skill_name}")
+    
+    # 1. Resolve Skill ID
+    match = await skill_matcher.match(skill_name, threshold=0.9)
+    if not match:
+        return f"Error: Skill '{skill_name}' not found or matched with low confidence."
+    
+    # 2. Prepare Executor
+    ctx = ContextManager.current()
+    executor = SkillExecutor(config={"configurable": {"thread_id": ctx.thread_id}})
+    
+    # 3. Handle registry (re-use current tool environment)
+    tool_registry = build_skill_tool_registry()
+    
+    # 4. Execute
+    success, summary = await executor.execute_skill(
+        skill_id=match.skill_id,
+        params=params or {},
+        tool_registry=tool_registry
+    )
+    
+    if success:
+        return f"Skill '{skill_name}' executed successfully.\nSummary:\n{summary}"
+    else:
+        return f"Skill '{skill_name}' failed.\nError/Summary:\n{summary}"

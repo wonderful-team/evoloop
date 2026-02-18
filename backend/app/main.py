@@ -15,6 +15,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.api.main import api_router
 from app.core.config import settings
+from app.core.context.middleware import ContextMiddleware
 
 # EvoLoop Imports
 from app.core.engine.graph_builder import GraphBuilder
@@ -297,6 +298,8 @@ if settings.all_cors_origins:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+app.add_middleware(ContextMiddleware)
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 

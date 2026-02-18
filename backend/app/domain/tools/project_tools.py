@@ -4,7 +4,7 @@ import logging
 from langchain_core.tools import tool
 
 from app.core.evocloud import evocloud_manager
-from app.logging import get_context
+from app.core.context.manager import ContextManager
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ async def create_project_task(project_id: int | None = None, task_data: str = ""
         project_id (int): The ID of the project to add the task to. Optional.
         task_data (str): JSON string representation of the task data (title, desc, priority, etc.).
     """
-    pid = project_id or get_context().get("project_id", 1)
+    pid = project_id or ContextManager.current().project_id or 1
 
     try:
         # Parse task data if it's a string

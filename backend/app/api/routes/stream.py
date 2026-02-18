@@ -143,6 +143,10 @@ async def stream_chat(thread_id: str):
                         if event_type == "message":
                             yield f"event: message\ndata: {json.dumps(event_data.get('data'))}\n\n"
 
+                        # HITL: Forward Human Request Event
+                        if event_type == "human_request":
+                            yield f"event: human_request\ndata: {json.dumps(event_data.get('data'))}\n\n"
+
                     except Exception as e:
                         logger.error(f"Error processing pubsub message: {e}")
 

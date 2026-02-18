@@ -1,7 +1,7 @@
 from langchain_core.tools import tool
 
 from app.core.memory import memory_manager
-from app.logging import get_context
+from app.core.context.manager import ContextManager
 
 
 @tool
@@ -22,8 +22,8 @@ async def save_preference(
         is_global: If True, applies to ALL projects. If False (default), applies only to current project.
         project_id: Current project ID. Optional, defaults to current context.
     """
-    ctx_pid = get_context().get("project_id", 1)
-    pid = project_id or ctx_pid
+    ctx = ContextManager.current()
+    pid = project_id or ctx.project_id or 1
 
     target_pid = None if is_global else pid
     await memory_manager.preferences.set_preference("user_default", key, value, description, project_id=target_pid)
@@ -39,8 +39,8 @@ async def get_user_preferences(project_id: int = None):
     Args:
         project_id: Current project ID. Optional, defaults to current context.
     """
-    ctx_pid = get_context().get("project_id", 1)
-    pid = project_id or ctx_pid
+    ctx = ContextManager.current()
+    pid = project_id or ctx.project_id or 1
     prefs = await memory_manager.preferences.get_merged_preferences("user_default", project_id=pid)
     return f"Current Preferences (Project {pid}):\n{prefs}"
 
@@ -54,8 +54,8 @@ async def search_concepts(query: str, project_id: int = None):
         query: The search term.
         project_id: The ID of the project to search in. Optional.
     """
-    ctx_pid = get_context().get("project_id", 1)
-    pid = project_id or ctx_pid
+    ctx = ContextManager.current()
+    pid = project_id or ctx.project_id or 1
     results = await memory_manager.long_term.search_concepts(query, pid)
     if not results:
         return "No relevant concepts found."
@@ -80,8 +80,8 @@ async def add_concept(name: str, description: str, project_id: int = None):
         description: A concise definition.
         project_id: The ID of the project. Optional.
     """
-    ctx_pid = get_context().get("project_id", 1)
-    pid = project_id or ctx_pid
+    ctx = ContextManager.current()
+    pid = project_id or ctx.project_id or 1
     from app.core.memory.interfaces.long_term import Concept
     concept = Concept(name, description, pid)
     await memory_manager.long_term.store_concept(concept)

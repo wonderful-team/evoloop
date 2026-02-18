@@ -10,7 +10,7 @@ from app.models import (
     Repository,
     SourceFile,
 )
-from app.logging import get_context
+from app.core.context.manager import ContextManager
 
 
 class RetrievalService:
@@ -23,7 +23,7 @@ class RetrievalService:
         Search for code chunks using Hybrid Search (Vector + Keyword) via RRF.
         """
         # Resolve project_id from context if not provided
-        pid = project_id or get_context().get("project_id")
+        pid = project_id or ContextManager.current().project_id
 
         from app.domain.codebase.retrieval.hybrid import hybrid_searcher
 
@@ -33,7 +33,7 @@ class RetrievalService:
         """
         Get relations (inheritance, calls) for a specific symbol.
         """
-        pid = project_id or get_context().get("project_id")
+        pid = project_id or ContextManager.current().project_id
 
         async with self.session_factory() as session:
             # 1. Find the entity

@@ -61,6 +61,17 @@ class ADBDriver:
         """
         cmd = [self._adb_path]
         
+        # Try to resolve device_id from Context if not provided
+        if not device_id:
+            try:
+                from app.core.context.manager import ContextManager
+                ctx_env = ContextManager.get_var("_env", {})
+                devices = ctx_env.get("devices", [])
+                if devices and len(devices) == 1:
+                    device_id = devices[0]
+            except Exception:
+                pass
+
         if device_id:
             cmd.extend(["-s", device_id])
         

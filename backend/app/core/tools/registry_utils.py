@@ -1,8 +1,20 @@
+"""
+Tool Registry Utilities — YAML-Driven RBAC.
+
+Provides:
+  - AutoDiscoveryRegistry: scans packages for @evoloop_tool decorated functions
+  - get_node_tools(node_role): loads tool list from YAML config (strict mode, no fallback)
+  - get_tools_by_names(names): hydrates tool names to BaseTool objects via registry + MCP
+"""
+
 import importlib
 import inspect
 import logging
 import pkgutil
+from functools import lru_cache
+from pathlib import Path
 
+import yaml
 from langchain_core.tools import BaseTool
 
 from app.domain.learning.tools import learn_skill_from_trace
@@ -38,8 +50,13 @@ from app.domain.tools.environment.desktop import desktop_control
 from app.domain.tools.environment.mobile import mobile_control
 from app.domain.tools.environment.find_element import find_element
 from app.domain.tools.vision import analyze_image
+from app.domain.tools.execution import execute_learned_skill
+from app.domain.tools.utils.time_tools import wait
 
 logger = logging.getLogger(__name__)
+
+# Default YAML config path
+_DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "engine" / "config" / "agent_main.yaml"
 
 
 class AutoDiscoveryRegistry:
@@ -119,187 +136,180 @@ class AutoDiscoveryRegistry:
         return list(self._tools)
 
 
-def get_node_tools(node_role: str) -> list[BaseTool]:
+# --- YAML-Driven Tool Configuration ---
+
+@lru_cache(maxsize=1)
+def _load_yaml_config(config_path: str | None = None) -> dict:
+    """Load and cache the YAML config for tool-role mappings."""
+    path = Path(config_path) if config_path else _DEFAULT_CONFIG_PATH
+    try:
+        with open(path, "r") as f:
+            return yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        logger.error(f"YAML config not found: {path}")
+        return {}
+    except Exception as e:
+        logger.error(f"Failed to parse YAML config {path}: {e}")
+        return {}
+
+
+def _build_static_tool_map() -> dict[str, BaseTool]:
     """
-    Get tools customized for a specific agent node (RBAC).
+    Build a name -> BaseTool mapping from all statically imported tools.
+    This replaces the manually maintained dict in get_tools_by_names.
     """
-    # Import locally to avoid circular dependencies with registry
-    # from app.domain.planning.tools import create_plan, update_step_status, analyze_feasibility
-    # Note: Planning tools are model-bound manually in planner usually, but we include them here if they are standardized tools.
-    # For now, we import them if they exist as tool wrappers.
-    # Assuming they are available via facades or planning module.
-    # Checking planner.py, they are imported from app.domain.planning.tools.
-    # Core Tools everyone gets (Read-Only)
-    common_read = [explore_codebase, grep_files]
+    tool_map: dict[str, BaseTool] = {}
 
-    if node_role == "supervisor":
-        # Supervisor: Read + Plan + Docs + Memory + Git (Read) + HITL
-        tools = [
-            read_file,
-            list_files,
-            manage_memory,
-            create_plan,
-            update_step_status,
-            analyze_feasibility,  # Plan Tools
-            consult_architecture,
-            request_approval,  # Supervisor needs HITL for plan confirmation
-            *common_read,
-        ]
+    # All statically imported tools (from module-level imports above)
+    static_tools = [
+        read_file, write_file, edit_file, list_files, grep_files, file_system,
+        consult_lsp, explore_codebase, manage_git,
+        create_plan, update_step_status, analyze_feasibility,
+        manage_memory, consult_architecture,
+        search_web, request_approval, execute_learned_skill,
+        wait, desktop_control, mobile_control, find_element, analyze_image,
+        write_document, edit_document,
+    ]
 
-        # Phase 11: Learning Tool (Dynamic Import)
-        try:
-            tools.append(learn_skill_from_trace)
-        except ImportError:
-            pass
+    # Optional tools
+    try:
+        static_tools.append(learn_skill_from_trace)
+    except Exception:
+        pass
 
-        return tools
-
-    elif node_role == "developer":
-        # Developer: Coder + Tester + Plan/Git/LSP
-        return [
-            read_file,
-            write_file,
-            edit_file,
-            list_files,
-            file_system,
-            consult_lsp,
-            manage_git,
-            manage_memory,
-            consult_architecture,
-            request_approval,
-            create_plan,
-            update_step_status,
-            analyze_feasibility,
-            desktop_control,  # Phase 22: Desktop I/O capability
-            mobile_control,   # Phase 22: Mobile I/O capability
-            find_element,     # Phase 22: Vision-guided element selection
-            *common_read,
-        ]
-
-    elif node_role == "coder":
-        # Coder: Full Write + LSP + Git + Memory + HITL (Phase 18: Atomic Tools)
-        return [
-            read_file,
-            write_file,
-            edit_file,
-            list_files,
-            file_system,
-            consult_lsp,
-            manage_git,
-            manage_memory,
-            consult_architecture,
-            request_approval,  # HITL for high-risk operations
-            *common_read,
-        ]
-
-    elif node_role == "planner":
-        # Planner: Read Only + Planning Tools + HITL
-        return [
-            read_file,
-            list_files,
-            create_plan,
-            update_step_status,
-            analyze_feasibility,
-            consult_architecture,
-            request_approval,  # HITL for complex plans
-            *common_read,
-        ]
-
-    elif node_role == "researcher":
-        # Researcher: Read Only + Web Search + Crawler + Memory
+    try:
         from app.domain.research.tools import crawl_url
+        static_tools.append(crawl_url)
+    except ImportError:
+        pass
 
-        tools = [read_file, list_files, manage_memory, crawl_url, *common_read]
-        if search_web:
-            tools.append(search_web)
-        return tools
+    for tool in static_tools:
+        if isinstance(tool, BaseTool) and tool.name:
+            tool_map[tool.name] = tool
 
-    elif node_role == "requirement_analyst":
-        # Requirement Analyst: Read + Docs
-        return [
-            read_file,
-            list_files,
-            write_document,
-            edit_document,
-            manage_memory,
-            *common_read,
-        ]
+    return tool_map
 
-    elif node_role == "tester":
-        # Tester: Read + Write Tests (Phase 18: Atomic Tools)
-        return [
-            read_file,
-            write_file,
-            edit_file,
-            list_files,
-            manage_memory,
-            *common_read,
-        ]
 
-    # Fallback to safe defaults (read-only)
-    return [read_file, list_files]
+def _report_missing_tools(node_role: str, missing_tools: list[str]):
+    """
+    Report missing tools via logger.error and EvoCloud activity monitor.
+    Strict mode: no silent fallback — missing tools are explicitly surfaced.
+    """
+    logger.error(
+        f"[ToolRBAC] Missing tools for role '{node_role}': {missing_tools}. "
+        f"These tools are declared in YAML but not found in Registry or MCP. "
+        f"Agent will operate with reduced capability."
+    )
 
-def get_tools_by_names(tool_names: list[str]) -> list[BaseTool]:
+    # Report to EvoCloud via Activity Monitor
+    try:
+        from app.core.monitoring.activity import activity_monitor
+        import json
+        from datetime import datetime, timezone
+
+        activity_monitor.log_event(
+            event_type="tool_missing",
+            data={
+                "node_role": node_role,
+                "missing_tools": missing_tools,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "severity": "warning",
+            },
+        )
+    except Exception as e:
+        logger.debug(f"Failed to report missing tools to activity monitor: {e}")
+
+
+def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseTool]:
+    """
+    Get tools for a specific agent node/role from YAML config (strict mode).
+
+    Loads tool names from agent_main.yaml (node.tools or role_tools section),
+    hydrates them to BaseTool objects, and reports any missing tools.
+
+    Args:
+        node_role: The role identifier (e.g. "supervisor", "developer", "coder")
+        config_path: Optional path to YAML config. Defaults to agent_main.yaml.
+
+    Returns:
+        List of available BaseTool objects for this role.
+    """
+    config = _load_yaml_config(config_path)
+    tool_names: list[str] = []
+
+    # 1. Check graph node declarations first
+    for node in config.get("nodes", []):
+        if node.get("id") == node_role and node.get("tools"):
+            tool_names = node["tools"]
+            break
+
+    # 2. If not found in nodes, check role_tools section
+    if not tool_names:
+        role_tools = config.get("role_tools", {})
+        tool_names = role_tools.get(node_role, [])
+
+    # 3. If still no tools declared, this is a config gap — report it
+    if not tool_names:
+        logger.warning(
+            f"[ToolRBAC] No tools declared for role '{node_role}' in YAML config. "
+            f"Agent will have no tools available."
+        )
+        _report_missing_tools(node_role, [f"<no config for role '{node_role}'>"])
+        return []
+
+    # 4. Hydrate tool names to BaseTool objects
+    return get_tools_by_names(tool_names, source_role=node_role)
+
+
+def get_tools_by_names(
+    tool_names: list[str],
+    source_role: str | None = None,
+) -> list[BaseTool]:
     """
     Hydrate a list of tool names into actual BaseTool objects.
-    Useful for Dynamic Sub-Agents.
+    Uses static import map + AutoDiscoveryRegistry + MCP as lookup sources.
+
+    Args:
+        tool_names: List of tool name strings to look up.
+        source_role: Optional role name (for missing-tool reporting).
+
+    Returns:
+        List of found BaseTool objects.
     """
-    # 1. Collect all known static tools
-    # This is a bit inefficient (re-listing everything), but safe
-    all_known_tools = {
-        # File Operations
-        "read_file": read_file,
-        "write_file": write_file,
-        "edit_file": edit_file,
-        "list_files": list_files,
-        "grep_files": grep_files,
-        "file_system": file_system,
-        
-        # Coding
-        "consult_lsp": consult_lsp,
-        "explore_codebase": explore_codebase,
-        "manage_git": manage_git,
-        
-        # Planning & Memory
-        "create_plan": create_plan,
-        "update_step_status": update_step_status,
-        "analyze_feasibility": analyze_feasibility,
-        "manage_memory": manage_memory,
-        "consult_architecture": consult_architecture,
-        
-        # Research
-        "search_web": search_web,
-        
-        # Human Input
-        "request_approval": request_approval,
-    }
+    # Build lookup map from static imports
+    tool_map = _build_static_tool_map()
 
-    # Add dynamically imported tools if available
+    # Extend with AutoDiscoveryRegistry tools
     try:
-        from app.domain.research.tools import crawl_url
-        all_known_tools["crawl_url"] = crawl_url
-    except ImportError:
-        pass
-        
-    try:
-        all_known_tools["learn_skill_from_trace"] = learn_skill_from_trace
-    except ImportError:
+        from app.core.tools.registry import REGISTRY
+        for tool in REGISTRY.get_all_tools():
+            if tool.name and tool.name not in tool_map:
+                tool_map[tool.name] = tool
+    except Exception:
         pass
 
-    # Environment Interaction Tools (Phase 22)
-    all_known_tools["desktop_control"] = desktop_control
-    all_known_tools["mobile_control"] = mobile_control
-    all_known_tools["find_element"] = find_element
+    # Extend with MCP tools
+    try:
+        from app.infrastructure.mcp.client import mcp_client_manager
+        for tool in mcp_client_manager.get_tools():
+            if tool.name and tool.name not in tool_map:
+                tool_map[tool.name] = tool
+    except Exception:
+        pass
 
-    # Vision (Multimodal)
-    all_known_tools["analyze_image"] = analyze_image
+    # Hydrate
+    hydrated_tools: list[BaseTool] = []
+    missing_tools: list[str] = []
 
-    hydrated_tools = []
     for name in tool_names:
-        if name in all_known_tools:
-            hydrated_tools.append(all_known_tools[name])
+        if name in tool_map:
+            hydrated_tools.append(tool_map[name])
         else:
-            # We don't raise here, we let the caller handle missing tools (e.g. check MCP)
-            pass
-            
+            missing_tools.append(name)
+
+    # Strict mode: report missing tools
+    if missing_tools:
+        role_label = source_role or "unknown"
+        _report_missing_tools(role_label, missing_tools)
+
     return hydrated_tools

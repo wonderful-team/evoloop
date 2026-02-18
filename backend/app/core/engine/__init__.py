@@ -160,7 +160,8 @@ class AgentEngine:
 
             # OBSERVE: LLM Response (Thinking)
             if response.content:
-                logger.info(f"[{name}] 🧠 Thinking: {response.content[:300]}..." if len(response.content) > 300 else f"[{name}] 🧠 Thinking: {response.content}")
+                logger.info(f"[{name}] 🧠 Thinking: {response.content}")
+                # logger.info(f"[{name}] 🧠 Thinking: {response.content[:300]}..." if len(response.content) > 300 else f"[{name}] 🧠 Thinking: {response.content}")
 
             loop_messages.append(response)
             new_messages.append(response)

@@ -7,6 +7,7 @@ import logging
 import os
 import subprocess
 import tempfile
+import time
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -22,19 +23,19 @@ class MacOSDriver:
     def screenshot(region: str | None = None) -> str:
         """
         Capture a screenshot of the screen.
-        
+
         Args:
             region: Optional region "x,y,w,h" to capture. None = full screen.
-            
+
         Returns:
             Path to the saved screenshot PNG file.
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"screenshot_{timestamp}.png"
         filepath = os.path.join(tempfile.gettempdir(), filename)
-        
+
         cmd = ["screencapture", "-x"]  # -x = silent (no sound)
-        
+
         if region:
             # Parse "x,y,w,h" format
             try:
@@ -42,17 +43,17 @@ class MacOSDriver:
                 cmd.extend(["-R", f"{x},{y},{w},{h}"])
             except ValueError:
                 logger.warning(f"Invalid region format: {region}, capturing full screen")
-        
+
         cmd.append(filepath)
-        
+
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        
+
         if result.returncode != 0:
             raise RuntimeError(f"Screenshot failed: {result.stderr}")
-        
+
         if not os.path.exists(filepath):
             raise RuntimeError("Screenshot file was not created")
-        
+
         logger.info(f"Screenshot saved: {filepath}")
         return filepath
 
@@ -61,7 +62,7 @@ class MacOSDriver:
         """
         Click at the specified screen coordinates.
         Uses Quartz CGEvent (most reliable) or cliclick as fallback.
-        
+
         Args:
             x: X coordinate
             y: Y coordinate
@@ -76,35 +77,34 @@ class MacOSDriver:
                 kCGHIDEventTap,
                 CGPointMake,
             )
-            
+
             point = CGPointMake(x, y)
-            
+
             # Mouse down
             event_down = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, point, 0)
             CGEventPost(kCGHIDEventTap, event_down)
-            
+
             # Small delay between down and up
-            import time
             time.sleep(0.05)
-            
+
             # Mouse up
             event_up = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, point, 0)
             CGEventPost(kCGHIDEventTap, event_up)
-            
+
             logger.info(f"Clicked at ({x}, {y}) via CGEvent")
             return
-            
+
         except ImportError:
             logger.debug("Quartz not available, trying cliclick")
         except Exception as e:
             logger.warning(f"CGEvent click failed: {e}, trying fallback")
-        
+
         # Method 2: cliclick (if installed)
         cliclick_paths = [
             "/opt/homebrew/bin/cliclick",
             "/usr/local/bin/cliclick",
         ]
-        
+
         for cliclick_path in cliclick_paths:
             if os.path.exists(cliclick_path):
                 try:
@@ -119,7 +119,7 @@ class MacOSDriver:
                         return
                 except Exception as e:
                     logger.warning(f"cliclick failed: {e}")
-        
+
         # Method 3: AppleScript with mouse move + click current position
         # This is more reliable than "click at"
         script = f'''
@@ -131,7 +131,7 @@ class MacOSDriver:
             tell application process \\"{frontApp}\\" to ¬
             keystroke \\"\\" '"
         '''
-        
+
         # Actually, the most reliable AppleScript approach is using a helper
         # Since neither CGEvent nor cliclick is available, provide clear error
         raise RuntimeError(
@@ -144,13 +144,12 @@ class MacOSDriver:
     def double_click(x: int, y: int) -> None:
         """
         Double-click at the specified screen coordinates.
-        
+
         Args:
             x: X coordinate
             y: Y coordinate
         """
-        import time
-        
+
         # Try Quartz CGEvent
         try:
             from Quartz import (
@@ -163,35 +162,35 @@ class MacOSDriver:
                 kCGMouseEventClickState,
                 CGPointMake,
             )
-            
+
             point = CGPointMake(x, y)
-            
+
             # First click
             event_down1 = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, point, 0)
             CGEventSetIntegerValueField(event_down1, kCGMouseEventClickState, 1)
             CGEventPost(kCGHIDEventTap, event_down1)
-            
+
             event_up1 = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, point, 0)
             CGEventSetIntegerValueField(event_up1, kCGMouseEventClickState, 1)
             CGEventPost(kCGHIDEventTap, event_up1)
-            
+
             time.sleep(0.05)
-            
+
             # Second click
             event_down2 = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, point, 0)
             CGEventSetIntegerValueField(event_down2, kCGMouseEventClickState, 2)
             CGEventPost(kCGHIDEventTap, event_down2)
-            
+
             event_up2 = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, point, 0)
             CGEventSetIntegerValueField(event_up2, kCGMouseEventClickState, 2)
             CGEventPost(kCGHIDEventTap, event_up2)
-            
+
             logger.info(f"Double-clicked at ({x}, {y}) via CGEvent")
             return
-            
+
         except ImportError:
             pass
-        
+
         # Fallback: use cliclick with dc command
         cliclick_paths = ["/opt/homebrew/bin/cliclick", "/usr/local/bin/cliclick"]
         for path in cliclick_paths:
@@ -200,7 +199,7 @@ class MacOSDriver:
                 if result.returncode == 0:
                     logger.info(f"Double-clicked at ({x}, {y}) via cliclick")
                     return
-        
+
         raise RuntimeError("Double-click requires pyobjc-framework-Quartz or cliclick")
 
     @staticmethod
@@ -208,26 +207,26 @@ class MacOSDriver:
 
         """
         Type the given text using keyboard simulation.
-        
+
         Args:
             text: Text to type
         """
         # Escape special characters for AppleScript
         escaped_text = text.replace("\\", "\\\\").replace('"', '\\"')
-        
+
         script = f'''
         tell application "System Events"
             keystroke "{escaped_text}"
         end tell
         '''
-        
+
         result = subprocess.run(
             ["osascript", "-e", script],
             capture_output=True,
             text=True,
             timeout=10
         )
-        
+
         if result.returncode != 0:
             if "not authorized" in result.stderr.lower() or "not allowed" in result.stderr.lower():
                 raise PermissionError(
@@ -235,65 +234,79 @@ class MacOSDriver:
                     "Please grant access in System Settings > Privacy & Security > Accessibility."
                 )
             raise RuntimeError(f"Type text failed: {result.stderr}")
-        
+
         logger.info(f"Typed text: {text[:20]}...")
 
     @staticmethod
     def key_press(key: str) -> None:
         """
-        Press a special key.
-        
+        Press a key or a combination of keys.
+
         Args:
-            key: Key name (enter, escape, tab, space, delete, up, down, left, right, etc.)
+            key: Key name or combination (e.g., "enter", "a", "command+a", "shift+tab")
         """
         key_codes = {
-            "enter": 36,
-            "return": 36,
-            "escape": 53,
-            "esc": 53,
-            "tab": 48,
-            "space": 49,
-            "delete": 51,
-            "backspace": 51,
-            "up": 126,
-            "down": 125,
-            "left": 123,
-            "right": 124,
-            "command": 55,
-            "shift": 56,
-            "option": 58,
-            "control": 59,
+            "enter": 36, "return": 36, "escape": 53, "esc": 53,
+            "tab": 48, "space": 49, "delete": 51, "backspace": 51,
+            "up": 126, "down": 125, "left": 123, "right": 124,
+            "command": 55, "shift": 56, "option": 58, "control": 59,
         }
-        
-        key_lower = key.lower()
-        if key_lower not in key_codes:
-            raise ValueError(f"Unknown key: {key}. Supported: {list(key_codes.keys())}")
-        
-        key_code = key_codes[key_lower]
-        
-        script = f'''
-        tell application "System Events"
-            key code {key_code}
-        end tell
-        '''
-        
+
+        # Parse modifiers if any (e.g., "command+a")
+        parts = key.lower().split("+")
+        main_key = parts[-1]
+        modifiers = parts[:-1]
+
+        # Map modifiers to AppleScript names
+        mod_map = {
+            "command": "command down",
+            "cmd": "command down",
+            "shift": "shift down",
+            "option": "option down",
+            "opt": "option down",
+            "alt": "option down",
+            "control": "control down",
+            "ctrl": "control down",
+        }
+
+        using_mods = []
+        for mod in modifiers:
+            if mod in mod_map:
+                using_mods.append(mod_map[mod])
+            else:
+                logger.warning(f"Unknown modifier: {mod}")
+
+        using_clause = ""
+        if using_mods:
+            using_clause = " using {" + ", ".join(using_mods) + "}"
+
+        # Determine command: keystroke or key code
+        if main_key in key_codes:
+            # Special keys use "key code"
+            script = f'tell application "System Events" to key code {key_codes[main_key]}{using_clause}'
+        elif len(main_key) == 1:
+            # Alphanumeric keys use "keystroke"
+            # Escape " for AppleScript
+            escaped_key = main_key.replace('"', '\\"')
+            script = f'tell application "System Events" to keystroke "{escaped_key}"{using_clause}'
+        else:
+            raise ValueError(f"Unknown key: {main_key}. Supported special keys: {list(key_codes.keys())} or single characters.")
+
         result = subprocess.run(
             ["osascript", "-e", script],
-            capture_output=True,
-            text=True,
-            timeout=5
+            capture_output=True, text=True, timeout=5
         )
-        
+
         if result.returncode != 0:
             raise RuntimeError(f"Key press failed: {result.stderr}")
-        
+
         logger.info(f"Pressed key: {key}")
 
     @staticmethod
     def open_app(app_name: str) -> None:
         """
         Open or focus an application.
-        
+
         Args:
             app_name: Name of the application (e.g., "Safari", "Terminal")
         """
@@ -303,20 +316,20 @@ class MacOSDriver:
             text=True,
             timeout=10
         )
-        
+
         if result.returncode != 0:
             raise RuntimeError(f"Open app failed: {result.stderr}")
-        
+
         logger.info(f"Opened app: {app_name}")
 
     @staticmethod
     def run_applescript(script: str) -> str:
         """
         Execute raw AppleScript.
-        
+
         Args:
             script: AppleScript code to execute
-            
+
         Returns:
             Output from the script execution
         """
@@ -326,10 +339,10 @@ class MacOSDriver:
             text=True,
             timeout=30
         )
-        
+
         if result.returncode != 0:
             raise RuntimeError(f"AppleScript failed: {result.stderr}")
-        
+
         logger.info(f"AppleScript executed successfully")
         return result.stdout.strip()
 
@@ -424,9 +437,6 @@ class MacOSDriver:
         except Exception as e:
             return f"Error: {e}"
 
-
-
-
     @staticmethod
     def get_system_info() -> dict:
         """
@@ -442,7 +452,7 @@ class MacOSDriver:
             # RAM (in GB)
             ram_bytes = MacOSDriver.run_applescript('do shell script "sysctl -n hw.memsize"')
             ram_gb = int(ram_bytes) // (1024**3)
-            
+
             return {
                 "os_version": os_ver,
                 "model": model,
@@ -469,7 +479,7 @@ class MacOSDriver:
 
         """
         Check if accessibility permissions are granted.
-        
+
         Returns:
             True if permissions are granted, False otherwise
         """
@@ -478,14 +488,14 @@ class MacOSDriver:
             return UI elements enabled
         end tell
         '''
-        
+
         result = subprocess.run(
             ["osascript", "-e", script],
             capture_output=True,
             text=True,
             timeout=5
         )
-        
+
         return result.returncode == 0 and "true" in result.stdout.lower()
 
 

@@ -585,3 +585,6 @@ LANGUAGE_MAP = {
     "en": "English",
     "zh": "Mandarin Chinese (中文)",
 }
+
+# ====================== Output Constraints ======================
+MAX_OUTPUT_LENGTH = 20000  # Max characters for tool output before truncation

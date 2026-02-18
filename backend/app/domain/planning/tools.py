@@ -8,7 +8,7 @@ from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 
-from app.logging import get_context
+from app.core.context.manager import ContextManager
 
 from .models import Plan, Step
 
@@ -238,9 +238,9 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
     Args:
         proposed_plan: The detailed plan step-by-step.
     """
-    ctx = get_context()
-    project_id = ctx.get("project_id", 1)
-    root = ctx.get("working_directory", ".")
+    ctx = ContextManager.current()
+    project_id = ctx.project_id or 1
+    root = ctx.working_directory or "."
 
     try:
         from app.core.llm.factory import get_default_llm

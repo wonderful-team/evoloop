@@ -1,37 +1,72 @@
 """Pruning strategy for managing conversation context."""
 
+import logging
+
 from langchain_core.messages import BaseMessage, HumanMessage, ToolMessage
 
 from app.i18n.service import i18n
 
+logger = logging.getLogger(__name__)
+
 
 class SmartPruningStrategy:
     """
-    Implements 'Smart Pruning' strategy from OpenCode.
-    - Monitors total token count (heuristic).
-    - If limit exceeded, prunes old tool outputs.
+    Implements 'Smart Pruning' strategy (model-aware).
+    
+    - Dynamically determines pruning threshold based on the current model's context window.
+    - Uses precise token counting when available, falls back to character estimation.
     - Preserves recent context (last N turns).
+    - Prunes old tool outputs first (they can be re-fetched).
     """
 
-    # Constants
-    PRUNE_PROTECT_TOKENS = 30000  # Start pruning if history > 30k chars (~7k tokens)
-    MIN_TURNS_TO_KEEP = 2  # Keep last 2 user/assistant turns intact
+    # Keep last 2 user/assistant turns intact regardless of token count
+    MIN_TURNS_TO_KEEP = 2
 
     @staticmethod
-    def prune_messages(messages: list[BaseMessage]) -> list[BaseMessage]:
+    def prune_messages(
+        messages: list[BaseMessage],
+        model: str | None = None,
+    ) -> list[BaseMessage]:
         """
         Prunes old tool messages if context is too large.
-        Returns the modified list of messages.
+        
+        Args:
+            messages: The full message list.
+            model: Optional model name for profile-aware thresholds.
+        
+        Returns:
+            The modified list of messages.
         """
         if not messages:
             return messages
 
-        # Heuristic: Check total length (faster than tokenizer)
-        total_chars = sum(len(m.content) for m in messages)
+        # --- Dynamic threshold from ModelProfile ---
+        try:
+            from app.core.llm.model_profile import get_profile
+            from app.utils.token import count_messages_tokens
 
-        # If we are safe, just return
-        if total_chars < SmartPruningStrategy.PRUNE_PROTECT_TOKENS:
-            return messages
+            profile = get_profile(model) if model else None
+            if profile:
+                total_tokens = count_messages_tokens(messages, model or "gpt-4o")
+                threshold = profile.prune_threshold_tokens
+
+                if total_tokens < threshold:
+                    return messages
+
+                logger.info(
+                    f"Pruning triggered: {total_tokens} tokens > threshold {threshold} "
+                    f"(model={profile.name}, context={profile.max_context_tokens})"
+                )
+            else:
+                # Fallback to character heuristic
+                total_chars = sum(len(str(m.content)) for m in messages)
+                if total_chars < 30000:
+                    return messages
+        except ImportError:
+            # Graceful degradation if new modules not yet available
+            total_chars = sum(len(str(m.content)) for m in messages)
+            if total_chars < 30000:
+                return messages
 
         # Identify protected range (last N turns)
         turns = 0
@@ -50,7 +85,7 @@ class SmartPruningStrategy:
         pruned_messages = []
         for i, msg in enumerate(messages):
             if i < protected_index and isinstance(msg, ToolMessage):
-                # Check if it's already pruned?
+                # Check if it's already pruned
                 if str(msg.content) == "[Pruned Tool Output]":
                     pruned_messages.append(msg)
                     continue
@@ -69,6 +104,12 @@ class SmartPruningStrategy:
         return pruned_messages
 
     @staticmethod
-    def get_token_usage_proxy(messages: list[BaseMessage]) -> int:
-        """Estimate token usage using character count."""
-        return sum(len(str(m.content)) for m in messages) // 4
+    def get_token_usage(messages: list[BaseMessage], model: str | None = None) -> int:
+        """
+        Get token usage for messages. Uses precise counting when available.
+        """
+        try:
+            from app.utils.token import count_messages_tokens
+            return count_messages_tokens(messages, model or "gpt-4o")
+        except ImportError:
+            return sum(len(str(m.content)) for m in messages) // 4

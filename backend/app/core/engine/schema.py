@@ -16,6 +16,8 @@ class NodeConfig(BaseModel):
         return self.xpath
 
     config: dict[str, Any] | None = Field(default_factory=dict)
+    # Phase PD: Tool declarations for each node (replaces hardcoded RBAC in get_node_tools)
+    tools: list[str] = Field(default_factory=list)
 
 
 class EdgeConfig(BaseModel):

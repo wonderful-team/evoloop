@@ -1,4 +1,5 @@
 import logging
+import time
 from typing import Any
 
 # from celery import shared_task # Removed Celery
@@ -8,6 +9,7 @@ from sqlalchemy import func, select
 
 from app.core.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
+from app.core.context.manager import ContextManager, EvoContext
 
 # Callbacks
 from app.core.callbacks.transparent import TransparentCallbackHandler
@@ -21,7 +23,6 @@ from app.domain.project.service import project_context_manager
 from app.infrastructure.database.sql.database import session_scope
 from app.core.evocloud import evocloud_manager
 from app.models import Conversation, Message
-from app.utils.context import set_context
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,17 @@ async def _setup_project_context(thread_id: str, project_id: int, command_id: in
         project_context_manager.set_working_directory(thread_id, project["path"])
 
     working_dir = project_context_manager.get_working_directory(thread_id)
-    set_context(thread_id=thread_id, project_id=project_id, working_directory=working_dir, command_id=command_id)
+
+    # Initialize Core Context
+    ctx = EvoContext(
+        request_id=f"bg-{thread_id}-{int(time.time())}",
+        thread_id=thread_id,
+        project_id=project_id,
+        working_directory=working_dir,
+        command_id=command_id
+    )
+    ContextManager.set(ctx)
+
     return working_dir
 
 

@@ -72,10 +72,14 @@ async def manage_todo(
                         # 3. Multilingual relative parsing
                         now = utcnow()
                         
-                        # Hours: (n) hours | (n) 小时
-                        h_match = re.search(r"(\d+)\s*(hour|小时)", raw_lower)
-                        # Mins: (n) mins | (n) minutes | (n) 分钟 | (n) 分
-                        m_match = re.search(r"(\d+)\s*(min|minute|分钟|分)", raw_lower)
+                        # Hours: (n) hours | (n) hour | (n) hrs | (n) 小时
+                        h_match = re.search(r"(\d+)\s*(hour|hours|hr|hrs|小时)", raw_lower)
+                        # Mins: (n) mins | (n) minutes | (n) min | (n) 分钟 | (n) 分
+                        m_match = re.search(r"(\d+)\s*(min|mins|minute|minutes|分钟|分)", raw_lower)
+                        # Days: (n) days | (n) day | (n) 天
+                        d_match = re.search(r"(\d+)\s*(day|days|天)", raw_lower)
+                        # Weeks: (n) weeks | (n) week | (n) 周 | (n) 星期
+                        w_match = re.search(r"(\d+)\s*(week|weeks|周|星期)", raw_lower)
                         # Tomorrow: tomorrow | 明天
                         t_match = re.search(r"(tomorrow|明天)", raw_lower)
                         
@@ -83,6 +87,10 @@ async def manage_todo(
                             parsed_due_date = now + timedelta(hours=int(h_match.group(1)))
                         elif m_match:
                             parsed_due_date = now + timedelta(minutes=int(m_match.group(1)))
+                        elif d_match:
+                            parsed_due_date = now + timedelta(days=int(d_match.group(1)))
+                        elif w_match:
+                            parsed_due_date = now + timedelta(weeks=int(w_match.group(1)))
                         elif t_match:
                             parsed_due_date = now + timedelta(days=1)
                         

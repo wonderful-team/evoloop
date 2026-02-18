@@ -4,7 +4,13 @@ import time
 from typing import Any
 
 from app.infrastructure.database.redis import redis_client
-from app.models.schemas.events import AgentStateEvent, ArtifactEvent, StatusEvent, StepEvent
+from app.models.schemas.events import (
+    AgentStateEvent,
+    ArtifactEvent,
+    HumanRequestEvent,
+    StatusEvent,
+    StepEvent,
+)
 
 
 class ActivityMonitor:
@@ -12,6 +18,11 @@ class ActivityMonitor:
 
     def __init__(self):
         pass
+
+    @property
+    def client(self):
+        """Legacy compatibility for redis_client access."""
+        return redis_client
 
     @classmethod
     def get_instance(cls):
@@ -134,6 +145,12 @@ class ActivityMonitor:
                 },
             )
 
+            # Publish Event
+            await redis_client.publish(
+                f"chat:{thread_id}:events",
+                HumanRequestEvent(action="create", data=request_data).json(),
+            )
+
     async def clear_human_request(self, thread_id: str):
         """Clear human request upon resumption."""
         key = f"activity:{thread_id}"
@@ -147,6 +164,12 @@ class ActivityMonitor:
                     "interrupt_reason": "",
                     "updated_at": time.time(),
                 },
+            )
+
+            # Publish Event
+            await redis_client.publish(
+                f"chat:{thread_id}:events",
+                HumanRequestEvent(action="clear", data={}).json(),
             )
 
     async def set_active_memory(self, thread_id: str, memory_id: str, memory_name: str):
@@ -269,11 +292,18 @@ class ActivityMonitor:
             pass
 
     async def update_agent_state(
-        self, thread_id: str, mode: str, task_name: str, task_status: str
+        self, thread_id: str, mode: str, task_name: str, task_status: str, details: dict[str, Any] = None
     ):
         # New method to sync Agent State (Sidebar info)
         key = f"activity:{thread_id}"
-        state = {"mode": mode, "task_name": task_name, "task_status": task_status}
+        state = {
+            "mode": mode,
+            "task_name": task_name,
+            "task_status": task_status,
+        }
+        if details:
+            state["details"] = details
+            
         await redis_client.hset(key, "agent_state", json.dumps(state))
 
         # Publish Event

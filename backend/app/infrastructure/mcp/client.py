@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 from contextlib import AsyncExitStack, contextmanager
+from datetime import datetime, timezone
 from typing import Any
 
 from langchain_core.tools import StructuredTool
@@ -48,6 +49,8 @@ class McpClientManager:
         self.sessions: dict[str, ClientSession] = {}
         self.server_stacks: dict[str, AsyncExitStack] = {}
         self._tools_cache: dict[str, list[StructuredTool]] = {}
+        self._server_configs: dict[str, dict[str, Any]] = {}  # Cached server configs for reconnection
+        self._last_health_check: dict[str, datetime] = {}  # Track last successful health check
         # Legacy config path for migration
         self.legacy_config_path = "mcp_servers_config.json"
 
@@ -93,21 +96,6 @@ class McpClientManager:
 
             for server in servers:
                 try:
-                    # Convert Pydantic/SQLAlchemy models to dict args if needed
-                    # Stored as JSON strings in DB?
-                    # Wait, in models.py I defined them as Mapped[List[str]] = mapped_column(Text).
-                    # SQLAlchemy doesn't auto-json-parse Text columns unless we use specific types or TypeDecorators.
-                    # BUT, SQLModel/Pydantic might handle it if using JSON column type.
-                    # Postgres has JSONB. In models.py I used `Text` for args/env.
-                    # I need to parse them manually here if they are strings.
-
-                    # Correction: In models.py step 1031:
-                    # args: Mapped[List[str]] = mapped_column(Text)
-                    # env: Mapped[dict] = mapped_column(Text)
-                    # This implies I need to JSON load them if they come back as strings.
-                    # Or use `JSON` type in SQLAlchemy.
-                    # For safety, I will try to parse them if they are strings.
-
                     cmd_args = server.args
                     if isinstance(cmd_args, str):
                         try:
@@ -127,6 +115,10 @@ class McpClientManager:
                         "args": cmd_args,
                         "env": cmd_env,
                     }
+
+                    # Cache config for reconnection
+                    self._server_configs[server.name] = details
+
                     await self.connect_server(server.name, details)
                 except Exception as e:
                     logger.error(f"Failed to connect to MCP server '{server.name}': {e}")
@@ -134,8 +126,6 @@ class McpClientManager:
         # Post-Connect Health Check
         if "filesystem" not in self.sessions:
             logger.critical("CRITICAL: 'filesystem' MCP server failed to connect! Agent will be unable to edit files.")
-            # Optionally raise system exit or set a global health flag?
-            # For now, distinct log is enough for monitoring.
 
     async def connect_server(self, name: str, details: dict[str, Any]):
         """Connect to a single MCP server (Stdio only for now)."""
@@ -183,6 +173,8 @@ class McpClientManager:
 
             self.server_stacks[name] = stack
             self.sessions[name] = session
+            self._server_configs[name] = details  # Cache for reconnection
+            self._last_health_check[name] = datetime.now(timezone.utc)
             logger.info(f"Connected to MCP server: {name}")
 
             # Pre-fetch tools
@@ -193,6 +185,103 @@ class McpClientManager:
             if "stack" in locals():
                 await stack.aclose()
             raise
+
+    # --- Lifecycle Management ---
+
+    async def _ping(self, server_name: str) -> bool:
+        """Health check: verify a server session is alive by listing tools."""
+        session = self.sessions.get(server_name)
+        if not session:
+            return False
+        try:
+            await session.list_tools()
+            self._last_health_check[server_name] = datetime.now(timezone.utc)
+            return True
+        except Exception as e:
+            logger.warning(f"Health check failed for MCP server '{server_name}': {e}")
+            return False
+
+    async def ensure_connected(self, server_name: str) -> bool:
+        """
+        Ensure a specific MCP server is connected.
+        If not connected, attempts to (re)connect using cached or DB config.
+        
+        Args:
+            server_name: The MCP server name to ensure connection for.
+        
+        Returns:
+            True if connected after this call, False otherwise.
+        """
+        # Already connected? Do a health check
+        if server_name in self.sessions:
+            if await self._ping(server_name):
+                return True
+            # Stale session — disconnect and reconnect
+            logger.info(f"Stale session detected for '{server_name}', reconnecting...")
+            await self._disconnect_server(server_name)
+
+        # Try reconnect from cached config
+        if server_name in self._server_configs:
+            try:
+                await self.connect_server(server_name, self._server_configs[server_name])
+                return server_name in self.sessions
+            except Exception as e:
+                logger.error(f"Reconnection failed for '{server_name}': {e}")
+                return False
+
+        # Try load config from DB
+        try:
+            async with session_scope() as session:
+                result = await session.execute(
+                    select(McpServer).where(McpServer.name == server_name, McpServer.enabled)
+                )
+                server = result.scalars().first()
+                if server:
+                    cmd_args = server.args
+                    if isinstance(cmd_args, str):
+                        try:
+                            cmd_args = json.loads(cmd_args)
+                        except Exception:
+                            cmd_args = []
+                    cmd_env = server.env
+                    if isinstance(cmd_env, str):
+                        try:
+                            cmd_env = json.loads(cmd_env)
+                        except Exception:
+                            cmd_env = {}
+                    details = {
+                        "command": server.command,
+                        "args": cmd_args,
+                        "env": cmd_env,
+                    }
+                    await self.connect_server(server_name, details)
+                    return server_name in self.sessions
+        except Exception as e:
+            logger.error(f"Failed to load config for '{server_name}' from DB: {e}")
+
+        logger.warning(f"MCP server '{server_name}' not found in config. Cannot connect.")
+        return False
+
+    async def _disconnect_server(self, name: str):
+        """Disconnect a single server, cleaning up resources."""
+        if name in self.server_stacks:
+            try:
+                await self.server_stacks[name].aclose()
+            except Exception as e:
+                logger.debug(f"Error closing stack for '{name}': {e}")
+            del self.server_stacks[name]
+        self.sessions.pop(name, None)
+        self._tools_cache.pop(name, None)
+        self._last_health_check.pop(name, None)
+
+    async def get_tools_for(self, server_name: str) -> list[StructuredTool]:
+        """
+        Get tools for a specific server, ensuring it's connected first.
+        This is the safe entry point for accessing MCP tools.
+        """
+        if await self.ensure_connected(server_name):
+            return self._tools_cache.get(server_name, [])
+        return []
 
     async def _refresh_tools(self, server_name: str):
         """Fetch tools from a connected server and convert to LangChain tools."""
