@@ -11,10 +11,11 @@ pub struct GlobalEvent {
     pub event_type: String,
     pub key: Option<String>,
     pub mouse_button: Option<String>,
-    pub position: Option<(i32, i32)>,
+    pub position: Option<(f64, f64)>,
     pub window_title: Option<String>,
     pub app_name: Option<String>,
     pub process_id: Option<u64>,
+    pub window_bounds: Option<(f64, f64, f64, f64)>,
 }
 
 pub struct GlobalObserver {
@@ -36,13 +37,6 @@ impl GlobalObserver {
              println!("GlobalObserver already recording");
              return;
         }
-
-        // Run the recorder binary directly.
-        // In dev mode (and prod if bundled correctly), it should be in the same folder as the main executable.
-        let exe_path = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("recorder"));
-        let mut cmd_path = exe_path.clone();
-        cmd_path.pop(); // Remove executable name
-        cmd_path.push("recorder"); // Add recorder binary name
 
         // Run the recorder binary directly.
         // In dev mode (and prod if bundled correctly), it should be in the same folder as the main executable.
@@ -78,6 +72,9 @@ impl GlobalObserver {
                             match line {
                                 Ok(l) => {
                                     if let Ok(event) = serde_json::from_str::<GlobalEvent>(&l) {
+                                        if event.event_type.contains("click") || event.event_type.contains("press") {
+                                            println!("[GlobalObserver] Emitting event: {}", event.event_type);
+                                        }
                                         let _ = app_handle.emit("global-event", event);
                                     } else {
                                         println!("[Recorder] {}", l);
@@ -109,12 +106,11 @@ impl GlobalObserver {
     }
 
     pub fn stop(&self) {
-        println!("Stop global recording requested");
         let mut child_lock = self.child.lock().unwrap();
         if let Some(mut child) = child_lock.take() {
+            println!("Stop global recording - Killing process {}", child.id());
             let _ = child.kill();
             let _ = child.wait(); // Prevent zombie
-            println!("Recorder process killed");
         }
     }
 

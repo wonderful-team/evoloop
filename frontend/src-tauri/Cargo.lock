@@ -9,6 +9,7 @@ dependencies = [
  "active-win-pos-rs",
  "base64 0.22.1",
  "image",
+ "libc",
  "macos-accessibility-client",
  "parking_lot",
  "rdev",

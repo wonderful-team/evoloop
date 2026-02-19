@@ -31,4 +31,5 @@ rdev = "0.5" # Global keyboard/mouse listener
 active-win-pos-rs = "0.8" # Active window info
 parking_lot = "0.12" # Efficient mutex
 macos-accessibility-client = "0.0.2" # Check accessibility permissions
+libc = "0.2" # For sending SIGINT to stop screen recording
 
