@@ -32,6 +32,7 @@ Analyze why the skill might be failing or where it is inefficient.
 Return ONLY the refined Markdown content for the SKILL.md body. Do NOT include frontmatter or explanations.
 """
 
+
 class SkillOptimizer:
     """
     Optimizes skill instructions using LLM analysis of execution history.

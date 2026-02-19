@@ -47,23 +47,31 @@ async def run_command(command: str) -> str:
         return f"Execution Error: {str(e)}"
 
 
-@tool
+#@tool
 async def execute_learned_skill(skill_name: str, params: dict = None) -> str:
     """
-    Execute a previously learned or imported skill by its name.
-    Use this when you see a directive to run a specific skill.
+    [DEPRECATED] Execute a previously learned or imported skill by its name.
+    
+    NOTE: Skills should be injected as knowledge context in system prompts,
+    not called as executable tools. This function is kept for backward compatibility
+    with existing Agent YAML configurations.
 
     Args:
         skill_name: The exact name of the skill to execute (e.g., 'algorithmic-art').
         params: Key-value parameters required by the skill.
     """
-    from app.core.learning.skill_executor import SkillExecutor, build_skill_tool_registry, skill_matcher
+    from app.core.learning.skill_executor import SkillExecutor, build_skill_tool_registry
+    from app.core.learning.discovery import skill_discovery
     from app.core.context.manager import ContextManager
     
-    logger.info(f"SkillExecutor [Running]: {skill_name}")
+    logger.warning(
+        f"[DEPRECATED] execute_learned_skill called for '{skill_name}'. "
+        "Skills should be injected as knowledge context, not called as tools. "
+        "This violates the Skills != Tools principle."
+    )
     
     # 1. Resolve Skill ID
-    match = await skill_matcher.match(skill_name, threshold=0.9)
+    match = await skill_discovery.match(skill_name, threshold=0.9)
     if not match:
         return f"Error: Skill '{skill_name}' not found or matched with low confidence."
     

@@ -13,6 +13,7 @@ from app.core.learning.skill_validator import SkillValidator
 
 logger = logging.getLogger(__name__)
 
+
 class SkillImporter:
     """
     Service to import external skill packages (SKILL.md) into the Evoloop database.

@@ -16,7 +16,6 @@ nodes:
       - "analyze_feasibility"
       - "consult_architecture"
       - "request_approval"
-      - "execute_learned_skill"
       - "learn_skill_from_trace"
       - "explore_codebase"
       - "grep_files"
@@ -41,7 +40,6 @@ nodes:
       - "mobile_control"
       - "find_element"
       - "wait"
-      - "execute_learned_skill"
       - "explore_codebase"
       - "grep_files"
 

@@ -57,15 +57,19 @@ class TraceCallbackHandler(AsyncCallbackHandler):
 
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Capture Tool Output as Environment Feedback."""
-        # We need to know WHICH tool was called.
-        # on_tool_start gives serialized info, but on_tool_end only gives output.
-        # We rely on the linear execution assumption for now or look at run_id if we tracked it.
-        # Simplification: Just log the output.
+        tool_name = kwargs.get("name", "unknown_tool")
+        # Truncate long outputs to keep DB size manageable
+        truncated_output = output[:2000] if output else ""
 
-        # NOTE: We can't easily link to the specific tool call args here without tracking run_id.
-        # But for Imitation Learning, we mostly care about "Start Tool" (Action) and "End Tool" (Observation).
-        # We'll rely on on_tool_start for the action.
-        pass
+        await self._save_event(
+            action_type="tool_result",
+            payload={
+                "name": tool_name,
+                "output": truncated_output,
+                "success": True,
+            },
+            snapshot=self._last_state_snapshot,
+        )
 
     async def on_tool_start(
         self, serialized: dict[str, Any], input_str: str, **kwargs: Any

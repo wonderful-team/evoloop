@@ -4,7 +4,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
-from app.core.engine.state import AgentState
+from app.core.engine import AgentState
 from app.core.llm.factory import LLMFactory
 from app.domain.research.engine import DeepResearchEngine
 from app.i18n.service import i18n
@@ -74,10 +74,26 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
 
     logger.info(f"DeepResearcher Node running for topic: {topic}")
 
+    # Skills as Knowledge Injection
+    skills = []
+    try:
+        from app.core.learning.discovery import skill_discovery
+        skills = await skill_discovery.retrieve(topic, top_k=3)
+        if skills:
+            logger.info(f"[DeepResearcher] 📖 Found {len(skills)} relevant skills for knowledge injection")
+    except Exception as e:
+        logger.warning(f"[DeepResearcher] Skill retrieval failed: {e}")
+
     try:
         # Run the engine
-        # The engine manages the full loop (Plan -> Iterate -> Conclude)
-        # and returns the final markdown report.
+        # Pass skills to engine if it supports prompt builders internally (e.g. for sub-tasks)
+        # or combine with isolated message.
+        if skills:
+            from app.core.prompts.developer_builder import DeveloperPromptBuilder
+            # We can use a helper or builder to format these for the engine's internal planning
+            skill_knowledge = "\n".join([f"### 📘 Skill: {s.name}\n{s.instructions}" for s in skills])
+            topic = f"{topic}\n\n### EXPERT KNOWLEDGE (SOPs)\n{skill_knowledge}"
+
         final_report = await engine.run(topic, previous_history=messages, max_iterations=max_iter, config=config)
 
         # In this simplified integration, we consider the process atomic from the graph's perspective.

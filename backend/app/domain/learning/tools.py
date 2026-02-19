@@ -3,7 +3,7 @@ import time
 
 from sqlalchemy import select
 
-from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
+from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.tools.base import evoloop_tool
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
@@ -21,7 +21,7 @@ async def learn_skill_from_trace(thread_id: str, session_id: str | None = None) 
         session_id: Optional session ID if specific session is targeted.
     """
     try:
-        synthesizer = EnhancedWorkflowSynthesizer(thread_id, session_id)
+        synthesizer = WorkflowSynthesizer(thread_id, session_id)
         skill_data = await synthesizer.synthesize()
 
         # Save to Database

@@ -66,24 +66,50 @@ async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDepOpti
     except Exception as e:
         logger.warning(f"Failed to check wiki existence: {e}")
 
+    # Batch enrichment for Local System Status (Redis)
+    from app.infrastructure.database.redis import redis_client
+    
+    pipe = redis_client.pipeline()
+    project_keys = []
+    for p in projects:
+        pid = p.get("project_id") or p.get("id")
+        if pid:
+            keys = [
+                f"sys:{pid}:wiki",
+                f"sys:{pid}:indexing",
+                f"sys:{pid}:summarization"
+            ]
+            project_keys.append(pid)
+            for k in keys:
+                pipe.hgetall(k)
+    
+    # Execute batch
+    pipeline_results = await pipe.execute()
+    
+    # Map results back to projects
+    status_map = {}
+    for i, pid in enumerate(project_keys):
+        # Each project has 3 keys in pipeline
+        wiki_res = pipeline_results[i*3]
+        idx_res = pipeline_results[i*3 + 1]
+        sum_res = pipeline_results[i*3 + 2]
+        
+        status_map[pid] = {
+            "wiki_status": wiki_res.get("status", "idle") if wiki_res else "idle",
+            "indexing_status": idx_res.get("status", "idle") if idx_res else "idle",
+            "summarization_status": sum_res.get("status", "idle") if sum_res else "idle",
+        }
+
     # Enrich loop
     for p in projects:
-        try:
-            pid = p.get("project_id") or p.get("id")
-            if pid:
-                # Local Status
-                wiki_status = await activity_monitor.get_activity(f"sys:{pid}:wiki")
-                indexing_status = await activity_monitor.get_activity(f"sys:{pid}:indexing")
-                summarization_status = await activity_monitor.get_activity(f"sys:{pid}:summarization")
-                
-                p["wiki_status"] = wiki_status.get("status", "idle") if wiki_status else "idle"
-                p["indexing_status"] = indexing_status.get("status", "idle") if indexing_status else "idle"
-                p["summarization_status"] = summarization_status.get("status", "idle") if summarization_status else "idle"
-                
-                # Wiki Existence
-                p["has_wiki"] = pid in projects_with_wiki
-        except Exception as e:
-            logger.warning(f"Failed to enrich project {p.get('id')} status: {e}")
+        pid = p.get("project_id") or p.get("id")
+        if pid:
+            # Local Status from map
+            statuses = status_map.get(pid, {"wiki_status": "idle", "indexing_status": "idle", "summarization_status": "idle"})
+            p.update(statuses)
+            
+            # Wiki Existence (from DB)
+            p["has_wiki"] = pid in projects_with_wiki
             
     return res
 
@@ -144,11 +170,31 @@ async def get_project_status(project_id: int):
     summarization_key = f"sys:{project_id}:summarization"
     wiki_key = f"sys:{project_id}:wiki"
 
-    indexing = await activity_monitor.get_activity(indexing_key)
-    summarization = await activity_monitor.get_activity(summarization_key)
-    wiki = await activity_monitor.get_activity(wiki_key)
+    from app.infrastructure.database.redis import redis_client
+    pipe = redis_client.pipeline()
+    pipe.hgetall(indexing_key)
+    pipe.hgetall(summarization_key)
+    pipe.hgetall(wiki_key)
+    
+    results = await pipe.execute()
+    
+    # Helper to parse activity data (mirrors get_activity logic but for raw hgetall results)
+    def parse_act(data):
+        if not data: return {"status": "idle"}
+        try:
+            return {
+                "status": data.get("status", "idle"),
+                "updated_at": float(data.get("updated_at", 0)),
+                "agent_state": json.loads(data.get("agent_state", "{}")),
+                "steps": json.loads(data.get("steps", "[]")),
+            }
+        except: return {"status": "idle"}
 
-    return {"indexing": indexing, "summarization": summarization, "wiki": wiki}
+    return {
+        "indexing": parse_act(results[0]),
+        "summarization": parse_act(results[1]),
+        "wiki": parse_act(results[2])
+    }
 
 
 @router.delete("/{project_id}")

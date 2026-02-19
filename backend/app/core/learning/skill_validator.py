@@ -6,12 +6,14 @@ from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
+
 class ValidationResult(BaseModel):
     is_valid: bool
-    status: str # "healthy", "warning", "error"
+    status: str  # "healthy", "warning", "error"
     errors: List[str] = []
     warnings: List[str] = []
     metadata: Optional[Dict[str, Any]] = None
+
 
 class SkillValidator:
     """

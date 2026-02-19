@@ -10,7 +10,7 @@ import logging
 
 from celery import shared_task
 
-from app.core.learning.skill_retriever import skill_retriever
+from app.core.learning.discovery import skill_discovery
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ def embed_skills(batch_size: int = 50) -> dict:
     logger.info(f"[Celery] Starting skill embedding task (batch_size={batch_size})...")
     
     async def _run():
-        return await skill_retriever.ensure_skill_embeddings(batch_size)
+        return await skill_discovery.ensure_skill_embeddings(batch_size)
     
     try:
         updated_count = asyncio.run(_run())
@@ -78,7 +78,7 @@ def refresh_all_skill_embeddings() -> dict:
         # Then regenerate in batches
         total_updated = 0
         while True:
-            updated = await skill_retriever.ensure_skill_embeddings(batch_size=100)
+            updated = await skill_discovery.ensure_skill_embeddings(batch_size=100)
             total_updated += updated
             if updated == 0:
                 break

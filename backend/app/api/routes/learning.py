@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
-from app.core.learning.skill_synthesizer import EnhancedWorkflowSynthesizer
+from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.learning.skill_importer import SkillImporter
 from app.core.learning.skill_validator import SkillValidator, ValidationResult
 from app.core.learning.skill_optimizer import SkillOptimizer
@@ -239,7 +239,7 @@ class GlobalRecordedEvent(BaseModel):
     event_type: str  # "key_press", "mouse_click", "window_change"
     key: str | None = None
     mouse_button: str | None = None
-    position: tuple[int, int] | None = None
+    position: tuple[float, float] | None = None
     window_title: str | None = None
     app_name: str | None = None
     process_id: int | None = None
@@ -256,6 +256,13 @@ class RecordGlobalEventsRequest(BaseModel):
     thread_id: str
     session_id: str | None = None
     events: list[GlobalRecordedEvent]
+
+
+class ExtractKeyframesRequest(BaseModel):
+    """Request to extract keyframes from a screen recording video."""
+    session_id: str
+    video_path: str
+    thread_id: str | None = None
 
 
 @router.post("/traces/global-events", response_model=RespondResponse)
@@ -301,6 +308,129 @@ async def record_global_events(body: RecordGlobalEventsRequest):
             
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save global events: {e}")
+
+
+@router.post("/traces/extract-keyframes")
+async def extract_keyframes(body: ExtractKeyframesRequest, background_tasks: BackgroundTasks):
+    """
+    Extract keyframes from a screen recording video at event timestamps.
+    Called after recording stops. Runs extraction in the background.
+    """
+    from app.core.learning.frame_extractor import FrameExtractor
+
+    async def _extract_and_update():
+        try:
+            # 1. Query all global events for this session to get timestamps
+            async with session_scope() as db:
+                from sqlalchemy import select, or_
+                stmt = (
+                    select(TraceEvent)
+                    .where(TraceEvent.recording_session_id == body.session_id)
+                    # Support both global and dom sources
+                    .where(TraceEvent.source.in_(["global", "dom", "cli"]))
+                    # Handle different naming conventions: 'click', 'mouse_click', 'MouseButtonPress', etc.
+                    .where(or_(
+                        TraceEvent.event_type.ilike("%click%"),
+                        TraceEvent.event_type.ilike("%press%"),
+                        TraceEvent.event_type.in_(["input", "enter", "tab"])
+                    ))
+                    .order_by(TraceEvent.timestamp)
+                )
+                result = await db.execute(stmt)
+                events = result.scalars().all()
+
+            logger.info(f"Found {len(events)} events for session {body.session_id} to extract keyframes from")
+
+            if not events:
+                logger.warning(f"No matching events (click/press) found for session {body.session_id} in sources ['global', 'dom', 'cli']")
+                return
+
+            # 2. Extract timestamps (convert to ms)
+            timestamps_ms = []
+            event_ids = []
+            base_ts = events[0].timestamp if events else 0
+            for evt in events:
+                if evt.timestamp:
+                    relative_ms = int((evt.timestamp - base_ts) * 1000) if base_ts else int(evt.timestamp)
+                    timestamps_ms.append(relative_ms)
+                    event_ids.append(evt.id)
+
+            # 3. Extract frames and analyze with OCR
+            extractor = FrameExtractor(body.video_path)
+            # Use extract_and_analyze instead of extract_frames
+            results = await extractor.extract_and_analyze(timestamps_ms)
+
+            # 4. Write screenshot paths and OCR data back to DB
+            async with session_scope() as db:
+                for event_id, result in zip(event_ids, results):
+                    frame_path = result.get("screenshot_path")
+                    ocr_elements = result.get("ocr_elements", [])
+                    
+                    # Prepare update values
+                    update_values = {"screenshot_path": frame_path}
+                    
+                    # Geometry Matching: Find element at click position
+                    # We need to fetch the event again or use cached data to get coordinates
+                    # Since we are inside a new session scope/transaction context, let's fetch strictly needed info
+                    # But we have event_id, so we can do a targeted update with logic? 
+                    # Actually, we need the event coordinates to match. 
+                    # Let's re-fetch the specific event to get its coordinates for matching.
+                    stmt_evt = select(TraceEvent).where(TraceEvent.id == event_id)
+                    evt = (await db.execute(stmt_evt)).scalar_one_or_none()
+                    
+                    if evt and evt.mouse_x is not None and evt.mouse_y is not None:
+                        # Find matching element
+                        mx, my = evt.mouse_x, evt.mouse_y
+                        matched_text = None
+                        
+                        # Simple point-in-rect check
+                        for el in ocr_elements:
+                            # bounds: [x, y, w, h] (top-left, usually? Wait, frame_extractor said: [x-w/2, y-h/2, w, h])
+                            # frame_extractor logic: bounds=[el.x - el.width//2, el.y - el.height//2, el.width, el.height]
+                            # So it is [left, top, width, height]
+                            x, y, w, h = el["bounds"]
+                            if x <= mx <= x + w and y <= my <= y + h:
+                                matched_text = el["text"]
+                                break
+                        
+                        if matched_text:
+                            update_values["target_text"] = matched_text
+                            # Also update ui_element_info for redundancy/compatibility
+                            info = {}
+                            if evt.ui_element_info:
+                                try:
+                                    info = json.loads(evt.ui_element_info)
+                                except:
+                                    pass
+                            info["text"] = matched_text
+                            info["source"] = "ocr_global"
+                            update_values["ui_element_info"] = json.dumps(info)
+                            
+                            logger.info(f"OCR Match for event {event_id}: '{matched_text}' at ({mx}, {my})")
+
+                    # Perform the update
+                    from sqlalchemy import update
+                    await db.execute(
+                        update(TraceEvent)
+                        .where(TraceEvent.id == event_id)
+                        .values(**update_values)
+                    )
+
+            logger.info(
+                f"Extracted and analyzed {len(results)} keyframes for session {body.session_id}"
+            )
+
+        except FileNotFoundError as e:
+            logger.error(f"Keyframe extraction failed: {e}")
+        except Exception as e:
+            logger.exception(f"Keyframe extraction error: {e}")
+
+    background_tasks.add_task(_extract_and_update)
+
+    return {
+        "success": True,
+        "message": f"Keyframe extraction and OCR analysis started for session {body.session_id}",
+    }
 
 
 @router.post("/traces/start", response_model=StartRecordingResponse)
@@ -469,13 +599,34 @@ async def synthesize_skill(body: SynthesizeRequest):
     Uses LLM to analyze the trace and generate a reusable skill.
     """
     try:
-        synthesizer = EnhancedWorkflowSynthesizer(body.thread_id, body.session_id)
+        synthesizer = WorkflowSynthesizer(body.thread_id, body.session_id)
         skill = await synthesizer.synthesize(auto_optimize=body.auto_optimize)
 
         # Persist to database
         async with session_scope() as db:
+            # Handle potential name collisions (psycopg.errors.UniqueViolation)
+            base_name = skill.name
+            unique_name = base_name
+            counter = 1
+            
+            from sqlalchemy import select
+            from app.models.learning import LearnedSkill
+            
+            while True:
+                # Check if name exists
+                stmt = select(LearnedSkill).where(LearnedSkill.name == unique_name)
+                existing = (await db.execute(stmt)).scalar_one_or_none()
+                if not existing:
+                    break
+                # Conflict found, append suffix
+                unique_name = f"{base_name}_{counter}"
+                counter += 1
+            
+            if unique_name != base_name:
+                logger.info(f"Skill name collision: {base_name} -> {unique_name}")
+
             db_skill = LearnedSkill(
-                name=skill.name,
+                name=unique_name,
                 description=skill.description,
                 trigger_patterns=json.dumps(skill.trigger_patterns),
                 parameters=json.dumps([p.__dict__ for p in skill.parameters]),
@@ -485,6 +636,7 @@ async def synthesize_skill(body: SynthesizeRequest):
                 source_thread_id=skill.source_thread_id,
                 source_session_id=skill.source_session_id,
                 is_active=True,
+                instructions=skill.instructions,
             )
             db.add(db_skill)
             await db.flush()  # Get ID
@@ -492,7 +644,7 @@ async def synthesize_skill(body: SynthesizeRequest):
             return {
                 "success": True,
                 "skill_id": db_skill.id,
-                "skill_name": skill.name,
+                "skill_name": unique_name,
                 "skill_yaml": skill.to_yaml(),
             }
 
@@ -688,12 +840,15 @@ async def execute_skill(
             raise HTTPException(status_code=404, detail="Skill not found")
 
         # 2. Construct Directive Message
-        # We format this as a user message to "prompt" the agent to run the skill.
+        # We format this as a user message to prompt the agent to use the skill knowledge.
+        # Since Worker Nodes (Developer, etc.) now retrieve skills based on this topic,
+        # the agent will automatically see the 'Expert Guide' in its system prompt.
         skill_name = skill.name
         params_str = json.dumps(body.params, indent=2)
         directive = (
-            f"Command: execute_learned_skill(skill_name='{skill_name}', params={params_str})\n\n"
-            f"Please run the skill '{skill_name}' immediately using the provided tool and parameters."
+            f"User Instruction: I need you to perform the task '{skill_name}' using your expertise.\n"
+            f"Parameters: {params_str}\n\n"
+            f"Please refer to the 'EXPERT GUIDANCE (SKILLS)' section in your system instructions for the '{skill_name}' SOP and use your tools to complete it."
         )
 
         # 3. Persist Message to History

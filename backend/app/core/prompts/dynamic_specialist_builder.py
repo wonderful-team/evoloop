@@ -177,12 +177,12 @@ Please execute this mission now. Use your tools."""
         knowledge_blocks = []
         for skill in self.skills:
             block = f"### 📘 Skill: {skill.name}\n"
-            # Prefer description as the SOP text
-            if skill.description:
-                block += f"{skill.description}\n"
             
-            # If trigger patterns mention a package usage, highlight it
-            # (Optional enhancement)
+            if skill.description:
+                block += f"**Description**: {skill.description}\n"
+            
+            if skill.instructions:
+                block += f"**Expert Guide (操作指南)**:\n{skill.instructions}\n"
             
             knowledge_blocks.append(block)
         

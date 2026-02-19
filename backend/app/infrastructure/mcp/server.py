@@ -24,35 +24,8 @@ from app.domain.tools.files import (
 )
 from app.utils import json as json_utils
 
-from contextlib import asynccontextmanager
-from app.infrastructure.mcp.virtual_server import VisualSkillServer
-
-
 # Initialize FastMCP Server
-@asynccontextmanager
-async def server_lifespan(server: FastMCP):
-    # Startup: Sync Learned Skills
-    visual_server = VisualSkillServer(server)
-    await visual_server.sync_skills()
-    yield
-    # Shutdown
-    pass
-
-mcp = FastMCP("EvoLoop MCP Server", lifespan=server_lifespan)
-
-
-@mcp.tool()
-async def refresh_skills() -> str:
-    """
-    Manually trigger a re-sync of verified skills from the database.
-    Use this after creating or verifying a new skill to make it immediately available.
-    """
-    try:
-        visual_server = VisualSkillServer(mcp)
-        await visual_server.sync_skills()
-        return "Skills synced successfully."
-    except Exception as e:
-        return f"Error syncing skills: {e}"
+mcp = FastMCP("EvoLoop MCP Server")
 
 
 def _truncate(text: str, max_chars: int = 20000) -> str:

@@ -13,7 +13,13 @@ class DocumenterPromptBuilder:
     """
 
     @staticmethod
-    def build_file_structure_prompt(tree_output: str) -> str:
+    def build_file_structure_prompt(tree_output: str, skills: list | None = None) -> str:
+        skills_section = ""
+        if skills:
+            skills_section = "\n### 5. EXPERT GUIDANCE (SKILLS)\n"
+            for s in skills:
+                skills_section += f"#### 📘 Skill: {s.name}\n{s.instructions}\n"
+
         return f"""You are a Technical Documentation Architect.
 
 Your goal is to design a Wiki structure for this project.
@@ -25,6 +31,8 @@ Project Root:
 
 ## Environment Awareness
 {DocumenterPromptBuilder._build_env_summary()}
+
+{skills_section}
 
 Common Pages (create these if relevant):
 - Overview/Introduction
@@ -46,12 +54,29 @@ Output a JSON object with a "pages" key:
 """
 
     @staticmethod
-    def build_page_generation_prompt(topic: str, filename: str) -> str:
-        return i18n.get(
+    def build_page_generation_prompt(topic: str, filename: str, skills: list | None = None) -> str:
+        base_prompt = i18n.get(
             "prompts.documenter.page_generation",
             topic=topic,
             filename=filename
         )
+        
+        if not skills:
+            return base_prompt
+
+        blocks = ["\n### EXPERT GUIDANCE (SKILLS)",
+                   "The following are expert guides relevant to this page topic.",
+                   "Use these as your strategy reference when writing content.\n"]
+
+        for skill in skills:
+            block = f"#### 📘 Skill: {skill.name}\n"
+            if skill.description:
+                block += f"**Description**: {skill.description}\n"
+            if skill.instructions:
+                block += f"**Expert Guide (心法)**:\n{skill.instructions}\n"
+            blocks.append(block)
+
+        return base_prompt + "\n" + "\n".join(blocks)
 
     @staticmethod
     def _build_env_summary() -> str:

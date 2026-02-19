@@ -287,27 +287,25 @@ class SupervisorNode:
         if not last_human_msg:
             return None
 
-        # Skill Matching
+        # Skill Matching (Knowledge-Only)
+        # Skills are NOT tools. When a skill matches, we only log it.
+        # The actual skill knowledge injection happens in downstream Worker Nodes
+        # (DeveloperNode, DynamicSpecialistNode) via SkillRetriever + Prompt builders.
         if not state.get("skill_execution_attempted"):
             try:
-                # Dynamic import for runtime matching
-                from app.core.learning.skill_executor import skill_matcher
+                from app.core.learning.discovery import skill_discovery
 
                 thread_id = config.get("configurable", {}).get("thread_id", "unknown")
-                match = await skill_matcher.match(last_human_msg, threshold=0.7, thread_id=thread_id)
+                match = await skill_discovery.match(last_human_msg, threshold=0.7, thread_id=thread_id)
 
                 if match:
-                    logger.info(f"🎯 Skill Match: '{match.skill_name}' ({match.confidence:.2f})")
-                    return {
-                        "next_node": "supervisor",  # Re-route to self to execute skill tool
-                        # We return messages with ToolCall so the next step executes it
-                        "messages": [AIMessage(content="", tool_calls=[{
-                            "name": match.skill_name,
-                            "args": match.parameters,
-                            "id": "skill_call_" + match.skill_name
-                        }])],
-                        "skill_execution_attempted": True  # Mark as attempted to prevent loop
-                    }
+                    logger.info(
+                        f"🎯 Skill Knowledge Match: '{match.skill_name}' "
+                        f"(confidence: {match.confidence:.2f}) - "
+                        f"will be injected as context by downstream Worker Node"
+                    )
+                    # Do NOT call skill as a tool. Fall through to slow path
+                    # so Supervisor LLM can route to the appropriate Worker Node.
             except Exception:
                 pass
 

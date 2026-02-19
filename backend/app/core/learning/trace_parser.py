@@ -375,6 +375,12 @@ class TraceParser:
                     args_str = args_str[:200] + "..."
                 lines.append(f"- **Args**: `{args_str}`")
 
+            if step.state_context:
+                app = step.state_context.get("app_name")
+                title = step.state_context.get("window_title")
+                if app or title:
+                    lines.append(f"- **Context**: `{app or 'Unknown App'}` - `{title or 'No Title'}`")
+
             if step.ui_context:
                 if step.ui_context.element_text:
                     lines.append(

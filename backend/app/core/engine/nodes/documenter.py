@@ -21,10 +21,6 @@ logger = logging.getLogger(__name__)
 # Or we can just include the "Deep Research" loop inside here if we want tighter control.
 # For now, let's make it a high-level orchestrator.
 
-# Re-use DeepResearcher logic but wrapped for documentation purpose
-# Or we can just include the "Deep Research" loop inside here if we want tighter control.
-# For now, let's make it a high-level orchestrator.
-
 async def documenter_node(state: AgentState, config: RunnableConfig):
     """
     Documenter Agent:
@@ -122,10 +118,18 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
                 logger.info(f"Generating Wiki Page: {filename} ({topic})")
 
                 try:
+                    # Skills as Knowledge Injection for the specific page topic
+                    page_skills = []
+                    try:
+                        from app.core.learning.discovery import skill_discovery
+                        page_skills = await skill_discovery.retrieve(topic, top_k=2)
+                    except Exception:
+                        pass
+
                     # Trigger Deep Research Loop
                     # Use Builder for prompt
                     from app.core.prompts import DocumenterPromptBuilder
-                    prompt_content = DocumenterPromptBuilder.build_page_generation_prompt(topic, filename)
+                    prompt_content = DocumenterPromptBuilder.build_page_generation_prompt(topic, filename, skills=page_skills)
 
                     content = await engine.run(topic=prompt_content, max_iterations=3, config=config)
 
@@ -178,11 +182,24 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
 
     # user_lang = SystemConfigService.get_language_preference()
 
+    # [MODIFIED] Inject    # Skills as Knowledge Injection
+    skills = []
+    try:
+        from app.core.learning.discovery import skill_discovery
+        
+        # Get topic from mission
+        topic = route_reason or "documentation"
+        skills = await skill_discovery.retrieve(topic, top_k=2)
+        if skills:
+            logger.info(f"[Documenter] 📖 Found {len(skills)} relevant skills for knowledge injection")
+    except Exception as e:
+        logger.warning(f"[Documenter] Skill retrieval failed: {e}")
+
     try:
         from app.core.prompts import DocumenterPromptBuilder
 
         # Builder handles language injection internally now
-        prompt_content = DocumenterPromptBuilder.build_file_structure_prompt(tree_output)
+        prompt_content = DocumenterPromptBuilder.build_file_structure_prompt(tree_output, skills=skills)
 
         # [NEW] Blackboard standard: Start with isolated messages if available, else empty or prev history
         msgs = list(messages) if messages else []

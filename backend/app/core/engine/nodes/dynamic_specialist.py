@@ -13,7 +13,6 @@ from app.core.prompts.dynamic_specialist_builder import DynamicSpecialistPromptB
 from app.core.tools.registry_utils import get_tools_by_names
 from app.infrastructure.mcp.client import mcp_client_manager
 from app.domain.tools.vector_store import pg_tool_retriever
-from app.core.learning.skill_retriever import SkillRetriever
 from app.domain.environment import get_awakened_state
 
 logger = logging.getLogger(__name__)
@@ -70,8 +69,8 @@ class DynamicSpecialistNode:
 
         # 2a. Fetch Relevant Skills/Knowledge
         topic = execution_ticket.get("topic", "")
-        skill_retriever = SkillRetriever()
-        skills = await skill_retriever.get_relevant_skills(topic)
+        from app.core.learning.discovery import skill_discovery
+        skills = await skill_discovery.retrieve(topic)
         if skills:
             logger.info(f"[DynamicSpecialist] 📖 Found {len(skills)} relevant skills/SOPs.")
 

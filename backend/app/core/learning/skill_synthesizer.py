@@ -1,14 +1,8 @@
 """
-Enhanced WorkflowSynthesizer - Phase 2 of Imitation Learning
+WorkflowSynthesizer - Phase 2 of Imitation Learning
 
 This module synthesizes learned skills from trace sequences using LLM analysis.
 It produces structured skill configurations that can be registered and executed.
-
-Key Enhancements over Original:
-- Uses TraceParser for structured input
-- Supports human action traces
-- Generates parameterized skills with trigger patterns
-- Produces LearnedSkill configurations (not just Agent YAML)
 """
 
 import logging
@@ -18,9 +12,12 @@ from uuid import uuid4
 
 import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
+from sqlalchemy import select
 
 from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.core.llm.factory import LLMFactory
+from app.infrastructure.database.sql.database import session_scope
+from app.models import Message, LearnedSkill
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
@@ -63,6 +60,7 @@ class LearnedSkill:
     parameters: list[SkillParameter] = field(default_factory=list)
     preconditions: list[str] = field(default_factory=list)
     steps: list[SkillStep] = field(default_factory=list)
+    instructions: str | None = None  # Markdown instructions (心法)
 
     # Metadata
     source_thread_id: str | None = None
@@ -82,80 +80,86 @@ SKILL_SYNTHESIS_PROMPT = """
 You are the "Meta-Architect" for EvoLoop's Imitation Learning System.
 
 ## Your Task
-Analyze the following task trace and synthesize a **reusable skill** that can automate this behavior.
+Analyze the following task trace and synthesize a **reusable skill** that can automate this specific workflow.
 
 ## Input Trace
 {trace_narrative}
 
 ## Trace Summary
-- Total Steps: {total_steps}
-- Human Steps: {human_steps}
-- Agent Steps: {agent_steps}
+- Total Steps: {total_steps} | Human Steps: {human_steps} | Agent Steps: {agent_steps}
 - Tools Used: {tools_used}
 
 ## Output Requirements
-Generate a skill configuration in YAML format with these fields:
+Generate a skill configuration in YAML format.
+
+**CRITICAL: The `instructions` field must be a structured "Expert Guide" (SOP) with the following sections:**
+
+### 1. Conceptual Mental Model
+Explain the **high-level strategy** and business logic. Why are we doing this? What's the goal?
+
+### 2. Contextual Anchors
+Define the expected environment:
+- **App/OS Context**: e.g., "Obsidian must be open in a valid vault."
+- **Visual Evidence**: What specific window titles or UI labels confirm we are in the right state?
+
+### 3. Step-by-Step Strategic Guidance
+For each major phase, provide "Rule of Thumb" advice:
+- **Visual Cues**: "Look for the [Label] icon near the [Position]."
+- **Hidden Logic**: "Wait 1 second for the sync icon to disappear before clicking save."
+- **Common Pitfalls**: "Do not use the Cmd+N shortcut here as it sometimes fails in this app version; use the UI button instead."
+
+### 4. Error Recovery SOP
+If a visual anchor is missing, what's the fallback? (e.g., "Refresh the page" or "Check if the side panel is collapsed").
 
 ```yaml
-name: skill_name_snake_case
+name: create_obsidian_note
 description: >
-  Clear, concise description of what this skill does
+  Create a new note in Obsidian and tag it with a category. 
+  Involves: [Obsidian]
 trigger_patterns:
-  - "Pattern 1: what user might say to trigger this"
-  - "Pattern 2: alternative phrasing"
+  - "Create a note named {{title}} in Obsidian"
 parameters:
-  - name: param1
-    type: string|number|boolean|path
-    description: What this parameter represents
-    required: true|false
+  - name: title
+    type: string
+    description: Title of the note
 preconditions:
-  - "Any requirement before skill can run"
+  - "Obsidian app is open"
 steps:
-  - action: tool_name
-    trace_step_ref: 1  # Original step number from trace (crucial for visual context)
-    args:
-      arg1: "{{param1}}"  # Use {{param}} for parametrization
-  - action: another_tool
+  - action: desktop_control
     trace_step_ref: 2
     args:
-      target: "{{derived_value}}"
-    condition: "if previous step succeeded"
+      action: "click"
+      element_text: "New Note"
+    visual_context:
+      element_text: "New Note"
+instructions: |
+  # Expert SOP: Creating Categorized Notes
+  
+  ## 1. Mental Model
+  This skill focuses on prompt note creation while bypassing complex navigation.
+  
+  ## 2. Contextual Anchors
+  - **Environment**: Obsidian Desktop (macOS/Windows).
+  - **Visual Evidence**: Look for the 'Purple Obsidian Logo' in the title bar.
+  
+  ## 3. Strategic Guidance
+  - **Phase 1 (Creation)**: Use the 'New Note' button. **Visual Cue**: It's the leftmost icon in the top toolbar.
+  - **Phase 2 (Naming)**: The focus shifts to the title field automatically. **Pitfall**: Don't click the title bar again, it may cause a rename conflict.
+  
+  ## 4. Recovery
+  - If 'New Note' button is hidden, check if the Left Sidebar is collapsed (Look for the '>' icon).
 ```
 
-## Platform Control Translation Rules
-When synthesizing skills that involve Android or Mac interaction, use these mappings:
-
-**Android (via `mobile_control`):**
-- Tap at coordinates → `mobile_control(action="tap", x={{x}}, y={{y}})`
-- Swipe gesture → `mobile_control(action="swipe", x={{start_x}}, y={{start_y}}, x2={{end_x}}, y2={{end_y}})`
-- Type text → `mobile_control(action="input_text", text="{{text}}")`
-- Press key → `mobile_control(action="press_key", keycode="{{key}}")`
-- Take screenshot → `mobile_control(action="screenshot")`
-
-**MacOS (via `desktop_control`):**
-- Click at coordinates → `desktop_control(action="click", x={{x}}, y={{y}})`
-- Type text → `desktop_control(action="type_text", text="{{text}}")`
-- Open application → `desktop_control(action="open_app", app_name="{{app_name}}")`
-- Press key → `desktop_control(action="key_press", key="{{key}}")`
-
-**Best Practice**: If the trace contains UI element text (e.g., "clicked on '短信' button"), prefer using semantic element identification over fixed coordinates for better portability across devices.
-**Requirement**: For every step that corresponds to a UI interaction (click, input), MUST include `trace_step_ref` field pointing to the original trace step number. This allows the system to attach screenshots and UI element data to the compiled skill.
-
-## Rules
-1. **Generalize**: Replace specific values with parameters (e.g., "auth.py" → {{filename}})
-2. **Minimal Steps**: Only include necessary steps, skip redundant ones
-3. **Human Actions**: Convert UI interactions to equivalent tool calls if possible
-4. **Trigger Patterns**: Create 2-3 natural language patterns that would trigger this skill
-5. **Valid YAML**: Output ONLY valid YAML, no explanations
-6. **Trace References**: Include `trace_step_ref` for every step derived from the trace.
-7. **Self-Correction Support**: For steps that are prone to failure (e.g., clicking a button that might not have loaded), add `on_error: "retry"` or `on_error: "ignore"`.
-8. **Dynamic Parameters**: Always favor parameters for text inputs, file paths, and target search terms.
+## Anti-Hallucination & Platform Rules
+1. **STAY GROUNDED**: Do NOT invent "generic numeric keyboards" if they are not in the trace. 
+2. **CONTEXT IS KING**: The `description` MUST mention the specific applications found in the trace.
+3. **OCR Usage**: If `UI Element` text is provided in a trace step, **YOU MUST USE IT** for the `element_text` argument.
 """
 
 
-class EnhancedWorkflowSynthesizer:
+class WorkflowSynthesizer:
     """
-    Enhanced synthesizer that uses TraceParser and produces LearnedSkill.
+    Synthesizer that uses TraceParser and produces LearnedSkill.
     """
 
     def __init__(self, thread_id: str, session_id: str | None = None):
@@ -173,15 +177,42 @@ class EnhancedWorkflowSynthesizer:
         if not sequence.steps:
             raise ValueError(f"No trace data found for thread {self.thread_id}")
 
+        # [NEW] Step 1.5: Trigger Alignment - Fetch first user message
+        first_user_msg = ""
+        try:
+            async with session_scope() as db:
+                stmt = select(Message).where(
+                    Message.thread_id == self.thread_id,
+                    Message.role == "human"
+                ).order_by(Message.created_at).limit(1)
+                res = await db.execute(stmt)
+                msg = res.scalar_one_or_none()
+                if msg:
+                    first_user_msg = msg.content
+        except Exception as e:
+            logger.warning(f"[Synthesizer] Failed to fetch first human msg: {e}")
+
         # Step 2: Convert to narrative for LLM
         narrative = self.parser.to_narrative(sequence)
         summary = sequence.summarize()
 
         # Step 3: Call LLM to synthesize skill
-        yaml_output = await self._generate_skill_yaml(narrative, summary)
+        # Pass first_user_msg to help align triggers
+        yaml_output = await self._generate_skill_yaml(narrative, summary, first_user_msg)
 
         # Step 4: Parse YAML to LearnedSkill
         skill = self._parse_skill_yaml(yaml_output, sequence)
+
+        # [NEW] Step 4.5: Deduplication check
+        try:
+            from app.core.learning.discovery import skill_discovery
+            # Search for similar skills using the synthesized name/description
+            _, relevant = await skill_discovery.discover(skill.description or skill.name, top_k=1)
+            if relevant:
+                # Potential log or UI notification for deduplication in the future
+                logger.info(f"[Synthesizer] Found potential duplicate skill: {relevant[0].name}")
+        except Exception as e:
+            logger.warning(f"[Synthesizer] Deduplication check failed: {e}")
 
         # Step 5: Post-synthesis optimization (Redundancy removal)
         if auto_optimize:
@@ -189,7 +220,7 @@ class EnhancedWorkflowSynthesizer:
 
         return skill
 
-    async def _generate_skill_yaml(self, narrative: str, summary: dict) -> str:
+    async def _generate_skill_yaml(self, narrative: str, summary: dict, user_intent_hint: str = "") -> str:
         """Use LLM to generate skill YAML from trace narrative."""
         # Config is handled internally by LLMFactory
         llm = LLMFactory.create_llm()
@@ -202,10 +233,15 @@ class EnhancedWorkflowSynthesizer:
             tools_used=", ".join(summary["tools_used"]) if summary["tools_used"] else "None",
         )
 
+        if user_intent_hint:
+            prompt += f"\n\n## User Intent Hint (Use this for trigger_patterns):\n\"{user_intent_hint}\""
+
         from app.core.system import SystemConfigService
 
         user_lang = SystemConfigService.get_language_preference()
         prompt += i18n.get("prompts.learning.synthesis_lang_constraint", lang=user_lang)
+
+        logger.info(f"--- [Skill Synthesis Prompt Start] ---\n{prompt}\n--- [Skill Synthesis Prompt End] ---")
 
         messages = [
             SystemMessage(content=prompt),
@@ -214,6 +250,8 @@ class EnhancedWorkflowSynthesizer:
 
         response = await llm.ainvoke(messages, config={"callbacks": []})  # Internal thought, do not stream
         content = response.content
+
+        logger.info(f"--- [Skill Synthesis Response Start] ---\n{content}\n--- [Skill Synthesis Response End] ---")
 
         # Strip markdown fences
         if "```yaml" in content:
@@ -298,6 +336,7 @@ class EnhancedWorkflowSynthesizer:
             parameters=parameters,
             preconditions=data.get("preconditions", []),
             steps=steps,
+            instructions=data.get("instructions"),
             source_thread_id=self.thread_id,
             source_session_id=self.session_id,
             tools_used=list(set(sequence.tools_used)),
@@ -336,7 +375,3 @@ class EnhancedWorkflowSynthesizer:
             last_step = step
 
         return optimized
-
-
-# Backward compatibility alias
-WorkflowSynthesizer = EnhancedWorkflowSynthesizer

@@ -166,7 +166,7 @@ def _build_static_tool_map() -> dict[str, BaseTool]:
         consult_lsp, explore_codebase, manage_git,
         create_plan, update_step_status, analyze_feasibility,
         manage_memory, consult_architecture,
-        search_web, request_approval, execute_learned_skill,
+        search_web, request_approval, 
         wait, desktop_control, mobile_control, find_element, analyze_image,
         write_document, edit_document,
     ]

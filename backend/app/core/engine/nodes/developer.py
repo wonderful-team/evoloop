@@ -6,9 +6,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine import AgentEngine, repair_message_history
-from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
-from app.core.llm.factory import LLMFactory
 from app.core.prompts.developer_builder import DeveloperPromptBuilder
 from app.core.tools.registry_utils import get_node_tools
 from app.domain.tools.vector_store import pg_tool_retriever
@@ -42,6 +40,9 @@ class DeveloperNode:
         # 2. Tool Preparation (Static + Dynamic)
         tools = await self._get_tools(state)
         
+        # 2b. Skill Retrieval (Knowledge Injection)
+        skills = await self._get_skills(state)
+        
         # 3. Generate Project Structure (Cached)
         cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
         project_context = state.get("project_context") or {}
@@ -59,6 +60,7 @@ class DeveloperNode:
                 "project_structure": project_structure[:5000],
             },
             project_id=project_id,
+            skills=skills,
         )
         
         system_msg = prompt_builder.build(config)
@@ -174,6 +176,30 @@ Please execute this mission now. Use your tools to verify success against the cr
                     combined_map[rec["name"]] = mcp_map[rec["name"]]
         
         return list(combined_map.values())
+
+    async def _get_skills(self, state: AgentState) -> list:
+        """检索与当前任务相关的技能知识。"""
+        from app.core.learning.discovery import skill_discovery
+        from app.core.engine.message_utils import get_message_text
+
+        messages = state.get("messages", [])
+        topic = ""
+        for msg in reversed(messages):
+            if isinstance(msg, HumanMessage):
+                topic = get_message_text(msg)
+                break
+
+        if not topic:
+            return []
+
+        try:
+            skills = await skill_discovery.retrieve(topic, top_k=3)
+            if skills:
+                logger.info(f"[Developer] 📖 Found {len(skills)} relevant skills for knowledge injection")
+            return skills
+        except Exception as e:
+            logger.warning(f"[Developer] Skill retrieval failed: {e}")
+            return []
 
     async def _generate_project_tree(self, cwd: str) -> str:
         try:
