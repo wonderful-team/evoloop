@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { listen, UnlistenFn } from "@tauri-apps/api/event"
 import { LearningService } from "@/client/sdk.gen"
@@ -30,7 +30,9 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
     } = options
 
     const [isRecording, setIsRecording] = useState(false)
+    const isRecordingRef = useRef(false)
     const [eventCount, setEventCount] = useState(0)
+    const eventCountRef = useRef(0)
     const sessionIdRef = useRef(sessionId)
     useEffect(() => {
         sessionIdRef.current = sessionId
@@ -54,7 +56,8 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
                     events: events
                 }
             })
-            setEventCount(prev => prev + events.length)
+            eventCountRef.current += events.length
+            setEventCount(eventCountRef.current)
         } catch (error) {
             console.error("[GlobalRecorder] Failed to flush events:", error)
             // Re-add to buffer
@@ -67,8 +70,10 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
         try {
             await invoke("start_global_recording")
             setEventCount(0)
+            eventCountRef.current = 0
             eventsBuffer.current = []
             setIsRecording(true)
+            isRecordingRef.current = true
 
             // Start flush timer
             flushTimerRef.current = window.setInterval(flushEvents, autoFlushInterval)
@@ -81,14 +86,17 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
         try {
             await invoke("stop_global_recording")
             setIsRecording(false)
+            isRecordingRef.current = false
             console.log("Stopped global recording")
 
             if (flushTimerRef.current) {
                 clearInterval(flushTimerRef.current)
                 flushTimerRef.current = null
             }
-            // Final flush
+            // Final flush of remaining events
             await flushEvents()
+
+            return { eventCount: eventCountRef.current }
         } catch (err) {
             console.error("Failed to stop global recording:", err)
         }
@@ -103,7 +111,7 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
 
             try {
                 unlisten = await listen<GlobalEvent>("global-event", (event) => {
-                    if (isRecording) {
+                    if (isRecordingRef.current) {
                         // Normalize timestamp if needed or rely on Rust's
                         eventsBuffer.current.push(event.payload)
                     }
@@ -128,10 +136,10 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
         }
     }, [])
 
-    return {
+    return useMemo(() => ({
         isRecording,
         startRecording,
         stopRecording,
         eventCount
-    }
+    }), [isRecording, startRecording, stopRecording, eventCount])
 }

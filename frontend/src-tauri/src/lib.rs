@@ -34,6 +34,8 @@ pub struct AppServiceState {
     pub recording_process: Arc<Mutex<Option<std::process::Child>>>,
     pub recording_path: Arc<Mutex<Option<String>>>,
     pub is_blinking: Arc<AtomicBool>,
+    // Timer: stores the Instant when recording started (None when not recording)
+    pub recording_start_time: Arc<Mutex<Option<std::time::Instant>>>,
 }
 
 // ===== Trivial Command =====
@@ -126,6 +128,7 @@ pub fn run() {
                 recording_process: Arc::new(Mutex::new(None)),
                 recording_path: Arc::new(Mutex::new(None)),
                 is_blinking: Arc::new(AtomicBool::new(false)),
+                recording_start_time: Arc::new(Mutex::new(None)),
             };
             _app.manage(service_state);
 

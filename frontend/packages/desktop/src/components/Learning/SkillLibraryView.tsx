@@ -170,15 +170,27 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                                     <p className="text-[13px] text-muted-foreground/90 line-clamp-2 leading-relaxed h-10">
                                         {skill.description}
                                     </p>
+
+                                    {/* Trigger Preview */}
+                                    <div className="mt-3 bg-muted/20 p-2 rounded-lg border border-dashed text-[10px] font-mono text-muted-foreground/70 truncate">
+                                        {skill.trigger_patterns ? (
+                                            typeof skill.trigger_patterns === 'string'
+                                                ? JSON.parse(skill.trigger_patterns)[0]
+                                                : skill.trigger_patterns[0]
+                                        ) : t("learning.editor.noTriggers")}
+                                    </div>
+
                                     <div className="flex flex-wrap gap-1.5 mt-3">
-                                        {skill.tools_used?.slice(0, 3).map((tool, j) => (
+                                        {skill.instructions && (
+                                            <Badge variant="default" className="text-[9px] bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/20">
+                                                <Terminal className="h-3 w-3 mr-1" /> {t("learning.expertBadge", "Expert SOP")}
+                                            </Badge>
+                                        )}
+                                        {skill.tools_used?.slice(0, 2).map((tool, j) => (
                                             <Badge key={j} variant="outline" className="text-[9px] bg-muted/30 border-transparent">
                                                 {tool}
                                             </Badge>
                                         ))}
-                                        {skill.tools_used?.length > 3 && (
-                                            <span className="text-[10px] text-muted-foreground">+{skill.tools_used.length - 3}</span>
-                                        )}
                                     </div>
                                 </CardContent>
                                 <CardFooter className="p-4 pt-0 flex justify-between items-center">

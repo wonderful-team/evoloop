@@ -135,7 +135,7 @@ export const LogicWorkspace: React.FC<LogicWorkspaceProps> = ({
                                             onClick={() => setIsSimpleMode(true)}
                                         >
                                             <LayoutTemplate className="h-3 w-3" />
-                                            {t("skills.editor.simpleMode", "Simple")}
+                                            {t("learning.editor.simpleMode", "Simple")}
                                         </Button>
                                         <Button
                                             variant={!isSimpleMode ? "secondary" : "ghost"}
@@ -144,7 +144,7 @@ export const LogicWorkspace: React.FC<LogicWorkspaceProps> = ({
                                             onClick={() => setIsSimpleMode(false)}
                                         >
                                             <Code2 className="h-3 w-3" />
-                                            {t("skills.editor.jsonMode", "JSON")}
+                                            {t("learning.editor.jsonMode", "JSON")}
                                         </Button>
                                     </div>
                                 </TooltipTrigger>

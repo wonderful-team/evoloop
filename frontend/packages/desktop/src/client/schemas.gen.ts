@@ -25,13 +25,42 @@ export const Body_files_upload_fileSchema = {
     title: 'Body_files-upload_file'
 } as const;
 
+export const Body_learning_upload_screenshotSchema = {
+    properties: {
+        file: {
+            type: 'string',
+            format: 'binary',
+            title: 'File'
+        }
+    },
+    type: 'object',
+    required: ['file'],
+    title: 'Body_learning-upload_screenshot'
+} as const;
+
+export const Body_library_upload_library_fileSchema = {
+    properties: {
+        file: {
+            type: 'string',
+            format: 'binary',
+            title: 'File'
+        },
+        current_user: {
+            '$ref': '#/components/schemas/User'
+        }
+    },
+    type: 'object',
+    required: ['file'],
+    title: 'Body_library-upload_library_file'
+} as const;
+
 export const Body_login_login_access_tokenSchema = {
     properties: {
         grant_type: {
             anyOf: [
                 {
                     type: 'string',
-                    pattern: 'password'
+                    pattern: '^password$'
                 },
                 {
                     type: 'null'
@@ -45,6 +74,7 @@ export const Body_login_login_access_tokenSchema = {
         },
         password: {
             type: 'string',
+            format: 'password',
             title: 'Password'
         },
         scope: {
@@ -72,6 +102,7 @@ export const Body_login_login_access_tokenSchema = {
                     type: 'null'
                 }
             ],
+            format: 'password',
             title: 'Client Secret'
         }
     },
@@ -114,6 +145,57 @@ export const BrainResponseSchema = {
     title: 'BrainResponse'
 } as const;
 
+export const ChangesetNodeSchema = {
+    properties: {
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        path: {
+            type: 'string',
+            title: 'Path'
+        },
+        is_dir: {
+            type: 'boolean',
+            title: 'Is Dir'
+        },
+        operation: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Operation'
+        },
+        diff: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Diff'
+        },
+        children: {
+            items: {
+                '$ref': '#/components/schemas/ChangesetNode'
+            },
+            type: 'array',
+            title: 'Children',
+            default: []
+        }
+    },
+    type: 'object',
+    required: ['name', 'path', 'is_dir'],
+    title: 'ChangesetNode',
+    description: 'Hierarchical node for file operation tree.'
+} as const;
+
 export const ChatRequestSchema = {
     properties: {
         thread_id: {
@@ -135,6 +217,17 @@ export const ChatRequestSchema = {
             ],
             title: 'Project Id',
             default: 1
+        },
+        command_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Command Id'
         },
         checkpoint_id: {
             anyOf: [
@@ -161,6 +254,11 @@ export const ChatRequestSchema = {
                 }
             ],
             title: 'Attachments'
+        },
+        revert_files: {
+            type: 'boolean',
+            title: 'Revert Files',
+            default: true
         }
     },
     type: 'object',
@@ -580,6 +678,33 @@ export const GlobalRecordedEventSchema = {
                 }
             ],
             title: 'Process Id'
+        },
+        window_bounds: {
+            anyOf: [
+                {
+                    prefixItems: [
+                        {
+                            type: 'number'
+                        },
+                        {
+                            type: 'number'
+                        },
+                        {
+                            type: 'number'
+                        },
+                        {
+                            type: 'number'
+                        }
+                    ],
+                    type: 'array',
+                    maxItems: 4,
+                    minItems: 4
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Window Bounds'
         }
     },
     type: 'object',
@@ -667,6 +792,18 @@ export const HumanInputRequestOutSchema = {
     type: 'object',
     required: ['id', 'thread_id', 'request_type', 'prompt', 'created_at', 'status'],
     title: 'HumanInputRequestOut'
+} as const;
+
+export const ImportSkillsRequestSchema = {
+    properties: {
+        directory: {
+            type: 'string',
+            title: 'Directory'
+        }
+    },
+    type: 'object',
+    required: ['directory'],
+    title: 'ImportSkillsRequest'
 } as const;
 
 export const IndexingRequestSchema = {
@@ -897,6 +1034,11 @@ export const MessageItemSchema = {
             type: 'array',
             title: 'Steps',
             default: []
+        },
+        has_file_operations: {
+            type: 'boolean',
+            title: 'Has File Operations',
+            default: false
         }
     },
     type: 'object',
@@ -1187,11 +1329,45 @@ export const ResumeRequestSchema = {
                 }
             ],
             title: 'User Input'
+        },
+        command_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Command Id'
         }
     },
     type: 'object',
     required: ['thread_id'],
     title: 'ResumeRequest'
+} as const;
+
+export const RewindRequestSchema = {
+    properties: {
+        revert_files: {
+            type: 'boolean',
+            title: 'Revert Files',
+            default: true
+        },
+        message_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Message Id'
+        }
+    },
+    type: 'object',
+    title: 'RewindRequest'
 } as const;
 
 export const RewindResponseSchema = {
@@ -1208,6 +1384,11 @@ export const RewindResponseSchema = {
             type: 'integer',
             title: 'Removed Count',
             default: 0
+        },
+        files_reverted: {
+            type: 'integer',
+            title: 'Files Reverted',
+            default: 0
         }
     },
     type: 'object',
@@ -1217,6 +1398,10 @@ export const RewindResponseSchema = {
 
 export const SearchResultSchema = {
     properties: {
+        id: {
+            type: 'integer',
+            title: 'Id'
+        },
         thread_id: {
             type: 'string',
             title: 'Thread Id'
@@ -1246,7 +1431,7 @@ export const SearchResultSchema = {
         }
     },
     type: 'object',
-    required: ['thread_id', 'role', 'content', 'created_at'],
+    required: ['id', 'thread_id', 'role', 'content', 'created_at'],
     title: 'SearchResult'
 } as const;
 
@@ -1266,6 +1451,18 @@ export const SendCommandRequestSchema = {
     type: 'object',
     required: ['command_type'],
     title: 'SendCommandRequest'
+} as const;
+
+export const StartMirrorRequestSchema = {
+    properties: {
+        device_id: {
+            type: 'string',
+            title: 'Device Id'
+        }
+    },
+    type: 'object',
+    required: ['device_id'],
+    title: 'StartMirrorRequest'
 } as const;
 
 export const StartRecordingRequestSchema = {
@@ -1307,6 +1504,18 @@ export const StartRecordingResponseSchema = {
     title: 'StartRecordingResponse'
 } as const;
 
+export const StopMirrorRequestSchema = {
+    properties: {
+        session_id: {
+            type: 'string',
+            title: 'Session Id'
+        }
+    },
+    type: 'object',
+    required: ['session_id'],
+    title: 'StopMirrorRequest'
+} as const;
+
 export const StopRecordingResponseSchema = {
     properties: {
         session_id: {
@@ -1343,6 +1552,11 @@ export const SynthesizeRequestSchema = {
                 }
             ],
             title: 'Session Id'
+        },
+        auto_optimize: {
+            type: 'boolean',
+            title: 'Auto Optimize',
+            default: true
         }
     },
     type: 'object',
@@ -2076,6 +2290,146 @@ export const UpdateSkillRequestSchema = {
     },
     type: 'object',
     title: 'UpdateSkillRequest'
+} as const;
+
+export const UploadScreenshotResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success'
+        },
+        path: {
+            type: 'string',
+            title: 'Path'
+        },
+        message: {
+            type: 'string',
+            title: 'Message'
+        }
+    },
+    type: 'object',
+    required: ['success', 'path', 'message'],
+    title: 'UploadScreenshotResponse'
+} as const;
+
+export const UserSchema = {
+    properties: {
+        id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'string'
+                }
+            ],
+            title: 'Id'
+        },
+        username: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Username'
+        },
+        email: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Email'
+        },
+        mobile: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Mobile'
+        },
+        nickname: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Nickname'
+        },
+        headimg: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Headimg'
+        },
+        member_level: {
+            type: 'integer',
+            title: 'Member Level',
+            default: 0
+        },
+        member_level_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Member Level Name'
+        },
+        level_expire_time: {
+            type: 'integer',
+            title: 'Level Expire Time',
+            default: 0
+        },
+        balance: {
+            type: 'number',
+            title: 'Balance',
+            default: 0
+        },
+        balance_money: {
+            type: 'number',
+            title: 'Balance Money',
+            default: 0
+        },
+        point: {
+            type: 'integer',
+            title: 'Point',
+            default: 0
+        },
+        is_active: {
+            type: 'boolean',
+            title: 'Is Active',
+            default: true
+        },
+        is_superuser: {
+            type: 'boolean',
+            title: 'Is Superuser',
+            default: false
+        }
+    },
+    type: 'object',
+    required: ['id'],
+    title: 'User'
 } as const;
 
 export const UserPublicSchema = {

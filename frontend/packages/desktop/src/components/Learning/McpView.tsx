@@ -78,18 +78,6 @@ export function McpView() {
                 initialData={selectedServer}
             />
 
-            <div className="mt-4 p-6 rounded-2xl bg-muted/30 border border-dashed border-muted-foreground/20">
-                <h3 className="text-sm font-bold mb-3 flex items-center gap-2 text-muted-foreground">
-                    <Server className="h-4 w-4" />
-                    {t("mcp.serverTitle")}
-                </h3>
-                <p className="text-xs text-muted-foreground mb-4">
-                    {t("mcp.serverInstruction")}
-                </p>
-                <div className="bg-black/5 p-4 rounded-xl font-mono text-[10px] overflow-x-auto border border-black/5 text-primary/80">
-                    uv run python -m app.mcp_server
-                </div>
-            </div>
         </div>
     )
 }

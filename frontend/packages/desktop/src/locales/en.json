@@ -208,6 +208,9 @@
     "synthesize": "Synthesize Skill",
     "confirmDeactivate": "Are you sure you want to deactivate this skill?",
     "recordingFailed": "Failed to start recording",
+    "recordingStarted": "Recording started",
+    "recordingStopped": "Recording stopped, {{count}} events captured",
+    "noEvents": "No events captured, skipping skill creation.",
     "mirror": {
       "title": "Android Mirror Console",
       "description": "Connect and control Android devices to record skills.",
@@ -322,6 +325,11 @@
     "synthesisError": "An error occurred during synthesis",
     "centerTitle": "Learning Center",
     "centerSubtitle": "Manage your learned skills and train the agent through interactive recording sessions.",
+    "openFullEditor": "Open Full Editor",
+    "executionStarted": "Skill execution started",
+    "executionFailed": "Skill execution failed",
+    "autoOptimize": "Auto-Optimize Steps",
+    "autoOptimizeDesc": "Remove redundant actions and streamline logic",
     "tabs": {
       "library": "Skill Library",
       "recording": "Active Recording"
@@ -337,15 +345,29 @@
     "steps": "Execution Steps",
     "status": "Status",
     "quickStart": "Quick Record",
+    "screenRecordingPermissionTitle": "Screen Recording Permission Required",
+    "screenRecordingPermissionMessage": "Please enable screen recording permission in System Settings and restart the app.",
+    "openSettings": "Open Settings",
     "statusBadge": {
       "active": "Active",
       "draft": "Draft"
     },
+    "expertGuide": "Expert Strategic Guide (SOP)",
+    "noSopYet": "This skill is a raw recording without an expert guide.",
+    "rawSteps": "Technical Execution Steps",
+    "history": "Execution History",
+    "expertBadge": "Expert SOP",
+    "optimizedBadge": "LLM OPTIMIZED",
+    "successCountLabel": "Success Count",
     "tray": {
       "quit": "Quit",
       "show": "Show Main Interface",
       "startRecording": "Start Recording (⌘R)",
-      "stopRecording": "Stop Recording (⌘R)"
+      "stopRecording": "Stop Recording (⌘R)",
+      "videoRecordingFailed": "Video recording failed: {{error}}",
+      "recordingAutoStoppedTimeout": "Recording stopped automatically: 10-minute limit reached.",
+      "recordingAutoStoppedSize": "Recording stopped automatically: file size limit (500MB) reached.",
+      "recordingAutoStopped": "Recording was stopped automatically."
     }
   },
   "todos": {
@@ -683,6 +705,9 @@
     "actions": "Actions",
     "stop": "Stop",
     "loading": "Loading...",
+    "done": "Done",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
     "saveAndClose": "Save & Close",
     "search": "Search",
     "scanning": "Scanning...",

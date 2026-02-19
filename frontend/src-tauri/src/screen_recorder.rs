@@ -113,6 +113,65 @@ pub async fn start_screen_recording(
     *proc_lock = Some(child);
     *state.recording_path.lock().unwrap() = Some(video_path_str.clone());
 
+    // --- Record start time for tray timer ---
+    *state.recording_start_time.lock().unwrap() = Some(std::time::Instant::now());
+
+    // --- Watchdog: 10-minute hard limit + 500 MB size fuse ---
+    {
+        use std::sync::Arc;
+        use std::sync::atomic::Ordering;
+        use tauri::Emitter;
+
+        let is_blinking_wdg = Arc::clone(&state.is_blinking);
+        let proc_wdg        = Arc::clone(&state.recording_process);
+        let start_time_wdg  = Arc::clone(&state.recording_start_time);
+        let path_wdg        = video_path_str.clone();
+        let app_wdg         = _app.clone();
+
+        std::thread::spawn(move || {
+            const MAX_SECS: u64  = 10 * 60;            // 10 minutes
+            const MAX_BYTES: u64 = 500 * 1024 * 1024;  // 500 MB
+
+            loop {
+                std::thread::sleep(std::time::Duration::from_secs(30));
+
+                // Recording already stopped manually — exit watchdog
+                if !is_blinking_wdg.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                let elapsed = start_time_wdg.lock().unwrap()
+                    .map(|t: std::time::Instant| t.elapsed().as_secs())
+                    .unwrap_or(0);
+                let size = std::fs::metadata(&path_wdg).map(|m| m.len()).unwrap_or(0);
+
+                let reason: Option<&str> = if elapsed >= MAX_SECS {
+                    Some("timeout")
+                } else if size >= MAX_BYTES {
+                    Some("size_limit")
+                } else {
+                    None
+                };
+
+                if let Some(r) = reason {
+                    println!("[ScreenRecorder] Watchdog triggered: {}", r);
+                    let mut lock = proc_wdg.lock().unwrap();
+                    if let Some(mut child) = lock.take() {
+                        #[cfg(unix)]
+                        unsafe { libc::kill(child.id() as i32, libc::SIGINT); }
+                        #[cfg(not(unix))]
+                        let _ = child.kill();
+                        let _ = child.wait();
+                    }
+                    *start_time_wdg.lock().unwrap() = None;
+                    is_blinking_wdg.store(false, Ordering::Relaxed);
+                    let _ = app_wdg.emit("recording-auto-stopped", r);
+                    break;
+                }
+            }
+        });
+    }
+
     Ok(video_path_str)
 }
 
@@ -172,6 +231,9 @@ pub async fn stop_screen_recording(
         println!("[ScreenRecorder] stop_screen_recording called but no active process found");
         return Err("No screen recording in progress".to_string());
     }
+
+    // Clear start time
+    *state.recording_start_time.lock().unwrap() = None;
 
     Ok(video_path)
 }

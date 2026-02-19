@@ -242,9 +242,12 @@
       }
     },
     "na": "暂无",
-    "synthesize": "合成技能",
+    "synthesize": "开始合成",
     "confirmDeactivate": "确定要停用此技能吗？",
     "recordingFailed": "录制启动失败",
+    "recordingStarted": "录制已开始",
+    "recordingStopped": "录制已停止，捕捉到 {{count}} 个操作",
+    "noEvents": "未捕捉到任何操作，跳过技能创建。",
     "mirror": {
       "title": "Android 镜像控制台",
       "description": "连接并控制 Android 设备以录制技能。",
@@ -390,6 +393,11 @@
     "synthesisError": "合成过程中发生错误",
     "centerTitle": "学习中心",
     "centerSubtitle": "管理已学习的技能，并通过交互式录制会话训练智能体。",
+    "openFullEditor": "打开完整编辑器",
+    "executionStarted": "技能执行已启动",
+    "executionFailed": "技能执行失败",
+    "autoOptimize": "自动优化步骤",
+    "autoOptimizeDesc": "移除冗余动作并精简逻辑",
     "tabs": {
       "library": "技能库",
       "recording": "动态录制",
@@ -407,15 +415,29 @@
     "noParameters": "无自定义参数。",
     "steps": "执行步骤",
     "quickStart": "快速录制",
+    "screenRecordingPermissionTitle": "需要录屏权限",
+    "screenRecordingPermissionMessage": "请在系统设置中开启录制屏幕权限并重启应用。",
+    "openSettings": "打开设置",
     "statusBadge": {
       "active": "已激活",
       "draft": "草稿"
     },
+    "expertGuide": "专家战略指南 (SOP)",
+    "noSopYet": "该技能目前仅为原始录制，尚未生成专家指南。",
+    "rawSteps": "技术执行步骤",
+    "history": "执行历史",
+    "expertBadge": "专家 SOP",
+    "optimizedBadge": "AI 已优化",
+    "successCountLabel": "成功次数",
     "tray": {
       "quit": "退出",
       "show": "显示主界面",
       "startRecording": "开始录制 (⌘R)",
-      "stopRecording": "停止录制 (⌘R)"
+      "stopRecording": "停止录制 (⌘R)",
+      "videoRecordingFailed": "视频录制启动失败: {{error}}",
+      "recordingAutoStoppedTimeout": "录制已自动停止：已达 10 分钟时长上限。",
+      "recordingAutoStoppedSize": "录制已自动停止：文件超过 500MB 限制。",
+      "recordingAutoStopped": "录制已自动停止。"
     }
   },
   "todos": {
@@ -755,6 +777,9 @@
     "actions": "操作",
     "stop": "停止",
     "loading": "加载中...",
+    "done": "完成",
+    "enabled": "已启用",
+    "disabled": "已禁用",
     "saveAndClose": "保存并关闭",
     "search": "搜索",
     "scanning": "扫描中...",

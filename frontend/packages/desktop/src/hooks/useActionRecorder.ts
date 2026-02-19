@@ -5,7 +5,7 @@
  * for storage as TraceEvent records.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { LearningService } from "@/client/sdk.gen"
 
 declare global {
@@ -34,7 +34,7 @@ interface UseActionRecorderOptions {
 interface UseActionRecorderReturn {
   isRecording: boolean
   startRecording: () => Promise<void>
-  stopRecording: () => Promise<string | undefined>
+  stopRecording: () => Promise<{ sessionId: string | null; eventCount: number } | undefined>
   recordEvent: (event: Omit<RecordedEvent, "timestamp">) => void
   eventCount: number
   sessionId: string | null
@@ -95,7 +95,9 @@ export function useActionRecorder(
   const [isRecording, setIsRecording] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [eventCount, setEventCount] = useState(0)
+  const eventCountRef = useRef(0)
 
+  const isRecordingRef = useRef(false)
   const eventsBuffer = useRef<RecordedEvent[]>([])
   const flushTimerRef = useRef<number | null>(null)
 
@@ -114,7 +116,8 @@ export function useActionRecorder(
           events,
         },
       })
-      setEventCount((prev) => prev + events.length)
+      eventCountRef.current += events.length
+      setEventCount(eventCountRef.current)
     } catch (error) {
       console.error("[ActionRecorder] Failed to flush events:", error)
       // Re-add events to buffer on failure
@@ -135,13 +138,17 @@ export function useActionRecorder(
       })
       setSessionId(response.session_id)
       setIsRecording(true)
+      isRecordingRef.current = true
       setEventCount(0)
+      eventCountRef.current = 0
       eventsBuffer.current = []
 
       // Start auto-flush timer
       flushTimerRef.current = window.setInterval(flushEvents, autoFlushInterval)
     } catch (error) {
       console.error("[ActionRecorder] Failed to start recording:", error)
+      setIsRecording(false)
+      isRecordingRef.current = false
     }
   }, [threadId, taskName, isRecording, autoFlushInterval, flushEvents])
 
@@ -158,7 +165,8 @@ export function useActionRecorder(
     // Flush remaining events
     await flushEvents()
 
-    const currentSessionId = sessionId
+    const finalSessionId = sessionId
+    const finalCount = eventCountRef.current
 
     try {
       await LearningService.stopRecording({ sessionId })
@@ -167,22 +175,23 @@ export function useActionRecorder(
     }
 
     setIsRecording(false)
+    isRecordingRef.current = false
     setSessionId(null)
 
-    return currentSessionId
+    return { sessionId: finalSessionId, eventCount: finalCount }
   }, [isRecording, sessionId, flushEvents])
 
   // Record a single event
   const recordEvent = useCallback(
     (event: Omit<RecordedEvent, "timestamp">) => {
-      if (!isRecording) return
+      if (!isRecordingRef.current) return
 
       eventsBuffer.current.push({
         ...event,
         timestamp: Date.now(),
       })
     },
-    [isRecording],
+    [],
   )
 
   // Auto-capture click events when recording
@@ -251,12 +260,12 @@ export function useActionRecorder(
     }
   }, [])
 
-  return {
+  return useMemo(() => ({
     isRecording,
     startRecording,
     stopRecording,
     recordEvent,
     eventCount,
     sessionId,
-  }
+  }), [isRecording, startRecording, stopRecording, recordEvent, eventCount, sessionId])
 }

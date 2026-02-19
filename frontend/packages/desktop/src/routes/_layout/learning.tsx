@@ -1,3 +1,4 @@
+import { useEffect } from "react"
 import { createFileRoute } from "@tanstack/react-router"
 import { AndroidMirrorConsole } from "@/components/Learning/AndroidMirrorConsole"
 import { SkillLibraryView } from "@/components/Learning/SkillLibraryView"
@@ -7,6 +8,8 @@ import { useTranslation } from "react-i18next"
 import { useState } from "react"
 import { McpView } from "@/components/Learning/McpView"
 import { RecordingButton } from "@/components/Chat/RecordingButton"
+import { useRecordingStore } from "@/stores/recordingStore"
+import { SynthesizeSkillDialog } from "@/components/Learning/SynthesizeSkillDialog"
 
 export const Route = createFileRoute("/_layout/learning")({
     component: LearningPage,
@@ -16,6 +19,21 @@ function LearningPage() {
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState("library")
     const [highlightSkillId, setHighlightSkillId] = useState<number | null>(null)
+    const [synthesizeOpen, setSynthesizeOpen] = useState(false)
+
+    const { sessionId, postRecordingAction, setPostRecordingAction } = useRecordingStore()
+
+    // Automatic trigger for synthesis dialog
+    useEffect(() => {
+        if (postRecordingAction === 'synthesize' && sessionId) {
+            setSynthesizeOpen(true)
+        }
+    }, [postRecordingAction, sessionId])
+
+    const handleOpenEditor = (skillId: number) => {
+        setHighlightSkillId(skillId);
+        setActiveTab("library");
+    }
 
     return (
         <div className="flex flex-col h-full gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -76,6 +94,17 @@ function LearningPage() {
                     <McpView />
                 </TabsContent>
             </Tabs>
+
+            <SynthesizeSkillDialog
+                open={synthesizeOpen}
+                onOpenChange={(open) => {
+                    setSynthesizeOpen(open)
+                    if (!open) setPostRecordingAction(null)
+                }}
+                sessionId={sessionId || ""}
+                threadId="global"
+                onOpenEditor={handleOpenEditor}
+            />
         </div>
     )
 }

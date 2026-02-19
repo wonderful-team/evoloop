@@ -88,7 +88,7 @@ export function SynthesizeSkillDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-ml">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-yellow-500" />
@@ -156,7 +156,7 @@ export function SynthesizeSkillDialog({
                 }}
               >
                 <Settings2 className="h-3.5 w-3.5" />
-                {t("learning.centerSubtitle", "Open Full Editor")}
+                {t("learning.openFullEditor", "Open Full Editor")}
               </Button>
             </div>
           </div>

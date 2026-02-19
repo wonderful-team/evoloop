@@ -1,4 +1,4 @@
-import { Info, Terminal, Layout, Clock, TrendingUp, Play, Edit, Trash2, BookOpen } from "lucide-react"
+import { Info, Terminal, Layout, Clock, TrendingUp, Play, Edit, Trash2, Sparkles } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -133,11 +133,38 @@ export function SkillDetailsPanel({
 
                         <Separator />
 
+                        {/* Expert Guide (SOP) - Moved to top priority if exists */}
+                        {skill.instructions ? (
+                            <section className="space-y-4">
+                                <div className="flex items-center gap-2 text-sm font-bold text-amber-600">
+                                    <Sparkles className="h-4 w-4" />
+                                    {t("learning.expertGuide", "Expert Strategic Guide (SOP)")}
+                                </div>
+                                <div className="bg-amber-50/30 dark:bg-amber-950/10 p-5 rounded-2xl border border-amber-500/20 shadow-[0_4px_20px_rgba(245,158,11,0.05)]">
+                                    <div className="text-[13px] leading-relaxed whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none text-foreground/90 font-medium">
+                                        {skill.instructions}
+                                    </div>
+                                    <div className="mt-4 flex items-center gap-2">
+                                        <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px] font-bold">
+                                            {t("learning.optimizedBadge", "LLM OPTIMIZED")}
+                                        </Badge>
+                                    </div>
+                                </div>
+                            </section>
+                        ) : (
+                            <div className="bg-muted/20 p-6 rounded-2xl border border-dashed flex flex-col items-center justify-center text-center gap-2">
+                                <Info className="h-8 w-8 text-muted-foreground/30" />
+                                <p className="text-xs text-muted-foreground">{t("learning.noSopYet", "This skill is a raw recording without an expert guide.")}</p>
+                            </div>
+                        )}
+
+                        <Separator className="opacity-50" />
+
                         {/* Execution Steps */}
                         <section className="space-y-6">
-                            <div className="flex items-center gap-2 text-sm font-bold">
-                                <Terminal className="h-4 w-4 text-primary" />
-                                {t("learning.steps", "Execution Steps")}
+                            <div className="flex items-center gap-2 text-sm font-bold opacity-80">
+                                <Terminal className="h-4 w-4" />
+                                {t("learning.rawSteps", "Technical Execution Steps")}
                             </div>
                             <div className="relative space-y-0.5">
                                 {/* Vertical Connector Line */}
@@ -145,25 +172,17 @@ export function SkillDetailsPanel({
 
                                 {steps.map((step: any, i: number) => (
                                     <div key={i} className="relative pl-10 pb-6 last:pb-0">
-                                        <div className="absolute left-0 top-1 h-6 w-6 rounded-full bg-background border-2 border-primary/40 flex items-center justify-center text-[10px] font-bold z-10 shadow-sm ring-4 ring-background">
+                                        <div className="absolute left-0 top-1 h-6 w-6 rounded-full bg-background border-2 border-primary/20 flex items-center justify-center text-[10px] font-bold z-10 shadow-sm">
                                             {i + 1}
                                         </div>
-                                        <div className="bg-muted/10 hover:bg-muted/20 transition-colors border border-muted-foreground/10 rounded-xl p-4">
+                                        <div className="bg-muted/5 hover:bg-muted/10 transition-colors border border-muted-foreground/5 rounded-xl p-3">
                                             <div className="flex items-center justify-between mb-2">
-                                                <div className="flex items-center gap-2">
-                                                    <Badge variant="secondary" className="bg-primary/5 text-primary border-primary/10 text-[10px] uppercase font-bold px-2 py-0.5">
-                                                        {t(`skills.actions.${step.action}`, step.action)}
-                                                    </Badge>
-                                                </div>
-                                                {step.condition && (
-                                                    <div className="flex items-center gap-1.5 text-[10px] text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/50">
-                                                        <Info className="h-3 w-3" />
-                                                        {step.condition}
-                                                    </div>
-                                                )}
+                                                <Badge variant="secondary" className="bg-muted text-muted-foreground border-transparent text-[9px] uppercase font-bold px-1.5 py-0">
+                                                    {step.action}
+                                                </Badge>
                                             </div>
-                                            <div className="bg-background/50 border border-muted-foreground/10 p-3 rounded-lg text-[11px] font-mono whitespace-pre-wrap break-all leading-tight text-muted-foreground/80">
-                                                {JSON.stringify(step.args, null, 2)}
+                                            <div className="text-[10px] font-mono text-muted-foreground/60 truncate">
+                                                {JSON.stringify(step.args)}
                                             </div>
                                         </div>
                                     </div>
@@ -171,29 +190,48 @@ export function SkillDetailsPanel({
                             </div>
                         </section>
 
-                        {/* Metadata */}
-                        <Separator />
+                        <Separator className="opacity-50" />
 
-                        {/* Instructions (Full Markdown) */}
-                        {skill.instructions && (
-                            <section className="space-y-4">
-                                <div className="flex items-center gap-2 text-sm font-bold text-primary">
-                                    <BookOpen className="h-4 w-4" />
-                                    {t("learning.instructions", "Skill Instructions (SKILL.md)")}
+                        {/* Metadata & Inputs */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <section className="space-y-3">
+                                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    <Layout className="h-4 w-4" />
+                                    {t("learning.parameters", "Parameters")}
                                 </div>
-                                <div className="bg-muted/30 p-4 rounded-xl border prose prose-sm dark:prose-invert max-w-none">
-                                    <div className="text-[13px] leading-relaxed whitespace-pre-wrap">
-                                        {skill.instructions}
+                                {parameters && parameters.length > 0 ? (
+                                    <div className="space-y-2">
+                                        {parameters.map((param: any, i: number) => (
+                                            <div key={i} className="bg-muted/20 p-3 rounded-lg border text-xs">
+                                                <div className="font-bold flex items-center justify-between">
+                                                    {param.name}
+                                                    <span className="text-[9px] opacity-40 uppercase">{param.type}</span>
+                                                </div>
+                                                <p className="text-muted-foreground mt-0.5">{param.description}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-[10px] text-muted-foreground italic">{t("learning.execution.noParams")}</p>
+                                )}
+                            </section>
+
+                            <section className="space-y-3">
+                                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    <Clock className="h-4 w-4" />
+                                    {t("learning.history", "History")}
+                                </div>
+                                <div className="space-y-2 text-[11px]">
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">{t("learning.created")}</span>
+                                        <span>{new Date(skill.created_at).toLocaleDateString()}</span>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span className="text-muted-foreground">{t("learning.successCountLabel")}</span>
+                                        <span className="text-green-600 font-bold">{skill.success_count || 0}</span>
                                     </div>
                                 </div>
                             </section>
-                        )}
-
-                        <div className="flex items-center gap-4 text-[10px] text-muted-foreground pt-4">
-                            <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {t("learning.created", "Created")}: {new Date(skill.created_at).toLocaleString()}
-                            </div>
                         </div>
                     </div>
                 </ScrollArea>

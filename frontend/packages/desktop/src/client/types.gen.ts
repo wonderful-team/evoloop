@@ -8,6 +8,15 @@ export type Body_files_upload_file = {
     file: (Blob | File);
 };
 
+export type Body_learning_upload_screenshot = {
+    file: (Blob | File);
+};
+
+export type Body_library_upload_library_file = {
+    file: (Blob | File);
+    current_user?: User;
+};
+
 export type Body_login_login_access_token = {
     grant_type?: (string | null);
     username: string;
@@ -27,14 +36,28 @@ export type BrainResponse = {
     mode?: string;
 };
 
+/**
+ * Hierarchical node for file operation tree.
+ */
+export type ChangesetNode = {
+    name: string;
+    path: string;
+    is_dir: boolean;
+    operation?: (string | null);
+    diff?: (string | null);
+    children?: Array<ChangesetNode>;
+};
+
 export type ChatRequest = {
     thread_id: string;
     message: string;
     project_id?: (number | null);
+    command_id?: (number | null);
     checkpoint_id?: (string | null);
     attachments?: (Array<{
     [key: string]: unknown;
 }> | null);
+    revert_files?: boolean;
 };
 
 export type ConceptCreate = {
@@ -130,6 +153,12 @@ export type GlobalRecordedEvent = {
     window_title?: (string | null);
     app_name?: (string | null);
     process_id?: (number | null);
+    window_bounds?: ([
+    number,
+    number,
+    number,
+    number
+] | null);
 };
 
 export type HTTPValidationError = {
@@ -146,6 +175,10 @@ export type HumanInputRequestOut = {
     default_value?: (string | null);
     created_at: string;
     status: string;
+};
+
+export type ImportSkillsRequest = {
+    directory: string;
 };
 
 export type IndexingRequest = {
@@ -205,6 +238,7 @@ export type MessageItem = {
     parent_id?: (number | null);
     references?: Array<ReferenceItem>;
     steps?: Array<ToolStep>;
+    has_file_operations?: boolean;
 };
 
 export type OpenFileRequest = {
@@ -284,15 +318,23 @@ export type RespondResponse = {
 export type ResumeRequest = {
     thread_id: string;
     user_input?: (string | null);
+    command_id?: (number | null);
+};
+
+export type RewindRequest = {
+    revert_files?: boolean;
+    message_id?: (string | null);
 };
 
 export type RewindResponse = {
     status: string;
     thread_id: string;
     removed_count?: number;
+    files_reverted?: number;
 };
 
 export type SearchResult = {
+    id: number;
     thread_id: string;
     role: string;
     content: string;
@@ -307,6 +349,10 @@ export type SendCommandRequest = {
     };
 };
 
+export type StartMirrorRequest = {
+    device_id: string;
+};
+
 export type StartRecordingRequest = {
     thread_id: string;
     task_name?: (string | null);
@@ -315,6 +361,10 @@ export type StartRecordingRequest = {
 export type StartRecordingResponse = {
     session_id: string;
     message: string;
+};
+
+export type StopMirrorRequest = {
+    session_id: string;
 };
 
 export type StopRecordingResponse = {
@@ -326,6 +376,7 @@ export type StopRecordingResponse = {
 export type SynthesizeRequest = {
     thread_id: string;
     session_id?: (string | null);
+    auto_optimize?: boolean;
 };
 
 export type SystemConfig = {
@@ -442,6 +493,29 @@ export type UpdateSkillRequest = {
     preconditions?: (Array<{
     [key: string]: unknown;
 }> | null);
+};
+
+export type UploadScreenshotResponse = {
+    success: boolean;
+    path: string;
+    message: string;
+};
+
+export type User = {
+    id: (number | string);
+    username?: (string | null);
+    email?: (string | null);
+    mobile?: (string | null);
+    nickname?: (string | null);
+    headimg?: (string | null);
+    member_level?: number;
+    member_level_name?: (string | null);
+    level_expire_time?: number;
+    balance?: number;
+    balance_money?: number;
+    point?: number;
+    is_active?: boolean;
+    is_superuser?: boolean;
 };
 
 export type UserPublic = {
@@ -631,10 +705,17 @@ export type ConversationsGetThreadActivityData = {
 export type ConversationsGetThreadActivityResponse = (unknown);
 
 export type ConversationsRewindConversationData = {
+    requestBody?: RewindRequest;
     threadId: string;
 };
 
 export type ConversationsRewindConversationResponse = (RewindResponse);
+
+export type ConversationsGetThreadChangesetData = {
+    threadId: string;
+};
+
+export type ConversationsGetThreadChangesetResponse = (Array<ChangesetNode>);
 
 export type DevicesGetDevicesResponse = (unknown);
 
@@ -804,6 +885,12 @@ export type LearningSynthesizeSkillData = {
 
 export type LearningSynthesizeSkillResponse = (unknown);
 
+export type LearningImportSkillsData = {
+    requestBody: ImportSkillsRequest;
+};
+
+export type LearningImportSkillsResponse = (unknown);
+
 export type LearningListSkillsData = {
     activeOnly?: boolean;
 };
@@ -835,6 +922,63 @@ export type LearningExecuteSkillData = {
 };
 
 export type LearningExecuteSkillResponse = (unknown);
+
+export type LearningListMirrorDevicesResponse = (unknown);
+
+export type LearningStartMirrorSessionData = {
+    requestBody: StartMirrorRequest;
+};
+
+export type LearningStartMirrorSessionResponse = (unknown);
+
+export type LearningStopMirrorSessionData = {
+    requestBody: StopMirrorRequest;
+};
+
+export type LearningStopMirrorSessionResponse = (unknown);
+
+export type LearningUploadScreenshotData = {
+    formData: Body_learning_upload_screenshot;
+};
+
+export type LearningUploadScreenshotResponse = (UploadScreenshotResponse);
+
+export type LearningValidateSkillData = {
+    skillId: number;
+};
+
+export type LearningValidateSkillResponse = (unknown);
+
+export type LearningOptimizeSkillData = {
+    skillId: number;
+};
+
+export type LearningOptimizeSkillResponse = (unknown);
+
+export type LibraryListLibraryFilesData = {
+    requestBody?: User;
+};
+
+export type LibraryListLibraryFilesResponse = (Array<{
+    [key: string]: unknown;
+}>);
+
+export type LibraryUploadLibraryFileData = {
+    formData: Body_library_upload_library_file;
+};
+
+export type LibraryUploadLibraryFileResponse = ({
+    [key: string]: unknown;
+});
+
+export type LibraryDeleteLibraryFileData = {
+    fileId: number;
+    requestBody?: User;
+};
+
+export type LibraryDeleteLibraryFileResponse = ({
+    [key: string]: unknown;
+});
 
 export type LoginLoginAccessTokenData = {
     formData: Body_login_login_access_token;
@@ -893,7 +1037,7 @@ export type MemoryListConceptsWithCountsData = {
 export type MemoryListConceptsWithCountsResponse = (Array<ConceptWithEpisodeCount>);
 
 export type MemorySearchMemoryData = {
-    projectId: number;
+    projectId?: (number | null);
     q: string;
 };
 

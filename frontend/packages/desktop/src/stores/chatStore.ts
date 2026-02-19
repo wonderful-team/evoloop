@@ -284,6 +284,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     _setHumanRequest: (req: any) => {
         set({ humanRequest: req, status: "interrupted" })
+
+        if (req) {
+            // 1. In-app Toast (Persistent)
+            toast.error("Human Input Required", {
+                description: req.prompt,
+                duration: Infinity, // Keep until handled
+            })
+
+            // 2. Desktop Notification (For background awareness)
+            if ("Notification" in window) {
+                if (Notification.permission === "granted") {
+                    new Notification("EvoLoop: Action Required", {
+                        body: req.prompt,
+                        requireInteraction: true,
+                    })
+                } else if (Notification.permission !== "denied") {
+                    Notification.requestPermission().then((permission) => {
+                        if (permission === "granted") {
+                            new Notification("EvoLoop: Action Required", {
+                                body: req.prompt,
+                            })
+                        }
+                    })
+                }
+            }
+        }
     },
 
     _setActivitySnapshot: (data: any) => {

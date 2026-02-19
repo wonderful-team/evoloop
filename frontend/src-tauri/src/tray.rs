@@ -7,7 +7,7 @@
 use crate::AppServiceState;
 
 #[cfg(desktop)]
-use std::sync::atomic::Ordering;
+use std::sync::{Arc, atomic::Ordering};
 #[cfg(desktop)]
 use tauri::{Emitter, Manager};
 #[cfg(desktop)]
@@ -148,24 +148,45 @@ pub fn setup_tray(
         })
         .build(app)?;
 
-    // 2. Start blinking thread
+    // 2. Start blinking + timer thread
     let state = app.state::<AppServiceState>();
-    let is_blinking = state.is_blinking.clone();
-    let tray_handle = tray.clone();
+    let is_blinking       = state.is_blinking.clone();
+    let recording_start   = Arc::clone(&state.recording_start_time);
+    let record_item_arc   = Arc::clone(&state.record_item);
+    let tray_handle       = tray.clone();
     
     std::thread::spawn(move || {
         let mut last_was_active = false;
         loop {
             let blinking = is_blinking.load(Ordering::Relaxed);
             if blinking {
+                // --- Icon blink ---
                 last_was_active = !last_was_active;
                 let icon = if last_was_active { active_icon.clone() } else { normal_icon.clone() };
                 let _ = tray_handle.set_icon(Some(icon));
+
+                // --- Timer in menu text ---
+                let elapsed_secs = recording_start.lock().unwrap()
+                    .map(|t| t.elapsed().as_secs())
+                    .unwrap_or(0);
+                let mm = elapsed_secs / 60;
+                let ss = elapsed_secs % 60;
+                let label = format!("停止录制 ({:02}:{:02})", mm, ss);
+                let lock = record_item_arc.lock().unwrap();
+                if let Some(item) = lock.as_ref() {
+                    let _ = item.set_text(label);
+                }
+
                 std::thread::sleep(std::time::Duration::from_millis(700));
             } else {
-                // If not blinking, ensure it's the normal icon
+                // If not blinking, ensure it's the normal icon and reset label
                 if last_was_active {
                     let _ = tray_handle.set_icon(Some(normal_icon.clone()));
+                    // Reset menu text to default (will be overwritten by sync_tray_recording_state)
+                    let lock = record_item_arc.lock().unwrap();
+                    if let Some(item) = lock.as_ref() {
+                        let _ = item.set_text("开始录制");
+                    }
                     last_was_active = false;
                 }
                 std::thread::sleep(std::time::Duration::from_millis(1000));

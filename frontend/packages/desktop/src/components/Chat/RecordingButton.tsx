@@ -1,4 +1,4 @@
-import { Circle, Square, Monitor, ShieldAlert } from "lucide-react"
+import { Circle, Square, Monitor, ShieldAlert, Video } from "lucide-react"
 import { toast } from "sonner"
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
@@ -12,6 +12,7 @@ import {
 } from "@evoloop/shared/components/ui/tooltip"
 import { useRecordingStore } from "@/stores/recordingStore"
 import { useAccessibilityPermission } from "@/hooks/useAccessibilityPermission"
+import { useScreenRecordingPermission } from "@/hooks/useScreenRecordingPermission"
 
 interface RecordingButtonProps {
   threadId: string
@@ -48,14 +49,24 @@ export function RecordingButton({
     }
   }, [isRecording, storedSessionId])
 
-  const { hasPermission, requestPermission } = useAccessibilityPermission()
+  const { hasPermission: hasAxPermission, requestPermission: requestAxPermission } = useAccessibilityPermission()
+  const { hasPermission: hasVideoPermission, requestPermission: requestVideoPermission } = useScreenRecordingPermission()
 
   const handleStart = () => {
-    console.log("[RecordingButton] handleStart clicked", { isGlobalMode, hasPermission, threadId })
-    if (isGlobalMode && hasPermission === false) {
-      console.log("[RecordingButton] Requesting permission...")
+    console.log("[RecordingButton] handleStart clicked", { isGlobalMode, hasAxPermission, hasVideoPermission, threadId })
+
+    // 1. Check Video Permission (Always needed)
+    if (hasVideoPermission === false) {
+      toast.error(t("learning.screenRecordingPermissionTitle", "Screen Recording Permission Required"))
+      requestVideoPermission()
+      return
+    }
+
+    // 2. Check AX Permission (Only if global)
+    if (isGlobalMode && hasAxPermission === false) {
+      console.log("[RecordingButton] Requesting AX permission...")
       toast.error(t("learning.permissionRequired", "Permission required. Check system settings."))
-      requestPermission() // This now updates the state internally asynchronously
+      requestAxPermission()
       return
     }
     console.log("[RecordingButton] Starting recording for thread:", threadId)
@@ -110,8 +121,8 @@ export function RecordingButton({
         </Tooltip>
       )}
 
-      {/* Permission Indicator */}
-      {isGlobalMode && hasPermission === false && !isRecording && (
+      {/* AX Permission Indicator */}
+      {isGlobalMode && hasAxPermission === false && !isRecording && (
         <div className="flex items-center">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -119,13 +130,34 @@ export function RecordingButton({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 text-amber-500 hover:text-amber-600"
-                onClick={requestPermission}
+                onClick={requestAxPermission}
               >
                 <ShieldAlert className="h-4 w-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              {t("learning.permissionRequired", "Permission required for global recording")}
+              {t("learning.permissionRequired", "Accessibility permission required for global recording")}
+            </TooltipContent>
+          </Tooltip>
+        </div>
+      )}
+
+      {/* Video Permission Indicator */}
+      {hasVideoPermission === false && !isRecording && (
+        <div className="flex items-center">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-rose-500 hover:text-rose-600"
+                onClick={requestVideoPermission}
+              >
+                <Video className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {t("learning.screenRecordingPermissionTitle", "Screen recording permission required")}
             </TooltipContent>
           </Tooltip>
         </div>
