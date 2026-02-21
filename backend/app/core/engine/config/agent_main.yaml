@@ -75,7 +75,7 @@ nodes:
       - "list_wiki_pages"
       - "read_wiki_page"
       - "write_wiki_page"
-      - "harvest_knowledge"
+      - "memorize_concepts"
       - "manage_memory"
       - "explore_codebase"
       - "grep_files"
@@ -86,7 +86,7 @@ nodes:
       - "read_file"
       - "list_files"
       - "manage_todo"
-      - "harvest_knowledge"
+      - "memorize_concepts"
       - "finalize_session"
 
   - id: "chat"

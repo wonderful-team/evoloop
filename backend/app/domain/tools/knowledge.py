@@ -17,7 +17,7 @@ class ConceptInput(BaseModel):
 
 
 @evoloop_tool
-async def harvest_knowledge(
+async def memorize_concepts(
     concepts: List[ConceptInput],
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
