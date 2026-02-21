@@ -17,13 +17,15 @@ class DynamicSpecialistPromptBuilder:
         ticket: ExecutionTicket, 
         skills: list[LearnedSkill] = None,
         known_packages: dict[str, str] = None,
-        known_macos_apps: dict[str, str] = None
+        known_macos_apps: dict[str, str] = None,
+        clipboard: list[dict[str, Any]] = None
     ):
         self.agent_config = agent_config
         self.ticket = ticket
         self.skills = skills or []
         self.known_packages = known_packages or {}
         self.known_macos_apps = known_macos_apps or {}
+        self.clipboard = clipboard or []
 
     def build(self, config: RunnableConfig | None = None) -> str:
         """Constructs the full system prompt."""
@@ -71,6 +73,7 @@ IMPORTANT:
 {self._build_package_list()}
 3. **Common MacOS Application Names**:
 {self._build_macos_app_list()}
+4. **VERIFICATION**: After performing a UI action (click, type), you MUST use `verify_ui_state` to confirm the expected element or text is present. Do not assume success.
 
 ## 🔍 Discovery Insights (Active Awakening)
 {spatial_awareness_section}
@@ -85,6 +88,8 @@ IMPORTANT:
 - **VERIFY YOUR ACTIONS**: After opening an app, **WAIT 5 SECONDS**, then take a screenshot to confirm.
 - Do not ask the user for clarification. If you are stuck, report the error.
 - You are STATELESS. You do not remember previous interactions.
+
+{self._build_clipboard_section()}
 
 {sandbox_footer}
 """
@@ -155,3 +160,31 @@ Please execute this mission now. Use your tools."""
 - You have limited tools. Do not hallucinate tools you don't have.
 - You cannot speak to the user.
 - Provide a structured final report when done."""
+
+    def _build_clipboard_section(self) -> str:
+        """
+        Injects the Workspace Clipboard (Short-term memory) into the prompt.
+        """
+        if not self.clipboard:
+            return ""
+
+        blocks = [
+            "## WORKSPACE CLIPBOARD (Short-term memory)",
+            "The following items have been stashed for your session.",
+            "**Use these to transfer data between steps or applications.**\n"
+        ]
+
+        for idx, item in enumerate(self.clipboard):
+            content = item.get("content", "")
+            mime_type = item.get("mime_type", "text/plain")
+            metadata = item.get("metadata", {})
+            
+            block = f"### Item {idx + 1} ({mime_type})\n"
+            if metadata:
+                meta_str = ", ".join([f"{k}: {v}" for k, v in metadata.items()])
+                block += f"*Metadata*: {meta_str}\n"
+            
+            block += f"```\n{content}\n```\n"
+            blocks.append(block)
+
+        return "\n".join(blocks)

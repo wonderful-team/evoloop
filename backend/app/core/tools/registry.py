@@ -219,6 +219,10 @@ def get_supervisor_tools() -> list[BaseTool]:
         "request_human_input",
         "analyze_image",
         "manage_todo",
+        "get_workspace_tree",
+        "learn_skill_from_trace",
+        "list_files",
+        "read_file"
     ]
     return get_tools_by_names(tool_names, source_role="supervisor")
 
@@ -238,7 +242,9 @@ def is_state_mutating_tool(tool_name: str) -> bool:
 def is_pollable_tool(tool_name: str) -> bool:
     """Return True if the tool is safe to poll repeatedly without causing a dedup error."""
     pollable = {
-        "wait", "list_files", "search_web", "read_file", "find_element", "request_approval",
+        "wait", "list_files", "search_web",
+        "read_file", "find_element", "request_approval",
+        "desktop_control", "analyze_image"  # Added for UI grounding loops
     }
     return tool_name in pollable
 

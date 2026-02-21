@@ -32,9 +32,34 @@ class SkillDiscovery:
     def __init__(self):
         self._skills_cache: list[LearnedSkill] | None = None
         self._cache_expiry = 0
+        self._system_skills_synced = False
+
+    async def _sync_system_skills(self):
+        """Sync system SOPs from the local library to the DB."""
+        if self._system_skills_synced:
+            return
+        
+        try:
+            from app.core.learning.skill_importer import SkillImporter
+            import os
+            
+            # Resolve the absolute path to the sop_library
+            # current file is app/core/learning/discovery.py
+            base_dir = os.path.dirname(os.path.abspath(__file__))
+            sop_library_path = os.path.join(base_dir, "sop_library")
+            
+            if os.path.exists(sop_library_path):
+                logger.info(f"[Discovery] Pre-seeding system SOPs from {sop_library_path}")
+                await SkillImporter.import_from_directory(sop_library_path)
+            
+            self._system_skills_synced = True
+        except Exception as e:
+            logger.error(f"[Discovery] Failed to sync system SOPs: {e}")
 
     async def _get_active_skills(self) -> list[LearnedSkill]:
         """Cache-active skills from DB."""
+        await self._sync_system_skills()
+        
         now = time.time()
         if self._skills_cache and now < self._cache_expiry:
             return self._skills_cache

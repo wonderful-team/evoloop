@@ -17,6 +17,8 @@ async def desktop_control(
     action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps"],
     x: int | None = None,
     y: int | None = None,
+    element_name: str | None = None,
+    element_role: str | None = None,
     text: str | None = None,
     key: str | None = None,
     app_name: str | None = None,
@@ -32,8 +34,8 @@ async def desktop_control(
     Args:
         action: The action to perform:
             - "screenshot": Capture the screen. Returns the path to the image file.
-            - "click": Click at coordinates (x, y).
-            - "double_click": Double-click at coordinates (x, y).
+            - "click": Click at coordinates (x, y) OR by element_name.
+            - "double_click": Double-click at coordinates (x, y) OR by element_name.
             - "type_text": Type the given text string.
             - "key_press": Press a special key (enter, escape, tab, etc.).
             - "open_app": Open or focus an application by name.
@@ -42,53 +44,77 @@ async def desktop_control(
             - "list_apps": List installed applications in /Applications.
         x: X coordinate for click action.
         y: Y coordinate for click action.
+        element_name: Semantic name/label of the UI element to click (e.g., "Login", "Close").
+        element_role: Optional role filter for the element (e.g., "AXButton", "AXTextField").
         text: Text to type for type_text action.
         key: Key name or combination for key_press action (e.g., "enter", "tab", "a", "command+a", "shift+tab").
         app_name: Application name for open_app action (e.g., "Safari", "Terminal").
         script: AppleScript code for applescript action.
         region: Optional region "x,y,w,h" for screenshot action.
-    
-    Returns:
-        Success message or file path (for screenshot).
-    
-    Example:
-        # Take a screenshot
-        desktop_control(action="screenshot")
-        
-        # Open Safari and search
-        desktop_control(action="open_app", app_name="Safari")
-        desktop_control(action="click", x=400, y=100)  # Click URL bar
-        desktop_control(action="type_text", text="deepmind.google")
-        desktop_control(action="key_press", key="enter")
     """
     try:
+        # Helper to resolve coordinates from AX Tree
+        def resolve_element_coords(name: str, role: str | None = None) -> tuple[int, int] | str:
+            raw_tree = macos_driver.dump_ax_tree()
+            if not raw_tree or "Error" in raw_tree:
+                return f"Error: Failed to dump Accessibility Tree: {raw_tree}"
+            
+            import ast
+            try:
+                # The AppleScript returns a string like "[{'name': '...', ...}, ...]"
+                # Using ast.literal_eval since it often uses single quotes
+                elements = ast.literal_eval(raw_tree)
+            except Exception as e:
+                logger.error(f"[Desktop] Failed to parse AX Tree: {e}")
+                return f"Error: AX Tree parsing failed: {e}"
+            
+            for el in elements:
+                el_name = str(el.get("name", "")).lower()
+                el_role = str(el.get("role", "")).lower()
+                
+                name_match = name.lower() in el_name
+                role_match = not role or role.lower() in el_role
+                
+                if name_match and role_match:
+                    bounds = el.get("bounds", [])
+                    if len(bounds) == 4:
+                        # bounds = [x, y, w, h]
+                        # Click the center of the element
+                        target_x = int(bounds[0] + bounds[2] / 2)
+                        target_y = int(bounds[1] + bounds[3] / 2)
+                        return target_x, target_y
+            
+            return f"Error: Could not find element with name '{name}'" + (f" and role '{role}'" if role else "")
+
         if action == "screenshot":
             filepath = macos_driver.screenshot(region=region)
             return f"Screenshot saved to: {filepath}\n\nUse analyze_image tool to understand what's on screen."
         
-        elif action == "click":
-            if x is None or y is None:
-                return "Error: 'x' and 'y' coordinates are required for click action."
+        elif action in ["click", "double_click"]:
+            target_x, target_y = x, y
+
+            if element_name:
+                logger.info(f"[Desktop] Attempting to resolve semantic target: {element_name}")
+                resolved = resolve_element_coords(element_name, element_role)
+                if isinstance(resolved, str): # Error message
+                    return resolved
+                target_x, target_y = resolved
+                logger.info(f"[Desktop] Resolved '{element_name}' to ({target_x}, {target_y})")
+
+            if target_x is None or target_y is None:
+                return f"Error: 'x' and 'y' coordinates OR 'element_name' are required for {action} action."
             
             # Validate coordinates
             screen_w, screen_h = macos_driver.get_screen_size()
-            if not (0 <= x <= screen_w and 0 <= y <= screen_h):
-                return f"Error: Coordinates ({x}, {y}) are out of screen bounds ({screen_w}x{screen_h})."
+            if not (0 <= target_x <= screen_w and 0 <= target_y <= screen_h):
+                return f"Error: Coordinates ({target_x}, {target_y}) are out of screen bounds ({screen_w}x{screen_h})."
             
-            macos_driver.click(x, y)
-            return f"Clicked at ({x}, {y})."
-        
-        elif action == "double_click":
-            if x is None or y is None:
-                return "Error: 'x' and 'y' coordinates are required for double_click action."
-            
-            # Validate coordinates
-            screen_w, screen_h = macos_driver.get_screen_size()
-            if not (0 <= x <= screen_w and 0 <= y <= screen_h):
-                return f"Error: Coordinates ({x}, {y}) are out of screen bounds ({screen_w}x{screen_h})."
-            
-            macos_driver.double_click(x, y)
-            return f"Double-clicked at ({x}, {y})."
+            if action == "click":
+                macos_driver.click(target_x, target_y)
+                return f"Clicked at ({target_x}, {target_y})" + (f" (resolved from '{element_name}')" if element_name else ".")
+            else:
+                macos_driver.double_click(target_x, target_y)
+                return f"Double-clicked at ({target_x}, {target_y})" + (f" (resolved from '{element_name}')" if element_name else ".")
         
         elif action == "type_text":
             if not text:
@@ -159,3 +185,57 @@ async def desktop_control(
     except Exception as e:
         logger.error(f"Desktop control error: {e}")
         return f"Error: {str(e)}"
+
+
+@evoloop_tool
+async def verify_ui_state(
+    expected_element: str | None = None,
+    expected_role: str | None = None,
+    expected_text: str | None = None,
+    timeout_seconds: int = 5,
+) -> str:
+    """
+    Verify if a specific UI element or text is present on the screen using AX Tree.
+    Use this after 'click' or 'type_text' to ensure the UI responded as expected.
+
+    Args:
+        expected_element: Partial name of the UI element to look for.
+        expected_role: Optional role of the element (e.g., 'AXWindow', 'AXButton').
+        expected_text: Optional text that should be present anywhere in the tree.
+        timeout_seconds: (Not currently implemented for polling, but performs one immediate check).
+    """
+    try:
+        raw_tree = macos_driver.dump_ax_tree()
+        if not raw_tree or "Error" in raw_tree:
+            return f"Verification Failed: Could not dump AX Tree. {raw_tree}"
+
+        import ast
+        elements = ast.literal_eval(raw_tree)
+
+        found_element = False
+        found_text = False
+
+        for el in elements:
+            name = str(el.get("name", "")).lower()
+            role = str(el.get("role", "")).lower()
+            value = str(el.get("value", "")).lower()
+
+            if expected_element:
+                if expected_element.lower() in name:
+                    if not expected_role or expected_role.lower() in role:
+                        found_element = True
+            
+            if expected_text:
+                if expected_text.lower() in name or expected_text.lower() in value:
+                    found_text = True
+
+        if expected_element and not found_element:
+            return f"Verification FAILED: Element '{expected_element}'" + (f" with role '{expected_role}'" if expected_role else "") + " not found."
+        
+        if expected_text and not found_text:
+            return f"Verification FAILED: Text '{expected_text}' not found in any UI elements."
+
+        return "Verification SUCCESS: UI state matches expectations."
+
+    except Exception as e:
+        return f"Verification Error: {str(e)}"

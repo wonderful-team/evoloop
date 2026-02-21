@@ -5,6 +5,16 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
 
+class ClipboardItem(TypedDict):
+    """
+    Standardized item for the Workspace Clipboard.
+    """
+    content: Any  # Text, path to image, or element bounds
+    mime_type: str  # "text/plain", "image/png", "application/json"
+    metadata: dict[str, Any]
+    created_at: float
+
+
 class WorkspaceContext(TypedDict):
     """
     Universal workspace context cache to reduce redundant IO.
@@ -111,6 +121,7 @@ class AgentState(TypedDict):
 
     # [NEW] Dynamic State Store
     # A dictionary to hold arbitrary variables (e.g. "loop_index", "api_status", "summary_draft")
+    # Also houses the 'workspace_clipboard' (List[ClipboardItem])
     scratchpad: Annotated[dict[str, Any], operator.ior]
 
     # Skill Execution (Imitation Learning Phase 3/4)

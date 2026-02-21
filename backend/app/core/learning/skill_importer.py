@@ -22,7 +22,7 @@ class SkillImporter:
     @staticmethod
     async def import_from_directory(root_dir: str) -> Dict[str, Any]:
         """
-        Scan a directory for skill folders and import them.
+        Scan a directory recursively for skill folders and import them.
         Each folder must contain a SKILL.md file.
         """
         results = {
@@ -37,20 +37,20 @@ class SkillImporter:
             results["errors"].append(f"Directory not found: {root_dir}")
             return results
 
-        # Scan subdirectories
-        skill_folders = [p for p in root_path.iterdir() if p.is_dir()]
-        results["total_found"] = len(skill_folders)
+        # Scan recursively for SKILL.md files
+        skill_files = list(root_path.rglob("SKILL.md"))
+        results["total_found"] = len(skill_files)
 
-        for folder in skill_folders:
-            skill_md = folder / "SKILL.md"
-            if not skill_md.exists():
-                results["skipped"] += 1
-                continue
+        for skill_md in skill_files:
+            folder = skill_md.parent
 
             # Phase 5: Calculate relative namespace from root_dir
-            # e.g., root_dir/os/macos/click -> namespace "os/macos"
-            namespace = str(folder.parent.relative_to(root_path))
-            if namespace == ".":
+            # e.g., root_dir/os/macos/click/SKILL.md -> namespace "os/macos"
+            try:
+                namespace = str(folder.parent.relative_to(root_path))
+                if namespace == ".":
+                    namespace = "misc"
+            except ValueError:
                 namespace = "misc"
 
             try:

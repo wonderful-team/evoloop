@@ -66,20 +66,9 @@ class DynamicSpecialistNode:
                 # We proceed without them, but warn.
 
         # 2a. Fetch Relevant Skills/Knowledge (JIT Injection - Phase 5)
-        topic = execution_ticket.get("topic", "")
-
-        from app.core.learning.discovery import SkillDiscovery
-        discovery = SkillDiscovery()
-        # Assume context bus tells us the namespace or we just use exact_search with topic
-        # For now, we perform a broad exact_search to see if any SOP hits
-        match, relevant_sops = await discovery.exact_search(topic)
-
-        injected_sops_text = ""
-        if relevant_sops:
-            logger.info(f"[DynamicSpecialist] 📖 Found {len(relevant_sops)} Expert SOPs. Injecting as context.")
-            sops = [f"--- SOP: {s.name} ---\n{s.instructions}\n" for s in relevant_sops if s.instructions]
-            if sops:
-                injected_sops_text = "\n\n## 📚 Relevant Standard Operating Procedures (SOPs)\n" + "\n".join(sops)
+        # Using the SkillHydrator middleware to handle Eager/Lazy patterns
+        from app.core.engine.nodes.utils import SkillHydrator
+        relevant_sops = await SkillHydrator.get_node_skills(state, "dynamic_specialist")
 
         # 2b. Fetch Environmental Knowledge from Awakening System (Brain/Cache)
         awakened_env = get_awakened_state()
@@ -104,20 +93,19 @@ class DynamicSpecialistNode:
 
         # 3. Construct Prompts (Using Builder)
         # Pass loaded skills and knowledge to the builder
+        scratchpad = state.get("scratchpad", {})
+        clipboard = scratchpad.get("workspace_clipboard", [])
+        
         prompt_builder = DynamicSpecialistPromptBuilder(
             agent_config, 
             execution_ticket, 
             skills=relevant_sops,
             known_packages=known_packages,
-            known_macos_apps=known_macos_apps
+            known_macos_apps=known_macos_apps,
+            clipboard=clipboard
         )
         system_prompt = prompt_builder.build(config)
-        
-        # Phase 5 JIT Append
-        if injected_sops_text:
-            system_prompt += injected_sops_text
         mission_msg = prompt_builder.build_mission_message()
-        
         messages = [HumanMessage(content=mission_msg)]
 
         # 4. Execute (Using AgentEngine)

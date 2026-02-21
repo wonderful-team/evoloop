@@ -6,9 +6,10 @@ Uses native MacOS commands: screencapture, osascript, open.
 import logging
 import os
 import subprocess
-import tempfile
 import time
 from datetime import datetime
+
+from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class MacOSDriver:
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"screenshot_{timestamp}.png"
-        filepath = os.path.join(tempfile.gettempdir(), filename)
+        filepath = os.path.join(settings.SCREENSHOTS_DIR, filename)
 
         cmd = ["screencapture", "-x"]  # -x = silent (no sound)
 

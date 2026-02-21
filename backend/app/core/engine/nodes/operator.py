@@ -40,8 +40,9 @@ class OperatorNode:
         # 2. Tool Preparation (Static + Dynamic)
         tools = await self._get_tools(state)
         
-        # 2b. Skills now retrieved via `search_skills` tool proactively by the LLM
-        skills = []
+        # 2b. Skills retrieved via Hydrator (Lazy mode by default for Operator)
+        from app.core.engine.nodes.utils import SkillHydrator
+        skills = await SkillHydrator.get_node_skills(state, "operator")
         
         # 3. Project Structure (Conditional)
         # Use automated EvoContext hydration if available, otherwise fallback to config/cwd

@@ -59,6 +59,9 @@ class OperatorPromptBuilder:
         # Skills as Knowledge injection
         skills_section = self._build_skills_section()
 
+        # Workspace Clipboard (Short-term memory)
+        clipboard_section = self._build_clipboard_section()
+
         base_prompt = f"""You are an expert **Universal Systems Operator**.
 Your goal is to complete the assigned task by executing the correct specialized tools (e.g., coding, shell, web automation, mobile, desktop).
 
@@ -68,13 +71,14 @@ Your goal is to complete the assigned task by executing the correct specialized 
 - **Structure**: You have access to the file tree.
 - **Desktop Control**: You can interact with the MacOS desktop (screenshot, click, type).
 - **Mobile Control**: You can interact with connected Android devices via ADB.
+- **Verification**: You MUST use `verify_ui_state` to confirm UI elements or text appeared after a click/type action.
 
 ### 2. EXECUTION PROTOCOL (The Inner Loop)
 You are responsible for the ENTIRE lifecycle of this task. Do not ask for permission to use your tools.
 1. **Analyze**: Understand the request, constraints, and environment.
 2. **Execute**: Take the necessary actions using your tools.
-3. **Verify**: IMMEDIATELY use verification tools to ensure your actions succeeded.
-    - If it fails -> Fix it -> Verify again.
+3. **Verify**: IMMEDIATELY use verification tools (`verify_ui_state`, `analyze_image`, or shell checks) to ensure your actions succeeded.
+    - If it fails -> Fix it (e.g., try another click, wait longer, or use recovery SOP) -> Verify again.
     - If it passes -> You are done.
 
 ### 3. ENVIRONMENT
@@ -89,8 +93,40 @@ You are responsible for the ENTIRE lifecycle of this task. Do not ask for permis
 - **Device Awareness**: When using `mobile_control`, always specify the correct `device_id` from the connected devices list above.
 
 {skills_section}
+{clipboard_section}
 """
         return base_prompt
+
+    def _build_clipboard_section(self) -> str:
+        """
+        Injects the Workspace Clipboard (Short-term memory) into the prompt.
+        """
+        scratchpad = self.state.get("scratchpad", {})
+        clipboard = scratchpad.get("workspace_clipboard", [])
+        
+        if not clipboard:
+            return ""
+
+        blocks = [
+            "### 6. WORKSPACE CLIPBOARD (Short-term memory)",
+            "The following items have been stashed for your current session.",
+            "**Use these to transfer data between steps or applications.**\n"
+        ]
+
+        for idx, item in enumerate(clipboard):
+            content = item.get("content", "")
+            mime_type = item.get("mime_type", "text/plain")
+            metadata = item.get("metadata", {})
+            
+            block = f"#### Item {idx + 1} ({mime_type})\n"
+            if metadata:
+                meta_str = ", ".join([f"{k}: {v}" for k, v in metadata.items()])
+                block += f"*Metadata*: {meta_str}\n"
+            
+            block += f"```\n{content}\n```\n"
+            blocks.append(block)
+
+        return "\n".join(blocks)
 
     def _build_skills_section(self) -> str:
         """
