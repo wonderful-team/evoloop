@@ -24,6 +24,7 @@ async def desktop_control(
     app_name: str | None = None,
     script: str | None = None,
     region: str | None = None,
+    force_keystroke: bool = False,
 ) -> str:
     """
     Control the MacOS desktop - screenshot, click, type, and more.
@@ -51,6 +52,7 @@ async def desktop_control(
         app_name: Application name for open_app action (e.g., "Safari", "Terminal").
         script: AppleScript code for applescript action.
         region: Optional region "x,y,w,h" for screenshot action.
+        force_keystroke: If True for type_text, uses slow AppleScript keystroke instead of fast clipboard paste.
     """
     try:
         # Helper to resolve coordinates from AX Tree
@@ -120,8 +122,8 @@ async def desktop_control(
             if not text:
                 return "Error: 'text' is required for type_text action."
             
-            macos_driver.type_text(text)
-            return f"Typed: {text[:50]}{'...' if len(text) > 50 else ''}"
+            macos_driver.type_text(text, force_keystroke=force_keystroke)
+            return f"Typed: {text[:50]}{'...' if len(text) > 50 else ''} (via {'keystroke' if force_keystroke else 'clipboard'})"
             
         elif action == "get_info":
             info = macos_driver.get_system_info()

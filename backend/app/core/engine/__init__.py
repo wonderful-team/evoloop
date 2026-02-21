@@ -216,8 +216,6 @@ class AgentEngine:
                     tool_sig in local_tool_history
                     and not is_state_mutating_tool(tool_name)
                     and not is_pollable_tool(tool_name)
-                    # Special override: taking screenshots is completely idempotent and expected to repeat
-                    and not (tool_name == "desktop_control" and tool_args.get("action") == "screenshot")
                 )
 
                 if is_blocked:

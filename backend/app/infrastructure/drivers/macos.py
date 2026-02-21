@@ -204,14 +204,38 @@ class MacOSDriver:
         raise RuntimeError("Double-click requires pyobjc-framework-Quartz or cliclick")
 
     @staticmethod
-    def type_text(text: str) -> None:
-
+    def type_text(text: str, force_keystroke: bool = False) -> None:
         """
-        Type the given text using keyboard simulation.
+        Type the given text using clipboard injection (fast, IME-safe) or keyboard simulation.
 
         Args:
             text: Text to type
+            force_keystroke: If True, uses slow AppleScript keystroke instead of clipboard paste
         """
+        if not force_keystroke:
+            try:
+                # 1. Backup current clipboard
+                backup_result = subprocess.run(["pbpaste"], capture_output=True)
+                backup_text = backup_result.stdout
+
+                # 2. Inject new text into clipboard
+                subprocess.run(["pbcopy"], input=text.encode("utf-8"), check=True)
+
+                # 3. Trigger Paste (Cmd + V)
+                MacOSDriver.key_press("command+v")
+                
+                # 4. Small delay to let the UI process the paste event
+                time.sleep(0.1)
+
+                # 5. Restore original clipboard
+                subprocess.run(["pbcopy"], input=backup_text)
+
+                logger.info(f"Typed text via clipboard: {text[:20]}...")
+                return
+            except Exception as e:
+                logger.warning(f"Clipboard injection failed: {e}. Falling back to keystroke.")
+
+        # Fallback: Slow keystroke simulation
         # Escape special characters for AppleScript
         escaped_text = text.replace("\\", "\\\\").replace('"', '\\"')
 
@@ -236,7 +260,7 @@ class MacOSDriver:
                 )
             raise RuntimeError(f"Type text failed: {result.stderr}")
 
-        logger.info(f"Typed text: {text[:20]}...")
+        logger.info(f"Typed text via keystroke: {text[:20]}...")
 
     @staticmethod
     def key_press(key: str) -> None:
