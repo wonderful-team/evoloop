@@ -5,9 +5,9 @@ from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 
 
-class ProjectContext(TypedDict):
+class WorkspaceContext(TypedDict):
     """
-    Shared project context cache to reduce redundant IO.
+    Universal workspace context cache to reduce redundant IO.
     """
     structure: str | None
     structure_updated_at: float | None  # Timestamp
@@ -32,7 +32,7 @@ class ExecutionTicket(TypedDict):
     acceptance_criteria: list[str]
     
     # Target-specific context
-    focus_paths: list[str] | None  # Primary for Developer/Documenter
+    focus_paths: list[str] | None  # Primary for Operator/Documenter
     topic: str | None              # Primary for Researcher
     
     # Catch-all for specialized parameters
@@ -79,8 +79,8 @@ class AgentState(TypedDict):
     # Context retrieved by Researcher
     context: RetrievalContext | None
     
-    # [NEW] Shared Project Context Cache
-    project_context: ProjectContext | None
+    # [NEW] Shared Workspace Context Cache
+    workspace_context: WorkspaceContext | None
 
     # Execution artifacts (e.g. documents, code snippets)
     execution_artifact: str | None
@@ -106,8 +106,8 @@ class AgentState(TypedDict):
     user_preferences: str | None
 
     # Planning
-    technical_analysis: str | None
-    implementation_plan: str | None
+    situation_analysis: str | None
+    action_plan: str | None
 
     # [NEW] Dynamic State Store
     # A dictionary to hold arbitrary variables (e.g. "loop_index", "api_status", "summary_draft")

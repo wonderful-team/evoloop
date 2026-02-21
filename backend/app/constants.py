@@ -494,7 +494,7 @@ TASK_TYPES = [
 ]
 
 ROUTING_TARGETS = {
-    "developer": "Primary worker for coding, testing, and architecture.",
+    "operator": "Primary worker for coding, testing, and architecture.",
     "deep_researcher": "Web search and information gathering.",
     "documenter": "Documentation and wiki generation.",
     "chat": "Ambiguous requests requiring clarification.",

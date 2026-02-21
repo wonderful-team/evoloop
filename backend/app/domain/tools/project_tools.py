@@ -1,15 +1,14 @@
 import json
 import logging
 
-from langchain_core.tools import tool
-
 from app.core.evocloud import evocloud_manager
 from app.core.context.manager import ContextManager
+from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)
 
 
-@tool
+@evoloop_tool
 async def create_project_task(project_id: int | None = None, task_data: str = "") -> str:
     """
     Create a task in the remote project management system via EvoCloud.

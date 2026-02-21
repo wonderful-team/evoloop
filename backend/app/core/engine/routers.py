@@ -21,8 +21,8 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
     # [Compatibility] Remap legacy targets if LLM hallucinates
     if next_node in ["coder", "tester", "planner"]:
-        logger.info(f"[Router] Remapping legacy routing '{next_node}' -> 'developer'")
-        return "developer"
+        logger.info(f"[Router] Remapping legacy routing '{next_node}' -> 'operator'")
+        return "operator"
 
     # Parallel Research
     if next_node == "map_research":
@@ -36,7 +36,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     if next_node == "finish":
         return "finish"
 
-    # Valid functional nodes: developer, deep_researcher, documenter, etc.
+    # Valid functional nodes: operator, deep_researcher, documenter, etc.
     return next_node or "finish"
 
 

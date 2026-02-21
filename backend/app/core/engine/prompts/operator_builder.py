@@ -10,7 +10,7 @@ from app.infrastructure.config.service import SystemConfigService
 logger = logging.getLogger(__name__)
 
 
-class DeveloperPromptBuilder:
+class OperatorPromptBuilder:
     def __init__(self, state: AgentState, context: dict, project_id: int, skills: list[Any] | None = None):
         self.state = state
         self.context = context
@@ -19,10 +19,20 @@ class DeveloperPromptBuilder:
 
     def build(self, config: RunnableConfig) -> str:
         """
-        Builds the system prompt for the Developer Agent.
+        Builds the system prompt for the Operator Agent.
         """
         user_lang = SystemConfigService.get_value("LANGUAGE", "en")
         tree = self.context.get("project_structure", "")
+        
+        execution_ticket = self.state.get("execution_ticket", {}) or {}
+        ticket_type = execution_ticket.get("ticket_type", "task").lower()
+        
+        # Phase 6: Conditional Context Injection
+        non_fs_tasks = ["web_research", "wiki_update", "dynamic_task", "knowledge_harvesting", "data_analysis"]
+        if ticket_type in non_fs_tasks:
+            tree_section = "- Project Structure: [Omitted for Non-Filesystem Task]"
+        else:
+            tree_section = f"- Project Structure:\n{tree}"
         
         from app.core.context.manager import ContextManager
         from app.core.context.plugins import plugin_registry
@@ -49,7 +59,7 @@ class DeveloperPromptBuilder:
         # Skills as Knowledge injection
         skills_section = self._build_skills_section()
 
-        base_prompt = f"""You are an expert **Universal Specialist** agent (Developer & Operator).
+        base_prompt = f"""You are an expert **Universal Systems Operator**.
 Your goal is to complete the assigned task by executing the correct specialized tools (e.g., coding, shell, web automation, mobile, desktop).
 
 ### 1. CAPABILITIES
@@ -70,8 +80,7 @@ You are responsible for the ENTIRE lifecycle of this task. Do not ask for permis
 ### 3. ENVIRONMENT
 - Language: {user_lang}
 {env_section}
-- Project Structure:
-{tree}
+{tree_section}
 
 ### 4. CRITICAL RULES
 - **No Hallucination**: Do not reference files that are not in the tree (unless searching the web).

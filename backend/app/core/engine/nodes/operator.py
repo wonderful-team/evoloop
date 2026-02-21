@@ -9,7 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from app.core.engine import AgentEngine, repair_message_history
 from app.core.context import ContextManager
 from app.core.engine.state import AgentState
-from app.core.engine.prompts import DeveloperPromptBuilder
+from app.core.engine.prompts import OperatorPromptBuilder
 from app.core.tools.registry import get_node_tools
 from app.core.context.plugins import get_workspace_provider
 from app.infrastructure.mcp.client import mcp_client_manager
@@ -17,9 +17,9 @@ from app.infrastructure.mcp.client import mcp_client_manager
 logger = logging.getLogger(__name__)
 
 
-class DeveloperNode:
+class OperatorNode:
     """
-    Developer Node (v3.0 Functional Architecture)
+    Operator Node (v3.0 Functional Architecture)
     
     Consolidates Coder + Tester + Lite Planner.
     Capabilities:
@@ -32,17 +32,16 @@ class DeveloperNode:
     async def __call__(
         self, state: AgentState, config: RunnableConfig, context: dict[str, Any] | None = None
     ) -> dict[str, Any]:
-        """Entry point for Developer Node."""
+        """Entry point for Operator Node."""
         
         # 1. Context Handling
-        mw_context = context or {}
         project_id = config.get("metadata", {}).get("project_id", 1)
         
         # 2. Tool Preparation (Static + Dynamic)
         tools = await self._get_tools(state)
         
-        # 2b. Skill Retrieval (Knowledge Injection)
-        skills = await self._get_skills(state)
+        # 2b. Skills now retrieved via `search_skills` tool proactively by the LLM
+        skills = []
         
         # 3. Project Structure (Conditional)
         # Use automated EvoContext hydration if available, otherwise fallback to config/cwd
@@ -60,7 +59,7 @@ class DeveloperNode:
             project_structure = "No Local Workspace Attached (Operating in Universal/Global Mode)"
         
         # 4. Prompt Construction
-        prompt_builder = DeveloperPromptBuilder(
+        prompt_builder = OperatorPromptBuilder(
             state=state,
             context={
                 "explicit_context": state.get("context", ""),
@@ -86,7 +85,7 @@ class DeveloperNode:
         original_messages = list(state.get("messages", []))
         
         if execution_ticket:
-            logger.info("[Developer] 🎫 Ticket Match - Enabling Stateless Mode Isolation")
+            logger.info("[Operator] 🎫 Ticket Match - Enabling Stateless Mode Isolation")
             # In stateless mode, we only care about the System Prompt + Ticket + Latest instruction
             # We don't need the whole multi-hop history which might confuse the worker
             
@@ -117,15 +116,15 @@ Please execute this mission now. Use your tools to verify success against the cr
                 messages.append(HumanMessage(content=f"SUPERVISOR INSTRUCTION: {route_reason}\n\nExecute this task. If you need to verify, run tests."))
 
         # 7. Execution (Inner Loop handled by AgentEngine)
-        # We increase max_steps because the Developer does more things (Edit -> Run -> Fix)
-        logger.info("Developer delegating to AgentEngine")
+        # We increase max_steps because the Operator does more things (Edit -> Run -> Fix)
+        logger.info("Operator delegating to AgentEngine")
         
         engine_result = await AgentEngine.run_node(
             state={**state, "messages": messages},
             config=config,
             system_prompt=system_msg,
             tools=tools,
-            name="Developer",
+            name="Operator",
             max_steps=20, # Higher limit for inner loop
         )
         
@@ -143,31 +142,28 @@ Please execute this mission now. Use your tools to verify success against the cr
         )
         
         if has_changes:
-            logger.info("[Developer] ♻️ File changes detected - Invalidating Project Structure Cache")
+            logger.info("[Operator] ♻️ File changes detected - Invalidating Project Structure Cache")
             if "scratchpad" not in result:
                 result["scratchpad"] = {}
-            result["project_context"] = {"structure": None, "structure_updated_at": 0.0}
+            result["workspace_context"] = {"structure": None, "structure_updated_at": 0.0}
             
         # [NEW] Phase 8.2: Validation & Verification Capture
-        # We look for verification signals in the history to inform the Reviewer
+        # We no longer use string matching to guess verification status.
+        # Just record the tools used and let the Reviewer Agent audit them.
         verification_summary = {"status": "unverified", "signals": []}
         for t_sig in tool_history:
-            # General heuristic: any read/execution tool indicates an attempt to verify
-            if any(k in t_sig.lower() for k in ["test", "verify", "run", "read", "list", "analyze_"]):
-                verification_summary["status"] = "verified"
-                # Store the tool name as a signal
-                tool_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
-                if tool_name not in verification_summary["signals"]:
-                    verification_summary["signals"].append(tool_name)
+            tool_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
+            if tool_name not in verification_summary["signals"]:
+                verification_summary["signals"].append(tool_name)
         
         result["verification_status"] = verification_summary
             
         return result
 
     async def _get_tools(self, state: AgentState) -> list[Any]:
-        """Combine Developer tools + MCP tools."""
+        """Combine Operator tools + MCP tools."""
         # A. Static Core Tools (FileSystem, Shell, etc.)
-        tools = get_node_tools("developer") 
+        tools = get_node_tools("operator") 
         
         # Deduplicate and start combined map
         combined_map = {t.name: t for t in tools}
@@ -181,30 +177,6 @@ Please execute this mission now. Use your tools to verify success against the cr
         # Add navigation tools
         all_tools = list(combined_map.values())
         return all_tools
-
-    async def _get_skills(self, state: AgentState) -> list:
-        """检索与当前任务相关的技能知识。"""
-        from app.core.learning.discovery import skill_discovery
-        from app.core.engine.message_utils import get_message_text
-
-        messages = state.get("messages", [])
-        topic = ""
-        for msg in reversed(messages):
-            if isinstance(msg, HumanMessage):
-                topic = get_message_text(msg)
-                break
-
-        if not topic:
-            return []
-
-        try:
-            skills = await skill_discovery.retrieve(topic, top_k=3)
-            if skills:
-                logger.info(f"[Developer] 📖 Found {len(skills)} relevant skills for knowledge injection")
-            return skills
-        except Exception as e:
-            logger.warning(f"[Developer] Skill retrieval failed: {e}")
-            return []
 
     async def _hydrate_context(self, context: dict, cwd: str) -> str:
         """Hydrate focus files into content."""
@@ -245,5 +217,6 @@ Please execute this mission now. Use your tools to verify success against the cr
 
         return "\n".join(output) + "\n"
 
+
 # Singleton
-developer_node = DeveloperNode()
+operator_node = OperatorNode()

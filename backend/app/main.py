@@ -62,7 +62,8 @@ async def lifespan(_app: FastAPI):
         from app.domain.codebase.indexing.event_handlers import register_indexing_handlers
         from app.core.environment import awaken, environment_watcher
         from app.core.environment.handlers import register_default_handlers
-        import app.core.environment.context_plugin  # Register Context Plugins
+        import app.core.environment.context_plugin  # Register Core Context Plugins
+        import app.domain.project.context_plugins  # Register Project Context Plugins
 
         # Register event handlers before awakening
         register_default_handlers()

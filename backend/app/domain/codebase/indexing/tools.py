@@ -1,12 +1,11 @@
 import os
 
-from langchain_core.tools import tool
-
+from app.core.tools import evoloop_tool
 from app.domain.codebase.indexing.service import IndexingService
 from app.core.context.manager import ContextManager
 
 
-@tool
+@evoloop_tool
 async def index_path(path: str) -> str:
     """
     Index a specific directory or file into the knowledge base.

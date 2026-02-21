@@ -25,19 +25,19 @@ IMPORTANT: The wiki content MUST be generated in {target_lang}.
         Prompt to determine the Wiki structure (list of pages) based on file tree.
         """
         return f"""You are an expert Technical Documentation Architect.
-Your goal is to analyze a codebase and design a comprehensive Wiki structure.
+Your goal is to analyze the current environment and available context to design a comprehensive knowledge structure (Wiki).
 
-1. The complete file tree of the project:
-<file_tree>
+1. Current Workspace / Environment Structure:
+<workspace_structure>
 {file_tree}
-</file_tree>
+</workspace_structure>
 
-2. The README file of the project:
-<readme>
+2. Core Context / Documentation:
+<core_context>
 {readme}
-</readme>
+</core_context>
 
-Determine the most logical structure for a wiki based on the repository's content.
+Determine the most logical structure for a wiki based on the provided context.
 {WikiBuilder._get_lang_instruction()}
 
 CRITICAL: All "title" and "description" fields in the output JSON MUST be in the target language specified above.

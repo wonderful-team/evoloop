@@ -12,7 +12,7 @@ from app.core.tools import evoloop_tool
 
 # Define valid routing targets
 ROUTING_TARGETS = Literal[
-    "developer",
+    "operator",
     "deep_researcher",
     "documenter",
     "chat",
@@ -31,7 +31,7 @@ def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) 
     hand off to a specialist. This is the ONLY way to proceed to the next step.
 
     Available targets:
-    - "developer": Consolidates planning, coding, testing, mobile (Android) and desktop (Mac) control. Use this for ANY technical implementation task.
+    - "operator": Consolidates planning, coding, testing, mobile (Android) and desktop (Mac) control. Use this for ANY technical implementation task.
     - "deep_researcher": Need to search the web or gather more information
     - "documenter": Need to generate documentation, wiki, or README
     - "chat": Need to ask the user clarifying questions (ambiguous request)
@@ -45,7 +45,7 @@ def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) 
         context: Structured context to pass to the specialist (Attention Guidance).
                  MUST follow the appropriate schema for the target.
 
-                 **For 'developer'**:
+                 **For 'operator'**:
                  {
                     "ticket_type": "bugfix" | "feature",
                     "focus_paths": ["src/app.py"],

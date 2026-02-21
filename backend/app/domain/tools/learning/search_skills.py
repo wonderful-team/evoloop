@@ -3,6 +3,7 @@ from pydantic import BaseModel, Field
 from app.core.tools import evoloop_tool
 from app.core.learning.discovery import SkillDiscovery
 
+
 class SearchSkillsSchema(BaseModel):
     query: str = Field(
         ...,
@@ -12,6 +13,7 @@ class SearchSkillsSchema(BaseModel):
         None,
         description="Optional directory tree namespace to restrict the search. e.g. 'os/macos' or 'browser/github'",
     )
+
 
 @evoloop_tool
 async def search_skills(query: str, namespace: str = None) -> Dict[str, Any]:

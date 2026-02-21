@@ -2,10 +2,10 @@ import os
 import subprocess
 
 from langchain_core.messages import SystemMessage
-from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
 from app.core.memory import memory_manager
+from app.core.tools import evoloop_tool
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.llm.factory import LLMFactory
 from app.i18n.service import i18n
@@ -39,7 +39,7 @@ Output a JSON object.
 """
 
 
-@tool
+@evoloop_tool
 async def harvest_knowledge():
     """
     Analyze uncommitted changes (working directory) to extract and save new Knowledge Concepts.

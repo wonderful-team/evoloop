@@ -206,9 +206,9 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
 
 # --- Convenience Accessors for Key Roles ---
 
-def get_developer_tools() -> list[BaseTool]:
-    """Return standard tools for the Developer agent."""
-    return get_node_tools("developer")
+def get_operator_tools() -> list[BaseTool]:
+    """Return standard tools for the Operator agent."""
+    return get_node_tools("operator")
 
 
 def get_supervisor_tools() -> list[BaseTool]:

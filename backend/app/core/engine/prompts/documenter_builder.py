@@ -27,7 +27,7 @@ Your mission is to ensure the project has high-quality, up-to-date, and useful d
 
 ### Your Handoff Requirements:
 - When you have finished auditing/updating the documentation, call `route_to(target="finish")` to trigger the final review.
-- If you were asked to do a specific implemention task after documentation, route to "developer".
+- If you were asked to do a specific implemention task after documentation, route to "operator".
 
 ### Context & Constraints:
 {DocumenterPromptBuilder._build_env_summary()}

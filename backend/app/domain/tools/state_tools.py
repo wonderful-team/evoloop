@@ -1,10 +1,11 @@
 from typing import Any
 
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import tool
+
+from app.core.tools import evoloop_tool
 
 
-@tool
+@evoloop_tool
 def update_scratchpad(key: str, value: Any, _config: RunnableConfig) -> str:
     """
     Updates the agent's dynamic state (scratchpad) with a key-value pair.

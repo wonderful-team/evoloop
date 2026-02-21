@@ -23,14 +23,14 @@ nodes:
       - "list_app_atlas"
       - "get_app_usage_ranker"
       - "search_native_tools"
-      - "list_project_structure"
+      - "get_workspace_tree"
       - "route_to"
       - "recall_memory"
       - "update_focus"
       - "memorize"
 
-  - id: "developer"
-    path: "app.core.engine.nodes.developer.developer_node"
+  - id: "operator"
+    path: "app.core.engine.nodes.operator.operator_node"
     tools:
       - "read_file"
       - "write_file"
@@ -51,7 +51,8 @@ nodes:
       - "list_app_atlas"
       - "bash"
       - "search_native_tools"
-      - "list_project_structure"
+      - "get_workspace_tree"
+      - "search_skills"
 
   - id: "deep_researcher"
     path: "app.core.engine.nodes.deep_researcher.deep_researcher_node"
@@ -103,7 +104,7 @@ edges:
     type: "conditional"
     router: "app.core.engine.routers.route_supervisor"
     map:
-      developer: "developer"
+      operator: "operator"
       deep_researcher: "deep_researcher"
       documenter: "documenter"
       chat: "chat"
@@ -112,10 +113,10 @@ edges:
       flash_brain: "flash_brain"
       dynamic_specialist: "dynamic_specialist"
 
-  # 2. Developer Loop (Self-Correcting)
-  # Developer node handles its own loops via max_steps.
+  # 2. Operator Loop (Self-Correcting)
+  # Operator node handles its own loops via max_steps.
   # When it returns, it yields control back to Supervisor.
-  - from: "developer"
+  - from: "operator"
     to: "supervisor"
     type: "simple"
 

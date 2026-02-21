@@ -3,10 +3,9 @@ import os
 import sqlite3
 from typing import Any
 
-from langchain_core.tools import tool
-
 from app.core.file.document_reader import document_reader_service
 from app.core.context.manager import ContextManager
+from app.core.tools import evoloop_tool
 from app.utils import json as json_utils
 from app.utils.detect import detect_language
 from app.utils.file import ensure_local_path, read_file_content, resolve_path
@@ -129,12 +128,7 @@ def query_excel_sql(file_path: str, sql_query: str) -> str:
         return f"SQL Execution Error: {str(e)}"
 
 
-# Constants moved to app.constants
-
-# --- Main Tool ---
-
-
-@tool
+@evoloop_tool
 async def read_document(file_path: str, start_page: int | None = None, end_page: int | None = None) -> str:
     """
     Read and parse content from various document formats (PDF, DOCX, XLSX, MD, TXT, HTML, PY, JS, IMG, etc.).

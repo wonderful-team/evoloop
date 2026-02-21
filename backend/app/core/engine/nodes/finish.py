@@ -74,6 +74,6 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     # If the Reviewer called finalize_session, the tool returns a special string.
     # We need to make sure the graph actually stops.
     # In AgentMain, finish -> END is simple. 
-    # But if the Reviewer routed back to developer, AgentEngine handles that routing.
+    # But if the Reviewer routed back to operator, AgentEngine handles that routing.
     
     return result

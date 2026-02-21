@@ -895,7 +895,7 @@ async def execute_skill(
 
         # 2. Construct Directive Message
         # We format this as a user message to prompt the agent to use the skill knowledge.
-        # Since Worker Nodes (Developer, etc.) now retrieve skills based on this topic,
+        # Since Worker Nodes (Operator, etc.) now retrieve skills based on this topic,
         # the agent will automatically see the 'Expert Guide' in its system prompt.
         skill_name = skill.name
         params_str = json.dumps(body.params, indent=2)

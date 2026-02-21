@@ -32,7 +32,6 @@ async def handle_list(
         return res.stdout[:2000]
 
     elif action == "list_tree":
-        # Delegate to AnnotatedTreeGenerator
         from app.domain.project.tree_generator import AnnotatedTreeGenerator
 
         try:

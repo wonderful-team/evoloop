@@ -21,15 +21,11 @@ class SupervisorPromptBuilder:
     def __init__(
         self,
         project_id: int,
-        active_plan_context: str,
         iteration_count: int,
-        sys_info: str,
         context: dict = None,
     ):
         self.project_id = project_id
-        self.active_plan_context = active_plan_context
         self.iteration_count = iteration_count
-        self.sys_info = sys_info
         self.context = context or {}
 
     def build(self, config: RunnableConfig) -> str:
@@ -68,6 +64,40 @@ You MUST adhere to the **SANDBOX PROTOCOL**:
    - Sub-agents are "Stateless". They should not pollute the long-term memory.
 3. **No Human Contact**: NEVER grant `request_approval` or `chat`. Sub-agents cannot talk to the user.
 """
+        from app.core.context import ContextManager
+        from app.i18n.service import i18n
+        import platform
+        
+        ctx = ContextManager.current()
+        cwd = ctx.metadata.get("cwd", "")
+        project_concepts = ctx.metadata.get("project_concepts", "")
+        
+        if cwd:
+            project_structure_stub = f"CWD: {cwd}\n(Use 'get_workspace_tree' to examine files if needed)"
+        else:
+            project_structure_stub = "CWD: None (No Local Workspace Attached)\n(You are operating in a universal context. Do NOT assume local files exist unless specified by the user.)"
+
+        protocol_prompt = """
+### ATTENTION GUIDANCE PROTOCOL (CRITICAL)
+You act as the **NAVIGATOR** for the Coder/Tester. They rely on your ticket for context.
+When you call `route_to(target='operator', ...)`:
+1. **Consult the File Tree** above.
+2. Identify 1-3 files that are CRITICAL for the task.
+3. Define how to verify success (Acceptance Criteria).
+4. **Construct the Ticket**:
+   `route_to(target="operator", reason="Implement login", context={
+       "ticket_type": "feature",
+       "priority": "normal",
+       "focus_paths": ["src/main.py"],
+       "acceptance_criteria": ["Login endpoint returns 200", "Token is returned"]
+   })`
+
+**DO NOT** make the Coder guess. Point to the file strategies.
+"""
+        sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage: {user_lang}\n\nProject Architecture:\n{project_structure_stub}{project_concepts}\n{protocol_prompt}"
+        
+        active_plan_context = ctx.metadata.get("active_plan_context", i18n.get("prompts.supervisor.no_active_plan"))
+
         return f"""You are the Supervisor of an elite Universal AI Agent Team.
 {awakening_section}
 ## Your Role
@@ -83,7 +113,7 @@ You do NOT execute tasks yourself.
 You MUST call `route_to` when you are ready to proceed. This is the ONLY way to move forward.
 
 Available targets for route_to:
-- "developer": The primary execution specialist for technical, operational, and filesystem tasks. Use this for ANY execution work including architecture, coding, bug fixing, and automation.
+- "operator": The primary execution specialist for technical, operational, and filesystem tasks. Use this for ANY execution work including architecture, coding, bug fixing, and automation.
 - "deep_researcher": Need to search the web or gather more information.
 - "documenter": Need to generate documentation, wiki, or README.
 - "chat": Request is AMBIGUOUS - need to ask user clarifying questions.
@@ -91,7 +121,7 @@ Available targets for route_to:
 - "dynamic_specialist": Create a temporary, specialized sub-agent for an isolated task (e.g. "SQLRunner", "Android Automation Specialist").
 
 ## Decision Guidelines
-- If request is technical, operational, or execution-heavy (coding, automation, fixing) → route_to("developer")
+- If request is technical, operational, or execution-heavy (coding, automation, fixing) → route_to("operator")
 - If request is **operating Android/Mobile** → route_to("dynamic_specialist", role_name="Android Automation Specialist", tools=["mobile_control", "analyze_image"])
 - If request is **operating MacOS/Desktop** → route_to("dynamic_specialist", role_name="MacOS Specialist", tools=["desktop_control", "analyze_image"])
 - If request is vague (e.g., "Build an app") → route_to("chat") to ask clarifying questions
@@ -105,21 +135,21 @@ Available targets for route_to:
 {core_memory}
 {dynamic_protocol}
 ## Active Plan Context
-{self.active_plan_context}
+{active_plan_context}
 
 
 ## Important Rules
 - **You do NOT have permission to write ANY files (code or text).**
 - For documentation (.md, .txt), route to "documenter".
-- For code and technical tasks, route to "developer".
+- For code and technical tasks, route to "operator".
 - DO NOT hallucinate the tool `write_file` or `edit_file`. You do NOT have them.
-- If you see a code snippet or fix, DELEGATE it to "developer". Do not try to apply it yourself.
+- If you see a code snippet or fix, DELEGATE it to "operator". Do not try to apply it yourself.
 - Always use `route_to` - never just end with text when a handoff is needed.
 
 ## System Info
 Project ID: {self.project_id}
 Iteration: {self.iteration_count}
-{self.sys_info}
+{sys_info}
 
 ## User Language Preference
 User Language: {user_lang}
@@ -150,14 +180,14 @@ Communicate in this language.
         plan_approved = scratchpad.get("plan_approved", False)
 
         if plan_approved:
-            # Plan already approved - proceed to developer
+            # Plan already approved - proceed to operator
             return f"""
 ## 📋 PLAN APPROVED ✅
 **Title**: {title}
 **Steps**:
 {step_summary}
 
-**IMPORTANT**: The user has approved this plan. Route to "developer" for implementation.
+**IMPORTANT**: The user has approved this plan. Route to "operator" for implementation.
 """
         else:
             # Plan exists but not yet approved - ask user first
@@ -168,12 +198,12 @@ Communicate in this language.
 {step_summary}
 
 **CRITICAL**: This plan has NOT been approved by the user yet.
-- Do NOT route to "developer" until approval is received.
+- Do NOT route to "operator" until approval is received.
 - **You MUST use the `request_approval` tool to ask for user confirmation.**
   - action_description: "Approve Implementation Plan"
   - risk_level: "high"
   - details: "Plan Title: {title}"
-  - consequences: "Will proceed to Developer for implementation immediately after approval."
+  - consequences: "Will proceed to Operator for implementation immediately after approval."
 
 Only after the tool returns "Approved", can you route to different nodes.
 """
@@ -193,7 +223,7 @@ Only after the tool returns "Approved", can you route to different nodes.
         if visited:
             warning += f"- Nodes visited this session: {', '.join(visited)}\n"
         warning += """- **CRITICAL**: DO NOT hallucinate tool names.
-  - ✅ `route_to(target="developer")` (CORRECT for all technical work)
+  - ✅ `route_to(target="operator")` (CORRECT for all technical work)
   - ✅ `route_to(target="documenter")` (CORRECT for docs)
 
 """

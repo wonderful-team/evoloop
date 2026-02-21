@@ -108,7 +108,7 @@ class AnnotatedTreeGenerator:
 
         # Level 4: Truncated Files (enforce max_lines during rendering)
         render = self._render_node(root_node, include_classes=False, include_methods=False, max_depth=self.max_depth, truncate_at_line=self.max_lines)
-        return render + "\n(Tree truncated due to size. Use 'list_project_structure' with deeper filters to see more.)"
+        return render + "\n(Tree truncated due to size. Use 'get_workspace_tree' with deeper filters to see more.)"
 
     def _is_within_limit(self, text: str) -> bool:
         if not self.max_lines:

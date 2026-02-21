@@ -49,7 +49,6 @@ async def list_files(project_id: int, path: str | None = None):
     # Combine with local ignores if needed, or just use global
     # IGNORE_DIRS is now effectively DEFAULT_EXCLUDED_DIRS from constant
 
-
     def build_tree(current_path: str, rel_path: str = "") -> list[FileNode]:
         nodes = []
         try:

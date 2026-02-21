@@ -3,9 +3,10 @@ import importlib.util
 import logging
 import os
 
-from langchain_core.tools import StructuredTool, tool
+from langchain_core.tools import StructuredTool
 from pydantic import BaseModel, Field
 
+from app.core.tools import evoloop_tool
 from app.core.tools.runtime_registry import register_runtime_tool
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,7 @@ class CreatePythonToolInput(BaseModel):
     version: str | None = Field("1.0.0", description="Version string.")
 
 
-@tool("create_python_tool", args_schema=CreatePythonToolInput)
+@evoloop_tool("create_python_tool", args_schema=CreatePythonToolInput)
 def create_python_tool(name: str, description: str, code: str, version: str = "1.0.0") -> str:
     """
     Creates a new Python tool at runtime.

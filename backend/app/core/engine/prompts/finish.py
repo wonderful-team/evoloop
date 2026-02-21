@@ -37,15 +37,15 @@ Your task is to audit the conversation history and the technical outcomes to dec
 3. **Harvest Knowledge**: If deep technical patterns or architecture decisions were made, consider routing to "documenter" for harvesting, or call `harvest_knowledge` directly if it's straightforward.
 4. **Finalize or Backtrack**:
    - **Mission Success?**: Call `finalize_session(summary="...", mission_achieved=True)` to end the session.
-   - **Incomplete/Failed?**: Call `route_to(target="developer", reason="...")` to ask the developer to fix the issues. NEVER finalize a project that has failing critical tests or incomplete requirements.
+   - **Incomplete/Failed?**: Call `route_to(target="operator", reason="...")` to ask the operator to fix the issues. NEVER finalize a project that has failing critical tests or incomplete requirements.
 
 ### BLACKBOARD STATUS (MISSION TRUTH):
 - **Execution Ticket**: {ticket_str}
 - **Verification Status**: {v_status_str}
 - **Audit Context (Changes/Activity)**: {self.action_context}
 
-### Documentation Audit:
-If the technical implementation changed code significantly but the documentation (README/Wiki) was NOT updated, consider routing to "documenter" before finalizing.
+### Knowledge & State Audit:
+If the system state or environment changed significantly but knowledge artifacts (e.g., Wiki, documentation) were NOT updated, consider routing to "documenter" before finalizing.
 
 User Language Preference: {user_lang}. Please write the final summary in this language.
 """

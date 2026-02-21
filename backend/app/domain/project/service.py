@@ -1,11 +1,12 @@
 import logging
 import os
+import time
 from threading import Lock
 
 from app.core.config import settings
 from app.core.context.plugins import set_workspace_provider
-from app.infrastructure.config.service import SystemConfigService
 from app.core.evocloud import evocloud_manager
+from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -39,8 +40,6 @@ class ProjectContextManager:
         
         logger.info("ProjectContextManager initialized as the WorkspaceProvider")
 
-    # --- [NEW] Phase 6: Unified Project Structure Logic ---
-
     async def get_project_structure(self, path: str, force_refresh: bool = False) -> str:
         """
         Get the annotated directory tree for a path. Uses caching.
@@ -51,8 +50,7 @@ class ProjectContextManager:
 
         try:
             from app.domain.project.tree_generator import AnnotatedTreeGenerator
-            import time
-            
+
             logger.info(f"[ProjectContext] Generating structure for: {path}")
             # Standard constraints for Generalist Agent
             generator = AnnotatedTreeGenerator(
