@@ -485,6 +485,17 @@ MAX_MEMORY_ITEMS = settings.MAX_MEMORY_ITEMS
 
 
 # ====================== Workflow / Task Constants ======================
+class RoutingTarget(str, Enum):
+    """Supported routing targets for the agent system."""
+    OPERATOR = "operator"
+    DEEP_RESEARCHER = "deep_researcher"
+    DOCUMENTER = "documenter"
+    CHAT = "chat"
+    FINISH = "finish"
+    DYNAMIC_SPECIALIST = "dynamic_specialist"
+    FLASH_BRAIN = "flash_brain"
+
+
 TASK_TYPES = [
     "code_generation",
     "bug_fix",
@@ -494,12 +505,13 @@ TASK_TYPES = [
 ]
 
 ROUTING_TARGETS = {
-    "operator": "Primary worker for coding, testing, and architecture.",
-    "deep_researcher": "Web search and information gathering.",
-    "documenter": "Documentation and wiki generation.",
-    "chat": "Ambiguous requests requiring clarification.",
-    "finish": "Task completion.",
-    "dynamic_specialist": "Temporary, specialized sub-agent (e.g., SQLRunner).",
+    RoutingTarget.OPERATOR: "Primary worker for coding, testing, and architecture.",
+    RoutingTarget.DEEP_RESEARCHER: "Web search and information gathering.",
+    RoutingTarget.DOCUMENTER: "Documentation and wiki generation.",
+    RoutingTarget.CHAT: "Ambiguous requests requiring clarification.",
+    RoutingTarget.FINISH: "Task completion.",
+    RoutingTarget.DYNAMIC_SPECIALIST: "Temporary, specialized sub-agent (e.g., SQLRunner).",
+    RoutingTarget.FLASH_BRAIN: "Fast, low-cost reasoning or memory lookup.",
 }
 
 WORKFLOW_STATUS = ["pending", "running", "completed", "failed", "cancelled"]

@@ -6,24 +6,13 @@ as part of its standard ReAct loop, rather than using a separate routing call.
 """
 
 import json
-from typing import Literal
+from typing import Any
 
 from app.core.tools import evoloop_tool
-
-# Define valid routing targets
-ROUTING_TARGETS = Literal[
-    "operator",
-    "deep_researcher",
-    "documenter",
-    "chat",
-    "finish",
-    "dynamic_specialist", # New v4.0 target
-    "flash_brain", # SSM Integration
-]
-
+from app.constants import RoutingTarget
 
 @evoloop_tool
-def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) -> str:
+def route_to(target: RoutingTarget, reason: str, context: dict[str, Any] | None = None) -> str:
     """
     Route the current task to a specialist node.
 
@@ -31,56 +20,21 @@ def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) 
     hand off to a specialist. This is the ONLY way to proceed to the next step.
 
     Available targets:
-    - "operator": Consolidates planning, coding, testing, mobile (Android) and desktop (Mac) control. Use this for ANY technical implementation task.
-    - "deep_researcher": Need to search the web or gather more information
-    - "documenter": Need to generate documentation, wiki, or README
-    - "chat": Need to ask the user clarifying questions (ambiguous request)
-    - "finish": The task is complete or the question has been fully answered
-    - "dynamic_specialist": Need a specialized, temporary sub-agent (e.g., "SQL Runner", "Log Analyzer")
-    - "flash_brain": Need fast, low-cost reasoning or memory lookup (Use for simple queries or fact retrieval)
+    - "operator": Consolidates planning, coding, testing, and system control.
+    - "deep_researcher": Web search and information gathering.
+    - "documenter": Generate documentation, wiki, or README.
+    - "chat": Ask the user clarifying questions or provide final chat response.
+    - "finish": Task completion or question fully answered.
+    - "dynamic_specialist": Temporary, specialized sub-agent (e.g., "SQL Runner").
+    - "flash_brain": Fast, low-cost reasoning or memory lookup.
 
     Args:
         target: The specialist node to route to.
         reason: Brief explanation of why.
         context: Structured context to pass to the specialist (Attention Guidance).
-                 MUST follow the appropriate schema for the target.
-
-                 **For 'operator'**:
-                 {
-                    "ticket_type": "bugfix" | "feature",
-                    "focus_paths": ["src/app.py"],
-                    "acceptance_criteria": ["Test pass"]
-                 }
-
-                 **For 'deep_researcher'**:
-                 {
-                    "ticket_type": "research",
-                    "topic": "How to use Redis with LangGraph",
-                    "acceptance_criteria": ["Detailed report with code examples"]
-                 }
-
-                 **For 'documenter'**:
-                 {
-                    "ticket_type": "documentation",
-                    "focus_paths": ["src/api/"],
-                    "acceptance_criteria": ["README updated"]
-                 }
-
-                 **For 'dynamic_specialist'**:
-                 {
-                    "ticket_type": "adhoc_task",
-                    "agent_config": {
-                        "role_name": "SQL Runner",
-                        "system_instructions": "Execute SQL queries only.",
-                        "tools": ["sql_query"]
-                    },
-                    "acceptance_criteria": ["Query result returned"]
-                 }
-
-    Returns:
-        Confirmation message (the actual routing is handled by the system)
     """
     # This return value is primarily for logging purposes
     # The actual routing logic is in AgentEngine
     context_str = json.dumps(context, ensure_ascii=False) if context else "{}"
-    return f"[ROUTE_SIGNAL] → {target}: {reason} | Context: {context_str}"
+    target_val = target.value if isinstance(target, RoutingTarget) else target
+    return f"[ROUTE_SIGNAL] → {target_val}: {reason} | Context: {context_str}"
