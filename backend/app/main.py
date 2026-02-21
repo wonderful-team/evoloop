@@ -23,7 +23,7 @@ from app.core.events.bridge import register_event_bridge
 from app.core.globals import set_graph
 from app.core.persistence import set_checkpointer, set_db_pool
 from app.domain.codebase.indexing.manager import indexing_manager
-from app.domain.project.service import project_context_manager
+from app.core.context import thread_context_store
 from app.domain.project.summarizer import project_summarizer
 from app.domain.watchers import ProjectDiscoveryWatcher
 from app.infrastructure.database.sql.database import Base, engine
@@ -114,7 +114,7 @@ async def lifespan(_app: FastAPI):
     logger.info("Initializing File Watchers...")
     discovery_watcher = None
     try:
-        default_path = project_context_manager.get_working_directory("default")
+        default_path = thread_context_store.get_working_directory("default")
 
         # Validate default_path: It should NOT be the PROJECTS_ROOT itself.
         # If get_working_directory returns the root dir, it means no specific project is selected.
@@ -203,7 +203,7 @@ async def lifespan(_app: FastAPI):
                     if cloud_path and os.path.exists(cloud_path):
                         logger.info(f"[Startup] Synced active project from Cloud: {cloud_path}")
                         # Update context immediately for default thread
-                        project_context_manager.set_working_directory("default", cloud_path)
+                        thread_context_store.set_working_directory("default", cloud_path)
 
                         project_id = project_data.get("project_id")
 

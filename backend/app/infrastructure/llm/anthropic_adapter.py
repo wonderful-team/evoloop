@@ -9,7 +9,6 @@ try:
         # Fallback if _create_usage_metadata is not available or moved
         from langchain_core.messages.ai import UsageMetadata
 
-
         def _create_usage_metadata(usage: Any) -> UsageMetadata:
             return UsageMetadata(
                 input_tokens=usage.input_tokens, output_tokens=usage.output_tokens

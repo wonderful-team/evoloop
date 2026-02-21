@@ -3,7 +3,7 @@ import logging
 from langchain_core.messages import HumanMessage
 
 from app.core.config import settings
-from app.core.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 

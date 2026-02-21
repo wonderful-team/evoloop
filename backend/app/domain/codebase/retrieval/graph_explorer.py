@@ -4,7 +4,7 @@ from langchain_core.prompts.prompt import PromptTemplate
 from langchain_neo4j import GraphCypherQAChain, Neo4jGraph
 
 from app.core.config import settings
-from app.core.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 

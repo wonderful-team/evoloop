@@ -11,7 +11,7 @@ from app.core.context import ContextManager
 from app.core.engine.state import AgentState
 from app.core.engine.prompts import DeveloperPromptBuilder
 from app.core.tools.registry import get_node_tools
-from app.domain.project.service import project_context_manager
+from app.core.context.plugins import get_workspace_provider
 from app.infrastructure.mcp.client import mcp_client_manager
 
 logger = logging.getLogger(__name__)
@@ -51,7 +51,11 @@ class DeveloperNode:
         
         # Always use the centralized cache via the manager.
         if cwd:
-            project_structure = await project_context_manager.get_project_structure(cwd)
+            provider = get_workspace_provider()
+            if provider:
+                project_structure = await provider.get_project_structure(cwd)
+            else:
+                project_structure = "Workspace provider not configured. Unable to retrieve project structure."
         else:
             project_structure = "No Local Workspace Attached (Operating in Universal/Global Mode)"
         

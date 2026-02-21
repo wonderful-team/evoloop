@@ -4,7 +4,7 @@ from typing import Optional
 
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import VisionResult, VisionTask
-from app.core.llm.vision import get_vision_llm, VisionLLMFactory
+from app.infrastructure.llm.vision import VisionLLMFactory, get_vision_llm
 
 logger = logging.getLogger(__name__)
 

@@ -25,7 +25,7 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
     # 1. Retrieve user preferences from Preference Store
     try:
         from app.core.memory import memory_manager
-        from app.core.system import SystemConfigService
+        from app.infrastructure.config.service import SystemConfigService
         
         user_id = 1  # Default user
         prefs_text = await memory_manager.preferences.get_merged_preferences(

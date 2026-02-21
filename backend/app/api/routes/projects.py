@@ -7,7 +7,6 @@ from pydantic import BaseModel
 from app.api.deps import TokenDep, TokenDepOptional
 from app.core.config import settings
 from app.domain.codebase.indexing.manager import indexing_manager
-from app.domain.project.service import project_context_manager
 from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
@@ -151,7 +150,7 @@ async def create_project(req: CreateProjectRequest, _token: TokenDep):
             logger.warning(f"Failed to sync project creation to Member Center: {res}")
 
         # Re-scan to get ID/Color
-        projects = await project_context_manager.scan_projects()
+        projects = await evocloud_manager.scan_projects()
         new_proj = next((p for p in projects if p["name"] == req.name), None)
         return new_proj or {"name": req.name}
     except Exception as e:

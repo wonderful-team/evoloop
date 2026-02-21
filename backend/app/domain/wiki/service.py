@@ -13,7 +13,7 @@ from app.core.db import engine
 from app.core.engine.prompts import WikiBuilder
 from app.core.file.service import walk_tree, filter_code_files
 from app.core.memory import memory_manager
-from app.domain.project.service import project_context_manager
+from app.core.evocloud import evocloud_manager
 from app.i18n.service import i18n
 from app.models.wiki import WikiPage
 from app.utils.file import normalize_path
@@ -252,7 +252,7 @@ class WikiService:
         logger.info(f"Starting Wiki Generation for project {project_id}")
 
         # 0. Context Setup
-        project_data = await project_context_manager.get_project_by_id(project_id)
+        project_data = await evocloud_manager.get_project_by_id(project_id)
         if not project_data or not project_data.get('path'):
             logger.error(f"Project path not found for id {project_id}")
             return []

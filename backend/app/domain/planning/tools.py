@@ -244,9 +244,9 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
     root = ctx.working_directory or "."
 
     try:
-        from app.core.llm.factory import get_default_llm
         from app.domain.codebase.retrieval.service import RetrievalService
-        from app.core.system import SystemConfigService
+        from app.infrastructure.config.service import SystemConfigService
+        from app.infrastructure.llm.factory import get_default_llm
 
         # Retrieval
         retrieval_service = RetrievalService()
@@ -256,7 +256,7 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
 
         # Get Project Structure
         # Use underlying Generator directly (no longer a tool)
-        from app.core.context import AnnotatedTreeGenerator
+        from app.domain.project.tree_generator import AnnotatedTreeGenerator
 
         # Smart Truncation enabled to avoid context overflow
         generator = AnnotatedTreeGenerator(root, max_depth=3, with_symbols=False, file_limit=30)

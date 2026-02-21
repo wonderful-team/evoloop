@@ -1,8 +1,7 @@
 import json
 
+from app.infrastructure.config.service import SystemConfigService
 
-import json
-from app.core.system import SystemConfigService
 
 class FinishPromptBuilder:
     """

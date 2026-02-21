@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react"
+import { SystemService } from "@/client/sdk.gen"
 import { useTranslation } from "react-i18next"
 import { listen } from "@tauri-apps/api/event"
 import { Loader2 } from "lucide-react"
@@ -51,15 +52,13 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
 
         const checkHealth = async () => {
             try {
-                const response = await fetch("http://localhost:8000/api/v1/system/health")
-                if (response.ok) {
-                    setIsHealthy(true)
-                    clearInterval(intervalId)
-                    // Add a small delay for user to see success
-                    setTimeout(() => {
-                        onReady()
-                    }, 800)
-                }
+                await SystemService.healthCheck()
+                setIsHealthy(true)
+                clearInterval(intervalId)
+                // Add a small delay for user to see success
+                setTimeout(() => {
+                    onReady()
+                }, 800)
             } catch (e) {
                 // Ignore connection refused
             }

@@ -19,7 +19,7 @@ from app.core.exceptions import AgentCancelledException
 # Graph
 from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
-from app.domain.project.service import project_context_manager
+from app.core.context.thread_store import thread_context_store
 from app.infrastructure.database.sql.database import session_scope
 from app.core.evocloud import evocloud_manager
 from app.models import Conversation, Message
@@ -43,11 +43,13 @@ def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:
 
 async def _setup_project_context(thread_id: str, project_id: int, command_id: int | None = None):
     """Initialize working directory and context vars."""
-    project = await project_context_manager.get_project_by_id(project_id)
+    # Phase 2 Decoupling: Use API module directly
+    from app.core.evocloud import evocloud_manager
+    project = await evocloud_manager.get_project_by_id(project_id)
     if project and project.get("path"):
-        project_context_manager.set_working_directory(thread_id, project["path"])
+        thread_context_store.set_working_directory(thread_id, project["path"])
 
-    working_dir = project_context_manager.get_working_directory(thread_id)
+    working_dir = thread_context_store.get_working_directory(thread_id)
 
     # Phase 4 Autonomy: Attempt to load persistent context from Redis first
     ctx = await ContextManager.load_from_redis(thread_id)

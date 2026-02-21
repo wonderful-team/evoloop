@@ -10,6 +10,7 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 class SSMDriver(BaseBrainDriver):
     def __init__(self):
         self.client = None
@@ -20,7 +21,7 @@ class SSMDriver(BaseBrainDriver):
         Initialize the connection to the Flash Brain (SSM/Mamba) via LLMFactory.
         """
         try:
-            from app.core.llm.factory import LLMFactory
+            from app.infrastructure.llm.factory import LLMFactory
             
             # Use Factory to create client
             self.client = LLMFactory.create_completion_client(

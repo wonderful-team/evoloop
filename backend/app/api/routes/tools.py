@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter
 
 from app.core.tools.registry import get_all_tools
-from app.domain.tools.runtime_registry import get_runtime_tools
+from app.core.tools.runtime_registry import get_runtime_tools
 
 router = APIRouter(prefix="/tools", tags=["tools"])
 

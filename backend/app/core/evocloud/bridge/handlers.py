@@ -1,12 +1,9 @@
 import asyncio
 import logging
-import os
 
+from app.core.context import thread_context_store
 from app.core.engine.background_agent import run_agent_background
 from app.core.evocloud import evocloud_manager
-from app.domain.codebase.indexing.manager import indexing_manager
-from app.domain.codebase.indexing.service import IndexingService
-from app.domain.project.service import project_context_manager
 
 logger = logging.getLogger(__name__)
 
@@ -24,13 +21,13 @@ async def handle_remote_command(command_data: dict):
         response = command_data.get("content", {}).get("response")
 
         if thread_id and response is not None:
-             logger.info(f"[EvoLoop] Processing HITL Response for thread {thread_id}: {response}")
+            logger.info(f"[EvoLoop] Processing HITL Response for thread {thread_id}: {response}")
 
-             inputs = {
-                 "hitl_resume_response": response,
-                 "command_id": command_data.get("command_id")
-             }
-             asyncio.create_task(run_agent_background(thread_id, inputs))
+            inputs = {
+                "hitl_resume_response": response,
+                "command_id": command_data.get("command_id")
+            }
+            asyncio.create_task(run_agent_background(thread_id, inputs))
         return
 
     # Support both nested 'content' (legacy/cloud) and flat 'message' (mobile/local) structures
@@ -38,15 +35,15 @@ async def handle_remote_command(command_data: dict):
     params_obj = content_obj.get("params", {})
 
     message = (
-        command_data.get("message") or 
-        content_obj.get("text") or 
+        command_data.get("message") or
+        content_obj.get("text") or
         content_obj.get("message") or
         params_obj.get("message")
     )
 
     attachments = (
-        command_data.get("attachments") or 
-        content_obj.get("attachments") or 
+        command_data.get("attachments") or
+        content_obj.get("attachments") or
         params_obj.get("attachments") or
         []
     )
@@ -56,10 +53,8 @@ async def handle_remote_command(command_data: dict):
         logger.info(f"[EvoLoop] Executing remote command on thread {thread_id}: Length={len(message) if message else 0}, Attachments={len(attachments)}")
 
         # Resolve Project ID:
-        from app.domain.project.service import project_context_manager
-
         pid_from_payload = command_data.get("project_id")
-        pid_from_context = project_context_manager.get_active_project("remote-default")
+        pid_from_context = thread_context_store.get_active_project("remote-default")
 
         project_id = pid_from_payload or pid_from_context or 1
 
@@ -126,26 +121,22 @@ async def handle_project_switch_event(event_data: dict):
         logger.info(f"[EvoLoop] Received Switch Project Event: {project_id} ({project_name}) -> {path}")
 
         # 1. Update Context (Global / Thread agnostic)
-        project_context_manager.set_working_directory("remote-default", path)
-        project_context_manager.set_working_directory("default", path)
+        thread_context_store.set_working_directory("remote-default", path)
+        thread_context_store.set_working_directory("default", path)
 
         if project_id:
-            project_context_manager.set_active_project("remote-default", project_id)
-            project_context_manager.set_active_project("default", project_id)
+            thread_context_store.set_active_project("remote-default", project_id)
+            thread_context_store.set_active_project("default", project_id)
 
-        # 2. Start Indexing/Watching if not already
-        try:
-            service = IndexingService()
-            repo_name = os.path.basename(path)
-            repo = await service.get_or_create_repo(path, repo_name, project_id=project_id)
-            await indexing_manager.start_watching(path, repo.id)
-            logger.info(f"[EvoLoop] Started watching {path}")
-
-            # NEW: Trigger Smart Full-Indexing for "Staleness Check"
-            indexing_manager.run_indexing_background(repo.id)
-
-        except Exception as e:
-            logger.error(f"[EvoLoop] Failed to start watching {path}: {e}")
+        # 2. Emit project.switched event instead of directly starting indexing
+        from app.core.events.base import BaseEvent, system_bus
+        event = BaseEvent(
+            event_type="project.switched",
+            source="evocloud_bridge",
+            data={"project_id": project_id, "path": path}
+        )
+        await system_bus.publish(event)
+        logger.info(f"[EvoLoop] Emitted project.switched event for {path}")
 
     else:
         logger.warning(f"[EvoLoop] Switch Project Event received but no path provided: {event_data}")

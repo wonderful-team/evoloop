@@ -1,5 +1,5 @@
 import logging
-from typing import Protocol, List
+from typing import Protocol, List, Optional
 from app.core.context.manager import EvoContext
 
 logger = logging.getLogger(__name__)
@@ -41,3 +41,27 @@ class ContextPluginRegistry:
 
 # Global registry instance
 plugin_registry = ContextPluginRegistry()
+
+
+class WorkspaceProvider(Protocol):
+    """
+    Protocol for providing workspace-level context, such as project file structure.
+    Normally implemented by the domain layer (e.g., app.domain.project).
+    """
+    async def get_project_structure(self, path: str) -> str:
+        """Returns a string representation of the project structure at the given path."""
+        ...
+
+
+_workspace_provider: Optional[WorkspaceProvider] = None
+
+
+def set_workspace_provider(provider: WorkspaceProvider):
+    """Register the global WorkspaceProvider."""
+    global _workspace_provider
+    _workspace_provider = provider
+
+
+def get_workspace_provider() -> Optional[WorkspaceProvider]:
+    """Retrieve the global WorkspaceProvider."""
+    return _workspace_provider

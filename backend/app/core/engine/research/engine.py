@@ -7,7 +7,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
 from app.core.tools.registry import get_all_tools
-from app.domain.research.generator import ReportGenerator
+from app.core.engine.research.generator import ReportGenerator
 
 logger = logging.getLogger(__name__)
 

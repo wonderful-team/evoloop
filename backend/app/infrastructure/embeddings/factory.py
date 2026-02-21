@@ -1,6 +1,6 @@
 from app.core.config import settings
-from app.core.system.service import SystemConfigService
 from app.domain.codebase.indexing.base import BaseEmbedder
+from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.embeddings.ollama import OllamaEmbedder
 from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
 

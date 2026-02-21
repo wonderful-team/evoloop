@@ -2,7 +2,7 @@ import asyncio
 import logging
 from celery import shared_task
 from app.domain.wiki.service import wiki_service
-from app.core.llm.factory import get_default_llm
+from app.infrastructure.llm.factory import get_default_llm
 
 
 @shared_task(name="wiki_generate")

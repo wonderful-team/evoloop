@@ -6,10 +6,9 @@ from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
 from app.celery_app import celery_app
-from app.core.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory
 from app.domain.codebase.filter import FileFilter
 from app.core.memory import memory_manager
-from app.domain.project.service import project_context_manager
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.core.evocloud import evocloud_manager
 from app.utils import file as file_utils
@@ -32,7 +31,7 @@ async def _summarize_project_logic(name: str, path: str):
     # 0. Resolve Project ID Early (Used for Graph Lookup)
     project_id = 1  # Default
     try:
-        projects = await project_context_manager.scan_projects()
+        projects = await evocloud_manager.scan_projects()
         abs_path = os.path.abspath(path)
         matched = None
         for p in projects:

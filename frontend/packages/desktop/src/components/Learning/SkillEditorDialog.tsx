@@ -3,7 +3,6 @@ import {
     Save,
     Settings2,
     Sparkles,
-    Eye,
     Play,
 } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -11,6 +10,7 @@ import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { LearningService } from "@/client/sdk.gen"
 import { Button } from "@evoloop/shared/components/ui/button"
+import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import {
     Dialog,
     DialogContent,
@@ -20,10 +20,8 @@ import {
     DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
 import { EditorSidebar } from "./EditorSidebar"
-import { LogicWorkspace } from "./LogicWorkspace"
-import { EditorStatsPreview } from "./EditorStatsPreview"
 import { useChatStore } from "@/stores/chatStore"
-import type { LearnedSkill, SkillStep } from "@/types/skill"
+import type { LearnedSkill } from "@/types/skill"
 import type { ParamDef } from "./EditorSidebar"
 
 interface SkillEditorDialogProps {
@@ -47,9 +45,7 @@ export function SkillEditorDialog({
     const [triggers, setTriggers] = useState<string[]>([])
     const [newTrigger, setNewTrigger] = useState("")
     const [params, setParams] = useState<ParamDef[]>([])
-    const [steps, setSteps] = useState<SkillStep[]>([])
-    const [isSimpleMode, setIsSimpleMode] = useState(true)
-    const [showPreview, setShowPreview] = useState(false)
+    const [instructions, setInstructions] = useState("")
 
     useEffect(() => {
         if (open && skill) {
@@ -66,11 +62,11 @@ export function SkillEditorDialog({
                 return data;
             }
 
-            setName(skill.name)
-            setDescription(skill.description)
+            setName(skill.name || "")
+            setDescription(skill.description || "")
             setTriggers(safeParse(skill.trigger_patterns, []))
             setParams(safeParse(skill.parameters, []))
-            setSteps(safeParse(skill.steps, []))
+            setInstructions(skill.instructions || "")
         }
     }, [open, skill])
 
@@ -102,120 +98,11 @@ export function SkillEditorDialog({
         setParams(newParams)
     }
 
-    const updateStepByPath = (steps: SkillStep[], path: number[], newStep: SkillStep): SkillStep[] => {
-        const [index, ...rest] = path;
-        const newSteps = [...steps];
-        if (rest.length === 0) {
-            newSteps[index] = newStep;
-        } else {
-            newSteps[index] = {
-                ...newSteps[index],
-                children: updateStepByPath(newSteps[index].children || [], rest, newStep)
-            };
-        }
-        return newSteps;
-    }
-
-    const deleteStepByPath = (steps: SkillStep[], path: number[]): SkillStep[] => {
-        const [index, ...rest] = path;
-        const newSteps = [...steps];
-        if (rest.length === 0) {
-            newSteps.splice(index, 1);
-        } else {
-            newSteps[index] = {
-                ...newSteps[index],
-                children: deleteStepByPath(newSteps[index].children || [], rest)
-            };
-        }
-        return newSteps;
-    }
-
-    const addStepByPath = (steps: SkillStep[], path: number[], newStep: SkillStep): SkillStep[] => {
-        if (path.length === 0) return [...steps, newStep];
-
-        const [index, ...rest] = path;
-        const newSteps = [...steps];
-        if (rest.length === 0) {
-            newSteps.splice(index, 0, newStep);
-        } else {
-            newSteps[index] = {
-                ...newSteps[index],
-                children: addStepByPath(newSteps[index].children || [], rest, newStep)
-            };
-        }
-        return newSteps;
-    }
-
-    const handleUpdateStep = (path: number[], newStep: SkillStep) => {
-        setSteps(updateStepByPath(steps, path, newStep))
-    }
-
-    const handleDeleteStep = (path: number[]) => {
-        setSteps(deleteStepByPath(steps, path))
-    }
-
-    const handleAddStepWithIndex = (path?: number[], stepBody?: SkillStep) => {
-        const newStep: SkillStep = stepBody || { action: "mobile_control", args: { action: "tap", x: 500, y: 1000 } }
-        if (path) {
-            setSteps(addStepByPath(steps, path, newStep))
-        } else {
-            setSteps([...steps, newStep])
-        }
-    }
-
-    const handleMoveStep = (path: number[], direction: 'up' | 'down') => {
-        const index = path[path.length - 1];
-        const parentPath = path.slice(0, -1);
-
-        const getParentList = (steps: SkillStep[], p: number[]): SkillStep[] => {
-            if (p.length === 0) return steps;
-            const [idx, ...rest] = p;
-            return getParentList(steps[idx].children || [], rest);
-        }
-
-        const parentList = getParentList(steps, parentPath);
-        if (direction === 'up' && index === 0) return
-        if (direction === 'down' && index === parentList.length - 1) return
-
-        const targetIndex = direction === 'up' ? index - 1 : index + 1
-
-        const swapInList = (list: SkillStep[]): SkillStep[] => {
-            const newList = [...list];
-            const temp = newList[index];
-            newList[index] = newList[targetIndex];
-            newList[targetIndex] = temp;
-            return newList;
-        }
-
-        if (parentPath.length === 0) {
-            setSteps(swapInList(steps));
-        } else {
-            const updateParent = (currentSteps: SkillStep[], p: number[]): SkillStep[] => {
-                const [idx, ...rest] = p;
-                const newCurrent = [...currentSteps];
-                if (rest.length === 0) {
-                    newCurrent[idx] = {
-                        ...newCurrent[idx],
-                        children: swapInList(newCurrent[idx].children || [])
-                    }
-                } else {
-                    newCurrent[idx] = {
-                        ...newCurrent[idx],
-                        children: updateParent(newCurrent[idx].children || [], rest)
-                    }
-                }
-                return newCurrent;
-            }
-            setSteps(updateParent(steps, parentPath));
-        }
-    }
-
     const handleAiOptimize = async () => {
         setAiOptimizing(true)
         // Mock AI optimization delay
         await new Promise(resolve => setTimeout(resolve, 1500))
 
-        // Simulating AI improvement
         const betterDescription = description || t("learning.editor.aiRefinedDesc", "AI refined description based on execution logic.")
         const autoPrefix = t("learning.editor.automatedPrefix", "automated ")
         if (!triggers.includes(autoPrefix + name.toLowerCase())) {
@@ -253,7 +140,7 @@ export function SkillEditorDialog({
                     description,
                     trigger_patterns: triggers,
                     parameters: params as any[],
-                    steps: steps as any[],
+                    instructions: instructions,
                 } as any,
             })
 
@@ -270,7 +157,7 @@ export function SkillEditorDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[1680px] w-[95vw] h-[85vh] flex flex-col p-0 overflow-hidden bg-background border shadow-2xl">
+            <DialogContent className="sm:max-w-[1200px] w-[90vw] h-[80vh] flex flex-col p-0 overflow-hidden bg-background border shadow-2xl">
                 <div className="flex h-full overflow-hidden">
                     <div className="flex-1 flex flex-col bg-background">
                         <DialogHeader className="p-6 border-b bg-background">
@@ -290,28 +177,17 @@ export function SkillEditorDialog({
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <Button
-                                        variant={showPreview ? "secondary" : "outline"}
-                                        size="sm"
-                                        className={`gap-2 text-xs font-bold transition-all ${showPreview ? "bg-primary/10 border-primary/30 text-primary" : "border-primary/20"}`}
-                                        onClick={() => setShowPreview(!showPreview)}
-                                    >
-                                        <Eye className={`h-3.5 w-3.5 ${showPreview ? "text-primary" : "text-muted-foreground"}`} />
-                                        {showPreview ? t("learning.editor.hidePreview") : t("learning.editor.showPreview")}
-                                    </Button>
-
-                                    <Button
                                         variant="outline"
                                         size="sm"
                                         className="gap-2 text-xs font-bold border-emerald-500/20 text-emerald-600 hover:bg-emerald-50"
                                         onClick={async () => {
-                                            if (!showPreview) setShowPreview(true);
                                             try {
                                                 const threadId = useChatStore.getState().threadId || "debug-" + Date.now();
                                                 await LearningService.executeSkill({
                                                     skillId: skill.id,
                                                     requestBody: {
                                                         thread_id: threadId,
-                                                        params: {}, // In Phase 3 we will add parameter support for debug run
+                                                        params: {},
                                                     }
                                                 });
                                                 toast.success(t("learning.executionStarted", "Execution started"));
@@ -356,33 +232,21 @@ export function SkillEditorDialog({
                                 handleParamChange={handleParamChange}
                             />
 
-                            <LogicWorkspace
-                                steps={steps}
-                                params={params}
-                                isSimpleMode={isSimpleMode}
-                                setIsSimpleMode={setIsSimpleMode}
-                                handleAddStepWithIndex={handleAddStepWithIndex}
-                                handleUpdateStep={handleUpdateStep}
-                                handleDeleteStep={handleDeleteStep}
-                                handleMoveStep={handleMoveStep}
-                                showPreview={showPreview}
-                                setShowPreview={setShowPreview}
-                            />
-
-                            <EditorStatsPreview
-                                skill={skill}
-                                name={name}
-                                description={description}
-                                triggers={triggers}
-                                showPreview={showPreview}
-                                setShowPreview={setShowPreview}
-                            />
+                            <div className="flex-1 p-6 flex flex-col bg-muted/10 h-full">
+                                <div className="flex items-center gap-2 mb-4 text-sm font-bold text-amber-600">
+                                    <Sparkles className="h-4 w-4" />
+                                    {t("learning.expertGuide", "Expert Guide (Markdown SOP)")}
+                                </div>
+                                <Textarea
+                                    className="flex-1 font-mono text-sm resize-none bg-background rounded-xl p-4 border shadow-sm leading-relaxed"
+                                    value={instructions}
+                                    onChange={(e) => setInstructions(e.target.value)}
+                                    placeholder={t("learning.editor.expertGuidePlaceholder", "Write markdown instructions for the agent... e.g. \\n1. Go to github.com\\n2. Click the 'New Repository' button")}
+                                />
+                            </div>
                         </div>
 
                         <DialogFooter className="p-6 border-t bg-background mt-auto gap-3 shrink-0">
-                            <div className="flex-1 flex items-center gap-4 text-xs text-muted-foreground font-medium italic">
-                                <span>{t("learning.editor.phase6Notice")}</span>
-                            </div>
                             <Button
                                 variant="ghost"
                                 onClick={() => onOpenChange(false)}
@@ -406,3 +270,4 @@ export function SkillEditorDialog({
         </Dialog>
     )
 }
+

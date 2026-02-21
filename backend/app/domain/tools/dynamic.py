@@ -6,7 +6,7 @@ import os
 from langchain_core.tools import StructuredTool, tool
 from pydantic import BaseModel, Field
 
-from app.domain.tools.runtime_registry import register_runtime_tool
+from app.core.tools.runtime_registry import register_runtime_tool
 
 logger = logging.getLogger(__name__)
 

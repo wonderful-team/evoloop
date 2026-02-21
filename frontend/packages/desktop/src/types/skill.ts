@@ -10,10 +10,9 @@ export interface LearnedSkill {
   updated_at: string
   is_active: boolean
   status?: string
-  steps?: SkillStep[] | string
   failure_count?: number
   avg_duration?: string
-  instructions?: string
+  instructions?: string | null
   resource_path?: string
   validation_report?: {
     is_valid: boolean
@@ -21,8 +20,9 @@ export interface LearnedSkill {
     errors: string[]
     warnings: string[]
     metadata?: any
-  }
+  } | null
 }
+
 
 export interface SkillParameter {
   name: string
@@ -32,19 +32,4 @@ export interface SkillParameter {
   required?: boolean
 }
 
-export interface VisualContext {
-  screenshot_path?: string
-  element_selector?: string
-  element_text?: string
-}
 
-export interface SkillStep {
-  id?: string
-  action: string
-  args: Record<string, any>
-  condition?: string
-  on_error?: string
-  visual_context?: VisualContext
-  trace_step_ref?: number
-  children?: SkillStep[]
-}

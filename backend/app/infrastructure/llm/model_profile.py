@@ -255,7 +255,7 @@ def get_current_profile() -> ModelProfile:
     Reads from SystemConfigService (DB) -> Settings (env) fallback chain.
     """
     try:
-        from app.core.system.service import SystemConfigService
+        from app.infrastructure.config.service import SystemConfigService
         db_model = SystemConfigService.get_value("LLM_MODEL")
         if db_model:
             return get_profile(db_model)

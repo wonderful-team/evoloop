@@ -149,6 +149,41 @@ class EvoCloudManager:
         if persistent:
             await self.api.upload_log(target_device_id, thread_id, log_type, content, name=name, command_id=command_id, project_id=project_id)
 
+    async def scan_projects(self) -> list[dict]:
+        """Fetch projects from EvoCloud API."""
+        import os
+        try:
+            resp = await self.api.get_projects(page=1, page_size=100)
+            if resp.get("code") != 0:
+                logger.error(f"Failed to fetch projects from API: {resp.get('message')}")
+                return []
+
+            api_projects = resp.get("data", {}).get("list", [])
+            projects = []
+            for p in api_projects:
+                path = p.get("external_path", "")
+                projects.append({
+                    "id": p.get("project_id"),
+                    "name": p.get("project_name", "Unknown"),
+                    "description": p.get("project_desc", ""),
+                    "path": path,
+                    "exists_locally": os.path.exists(path) if path else False,
+                    "status_text": p.get("status_text", ""),
+                    "owner": p.get("owner_member_name", "")
+                })
+            return projects
+        except Exception as e:
+            logger.error(f"scan_projects failed: {e}")
+            return []
+
+    async def get_project_by_id(self, project_id: int) -> dict | None:
+        """Get project details by numeric ID."""
+        projects = await self.scan_projects()
+        for p in projects:
+            if p.get("id") == project_id:
+                return p
+        return None
+
     @property
     def device_id(self) -> int | None:
         return self.link.device_id if self.link else None

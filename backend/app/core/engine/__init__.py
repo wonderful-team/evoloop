@@ -17,10 +17,10 @@ from app.core.engine.message_utils import (
     truncate_message_content,
 )
 from app.core.engine.state import AgentState
-from app.core.llm.factory import LLMFactory
 from app.core.tools.executor import ToolExecutor
-from app.core.system import SystemConfigService
+from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.llm.factory import LLMFactory
 from app.models import FileOperation
 from app.utils.id import gen_uuid
 

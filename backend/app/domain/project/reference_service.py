@@ -32,7 +32,7 @@ class ReferenceService:
         """
         Process a list of attachments and inject them into the communication context.
         """
-        from app.domain.project.service import project_context_manager
+        from app.core.evocloud import evocloud_manager
 
         content_blocks = []
         reference_notes = []
@@ -41,7 +41,7 @@ class ReferenceService:
         # Get project root if project_id is provided
         root_path = None
         if project_id:
-            project = await project_context_manager.get_project_by_id(project_id)
+            project = await evocloud_manager.get_project_by_id(project_id)
             if project:
                 root_path = project.get("path")
 

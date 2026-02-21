@@ -48,7 +48,6 @@ export function SkillDetailsPanel({
         return data;
     }
 
-    const steps = safeParse(skill.steps, []);
     const triggerPatterns = safeParse(skill.trigger_patterns, []);
     const parameters = safeParse(skill.parameters, []);
 
@@ -133,12 +132,12 @@ export function SkillDetailsPanel({
 
                         <Separator />
 
-                        {/* Expert Guide (SOP) - Moved to top priority if exists */}
+                        {/* Expert Guide - Moved to top priority if exists */}
                         {skill.instructions ? (
                             <section className="space-y-4">
                                 <div className="flex items-center gap-2 text-sm font-bold text-amber-600">
                                     <Sparkles className="h-4 w-4" />
-                                    {t("learning.expertGuide", "Expert Strategic Guide (SOP)")}
+                                    {t("learning.expertGuide", "Expert Strategic Guide")}
                                 </div>
                                 <div className="bg-amber-50/30 dark:bg-amber-950/10 p-5 rounded-2xl border border-amber-500/20 shadow-[0_4px_20px_rgba(245,158,11,0.05)]">
                                     <div className="text-[13px] leading-relaxed whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none text-foreground/90 font-medium">
@@ -154,43 +153,12 @@ export function SkillDetailsPanel({
                         ) : (
                             <div className="bg-muted/20 p-6 rounded-2xl border border-dashed flex flex-col items-center justify-center text-center gap-2">
                                 <Info className="h-8 w-8 text-muted-foreground/30" />
-                                <p className="text-xs text-muted-foreground">{t("learning.noSopYet", "This skill is a raw recording without an expert guide.")}</p>
+                                <p className="text-xs text-muted-foreground">{t("learning.noExpertGuide", "This skill is a raw recording without an expert guide.")}</p>
                             </div>
                         )}
 
                         <Separator className="opacity-50" />
 
-                        {/* Execution Steps */}
-                        <section className="space-y-6">
-                            <div className="flex items-center gap-2 text-sm font-bold opacity-80">
-                                <Terminal className="h-4 w-4" />
-                                {t("learning.rawSteps", "Technical Execution Steps")}
-                            </div>
-                            <div className="relative space-y-0.5">
-                                {/* Vertical Connector Line */}
-                                <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-muted-foreground/10" />
-
-                                {steps.map((step: any, i: number) => (
-                                    <div key={i} className="relative pl-10 pb-6 last:pb-0">
-                                        <div className="absolute left-0 top-1 h-6 w-6 rounded-full bg-background border-2 border-primary/20 flex items-center justify-center text-[10px] font-bold z-10 shadow-sm">
-                                            {i + 1}
-                                        </div>
-                                        <div className="bg-muted/5 hover:bg-muted/10 transition-colors border border-muted-foreground/5 rounded-xl p-3">
-                                            <div className="flex items-center justify-between mb-2">
-                                                <Badge variant="secondary" className="bg-muted text-muted-foreground border-transparent text-[9px] uppercase font-bold px-1.5 py-0">
-                                                    {step.action}
-                                                </Badge>
-                                            </div>
-                                            <div className="text-[10px] font-mono text-muted-foreground/60 truncate">
-                                                {JSON.stringify(step.args)}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </section>
-
-                        <Separator className="opacity-50" />
 
                         {/* Metadata & Inputs */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

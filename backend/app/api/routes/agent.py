@@ -18,7 +18,7 @@ from app.core.engine.background_agent import run_agent_background
 from app.core.monitoring.activity import activity_monitor
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
-from app.domain.project.service import project_context_manager
+from app.core.context import thread_context_store
 from app.infrastructure.database.sql.database import session_scope
 from app.models import (
     Conversation,
@@ -84,7 +84,7 @@ async def chat_endpoint(
     ContextManager.set(ctx)
 
     # --- Context Injection & Message Construction (Phase 9) ---
-    from app.core.context.reference_service import reference_service
+    from app.domain.project.reference_service import reference_service
     
     async with session_scope() as session:
         ref_context = await reference_service.process_references(
@@ -417,7 +417,7 @@ async def webhook_endpoint(req: WebhookRequest, bg_tasks: BackgroundTasks):
         new_project = req.payload.get("new_project", {})
         new_path = new_project.get("path")
         if new_path:
-            project_context_manager.set_working_directory(tid, new_path)
+            thread_context_store.set_working_directory(tid, new_path)
             # Dispatch Indexing Task directly from here if needed
 
             repo_name = os.path.basename(new_path)

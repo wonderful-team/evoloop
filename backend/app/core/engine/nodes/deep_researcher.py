@@ -5,8 +5,8 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
 from app.core.engine import AgentState
-from app.core.llm.factory import LLMFactory
-from app.domain.research.engine import DeepResearchEngine
+from app.infrastructure.llm.factory import LLMFactory
+from app.core.engine.research.engine import DeepResearchEngine
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)

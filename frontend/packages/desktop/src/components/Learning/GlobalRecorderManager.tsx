@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react"
 import { useRecordingStore } from "@/stores/recordingStore"
+import { LearningService } from "@/client/sdk.gen"
 import { useActionRecorder } from "@/hooks/useActionRecorder"
 import { useGlobalRecorder } from "@/hooks/useGlobalRecorder"
 import { useScreenRecordingPermission } from "@/hooks/useScreenRecordingPermission"
@@ -196,14 +197,12 @@ export function GlobalRecorderManager() {
                             // Check if video is suspiciously small - usually indicates permission issue on Mac
                             // We can't check size easily via JS here, but we've added Rust logs.
                             // If it fails often, warn about Screen Recording perm.
-                            fetch("/api/v1/learning/traces/extract-keyframes", {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({
+                            LearningService.extractKeyframes({
+                                requestBody: {
                                     session_id: domRes.sessionId,
                                     video_path: vPath,
                                     thread_id: activeThreadId,
-                                }),
+                                }
                             }).then(() => console.log("[GlobalRecorderManager] Keyframe extraction triggered"))
                                 .catch(err => console.error("[GlobalRecorderManager] Failed to trigger extraction:", err))
                         }

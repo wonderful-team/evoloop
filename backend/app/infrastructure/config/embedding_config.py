@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.db import engine
-from app.core.system.service import SystemConfigService
+from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.models import Repository
 
@@ -134,12 +134,15 @@ class EmbeddingConfigService:
                 repo = session.exec(select(Repository).where(Repository.project_id == current_project_id)).first()
 
             if repo:
-                logger.info(f"Triggering re-index for active project {current_project_id} (Repo {repo.id})")
-                # Run in background via manager
-                from app.domain.codebase.indexing.manager import indexing_manager
-                await indexing_manager.run_indexing_background(repo.id)
-                # Note: The route handler should handle the background task dispatch.
-                # This service method prepares the state.
+                logger.info(f"Emitting system.embedding_updated event for active project {current_project_id} (Repo {repo.id})")
+
+                from app.core.events.base import BaseEvent, system_bus
+                event = BaseEvent(
+                    event_type="system.embedding_updated",
+                    source="embedding_config",
+                    data={"repo_id": repo.id, "project_id": current_project_id}
+                )
+                await system_bus.publish(event)
 
     @staticmethod
     async def _migrate_neo4j_concepts(provider, base_url, model, api_key):

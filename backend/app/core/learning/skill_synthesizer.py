@@ -15,7 +15,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from sqlalchemy import select
 
 from app.core.learning.trace_parser import TraceParser, TraceSequence
-from app.core.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message, LearnedSkill
 from app.i18n.service import i18n
@@ -203,7 +203,7 @@ class WorkflowSynthesizer:
         if user_intent_hint:
             prompt += f"\n\n## User Intent Hint (Use this for trigger_patterns):\n\"{user_intent_hint}\""
 
-        from app.core.system import SystemConfigService
+        from app.infrastructure.config.service import SystemConfigService
 
         user_lang = SystemConfigService.get_language_preference()
         prompt += i18n.get("prompts.learning.synthesis_lang_constraint", lang=user_lang)

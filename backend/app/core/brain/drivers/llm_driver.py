@@ -16,34 +16,35 @@ class ReflectiveDriver(BaseBrainDriver):
     Driver for the 'Reflective Brain' (Slow, External LLM).
     Used for memory consolidation and complex planning.
     """
+
     def __init__(self):
         self.mode = settings.REFLECTIVE_DRIVER_TYPE
-        
+
     async def generate(self, context: str, user_input: str, system_prompt: Optional[str] = None) -> str:
         """
         Calls external API via EvoLoop LLMFactory.
         """
-        from app.core.llm.factory import LLMFactory
+        from app.infrastructure.llm.factory import LLMFactory
         from langchain_core.messages import HumanMessage, SystemMessage
 
         if self.mode == "mock":
-             logger.info("Reflective Driver is in MOCK mode. Returning placeholder.")
-             return "Reflective Thought (Mock): Consolidation requires a real LLM."
+            logger.info("Reflective Driver is in MOCK mode. Returning placeholder.")
+            return "Reflective Thought (Mock): Consolidation requires a real LLM."
 
         try:
             # factory.create_llm() returns a LangChain Runnable
-            model = LLMFactory.create_llm(temperature=0.3) 
-            
+            model = LLMFactory.create_llm(temperature=0.3)
+
             messages = []
             if system_prompt:
                 messages.append(SystemMessage(content=system_prompt))
-            
+
             prompt_content = f"Context:\n{context}\n\nTask:\n{user_input}"
             messages.append(HumanMessage(content=prompt_content))
-            
+
             logger.info("Reflective Driver invoking LLM...")
             response = await model.ainvoke(messages)
-            
+
             return response.content
         except Exception as e:
             logger.error(f"Reflective Driver Failed: {e}")

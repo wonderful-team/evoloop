@@ -543,6 +543,34 @@ export const ExecuteSkillRequestSchema = {
     title: 'ExecuteSkillRequest'
 } as const;
 
+export const ExtractKeyframesRequestSchema = {
+    properties: {
+        session_id: {
+            type: 'string',
+            title: 'Session Id'
+        },
+        video_path: {
+            type: 'string',
+            title: 'Video Path'
+        },
+        thread_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Thread Id'
+        }
+    },
+    type: 'object',
+    required: ['session_id', 'video_path'],
+    title: 'ExtractKeyframesRequest',
+    description: 'Request to extract keyframes from a screen recording video.'
+} as const;
+
 export const FileContentSchema = {
     properties: {
         content: {
@@ -630,10 +658,10 @@ export const GlobalRecordedEventSchema = {
                 {
                     prefixItems: [
                         {
-                            type: 'integer'
+                            type: 'number'
                         },
                         {
-                            type: 'integer'
+                            type: 'number'
                         }
                     ],
                     type: 'array',
@@ -1058,6 +1086,37 @@ export const OpenFileRequestSchema = {
     title: 'OpenFileRequest'
 } as const;
 
+export const PaginatedSkillsResponseSchema = {
+    properties: {
+        items: {
+            items: {
+                '$ref': '#/components/schemas/SkillDTO'
+            },
+            type: 'array',
+            title: 'Items'
+        },
+        total: {
+            type: 'integer',
+            title: 'Total'
+        },
+        page: {
+            type: 'integer',
+            title: 'Page'
+        },
+        page_size: {
+            type: 'integer',
+            title: 'Page Size'
+        },
+        total_pages: {
+            type: 'integer',
+            title: 'Total Pages'
+        }
+    },
+    type: 'object',
+    required: ['items', 'total', 'page', 'page_size', 'total_pages'],
+    title: 'PaginatedSkillsResponse'
+} as const;
+
 export const RecordEventsRequestSchema = {
     properties: {
         session_id: {
@@ -1451,6 +1510,141 @@ export const SendCommandRequestSchema = {
     type: 'object',
     required: ['command_type'],
     title: 'SendCommandRequest'
+} as const;
+
+export const SkillDTOSchema = {
+    properties: {
+        id: {
+            type: 'integer',
+            title: 'Id'
+        },
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        description: {
+            type: 'string',
+            title: 'Description'
+        },
+        namespace: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Namespace'
+        },
+        trigger_patterns: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Trigger Patterns'
+        },
+        parameters: {
+            items: {
+                '$ref': '#/components/schemas/SkillParameter'
+            },
+            type: 'array',
+            title: 'Parameters'
+        },
+        tools_used: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Tools Used'
+        },
+        success_count: {
+            type: 'integer',
+            title: 'Success Count'
+        },
+        failure_count: {
+            type: 'integer',
+            title: 'Failure Count'
+        },
+        is_active: {
+            type: 'boolean',
+            title: 'Is Active'
+        },
+        status: {
+            type: 'string',
+            title: 'Status'
+        },
+        validation_report: {
+            anyOf: [
+                {
+                    additionalProperties: true,
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Validation Report'
+        },
+        instructions: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Instructions'
+        },
+        created_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Created At'
+        },
+        updated_at: {
+            type: 'string',
+            format: 'date-time',
+            title: 'Updated At'
+        }
+    },
+    type: 'object',
+    required: ['id', 'name', 'description', 'trigger_patterns', 'parameters', 'tools_used', 'success_count', 'failure_count', 'is_active', 'status', 'created_at', 'updated_at'],
+    title: 'SkillDTO'
+} as const;
+
+export const SkillParameterSchema = {
+    properties: {
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        type: {
+            type: 'string',
+            title: 'Type'
+        },
+        description: {
+            type: 'string',
+            title: 'Description'
+        },
+        default: {
+            anyOf: [
+                {},
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Default'
+        },
+        required: {
+            type: 'boolean',
+            title: 'Required',
+            default: false
+        }
+    },
+    type: 'object',
+    required: ['name', 'type', 'description'],
+    title: 'SkillParameter'
 } as const;
 
 export const StartMirrorRequestSchema = {
@@ -2228,6 +2422,17 @@ export const UpdateSkillRequestSchema = {
             ],
             title: 'Description'
         },
+        namespace: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Namespace'
+        },
         trigger_patterns: {
             anyOf: [
                 {
@@ -2257,20 +2462,16 @@ export const UpdateSkillRequestSchema = {
             ],
             title: 'Parameters'
         },
-        steps: {
+        instructions: {
             anyOf: [
                 {
-                    items: {
-                        additionalProperties: true,
-                        type: 'object'
-                    },
-                    type: 'array'
+                    type: 'string'
                 },
                 {
                     type: 'null'
                 }
             ],
-            title: 'Steps'
+            title: 'Instructions'
         },
         preconditions: {
             anyOf: [

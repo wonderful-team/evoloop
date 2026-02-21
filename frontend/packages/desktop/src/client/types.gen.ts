@@ -129,6 +129,15 @@ export type ExecuteSkillRequest = {
     project_id?: (number | null);
 };
 
+/**
+ * Request to extract keyframes from a screen recording video.
+ */
+export type ExtractKeyframesRequest = {
+    session_id: string;
+    video_path: string;
+    thread_id?: (string | null);
+};
+
 export type FileContent = {
     content: string;
     language: string;
@@ -245,6 +254,14 @@ export type OpenFileRequest = {
     path: string;
 };
 
+export type PaginatedSkillsResponse = {
+    items: Array<SkillDTO>;
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+};
+
 /**
  * Single recorded event from frontend.
  */
@@ -347,6 +364,34 @@ export type SendCommandRequest = {
     params?: {
         [key: string]: unknown;
     };
+};
+
+export type SkillDTO = {
+    id: number;
+    name: string;
+    description: string;
+    namespace?: (string | null);
+    trigger_patterns: Array<(string)>;
+    parameters: Array<SkillParameter>;
+    tools_used: Array<(string)>;
+    success_count: number;
+    failure_count: number;
+    is_active: boolean;
+    status: string;
+    validation_report?: ({
+    [key: string]: unknown;
+} | null);
+    instructions?: (string | null);
+    created_at: string;
+    updated_at: string;
+};
+
+export type SkillParameter = {
+    name: string;
+    type: string;
+    description: string;
+    default?: (unknown | null);
+    required?: boolean;
 };
 
 export type StartMirrorRequest = {
@@ -483,13 +528,12 @@ export type ToolStep = {
 export type UpdateSkillRequest = {
     name?: (string | null);
     description?: (string | null);
+    namespace?: (string | null);
     trigger_patterns?: (Array<(string)> | null);
     parameters?: (Array<{
     [key: string]: unknown;
 }> | null);
-    steps?: (Array<{
-    [key: string]: unknown;
-}> | null);
+    instructions?: (string | null);
     preconditions?: (Array<{
     [key: string]: unknown;
 }> | null);
@@ -855,6 +899,12 @@ export type LearningRecordGlobalEventsData = {
 
 export type LearningRecordGlobalEventsResponse = (RespondResponse);
 
+export type LearningExtractKeyframesData = {
+    requestBody: ExtractKeyframesRequest;
+};
+
+export type LearningExtractKeyframesResponse = (unknown);
+
 export type LearningStartRecordingData = {
     requestBody: StartRecordingRequest;
 };
@@ -893,9 +943,11 @@ export type LearningImportSkillsResponse = (unknown);
 
 export type LearningListSkillsData = {
     activeOnly?: boolean;
+    page?: number;
+    pageSize?: number;
 };
 
-export type LearningListSkillsResponse = (unknown);
+export type LearningListSkillsResponse = (PaginatedSkillsResponse);
 
 export type LearningGetSkillData = {
     skillId: number;
@@ -948,12 +1000,6 @@ export type LearningValidateSkillData = {
 };
 
 export type LearningValidateSkillResponse = (unknown);
-
-export type LearningOptimizeSkillData = {
-    skillId: number;
-};
-
-export type LearningOptimizeSkillResponse = (unknown);
 
 export type LibraryListLibraryFilesData = {
     requestBody?: User;

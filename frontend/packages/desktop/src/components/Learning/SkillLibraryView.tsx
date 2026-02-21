@@ -1,9 +1,10 @@
-import { BookOpen, Edit, Play, Search, Trash2, MoreVertical, TrendingUp, Clock, Terminal } from "lucide-react"
+import { BookOpen, Edit, Play, Search, Trash2, MoreVertical, TrendingUp, Clock, Terminal, FolderDown } from "lucide-react"
 import { useState, useMemo, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { LearningService } from "@/client/sdk.gen"
+import type { PaginatedSkillsResponse } from "@/client/types.gen"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@evoloop/shared/components/ui/card"
@@ -19,6 +20,7 @@ import type { LearnedSkill } from "@/types/skill"
 import { SkillExecutionDialog } from "./SkillExecutionDialog"
 import { SkillEditorDialog } from "./SkillEditorDialog"
 import { SkillDetailsPanel } from "./SkillDetailsPanel"
+import { ImportSkillsDialog } from "./ImportSkillsDialog"
 
 interface SkillLibraryViewProps {
     threadId: string
@@ -36,15 +38,43 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
     const [skillToEdit, setSkillToEdit] = useState<LearnedSkill | null>(null)
     const [executionOpen, setExecutionOpen] = useState(false)
     const [editingOpen, setEditingOpen] = useState(false)
-    const [detailsOpen, setDetailsOpen] = useState(false)
 
-    const { data: skills = [], isLoading } = useQuery({
-        queryKey: ["learnedSkills"],
+    const [detailsOpen, setDetailsOpen] = useState(false)
+    const [importOpen, setImportOpen] = useState(false)
+
+    // Pagination
+    const [page, setPage] = useState(1);
+    const [pageSize] = useState(20);
+
+    const { data, isLoading } = useQuery({
+        queryKey: ["learnedSkills", page, pageSize],
         queryFn: async () => {
-            const response = await LearningService.listSkills() as any
-            return response.skills || []
+            const result = (await LearningService.listSkills({
+                activeOnly: true,
+                page,
+                pageSize,
+            })) as unknown as PaginatedSkillsResponse
+
+            // Handle response format
+            if (result && Array.isArray(result.items)) {
+                return result;
+            } else if (Array.isArray((result as any).skills)) {
+                // Fallback
+                return {
+                    items: (result as any).skills,
+                    total: (result as any).skills.length,
+                    page: 1,
+                    page_size: pageSize,
+                    total_pages: 1
+                } as PaginatedSkillsResponse
+            }
+            return { items: [], total: 0, page: 1, page_size: pageSize, total_pages: 0 } as PaginatedSkillsResponse
         },
     })
+
+    const skills = data?.items || [];
+    const totalSkills = data?.total || 0;
+    const totalPages = data?.total_pages || 0;
 
     // Handle auto-open editor if highlightSkillId is provided
     useEffect(() => {
@@ -70,9 +100,10 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
     })
 
     const filteredSkills = useMemo(() => {
-        if (!searchQuery) return skills
+        const items = (skills as unknown as LearnedSkill[])
+        if (!searchQuery) return items
         const q = searchQuery.toLowerCase()
-        return skills.filter((s: LearnedSkill) =>
+        return items.filter((s: LearnedSkill) =>
             s.name.toLowerCase().includes(q) ||
             s.description.toLowerCase().includes(q)
         )
@@ -103,8 +134,17 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                     />
                 </div>
                 <div className="flex gap-2">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-10 text-xs gap-1.5"
+                        onClick={() => setImportOpen(true)}
+                    >
+                        <FolderDown className="h-3.5 w-3.5" />
+                        {t("learning.import.button", "Import")}
+                    </Button>
                     <Badge variant="outline" className="px-3 py-1 font-bold">
-                        {skills.length} {t("learning.editor.triggersCount")}
+                        {totalSkills} {t("learning.totalSkills")}
                     </Badge>
                 </div>
             </div>
@@ -124,7 +164,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-1">
-                        {filteredSkills.map((skill: LearnedSkill) => (
+                        {(filteredSkills as unknown as LearnedSkill[]).map((skill: LearnedSkill) => (
                             <Card
                                 key={skill.id}
                                 className="group hover:border-primary/30 transition-all border shadow-sm rounded-xl overflow-hidden flex flex-col cursor-pointer"
@@ -183,7 +223,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                                     <div className="flex flex-wrap gap-1.5 mt-3">
                                         {skill.instructions && (
                                             <Badge variant="default" className="text-[9px] bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/20">
-                                                <Terminal className="h-3 w-3 mr-1" /> {t("learning.expertBadge", "Expert SOP")}
+                                                <Terminal className="h-3 w-3 mr-1" /> {t("learning.expertBadge", "Expert Skill")}
                                             </Badge>
                                         )}
                                         {skill.tools_used?.slice(0, 2).map((tool, j) => (
@@ -214,6 +254,31 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                 )}
             </ScrollArea>
 
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-4 py-2 bg-card border-t text-sm">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={page <= 1 || isLoading}
+                        onClick={() => setPage(p => Math.max(1, p - 1))}
+                    >
+                        &lt; {t("common.prev", "Prev")}
+                    </Button>
+                    <span className="text-muted-foreground">
+                        {page} / {totalPages}
+                    </span>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={page >= totalPages || isLoading}
+                        onClick={() => setPage(p => p + 1)}
+                    >
+                        {t("common.next", "Next")} &gt;
+                    </Button>
+                </div>
+            )}
+
             {skillToExecute && (
                 <SkillExecutionDialog
                     open={executionOpen}
@@ -232,6 +297,12 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                     onSuccess={() => queryClient.invalidateQueries({ queryKey: ["learnedSkills"] })}
                 />
             )}
+
+            <ImportSkillsDialog
+                isOpen={importOpen}
+                onClose={() => setImportOpen(false)}
+                onSuccess={() => queryClient.invalidateQueries({ queryKey: ["learnedSkills"] })}
+            />
 
             <SkillDetailsPanel
                 skill={selectedSkill}

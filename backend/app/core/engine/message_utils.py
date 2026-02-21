@@ -16,6 +16,7 @@ from langchain_core.messages import (
 
 from app.constants import MAX_OUTPUT_LENGTH
 from app.i18n.service import i18n
+from app.infrastructure.llm.model_profile import get_profile
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +27,6 @@ _DEFAULT_WINDOW_SIZE = 30
 def _get_truncate_limit(model: str | None = None) -> int:
     """Get truncate limit from ModelProfile, falling back to MAX_OUTPUT_LENGTH."""
     try:
-        from app.core.llm.model_profile import get_profile
         profile = get_profile(model) if model else None
         if profile:
             return profile.truncate_limit_chars
@@ -38,7 +38,6 @@ def _get_truncate_limit(model: str | None = None) -> int:
 def _get_window_size(model: str | None = None) -> int:
     """Get window size from ModelProfile, falling back to default."""
     try:
-        from app.core.llm.model_profile import get_profile
         profile = get_profile(model) if model else None
         if profile:
             return profile.window_size

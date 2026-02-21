@@ -36,14 +36,13 @@ export function SynthesizeSkillDialog({
   const [isSynthesizing, setIsSynthesizing] = useState(false)
   const [result, setResult] = useState<{ id: number; name: string; description?: string; trigger_patterns?: string[]; parameters?: any[] } | null>(null)
   const [editedName, setEditedName] = useState("")
-  const [autoOptimize, setAutoOptimize] = useState(true)
   const [isUpdating, setIsUpdating] = useState(false)
 
   const handleSynthesize = async () => {
     setIsSynthesizing(true)
     try {
       const response = (await LearningService.synthesizeSkill({
-        requestBody: { thread_id: threadId, session_id: sessionId, auto_optimize: autoOptimize } as any,
+        requestBody: { thread_id: threadId, session_id: sessionId } as any,
       })) as any
       if (response.success) {
         toast.success(t("learning.synthesisSuccess", "Skill created successfully!"))
@@ -166,25 +165,6 @@ export function SynthesizeSkillDialog({
               {t("learning.synthesisPrompt")}
             </div>
 
-            <div className="flex items-center justify-between px-1">
-              <div className="space-y-0.5">
-                <div className="text-[10px] font-bold uppercase flex items-center gap-1.5">
-                  <Sparkles className="h-3 w-3 text-yellow-500" />
-                  {t("learning.autoOptimize", "Auto-Optimize Steps")}
-                </div>
-                <div className="text-[10px] text-muted-foreground">
-                  {t("learning.autoOptimizeDesc", "Remove redundant actions and streamline logic")}
-                </div>
-              </div>
-              <Button
-                variant={autoOptimize ? "default" : "outline"}
-                size="sm"
-                className="h-7 text-[10px] px-3"
-                onClick={() => setAutoOptimize(!autoOptimize)}
-              >
-                {autoOptimize ? t("common.enabled") : t("common.disabled")}
-              </Button>
-            </div>
           </div>
         )}
 

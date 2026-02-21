@@ -42,10 +42,10 @@ class SmartPruningStrategy:
 
         # --- Dynamic threshold from ModelProfile ---
         try:
-            from app.core.llm.model_profile import get_profile
+            from app.infrastructure.llm.model_profile import get_current_profile
             from app.utils.token import count_messages_tokens
 
-            profile = get_profile(model) if model else None
+            profile = get_current_profile(model) if model else None
             if profile:
                 total_tokens = count_messages_tokens(messages, model or "gpt-4o")
                 threshold = profile.prune_threshold_tokens

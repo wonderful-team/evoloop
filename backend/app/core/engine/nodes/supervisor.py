@@ -310,7 +310,7 @@ class SupervisorNode:
     ) -> dict[str, Any]:
         """Build context for LLM planning."""
         from app.core.tools.registry import get_node_tools
-        from app.core.system import SystemConfigService
+        from app.infrastructure.config.service import SystemConfigService
         from app.infrastructure.mcp.client import mcp_client_manager
 
         # 1. Get Tools

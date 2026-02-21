@@ -11,7 +11,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage
 
 from app.core.config import settings
-from app.core.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class VisionLLMFactory:
         """
         Create a Vision-capable LLM instance using the core LLMFactory.
         """
-        from app.core.system.service import SystemConfigService
+        from app.infrastructure.config.service import SystemConfigService
 
         # Fetch dynamic config for vision specifically
         db_vision_model = SystemConfigService.get_value("VISION_MODEL")

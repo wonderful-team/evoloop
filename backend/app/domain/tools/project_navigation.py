@@ -32,7 +32,7 @@ async def list_project_structure(
     except ValueError as e:
         return str(e)
 
-    from app.core.context.tree_generator import AnnotatedTreeGenerator
+    from app.domain.project.tree_generator import AnnotatedTreeGenerator
 
     try:
         generator = AnnotatedTreeGenerator(

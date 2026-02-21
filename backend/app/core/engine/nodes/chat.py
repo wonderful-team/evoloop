@@ -3,10 +3,9 @@ from typing import Any
 from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableConfig
-
 from app.core.engine.message_utils import repair_message_history
 from app.core.engine.state import AgentState
-from app.core.llm.factory import LLMFactory
+from app.infrastructure.llm.factory import LLMFactory
 from app.i18n.service import i18n
 
 
@@ -60,7 +59,7 @@ Keep responses concise and friendly.
     # (Moved to top for relevance detection)
 
     # Language preference
-    from app.core.system import SystemConfigService
+    from app.infrastructure.config.service import SystemConfigService
 
     user_lang = SystemConfigService.get_language_preference()
 

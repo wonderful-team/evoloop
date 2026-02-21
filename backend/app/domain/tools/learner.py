@@ -5,9 +5,9 @@ from langchain_core.messages import SystemMessage
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
 
-from app.core.llm.factory import LLMFactory
 from app.core.memory import memory_manager
-from app.core.system import SystemConfigService
+from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.llm.factory import LLMFactory
 from app.i18n.service import i18n
 from app.logging import logger
 from app.core.context.manager import ContextManager

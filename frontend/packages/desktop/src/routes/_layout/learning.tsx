@@ -59,23 +59,23 @@ function LearningPage() {
                 </div>
             </div>
 
-            <Tabs value={activeTab} onValueChange={setActiveTab as any} className="w-full h-full flex flex-col">
+            <Tabs value={activeTab} onValueChange={setActiveTab as any} className="w-full h-full flex flex-col overflow-hidden">
                 <TabsList className="bg-muted/30 p-1 rounded-lg border self-start mb-2">
-                    <TabsTrigger value="library" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
+                    <TabsTrigger value="library" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left">
                         <BookOpen className="h-3.5 w-3.5" />
                         {t("learning.tabs.library", "Skill Library")}
                     </TabsTrigger>
-                    <TabsTrigger value="recording" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
+                    <TabsTrigger value="recording" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left">
                         <Sparkles className="h-3.5 w-3.5" />
                         {t("learning.tabs.recording", "Active Recording")}
                     </TabsTrigger>
-                    <TabsTrigger value="mcp" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all">
+                    <TabsTrigger value="mcp" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left">
                         <Server className="h-3.5 w-3.5" />
                         {t("sidebar.mcpServers", "MCP Servers")}
                     </TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="library" className="flex-1 mt-0">
+                <TabsContent value="library" className="flex-1 mt-0 overflow-hidden outline-none">
                     <SkillLibraryView
                         threadId="global"
                         highlightSkillId={highlightSkillId}
@@ -83,14 +83,14 @@ function LearningPage() {
                     />
                 </TabsContent>
 
-                <TabsContent value="recording" className="flex-1 mt-0">
+                <TabsContent value="recording" className="flex-1 mt-0 overflow-hidden outline-none">
                     <AndroidMirrorConsole onOpenEditor={(skillId) => {
                         setHighlightSkillId(skillId);
                         setActiveTab("library");
                     }} />
                 </TabsContent>
 
-                <TabsContent value="mcp" className="flex-1 mt-0">
+                <TabsContent value="mcp" className="flex-1 mt-0 overflow-hidden outline-none">
                     <McpView />
                 </TabsContent>
             </Tabs>

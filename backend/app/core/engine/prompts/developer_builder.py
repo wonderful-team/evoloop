@@ -5,7 +5,7 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.state import AgentState
-from app.core.system import SystemConfigService
+from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 

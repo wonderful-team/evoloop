@@ -1,4 +1,4 @@
-from app.core.system import SystemConfigService
+from app.infrastructure.config.service import SystemConfigService
 from app.i18n.service import i18n
 
 

@@ -2,9 +2,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user
-from app.core.system import EmbeddingConfigService
-from app.core.system import LLMConfigService
-from app.core.system import SystemConfigService
+from app.infrastructure.config import EmbeddingConfigService, LLMConfigService
+from app.infrastructure.config.service import SystemConfigService
 from app.models.config import SystemConfig
 
 router = APIRouter(prefix="/system", tags=["system"])

@@ -1,6 +1,7 @@
 import logging
 
 from app.infrastructure.database.graph.driver import get_graph_db
+from app.infrastructure.llm.factory import get_default_llm
 
 logger = logging.getLogger(__name__)
 
@@ -150,9 +151,7 @@ class DirectorySummarizer:
     async def generate_summary(self, dir_path: str, child_summaries: list[str]) -> str:
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        from app.core.llm.factory import LLMFactory
-
-        llm = LLMFactory.create_llm()
+        llm = get_default_llm()
 
         # Context Management: If too many children, sample or hierarchically summarize?
         # V1: Just join.

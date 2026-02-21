@@ -3,7 +3,6 @@ import os
 
 from app.core.events import system_bus
 from app.domain.codebase.indexing.service import IndexingService
-from app.domain.project.service import project_context_manager
 from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
@@ -164,7 +163,7 @@ class ProjectSyncService:
     async def _resolve_existing_project_id(self, path: str) -> int | None:
         """Try to resolve Project ID from Context/Settings/Cache."""
         try:
-            projects = await project_context_manager.scan_projects()
+            projects = await evocloud_manager.scan_projects()
             abs_path = os.path.abspath(path)
             for p in projects:
                 if p.get("path") and os.path.abspath(p.get("path")) == abs_path:

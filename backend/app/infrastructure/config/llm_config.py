@@ -2,7 +2,7 @@ import logging
 
 from langchain_openai import ChatOpenAI
 
-from app.core.system.service import SystemConfigService
+from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +14,8 @@ class LLMConfigService:
         Pre-flight check: Validates that the LLM can actually generate text.
         """
         try:
-            # Create temporary LLM
             if provider in ["anthropic", "kimi"] or "api/anthropic" in (base_url or ""):
-                from app.core.llm.anthropic_adapter import CompatibleChatAnthropic
+                from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 
                 llm = CompatibleChatAnthropic(
                     api_key=api_key,

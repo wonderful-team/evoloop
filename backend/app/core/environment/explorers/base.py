@@ -4,6 +4,8 @@ import logging
 from abc import ABC, abstractmethod
 from typing import List, Dict, Optional
 
+from app.infrastructure.llm.vision import get_vision_llm
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,10 +29,9 @@ class BaseExplorer(ABC):
             return {}
 
         try:
-            from app.core.llm.factory import LLMFactory
             from langchain_core.messages import SystemMessage, HumanMessage
 
-            llm = LLMFactory.create_llm(temperature=0)
+            llm = get_vision_llm(temperature=0)
             
             prompt = (
                 f"You are an expert at identifying high-value productivity/lifestyle {platform} apps from their names.\n"

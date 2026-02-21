@@ -3,7 +3,7 @@ import logging
 from langchain_anthropic import ChatAnthropic
 
 from app.core.config import settings
-from app.core.llm.adaptive import AdaptiveChatOpenAI
+from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +19,7 @@ class LLMFactory:
         Create a standard ChatOpenAI instance.
         Prioritizes SystemConfig (Dynamic) > Settings (Env Checks).
         """
-        from app.core.system.service import SystemConfigService
+        from app.infrastructure.config.service import SystemConfigService
 
         # 1. Fetch Config
         db_provider = SystemConfigService.get_value("LLM_PROVIDER")
@@ -36,7 +36,7 @@ class LLMFactory:
 
         # Anthropic / Claude Protocol Support (Zhipu, Kimi, etc.)
         if db_provider in ["anthropic", "kimi"] or "api/anthropic" in (base_url or ""):
-            from app.core.llm.anthropic_adapter import CompatibleChatAnthropic
+            from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 
             # Check for Zhipu GLM-4 (requires response patching)
             if "bigmodel.cn" in (base_url or ""):

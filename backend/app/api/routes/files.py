@@ -9,7 +9,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from app.domain.project.service import project_context_manager
+from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/projects/{project_id}/files", tags=["files"])
@@ -33,7 +33,7 @@ async def list_files(project_id: int, path: str | None = None):
     but full tree is nicer for UX.
     Let's do full tree with .gitignore respect and max depth.
     """
-    project = await project_context_manager.get_project_by_id(project_id)
+    project = await evocloud_manager.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -113,7 +113,7 @@ async def get_file_content(project_id: int, path: str = Query(..., min_length=1)
     """
     Read file content.
     """
-    project = await project_context_manager.get_project_by_id(project_id)
+    project = await evocloud_manager.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -148,7 +148,7 @@ async def get_raw_file(project_id: int, path: str = Query(..., min_length=1)):
     """
     Get raw file content (for previewing images, PDFs, etc).
     """
-    project = await project_context_manager.get_project_by_id(project_id)
+    project = await evocloud_manager.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -178,7 +178,7 @@ async def open_file(project_id: int, req: OpenFileRequest):
     """
     Open file in system default application.
     """
-    project = await project_context_manager.get_project_by_id(project_id)
+    project = await evocloud_manager.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -218,7 +218,7 @@ async def create_file(project_id: int, req: CreateFileRequest):
     """
     Create or overwrite a file.
     """
-    project = await project_context_manager.get_project_by_id(project_id)
+    project = await evocloud_manager.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -249,7 +249,7 @@ async def upload_file(project_id: int, file: UploadFile = File(...)):
     Upload a file to project's 'uploads' directory.
     Returns the URL to access it via /raw endpoint.
     """
-    project = await project_context_manager.get_project_by_id(project_id)
+    project = await evocloud_manager.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -308,7 +308,7 @@ async def search_files(project_id: int, q: str):
     if not q or len(q.strip()) < 2:
         return []
 
-    project = await project_context_manager.get_project_by_id(project_id)
+    project = await evocloud_manager.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
@@ -385,7 +385,7 @@ async def search_files_by_name(project_id: int, q: str):
     if not q or len(q.strip()) < 1:
         return []
 
-    project = await project_context_manager.get_project_by_id(project_id)
+    project = await evocloud_manager.get_project_by_id(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 

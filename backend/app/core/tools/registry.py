@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 
 from langchain_core.tools import BaseTool
 
-from app.domain.tools.runtime_registry import get_runtime_tools
+from app.core.tools.runtime_registry import get_runtime_tools
 from app.infrastructure.mcp.client import mcp_client_manager
 
 logger = logging.getLogger(__name__)
