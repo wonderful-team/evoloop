@@ -34,6 +34,11 @@ class ProjectContextManager:
         # Mapping: thread_id -> working_directory path
         self._thread_contexts: dict[str, str] = {}
         self._thread_projects: dict[str, int] = {}  # thread_id -> project_id
+        
+        # [NEW] Phase 6: Project Structure Cache
+        # Mapping: working_dir -> { "structure": str, "timestamp": float }
+        self._structure_cache: dict[str, dict] = {}
+        
         # Default fallback directory (from Settings/DB)
         db_root = SystemConfigService.get_value("PROJECTS_ROOT")
         self._default_root = os.path.abspath(db_root if db_root else settings.PROJECTS_ROOT)
@@ -68,6 +73,50 @@ class ProjectContextManager:
 
     def get_active_project(self, thread_id: str) -> int | None:
         return self._thread_projects.get(thread_id)
+
+    # --- [NEW] Phase 6: Unified Project Structure Logic ---
+
+    async def get_project_structure(self, path: str, force_refresh: bool = False) -> str:
+        """
+        Get the annotated directory tree for a path. Uses caching.
+        """
+        if not force_refresh and path in self._structure_cache:
+            logger.debug(f"[ProjectContext] Cache hit for structure: {path}")
+            return self._structure_cache[path]["structure"]
+
+        try:
+            from app.core.context.tree_generator import AnnotatedTreeGenerator
+            import time
+            
+            logger.info(f"[ProjectContext] Generating structure for: {path}")
+            # Standard constraints for Generalist Agent
+            generator = AnnotatedTreeGenerator(
+                path, 
+                max_depth=3, 
+                with_symbols=False, 
+                file_limit=30,
+                max_lines=150 # Guard against extreme bloat
+            )
+            structure = await generator.generate()
+            
+            self._structure_cache[path] = {
+                "structure": structure,
+                "timestamp": time.time()
+            }
+            return structure
+        except Exception as e:
+            logger.error(f"Failed to generate project structure: {e}")
+            return f"Error generating structure: {e}"
+
+    def invalidate_cache(self, path: str | None = None):
+        """Invalidate the structure cache for a path or all paths."""
+        if path:
+            if path in self._structure_cache:
+                del self._structure_cache[path]
+                logger.info(f"[ProjectContext] Invalidated cache for: {path}")
+        else:
+            self._structure_cache.clear()
+            logger.info("[ProjectContext] Invalidated all structure caches")
 
     def clear_context(self, thread_id: str):
         """Remove context for a thread."""

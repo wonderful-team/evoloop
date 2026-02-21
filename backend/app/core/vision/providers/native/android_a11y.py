@@ -10,7 +10,7 @@ import re
 import xml.etree.ElementTree as ET
 from typing import Any, Optional
 
-from app.domain.tools.environment.drivers.adb import adb_driver, ADBError
+from app.infrastructure.drivers.adb import adb_driver, ADBError
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
 

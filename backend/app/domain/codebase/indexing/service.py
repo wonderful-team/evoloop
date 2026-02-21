@@ -10,13 +10,11 @@ from app.domain.codebase.indexing.components.content_indexer import ContentIndex
 from app.domain.codebase.indexing.components.file_preparer import FilePreparer
 from app.domain.codebase.indexing.components.graph_syncer import GraphSyncer
 from app.domain.codebase.indexing.components.sql_persister import SQLPersister
-from app.domain.codebase.indexing.extractors.treesitter_extractor import (
-    TreeSitterExtractor,
-)
-from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
+from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import (
     Repository,
     SourceFile,

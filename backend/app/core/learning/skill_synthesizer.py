@@ -35,19 +35,6 @@ class SkillParameter:
 
 
 @dataclass
-class SkillStep:
-    """A single step in a skill execution plan."""
-
-    action: str  # Tool name or action type
-    args: dict[str, Any] = field(default_factory=dict)
-    condition: str | None = None  # Optional condition for this step
-    on_error: str | None = None  # Error handling strategy
-    visual_context: dict[str, Any] | None = None  # UI element info (text, snapshot, bounds)
-    children: list["SkillStep"] = field(default_factory=list)  # Nested steps for loops/if
-    step_id: str = field(default_factory=lambda: str(uuid4()))  # Unique ID for UI tracking
-
-
-@dataclass
 class LearnedSkill:
     """
     A complete learned skill configuration.
@@ -59,7 +46,6 @@ class LearnedSkill:
     trigger_patterns: list[str] = field(default_factory=list)
     parameters: list[SkillParameter] = field(default_factory=list)
     preconditions: list[str] = field(default_factory=list)
-    steps: list[SkillStep] = field(default_factory=list)
     instructions: str | None = None  # Markdown instructions (心法)
 
     # Metadata
@@ -92,7 +78,7 @@ Analyze the following task trace and synthesize a **reusable skill** that can au
 ## Output Requirements
 Generate a skill configuration in YAML format.
 
-**CRITICAL: The `instructions` field must be a structured "Expert Guide" (SOP) with the following sections:**
+**CRITICAL: The `instructions` field must be a structured "Expert Skill Guide" mapped to a logical `namespace` with the following sections:**
 
 ### 1. Conceptual Mental Model
 Explain the **high-level strategy** and business logic. Why are we doing this? What's the goal?
@@ -108,7 +94,7 @@ For each major phase, provide "Rule of Thumb" advice:
 - **Hidden Logic**: "Wait 1 second for the sync icon to disappear before clicking save."
 - **Common Pitfalls**: "Do not use the Cmd+N shortcut here as it sometimes fails in this app version; use the UI button instead."
 
-### 4. Error Recovery SOP
+### 4. Error Recovery Skill
 If a visual anchor is missing, what's the fallback? (e.g., "Refresh the page" or "Check if the side panel is collapsed").
 
 ```yaml
@@ -116,6 +102,7 @@ name: create_obsidian_note
 description: >
   Create a new note in Obsidian and tag it with a category. 
   Involves: [Obsidian]
+namespace: os/macos/obsidian
 trigger_patterns:
   - "Create a note named {{title}} in Obsidian"
 parameters:
@@ -124,16 +111,8 @@ parameters:
     description: Title of the note
 preconditions:
   - "Obsidian app is open"
-steps:
-  - action: desktop_control
-    trace_step_ref: 2
-    args:
-      action: "click"
-      element_text: "New Note"
-    visual_context:
-      element_text: "New Note"
 instructions: |
-  # Expert SOP: Creating Categorized Notes
+  # Expert Skill Guide: Creating Categorized Notes
   
   ## 1. Mental Model
   This skill focuses on prompt note creation while bypassing complex navigation.
@@ -203,20 +182,8 @@ class WorkflowSynthesizer:
         # Step 4: Parse YAML to LearnedSkill
         skill = self._parse_skill_yaml(yaml_output, sequence)
 
-        # [NEW] Step 4.5: Deduplication check
-        try:
-            from app.core.learning.discovery import skill_discovery
-            # Search for similar skills using the synthesized name/description
-            _, relevant = await skill_discovery.discover(skill.description or skill.name, top_k=1)
-            if relevant:
-                # Potential log or UI notification for deduplication in the future
-                logger.info(f"[Synthesizer] Found potential duplicate skill: {relevant[0].name}")
-        except Exception as e:
-            logger.warning(f"[Synthesizer] Deduplication check failed: {e}")
-
-        # Step 5: Post-synthesis optimization (Redundancy removal)
-        if auto_optimize:
-            skill.steps = self._optimize_steps(skill.steps)
+        # [NEW] Step 4.5: Physical File Export (Phase 5)
+        self._export_physical_skill(skill)
 
         return skill
 
@@ -287,91 +254,51 @@ class WorkflowSynthesizer:
                     )
                 )
 
-        # Create a map for quick lookup of trace steps by step_number
-        trace_steps_map = {step.step_number: step for step in sequence.steps}
-
-        # Recursive helper for parsing steps
-        def parse_step_node(s_dict: dict, trace_map: dict) -> SkillStep:
-            step = SkillStep(
-                action=s_dict.get("action", "unknown"),
-                args=s_dict.get("args", {}),
-                condition=s_dict.get("condition"),
-                on_error=s_dict.get("on_error"),
-            )
-
-            # Sub-steps nesting
-            if "children" in s_dict and isinstance(s_dict["children"], list):
-                step.children = [parse_step_node(c, trace_map) for c in s_dict["children"]]
-
-            # For Legacy "if" schemas in YAML (then/else logic)
-            if "then" in s_dict:
-                step.args["then"] = [parse_step_node(c, trace_map) for c in s_dict["then"]]
-            if "else" in s_dict:
-                step.args["else"] = [parse_step_node(c, trace_map) for c in s_dict["else"]]
-
-            # Enrich with visual context
-            ref_id = s_dict.get("trace_step_ref")
-            if ref_id is not None:
-                try:
-                    ref_idx = int(ref_id)
-                    if ref_idx in trace_map:
-                        trace_step = trace_map[ref_idx]
-                        if trace_step.ui_context:
-                            step.visual_context = asdict(trace_step.ui_context)
-                except (ValueError, TypeError):
-                    pass
-            return step
-
-        # Extract steps
-        steps = [
-            parse_step_node(s, trace_steps_map)
-            for s in data.get("steps", [])
-            if isinstance(s, dict)
-        ]
-
         return LearnedSkill(
             name=data.get("name", "unnamed_skill"),
             description=data.get("description", ""),
+            namespace=data.get("namespace", "misc"),
             trigger_patterns=data.get("trigger_patterns", []),
             parameters=parameters,
             preconditions=data.get("preconditions", []),
-            steps=steps,
             instructions=data.get("instructions"),
             source_thread_id=self.thread_id,
             source_session_id=self.session_id,
             tools_used=list(set(sequence.tools_used)),
         )
 
-    def _optimize_steps(self, steps: list[SkillStep]) -> list[SkillStep]:
+    def _export_physical_skill(self, skill: LearnedSkill) -> None:
         """
-        Apply heuristic optimizations to the synthesized steps.
-        - Removes redundant consecutive taps on the same element.
-        - Prunes empty logic blocks.
+        Phase 5: Export the synthesized instructions into a physical workspace 
+        folder structure based on its namespace.
         """
-        if not steps:
-            return []
-
-        optimized = []
-        last_step = None
-
-        for step in steps:
-            # Recursive optimization for children
-            if step.children:
-                step.children = self._optimize_steps(step.children)
-
-            # Heuristic 1: Remove redundant consecutive identical mobile/desktop actions
-            # e.g., tapping the same coordinates or same text twice in a row
-            if last_step and step.action == last_step.action and step.action in ["mobile_control", "desktop_control"]:
-                if step.args == last_step.args:
-                    logger.info(f"Pruning redundant consecutive action: {step.action}")
-                    continue
-
-            # Heuristic 2: Remove empty groups/loops
-            if step.action in ["group", "loop"] and not step.children:
-                logger.info(f"Pruning empty {step.action} block")
-                continue
-
-            optimized.append(step)
-            last_step = step
-
-        return optimized
+        import os
+        
+        # Base workspace skills directory
+        base_dir = os.path.expanduser("~/.evoloop/skills")
+        namespace_path = os.path.join(base_dir, skill.namespace or "misc", skill.name)
+        
+        try:
+            os.makedirs(namespace_path, exist_ok=True)
+            skill_md_path = os.path.join(namespace_path, "SKILL.md")
+            
+            # Combine YAML frontmatter and Markdown body
+            frontmatter = {
+                "name": skill.name,
+                "description": skill.description,
+                "trigger_patterns": skill.trigger_patterns,
+                "parameters": [asdict(p) for p in skill.parameters],
+                "preconditions": skill.preconditions,
+            }
+            
+            import yaml
+            content = f"---\n{yaml.dump(frontmatter, sort_keys=False)}---\n\n{skill.instructions or ''}"
+            
+            with open(skill_md_path, "w", encoding="utf-8") as f:
+                f.write(content)
+                
+            skill.resource_path = skill_md_path
+            logger.info(f"[Synthesizer] Exported physical skill {skill.name} to {skill_md_path}")
+            
+        except Exception as e:
+            logger.error(f"[Synthesizer] Failed to export physical skill file: {e}")

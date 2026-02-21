@@ -7,7 +7,7 @@ import logging
 from typing import Literal
 
 from app.core.tools import evoloop_tool
-from app.domain.tools.environment.drivers.macos import macos_driver
+from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
 

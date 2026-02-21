@@ -11,7 +11,7 @@ from app.core.memory.interfaces.long_term import (
     ILongTermMemory,
     SearchResult,
 )
-from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
+from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.infrastructure.database.graph.driver import get_graph_db
 
 logger = logging.getLogger(__name__)

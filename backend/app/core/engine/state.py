@@ -22,6 +22,7 @@ class AgentConfig(TypedDict):
     tools: list[str]  # List of tool names to hydrate
     model_override: str | None  # Optional model override (e.g. "gpt-4o")
 
+
 class ExecutionTicket(TypedDict):
     """
     Structured mission ticket for any Specialist Node.
@@ -81,13 +82,13 @@ class AgentState(TypedDict):
     # [NEW] Shared Project Context Cache
     project_context: ProjectContext | None
 
-    # Code generated (diff or content)
-    generated_code: str | None
+    # Execution artifacts (e.g. documents, code snippets)
+    execution_artifact: str | None
 
     # [NEW] Structured Execution & Verification
     execution_ticket: ExecutionTicket | None
-    test_results: str | None  # RAW logs (kept for backward compatibility)
-    structured_test_results: dict[str, Any] | None  # Aggregated counters, pass/fail status
+    raw_verification_logs: str | None  # RAW logs (kept for backward compatibility)
+    verification_status: dict[str, Any] | None  # Aggregated status from verification tools
 
     # Loop Control
     iteration_count: int
@@ -117,7 +118,6 @@ class AgentState(TypedDict):
 
     # Tool Orchestration (Phase 3.0)
     active_tool_profile: str | None  # e.g. "DEVOPS", "RESEARCH"
-    tool_retrieval_query: str | None  # e.g. "kubernetes tools"
 
     # Human-in-the-Loop State (Generic)
     # Used by documenter and other nodes for HITL flow

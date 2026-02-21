@@ -19,7 +19,7 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
     """
     llm = LLMFactory.create_llm()
     # Researcher Engine usually manages its own tools, but we should enforce it uses RBAC tools
-    from app.core.tools.registry_utils import get_node_tools
+    from app.core.tools.registry import get_node_tools
 
     tools = get_node_tools("researcher")
     # engine = DeepResearchEngine(llm) -> We need to check if Engine supports tools injection.
@@ -89,10 +89,10 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
         # Pass skills to engine if it supports prompt builders internally (e.g. for sub-tasks)
         # or combine with isolated message.
         if skills:
-            from app.core.prompts.developer_builder import DeveloperPromptBuilder
+            from app.core.engine.prompts import DeepResearchPromptBuilder
             # We can use a helper or builder to format these for the engine's internal planning
             skill_knowledge = "\n".join([f"### 📘 Skill: {s.name}\n{s.instructions}" for s in skills])
-            topic = f"{topic}\n\n### EXPERT KNOWLEDGE (SOPs)\n{skill_knowledge}"
+            topic = f"{topic}\n\n### EXPERT KNOWLEDGE (SKILLS)\n{skill_knowledge}"
 
         final_report = await engine.run(topic, previous_history=messages, max_iterations=max_iter, config=config)
 

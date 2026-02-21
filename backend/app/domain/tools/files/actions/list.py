@@ -41,7 +41,7 @@ async def handle_list(
                 target_path,
                 max_depth=max_depth,
                 with_symbols=with_symbols,
-                file_limit=30,
+                file_limit=50,
             )
             tree_output = await generator.generate()
             return tree_output

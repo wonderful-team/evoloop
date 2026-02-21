@@ -6,13 +6,13 @@ import logging
 import os
 from typing import Optional, Literal
 
-from langchain_core.tools import tool
+from app.core.tools import evoloop_tool
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
 
-@tool
+@evoloop_tool
 async def recall_memory(query: str, domain: Literal["journal", "graph", "both"] = "both") -> str:
     """
     Search the agent's long-term memory for information.
@@ -30,7 +30,6 @@ async def recall_memory(query: str, domain: Literal["journal", "graph", "both"] 
             journal_path = os.path.join(settings.BRAIN_MEMORY_ROOT, "knowledge", "journal.md")
             if os.path.exists(journal_path):
                 # Simple exact match line search for speed and simplicity
-                # In production, use Vector Store (app.domain.tools.vector_store)
                 with open(journal_path, "r", encoding="utf-8") as f:
                     lines = f.readlines()
                     

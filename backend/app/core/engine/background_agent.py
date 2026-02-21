@@ -49,15 +49,24 @@ async def _setup_project_context(thread_id: str, project_id: int, command_id: in
 
     working_dir = project_context_manager.get_working_directory(thread_id)
 
-    # Initialize Core Context
-    ctx = EvoContext(
-        request_id=f"bg-{thread_id}-{int(time.time())}",
-        thread_id=thread_id,
-        project_id=project_id,
-        working_directory=working_dir,
-        command_id=command_id
-    )
-    ContextManager.set(ctx)
+    # Phase 4 Autonomy: Attempt to load persistent context from Redis first
+    ctx = await ContextManager.load_from_redis(thread_id)
+    if not ctx:
+        # Initialize Core Context
+        ctx = EvoContext(
+            request_id=f"bg-{thread_id}-{int(time.time())}",
+            thread_id=thread_id,
+            project_id=project_id,
+            working_directory=working_dir,
+            command_id=command_id
+        )
+        ContextManager.set(ctx)
+    else:
+        # Update ephemeral request-scoped vars
+        ctx.request_id = f"bg-{thread_id}-{int(time.time())}"
+        ctx.working_directory = working_dir
+        ctx.command_id = command_id
+        ContextManager.set(ctx)
 
     return working_dir
 
@@ -213,6 +222,9 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             async for _event in graph_instance.astream(input_payload, config=config):
                 await activity_monitor.check_cancellation(thread_id)
                 pass
+
+            # Phase 4 Autonomy: Persist the subconscious Context Pool to Redis before exiting/suspending
+            await ContextManager.save_to_redis(thread_id)
 
             # Snapshot & Finish
             activity_data = await activity_monitor.get_activity(thread_id)

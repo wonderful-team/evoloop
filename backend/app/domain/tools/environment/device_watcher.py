@@ -4,7 +4,7 @@ Device Watcher - Monitors ADB device connection events.
 
 import asyncio
 import logging
-from app.domain.tools.environment.drivers.adb import adb_driver
+from app.infrastructure.drivers.adb import adb_driver
 from app.domain.tools.environment.mirror_session import mirror_manager
 
 logger = logging.getLogger(__name__)
@@ -110,7 +110,7 @@ class DeviceWatcher:
 
     async def _handle_event(self, serial: str, status: str):
         """Handle individual device events via event bus."""
-        from app.domain.environment.events import (
+        from app.core.environment.events import (
             event_bus, DeviceConnectedEvent, DeviceDisconnectedEvent
         )
         

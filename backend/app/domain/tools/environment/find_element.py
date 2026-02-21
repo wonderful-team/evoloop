@@ -11,8 +11,8 @@ from typing import Literal
 from app.core.tools import evoloop_tool
 from app.core.vision import vision_engine, VisionTask
 from app.core.vision.pipeline.manager import pipeline_manager
-from app.domain.tools.environment.drivers.macos import macos_driver
-from app.domain.tools.environment.drivers.adb import adb_driver, ADBError
+from app.infrastructure.drivers.macos import macos_driver
+from app.infrastructure.drivers.adb import adb_driver, ADBError
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +74,30 @@ async def find_element(
         
         elements = result.elements
         compressed_path = result.screenshot_path
+        
+        # Fire UI_TREE_OBSERVED event for spatial mapping (Background)
+        try:
+            from app.core.environment.events import event_bus, UiTreeObservedEvent
+            import asyncio
+            
+            if platform == "android":
+                app_info = adb_driver.get_current_app(device_id=device_id)
+                bundle_id = app_info.get("package", "unknown")
+                window_title = app_info.get("activity", "unknown")
+            else:
+                app_info = macos_driver.get_current_app()
+                bundle_id = app_info.get("bundle_id", "unknown")
+                window_title = app_info.get("title", "unknown")
+
+            asyncio.create_task(event_bus.publish(UiTreeObservedEvent(
+                platform=platform,
+                bundle_id=bundle_id,
+                window_title=window_title,
+                elements=[e.model_dump() if hasattr(e, "model_dump") else e.dict() for e in elements],
+                screenshot_hash=result.metadata.get("file_hash", "")
+            )))
+        except Exception as e:
+            logger.warning(f"Failed to publish UI_TREE_OBSERVED: {e}")
         
         # Step 3: Return all elements if requested
         if return_all or not target:

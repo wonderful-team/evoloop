@@ -29,6 +29,7 @@ from app.core.context.manager import ContextManager
 # ... (Delegate imports removed as they are now in actions)
 # Import the new dispatched tool
 from app.utils.file import write_file_contents as utils_write_file
+from app.constants import ALLOWED_DOC_EXTENSIONS
 
 
 @evoloop_tool
@@ -38,24 +39,8 @@ async def write_document(
     """
     [DOCS-ONLY] Write documentation files (.md, .txt, .json, .yaml, .csv) ONLY.
     """
-    valid_exts = [
-        ".md",
-        ".txt",
-        ".json",
-        ".yaml",
-        ".yml",
-        ".csv",
-        ".html",
-        ".htm",
-        ".css",
-        ".xml",
-        ".rst",
-        ".toml",
-        ".ini",
-        ".log",
-    ]
-    if not any(path.endswith(ext) for ext in valid_exts):
-        return f"Error: Permission Denied. You may only write to {valid_exts}. For code changes, route to Coder."
+    if not any(path.endswith(ext) for ext in ALLOWED_DOC_EXTENSIONS):
+        return f"Error: Permission Denied. You may only write to {ALLOWED_DOC_EXTENSIONS}. For code changes, route to Coder."
 
     root = get_working_directory(config)
     target_path = os.path.abspath(os.path.join(root, path))
@@ -74,24 +59,8 @@ async def edit_document(
     """
     [DOCS-ONLY] Edit documentation files (.md, .txt, .json, .yaml, .csv) ONLY.
     """
-    valid_exts = [
-        ".md",
-        ".txt",
-        ".json",
-        ".yaml",
-        ".yml",
-        ".csv",
-        ".html",
-        ".htm",
-        ".css",
-        ".xml",
-        ".rst",
-        ".toml",
-        ".ini",
-        ".log",
-    ]
-    if not any(path.endswith(ext) for ext in valid_exts):
-        return f"Error: Permission Denied. You may only edit {valid_exts}. For code changes, route to Coder."
+    if not any(path.endswith(ext) for ext in ALLOWED_DOC_EXTENSIONS):
+        return f"Error: Permission Denied. You may only edit {ALLOWED_DOC_EXTENSIONS}. For code changes, route to Coder."
 
     # Reuse generic edit tool logic or implement simple replace
     return await edit_file.ainvoke(

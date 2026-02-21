@@ -84,7 +84,7 @@ def register_event_bridge() -> None:
     Subscribes to the system bus and awakening bus to capture all relevant events.
     """
     from app.core.events import system_bus
-    from app.domain.environment.events import event_bus as awaken_bus
+    from app.core.environment.events import event_bus as awaken_bus
     
     # Subscribe to system bus (for project events)
     system_bus.subscribe_all(EventBridgeHandler.on_event)

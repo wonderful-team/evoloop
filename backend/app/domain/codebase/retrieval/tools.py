@@ -1,11 +1,10 @@
-from langchain_core.tools import tool
-
+from app.core.tools import evoloop_tool
 from app.domain.codebase.retrieval.graph_explorer import graph_explorer
 from app.domain.codebase.retrieval.service import RetrievalService
 from app.core.context.manager import ContextManager
 
 
-@tool
+@evoloop_tool
 async def search_codebase(query: str, project_id: int | None = None) -> str:
     """
     Search the codebase using a combination of Graph (symbol) search and Vector (semantic) search.
@@ -72,7 +71,7 @@ async def search_codebase(query: str, project_id: int | None = None) -> str:
     return "\n\n---\n\n".join(output_parts)
 
 
-@tool
+@evoloop_tool
 async def query_graph_natural_language(question: str, project_id: int) -> str:
     """
     Explore the codebase knowledge graph using natural language.

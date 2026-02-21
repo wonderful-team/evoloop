@@ -120,6 +120,21 @@ class CompatibleChatAnthropic(ChatAnthropic):
             msg = AIMessage(content=content[0]["text"])
         elif any(block["type"] == "tool_use" for block in content):
             tool_calls = extract_tool_calls(content)
+
+            # Manual fallback if library extraction fails but content has tool_use blocks
+            if not tool_calls:
+                manual_calls = []
+                for block in content:
+                    if isinstance(block, dict) and block.get("type") == "tool_use":
+                        manual_calls.append({
+                            "name": block.get("name"),
+                            "args": block.get("input") or {},
+                            "id": block.get("id"),
+                            "type": "tool_call" # internal marker
+                        })
+                if manual_calls:
+                    tool_calls = manual_calls
+
             msg = AIMessage(
                 content=content,
                 tool_calls=tool_calls,

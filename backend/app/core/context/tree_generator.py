@@ -97,23 +97,27 @@ class AnnotatedTreeGenerator:
             return render
 
         # Level 2: No Methods
-        render = self._render_node(root_node, include_classes=True, include_methods=False)
+        render = self._render_node(root_node, include_classes=True, include_methods=False, max_depth=self.max_depth)
         if self._is_within_limit(render):
             return render + "\n(Methods hidden due to size)"
 
         # Level 3: No Classes (Files only)
-        render = self._render_node(root_node, include_classes=False, include_methods=False)
+        render = self._render_node(root_node, include_classes=False, include_methods=False, max_depth=self.max_depth)
         if self._is_within_limit(render):
             return render + "\n(Symbols hidden due to size)"
 
-        # Level 4: Truncated Files (handled by max_lines in loop usually, but here we can enforce depth)
-        # For now, just return the truncated Level 3
-        return self._truncate_lines(render)
+        # Level 4: Truncated Files (enforce max_lines during rendering)
+        render = self._render_node(root_node, include_classes=False, include_methods=False, max_depth=self.max_depth, truncate_at_line=self.max_lines)
+        return render + "\n(Tree truncated due to size. Use 'list_project_structure' with deeper filters to see more.)"
 
     def _is_within_limit(self, text: str) -> bool:
+        if not self.max_lines:
+            return True
         return text.count("\n") <= self.max_lines
 
     def _truncate_lines(self, text: str) -> str:
+        if not self.max_lines:
+            return text
         lines = text.split("\n")
         if len(lines) > self.max_lines:
             return "\n".join(lines[: self.max_lines]) + f"\n... [Truncated at {self.max_lines} lines]"

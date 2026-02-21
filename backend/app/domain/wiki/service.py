@@ -4,13 +4,19 @@ import os
 import re
 from datetime import datetime
 
+from langchain_core.messages import HumanMessage
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.db import engine
+from app.core.engine.prompts import WikiBuilder
+from app.core.file.service import walk_tree, filter_code_files
+from app.core.memory import memory_manager
+from app.domain.project.service import project_context_manager
 from app.i18n.service import i18n
 from app.models.wiki import WikiPage
+from app.utils.file import normalize_path
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +65,6 @@ class WikiService:
         Generates a simplified file tree string using standard file utilities.
         """
         try:
-            from app.core.file.service import filter_code_files, walk_tree
-            from app.utils.file import normalize_path
-
             # 1. Get all valid file paths (absolute)
             # walk_tree handles standard directory exclusion (node_modules, .git, etc.)
             all_files_abs = list(walk_tree(root_path))
@@ -150,11 +153,6 @@ class WikiService:
         if not getattr(settings, 'WIKI_EXTRACT_CONCEPTS', True):
             return []
 
-        from langchain_core.messages import HumanMessage
-
-        from app.core.memory import memory_manager
-        from app.core.prompts import WikiBuilder
-
         try:
             # Build extraction prompt
             extraction_prompt = WikiBuilder.build_concept_extraction_prompt(page_title, page_content)
@@ -198,10 +196,6 @@ class WikiService:
         Validate Wiki structure completeness using LLM-based dynamic analysis.
         Returns updated structure with any missing pages added.
         """
-        from langchain_core.messages import HumanMessage
-
-        from app.core.prompts import WikiBuilder
-
         try:
             validation_prompt = WikiBuilder.build_validation_prompt(structure_data, project_context)
             response = await llm.ainvoke([HumanMessage(content=validation_prompt)])
@@ -255,11 +249,6 @@ class WikiService:
         Phase 1: Determine Structure (Planner).
         Phase 2: Generate Page Content (Writer).
         """
-        from langchain_core.messages import HumanMessage
-
-        from app.core.prompts import WikiBuilder
-        from app.domain.project.service import project_context_manager
-
         logger.info(f"Starting Wiki Generation for project {project_id}")
 
         # 0. Context Setup

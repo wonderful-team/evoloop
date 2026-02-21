@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from typing import Any
@@ -6,12 +7,12 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine import AgentEngine, repair_message_history
+from app.core.context import ContextManager
 from app.core.engine.state import AgentState
-from app.core.prompts.developer_builder import DeveloperPromptBuilder
-from app.core.tools.registry_utils import get_node_tools
-from app.domain.tools.vector_store import pg_tool_retriever
+from app.core.engine.prompts import DeveloperPromptBuilder
+from app.core.tools.registry import get_node_tools
+from app.domain.project.service import project_context_manager
 from app.infrastructure.mcp.client import mcp_client_manager
-from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -43,14 +44,16 @@ class DeveloperNode:
         # 2b. Skill Retrieval (Knowledge Injection)
         skills = await self._get_skills(state)
         
-        # 3. Generate Project Structure (Cached)
-        cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
-        project_context = state.get("project_context") or {}
-        if project_context.get("structure"):
-            project_structure = project_context["structure"]
-            logger.info("[Developer] 🌳 Cache Hit: Using cached project structure")
+        # 3. Project Structure (Conditional)
+        # Use automated EvoContext hydration if available, otherwise fallback to config/cwd
+        ctx = ContextManager.current()
+        cwd = ctx.working_directory or config.get("configurable", {}).get("working_directory")
+        
+        # Always use the centralized cache via the manager.
+        if cwd:
+            project_structure = await project_context_manager.get_project_structure(cwd)
         else:
-            project_structure = await self._generate_project_tree(cwd)
+            project_structure = "No Local Workspace Attached (Operating in Universal/Global Mode)"
         
         # 4. Prompt Construction
         prompt_builder = DeveloperPromptBuilder(
@@ -141,41 +144,39 @@ Please execute this mission now. Use your tools to verify success against the cr
                 result["scratchpad"] = {}
             result["project_context"] = {"structure": None, "structure_updated_at": 0.0}
             
-        # [NEW] Phase 8.2: Structured Test Result Capture
-        # We look for test/run signals in the history
-        test_summary = {"total": 0, "passed": 0, "failed": 0, "status": "unknown"}
+        # [NEW] Phase 8.2: Validation & Verification Capture
+        # We look for verification signals in the history to inform the Reviewer
+        verification_summary = {"status": "unverified", "signals": []}
         for t_sig in tool_history:
-            # Simple heuristic: look for 'pytest' or 'test' in the tool signature/content
-            if "test" in t_sig.lower() or "run_command" in t_sig.lower():
-                # We assume the last test tool call is the most relevant
-                # In a real scenario, we might parse the ToolMessage content
-                # For now, we flag it for Supervisor observation
-                test_summary["status"] = "verified" # Marker that testing was attempted
+            # General heuristic: any read/execution tool indicates an attempt to verify
+            if any(k in t_sig.lower() for k in ["test", "verify", "run", "read", "list", "analyze_"]):
+                verification_summary["status"] = "verified"
+                # Store the tool name as a signal
+                tool_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
+                if tool_name not in verification_summary["signals"]:
+                    verification_summary["signals"].append(tool_name)
         
-        result["structured_test_results"] = test_summary
+        result["verification_status"] = verification_summary
             
         return result
 
     async def _get_tools(self, state: AgentState) -> list[Any]:
-        """Combine Developer tools + Dynamic tools."""
+        """Combine Developer tools + MCP tools."""
         # A. Static Core Tools (FileSystem, Shell, etc.)
         tools = get_node_tools("developer") 
         
         # Deduplicate and start combined map
         combined_map = {t.name: t for t in tools}
 
-        # B. Dynamic (RAG Tools)
-        retrieval_query = state.get("tool_retrieval_query")
-        if retrieval_query:
-            records = await pg_tool_retriever.search_tools(retrieval_query, k=5)
-            all_mcp = mcp_client_manager.get_tools()
-            mcp_map = {t.name: t for t in all_mcp}
-
-            for rec in records:
-                if rec["name"] in mcp_map:
-                    combined_map[rec["name"]] = mcp_map[rec["name"]]
+        # B. MCP Tools (Explicitly mounted)
+        all_mcp = mcp_client_manager.get_tools()
+        for t in all_mcp:
+            if t.name not in combined_map:
+                combined_map[t.name] = t
         
-        return list(combined_map.values())
+        # Add navigation tools
+        all_tools = list(combined_map.values())
+        return all_tools
 
     async def _get_skills(self, state: AgentState) -> list:
         """检索与当前任务相关的技能知识。"""
@@ -201,19 +202,10 @@ Please execute this mission now. Use your tools to verify success against the cr
             logger.warning(f"[Developer] Skill retrieval failed: {e}")
             return []
 
-    async def _generate_project_tree(self, cwd: str) -> str:
-        try:
-            from app.core.context import AnnotatedTreeGenerator
-            generator = AnnotatedTreeGenerator(cwd, max_depth=3, with_symbols=False, file_limit=30)
-            return await generator.generate()
-        except Exception as e:
-            return f"Tree error: {e}"
-
     async def _hydrate_context(self, context: dict, cwd: str) -> str:
         """Hydrate focus files into content."""
         if isinstance(context, str):
             try:
-                import json
                 context = json.loads(context)
             except Exception:
                 context = {}

@@ -53,7 +53,7 @@ class DeepResearchEngine:
         logger.info(f"{log_prefix} Phase 1: Planning")
 
         # Construct the planning prompt using Builder
-        from app.core.prompts import DeepResearchPromptBuilder
+        from app.core.engine.prompts import DeepResearchPromptBuilder
 
         # Context Formatting
         context_str = ""

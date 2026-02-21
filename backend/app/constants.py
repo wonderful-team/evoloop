@@ -115,6 +115,12 @@ DOC_TEXT_EXTENSIONS = [
     ".md", ".mdx", ".rst", ".txt", ".sql", ".xsq",
 ]
 
+# Extensions allowed for logic-less document management (e.g. facades.write_document)
+ALLOWED_DOC_EXTENSIONS = [
+    ".md", ".txt", ".json", ".yaml", ".yml", ".csv", ".html", ".htm", ".css",
+    ".xml", ".rst", ".toml", ".ini", ".log",
+]
+
 # Mapping file extension to document type
 FILE_EXTENSION_TO_TYPE = {
     # Text files

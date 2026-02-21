@@ -144,12 +144,12 @@ async def manage_memory_ops(action: str, key: str = None, value: str = None) -> 
 
 # Kept independent
 @mcp.tool()
-async def run_command_ops(command: str) -> str:
+async def bash_ops(command: str) -> str:
     """Run shell command."""
     try:
-        from app.domain.tools.execution import run_command
+        from app.domain.tools.execution import bash
 
-        return _truncate(await run_command.ainvoke({"command": command}))
+        return _truncate(await bash.ainvoke({"command": command}))
     except Exception as e:
         return f"Error: {e}"
 

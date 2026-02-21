@@ -1,4 +1,4 @@
-"""Add SOP lifecycle enhancement fields
+"""Add skill lifecycle enhancement fields
 
 Revision ID: i3b8c42e56f2
 Revises: h2a7b8c31d95
@@ -17,7 +17,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Add SOP lifecycle enhancement fields
+    # Add skill lifecycle enhancement fields
     op.add_column(
         "learned_skills",
         sa.Column("last_success_at", sa.DateTime(timezone=True), nullable=True),

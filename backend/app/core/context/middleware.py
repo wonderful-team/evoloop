@@ -4,6 +4,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 from app.core.context.manager import ContextManager, EvoContext
+from app.core.context.plugins import plugin_registry
 from app.core.identity import decode_local_jwt
 
 
@@ -41,8 +42,12 @@ class ContextMiddleware(BaseHTTPMiddleware):
             request_id=request_id,
             trace_id=trace_id,
             timestamp=start_time,
-            user_id=str(user_id) if user_id else None
+            user_id=str(user_id) if user_id else None,
+            thread_id=request.headers.get("X-Thread-ID")  # Optional: thread hint
         )
+        
+        # 3b. Hydrate Subconscious Plugins
+        plugin_registry.hydrate_context(ctx)
         
         # 4. Set Context & Run
         token = ContextManager.set(ctx)

@@ -139,7 +139,6 @@ class TraceParser:
         "search_codebase": ActionCategory.QUERY,
         "search_web": ActionCategory.QUERY,
         "bash": ActionCategory.COMMAND,
-        "run_command": ActionCategory.COMMAND,
         "git_operations": ActionCategory.COMMAND,
         "navigate_directory": ActionCategory.NAVIGATION,
         # Phase: Platform Control Integration

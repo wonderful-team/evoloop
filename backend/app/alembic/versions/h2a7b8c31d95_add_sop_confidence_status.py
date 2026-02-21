@@ -1,4 +1,4 @@
-"""Add SOP confidence and status fields
+"""Add skill confidence and status fields
 
 Revision ID: h2a7b8c31d95
 Revises: g9d3b5f20c84

@@ -1,11 +1,11 @@
 import logging
 import os
-import subprocess
 from dataclasses import dataclass, field
 from typing import Dict
 
 from app.i18n.service import i18n
 from app.core.context.manager import ContextManager
+from app.utils.process import run_command
 
 logger = logging.getLogger(__name__)
 
@@ -75,25 +75,15 @@ class TerminalManager:
 
         # 3. Run actual subprocess
         try:
-            # logger.debug(f"Running command: '{command}' in {session.cwd}")
-            process = subprocess.run(
+            result = run_command(
                 command,
                 cwd=session.cwd,
                 env=session.env,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
+                timeout=timeout
             )
 
-            stdout = process.stdout
-            stderr = process.stderr
-            returncode = process.returncode
+            return result.stdout, result.stderr, result.returncode
 
-            return stdout, stderr, returncode
-
-        except subprocess.TimeoutExpired:
-            return "", i18n.get("prompts.domain_tools.terminal.timeout"), 124
         except Exception as e:
             return "", str(e), 1
 

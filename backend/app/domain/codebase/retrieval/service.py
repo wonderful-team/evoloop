@@ -2,8 +2,8 @@ from typing import Any
 
 from sqlalchemy import select
 
-from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
 from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import (
     CodeEntity,
     CodeRelation,

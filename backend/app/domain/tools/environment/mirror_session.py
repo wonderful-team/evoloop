@@ -8,7 +8,7 @@ import os
 import subprocess
 from typing import Any, Optional
 
-from app.domain.tools.environment.drivers.adb import adb_driver, ADBError
+from app.infrastructure.drivers.adb import adb_driver, ADBError
 
 logger = logging.getLogger(__name__)
 

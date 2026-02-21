@@ -1,7 +1,6 @@
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import tool
 
-from app.core.tools import get_working_directory
+from app.core.tools import evoloop_tool, get_working_directory
 from app.utils.git import git_command
 
 
@@ -12,10 +11,10 @@ def _run_git(args: list[str], config: RunnableConfig | None = None) -> str:
     res = git_command(args, cwd=cwd)
     if res.success:
         return res.stdout
-    return f"Git Error: {res.stderr}"
+    return f"Error: Git command failed. {res.stderr}"
 
 
-@tool
+@evoloop_tool
 def git_status(config: RunnableConfig) -> str:
     """
     Get the current git status (branch, modified files).
@@ -23,7 +22,7 @@ def git_status(config: RunnableConfig) -> str:
     return _run_git(["status"], config)
 
 
-@tool
+@evoloop_tool
 def git_diff(config: RunnableConfig) -> str:
     """
     Show changes between working tree and index (or last commit).
@@ -32,7 +31,7 @@ def git_diff(config: RunnableConfig) -> str:
     return _run_git(["diff"], config)
 
 
-@tool
+@evoloop_tool
 def git_commit(message: str, add_all: bool = True, config: RunnableConfig = None) -> str:
     """
     Commit changes to the repository.
@@ -49,14 +48,15 @@ def git_commit(message: str, add_all: bool = True, config: RunnableConfig = None
     return _run_git(["commit", "-m", message], config)
 
 
-@tool
+@evoloop_tool
 def git_history(limit: int = 5, config: RunnableConfig = None) -> str:
     """
     Show the commit log.
     """
     return _run_git(["log", f"-n {limit}", "--pretty=format:'%h - %an, %ar : %s'"], config)
 
-@tool
+
+@evoloop_tool
 def git_create_branch(branch_name: str, config: RunnableConfig) -> str:
     """
     Create and checkout a new branch.

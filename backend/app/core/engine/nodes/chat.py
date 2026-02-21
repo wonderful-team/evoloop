@@ -22,7 +22,7 @@ async def chat_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]
     llm = LLMFactory.create_llm(temperature=0.7)
 
     # Detect Platform Relevance
-    from app.domain.environment.prompt_utils import build_environment_prompt, detect_platform_relevance
+    from app.core.environment.prompt_utils import build_environment_prompt, detect_platform_relevance
     
     # Filter out existing System Messages from history + Repair
     raw_messages = list(state.get("messages", []))

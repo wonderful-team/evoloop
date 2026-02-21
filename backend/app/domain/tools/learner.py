@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from app.core.llm.factory import LLMFactory
 from app.core.memory import memory_manager
+from app.core.system import SystemConfigService
 from app.i18n.service import i18n
 from app.logging import logger
 from app.core.context.manager import ContextManager
@@ -77,9 +78,6 @@ async def harvest_knowledge():
     # 2. Extract Concepts using LLM
     llm = LLMFactory.create_llm()
     structured_llm = llm.with_structured_output(ExtractionResult)
-
-    from app.core.system import SystemConfigService
-
     user_lang = SystemConfigService.get_language_preference()
 
     lang_directive = f"\n\nLANGUAGE PROTOCOL:\nUser Language: {user_lang}\nConcept 'description' fields MUST be written in {user_lang}.\nConcept 'name' should usually remain in English (Code)."

@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.core.system.service import SystemConfigService
 from app.infrastructure.database.graph.driver import get_graph_db
+from app.models import Repository
 
 logger = logging.getLogger(__name__)
 
@@ -20,12 +21,8 @@ class EmbeddingConfigService:
         try:
             # We temporarily override factory logic by instantiating directly or using a temp override
             # Easier to just instantiate based on provider
-            from app.domain.codebase.indexing.vectors.ollama_embedder import (
-                OllamaEmbedder,
-            )
-            from app.domain.codebase.indexing.vectors.openai_embedder import (
-                GenericOpenAIEmbedder,
-            )
+            from app.infrastructure.embeddings.ollama import OllamaEmbedder
+            from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
 
             embedder = None
             if provider in ["openai", "generic", "qwen"]:
@@ -134,7 +131,6 @@ class EmbeddingConfigService:
             # Repo is tied to project_id in SQL models.
             repo = None
             with Session(engine) as session:
-                from app.models import Repository
                 repo = session.exec(select(Repository).where(Repository.project_id == current_project_id)).first()
 
             if repo:
@@ -152,10 +148,8 @@ class EmbeddingConfigService:
         """
         driver = await get_graph_db()
         # Create a temporary embedder instance
-        from app.domain.codebase.indexing.vectors.ollama_embedder import OllamaEmbedder
-        from app.domain.codebase.indexing.vectors.openai_embedder import (
-            GenericOpenAIEmbedder,
-        )
+        from app.infrastructure.embeddings.ollama import OllamaEmbedder
+        from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
 
         embedder = None
         if provider == "ollama":

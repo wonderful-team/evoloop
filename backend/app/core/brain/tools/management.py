@@ -3,16 +3,15 @@ Explicit Memory Management Tools.
 Allows the Supervisor to manually control its Focus (Core Memory) and Journal (Archival Memory).
 """
 import logging
-import os
 from datetime import datetime
-from langchain_core.tools import tool
+from app.core.tools import evoloop_tool
 from app.core.config import settings
 from app.core.brain.filesystem.manager import BrainFileSystem
 
 logger = logging.getLogger(__name__)
 
 
-@tool
+@evoloop_tool
 async def update_focus(content: str) -> str:
     """
     Overwrites the 'Current Focus' section of your memory (Core Memory).
@@ -30,7 +29,7 @@ async def update_focus(content: str) -> str:
         return f"Error updating focus: {e}"
 
 
-@tool
+@evoloop_tool
 async def memorize(content: str, category: str = "fact") -> str:
     """
     Explicitly saves a fact to Long-term Memory (Journal) immediately.

@@ -47,8 +47,14 @@ class SkillImporter:
                 results["skipped"] += 1
                 continue
 
+            # Phase 5: Calculate relative namespace from root_dir
+            # e.g., root_dir/os/macos/click -> namespace "os/macos"
+            namespace = str(folder.parent.relative_to(root_path))
+            if namespace == ".":
+                namespace = "misc"
+
             try:
-                success = await SkillImporter.import_single_skill(folder)
+                success = await SkillImporter.import_single_skill(folder, namespace=namespace)
                 if success:
                     results["imported"] += 1
                 else:
@@ -60,7 +66,7 @@ class SkillImporter:
         return results
 
     @staticmethod
-    async def import_single_skill(skill_folder: Path) -> bool:
+    async def import_single_skill(skill_folder: Path, namespace: str = "misc") -> bool:
         """
         Import a single skill package from a folder.
         """
@@ -89,18 +95,10 @@ class SkillImporter:
             if existing:
                 # Update existing skill
                 existing.description = metadata.get("description", "")
+                existing.namespace = metadata.get("namespace", namespace)
                 existing.instructions = instructions
                 existing.resource_path = str(skill_folder.absolute())
                 existing.trigger_patterns = json.dumps([metadata["name"]] + (metadata.get("trigger_patterns", [])))
-                # For external skills, we set an empty or placeholder steps list
-                # as they rely on natural language instructions
-                existing.steps = json.dumps([
-                    {
-                        "action": "natural_language_instruction",
-                        "args": {"instruction": "Refer to skill instructions for guidance"},
-                        "description": "Standard Instructional Step"
-                    }
-                ])
                 existing.parameters = json.dumps(metadata.get("parameters", []))
                 existing.status = "verified" if validation.status == "healthy" else "candidate"
                 existing.validation_report = validation.dict()
@@ -109,16 +107,10 @@ class SkillImporter:
                 new_skill = LearnedSkill(
                     name=metadata["name"],
                     description=metadata.get("description", ""),
+                    namespace=metadata.get("namespace", namespace),
                     instructions=instructions,
                     resource_path=str(skill_folder.absolute()),
                     trigger_patterns=json.dumps([metadata["name"]] + (metadata.get("trigger_patterns", []))),
-                    steps=json.dumps([
-                        {
-                            "action": "natural_language_instruction",
-                            "args": {"instruction": "Refer to skill instructions for guidance"},
-                            "description": "Standard Instructional Step"
-                        }
-                    ]),
                     parameters=json.dumps(metadata.get("parameters", [])),
                     status="verified" if validation.status == "healthy" else "candidate",
                     is_active=True,

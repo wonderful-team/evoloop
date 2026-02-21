@@ -14,7 +14,7 @@ PROFILES: dict[str, dict[str, any]] = {
             "file_system",
             "explore_codebase",
             "manage_git",
-            "run_command",
+            "bash",
             "manage_memory",
             "consult_architecture",
             "consult_lsp",
@@ -28,7 +28,7 @@ PROFILES: dict[str, dict[str, any]] = {
             "write_file",
             "edit_file",
             "list_files",
-            "run_command",
+            "bash",
             "manage_git",
         ],  # Base tools
         "retrieval_query": "kubernetes docker helm aws cloud operations",  # Will pull in kubectl, docker CLI wrappers etc via Vector Search

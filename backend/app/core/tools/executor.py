@@ -71,7 +71,7 @@ class ToolExecutor:
         except Exception as e:
             # Learn from failure to create dynamic boundary
             try:
-                from app.domain.environment.boundaries import boundary_manager
+                from app.core.environment.boundaries import boundary_manager
                 await boundary_manager.on_tool_failure(tool_name, e, context={
                     "args": str(args)[:200]  # Truncate for safety
                 })

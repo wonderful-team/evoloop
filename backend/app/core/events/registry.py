@@ -48,6 +48,7 @@ class AwakeningEventType(str, Enum):
     # App Events
     APP_LAUNCHED = "app.launched"
     APP_PROBED = "app.probed"
+    UI_TREE_OBSERVED = "app.ui_tree_observed"
     
     # System Events
     AWAKENING_COMPLETE = "system.awakening_complete"

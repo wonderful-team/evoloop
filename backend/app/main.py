@@ -60,8 +60,9 @@ async def lifespan(_app: FastAPI):
     # 2.5 Agent Awakening - Environment & Capability Awareness
     try:
         from app.domain.codebase.indexing.event_handlers import register_indexing_handlers
-        from app.domain.environment import awaken, environment_watcher
-        from app.domain.environment.handlers import register_default_handlers
+        from app.core.environment import awaken, environment_watcher
+        from app.core.environment.handlers import register_default_handlers
+        import app.core.environment.context_plugin  # Register Context Plugins
 
         # Register event handlers before awakening
         register_default_handlers()
@@ -249,7 +250,7 @@ async def lifespan(_app: FastAPI):
 
     # Stop Environment Watcher
     try:
-        from app.domain.environment import environment_watcher
+        from app.core.environment import environment_watcher
         await environment_watcher.stop()
     except Exception as e:
         logger.warning(f"Failed to stop Environment Watcher: {e}")

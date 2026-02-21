@@ -245,7 +245,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 friendly_name = "Writing File"
             elif tool_name == "replace_file_content":
                 friendly_name = "Modifying File"
-            elif tool_name == "run_command":
+            elif tool_name == "bash":
                 try:
                     data = json.loads(input_str)
                     cmd = data.get("CommandLine")

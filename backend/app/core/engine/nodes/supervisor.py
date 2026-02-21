@@ -82,17 +82,11 @@ class SupervisorNode:
         # Phase 2: Build Context
         context = await self._build_context(state, config, messages, project_id)
 
-        # Phase 3: Single ReAct Loop with route_to tool (Core Change)
-        # Import route_to tool and add to tools list
-        from app.domain.tools.routing import route_to
-        from app.core.brain.tools.retrieval import recall_memory
-        from app.core.brain.tools.management import update_focus, memorize
-
-        # Add memory tools to the toolkit
-        tools = context["tools"] + [route_to, recall_memory, update_focus, memorize]
+        # Phase 3: Single ReAct Loop (Routing tools now provided via agent_main.yaml)
+        tools = context["tools"]
 
         # Use Builder for unified prompt construction
-        from app.core.prompts import SupervisorPromptBuilder
+        from app.core.engine.prompts import SupervisorPromptBuilder
 
         prompt_builder = SupervisorPromptBuilder(
             project_id=project_id,
@@ -315,36 +309,22 @@ class SupervisorNode:
         self, state: AgentState, config: RunnableConfig, messages: list, project_id: int
     ) -> dict[str, Any]:
         """Build context for LLM planning."""
-        from app.core.tools.registry_utils import get_node_tools
+        from app.core.tools.registry import get_node_tools
         from app.core.system import SystemConfigService
-        from app.domain.tools.retrieval import tool_retriever
         from app.infrastructure.mcp.client import mcp_client_manager
 
         # 1. Get Tools
         core_tools = get_node_tools("supervisor")
         mcp_tools = mcp_client_manager.get_tools()
-        await tool_retriever.index_tools(mcp_tools)
+        
+        # 1.1 Context Extraction (Safe access)
+        last_msg = get_last_human_message(messages)
 
-        # Build query context
-        query_context = state.get("task_status", "General task")
-        last_msg = get_message_text(messages[-1]) if messages else ""
-        query_context += f" {last_msg}"
-
-        # Dynamic k value based on task complexity
-        # Simple Q&A: fewer tools, Complex tasks: more tools
-        complexity_indicators = ["implement", "build", "create", "refactor", "design", "architect"]
-        simple_indicators = ["what", "how", "why", "explain", "?"]
-
-        k_value = 10  # Default
-        last_msg_lower = last_msg.lower()
-        if any(ind in last_msg_lower for ind in complexity_indicators):
-            k_value = 20  # Complex tasks need more tools
-        elif any(ind in last_msg_lower for ind in simple_indicators) and len(last_msg) < 100:
-            k_value = 5  # Simple Q&A needs fewer tools
-
-        # Retrieve relevant tools
-        retrieved_tools = await tool_retriever.retrieve(query_context, k=k_value)
-        tool_dict = {t.name: t for t in core_tools + retrieved_tools}
+        # In the new architecture, we provide a deterministic set of tools 
+        # plus search_native_tools for on-demand discovery.
+        # RAG-based tool retrieval is deprecated.
+        all_tools_list = core_tools + mcp_tools
+        tool_dict = {t.name: t for t in all_tools_list}
         tools = list(tool_dict.values())
 
         # 2. Get Project Concepts
@@ -361,25 +341,12 @@ class SupervisorNode:
         except Exception as e:
             project_concepts = f"\n(Concept Search Failed: {e})"
 
-        # 3. Get Project Structure (With Caching)
-        cwd = config.get("configurable", {}).get("working_directory") or os.getcwd()
-        project_context = state.get("project_context") or {}
-        cached_tree = project_context.get("structure")
-        
-        # Check cache validity (could add time-based expiry here if needed)
-        if cached_tree:
-            project_structure = cached_tree
-            logger.info("[Supervisor] 🌳 Cache Hit: Using cached project structure")
+        # 3. Project Orientation (Minimal)
+        cwd = config.get("configurable", {}).get("working_directory")
+        if cwd:
+            project_structure_stub = f"CWD: {cwd}\n(Use 'list_project_structure' to examine files if needed)"
         else:
-            project_structure = "Tree not available"
-            try:
-                from app.core.context import AnnotatedTreeGenerator
-                generator = AnnotatedTreeGenerator(cwd, max_depth=3, with_symbols=False, file_limit=30)
-                project_structure = await generator.generate()
-                # Note: We rely on the return value of this node to update the state with the new structure
-                # The actual state update happens in the return dict below
-            except Exception as e:
-                project_structure = f"Tree error: {e}"
+            project_structure_stub = "CWD: None (No Local Workspace Attached)\n(You are operating in a universal context. Do NOT assume local files exist unless specified by the user.)"
 
         # 4. Build System Info
         user_lang = SystemConfigService.get_language_preference()
@@ -456,7 +423,7 @@ class SupervisorNode:
         # 7. ATTENTION GUIDANCE PROTOCOL (Phase 21)
         protocol_prompt = """
 ### ATTENTION GUIDANCE PROTOCOL (CRITICAL)
-You act as the **SCOUT** for the Coder/Tester. They rely on your ticket for context.
+You act as the **NAVIGATOR** for the Coder/Tester. They rely on your ticket for context.
 When you call `route_to(target='developer', ...)`:
 1. **Consult the File Tree** above.
 2. Identify 1-3 files that are CRITICAL for the task.
@@ -472,9 +439,9 @@ When you call `route_to(target='developer', ...)`:
 **DO NOT** make the Coder guess. Point to the file strategies.
 """
 
-        sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage: {user_lang}\n\nProject Structure:\n{project_structure[:5000]}{project_concepts}{todo_context}\n{protocol_prompt}"
+        sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage: {user_lang}\n\nProject Architecture:\n{project_structure_stub}{project_concepts}{todo_context}\n{protocol_prompt}"
 
-        logger.info(f"[Supervisor] 📂 Context: Tree {len(project_structure)} chars, Concepts {len(project_concepts)} chars, Todos {len(todo_context)} chars")
+        logger.info(f"[Supervisor] 📂 Context: Concepts {len(project_concepts)} chars, Todos {len(todo_context)} chars")
 
         return {
             "tools": tools,
@@ -484,10 +451,6 @@ When you call `route_to(target='developer', ...)`:
             "active_plan_context": active_plan_context,
             "iteration_count": state.get("iteration_count", 0),
             "last_human_msg": last_msg,  # Pass for ambiguity check
-            "_structure_update": {
-                "structure": project_structure,
-                "structure_updated_at": 0.0 # Placeholder, actual timestamp added in reducer if needed
-            } if not cached_tree else None
         }
 
 

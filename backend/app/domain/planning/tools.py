@@ -4,11 +4,12 @@ import logging
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import BaseTool, tool
+from langchain_core.tools import BaseTool
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 
 from app.core.context.manager import ContextManager
+from app.core.tools import evoloop_tool
 
 from .models import Plan, Step
 
@@ -95,7 +96,7 @@ class PlanningTool(BaseTool):
         raise NotImplementedError("Async not implemented")
 
 
-@tool
+@evoloop_tool
 async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> str:
     """
     Create a detailed plan for the task and persist it to the database.
@@ -181,7 +182,7 @@ async def create_plan(title: str, steps: list[str], config: RunnableConfig) -> s
         return json.dumps({"error": str(e)})
 
 
-@tool
+@evoloop_tool
 async def update_step_status(
     plan_id: str,
     step_id: str,
@@ -230,7 +231,7 @@ async def update_step_status(
         return json.dumps({"error": str(e)})
 
 
-@tool
+@evoloop_tool
 async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str:
     """
     Analyze the technical feasibility of a proposed development plan.

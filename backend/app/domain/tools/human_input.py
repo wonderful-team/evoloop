@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import uuid4
 
-from langchain_core.tools import tool
+from app.core.tools import evoloop_tool
 from pydantic import BaseModel, Field
 
 from app.core.exceptions import AgentHumanInterruptException
@@ -150,7 +150,7 @@ def cancel_request(request_id: str) -> bool:
 # ============ Tools ============
 
 
-@tool("request_human_input", args_schema=RequestHumanInputArgs)
+@evoloop_tool("request_human_input", args_schema=RequestHumanInputArgs)
 async def request_human_input(
     prompt: str,
     input_type: Literal["text", "choice", "confirmation"] = "text",
@@ -261,7 +261,7 @@ async def request_human_input(
     raise AgentHumanInterruptException(request.id, response_text)
 
 
-@tool("request_approval", args_schema=RequestApprovalArgs)
+@evoloop_tool("request_approval", args_schema=RequestApprovalArgs)
 async def request_approval(
     action_description: str,
     risk_level: Literal["low", "medium", "high", "critical"] = "medium",

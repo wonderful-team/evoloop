@@ -137,6 +137,9 @@ class Settings(BaseSettings):
     AWAKENING_CORE_APPS: list[str] = ["微信", "支付宝", "12306"]
 
     # --- Cognitive Brain Configuration ---
+    # Memory Architecture Toggle (Phase 4 Autonomy)
+    USE_NEO4J_MEMORY: bool = False  # Toggle between Neo4j graph memory and legacy flat-file brain
+
     # File System
     BRAIN_MEMORY_ROOT: str = ".brain_memory"
 

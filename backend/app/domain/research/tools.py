@@ -2,27 +2,6 @@ from app.core.tools.base import evoloop_tool
 
 
 @evoloop_tool
-# @tool removed
-async def crawl_url(url: str) -> str:
-    """
-    Crawls a web page and extracts its content as Markdown using crawl4ai.
-    Useful for reading documentation, blogs, or article content.
-    """
-    try:
-        from crawl4ai import AsyncWebCrawler
-
-        async with AsyncWebCrawler(verbose=True) as crawler:
-            result = await crawler.arun(url=url)
-            return result.markdown
-
-    except ImportError:
-        return "Error: crawl4ai not installed."
-    except Exception as e:
-        return f"Error crawling {url}: {e}"
-
-
-@evoloop_tool
-# @tool removed - evoloop_tool handles it
 async def search_web(query: str) -> str:
     """
     Searches the web for the given query.

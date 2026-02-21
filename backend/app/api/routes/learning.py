@@ -5,23 +5,23 @@ Handles human-in-the-loop requests and imitation learning endpoints.
 
 import json
 import logging
+import math
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, File, UploadFile
+from fastapi import APIRouter, BackgroundTasks, HTTPException, File, UploadFile, Query
 from pathlib import Path
 import shutil
 import os
 from pydantic import BaseModel
+from sqlalchemy import select, func
 
 from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.learning.skill_importer import SkillImporter
 from app.core.learning.skill_validator import SkillValidator, ValidationResult
-from app.core.learning.skill_optimizer import SkillOptimizer
-from app.domain.tools.environment.drivers.adb import adb_driver
 from app.domain.tools.environment.mirror_session import mirror_manager
 from app.domain.tools.human_input import (
     cancel_request,
@@ -32,6 +32,7 @@ from app.domain.tools.human_input import (
     get_pending_requests_for_thread,
 )
 from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.drivers.adb import adb_driver
 from app.models import (
     Conversation,
     LearnedSkill,
@@ -84,6 +85,40 @@ class StopMirrorRequest(BaseModel):
 
 class ImportSkillsRequest(BaseModel):
     directory: str
+
+
+class SkillParameter(BaseModel):
+    name: str
+    type: str
+    description: str
+    default: Any | None = None
+    required: bool = False
+
+
+class SkillDTO(BaseModel):
+    id: int
+    name: str
+    description: str
+    namespace: str | None = None
+    trigger_patterns: list[str]
+    parameters: list[SkillParameter]
+    tools_used: list[str]
+    success_count: int
+    failure_count: int
+    is_active: bool
+    status: str
+    validation_report: dict[str, Any] | None = None
+    instructions: str | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class PaginatedSkillsResponse(BaseModel):
+    items: list[SkillDTO]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 
 # ============ Endpoints ============
@@ -631,7 +666,6 @@ async def synthesize_skill(body: SynthesizeRequest):
                 trigger_patterns=json.dumps(skill.trigger_patterns),
                 parameters=json.dumps([p.__dict__ for p in skill.parameters]),
                 preconditions=json.dumps(skill.preconditions),
-                steps=json.dumps([s.__dict__ for s in skill.steps]),
                 tools_used=json.dumps(skill.tools_used),
                 source_thread_id=skill.source_thread_id,
                 source_session_id=skill.source_session_id,
@@ -669,31 +703,42 @@ async def import_skills(body: ImportSkillsRequest):
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
 
 
-@router.get("/skills")
-async def list_skills(active_only: bool = True):
+@router.get("/skills", response_model=PaginatedSkillsResponse)
+async def list_skills(
+    active_only: bool = True,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=100),
+):
     """
-    List all learned skills.
+    List all learned skills with pagination.
     """
     async with session_scope() as db:
-        from sqlalchemy import select
-
+        # 1. Base Query
         stmt = select(LearnedSkill)
         if active_only:
             stmt = stmt.where(LearnedSkill.is_active == True)
+
+        # 2. Get Total Count
+        count_stmt = select(func.count()).select_from(stmt.subquery())
+        total = (await db.execute(count_stmt)).scalar() or 0
+
+        # 3. Apply Pagination
         stmt = stmt.order_by(LearnedSkill.created_at.desc())
+        stmt = stmt.offset((page - 1) * page_size).limit(page_size)
 
         result = await db.execute(stmt)
         skills = result.scalars().all()
 
+        total_pages = math.ceil(total / page_size) if page_size > 0 else 0
+
         return {
-            "skills": [
+            "items": [
                 {
                     "id": s.id,
                     "name": s.name,
                     "description": s.description,
                     "trigger_patterns": json.loads(s.trigger_patterns),
                     "parameters": json.loads(s.parameters) if s.parameters else [],
-                    "steps": json.loads(s.steps) if s.steps else [],
                     "tools_used": json.loads(s.tools_used) if s.tools_used else [],
                     "success_count": s.success_count,
                     "failure_count": s.failure_count,
@@ -701,9 +746,15 @@ async def list_skills(active_only: bool = True):
                     "status": s.status,
                     "validation_report": s.validation_report,
                     "instructions": s.instructions,
+                    "created_at": s.created_at,
+                    "updated_at": s.updated_at,
                 }
                 for s in skills
-            ]
+            ],
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
         }
 
 
@@ -726,10 +777,10 @@ async def get_skill(skill_id: int):
             "id": skill.id,
             "name": skill.name,
             "description": skill.description,
+            "namespace": skill.namespace,
             "trigger_patterns": json.loads(skill.trigger_patterns),
             "parameters": json.loads(skill.parameters),
             "preconditions": json.loads(skill.preconditions) if skill.preconditions else [],
-            "steps": json.loads(skill.steps),
             "tools_used": json.loads(skill.tools_used) if skill.tools_used else [],
             "source_thread_id": skill.source_thread_id,
             "source_session_id": skill.source_session_id,
@@ -760,9 +811,10 @@ async def deactivate_skill(skill_id: int):
 class UpdateSkillRequest(BaseModel):
     name: str | None = None
     description: str | None = None
+    namespace: str | None = None
     trigger_patterns: list[str] | None = None
     parameters: list[dict[str, Any]] | None = None
-    steps: list[dict[str, Any]] | None = None
+    instructions: str | None = None
     preconditions: list[dict[str, Any]] | None = None
 
 
@@ -795,6 +847,12 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
         if body.description:
             skill.description = body.description
 
+        if body.namespace:
+            skill.namespace = body.namespace
+
+        if body.instructions is not None:
+            skill.instructions = body.instructions
+
         if body.trigger_patterns is not None:
             skill.trigger_patterns = json.dumps(body.trigger_patterns)
 
@@ -802,9 +860,6 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
             # Just dump the list of dicts directly
             skill.parameters = json.dumps(body.parameters)
 
-        if body.steps is not None:
-            skill.steps = json.dumps(body.steps)
-            
         if body.preconditions is not None:
             skill.preconditions = json.dumps(body.preconditions)
 
@@ -820,7 +875,6 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
                 "description": skill.description,
                 "trigger_patterns": json.loads(skill.trigger_patterns),
                 "parameters": json.loads(skill.parameters),
-                "steps": json.loads(skill.steps) if skill.steps else [],
             },
         }
 
@@ -848,7 +902,7 @@ async def execute_skill(
         directive = (
             f"User Instruction: I need you to perform the task '{skill_name}' using your expertise.\n"
             f"Parameters: {params_str}\n\n"
-            f"Please refer to the 'EXPERT GUIDANCE (SKILLS)' section in your system instructions for the '{skill_name}' SOP and use your tools to complete it."
+            f"Please refer to the 'EXPERT GUIDANCE (SKILLS)' section in your system instructions for the '{skill_name}' and use your tools to complete it."
         )
 
         # 3. Persist Message to History
@@ -959,6 +1013,8 @@ async def upload_screenshot(file: UploadFile = File(...)):
     except Exception as e:
         logger.error(f"Failed to upload screenshot: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to upload screenshot: {str(e)}")
+
+
 @router.get("/skills/{skill_id}/validate")
 async def validate_skill(skill_id: int):
     """
@@ -982,19 +1038,3 @@ async def validate_skill(skill_id: int):
             "success": True,
             "validation": validation.dict()
         }
-
-@router.post("/skills/{skill_id}/optimize")
-async def optimize_skill(skill_id: int):
-    """
-    Trigger AI-driven optimization of a skill's instructions based on traces.
-    """
-    result = await SkillOptimizer.optimize_skill(skill_id)
-    if not result["success"]:
-        return result
-        
-    return {
-        "success": True,
-        "original": result["original"],
-        "optimized": result["optimized"],
-        "trace_count": result["trace_count"]
-    }

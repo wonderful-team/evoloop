@@ -8,7 +8,7 @@ as part of its standard ReAct loop, rather than using a separate routing call.
 import json
 from typing import Literal
 
-from langchain_core.tools import tool
+from app.core.tools import evoloop_tool
 
 # Define valid routing targets
 ROUTING_TARGETS = Literal[
@@ -22,7 +22,7 @@ ROUTING_TARGETS = Literal[
 ]
 
 
-@tool
+@evoloop_tool
 def route_to(target: ROUTING_TARGETS, reason: str, context: dict | None = None) -> str:
     """
     Route the current task to a specialist node.

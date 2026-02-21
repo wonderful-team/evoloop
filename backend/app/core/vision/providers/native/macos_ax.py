@@ -10,7 +10,7 @@ import ast
 import time
 from typing import Any, Optional
 
-from app.domain.tools.environment.drivers.macos import macos_driver
+from app.infrastructure.drivers.macos import macos_driver
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
 

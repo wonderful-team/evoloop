@@ -7,7 +7,7 @@ import logging
 from typing import Literal
 
 from app.core.tools import evoloop_tool
-from app.domain.tools.environment.drivers.adb import adb_driver, ADBError
+from app.infrastructure.drivers.adb import adb_driver, ADBError
 
 logger = logging.getLogger(__name__)
 

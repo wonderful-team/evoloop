@@ -13,7 +13,7 @@ from app.domain.codebase.indexing.base import (
 from app.domain.codebase.indexing.extractors.treesitter_extractor import (
     TreeSitterExtractor,
 )
-from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
+from app.infrastructure.embeddings.factory import EmbedderFactory
 
 logger = logging.getLogger(__name__)
 

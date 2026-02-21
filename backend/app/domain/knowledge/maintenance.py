@@ -42,7 +42,7 @@ async def wipe_knowledge_base():
 
     # 2. Postgres Cleanup (and Schema Sync)
     try:
-        from app.domain.codebase.indexing.vectors.factory import EmbedderFactory
+        from app.infrastructure.embeddings.factory import EmbedderFactory
 
         # Resolve current dimension
         try:

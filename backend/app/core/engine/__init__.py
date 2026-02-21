@@ -4,8 +4,10 @@ from typing import Any
 
 from langchain_core.messages import (
     BaseMessage,
+    HumanMessage,
     SystemMessage,
     ToolMessage,
+    AIMessage,
 )
 from langchain_core.runnables import RunnableConfig
 
@@ -161,7 +163,6 @@ class AgentEngine:
             # OBSERVE: LLM Response (Thinking)
             if response.content:
                 logger.info(f"[{name}] 🧠 Thinking: {response.content}")
-                # logger.info(f"[{name}] 🧠 Thinking: {response.content[:300]}..." if len(response.content) > 300 else f"[{name}] 🧠 Thinking: {response.content}")
 
             loop_messages.append(response)
             new_messages.append(response)
@@ -176,7 +177,7 @@ class AgentEngine:
                     target = tc["args"].get("target", "finish")
                     reason = tc["args"].get("reason", "")
                     context = tc["args"].get("context", {})
-                    
+
                     # Robustly handle JSON strings if passed by LLM instead of object
                     # Also handle potential double-encoding
                     while isinstance(context, str):
@@ -205,10 +206,19 @@ class AgentEngine:
 
                 logger.info(f"[{name}] 🛠️ Call: {tool_name} | Args: {json.dumps(tool_args)}")
 
-                # Check duplication (Phase 18: Exclude all file write tools from dedup)
+                # Check duplication (Phase 4 Autonomy: Allow state-mutating and pollable tools)
                 tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
-                file_write_tools = ["manage_file", "write_file", "edit_file", "file_system"]
-                if tool_sig in local_tool_history and tool_name not in file_write_tools:
+                from app.core.tools.registry import is_state_mutating_tool, is_pollable_tool, \
+                    get_tool_affected_paths
+
+                # We block if it's already in history AND it's neither state-mutating nor pollable
+                is_blocked = (
+                    tool_sig in local_tool_history
+                    and not is_state_mutating_tool(tool_name)
+                    and not is_pollable_tool(tool_name)
+                )
+
+                if is_blocked:
                     content = f"⚠️ SYSTEM ALERT: You have ALREADY executed `{tool_name}` with these exact arguments. Stop."
                     logger.warning(f"[{name}] 🛑 Prevented duplicate tool: {tool_sig}")
                 else:
@@ -220,26 +230,8 @@ class AgentEngine:
                     if tool:
                         try:
                             # Phase 18: Track diffs for atomic file tools
-                            snapshot_paths = []
                             thread_id = config.get("configurable", {}).get("thread_id", "unknown")
-                            
-                            if tool_name in ["write_file", "edit_file"] and isinstance(tool_args, dict):
-                                arg_path = tool_args.get("path")
-                                if arg_path:
-                                    snapshot_paths.append(arg_path)
-                            elif tool_name == "manage_file" and isinstance(tool_args, dict):
-                                arg_path = tool_args.get("absolute_path") or tool_args.get("path")
-                                action = tool_args.get("action")
-                                if arg_path and action in ["create", "update_block", "write", "overwrite", "delete"]:
-                                    snapshot_paths.append(arg_path)
-                            elif tool_name == "file_system" and isinstance(tool_args, dict):
-                                arg_path = tool_args.get("path")
-                                dest_path = tool_args.get("destination")
-                                action = tool_args.get("action")
-                                if arg_path:
-                                    snapshot_paths.append(arg_path)
-                                if action == "move" and dest_path:
-                                    snapshot_paths.append(dest_path)
+                            snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
 
                             # Capture Snapshots
                             from app.core.memory.diff import diff_tracker
@@ -288,6 +280,29 @@ class AgentEngine:
 
                 loop_messages.append(tool_msg)
                 new_messages.append(tool_msg)
+
+            # Phase 4 Autonomy: Checkpoint & Resume Warning
+            # Give the LLM one final turn to summarize its findings before the hard cap
+            if i == max_steps - 2:
+                warning_msg = HumanMessage(
+                    content=(
+                        "⚠️ SYSTEM ALERT: You are approaching the maximum iteration limit for this exact node execution. "
+                        "You have 1 step remaining. Please wrap up your current thought process, save any critical findings "
+                        "using your tools (e.g. manage_memory, write_file), or prepare to yield control back to the Supervisor."
+                    )
+                )
+                logger.warning(f"[{name}] ⚠️ Nearing max_steps ({max_steps}). Injecting wrap-up warning.")
+                loop_messages.append(warning_msg)
+                new_messages.append(warning_msg)
+
+        # Loop ended (e.g., hit max_steps without returning)
+        if len(new_messages) > 0 and len(response.tool_calls) > 0:
+            logger.error(f"[{name}] 🔴 Hit max_steps ({max_steps}) with open tool calls. Forcing termination.")
+            # Phase 4 Autonomy: Provide a clear signal that it was forcefully truncated
+            truncation_msg = AIMessage(
+                content="[System: Node execution reached maximum allowed steps. Execution was forcefully paused. The Supervisor should review progress and consider resuming.]"
+            )
+            new_messages.append(truncation_msg)
 
         return {
             "messages": new_messages,

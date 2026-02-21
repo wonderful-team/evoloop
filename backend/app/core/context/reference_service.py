@@ -3,6 +3,7 @@ import os
 from typing import List, Dict, Any, Optional, Tuple
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.constants import BINARY_EXTENSIONS
 from app.models.conversation import Message
 from app.core.file.document_reader import document_reader_service
 
@@ -20,11 +21,6 @@ class ReferenceService:
     Service to handle the standardization and processing of message/file references.
     Converts raw attachments into LLM-ready context blocks and snippets.
     """
-
-    BINARY_EXTENSIONS = [
-        ".zip", ".rar", ".7z", ".tar", ".gz",
-        ".exe", ".dll", ".so", ".bin", ".pyc"
-    ]
 
     async def process_references(
         self,
@@ -124,7 +120,7 @@ class ReferenceService:
             target_path = os.path.join(root_path, file_path.lstrip("/"))
 
         # Binary check
-        if any(target_path.lower().endswith(ext) for ext in self.BINARY_EXTENSIONS):
+        if any(target_path.lower().endswith(ext) for ext in BINARY_EXTENSIONS):
             logger.info(f"Skipping content injection for binary file: {target_path}")
             return None, f"Referencing Binary File (Content Skipped): {name}"
 
