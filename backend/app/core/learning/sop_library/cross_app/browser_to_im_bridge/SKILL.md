@@ -16,7 +16,7 @@ parameters:
     required: true
   im_app:
     type: string
-    description: Target app (WeChat, Lark, Slack). Default: WeChat.
+    description: "Target app (WeChat, Lark, Slack). Default: WeChat."
 ---
 
 # 🧠 Expert Guide (心法)

@@ -16,7 +16,7 @@ parameters:
     description: Optional filter keyword. Only collect posts containing this string.
   max_scrolls:
     type: integer
-    description: Optional. The maximum number of paginations to perform before stopping. Default: 5.
+    description: "Optional. The maximum number of paginations to perform before stopping. Default: 5."
 ---
 
 # 🧠 Expert Guide (心法)

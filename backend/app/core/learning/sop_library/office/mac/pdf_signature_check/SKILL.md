@@ -12,7 +12,7 @@ parameters:
     description: Name of the PDF file.
   page_number:
     type: integer
-    description: The page to check. Default: 1.
+    description: "The page to check. Default: 1."
 ---
 
 # 🧠 Expert Guide (心法)

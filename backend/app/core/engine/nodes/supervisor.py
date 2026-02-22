@@ -130,7 +130,7 @@ class SupervisorNode:
             execution_ticket = None
             specialists = ["operator", "deep_researcher", "documenter"]
 
-            # Phase 8: Naive Topic-based Namespace Deduction
+            # Naive Topic-based Namespace Deduction
             # Realistically this could be LLM-driven or regex-based on the topic
             base_topic = str(routing_context.get("topic") or routing_context.get("query") or "").lower()
             inferred_namespace = routing_context.get("namespace_context")
@@ -166,7 +166,7 @@ class SupervisorNode:
                     execution_ticket = {
                         "ticket_type": routing_context.get("ticket_type", "adhoc_task"),
                         "priority": "normal",
-                        "topic": "Dynamic Task",
+                        "topic": routing_reason or "Dynamic Task",
                         "acceptance_criteria": routing_context.get("acceptance_criteria", []),
                         "agent_config": agent_config,  # The Blueprint
                         # Dynamic specialist doesn't usually use focus_paths like Operator,

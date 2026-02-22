@@ -321,7 +321,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 session.add(log)
                 await session.flush()  # Get ID
 
-                # Phase 11: Real-time History Sync
+                # Real-time History Sync
                 try:
                     from app.core.monitoring.activity import activity_monitor
 
@@ -354,7 +354,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 except Exception:
                     pass
 
-                # Phase 9: Save References
+                # Save References
                 if references:
                     from app.models import MessageReference
 

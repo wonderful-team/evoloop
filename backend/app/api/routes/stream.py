@@ -139,7 +139,7 @@ async def stream_chat(thread_id: str):
                             if content:
                                 yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
 
-                        # Phase 11: Forward Message Event
+                        # Forward Message Event
                         if event_type == "message":
                             yield f"event: message\ndata: {json.dumps(event_data.get('data'))}\n\n"
 

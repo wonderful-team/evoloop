@@ -98,6 +98,14 @@ nodes:
 
   - id: "dynamic_specialist"
     path: "app.core.engine.nodes.dynamic_specialist.dynamic_specialist_node"
+    tools:
+      - "desktop_control"
+      - "analyze_image"
+      - "query_app_atlas"
+      - "list_app_atlas"
+      - "search_native_tools"
+      - "request_approval"
+      - "request_human_input"
 
 edges:
   # 1. Supervisor (Router)
@@ -208,3 +216,12 @@ role_tools:
     - "manage_memory"
     - "explore_codebase"
     - "grep_files"
+
+  "MacOS Automation Specialist":
+    - "desktop_control"
+    - "analyze_image"
+    - "query_app_atlas"
+    - "list_app_atlas"
+    - "search_native_tools"
+    - "request_approval"
+    - "request_human_input"

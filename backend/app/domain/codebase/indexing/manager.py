@@ -103,7 +103,7 @@ class IndexingManager:
                         except Exception as e:
                             logger.error(f"Directory Summarization Failed: {e}")
 
-                        # --- Phase 8: Project Cognitive Summary ---
+                        # --- Project Cognitive Summary ---
                         # Now that we have the deep directory summary, we generate the High-Level Project Overview.
                         # This ensures the "Description" and "Concepts" reflect the actual codebase structure.
                         try:
@@ -119,7 +119,7 @@ class IndexingManager:
                         except Exception as e:
                             logger.error(f"Project Summarization Trigger Failed: {e}")
 
-                        # --- Phase 9: Standards & Patterns Analysis ---
+                        # --- Standards & Patterns Analysis ---
                         # Sample code to extract implicit style guidelines for the Agent to follow.
                         try:
                             from app.domain.codebase.indexing.standards import (
@@ -129,7 +129,7 @@ class IndexingManager:
                         except Exception as e:
                             logger.error(f"Standards Analysis Failed: {e}")
 
-                        # --- Phase 10: Tier 4 Dynamic Indexing (Omniscience) ---
+                        # --- Tier 4 Dynamic Indexing (Omniscience) ---
                         # Pre-condition: Is this a Software Project?
                         try:
                             from app.domain.codebase.indexing.classifier import (

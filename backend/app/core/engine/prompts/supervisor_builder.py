@@ -43,7 +43,7 @@ class SupervisorPromptBuilder:
         # Solution C: Build Visited Nodes Warning
         visited_nodes_warning = self._build_visited_nodes_warning()
 
-        # Phase 8: Build Blackboard State Section
+        # Build Blackboard State Section
         blackboard_section = self._build_blackboard_section()
 
         # Brain Integration: Episodic Memory
@@ -52,7 +52,7 @@ class SupervisorPromptBuilder:
         # Brain Integration: Core Memory (Focus)
         core_memory = self._build_core_memory_section()
 
-        # Phase 11: Dynamic Agent Sandbox Protocol
+        # Dynamic Agent Sandbox Protocol
         dynamic_protocol = """
 ### DYNAMIC AGENT PROTOCOLS (SANDBOX)
 When you use `route_to(target="dynamic_specialist")`, you are creating a temporary agent.
@@ -243,7 +243,7 @@ DO NOT Assume intent.
         return ""
 
     def _build_blackboard_section(self) -> str:
-        """Phase 8: Build the Blackboard (Structured State) section."""
+        """Build the Blackboard (Structured State) section."""
         ticket = self.context.get("execution_ticket")
         verification_status = self.context.get("verification_status")
 

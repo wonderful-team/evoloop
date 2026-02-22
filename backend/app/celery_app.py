@@ -13,7 +13,6 @@ celery_app = Celery(
         "app.domain.wiki.tasks",
         "app.core.brain.tasks",
         "app.core.engine.tasks",
-        "app.core.learning.tasks",  # Skill embedding tasks
     ],
 )
 

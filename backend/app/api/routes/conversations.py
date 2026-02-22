@@ -63,9 +63,9 @@ class MessageItem(BaseModel):
     thinking: str | None
     created_at: str | None
     steps_snapshot: list[dict] | None = None  # Phase 6: Historical task steps
-    run_id: str | None = None  # Phase 8: Deep Linking
-    parent_id: int | None = None  # Phase 8: Threading
-    references: list[ReferenceItem] = []  # Phase 9: Persistent References
+    run_id: str | None = None  # Deep Linking
+    parent_id: int | None = None  # Threading
+    references: list[ReferenceItem] = []  # Persistent References
     steps: list[ToolStep] = []  # Phase 24: Tool Execution Steps
     has_file_operations: bool = False  # For Undo/Retry optimization
 

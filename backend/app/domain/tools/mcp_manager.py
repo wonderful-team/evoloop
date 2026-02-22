@@ -12,18 +12,13 @@ class UseMcpServerSchema(BaseModel):
     server_name: str = Field(description="The name of the MCP server to activate (e.g., 'github', 'postgres').")
 
 
-@evoloop_tool(
-    name="use_mcp_server",
-    description=(
-        "Activates an external MCP server to load its specialized tools into your current session. "
-        "Use this when you need capabilities listed in the MCP EXTERNAL CAPABILITIES directory but do not currently have the tools available. "
-        "After calling this, the required tools will be injected into your prompt on the next turn."
-    ),
-    args_schema=UseMcpServerSchema,
-)
+@evoloop_tool("use_mcp_server", args_schema=UseMcpServerSchema)
 async def use_mcp_server(server_name: str) -> str:
     """
-    Activates an MCP server and signals the Operator to reload tools.
+    Activates an external MCP server to load its specialized tools into your current session.
+    Use this when you need capabilities listed in the MCP EXTERNAL CAPABILITIES directory but do not currently have the tools available.
+    After calling this, the required tools will be injected into your prompt on the next turn.
+
     In the EvoLoop architecture, this tool is intercepted by the engine or simply
     returns instructions to the LLM to proceed, while state modifications happen
     via a state update trick if needed, or by simply returning a message.

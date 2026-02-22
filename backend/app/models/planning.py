@@ -45,7 +45,7 @@ class PlanStep(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
-    # Phase 8: Deep Linking
+    # Deep Linking
     execution_run_id: Mapped[str | None] = mapped_column(String(255), nullable=True)  # ID of the run that executed this step
 
     plan: Mapped["Plan"] = relationship(back_populates="steps")

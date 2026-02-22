@@ -60,7 +60,7 @@ class Message(Base):
 
 class MessageReference(Base):
     """
-    Phase 9: Persistent Context References
+    Persistent Context References
     Tracks what memory/knowledge/tool was used to generate a message.
     """
 
