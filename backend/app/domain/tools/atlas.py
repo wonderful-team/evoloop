@@ -1,6 +1,6 @@
 import logging
 from app.core.tools import evoloop_tool
-from app.core.learning.app_atlas_service import app_atlas_service
+from app.core.atlas import atlas_engine
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ async def query_app_atlas(bundle_ids: str | list[str]) -> str:
         A combined structured markdown summary of the requested applications' UI atlases.
     """
     try:
-        return await app_atlas_service.query_app_atlas(bundle_ids)
+        return await atlas_engine.query_app_atlas(bundle_ids)
     except Exception as e:
         logger.error(f"[AtlasTool] Failed to retrieve context for {bundle_ids}: {e}")
         return f"Error: Unable to retrieve atlas for {bundle_ids}. Details: {str(e)}"
@@ -35,7 +35,7 @@ async def list_app_atlas() -> str:
     Atlas data is built automatically as the Agent performs tasks.
     """
     try:
-        return await app_atlas_service.list_apps()
+        return await atlas_engine.list_apps()
     except Exception as e:
         logger.error(f"[AtlasTool] Failed to list apps: {e}")
         return f"Error: Unable to list apps in Atlas. Details: {str(e)}"

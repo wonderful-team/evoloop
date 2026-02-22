@@ -43,6 +43,7 @@ class LearnedSkill:
 
     name: str
     description: str
+    namespace: str = "misc"  # Logical grouping (e.g., os/macos, web/research)
     trigger_patterns: list[str] = field(default_factory=list)
     parameters: list[SkillParameter] = field(default_factory=list)
     preconditions: list[str] = field(default_factory=list)

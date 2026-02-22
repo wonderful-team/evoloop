@@ -8,6 +8,7 @@ from typing import Any, List, Optional, Tuple
 from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
 from app.core.vision.pipeline.cache import scene_cache
 from app.core.vision.providers.ocr.ocr_provider import LocalOCRProvider
+from app.core.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider
 from app.core.vision.providers.native.android_a11y import AndroidA11yProvider
 from app.core.vision.providers.native.macos_ax import MacOSAxProvider
 
@@ -117,6 +118,7 @@ class PipelineManager:
         self.providers = [
             AndroidA11yProvider(),
             MacOSAxProvider(),
+            MacOSVisionOCRProvider(),
             LocalOCRProvider(),
         ]
     

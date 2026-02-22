@@ -157,8 +157,8 @@ class AppAtlasEventHandler:
         """
         Background processing of UI trees into the Neo4j App Atlas.
         """
-        from app.core.learning.app_atlas_service import app_atlas_service
-        await app_atlas_service.on_ui_tree_observed(event)
+        from app.core.atlas import atlas_engine
+        await atlas_engine.on_ui_tree_observed(event)
 
 
 def register_default_handlers() -> None:

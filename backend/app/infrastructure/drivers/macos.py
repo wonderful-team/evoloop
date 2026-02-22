@@ -272,7 +272,7 @@ class MacOSDriver:
         """
         key_codes = {
             "enter": 36, "return": 36, "escape": 53, "esc": 53,
-            "tab": 48, "space": 49, "delete": 51, "backspace": 51,
+            "tab": 48, "space": 49, "delete": 51, "back": 51, "backspace": 51,
             "del": 117, "forward_delete": 117, "caps_lock": 57, "caps": 57,
             "up": 126, "down": 125, "left": 123, "right": 124,
             "pageup": 116, "pagedown": 121, "home": 115, "end": 119,

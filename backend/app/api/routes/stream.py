@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import verify_guest_access
 from app.core.monitoring.activity import activity_monitor
-from app.infrastructure.database.redis import redis_client
+from app.infrastructure.database.redis import redis_pubsub_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
@@ -54,7 +54,7 @@ async def stream_chat(thread_id: str):
                     yield f"event: human_request\ndata: {json.dumps(activity['human_request'])}\n\n"
 
             # 2. Subscribe to Redis Channel
-            pubsub = redis_client.pubsub()
+            pubsub = redis_pubsub_client.pubsub()
             await pubsub.subscribe(f"chat:{thread_id}:events")
 
             # 3. Stream Events

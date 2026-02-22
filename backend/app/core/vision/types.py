@@ -61,6 +61,22 @@ class UIElement:
         text_preview = self.text[:30] + "..." if len(self.text) > 30 else self.text
         return f"[{self.id}] \"{text_preview}\" ({self.x}, {self.y}) [{type_str}]"
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dictionary."""
+        return {
+            "id": self.id,
+            "text": self.text,
+            "x": self.x,
+            "y": self.y,
+            "width": self.width,
+            "height": self.height,
+            "element_type": self.element_type.value,
+            "clickable": self.clickable,
+            "confidence": self.confidence,
+            "source": self.source,
+            "metadata": self.metadata
+        }
+
 
 @dataclass
 class VisionResult:

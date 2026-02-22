@@ -56,7 +56,8 @@ async def desktop_control(
     """
     try:
         # Helper to resolve coordinates from AX Tree
-        def resolve_element_coords(name: str, role: str | None = None) -> tuple[int, int] | str:
+        async def resolve_element_coords(name: str, role: str | None = None) -> tuple[int, int] | str:
+            # 1. Try Live Accessibility Tree (Fastest)
             raw_tree = macos_driver.dump_ax_tree()
             if not raw_tree or "Error" in raw_tree:
                 return f"Error: Failed to dump Accessibility Tree: {raw_tree}"
@@ -86,7 +87,50 @@ async def desktop_control(
                         target_y = int(bounds[1] + bounds[3] / 2)
                         return target_x, target_y
             
-            return f"Error: Could not find element with name '{name}'" + (f" and role '{role}'" if role else "")
+            # 2. Try App Atlas Fallback (Historical Memory)
+            try:
+                from app.core.atlas import atlas_engine
+                app_info = macos_driver.get_current_app()
+                bundle_id = app_info.get("bundle_id")
+                
+                if bundle_id:
+                    # Query the summary and check states
+                    summary = await atlas_engine.store.get_app_summary(bundle_id)
+                    if summary and "states" in summary:
+                        for state in summary["states"]:
+                            # Fetch full state to see elements
+                            full_state = await atlas_engine.store.get_state_detail(bundle_id, state["id"])
+                            if full_state and "elements" in full_state:
+                                for el in full_state["elements"]:
+                                    # Fallback covers old (text/name) and new (label) variations
+                                    el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
+                                    if name.lower() in el_name:
+                                        # Use the stored coordinates
+                                        bounds = el.get("bounds", {})
+                                        if bounds:
+                                            return int(bounds.get("x", 0) + bounds.get("width", 0) / 2), int(bounds.get("y", 0) + bounds.get("height", 0) / 2)
+                                        elif "x" in el and "y" in el:
+                                            return int(el["x"]), int(el["y"])
+            except Exception as e:
+                logger.debug(f"[Desktop] Atlas fallback failed: {e}")
+
+            # 3. Try Local Vision OCR (Newly implemented)
+            try:
+                from app.core.vision.engine import vision_engine
+                from app.core.vision.types import VisionTask
+                
+                # Take a quick screenshot
+                temp_img = macos_driver.screenshot()
+                # Run OCR task
+                result = await vision_engine.process(VisionTask.OCR, temp_img)
+                if result.success:
+                    for el in result.elements:
+                        if name.lower() in (el.text or "").lower():
+                            return el.x, el.y
+            except Exception as e:
+                logger.debug(f"[Desktop] Vision OCR fallback failed: {e}")
+            
+            return f"Error: Could not find element with name '{name}' in live AX tree, Atlas memory, or via local OCR."
 
         if action == "screenshot":
             filepath = macos_driver.screenshot(region=region)
@@ -97,7 +141,7 @@ async def desktop_control(
 
             if element_name:
                 logger.info(f"[Desktop] Attempting to resolve semantic target: {element_name}")
-                resolved = resolve_element_coords(element_name, element_role)
+                resolved = await resolve_element_coords(element_name, element_role)
                 if isinstance(resolved, str): # Error message
                     return resolved
                 target_x, target_y = resolved

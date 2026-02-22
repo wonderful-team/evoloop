@@ -1,31 +1,32 @@
 import logging
-import json
 import hashlib
-from typing import Any, Optional, List
+from typing import Any, List, Union
 
-from app.core.environment.probers.app_model import AppModel, AppStateNode, UIElement, StateTransition
-from app.infrastructure.database.graph.atlas_store import Neo4jAtlasStore
+from app.core.atlas.models import AtlasApp, AtlasState, AtlasElement
+from app.core.atlas.ports.store import IAtlasStore
+from app.core.atlas.adapters.neo4j_store import Neo4jAtlasStore
 
 logger = logging.getLogger(__name__)
 
 
-class AppAtlasService:
+class AtlasEngine:
     """
-    Coordinator for App Atlas operations.
-    Handles data accumulation, graph persistence, and retrieval for Agent Tools.
+    Core Cognitive Engine for Spatial Memory (App Atlas).
+    Handles data accumulation (ingestion from EventBus), graph persistence, 
+    and retrieval for Agent Tools.
     """
 
-    def __init__(self, store: Neo4jAtlasStore = None):
+    def __init__(self, store: IAtlasStore = None):
         self.store = store or Neo4jAtlasStore()
 
     async def on_ui_tree_observed(self, event: Any) -> None:
         """
         Background mapping of observed UI trees into the App Atlas.
-        Listens to continuous observations from find_element/dump_ui.
+        Listens to continuous observations from the event bus.
         """
         bundle_id = event.data.get("bundle_id")
         window_title = event.data.get("window_title")
-        platform = event.data.get("platform")
+        platform = event.data.get("platform", "macos")
         elements_data = event.elements
         screenshot_hash = event.data.get("screenshot_hash")
         
@@ -33,13 +34,14 @@ class AppAtlasService:
             return
             
         try:
-            app_model = AppModel(app_name=bundle_id, bundle_id=bundle_id, platform=platform)
+            # We use 'name' or 'bundle_id' for app_name as default
+            app_model = AtlasApp(app_name=bundle_id, bundle_id=bundle_id, platform=platform)
             state_id = self._generate_state_id(bundle_id, window_title)
             
-            # Elements are passed as serialized dicts
-            elements = [UIElement.from_dict(e) for e in elements_data]
+            # Elements are passed as standardized dicts from the event payload
+            elements = [AtlasElement.from_dict(e) for e in elements_data]
             
-            state = AppStateNode(
+            state = AtlasState(
                 state_id=state_id,
                 window_title=window_title,
                 elements=elements,
@@ -48,27 +50,26 @@ class AppAtlasService:
             app_model.add_state(state)
             
             await self.store.save_app_model(app_model)
-            logger.debug(f"[AppAtlas] Background mapped state '{window_title}' for {bundle_id}")
+            logger.debug(f"[AtlasEngine] Background mapped state '{window_title}' for {bundle_id}")
             
         except Exception as e:
-            logger.error(f"[AppAtlas] Failed to index observed UI tree for {bundle_id}: {e}")
+            logger.error(f"[AtlasEngine] Failed to index observed UI tree for {bundle_id}: {e}")
 
-    async def query_app_atlas(self, bundle_ids: str | List[str]) -> str:
+    async def query_app_atlas(self, bundle_ids: Union[str, List[str]], platform: str = "macos") -> str:
         """
         Formats a structural summary of the app map for one or more applications.
-        Used by the 'query_app_atlas' tool.
         """
         if isinstance(bundle_ids, str):
             bundle_ids = [bundle_ids]
 
         all_outputs = []
         for bundle_id in bundle_ids:
-            summary = await self.store.get_app_summary(bundle_id)
+            summary = await self.store.get_app_summary(bundle_id, platform=platform)
             if not summary:
                 all_outputs.append(f"No atlas data found for application: {bundle_id}")
                 continue
 
-            transitions = await self.store.get_transitions_summary(bundle_id)
+            transitions = await self.store.get_transitions_summary(bundle_id, platform=platform)
 
             output = [
                 f"### 🗺️ App UI Atlas: {summary['app_name']} ({bundle_id})",
@@ -95,7 +96,6 @@ class AppAtlasService:
     async def list_apps(self) -> str:
         """
         Returns a formatted markdown directory of all apps with available UI maps.
-        Used by the 'list_app_atlas' tool.
         """
         apps = await self.store.list_apps()
         if not apps:
@@ -115,7 +115,3 @@ class AppAtlasService:
         # Clean title for readability
         clean_title = "".join(c for c in window_title if c.isalnum()).lower()[:20]
         return f"{clean_title}_{h}"
-
-
-# Global instance
-app_atlas_service = AppAtlasService()

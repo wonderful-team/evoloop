@@ -1,3 +1,4 @@
+import json
 import logging
 from collections.abc import Generator
 from datetime import datetime
@@ -49,11 +50,9 @@ async def get_current_user(token: TokenDep) -> User:
         # 2. Try Redis Cache first
         user_data = None
         try:
-            async with redis_client:
-                cached_data = await redis_client.get(f"evoloop:user:{member_id}")
-                if cached_data:
-                    import json
-                    user_data = json.loads(cached_data)
+            cached_data = await redis_client.get(f"evoloop:user:{member_id}")
+            if cached_data:
+                user_data = json.loads(cached_data)
         except Exception as e:
             logger.debug(f"Redis cache miss/error: {e}")
 
@@ -70,9 +69,7 @@ async def get_current_user(token: TokenDep) -> User:
             user_data = result.get("data", {})
             # Cache it back to Redis
             try:
-                async with redis_client:
-                    import json
-                    await redis_client.set(f"evoloop:user:{member_id}", json.dumps(user_data), ex=86400)
+                await redis_client.set(f"evoloop:user:{member_id}", json.dumps(user_data), ex=86400)
             except Exception:
                 pass
 
@@ -180,18 +177,15 @@ async def verify_guest_access(
         today = datetime.now().strftime("%Y-%m-%d")
         key = f"guest:usage:{today}:{effective_guest_id}"
 
-        async with redis_client:
-            current_usage = await redis_client.incr(key)
-            if current_usage == 1:
-                await redis_client.expire(key, 86400)  # 24h
+        current_usage = await redis_client.incr(key)
+        if current_usage == 1:
+            await redis_client.expire(key, 86400)  # 24h
 
         if current_usage > limit:
             raise HTTPException(
                 status_code=402,
                 detail=f"Guest limit reached ({limit}/day). Please upgrade.",
             )
-
-        # logger.info(f"Guest {effective_guest_id} usage: {current_usage}/{limit}")
 
     except HTTPException as he:
         raise he
