@@ -126,6 +126,9 @@ class SkillDiscovery:
         2. Namespace Match -> Returns all SOP instructions under that tree to the LLM (In-Context)
         3. Fails soft -> Returns empty list, forcing the LLM to write manual bash code.
         """
+        # Ensure system SOPs are loaded into the DB
+        await self._sync_system_skills()
+        
         # 1. Tier 1: Exact Regex Match (User explicitly commands a known pattern)
         match = await self._match_regex(query)
         if match:
@@ -141,7 +144,46 @@ class SkillDiscovery:
             logger.info(f"[Discovery] Mounting skill tree for namespace: {namespace_context}")
             relevant = await self._get_skills_by_namespace(namespace_context)
             
+            # Track 8: Fuzzy/Semantic Fallback within Namespace
+            # If we didn't hit a regex match but we have a namespace, try to find a soft match
+            # based on simple keyword overlap in description/name.
+            if relevant:
+                query_tokens = set(re.findall(r'\w+', query.lower()))
+                best_skill = None
+                best_score = 0
+                for skill in relevant:
+                    skill_text = f"{skill.name} {skill.description or ''}".lower()
+                    skill_tokens = set(re.findall(r'\w+', skill_text))
+                    # Jaccard-like or overlap simple score
+                    overlap = len(query_tokens.intersection(skill_tokens))
+                    if overlap > best_score and overlap >= 2: # At least 2 words overlap
+                        best_score = overlap
+                        best_skill = skill
+                        
+                if best_skill:
+                    logger.info(f"[Discovery] Regex failed, but fuzzy matched SOP: {best_skill.name} (score {best_score})")
+                    # Emulate an exact match, but with lower confidence
+                    fuzzy_match = SkillMatch(
+                        skill_id=best_skill.id,
+                        skill_name=best_skill.name,
+                        confidence=0.7, # Indicate fuzzy certainty
+                        extracted_params={"fallback": "fuzzy_match"}
+                    )
+                    return fuzzy_match, [best_skill]
+            
         return None, relevant
+
+    async def get_namespace_index(self, namespace_context: str) -> list[dict[str, str]]:
+        """
+        Track 8.1: Eager Namespace Indexing
+        Returns a lightweight list of (name, description) for all skills in a namespace.
+        Useful for prompt injection without bloating context window.
+        """
+        if not namespace_context:
+            return []
+            
+        skills = await self._get_skills_by_namespace(namespace_context)
+        return [{"id": s.id, "name": s.name, "description": s.description or ""} for s in skills]
 
     async def discover(
         self, 

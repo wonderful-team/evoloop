@@ -21,13 +21,15 @@ class SkillHydrator:
         topic: str,
         namespace_context: Optional[str] = None,
         mode: str = "eager"  # "eager" or "lazy"
-    ) -> List[LearnedSkill]:
+    ) -> List[Any]:
         """
         Fetch relevant skills based on the topic and mode.
+        If eager, returns full LearnedSkill objects.
+        If lazy, returns a lightweight list of dicts (name, description) for an index.
         """
         if mode == "lazy":
-            logger.info(f"[Hydrator] Lazy mode for topic: {topic}")
-            return []
+            logger.info(f"[Hydrator] Lazy mode for topic: {topic}. Fetching namespace index.")
+            return await skill_discovery.get_namespace_index(namespace_context)
 
         # Eager mode: Fetch and return full SOP instructions
         logger.info(f"[Hydrator] Eagerly hydrating skills for topic: {topic}")
@@ -41,15 +43,17 @@ class SkillHydrator:
         return relevant
 
     @staticmethod
-    async def get_node_skills(state: AgentState, node_name: str) -> List[LearnedSkill]:
+    async def get_node_skills(state: AgentState, node_name: str) -> List[Any]:
         """
         Helper to get skills tailored for a specific node type.
         """
         execution_ticket = state.get("execution_ticket") or {}
         topic = execution_ticket.get("topic", "")
+        # Track 8: Dynamic Namespace Mounting
+        namespace_context = execution_ticket.get("namespace_context")
         
         # Default behavior: Operator is Lazy, Specialist is Eager
         if node_name.lower() == "operator":
-            return await SkillHydrator.hydrate(state, topic, mode="lazy")
+            return await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode="lazy")
         else:
-            return await SkillHydrator.hydrate(state, topic, mode="eager")
+            return await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode="eager")

@@ -85,8 +85,8 @@ IMPORTANT:
 - You are a specialized sub-agent.
 - Your mission is defined in the Mission Ticket.
 - Focus ONLY on the mission.
-- **VERIFY YOUR ACTIONS**: After opening an app, **WAIT 5 SECONDS**, then take a screenshot to confirm.
-- Do not ask the user for clarification. If you are stuck, report the error.
+- **MANDATORY VERIFICATION**: After *every* UI action (click, type, navigate), you MUST wait, then pull the latest UI state (e.g. `screenshot` or `dump_ax_tree`), and use `verify_ui_state` to confirm the expected element appeared before proceeding to the next step.
+- Do not ask the user for clarification unless instructed by a specific protocol.
 - You are STATELESS. You do not remember previous interactions.
 
 {self._build_clipboard_section()}
@@ -136,14 +136,38 @@ Please execute this mission now. Use your tools."""
 
     def _get_app_knowledge(self, topic: str) -> str:
         """
-        Injects specific Expert Guides based on retrieved skills.
+        Injects specific Expert Guides based on retrieved skills, or the Zero-SOP Fallback protocol.
         """
         if not self.skills:
-            return "No specific expert guide available. Rely on UI cues and reasoning."
+            return """
+### ⚠️ [ZERO-SOP FALLBACK: AUTONOMOUS EXPLORATION PROTOCOL] ⚠️
+WARNING: There is no predefined Standard Operating Procedure (SOP) available for this task in this environment.
+
+**CRITICAL HITL REQUIREMENT:**
+Because you lack a trusted SOP, your visual exploration might be slow or prone to error. 
+Before you take ANY action that manipulates the system (clicking, typing, opening apps), you MUST:
+1. Call the `request_approval` (or `request_human_input`) tool.
+2. Provide this exact message: "I cannot find a standard procedure for this task. Do I have your permission to autonomously explore and visually navigate the UI to achieve this goal?"
+
+If the user approves, your workflow MUST be:
+1. **Observe**: Take a screenshot.
+2. **Analyze**: Use `analyze_image` or Atlas to find target elements.
+3. **Act**: Execute a *single* `desktop_control` or `mobile_control` action.
+4. **Verify**: Use `verify_ui_state` to confirm the screen changed as expected.
+Repeat this cycle. Do not guess coordinates blindly.
+"""
 
         knowledge_blocks = []
-        for skill in self.skills:
-            block = f"### 📘 Skill: {skill.name}\n"
+        for i, skill in enumerate(self.skills):
+            # The first skill is usually the exact or fuzzy match which triggered the eager load
+            is_primary = (i == 0)
+            
+            header = "### 🚨 [ACTIVE MISSION SOP]" if is_primary else f"### 📘 Related Reference SOP"
+            
+            block = f"{header}: {skill.name}\n"
+            
+            if is_primary:
+                block += "You MUST treat the following instructions as a strict state-machine. Read Phase 1. Execute. Verify. Only proceed to Phase 2 upon success.\n\n"
             
             if skill.description:
                 block += f"**Description**: {skill.description}\n"

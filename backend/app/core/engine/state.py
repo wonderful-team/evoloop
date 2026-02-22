@@ -31,6 +31,7 @@ class AgentConfig(TypedDict):
     system_instructions: str
     tools: list[str]  # List of tool names to hydrate
     model_override: str | None  # Optional model override (e.g. "gpt-4o")
+    namespace_context: str | None  # Track 8: Dynamic SOP namespace mounting
 
 
 class ExecutionTicket(TypedDict):
@@ -53,6 +54,9 @@ class ExecutionTicket(TypedDict):
     
     constraints: list[str] | None
     expected_outcomes: list[str] | None
+    
+    # Track 8: Deterministic SOP Routing
+    namespace_context: str | None
     
     
 class RetrievalContext(TypedDict):

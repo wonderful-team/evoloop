@@ -20,6 +20,7 @@ async def search_skills(query: str, namespace: str = None) -> Dict[str, Any]:
     """
     Yellow Pages directory for finding Standard Operating Procedures (SOPs). Use this when you don't know how to perform a specific action before attempting to guess or write your own code.
     Looks up instructions for an action using a deterministic namespace and regex filter.
+    Falls back to semantic/fuzzy lookup within the namespace if a regex match fails.
     Returns the markdown instructions if found.
     """
     discovery = SkillDiscovery()
@@ -27,13 +28,15 @@ async def search_skills(query: str, namespace: str = None) -> Dict[str, Any]:
     match, relevant = await discovery.exact_search(query=query, namespace_context=namespace)
     
     if match and relevant:
+        is_fuzzy = match.confidence < 1.0
         return {
-            "result_type": "exact_match",
-            "instruction": "Execute this matching skill directly.",
+            "result_type": "fuzzy_match" if is_fuzzy else "exact_match",
+            "instruction": "Execute this matching skill directly as a strict SOP." if not is_fuzzy else "A highly relevant SOP was found. Follow its strategy closely.",
             "skill_name": match.skill_name,
             "skill_id": match.skill_id,
             "markdown_sop": relevant[0].instructions,
-            "parameters": match.extracted_params
+            "parameters": match.extracted_params,
+            "confidence": match.confidence
         }
         
     if relevant:
@@ -43,11 +46,11 @@ async def search_skills(query: str, namespace: str = None) -> Dict[str, Any]:
         if sops:
             return {
                 "result_type": "namespace_context",
-                "instruction": "Read these related SOPs and apply their strategies to your next Bash command.",
+                "instruction": "Read these related SOPs and apply their strategies to your next actions.",
                 "sops": "\n".join(sops)
             }
             
     return {
         "result_type": "no_match",
-        "instruction": "No official SOP found for this domain. You must rely on your own reasoning to write Bash commands to achieve the user's goal."
+        "instruction": "No official SOP found for this domain. You must rely on your own reasoning to achieve the user's goal. Use autonomous verification tools frequently."
     }

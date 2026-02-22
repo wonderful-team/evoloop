@@ -136,6 +136,20 @@ class SupervisorNode:
             # [NEW] Phase 8/9: Universal Blackboard Ticket Population
             execution_ticket = None
             specialists = ["operator", "deep_researcher", "documenter"]
+            
+            # Phase 8: Naive Topic-based Namespace Deduction
+            # Realistically this could be LLM-driven or regex-based on the topic
+            base_topic = str(routing_context.get("topic") or routing_context.get("query") or "").lower()
+            inferred_namespace = routing_context.get("namespace_context")
+            if not inferred_namespace:
+                if "github" in base_topic or "pr " in base_topic:
+                    inferred_namespace = "browser/github"
+                elif "browser" in base_topic or "website" in base_topic or "safari" in base_topic or "chrome" in base_topic:
+                    inferred_namespace = "browser/mac"
+                elif "mac" in base_topic or "system" in base_topic or "finder" in base_topic:
+                    inferred_namespace = "os/macos"
+                elif "android" in base_topic or "mobile" in base_topic:
+                    inferred_namespace = "os/android"
 
             if routing_target in specialists:
                 execution_ticket = {
@@ -147,11 +161,15 @@ class SupervisorNode:
                     "constraints": routing_context.get("constraints", []),
                     "expected_outcomes": routing_context.get("expected_outcomes", []),
                     "parameters": routing_context.get("parameters", {}),
+                    "namespace_context": inferred_namespace,
                 }
             elif routing_target == "dynamic_specialist":
                 # Dynamic Agent Ticket Population
                 agent_config = routing_context.get("agent_config")
                 if agent_config:
+                    if "namespace_context" not in agent_config:
+                        agent_config["namespace_context"] = inferred_namespace
+                        
                     execution_ticket = {
                         "ticket_type": routing_context.get("ticket_type", "adhoc_task"),
                         "priority": "normal",
@@ -164,7 +182,8 @@ class SupervisorNode:
                         # Required fields (nullable in TypeDict but good to have keys)
                         "focus_paths": None,
                         "constraints": None,
-                        "expected_outcomes": None
+                        "expected_outcomes": None,
+                        "namespace_context": inferred_namespace,
                     }
 
             return {

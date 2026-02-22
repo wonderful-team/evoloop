@@ -87,6 +87,7 @@ You are responsible for the ENTIRE lifecycle of this task. Do not ask for permis
 {tree_section}
 
 ### 4. CRITICAL RULES
+- **Knowledge Retrieval**: If you are asked to perform a complex multi-step action (especially UI/Browser/Mobile automation) that is NOT in your current Expert Guidance, you MUST use the `search_skills` tool to find a Standard Operating Procedure (SOP) before attempting to guess the shell/UI commands yourself.
 - **No Hallucination**: Do not reference files that are not in the tree (unless searching the web).
 - **Verification**: NEVER finish a technical/operational task without verifying your work (e.g., running tests, viewing UI, reading logs). For theoretical questions or online research, this is not required.
 - **Atomic Edits**: When editing local files, use `replace_file_content` for small changes or `write_to_file` for new files.
@@ -130,36 +131,29 @@ You are responsible for the ENTIRE lifecycle of this task. Do not ask for permis
 
     def _build_skills_section(self) -> str:
         """
-        构建技能知识注入章节 (Skills as Knowledge)。
-        
-        注入已知技能的心法 (Expert Skill Guide) 的 System Prompt，
-        让 Agent 能以专家指南的形式参考这些知识来指导工具执行。
+        Track 8.1: Eager Namespace Indexing
+        Injects a lightweight Table of Contents for available skills in the namespace.
+        The agent is instructed to use `search_skills` to read the full SOP.
         """
         if not self.skills:
             return ""
 
-        blocks = ["### 5. EXPERT GUIDANCE (SKILLS)",
-                   "The following are expert guides for tasks you may encounter.",
-                   "**Use these as your strategy reference when executing with your tools.**\n"]
+        blocks = [
+            "### 5. AVAILABLE PROCEDURES DIRECTORY 📚",
+            "The following Standard Operating Procedures (SOPs) are available in your current environment.",
+            "⚠️ **CRITICAL: If your task matches one of these items, you MUST use the `search_skills` tool to read its full instructions before taking any action.**\n"
+        ]
 
         for skill in self.skills:
-            block = f"#### 📘 Skill: {skill.name}\n"
+            # Handle both lazy index dicts (Track 8.1) and eager LearnedSkill objects (legacy/fallback)
+            if isinstance(skill, dict):
+                skill_name = skill.get("name", "Unknown")
+                skill_desc = skill.get("description", "")
+            else:
+                skill_name = getattr(skill, "name", "Unknown")
+                skill_desc = getattr(skill, "description", "")
             
-            if skill.description:
-                block += f"**Description**: {skill.description}\n"
-            
-            if skill.instructions:
-                block += f"**Expert Guide (心法)**:\n{skill.instructions}\n"
-            
-            # Include trigger patterns as usage hints
-            if skill.trigger_patterns:
-                try:
-                    triggers = json.loads(skill.trigger_patterns)
-                    if triggers:
-                        block += f"**Trigger Patterns**: {', '.join(triggers[:3])}\n"
-                except Exception:
-                    pass
-
+            block = f"- **{skill_name}**: {skill_desc}"
             blocks.append(block)
 
         return "\n".join(blocks)
