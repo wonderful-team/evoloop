@@ -6,7 +6,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.evocloud import evocloud_manager
-from app.domain.codebase.indexing.base import BaseEmbedder
 from app.domain.codebase.indexing.components.content_indexer import ContentIndexer
 from app.domain.codebase.indexing.components.file_preparer import FilePreparer
 from app.domain.codebase.indexing.components.graph_syncer import GraphSyncer
@@ -14,6 +13,7 @@ from app.domain.codebase.indexing.components.sql_persister import SQLPersister
 from app.domain.codebase.indexing.extractors.treesitter_extractor import TreeSitterExtractor
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import (
     Repository,

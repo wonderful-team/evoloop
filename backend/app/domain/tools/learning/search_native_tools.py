@@ -20,8 +20,8 @@ async def search_native_tools(query: str = "") -> Dict[str, Any]:
     Use this to look up available system capabilities (like executing commands, controlling environment) before attempting to invent tools.
     Returns a list of matching tools with their descriptions and arguments.
     """
-    from app.core.tools.registry import get_all_tools
-    all_tools = get_all_tools()
+    from app.core.tools.manager import tool_manager
+    all_tools = tool_manager.get_all_capabilities()
     
     results = []
     

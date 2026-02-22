@@ -10,9 +10,8 @@ from app.core.engine import AgentEngine, repair_message_history
 from app.core.context import ContextManager
 from app.core.engine.state import AgentState
 from app.core.engine.prompts import OperatorPromptBuilder
-from app.core.tools.registry import get_node_tools
+from app.core.tools.manager import tool_manager
 from app.core.context.plugins import get_workspace_provider
-from app.infrastructure.mcp.client import mcp_client_manager
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +125,7 @@ Please execute this mission now. Use your tools to verify success against the cr
             system_prompt=system_msg,
             tools=tools,
             name="Operator",
-            max_steps=20, # Higher limit for inner loop
+            max_steps=100, # Higher limit for inner loop
         )
         
         return self._post_process_result(state, engine_result)
@@ -156,28 +155,32 @@ Please execute this mission now. Use your tools to verify success against the cr
             tool_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
             if tool_name not in verification_summary["signals"]:
                 verification_summary["signals"].append(tool_name)
+                
+            # Intercept MCP Server requests to update execution ticket
+            if tool_name == "use_mcp_server":
+                try:
+                    args_json = t_sig.split(":", 1)[1]
+                    args = json.loads(args_json)
+                    server_name = args.get("server_name")
+                    if server_name:
+                        # Safely update the ticket so ToolManager loads it next time
+                        ticket = result.get("execution_ticket", state.get("execution_ticket"))
+                        if ticket:
+                            req_servers = set(ticket.get("mcp_servers_required", []))
+                            req_servers.add(server_name)
+                            ticket["mcp_servers_required"] = list(req_servers)
+                            result["execution_ticket"] = ticket
+                            logger.info(f"[Operator] 🔌 Appended MCP server '{server_name}' to execution_ticket.")
+                except Exception as e:
+                    logger.error(f"[Operator] Failed to parse use_mcp_server arguments: {e}")
         
         result["verification_status"] = verification_summary
             
         return result
 
     async def _get_tools(self, state: AgentState) -> list[Any]:
-        """Combine Operator tools + MCP tools."""
-        # A. Static Core Tools (FileSystem, Shell, etc.)
-        tools = get_node_tools("operator") 
-        
-        # Deduplicate and start combined map
-        combined_map = {t.name: t for t in tools}
-
-        # B. MCP Tools (Explicitly mounted)
-        all_mcp = mcp_client_manager.get_tools()
-        for t in all_mcp:
-            if t.name not in combined_map:
-                combined_map[t.name] = t
-        
-        # Add navigation tools
-        all_tools = list(combined_map.values())
-        return all_tools
+        """Combine Operator tools + explicitly requested MCP tools via ToolManager."""
+        return tool_manager.get_node_tools("operator", state)
 
     async def _hydrate_context(self, context: dict, cwd: str) -> str:
         """Hydrate focus files into content."""

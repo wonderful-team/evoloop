@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException
 
-from app.infrastructure.mcp.client import mcp_client_manager
+from app.core.tools.mcp.client import mcp_client_manager
 from app.models.schemas.mcp import McpServerCreate
 
 router = APIRouter()

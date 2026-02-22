@@ -2,7 +2,7 @@ import logging
 
 from openai import AsyncOpenAI
 
-from app.domain.codebase.indexing.base import BaseEmbedder
+from .base import BaseEmbedder
 
 logger = logging.getLogger(__name__)
 

@@ -5,6 +5,7 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.state import AgentState
+from app.core.tools.manager import tool_manager
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,9 @@ class OperatorPromptBuilder:
         # Workspace Clipboard (Short-term memory)
         clipboard_section = self._build_clipboard_section()
 
+        # MCP Inventory
+        mcp_section_text = tool_manager.get_mcp_inventory()
+
         base_prompt = f"""You are an expert **Universal Systems Operator**.
 Your goal is to complete the assigned task by executing the correct specialized tools (e.g., coding, shell, web automation, mobile, desktop).
 
@@ -94,6 +98,7 @@ You are responsible for the ENTIRE lifecycle of this task. Do not ask for permis
 - **Device Awareness**: When using `mobile_control`, always specify the correct `device_id` from the connected devices list above.
 
 {skills_section}
+{mcp_section_text}
 {clipboard_section}
 """
         return base_prompt

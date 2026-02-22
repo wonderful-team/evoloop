@@ -299,11 +299,21 @@ class McpClientManager:
 
                 args_schema = self._create_args_schema(tool.name, tool.inputSchema)
 
+                # Track 9: Standardize MCP tool naming and prevent collisions
+                # OpenAI restricts tool names to ^[a-zA-Z0-9_-]{1,64}$
+                safe_server_name = server_name.replace(" ", "_").replace("-", "_")
+                safe_tool_name = tool.name.replace(" ", "_").replace("-", "_")
+                formatted_name = f"mcp__{safe_server_name}__{safe_tool_name}"
+                
+                # Truncate to 64 chars if necessary (OpenAI limit)
+                if len(formatted_name) > 64:
+                    formatted_name = formatted_name[:64]
+
                 lc_tool = StructuredTool.from_function(
                     func=None,
                     coroutine=_tool_func,
-                    name=tool.name,
-                    description=tool.description or "",
+                    name=formatted_name,
+                    description=tool.description or f"MCP tool '{tool.name}' from server '{server_name}'",
                     args_schema=args_schema,
                 )
 

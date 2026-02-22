@@ -12,6 +12,7 @@ import os
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
+from app.core.tools.manager import tool_manager
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
@@ -370,6 +371,11 @@ Use the `update_focus` tool to set high-level goals or constraints that persist 
         if ctx.active_boundaries:
             sections.append("\n### ❌ Constraints")
             sections.append("\n".join(f"- {b}" for b in ctx.active_boundaries))
+
+        # Add ToolManager MCP Awareness
+        mcp_inventory = tool_manager.get_mcp_inventory()
+        if mcp_inventory:
+            sections.append("\n" + mcp_inventory)
 
         sections.append("\n💡 **PRO TIP**: You can use the `query_app_atlas` tool to retrieve structural UI maps (Atlas) for known applications. Use this to find menu paths or button locations without excessive exploration.")
 

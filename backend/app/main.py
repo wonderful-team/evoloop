@@ -18,16 +18,16 @@ from app.core.config import settings
 from app.core.context.middleware import ContextMiddleware
 
 # EvoLoop Imports
+from app.core.context import thread_context_store
 from app.core.engine.graph_builder import GraphBuilder
 from app.core.events.bridge import register_event_bridge
 from app.core.globals import set_graph
 from app.core.persistence import set_checkpointer, set_db_pool
+from app.core.tools.mcp.client import mcp_client_manager
 from app.domain.codebase.indexing.manager import indexing_manager
-from app.core.context import thread_context_store
 from app.domain.project.summarizer import project_summarizer
 from app.domain.watchers import ProjectDiscoveryWatcher
 from app.infrastructure.database.sql.database import Base, engine
-from app.infrastructure.mcp.client import mcp_client_manager
 
 logger = logging.getLogger(__name__)
 

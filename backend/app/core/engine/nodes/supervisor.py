@@ -95,7 +95,7 @@ class SupervisorNode:
             config=config,
             system_prompt=dynamic_prompt,
             tools=tools,
-            max_steps=15,  # Increased since routing is now part of the loop
+            max_steps=100,  # Increased since routing is now part of the loop
             name="Supervisor",
         )
 
@@ -285,13 +285,15 @@ class SupervisorNode:
         self, state: AgentState, config: RunnableConfig, messages: list, project_id: int
     ) -> dict[str, Any]:
         """Build context for LLM planning."""
-        from app.core.tools.registry import get_node_tools
+        from app.core.tools.manager import tool_manager
         from app.infrastructure.config.service import SystemConfigService
-        from app.infrastructure.mcp.client import mcp_client_manager
 
         # 1. Get Tools
-        core_tools = get_node_tools("supervisor")
-        mcp_tools = mcp_client_manager.get_tools()
+        # Track 9: Progressive Disclosure
+        # We NO LONGER inject `mcp_client_manager.get_tools()` into the Supervisor.
+        # The Supervisor relies on `search_native_tools` and `use_mcp_server` 
+        # to find capabilities without blowing up the context window.
+        core_tools = tool_manager.get_node_tools("supervisor", state)
 
         # 1.1 Context Extraction (Safe access)
         last_msg = get_last_human_message(messages)
@@ -299,8 +301,7 @@ class SupervisorNode:
         # In the new architecture, we provide a deterministic set of tools 
         # plus search_native_tools for on-demand discovery.
         # RAG-based tool retrieval is deprecated.
-        all_tools_list = core_tools + mcp_tools
-        tool_dict = {t.name: t for t in all_tools_list}
+        tool_dict = {t.name: t for t in core_tools}
         tools = list(tool_dict.values())
 
         # 2. Get Project Concepts

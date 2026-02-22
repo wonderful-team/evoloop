@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter
 
-from app.core.tools.registry import get_all_tools
+from app.core.tools.manager import tool_manager
 from app.core.tools.runtime_registry import get_runtime_tools
 
 router = APIRouter(prefix="/tools", tags=["tools"])
@@ -37,7 +37,7 @@ async def list_all_tools() -> list[dict[str, Any]]:
     """
     List ALL available tools (Static + Runtime).
     """
-    tools = get_all_tools()
+    tools = tool_manager.get_all_capabilities()
     results = []
     for t in tools:
         args_schema = {}

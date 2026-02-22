@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, List, Optional, Tuple
 from langchain_core.runnables import RunnableConfig
@@ -54,6 +55,8 @@ class SkillHydrator:
         
         # Default behavior: Operator is Lazy, Specialist is Eager
         if node_name.lower() == "operator":
-            return await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode="lazy")
+            skills = await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode="lazy")
+            return skills
         else:
-            return await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode="eager")
+            skills = await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode="eager")
+            return skills

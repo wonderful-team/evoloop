@@ -16,8 +16,8 @@ from datetime import datetime, timezone
 
 from langchain_core.tools import BaseTool
 
+from app.core.tools.manager import tool_manager
 from app.core.tools.runtime_registry import get_runtime_tools
-from app.infrastructure.mcp.client import mcp_client_manager
 
 logger = logging.getLogger(__name__)
 
@@ -107,10 +107,10 @@ REGISTRY.scan("app.core.brain.tools")
 
 def get_all_tools() -> list[BaseTool]:
     """
-    Return a list of all available tools in the domain.
-    Combines discovered tools with dynamic ones (MCP, Runtime).
+    Return a list of all natively available python tools (Static + Runtime).
+    WARNING: Does NOT include MCP tools. Use ToolManager for that.
     """
-    return REGISTRY.get_all_tools() + mcp_client_manager.get_tools() + get_runtime_tools()
+    return REGISTRY.get_all_tools() + get_runtime_tools()
 
 
 def get_tools_by_names(
@@ -119,7 +119,7 @@ def get_tools_by_names(
 ) -> list[BaseTool]:
     """
     Hydrate a list of tool names into actual BaseTool objects.
-    Uses AutoDiscoveryRegistry + MCP as lookup sources.
+    Uses AutoDiscoveryRegistry as lookup source. MCP tools are managed by ToolManager.
     """
     all_available = get_all_tools()
     tool_map = {t.name: t for t in all_available if t.name}
@@ -208,23 +208,12 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
 
 def get_operator_tools() -> list[BaseTool]:
     """Return standard tools for the Operator agent."""
-    return get_node_tools("operator")
+    return tool_manager.get_node_tools("operator")
 
 
 def get_supervisor_tools() -> list[BaseTool]:
     """Return tools for the Supervisor agent."""
-    tool_names = [
-        "save_preference",
-        "search_concepts",
-        "request_human_input",
-        "analyze_image",
-        "manage_todo",
-        "get_workspace_tree",
-        "learn_skill_from_trace",
-        "list_files",
-        "read_file"
-    ]
-    return get_tools_by_names(tool_names, source_role="supervisor")
+    return tool_manager.get_node_tools("supervisor")
 
 
 # --- Utility Functions ---

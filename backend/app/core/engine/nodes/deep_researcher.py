@@ -19,9 +19,9 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
     """
     llm = LLMFactory.create_llm()
     # Researcher Engine usually manages its own tools, but we should enforce it uses RBAC tools
-    from app.core.tools.registry import get_node_tools
+    from app.core.tools.manager import tool_manager
 
-    tools = get_node_tools("researcher")
+    tools = tool_manager.get_node_tools("researcher", state)
     # engine = DeepResearchEngine(llm) -> We need to check if Engine supports tools injection.
     # Assuming DeepResearchEngine has its own internal tool logic or accepts tools.
     # If not, we might need to modify DeepResearchEngine.

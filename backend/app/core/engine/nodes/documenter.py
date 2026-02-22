@@ -3,7 +3,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.engine import AgentEngine, AgentState
 from app.core.engine.prompts import DocumenterPromptBuilder
-from app.core.tools.registry import get_node_tools
+from app.core.tools.manager import tool_manager
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     )
 
     # 3. Define Toolset (Declarative from YAML)
-    tools = get_node_tools("documenter")
+    tools = tool_manager.get_node_tools("documenter", state)
 
     # 4. Run Agent Engine ReAct Loop
     logger.info(f"Nodes: Documenter - Starting Information Architect loop for project {project_id}")
@@ -42,5 +42,5 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
         system_prompt=system_prompt,
         tools=tools,
         name="Information Architect",
-        max_steps=8,  # Allow more steps for complex documentation tasks
+        max_steps=50,  # Allow more steps for complex documentation tasks
     )

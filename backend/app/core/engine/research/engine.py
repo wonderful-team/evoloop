@@ -6,8 +6,8 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
-from app.core.tools.registry import get_all_tools
 from app.core.engine.research.generator import ReportGenerator
+from app.core.tools.manager import tool_manager
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,7 @@ class DeepResearchEngine:
         current_iteration = 1
 
         # Get Tools
-        tools = self.tools if self.tools else get_all_tools()
+        tools = self.tools if self.tools else tool_manager.get_node_tools("researcher")
         llm_with_tools = self.llm.bind_tools(tools)
         tool_map = {t.name: t for t in tools}
 

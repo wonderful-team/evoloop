@@ -81,6 +81,10 @@ Generate a skill configuration in YAML format.
 
 **CRITICAL: The `instructions` field must be a structured "Expert Skill Guide" mapped to a logical `namespace` with the following sections:**
 
+### 0. Tool Requirements (Crucial)
+If any specific Model Context Protocol (MCP) servers or non-standard tools were used in the trace (see Tools Used), you MUST start the guide by explicitly telling the agent to load them.
+Example: "Before proceeding, check if you have access to the `github` MCP server tools. If not, you MUST immediately call `use_mcp_server('github')` and wait for the reload."
+
 ### 1. Conceptual Mental Model
 Explain the **high-level strategy** and business logic. Why are we doing this? What's the goal?
 

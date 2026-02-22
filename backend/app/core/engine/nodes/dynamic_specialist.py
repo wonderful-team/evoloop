@@ -9,9 +9,9 @@ from app.core.engine import AgentEngine
 
 from app.core.engine.state import AgentState
 from app.core.engine.prompts.dynamic_specialist_builder import DynamicSpecialistPromptBuilder
-from app.core.tools.registry import get_tools_by_names
-from app.infrastructure.mcp.client import mcp_client_manager
+from app.core.tools.manager import tool_manager
 from app.core.environment import get_awakened_state
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -42,28 +42,10 @@ class DynamicSpecialistNode:
         
         logger.info(f"[DynamicSpecialist] 🦎 Hydrating as '{role_name}' with tools: {tool_names}")
 
-        # 1. Hydrate Tools
-        # We need to fetch the actual tool objects from registry
-        # A. Static Tools
-        tools = get_tools_by_names(tool_names)
-        
-        # B. Verify all tools were found
-        found_names = {t.name for t in tools}
-        missing = set(tool_names) - found_names
-        if missing:
-            logger.warning(f"[DynamicSpecialist] ⚠️ Could not find tools: {missing}. Checking MCP/RAG...")
-            # Fallback: check MCP
-            mcp_tools = mcp_client_manager.get_tools()
-            for t in mcp_tools:
-                if t.name in missing:
-                    tools.append(t)
-                    found_names.add(t.name)
-            
-            # Re-check
-            still_missing = set(tool_names) - found_names
-            if still_missing:
-                logger.error(f"[DynamicSpecialist] ❌ Definitively missing tools: {still_missing}")
-                # We proceed without them, but warn.
+        # 1. Hydrate Tools (Progressive Disclosure)
+        # The new ToolManager automatically parses the execution_ticket (including agent_config.tools 
+        # and mcp_servers_required) and securely binds exactly what we need without prompt explosion.
+        tools = tool_manager.get_node_tools("dynamic_specialist", state)
 
         # 2a. Fetch Relevant Skills/Knowledge (JIT Injection - Phase 5)
         # Using the SkillHydrator middleware to handle Eager/Lazy patterns
@@ -119,7 +101,7 @@ class DynamicSpecialistNode:
                 system_prompt=system_prompt,
                 tools=tools,
                 name=f"Dynamic-{role_name}",
-                max_steps=settings.DYNAMIC_AGENT_MAX_STEPS, # Configured limit
+                max_steps=settings.DYNAMIC_AGENT_MAX_STEPS,  # Configured limit
             )
             
             # 5. Extract Result
@@ -132,17 +114,34 @@ class DynamicSpecialistNode:
             if isinstance(last_msg, AIMessage):
                 content = last_msg.content
             
-            # Verify if tools ran
             tool_history = engine_result.get("tool_history", [])
             logger.info(f"[DynamicSpecialist][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}")
             
             summary = f"**{role_name} Report**:\n{content}\n\n(Tools used: {len(tool_history)})"
             
-            return {
+            return_state = {
                 "messages": [AIMessage(content=summary)],
                 "next_node": "supervisor",
-                # We can also populate structured results if needed
             }
+            
+            # Intercept MCP Server requests to update execution ticket
+            for t_sig in tool_history:
+                tool_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
+                if tool_name == "use_mcp_server":
+                    try:
+                        args_json = t_sig.split(":", 1)[1]
+                        args = json.loads(args_json)
+                        server_name = args.get("server_name")
+                        if server_name:
+                            req_servers = set(execution_ticket.get("mcp_servers_required", []))
+                            req_servers.add(server_name)
+                            execution_ticket["mcp_servers_required"] = list(req_servers)
+                            return_state["execution_ticket"] = execution_ticket
+                            logger.info(f"[DynamicSpecialist] 🔌 Appended MCP server '{server_name}' to execution_ticket.")
+                    except Exception as e:
+                        logger.error(f"[DynamicSpecialist] Failed to parse use_mcp_server arguments: {e}")
+            
+            return return_state
 
         except Exception as e:
             logger.error(f"[DynamicSpecialist] 💥 Failed: {e}")

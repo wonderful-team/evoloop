@@ -53,6 +53,7 @@ nodes:
       - "search_native_tools"
       - "get_workspace_tree"
       - "search_skills"
+      - "use_mcp_server"
 
   - id: "deep_researcher"
     path: "app.core.engine.nodes.deep_researcher.deep_researcher_node"

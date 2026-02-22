@@ -2,7 +2,6 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
-# Import existing domain tools
 from app.domain.codebase.indexing.tools import index_path
 from app.domain.codebase.retrieval.tools import search_codebase
 from app.core.memory import memory_manager
@@ -14,7 +13,6 @@ from app.domain.tools.facades import (
     manage_memory,
 )
 
-# Phase 18: Import new atomic file tools
 from app.domain.tools.files import (
     edit_file,
     file_system,

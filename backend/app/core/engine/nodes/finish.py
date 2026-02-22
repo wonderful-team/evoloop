@@ -5,7 +5,7 @@ from app.core.engine import AgentEngine
 from app.core.engine.state import AgentState
 from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.context.manager import ContextManager
-from app.core.tools.registry import get_node_tools
+from app.core.tools.manager import tool_manager
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +57,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     system_prompt = builder.build()
 
     # 3. Define Toolset (Declarative from YAML)
-    tools = get_node_tools("finish")
+    tools = tool_manager.get_node_tools("finish", state)
 
     # 4. Run Agent Engine ReAct Loop
     logger.info(f"Nodes: Finish - Starting Session Reviewer loop in {cwd}")
@@ -67,7 +67,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
         system_prompt=system_prompt,
         tools=tools,
         name="Session Reviewer",
-        max_steps=5,
+        max_steps=20,
     )
 
     # 5. Handle Terminal Tool Signal

@@ -5,7 +5,6 @@ import logging
 from dataclasses import dataclass
 
 from app.domain.codebase.indexing.base import (
-    BaseEmbedder,
     Document,
     ExtractedEntity,
     ExtractedRelation,
@@ -13,6 +12,7 @@ from app.domain.codebase.indexing.base import (
 from app.domain.codebase.indexing.extractors.treesitter_extractor import (
     TreeSitterExtractor,
 )
+from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.factory import EmbedderFactory
 
 logger = logging.getLogger(__name__)

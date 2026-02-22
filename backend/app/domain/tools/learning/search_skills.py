@@ -1,3 +1,4 @@
+import json
 from typing import Any, Dict
 from pydantic import BaseModel, Field
 from app.core.tools import evoloop_tool
@@ -29,12 +30,16 @@ async def search_skills(query: str, namespace: str = None) -> Dict[str, Any]:
     
     if match and relevant:
         is_fuzzy = match.confidence < 1.0
+        instruction = "Execute this matching skill directly as a strict SOP." if not is_fuzzy else "A highly relevant SOP was found. Follow its strategy closely."
+        
+        skill_obj = relevant[0]
+            
         return {
             "result_type": "fuzzy_match" if is_fuzzy else "exact_match",
-            "instruction": "Execute this matching skill directly as a strict SOP." if not is_fuzzy else "A highly relevant SOP was found. Follow its strategy closely.",
+            "instruction": instruction,
             "skill_name": match.skill_name,
             "skill_id": match.skill_id,
-            "markdown_sop": relevant[0].instructions,
+            "markdown_sop": skill_obj.instructions,
             "parameters": match.extracted_params,
             "confidence": match.confidence
         }
