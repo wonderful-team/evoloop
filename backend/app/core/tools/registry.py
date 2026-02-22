@@ -9,11 +9,11 @@ import importlib
 import inspect
 import logging
 import pkgutil
-import yaml
+from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
-from datetime import datetime, timezone
 
+import yaml
 from langchain_core.tools import BaseTool
 
 from app.core.tools.manager import tool_manager
@@ -148,7 +148,7 @@ def _load_yaml_config(config_path: str | None = None) -> dict:
     """Load and cache the YAML config for tool-role mappings."""
     path = Path(config_path) if config_path else _DEFAULT_CONFIG_PATH
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             return yaml.safe_load(f) or {}
     except FileNotFoundError:
         logger.error(f"YAML config not found: {path}")

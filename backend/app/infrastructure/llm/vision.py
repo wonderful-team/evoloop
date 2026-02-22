@@ -69,8 +69,9 @@ class VisionLLMFactory:
     @staticmethod
     def encode_image(image_path: str, max_size: int = 2048, quality: int = 85) -> str:
         """Encode image file to base64 string, compressing it if it's too large."""
-        from PIL import Image
         from io import BytesIO
+
+        from PIL import Image
 
         path = Path(image_path)
         if not path.exists():
@@ -81,18 +82,18 @@ class VisionLLMFactory:
                 # Convert to RGB if necessary (e.g. RGBA pngs)
                 if img.mode in ('RGBA', 'LA', 'P'):
                     img = img.convert('RGB')
-                
+
                 # Resize if larger than max_size
                 if max(img.size) > max_size:
                     ratio = max_size / max(img.size)
                     new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
                     img = img.resize(new_size, Image.Resampling.LANCZOS)
-                
+
                 # Save to buffer as JPEG to reduce base64 size
                 buffered = BytesIO()
                 img.save(buffered, format="JPEG", quality=quality)
                 return base64.b64encode(buffered.getvalue()).decode("utf-8")
-                
+
         except ImportError:
             logger.warning("Pillow not installed, falling back to uncompressed base64 encoding")
             with open(path, "rb") as f:

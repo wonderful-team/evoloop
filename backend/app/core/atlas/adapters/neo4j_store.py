@@ -1,11 +1,11 @@
-import logging
 import json
+import logging
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-from app.infrastructure.database.graph.driver import Neo4jManager
-from app.core.atlas.ports.store import IAtlasStore
 from app.core.atlas.models import AtlasApp
+from app.core.atlas.ports.store import IAtlasStore
+from app.infrastructure.database.graph.driver import Neo4jManager
 
 logger = logging.getLogger(__name__)
 
@@ -82,7 +82,7 @@ class Neo4jAtlasStore(IAtlasStore):
                 logger.error(f"Failed to save Atlas to Neo4j for {atlas_app.bundle_id}: {e}")
                 raise e
 
-    async def get_app_summary(self, bundle_id: str, platform: str = "macos") -> Optional[Dict[str, Any]]:
+    async def get_app_summary(self, bundle_id: str, platform: str = "macos") -> dict[str, Any] | None:
         """
         Retrieves a high-level summary of the App mapping from Neo4j.
         """
@@ -102,7 +102,7 @@ class Neo4jAtlasStore(IAtlasStore):
             record = await result.single()
             if not record or not record.get("app_name"):
                 return None
-            
+
             return {
                 "app_name": record["app_name"],
                 "bundle_id": bundle_id,
@@ -111,7 +111,7 @@ class Neo4jAtlasStore(IAtlasStore):
                 "states": record["states"]
             }
 
-    async def get_state_detail(self, bundle_id: str, state_id: str, platform: str = "macos") -> Optional[Dict[str, Any]]:
+    async def get_state_detail(self, bundle_id: str, state_id: str, platform: str = "macos") -> dict[str, Any] | None:
         """
         Retrieve detailed information about a specific UI state, including its elements.
         """
@@ -129,18 +129,18 @@ class Neo4jAtlasStore(IAtlasStore):
             record = await result.single()
             if not record:
                 return None
-            
+
             elements = []
             if record["elements_json"]:
                 elements = json.loads(record["elements_json"])
-                
+
             return {
                 "state_id": state_id,
                 "window_title": record["window_title"],
                 "elements": elements
             }
 
-    async def get_transitions_summary(self, bundle_id: str, platform: str = "macos") -> List[Dict[str, Any]]:
+    async def get_transitions_summary(self, bundle_id: str, platform: str = "macos") -> list[dict[str, Any]]:
         """Returns all known transitions for an app."""
         driver = Neo4jManager.get_driver()
         async with driver.session() as session:
@@ -157,7 +157,7 @@ class Neo4jAtlasStore(IAtlasStore):
             )
             return [dict(record) for record in await result.data()]
 
-    async def list_apps(self) -> List[Dict[str, Any]]:
+    async def list_apps(self) -> list[dict[str, Any]]:
         """Returns a list of all apps that have atlas data in Neo4j."""
         driver = Neo4jManager.get_driver()
         async with driver.session() as session:

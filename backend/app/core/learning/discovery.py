@@ -1,11 +1,12 @@
 import json
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
-from sqlalchemy import select, text
+from sqlalchemy import select
 
 from app.infrastructure.database.sql.database import session_scope
 from app.models.learning import LearnedSkill
@@ -38,20 +39,19 @@ class SkillDiscovery:
         """Sync system SOPs from the local library to the DB."""
         if self._system_skills_synced:
             return
-        
+
         try:
             from app.core.learning.skill_importer import SkillImporter
-            import os
-            
+
             # Resolve the absolute path to the sop_library
             # current file is app/core/learning/discovery.py
             base_dir = os.path.dirname(os.path.abspath(__file__))
             sop_library_path = os.path.join(base_dir, "sop_library")
-            
+
             if os.path.exists(sop_library_path):
                 logger.info(f"[Discovery] Pre-seeding system SOPs from {sop_library_path}")
                 await SkillImporter.import_from_directory(sop_library_path)
-            
+
             self._system_skills_synced = True
         except Exception as e:
             logger.error(f"[Discovery] Failed to sync system SOPs: {e}")
@@ -59,11 +59,11 @@ class SkillDiscovery:
     async def _get_active_skills(self) -> list[LearnedSkill]:
         """Cache-active skills from DB."""
         await self._sync_system_skills()
-        
+
         now = time.time()
         if self._skills_cache and now < self._cache_expiry:
             return self._skills_cache
-        
+
         async with session_scope() as db:
             stmt = select(LearnedSkill).where(LearnedSkill.is_active == True)
             result = await db.execute(stmt)
@@ -92,7 +92,7 @@ class SkillDiscovery:
         regex = re.sub(r"\\{(\w+)\\}", r"(?P<\1>.+?)", escaped)
         return f"^{regex}$"
 
-    async def _match_regex(self, text_input: str) -> Optional[SkillMatch]:
+    async def _match_regex(self, text_input: str) -> SkillMatch | None:
         skills = await self._get_active_skills()
         for skill in skills:
             if not skill.trigger_patterns:
@@ -116,10 +116,10 @@ class SkillDiscovery:
     # --- Phase 5: Deterministic "Yellow Pages" Discovery ---
 
     async def exact_search(
-        self, 
-        query: str, 
+        self,
+        query: str,
         namespace_context: str | None = None
-    ) -> tuple[Optional[SkillMatch], list[LearnedSkill]]:
+    ) -> tuple[SkillMatch | None, list[LearnedSkill]]:
         """
         Deterministic Lookup (Phase 5).
         1. Exact Regex Hit -> Returns Match (to run immediately)
@@ -128,7 +128,7 @@ class SkillDiscovery:
         """
         # Ensure system SOPs are loaded into the DB
         await self._sync_system_skills()
-        
+
         # 1. Tier 1: Exact Regex Match (User explicitly commands a known pattern)
         match = await self._match_regex(query)
         if match:
@@ -137,13 +137,13 @@ class SkillDiscovery:
                 return match, [skill] if skill else []
 
         # 2. Tier 2: Namespace Mount (System automatically mounts SOPs for current context)
-        # E.g. If the EvolutionContext bus detects we are in Xcode, query might be implicitly scoped 
+        # E.g. If the EvolutionContext bus detects we are in Xcode, query might be implicitly scoped
         # to `domain/xcode`
         relevant = []
         if namespace_context:
             logger.info(f"[Discovery] Mounting skill tree for namespace: {namespace_context}")
             relevant = await self._get_skills_by_namespace(namespace_context)
-            
+
             # Track 8: Fuzzy/Semantic Fallback within Namespace
             # If we didn't hit a regex match but we have a namespace, try to find a soft match
             # based on simple keyword overlap in description/name.
@@ -159,7 +159,7 @@ class SkillDiscovery:
                     if overlap > best_score and overlap >= 2: # At least 2 words overlap
                         best_score = overlap
                         best_skill = skill
-                        
+
                 if best_skill:
                     logger.info(f"[Discovery] Regex failed, but fuzzy matched SOP: {best_skill.name} (score {best_score})")
                     # Emulate an exact match, but with lower confidence
@@ -170,7 +170,7 @@ class SkillDiscovery:
                         extracted_params={"fallback": "fuzzy_match"}
                     )
                     return fuzzy_match, [best_skill]
-            
+
         return None, relevant
 
     async def get_namespace_index(self, namespace_context: str) -> list[dict[str, str]]:
@@ -181,22 +181,22 @@ class SkillDiscovery:
         """
         if not namespace_context:
             return []
-            
+
         skills = await self._get_skills_by_namespace(namespace_context)
         return [{"id": s.id, "name": s.name, "description": s.description or ""} for s in skills]
 
     async def discover(
-        self, 
-        user_input: str, 
+        self,
+        user_input: str,
         thread_id: str = None,
         top_k: int = 3
-    ) -> tuple[Optional[SkillMatch], list[LearnedSkill]]:
+    ) -> tuple[SkillMatch | None, list[LearnedSkill]]:
         """
         Internal dispatcher. Uses exact search by default.
         """
         return await self.exact_search(user_input)
 
-    async def match(self, user_input: str, threshold: float = 0.5, thread_id: str = None) -> Optional[SkillMatch]:
+    async def match(self, user_input: str, threshold: float = 0.5, thread_id: str = None) -> SkillMatch | None:
         """Backward compatible wrapper for intent matching."""
         match, _ = await self.exact_search(user_input)
         if match and match.confidence >= threshold:

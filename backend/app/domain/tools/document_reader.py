@@ -3,8 +3,8 @@ import os
 import sqlite3
 from typing import Any
 
-from app.core.file.document_reader import document_reader_service
 from app.core.context.manager import ContextManager
+from app.core.file.document_reader import document_reader_service
 from app.core.tools import evoloop_tool
 from app.utils import json as json_utils
 from app.utils.detect import detect_language
@@ -142,22 +142,22 @@ async def read_document(file_path: str, start_page: int | None = None, end_page:
     try:
         real_path = _resolve_project_path(file_path)
         real_path = ensure_local_path(real_path)
-        
+
         if os.path.isdir(real_path):
             return _list_directory(real_path)
-            
+
         content = await document_reader_service.read_document(real_path, start_page, end_page)
-        
+
         # Wrap in file header if not already
         filename = os.path.basename(real_path)
         lang = detect_language(real_path) or "text"
-        
+
         if content.strip().startswith("# "): # Already has a header
             return content
-             
+
         if lang in ["python", "javascript", "typescript", "c", "cpp", "go", "rust"]:
             return f"# File: {filename}\n\n```{lang}\n{content}\n```"
-             
+
         return f"# File: {filename}\n\n{content}"
 
     except Exception as e:

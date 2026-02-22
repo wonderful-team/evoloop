@@ -128,7 +128,7 @@ class TraceCallbackHandler(AsyncCallbackHandler):
                 except Exception:
                     pass
             return {"raw_input": str(state)}
-            
+
         clean = {}
         for k, v in state.items():
             # Filter out known huge objects if any

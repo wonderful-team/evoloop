@@ -1,7 +1,8 @@
 import logging
-import yaml
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any
+
+import yaml
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -10,19 +11,19 @@ logger = logging.getLogger(__name__)
 class ValidationResult(BaseModel):
     is_valid: bool
     status: str  # "healthy", "warning", "error"
-    errors: List[str] = []
-    warnings: List[str] = []
-    metadata: Optional[Dict[str, Any]] = None
+    errors: list[str] = []
+    warnings: list[str] = []
+    metadata: dict[str, Any] | None = None
 
 
 class SkillValidator:
     """
     Validates a skill folder against the 'Anatomy of a Skill' standard.
     """
-    
+
     REQUIRED_FILES = ["SKILL.md"]
     RECOMMENDED_DIRS = ["scripts", "references", "assets"]
-    
+
     @classmethod
     def validate_folder(cls, folder_path: Path) -> ValidationResult:
         """
@@ -30,26 +31,26 @@ class SkillValidator:
         """
         errors = []
         warnings = []
-        
+
         if not folder_path.exists() or not folder_path.is_dir():
             return ValidationResult(
                 is_valid=False,
                 status="error",
                 errors=[f"Directory does not exist: {folder_path}"]
             )
-            
+
         # 1. Check for required files
         for req in cls.REQUIRED_FILES:
             if not (folder_path / req).exists():
                 errors.append(f"Missing required file: {req}")
-        
+
         if errors:
             return ValidationResult(is_valid=False, status="error", errors=errors)
-            
+
         # 2. Validate SKILL.md content and frontmatter
         skill_md_path = folder_path / "SKILL.md"
         metadata, instructions = cls._parse_skill_md(skill_md_path)
-        
+
         if not metadata:
             errors.append("Invalid or missing YAML frontmatter in SKILL.md")
         else:
@@ -57,12 +58,12 @@ class SkillValidator:
                 errors.append("Missing 'name' in skill metadata")
             if "description" not in metadata:
                 warnings.append("Missing 'description' in skill metadata")
-        
+
         # 3. Check for recommended structure
         for r_dir in cls.RECOMMENDED_DIRS:
             if not (folder_path / r_dir).exists():
                 # Non-critical, just a tip for standardization
-                pass 
+                pass
             elif not (folder_path / r_dir).is_dir():
                 errors.append(f"'{r_dir}' exists but is not a directory")
 
@@ -77,7 +78,7 @@ class SkillValidator:
             status = "error"
         elif warnings:
             status = "warning"
-            
+
         return ValidationResult(
             is_valid=len(errors) == 0,
             status=status,
@@ -87,7 +88,7 @@ class SkillValidator:
         )
 
     @staticmethod
-    def _parse_skill_md(file_path: Path) -> tuple[Optional[Dict], str]:
+    def _parse_skill_md(file_path: Path) -> tuple[dict | None, str]:
         """
         Internal parser for SKILL.md.
         """

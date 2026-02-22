@@ -1,7 +1,7 @@
 """Neo4j implementation of graph navigator for structural insights."""
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from app.core.memory.interfaces.graph import IGraphNavigator
 from app.infrastructure.database.graph.driver import get_graph_db
@@ -26,7 +26,7 @@ class Neo4jGraphNavigator(IGraphNavigator):
             await session.run("MATCH (f:File) DETACH DELETE f")
         logger.info("Neo4jGraphNavigator: Flushed graph data")
 
-    async def get_node_details(self, node_type: str, filters: Dict[str, Any]) -> dict:
+    async def get_node_details(self, node_type: str, filters: dict[str, Any]) -> dict:
         """Retrieve detailed information about a specific node."""
         driver = await get_graph_db()
 
@@ -53,7 +53,7 @@ class Neo4jGraphNavigator(IGraphNavigator):
 
     async def traverse(
         self, start_node_id: str, relation_type: str, max_depth: int = 2
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """Traverse the graph following specific relationships."""
         driver = await get_graph_db()
 

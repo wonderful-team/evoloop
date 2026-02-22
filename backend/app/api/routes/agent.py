@@ -3,30 +3,30 @@ import os
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Annotated, Any
+from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
-from app.domain.integration.adapters import EventAdapter
 from app.api.deps import CurrentUserOptional, verify_guest_access
+from app.core.context import thread_context_store
+from app.core.context.manager import ContextManager, EvoContext
 
 # --- Background Worker ---
 from app.core.engine.background_agent import run_agent_background
+from app.core.evocloud import evocloud_manager
 from app.core.monitoring.activity import activity_monitor
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
-from app.core.context import thread_context_store
+from app.domain.integration.adapters import EventAdapter
 from app.infrastructure.database.sql.database import session_scope
 from app.models import (
     Conversation,
     Message,
     MessageReference,
 )
-from app.core.evocloud import evocloud_manager
-from app.core.context.manager import ContextManager, EvoContext
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ async def chat_endpoint(
 
     # --- Context Injection & Message Construction (Phase 9) ---
     from app.domain.project.reference_service import reference_service
-    
+
     async with session_scope() as session:
         ref_context = await reference_service.process_references(
             message_text=req.message,
@@ -93,7 +93,7 @@ async def chat_endpoint(
             session=session,
             project_id=req.project_id
         )
-    
+
     content_blocks = ref_context.content_blocks
     reference_notes = ref_context.reference_notes
 

@@ -12,9 +12,9 @@ class DynamicSpecialistPromptBuilder:
     """
 
     def __init__(
-        self, 
-        agent_config: AgentConfig, 
-        ticket: ExecutionTicket, 
+        self,
+        agent_config: AgentConfig,
+        ticket: ExecutionTicket,
         skills: list[LearnedSkill] = None,
         known_packages: dict[str, str] = None,
         known_macos_apps: dict[str, str] = None,
@@ -98,7 +98,7 @@ IMPORTANT:
         """Constructs the user message that initiates the task."""
         topic = self.ticket.get("topic") or "General Task"
         criteria = "\n".join([f"- {c}" for c in self.ticket.get("acceptance_criteria", [])])
-        
+
         # Add parameter context if available
         params = self.ticket.get("parameters", {})
         param_context = ""
@@ -118,7 +118,7 @@ Please execute this mission now. Use your tools."""
         """Helper to format package names for the prompt."""
         if not self.known_packages:
             return "   (No common packages recorded yet. Use 'mobile_control(action=\"list_apps\")' to identify them.)"
-        
+
         lines = []
         for name, pkg in self.known_packages.items():
             lines.append(f"   - {name}: `{pkg}`")
@@ -128,7 +128,7 @@ Please execute this mission now. Use your tools."""
         """Helper to format MacOS app names for the prompt."""
         if not self.known_macos_apps:
             return "   (No common MacOS apps recorded yet. Use 'desktop_control(action=\"list_apps\")' to identify them.)"
-        
+
         lines = []
         for name, app in self.known_macos_apps.items():
             lines.append(f"   - {name}: `{app}`")
@@ -161,22 +161,22 @@ Repeat this cycle. Do not guess coordinates blindly.
         for i, skill in enumerate(self.skills):
             # The first skill is usually the exact or fuzzy match which triggered the eager load
             is_primary = (i == 0)
-            
-            header = "### 🚨 [ACTIVE MISSION SOP]" if is_primary else f"### 📘 Related Reference SOP"
-            
+
+            header = "### 🚨 [ACTIVE MISSION SOP]" if is_primary else "### 📘 Related Reference SOP"
+
             block = f"{header}: {skill.name}\n"
-            
+
             if is_primary:
                 block += "You MUST treat the following instructions as a strict state-machine. Read Phase 1. Execute. Verify. Only proceed to Phase 2 upon success.\n\n"
-            
+
             if skill.description:
                 block += f"**Description**: {skill.description}\n"
-            
+
             if skill.instructions:
                 block += f"**Expert Guide (操作指南)**:\n{skill.instructions}\n"
-            
+
             knowledge_blocks.append(block)
-        
+
         return "\n".join(knowledge_blocks)
 
     def _build_sandbox_footer(self) -> str:
@@ -202,12 +202,12 @@ Repeat this cycle. Do not guess coordinates blindly.
             content = item.get("content", "")
             mime_type = item.get("mime_type", "text/plain")
             metadata = item.get("metadata", {})
-            
+
             block = f"### Item {idx + 1} ({mime_type})\n"
             if metadata:
                 meta_str = ", ".join([f"{k}: {v}" for k, v in metadata.items()])
                 block += f"*Metadata*: {meta_str}\n"
-            
+
             block += f"```\n{content}\n```\n"
             blocks.append(block)
 

@@ -1,20 +1,20 @@
 import logging
-from typing import List
 
-from app.core.interfaces.cleanup import ICleanupHandler
 from app.core.brain.consolidation import MemoryConsolidator
 from app.core.brain.drivers.llm_driver import ReflectiveDriver
 from app.core.brain.filesystem.manager import BrainFileSystem
 from app.core.config import settings
+from app.core.interfaces.cleanup import ICleanupHandler
 
 logger = logging.getLogger(__name__)
+
 
 class BrainCleanupHandler(ICleanupHandler):
     """
     Cleans up Brain-specific artifacts (e.g. Journal entries)
     linked to rolled-back messages.
     """
-    
+
     def __init__(self):
         # Lazy load dependencies if needed, or init here
         # We need filesystem and maybe drivers
@@ -27,12 +27,12 @@ class BrainCleanupHandler(ICleanupHandler):
         self.reflective = ReflectiveDriver()
         self.consolidator = MemoryConsolidator(self.reflective, self.fs)
 
-    async def cleanup(self, message_ids: List[str]) -> int:
+    async def cleanup(self, message_ids: list[str]) -> int:
         count = 0
         for mid in message_ids:
             if await self.consolidator.remove_entry_by_id(mid):
                 count += 1
-        
+
         if count > 0:
             logger.info(f"[BrainCleanup] Removed {count} journal entries.")
         return count

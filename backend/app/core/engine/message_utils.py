@@ -67,7 +67,7 @@ def truncate_message_content(
     chars = len(content)
     lines = content.count("\n")
     truncated = content[:effective_limit]
-    
+
     # Add a suffix that the LLM understands as a truncation signal
     footer = f"\n...\n[Output truncated: {lines} lines / {chars} chars total. Use specific read/search tools for more.]"
     return truncated + footer

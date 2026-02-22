@@ -1,12 +1,12 @@
 import logging
 import uuid
-from typing import Annotated, List
+from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
-from app.core.tools import evoloop_tool
 from app.core.context.manager import ContextManager
+from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)
 
@@ -16,7 +16,7 @@ async def finalize_session(
     summary: str,
     mission_achieved: bool = True,
     follow_up_needed: bool = False,
-    concept_names: List[str] | None = None,
+    concept_names: list[str] | None = None,
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
@@ -32,7 +32,7 @@ async def finalize_session(
     ctx = ContextManager.current()
     project_id = ctx.project_id or 1
     thread_id = ctx.thread_id
-    
+
     if not thread_id:
         return "Error: No active thread context found."
 
@@ -40,12 +40,12 @@ async def finalize_session(
     message_id = config.get("configurable", {}).get("run_id") or str(uuid.uuid4())
 
     try:
-        from app.core.engine.tasks import record_episode_task
         from app.core.brain.tasks import consolidate_memory
-        
+        from app.core.engine.tasks import record_episode_task
+
         # 1. Dispatch Episode Recording
         # We need the goal (first human message)
-        # In a real tool context, we might not have all messages, 
+        # In a real tool context, we might not have all messages,
         # but the task handles the rest if we provide metadata.
         record_episode_task.delay(
             thread_id=thread_id,
@@ -55,15 +55,15 @@ async def finalize_session(
             concept_names=concept_names or [],
             source_message_id=message_id,
         )
-        
+
         # 2. Trigger Memory Consolidation
         consolidate_memory.delay(source_message_id=message_id)
-        
+
         logger.info(f"Session {thread_id} finalized via Reviewer agent.")
-        
+
         # We return a special token that the finish_node can detect to stop the graph
         return f"[SESSION_FINALIZED] Summary: {summary}"
-        
+
     except Exception as e:
         logger.error(f"Failed to finalize session: {e}")
         return f"Error finalizing session: {str(e)}"

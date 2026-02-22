@@ -3,10 +3,7 @@ import os
 import time
 from threading import Lock
 
-from app.core.config import settings
 from app.core.context.plugins import set_workspace_provider
-from app.core.evocloud import evocloud_manager
-from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +34,7 @@ class ProjectContextManager:
         # [NEW] Phase 6: Project Structure Cache
         # Mapping: working_dir -> { "structure": str, "timestamp": float }
         self._structure_cache: dict[str, dict] = {}
-        
+
         logger.info("ProjectContextManager initialized as the WorkspaceProvider")
 
     async def get_project_structure(self, path: str, force_refresh: bool = False) -> str:
@@ -54,14 +51,14 @@ class ProjectContextManager:
             logger.info(f"[ProjectContext] Generating structure for: {path}")
             # Standard constraints for Generalist Agent
             generator = AnnotatedTreeGenerator(
-                path, 
-                max_depth=3, 
-                with_symbols=False, 
+                path,
+                max_depth=3,
+                with_symbols=False,
                 file_limit=30,
                 max_lines=150 # Guard against extreme bloat
             )
             structure = await generator.generate()
-            
+
             self._structure_cache[path] = {
                 "structure": structure,
                 "timestamp": time.time()

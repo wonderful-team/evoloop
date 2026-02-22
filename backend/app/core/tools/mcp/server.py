@@ -2,9 +2,9 @@ import os
 
 from mcp.server.fastmcp import FastMCP
 
+from app.core.memory import memory_manager
 from app.domain.codebase.indexing.tools import index_path
 from app.domain.codebase.retrieval.tools import search_codebase
-from app.core.memory import memory_manager
 
 # Expose Facades via MCP
 from app.domain.tools.facades import (
@@ -12,7 +12,6 @@ from app.domain.tools.facades import (
     manage_git,
     manage_memory,
 )
-
 from app.domain.tools.files import (
     edit_file,
     file_system,

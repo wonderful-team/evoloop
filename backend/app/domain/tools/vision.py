@@ -1,13 +1,14 @@
 import logging
+
 from app.core.tools import evoloop_tool
-from app.core.vision import vision_engine, VisionTask
+from app.core.vision import VisionTask, vision_engine
 
 logger = logging.getLogger(__name__)
 
 
 @evoloop_tool
 async def analyze_image(
-    image_source: str, 
+    image_source: str,
     question: str = "Describe this image in detail.",
     include_ax_tree: bool = False
 ) -> str:
@@ -23,7 +24,7 @@ async def analyze_image(
         A text description or answer derived from the image analysis.
     """
     final_prompt = question
-    
+
     if include_ax_tree:
         try:
             from app.infrastructure.drivers.macos import macos_driver

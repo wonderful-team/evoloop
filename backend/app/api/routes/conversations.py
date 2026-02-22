@@ -2,17 +2,14 @@ import logging
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
-from langchain_core.messages import HumanMessage, RemoveMessage
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
-from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
 from app.core.persistence import get_db_pool
 from app.infrastructure.database.sql.database import get_db_session
-from app.models import Conversation, Message, FileOperation
-from app.core.engine.cleanup import cleanup_side_effects
+from app.models import Conversation, FileOperation, Message
 
 logger = logging.getLogger(__name__)
 
@@ -203,7 +200,7 @@ async def get_conversation_messages(thread_id: str):
                         references=refs,
                         steps=[],
                         has_file_operations=bool(
-                            str(m.id) in messages_with_files or 
+                            str(m.id) in messages_with_files or
                             (m.run_id and m.run_id in messages_with_files) or
                             any(tc.get("id") in messages_with_files for tc in (m.tool_calls or []) if isinstance(tc, dict))
                         ),
@@ -338,21 +335,21 @@ async def rewind_conversation(thread_id: str, req: RewindRequest = RewindRequest
     Optionally revert file changes made by the Agent.
     """
     from app.core.engine.history import history_service
-    
+
     try:
         result = await history_service.perform_rewind(
             thread_id=thread_id,
             target_message_id=req.message_id,
             revert_files=req.revert_files
         )
-        
+
         if result["status"] == "empty":
             return RewindResponse(status="empty", thread_id=thread_id)
         if result["status"] == "message_not_found":
             raise HTTPException(404, "Target message not found")
         if result["status"] == "no_human_message_found":
              return RewindResponse(status="no_human_message_found", thread_id=thread_id, removed_count=0)
-             
+
         return RewindResponse(
             status="rewound",
             removed_count=result["removed_count"],
@@ -388,13 +385,13 @@ async def get_thread_changeset(thread_id: str):
                 aggregated[op.file_path] = {"operation": op.operation, "diff": op.diff_content}
             else:
                 current = aggregated[op.file_path]
-                
+
                 # If it was ADD, keep it as ADD even if followed by EDIT
                 if current["operation"] == "ADD" and op.operation == "EDIT":
                     pass # Keep ADD
                 else:
                     current["operation"] = op.operation
-                
+
                 # For now, we show the latest diff as the cumulative view is complex without original snapshots
                 current["diff"] = op.diff_content
 
@@ -405,11 +402,11 @@ async def get_thread_changeset(thread_id: str):
         def get_or_create_node(full_path: str, is_dir: bool):
             if full_path in path_map:
                 return path_map[full_path]
-            
+
             parts = full_path.strip("/").split("/")
             name = parts[-1]
             parent_path = "/".join(parts[:-1])
-            
+
             node = ChangesetNode(
                 name=name,
                 path=full_path,
@@ -417,13 +414,13 @@ async def get_thread_changeset(thread_id: str):
                 children=[]
             )
             path_map[full_path] = node
-            
+
             if not parent_path:
                 root_nodes.append(node)
             else:
                 parent_node = get_or_create_node(parent_path, True)
                 parent_node.children.append(node)
-            
+
             return node
 
         for path, info in aggregated.items():

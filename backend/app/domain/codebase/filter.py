@@ -20,8 +20,8 @@ from app.constants import (
     SOURCE_MAP_EXTENSIONS,
     SUSPICIOUS_JS_PATTERNS,
 )
-from app.utils.file import get_file_ext, is_encrypted_path
 from app.core.file.service import is_text_file
+from app.utils.file import get_file_ext, is_encrypted_path
 
 
 class FileFilter:

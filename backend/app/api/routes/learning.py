@@ -2,26 +2,27 @@
 Learning API Routes.
 Handles human-in-the-loop requests and imitation learning endpoints.
 """
-
+import base64
 import json
 import logging
 import math
+import os
+import shutil
+import subprocess
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, File, UploadFile, Query
-from pathlib import Path
-import shutil
-import os
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile
 from pydantic import BaseModel
-from sqlalchemy import select, func
+from sqlalchemy import or_, func, select, update
 
 from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
-from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.learning.skill_importer import SkillImporter
-from app.core.learning.skill_validator import SkillValidator, ValidationResult
+from app.core.learning.skill_synthesizer import WorkflowSynthesizer
+from app.core.learning.skill_validator import SkillValidator
 from app.domain.tools.environment.mirror_session import mirror_manager
 from app.domain.tools.human_input import (
     cancel_request,
@@ -313,7 +314,7 @@ async def record_global_events(body: RecordGlobalEventsRequest):
                 # For simplicity in global recording, we just use idx if session tracking is loose
                 # Or better, fetch last step number. But for high throughput, maybe just auto-increment via DB or loose idx
                 # Using 0-indexed relative to batch for now
-                
+
                 trace_event = TraceEvent(
                     thread_id=body.thread_id,
                     step_number=idx, # Logic to be refined for continuity
@@ -338,9 +339,9 @@ async def record_global_events(body: RecordGlobalEventsRequest):
                 )
                 db.add(trace_event)
                 events_saved += 1
-            
+
             return RespondResponse(success=True, message=f"Recorded {events_saved} global events")
-            
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save global events: {e}")
 
@@ -357,7 +358,6 @@ async def extract_keyframes(body: ExtractKeyframesRequest, background_tasks: Bac
         try:
             # 1. Query all global events for this session to get timestamps
             async with session_scope() as db:
-                from sqlalchemy import select, or_
                 stmt = (
                     select(TraceEvent)
                     .where(TraceEvent.recording_session_id == body.session_id)
@@ -400,24 +400,24 @@ async def extract_keyframes(body: ExtractKeyframesRequest, background_tasks: Bac
                 for event_id, result in zip(event_ids, results):
                     frame_path = result.get("screenshot_path")
                     ocr_elements = result.get("ocr_elements", [])
-                    
+
                     # Prepare update values
                     update_values = {"screenshot_path": frame_path}
-                    
+
                     # Geometry Matching: Find element at click position
                     # We need to fetch the event again or use cached data to get coordinates
                     # Since we are inside a new session scope/transaction context, let's fetch strictly needed info
-                    # But we have event_id, so we can do a targeted update with logic? 
-                    # Actually, we need the event coordinates to match. 
+                    # But we have event_id, so we can do a targeted update with logic?
+                    # Actually, we need the event coordinates to match.
                     # Let's re-fetch the specific event to get its coordinates for matching.
                     stmt_evt = select(TraceEvent).where(TraceEvent.id == event_id)
                     evt = (await db.execute(stmt_evt)).scalar_one_or_none()
-                    
+
                     if evt and evt.mouse_x is not None and evt.mouse_y is not None:
                         # Find matching element
                         mx, my = evt.mouse_x, evt.mouse_y
                         matched_text = None
-                        
+
                         # Simple point-in-rect check
                         for el in ocr_elements:
                             # bounds: [x, y, w, h] (top-left, usually? Wait, frame_extractor said: [x-w/2, y-h/2, w, h])
@@ -427,7 +427,7 @@ async def extract_keyframes(body: ExtractKeyframesRequest, background_tasks: Bac
                             if x <= mx <= x + w and y <= my <= y + h:
                                 matched_text = el["text"]
                                 break
-                        
+
                         if matched_text:
                             update_values["target_text"] = matched_text
                             # Also update ui_element_info for redundancy/compatibility
@@ -440,11 +440,10 @@ async def extract_keyframes(body: ExtractKeyframesRequest, background_tasks: Bac
                             info["text"] = matched_text
                             info["source"] = "ocr_global"
                             update_values["ui_element_info"] = json.dumps(info)
-                            
+
                             logger.info(f"OCR Match for event {event_id}: '{matched_text}' at ({mx}, {my})")
 
                     # Perform the update
-                    from sqlalchemy import update
                     await db.execute(
                         update(TraceEvent)
                         .where(TraceEvent.id == event_id)
@@ -515,9 +514,6 @@ async def record_events(body: RecordEventsRequest):
                 screenshot_path = None
                 if event.screenshot_base64:
                     try:
-                        import base64
-                        import os
-
                         # Ensure upload directory exists
                         upload_dir = settings.SCREENSHOTS_DIR
                         os.makedirs(upload_dir, exist_ok=True)
@@ -643,10 +639,7 @@ async def synthesize_skill(body: SynthesizeRequest):
             base_name = skill.name
             unique_name = base_name
             counter = 1
-            
-            from sqlalchemy import select
-            from app.models.learning import LearnedSkill
-            
+
             while True:
                 # Check if name exists
                 stmt = select(LearnedSkill).where(LearnedSkill.name == unique_name)
@@ -656,7 +649,7 @@ async def synthesize_skill(body: SynthesizeRequest):
                 # Conflict found, append suffix
                 unique_name = f"{base_name}_{counter}"
                 counter += 1
-            
+
             if unique_name != base_name:
                 logger.info(f"Skill name collision: {base_name} -> {unique_name}")
 
@@ -764,8 +757,6 @@ async def get_skill(skill_id: int):
     Get full details of a specific skill.
     """
     async with session_scope() as db:
-        from sqlalchemy import select
-
         stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
         result = await db.execute(stmt)
         skill = result.scalar_one_or_none()
@@ -800,8 +791,6 @@ async def deactivate_skill(skill_id: int):
     Deactivate (soft delete) a skill.
     """
     async with session_scope() as db:
-        from sqlalchemy import update
-
         stmt = update(LearnedSkill).where(LearnedSkill.id == skill_id).values(is_active=False)
         await db.execute(stmt)
 
@@ -824,8 +813,6 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
     Update a learned skill.
     """
     async with session_scope() as db:
-        from sqlalchemy import select
-
         # 1. Get Skill
         stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
         result = await db.execute(stmt)
@@ -945,9 +932,8 @@ async def execute_skill(
 async def list_mirror_devices():
     """List connected Android devices for mirroring."""
     devices = adb_driver.list_devices()
-    
+
     # Check for scrcpy availability
-    import subprocess
     scrcpy_available = False
     try:
         subprocess.run(["scrcpy", "--version"], capture_output=True, text=True)
@@ -967,7 +953,7 @@ async def start_mirror_session(body: StartMirrorRequest):
     session = await mirror_manager.create_session(body.device_id)
     if not session.is_active:
         raise HTTPException(status_code=500, detail=session.error or "Failed to start mirroring session")
-    
+
     return {
         "success": True,
         "session_id": session.session_id,
@@ -981,7 +967,7 @@ async def stop_mirror_session(body: StopMirrorRequest):
     success = mirror_manager.stop_session(body.session_id)
     if not success:
         raise HTTPException(status_code=404, detail="Session not found")
-    
+
     return {"success": True, "message": "Mirroring session stopped"}
 
 
@@ -994,17 +980,17 @@ async def upload_screenshot(file: UploadFile = File(...)):
         # Ensure upload directory exists
         upload_dir = settings.SCREENSHOTS_DIR
         os.makedirs(upload_dir, exist_ok=True)
-        
+
         # Generate unique filename using timestamp
         filename = f"manual_upload_{int(datetime.utcnow().timestamp())}_{file.filename}"
         file_path = os.path.join(upload_dir, filename)
-        
+
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
-            
+
         # Return relative path consistent with other endpoints
         rel_path = os.path.relpath(file_path, os.getcwd())
-        
+
         return UploadScreenshotResponse(
             success=True,
             path=rel_path,
@@ -1024,16 +1010,16 @@ async def validate_skill(skill_id: int):
         skill = await db.get(LearnedSkill, skill_id)
         if not skill:
             raise HTTPException(status_code=404, detail="Skill not found")
-            
+
         if not skill.resource_path:
             return {"success": False, "error": "Skill has no resource path (cannot validate)"}
-            
+
         validation = SkillValidator.validate_folder(Path(skill.resource_path))
-        
+
         # Update skill record with new validation report
         skill.validation_report = validation.dict()
         skill.status = "verified" if validation.status == "healthy" else "candidate"
-        
+
         return {
             "success": True,
             "validation": validation.dict()

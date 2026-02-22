@@ -9,10 +9,10 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.file.document_reader import document_reader_service
 from app.domain.codebase.filter import FileFilter
 from app.models import Repository, SourceFile
 from app.utils.file import get_file_ext
-from app.core.file.document_reader import document_reader_service
 from app.utils.hash import compute_md5
 
 logger = logging.getLogger(__name__)

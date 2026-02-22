@@ -9,19 +9,19 @@ from sqlalchemy import func, select
 
 from app.core.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
-from app.core.context.manager import ContextManager, EvoContext
 
 # Callbacks
 from app.core.callbacks.transparent import TransparentCallbackHandler
 from app.core.config import settings
+from app.core.context.manager import ContextManager, EvoContext
+from app.core.context.thread_store import thread_context_store
+from app.core.evocloud import evocloud_manager
 from app.core.exceptions import AgentCancelledException
 
 # Graph
 from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
-from app.core.context.thread_store import thread_context_store
 from app.infrastructure.database.sql.database import session_scope
-from app.core.evocloud import evocloud_manager
 from app.models import Conversation, Message
 
 logger = logging.getLogger(__name__)
@@ -256,7 +256,7 @@ async def _upload_final_log(graph, config, thread_id, command_id, project_id):
                 last_msg = messages[-1]
                 if hasattr(last_msg, "content") and last_msg.content:
                     content = last_msg.content
-                    
+
                     # Upload to debug logs (for trace viewing)
                     await evocloud_manager.upload_log(
                         thread_id=thread_id,

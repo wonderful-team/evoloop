@@ -1,10 +1,10 @@
-import logging
 import hashlib
-from typing import Any, List, Union
+import logging
+from typing import Any
 
-from app.core.atlas.models import AtlasApp, AtlasState, AtlasElement
-from app.core.atlas.ports.store import IAtlasStore
 from app.core.atlas.adapters.neo4j_store import Neo4jAtlasStore
+from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState
+from app.core.atlas.ports.store import IAtlasStore
 
 logger = logging.getLogger(__name__)
 
@@ -29,18 +29,46 @@ class AtlasEngine:
         platform = event.data.get("platform", "macos")
         elements_data = event.elements
         screenshot_hash = event.data.get("screenshot_hash")
-        
+
         if not bundle_id or bundle_id == "unknown" or not elements_data:
             return
-            
+
+        # Optional: Merge with Live AX Tree to enrich visual/OCR nodes with os_identifiers
+        if platform == "macos":
+            try:
+                import ast
+
+                from app.infrastructure.drivers.macos import macos_driver
+                raw_tree = macos_driver.dump_ax_tree()
+                if raw_tree and "Error" not in raw_tree:
+                    ax_elements = ast.literal_eval(raw_tree)
+
+                    for el_data in elements_data:
+                        bounds = el_data.get("bounds", {})
+                        if not bounds: continue
+
+                        cx = bounds.get("x", 0) + bounds.get("width", 0) / 2
+                        cy = bounds.get("y", 0) + bounds.get("height", 0) / 2
+
+                        for ax_el in ax_elements:
+                            ax_bounds = ax_el.get("bounds", [])
+                            if len(ax_bounds) == 4:
+                                ax_x, ax_y, ax_w, ax_h = ax_bounds
+                                if ax_x <= cx <= ax_x + ax_w and ax_y <= cy <= ax_y + ax_h:
+                                    if "path" in ax_el:
+                                        el_data["os_identifier"] = ax_el["path"]
+                                    break
+            except Exception as e:
+                logger.debug(f"[AtlasEngine] AX Merge failed during observation: {e}")
+
         try:
             # We use 'name' or 'bundle_id' for app_name as default
             app_model = AtlasApp(app_name=bundle_id, bundle_id=bundle_id, platform=platform)
             state_id = self._generate_state_id(bundle_id, window_title)
-            
+
             # Elements are passed as standardized dicts from the event payload
             elements = [AtlasElement.from_dict(e) for e in elements_data]
-            
+
             state = AtlasState(
                 state_id=state_id,
                 window_title=window_title,
@@ -48,14 +76,14 @@ class AtlasEngine:
                 screenshot_hash=screenshot_hash
             )
             app_model.add_state(state)
-            
+
             await self.store.save_app_model(app_model)
             logger.debug(f"[AtlasEngine] Background mapped state '{window_title}' for {bundle_id}")
-            
+
         except Exception as e:
             logger.error(f"[AtlasEngine] Failed to index observed UI tree for {bundle_id}: {e}")
 
-    async def query_app_atlas(self, bundle_ids: Union[str, List[str]], platform: str = "macos") -> str:
+    async def query_app_atlas(self, bundle_ids: str | list[str], platform: str = "macos") -> str:
         """
         Formats a structural summary of the app map for one or more applications.
         """
@@ -83,7 +111,7 @@ class AtlasEngine:
                 output.append("\n**Known Transitions**:")
                 for t in transitions:
                     output.append(f"- {t['from_state']} --[{t['type']}: {t['label']}]--> {t['to_state']}")
-            
+
             all_outputs.append("\n".join(output))
 
         if not all_outputs:

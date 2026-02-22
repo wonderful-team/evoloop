@@ -1,12 +1,12 @@
 import logging
-from typing import Annotated, List
+from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 from pydantic import BaseModel, Field
 
-from app.core.tools import evoloop_tool
 from app.core.context.manager import ContextManager
+from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class ConceptInput(BaseModel):
 
 @evoloop_tool
 async def memorize_concepts(
-    concepts: List[ConceptInput],
+    concepts: list[ConceptInput],
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
     """
@@ -30,28 +30,28 @@ async def memorize_concepts(
     """
     ctx = ContextManager.current()
     project_id = ctx.project_id or 1
-    
+
     if not concepts:
         return "No concepts provided for harvesting."
 
     try:
         from app.core.engine.tasks import harvest_concepts_task
-        
+
         # Convert to list of dicts for Celery
         concepts_data = [
-            {"name": c.name, "description": c.description} 
+            {"name": c.name, "description": c.description}
             for c in concepts
         ]
-        
+
         # Trigger background task
         harvest_concepts_task.delay(
-            concepts_data=concepts_data, 
+            concepts_data=concepts_data,
             project_id=project_id
         )
-        
+
         names = [c.name for c in concepts]
         return f"Successfully dispatched harvesting task for {len(concepts)} concepts: {', '.join(names)}"
-        
+
     except Exception as e:
         logger.error(f"Failed to harvest knowledge: {e}")
         return f"Error harvesting knowledge: {str(e)}"

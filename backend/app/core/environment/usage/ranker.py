@@ -15,6 +15,7 @@ import logging
 import os
 import subprocess
 from datetime import datetime, timezone
+
 from app.core.environment.models import AppUsageRecord
 
 logger = logging.getLogger(__name__)
@@ -56,7 +57,7 @@ class UsageRanker:
         """
         records: list[AppUsageRecord] = []
         running_apps = cls._get_running_macos_apps()
-        
+
         # 1. Try a bulk query for recently used apps first
         try:
             bulk_cmd = [
@@ -65,7 +66,7 @@ class UsageRanker:
             ]
             result = subprocess.run(bulk_cmd, capture_output=True, text=True, timeout=10)
             recent_paths = [p.strip() for p in result.stdout.splitlines() if p.strip().endswith(".app")]
-            
+
             if not recent_paths:
                 # Relaxed query: any app with usage metadata
                 bulk_cmd = ["mdfind", "kMDItemKind == 'Application' && kMDItemLastUsedDate > $time.now(-365d)"]
@@ -83,15 +84,15 @@ class UsageRanker:
         # 2. Ensure all running apps and provided app_names are considered
         existing_bundle_ids = {r.bundle_id for r in records}
         existing_names = {r.app_name for r in records}
-        
+
         # Candidates for individual probing if we have very little data
         candidates = list(running_apps | set(app_names[:20]))
-        
+
         if len(records) < top_n:
             for name in candidates:
                 if name in existing_names: continue
                 if len(records) >= top_n * 3: break
-                
+
                 # Try individual probe for high-likelihood candidates
                 record = cls._probe_macos_app(name)
                 if record:
@@ -108,9 +109,9 @@ class UsageRanker:
         for r in records:
             if r.app_name in running_apps or r.bundle_id in running_apps:
                 # Store running status in a temporary attribute for scoring
-                setattr(r, "_is_running", True)
+                r._is_running = True
             else:
-                setattr(r, "_is_running", False)
+                r._is_running = False
 
         cls._compute_priority_scores(records)
         records.sort(key=lambda r: r.priority_score, reverse=True)
@@ -135,7 +136,7 @@ class UsageRanker:
         app_name = os.path.basename(app_path).replace(".app", "")
         bundle_id = cls._mdls_get(app_path, "kMDItemCFBundleIdentifier") or app_name
         last_used_str = cls._mdls_get(app_path, "kMDItemLastUsedDate")
-        
+
         last_used_at = None
         if last_used_str and last_used_str != "(null)":
             try:
@@ -143,7 +144,7 @@ class UsageRanker:
                 last_used_at = datetime.strptime(last_used_str.strip(), "%Y-%m-%d %H:%M:%S %z")
             except Exception:
                 pass
-                
+
         return AppUsageRecord(
             app_name=app_name,
             bundle_id=bundle_id,
@@ -334,8 +335,8 @@ class UsageRanker:
         for i, record in enumerate(records):
             running_val = 1.0 if getattr(record, "_is_running", False) else 0.0
             record.priority_score = round(
-                W_RECENCY * recency_raw[i] + 
+                W_RECENCY * recency_raw[i] +
                 W_FREQUENCY * freq_raw[i] +
-                W_RUNNING * running_val, 
+                W_RUNNING * running_val,
                 4
             )

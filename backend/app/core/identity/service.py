@@ -1,7 +1,8 @@
 import logging
-from typing import Optional, Any
-from .store import IdentityStore
+from typing import Any
+
 from .jwt import create_local_jwt
+from .store import IdentityStore
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class IdentityService:
     def __init__(self):
         self.store = IdentityStore()
 
-    async def login_with_cloud_result(self, cloud_result: dict[str, Any]) -> Optional[str]:
+    async def login_with_cloud_result(self, cloud_result: dict[str, Any]) -> str | None:
         """
         Processes a successful login result from EvoCloud.
         Saves cloud token to secure storage and returns a local JWT.
@@ -43,13 +44,13 @@ class IdentityService:
         self.store.delete_cloud_token()
         # Note: We don't necessarily delete the device_key here as it identifies the device, not the user session.
 
-    def get_cloud_token(self) -> Optional[str]:
+    def get_cloud_token(self) -> str | None:
         """
         Retrieves the cloud token from secure storage.
         """
         return self.store.get_cloud_token()
 
-    def get_member_id(self) -> Optional[int]:
+    def get_member_id(self) -> int | None:
         return self.store.get_member_id()
 
     def is_logged_in(self) -> bool:

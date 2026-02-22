@@ -35,16 +35,16 @@ class ADBDriver:
             os.path.expanduser("~/Library/Android/sdk/platform-tools/adb"),
             os.path.expanduser("~/Android/Sdk/platform-tools/adb"),
         ]
-        
+
         for path in paths:
             if os.path.exists(path):
                 return path
-        
+
         # Try finding in PATH
         result = subprocess.run(["which", "adb"], capture_output=True, text=True)
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
-        
+
         return "adb"  # Fallback to hoping it's in PATH
 
     def _run_adb(self, args: list[str], device_id: str | None = None, timeout: int = 30) -> tuple[str, str]:
@@ -60,7 +60,7 @@ class ADBDriver:
             Tuple of (stdout, stderr)
         """
         cmd = [self._adb_path]
-        
+
         # Try to resolve device_id from Context if not provided
         if not device_id:
             try:
@@ -74,9 +74,9 @@ class ADBDriver:
 
         if device_id:
             cmd.extend(["-s", device_id])
-        
+
         cmd.extend(args)
-        
+
         try:
             result = subprocess.run(
                 cmd,
@@ -84,7 +84,7 @@ class ADBDriver:
                 text=True,
                 timeout=timeout
             )
-            
+
             if result.returncode != 0:
                 # Check for common errors
                 if "device not found" in result.stderr.lower():
@@ -93,11 +93,11 @@ class ADBDriver:
                     raise ADBError("Multiple devices connected. Please specify device_id.")
                 if "unauthorized" in result.stderr.lower():
                     raise ADBError("Device is unauthorized. Please accept the USB debugging prompt on your device.")
-                
+
                 raise ADBError(f"ADB command failed: {result.stderr}")
-            
+
             return result.stdout, result.stderr
-            
+
         except FileNotFoundError:
             raise ADBError(
                 "ADB not found. Please install Android SDK Platform Tools:\n"
@@ -114,7 +114,7 @@ class ADBDriver:
             List of device dicts with 'serial' and 'status' keys.
         """
         stdout, _ = self._run_adb(["devices", "-l"])
-        
+
         devices = []
         for line in stdout.strip().split("\n")[1:]:  # Skip header
             if not line.strip():
@@ -126,7 +126,7 @@ class ADBDriver:
                     "status": parts[1],
                     "info": " ".join(parts[2:]) if len(parts) > 2 else ""
                 })
-        
+
         return devices
 
     def screenshot(self, device_id: str | None = None) -> str:
@@ -142,26 +142,26 @@ class ADBDriver:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"android_screenshot_{timestamp}.png"
         filepath = os.path.join(tempfile.gettempdir(), filename)
-        
+
         # Use screencap and pull in one pipeline
         # Method 1: exec-out (faster, streams directly)
         cmd = [self._adb_path]
         if device_id:
             cmd.extend(["-s", device_id])
         cmd.extend(["exec-out", "screencap", "-p"])
-        
+
         try:
             result = subprocess.run(cmd, capture_output=True, timeout=15)
-            
+
             if result.returncode != 0:
                 raise ADBError(f"Screenshot failed: {result.stderr.decode()}")
-            
+
             with open(filepath, "wb") as f:
                 f.write(result.stdout)
-            
+
             logger.info(f"Android screenshot saved: {filepath}")
             return filepath
-            
+
         except subprocess.TimeoutExpired:
             raise ADBError("Screenshot timed out")
 
@@ -208,10 +208,10 @@ class ADBDriver:
         """
         # ADB input text doesn't handle spaces well - use %s instead
         # Also need to escape shell metacharacters for the 'adb shell input text' command
-        # A safer way is to use single quotes around the text, but adb shell handles them differently 
+        # A safer way is to use single quotes around the text, but adb shell handles them differently
         # for different OSes. The most robust simple way:
         shell_text = text.replace(" ", "%s").replace("'", "\\'").replace('"', '\\"').replace("|", "\\|").replace("&", "\\&")
-        
+
         self._run_adb(["shell", "input", "text", f"'{shell_text}'"], device_id=device_id)
         logger.info(f"Input text: {text[:20]}...")
 
@@ -250,7 +250,7 @@ class ADBDriver:
             "volume_up": 24,
             "volume_down": 25,
         }
-        
+
         if isinstance(keycode, str):
             keycode_lower = keycode.lower().replace("keycode_", "")
             if keycode_lower in key_names:
@@ -260,7 +260,7 @@ class ADBDriver:
                     keycode = int(keycode)
                 except ValueError:
                     raise ValueError(f"Unknown keycode: {keycode}. Use numeric code or: {list(key_names.keys())}")
-        
+
         self._run_adb(["shell", "input", "keyevent", str(keycode)], device_id=device_id)
         logger.info(f"Pressed keycode: {keycode}")
 
@@ -302,12 +302,12 @@ class ADBDriver:
         """
         import time
         start = time.time()
-        
+
         # Method 1: Try direct exec-out (faster, single command)
         cmd = [self._adb_path]
         if device_id:
             cmd.extend(["-s", device_id])
-        
+
         # Use /dev/tty as output to get direct streaming
         # Some devices support this, some don't
         try:
@@ -317,7 +317,7 @@ class ADBDriver:
                 text=True,
                 timeout=15
             )
-            
+
             if result.returncode == 0 and result.stdout.strip():
                 # Output format: "UI hierchary dumped to: /dev/tty\n<xml>..."
                 output = result.stdout
@@ -325,27 +325,27 @@ class ADBDriver:
                 xml_start = output.find("<?xml")
                 if xml_start == -1:
                     xml_start = output.find("<hierarchy")
-                
+
                 if xml_start >= 0:
                     xml_content = output[xml_start:]
                     logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (exec-out)")
                     return xml_content
         except Exception as e:
             logger.debug(f"exec-out method failed: {e}, using fallback")
-        
+
         # Method 2: Fallback to file-based approach
         remote_path = "/sdcard/window_dump.xml"
-        
+
         self._run_adb(["shell", "uiautomator", "dump", remote_path], device_id=device_id)
         stdout, _ = self._run_adb(["shell", "cat", remote_path], device_id=device_id)
-        
+
         # Cleanup (async, don't wait)
         subprocess.Popen(
             [self._adb_path] + (["-s", device_id] if device_id else []) + ["shell", "rm", "-f", remote_path],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
-        
+
         logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (file)")
         return stdout
 
@@ -357,7 +357,7 @@ class ADBDriver:
             Tuple of (width, height)
         """
         stdout, _ = self._run_adb(["shell", "wm", "size"], device_id=device_id)
-        
+
         # Parse "Physical size: 1080x2400"
         for line in stdout.strip().split("\n"):
             if "Physical size" in line or "Override size" not in line:
@@ -367,7 +367,7 @@ class ADBDriver:
                     return w, h
                 except (ValueError, IndexError):
                     pass
-        
+
         # Fallback
         return 1080, 1920
 
@@ -381,7 +381,7 @@ class ADBDriver:
             sdk = self._run_adb(["shell", "getprop", "ro.build.version.sdk"], device_id=device_id)[0].strip()
             # Battery
             battery = self._run_adb(["shell", "dumpsys", "battery", "|", "grep", "level"], device_id=device_id)[0].strip()
-            
+
             return {
                 "model": model,
                 "os_version": f"Android {version} (SDK {sdk})",

@@ -1,11 +1,8 @@
-import json
 import logging
-from typing import Any, List, Optional, Tuple
-from langchain_core.runnables import RunnableConfig
+from typing import Any
 
 from app.core.engine.state import AgentState
-from app.core.learning.discovery import skill_discovery, SkillMatch
-from app.models.learning import LearnedSkill
+from app.core.learning.discovery import skill_discovery
 
 logger = logging.getLogger(__name__)
 
@@ -20,9 +17,9 @@ class SkillHydrator:
     async def hydrate(
         state: AgentState,
         topic: str,
-        namespace_context: Optional[str] = None,
+        namespace_context: str | None = None,
         mode: str = "eager"  # "eager" or "lazy"
-    ) -> List[Any]:
+    ) -> list[Any]:
         """
         Fetch relevant skills based on the topic and mode.
         If eager, returns full LearnedSkill objects.
@@ -35,16 +32,16 @@ class SkillHydrator:
         # Eager mode: Fetch and return full SOP instructions
         logger.info(f"[Hydrator] Eagerly hydrating skills for topic: {topic}")
         match, relevant = await skill_discovery.exact_search(
-            query=topic, 
+            query=topic,
             namespace_context=namespace_context
         )
-        
+
         # exact_search returns (SkillMatch | None, List[LearnedSkill])
         # If there's a match, relevant already contains the skill object.
         return relevant
 
     @staticmethod
-    async def get_node_skills(state: AgentState, node_name: str) -> List[Any]:
+    async def get_node_skills(state: AgentState, node_name: str) -> list[Any]:
         """
         Helper to get skills tailored for a specific node type.
         """
@@ -52,7 +49,7 @@ class SkillHydrator:
         topic = execution_ticket.get("topic", "")
         # Track 8: Dynamic Namespace Mounting
         namespace_context = execution_ticket.get("namespace_context")
-        
+
         # Default behavior: Operator is Lazy, Specialist is Eager
         if node_name.lower() == "operator":
             skills = await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode="lazy")

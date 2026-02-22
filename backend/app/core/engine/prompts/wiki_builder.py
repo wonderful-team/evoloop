@@ -1,7 +1,7 @@
-from typing import List
-from app.infrastructure.config.service import SystemConfigService
+
 from app.constants import LANGUAGE_MAP
 from app.i18n.service import i18n
+from app.infrastructure.config.service import SystemConfigService
 
 
 class WikiBuilder:
@@ -14,7 +14,7 @@ class WikiBuilder:
         # Get raw code (e.g. "zh") instead of human readable name from get_language_preference
         user_lang_code = SystemConfigService.get_value("LANGUAGE", "zh")
         target_lang = LANGUAGE_MAP.get(user_lang_code, "Mandarin Chinese (中文)")
-        
+
         return f"""
 IMPORTANT: The wiki content MUST be generated in {target_lang}.
 """
@@ -79,14 +79,14 @@ Use hierarchical structure (folders/groups) grouping related pages together wher
 """
 
     @staticmethod
-    def build_content_prompt(page_title: str, relevant_files_content: str, relevant_file_paths: List[str]) -> str:
+    def build_content_prompt(page_title: str, relevant_files_content: str, relevant_file_paths: list[str]) -> str:
         """
         Prompt to generate the content of a single Wiki page.
         """
         relevant_files = i18n.get("prompts.wiki.generated_content.relevant_files")
         files_used = i18n.get("prompts.wiki.generated_content.files_used")
         files_list_md = "\n".join([f"- {path}" for path in relevant_file_paths])
-        
+
         return f"""You are an expert technical writer and software architect.
 Your task is to generate a comprehensive and accurate technical wiki page in Markdown format about a specific feature, system, or module.
 
@@ -133,7 +133,7 @@ Do NOT include any preface or chatty intro. Start directly with the `<details>` 
         """
         # Truncate content to avoid context overflow
         truncated_content = page_content[:6000] if len(page_content) > 6000 else page_content
-        
+
         return f"""You are a Knowledge Engineer analyzing a Wiki page to extract key concepts worth remembering.
 
 Page Title: "{page_title}"
@@ -181,7 +181,7 @@ Extract at most 5 concepts. Return empty list if nothing noteworthy.
         """
         import json
         structure_json = json.dumps(structure, ensure_ascii=False, indent=2)
-        
+
         return f"""You are a Documentation Completeness Analyst.
 
 Your task is to analyze a proposed Wiki structure and identify any significant gaps.

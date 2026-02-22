@@ -7,7 +7,7 @@ These events enable decoupling between ProjectSyncService and IndexingManager.
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Dict
+from typing import Any
 
 from app.core.events.base import BaseEvent
 from app.core.events.registry import ProjectEventType
@@ -19,7 +19,7 @@ class ProjectEvent(BaseEvent):
     event_type: ProjectEventType = field(default=ProjectEventType.PROJECT_CREATED)
     timestamp: datetime = field(default_factory=datetime.now)
     source: str = "project"
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -33,7 +33,7 @@ class ProjectCreatedEvent(ProjectEvent):
     repo_id: int = 0
     project_id: int | None = None
     project_name: str = ""
-    
+
     def __post_init__(self):
         self.event_type = ProjectEventType.PROJECT_CREATED
         self.data = {
@@ -54,7 +54,7 @@ class ProjectDeletedEvent(ProjectEvent):
     path: str = ""
     repo_id: int = 0
     project_id: int | None = None
-    
+
     def __post_init__(self):
         self.event_type = ProjectEventType.PROJECT_DELETED
         self.data = {
@@ -73,7 +73,7 @@ class ProjectMovedEvent(ProjectEvent):
     dest_path: str = ""
     repo_id: int = 0
     new_name: str = ""
-    
+
     def __post_init__(self):
         self.event_type = ProjectEventType.PROJECT_MOVED
         self.data = {
@@ -92,7 +92,7 @@ class ProjectSwitchedEvent(ProjectEvent):
     project_id: int = 0
     project_name: str = ""
     path: str = ""
-    
+
     def __post_init__(self):
         self.event_type = ProjectEventType.PROJECT_SWITCHED
         self.data = {

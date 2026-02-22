@@ -15,10 +15,10 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.api.main import api_router
 from app.core.config import settings
-from app.core.context.middleware import ContextMiddleware
 
 # EvoLoop Imports
 from app.core.context import thread_context_store
+from app.core.context.middleware import ContextMiddleware
 from app.core.engine.graph_builder import GraphBuilder
 from app.core.events.bridge import register_event_bridge
 from app.core.globals import set_graph
@@ -59,20 +59,20 @@ async def lifespan(_app: FastAPI):
 
     # 2.5 Agent Awakening - Environment & Capability Awareness
     try:
-        from app.domain.codebase.indexing.event_handlers import register_indexing_handlers
         from app.core.environment import awaken, environment_watcher
         from app.core.environment.handlers import register_default_handlers
-        import app.core.environment.context_plugin  # Register Core Context Plugins
-        import app.domain.project.context_plugins  # Register Project Context Plugins
+        from app.domain.codebase.indexing.event_handlers import (
+            register_indexing_handlers,
+        )
 
         # Register event handlers before awakening
         register_default_handlers()
         register_indexing_handlers()
         register_event_bridge()
-        
+
         await awaken()
         logger.info("Agent Awakening complete.")
-        
+
         # Start background environment watcher
         await environment_watcher.start()
     except Exception as e:
@@ -225,7 +225,7 @@ async def lifespan(_app: FastAPI):
 
         except Exception as e:
             logger.error(f"Failed to start EvoLoop Link Client: {e}")
-            
+
     # 8. Android Device Watcher
     try:
         from app.domain.tools.environment.device_watcher import device_watcher

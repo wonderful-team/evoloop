@@ -25,7 +25,7 @@ __all__ = [
     "AsyncEventBus",
     "SystemEventBus",
     "EventHandler",
-    # Global instance  
+    # Global instance
     "system_bus",
     # Event types
     "SystemEventType",

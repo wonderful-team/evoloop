@@ -1,7 +1,7 @@
+from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
 from app.domain.codebase.retrieval.graph_explorer import graph_explorer
 from app.domain.codebase.retrieval.service import RetrievalService
-from app.core.context.manager import ContextManager
 
 
 @evoloop_tool

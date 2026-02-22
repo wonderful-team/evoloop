@@ -8,6 +8,7 @@ Allows for dynamic context injection and potential LLM-specific adaptations.
 import json
 import logging
 import os
+import platform
 
 from langchain_core.runnables import RunnableConfig
 
@@ -47,7 +48,7 @@ class SupervisorPromptBuilder:
 
         # Brain Integration: Episodic Memory
         episodic_memory = self._build_episodic_memory_section()
-        
+
         # Brain Integration: Core Memory (Focus)
         core_memory = self._build_core_memory_section()
 
@@ -67,12 +68,11 @@ You MUST adhere to the **SANDBOX PROTOCOL**:
 """
         from app.core.context import ContextManager
         from app.i18n.service import i18n
-        import platform
-        
+
         ctx = ContextManager.current()
         cwd = ctx.metadata.get("cwd", "")
         project_concepts = ctx.metadata.get("project_concepts", "")
-        
+
         if cwd:
             project_structure_stub = f"CWD: {cwd}\n(Use 'get_workspace_tree' to examine files if needed)"
         else:
@@ -96,7 +96,7 @@ When you call `route_to(target='operator', ...)`:
 **DO NOT** make the Coder guess. Point to the file strategies.
 """
         sys_info = f"OS: {platform.system()} {platform.release()}, CWD: {cwd}\nLanguage: {user_lang}\n\nProject Architecture:\n{project_structure_stub}{project_concepts}\n{protocol_prompt}"
-        
+
         active_plan_context = ctx.metadata.get("active_plan_context", i18n.get("prompts.supervisor.no_active_plan"))
 
         return f"""You are the Supervisor of an elite Universal AI Agent Team.
@@ -246,9 +246,9 @@ DO NOT Assume intent.
         """Phase 8: Build the Blackboard (Structured State) section."""
         ticket = self.context.get("execution_ticket")
         verification_status = self.context.get("verification_status")
-        
+
         output = ["## 🏢 LIVE EXECUTION STATUS (Blackboard)"]
-        
+
         if ticket:
             output.append(f"### ACTIVE TICKET: {ticket.get('ticket_type', 'TASK').upper()}")
             output.append(f"- **Goal**: {self.context.get('scratchpad', {}).get('route_reason', 'N/A')}")
@@ -264,18 +264,14 @@ DO NOT Assume intent.
             output.append(f"### VERIFICATION STATUS: {status.upper()}")
             if status == "verified":
                 output.append("- Specialist node has attempted verification. Check history for pass/fail details.")
-        
+
         return "\n".join(output) + "\n"
 
     def _build_episodic_memory_section(self) -> str:
         """Read recent journal entries or query Neo4j to form Episodic Memory."""
         try:
-            from app.core.config import settings
-            import os
-            
             if getattr(settings, "USE_NEO4J_MEMORY", False):
                 # Phase 4 Autonomy: Neo4j Semantic Memory
-                from app.core.memory.manager import memory_manager
                 # For synchronous prompt building, we might need a sync wrapper or just fetch recent episodes
                 # Assuming long_term has a fetch_recent or we just try to get context
                 # Since PromptBuilder is synchronous, we use a try/except block to safely fetch or fallback
@@ -292,13 +288,13 @@ Use the `recall_memory` tool to semantically search your past experiences, decis
             if not os.path.exists(journal_path):
                 return ""
 
-            with open(journal_path, "r", encoding="utf-8") as f:
+            with open(journal_path, encoding="utf-8") as f:
                 content = f.read()
                 if not content:
                     return ""
                 lines = content.splitlines()[-20:]
                 recent_memories = "\n".join(lines)
-                
+
             return f"""
 ## 🧠 EPISODIC MEMORY (Recent Learnings)
 The following are consolidated summaries from your previous sessions.
@@ -323,16 +319,16 @@ Use `update_focus` or `manage_memory` to update your core active constraints.
             # Legacy Flat-File Fallback
             focus_path = os.path.join(settings.BRAIN_MEMORY_ROOT, "working", "focus.md")
             if not os.path.exists(focus_path):
-                 return """
+                return """
 ## 🎯 CORE MEMORY (FOCUS)
 [Empty]
 Use the `update_focus` tool to set high-level goals or constraints that persist here.
 """
-            with open(focus_path, "r", encoding="utf-8") as f:
+            with open(focus_path, encoding="utf-8") as f:
                 content = f.read().strip()
-                
+
             if not content:
-                 return """
+                return """
 ## 🎯 CORE MEMORY (FOCUS)
 [Empty]
 Use the `update_focus` tool to set high-level goals or constraints that persist here.
@@ -351,7 +347,7 @@ Use the `update_focus` tool to set high-level goals or constraints that persist 
         """Build the awakening section with environment awareness from Subconscious Pool."""
         from app.core.context.manager import ContextManager
         from app.core.context.plugins import plugin_registry
-        
+
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
 

@@ -1,12 +1,13 @@
 import logging
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
+from app.core.config import settings
+from app.core.context.manager import ContextManager
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
 from app.core.evocloud.schemas import EvoCloudConfig
-from app.core.config import settings  # Only imported to provide default config initialization
-from app.core.context.manager import ContextManager
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +47,12 @@ class EvoCloudManager:
         self._config = config
         self._api = EvoCloudHTTPClient(config)
         self.link = EvoCloudWebSocketLink(config, self._api)
-        
+
         self._initialized = True
         logger.info("EvoCloudManager: Initialized")
 
     # --- Lifecycle ---
-    
+
     async def start(self) -> None:
         """Start background services (Link)."""
         if self.link:
@@ -70,16 +71,16 @@ class EvoCloudManager:
         if self.link:
             self.link.set_command_handler(handler)
         else:
-             logger.warning("Attempted to set command handler before initialization")
+            logger.warning("Attempted to set command handler before initialization")
 
     def set_event_handler(self, handler: Callable[[str, dict[str, Any]], None]):
         if self.link:
             self.link.set_event_handler(handler)
         else:
-             logger.warning("Attempted to set event handler before initialization")
+            logger.warning("Attempted to set event handler before initialization")
 
     # --- Proxy Methods (Common Actions) ---
-    
+
     # Auth
     async def login(self, username, password) -> dict:
         res = await self.api.login(username, password)

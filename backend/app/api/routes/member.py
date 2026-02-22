@@ -22,12 +22,12 @@ async def login(req: LoginRequest):
         raise HTTPException(
             status_code=401, detail=result.get("message", "Login failed")
         )
-    
+
     # Process login via IdentityService and return local JWT
     local_token = await identity_service.login_with_cloud_result(result)
     if not local_token:
          raise HTTPException(status_code=500, detail="Failed to initialize local session")
-    
+
     # Update result to return local token
     result["token"] = local_token
 
@@ -59,7 +59,7 @@ async def status():
 async def logout():
     # Logout logic: Clear token and stop link
     identity_service.logout()
-    
+
     if evocloud_manager.api:
         evocloud_manager.api.set_token(None)
     if evocloud_manager.link:

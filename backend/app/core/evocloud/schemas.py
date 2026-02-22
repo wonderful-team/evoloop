@@ -1,5 +1,6 @@
-from typing import Any, Literal
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel
 
 
 class EvoCloudConfig(BaseModel):
@@ -9,20 +10,20 @@ class EvoCloudConfig(BaseModel):
     ws_url: str
     api_key: str | None = None
     api_secret: str | None = None
-    
+
     # Device Identity
     device_name: str | None = "EvoLoop-Desktop"
-    
+
     # Auth (Optional, can be passed dynamically)
     access_token: str | None = None
-    
+
     # Path Configuration
     app_data_dir: str | None = None
 
 
 class CommandData(BaseModel):
     """Structure of a command received from Cloud."""
-    
+
     command_id: str
     type: str # 'chat_message', 'hitl_response', etc.
     content: dict[str, Any] | None = None
@@ -35,7 +36,7 @@ class CommandData(BaseModel):
 
 class DeviceStatus(BaseModel):
     """Current status of the device connection."""
-    
+
     is_logged_in: bool
     member_id: int | None = None
     device_connected: bool

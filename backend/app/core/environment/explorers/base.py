@@ -2,7 +2,6 @@
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import List, Dict, Optional
 
 from app.infrastructure.llm.vision import get_vision_llm
 
@@ -13,14 +12,14 @@ class BaseExplorer(ABC):
     """
     Abstract Base Class for platform-specific environment explorers.
     """
-    
+
     @abstractmethod
     async def scan(self, *args, **kwargs) -> list:
         """Perform a basic environment scan (e.g. list apps)."""
         pass
 
     @classmethod
-    async def identify_high_value_apps(cls, items: List[str], platform: str) -> Dict[str, dict]:
+    async def identify_high_value_apps(cls, items: list[str], platform: str) -> dict[str, dict]:
         """
         Shared LLM Triage logic.
         Returns mapping of {human_name: {"identifier": "...", "reasoning": "..."}}.
@@ -29,10 +28,10 @@ class BaseExplorer(ABC):
             return {}
 
         try:
-            from langchain_core.messages import SystemMessage, HumanMessage
+            from langchain_core.messages import HumanMessage, SystemMessage
 
             llm = get_vision_llm(temperature=0)
-            
+
             prompt = (
                 f"You are an expert at identifying high-value productivity/lifestyle {platform} apps from their names.\n"
                 f"Given this list of newly discovered {platform} apps/packages, identify which ones are important enough to warrant a 'Skill Probe'.\n"
@@ -51,7 +50,7 @@ class BaseExplorer(ABC):
             content = response.content.strip()
             if "```json" in content:
                 content = content.split("```json")[1].split("```")[0].strip()
-            
+
             data = json.loads(content)
             return data.get("selected", {})
         except Exception as e:

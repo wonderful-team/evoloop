@@ -1,10 +1,11 @@
 import logging
+
 from langchain_core.runnables import RunnableConfig
 
-from app.core.engine import AgentEngine
-from app.core.engine.state import AgentState
-from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.context.manager import ContextManager
+from app.core.engine import AgentEngine
+from app.core.engine.prompts.finish import FinishPromptBuilder
+from app.core.engine.state import AgentState
 from app.core.tools.manager import tool_manager
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ def _extract_tool_usage(messages: list) -> str:
         if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls"):
             for tc in msg.tool_calls:
                 tools_used.add(tc["name"])
-    
+
     if not tools_used:
         return "No specific tools were called. Actions were purely conversational."
     return "Tools utilized during session: " + ", ".join(sorted(tools_used))
@@ -32,7 +33,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     # 1. Resolve Strict Path
     ctx = ContextManager.current()
     cwd = ctx.working_directory or config.get("configurable", {}).get("working_directory")
-    
+
     if not cwd:
         logger.error("Nodes: Finish - No working_directory found. Backtracking.")
         return {"messages": [], "next_node": "supervisor"}
@@ -41,7 +42,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     current_plan = state.get("current_plan", "")
     execution_ticket = state.get("execution_ticket")
     verification_status = state.get("verification_status", {})
-    
+
     # 2.1 Action Audit (Universal)
     # Instead of file modifications, we audit what actions (tools) were actually taken.
     messages = state.get("messages", [])
@@ -73,7 +74,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     # 5. Handle Terminal Tool Signal
     # If the Reviewer called finalize_session, the tool returns a special string.
     # We need to make sure the graph actually stops.
-    # In AgentMain, finish -> END is simple. 
+    # In AgentMain, finish -> END is simple.
     # But if the Reviewer routed back to operator, AgentEngine handles that routing.
-    
+
     return result

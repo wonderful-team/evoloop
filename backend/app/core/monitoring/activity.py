@@ -1,4 +1,3 @@
-import asyncio
 import json
 import time
 from typing import Any
@@ -303,7 +302,7 @@ class ActivityMonitor:
         }
         if details:
             state["details"] = details
-            
+
         await redis_client.hset(key, "agent_state", json.dumps(state))
 
         # Publish Event

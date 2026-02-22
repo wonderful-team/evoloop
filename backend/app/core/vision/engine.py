@@ -1,13 +1,15 @@
 import asyncio
 import logging
 import time
-from typing import Optional
 
+from app.core.environment.events import UiTreeObservedEvent, event_bus
+from app.core.events.base import system_bus
+from app.core.vision.events import (
+    VisionProcessCompletedEvent,
+    VisionProcessStartedEvent,
+)
 from app.core.vision.router import VisionRouter
 from app.core.vision.types import VisionResult, VisionTask
-from app.core.vision.events import VisionProcessStartedEvent, VisionProcessCompletedEvent
-from app.core.events.base import system_bus
-from app.core.environment.events import event_bus, UiTreeObservedEvent
 from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
@@ -26,14 +28,14 @@ class VisionEngine:
         self,
         task: VisionTask,
         image_source: str,
-        prompt: Optional[str] = None,
+        prompt: str | None = None,
         **kwargs
     ) -> VisionResult:
         """
         Main entry point to process any vision task.
         """
         start_time = time.time()
-        
+
         # 1. Publish Start Event
         await system_bus.publish(VisionProcessStartedEvent(
             data={"task": task.value, "source": image_source}
@@ -59,7 +61,7 @@ class VisionEngine:
             try:
                 # 1. Get current context for metadata
                 app_info = macos_driver.get_current_app()
-                
+
                 # 2. Publish to Awakening Event Bus for AppAtlasService to consume
                 await event_bus.publish(UiTreeObservedEvent(
                     platform="macos",
@@ -81,9 +83,9 @@ class VisionEngine:
                     success=False,
                     metadata={"error": "No available provider"}
                 )
-                
+
             logger.info(f"VisionEngine: Routing task {task} to {provider.name}")
-            
+
             # 3. Execution (Standard)
             try:
                 result = await provider.process(task, image_source, prompt, **kwargs)
@@ -94,10 +96,10 @@ class VisionEngine:
                     success=False,
                     metadata={"error": str(e)}
                 )
-            
+
         # 4. Finalize
         result.latency_ms = (time.time() - start_time) * 1000
-        
+
         # 5. Passive Atlas Learning for non-DETECT tasks
         if task != VisionTask.DETECT and result.success:
             # Run background perception to feed the Atlas without blocking the response
@@ -147,7 +149,7 @@ class VisionEngine:
             result=result,
             data={"task": task.value, "provider": provider_name}
         ))
-        
+
         return result
 
 

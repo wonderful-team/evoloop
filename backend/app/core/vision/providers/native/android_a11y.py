@@ -8,11 +8,10 @@ and parses it into UIElement objects.
 import logging
 import re
 import xml.etree.ElementTree as ET
-from typing import Any, Optional
 
-from app.infrastructure.drivers.adb import adb_driver, ADBError
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
+from app.infrastructure.drivers.adb import ADBError, adb_driver
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ def _parse_bounds(bounds_str: str) -> tuple[int, int, int, int] | None:
 def _infer_element_type(node: ET.Element) -> ElementType:
     """Infer element type from class name and attributes."""
     class_name = node.get("class", "").lower()
-    
+
     if "button" in class_name:
         return ElementType.BUTTON
     elif "edittext" in class_name or "textfield" in class_name:
@@ -58,15 +57,15 @@ class AndroidA11yProvider(VisionProvider):
     This is the fastest and most accurate provider for Android devices,
     as it directly reads the accessibility tree.
     """
-    
+
     @property
     def name(self) -> str:
         return "android_a11y"
-    
+
     @property
     def cost_factor(self) -> float:
         return 0.0  # Free - local command
-    
+
     async def is_available(self) -> bool:
         """Check if an Android device is connected."""
         try:
@@ -74,12 +73,12 @@ class AndroidA11yProvider(VisionProvider):
             return any(d["status"] == "device" for d in devices)
         except ADBError:
             return False
-    
+
     async def process(
         self,
         task: VisionTask,
         image_source: str,
-        prompt: Optional[str] = None,
+        prompt: str | None = None,
         **kwargs
     ) -> VisionResult:
         """
@@ -104,7 +103,7 @@ class AndroidA11yProvider(VisionProvider):
         import time
         start = time.time()
         device_id = kwargs.get("device_id")
-        
+
         try:
             xml_content = adb_driver.dump_ui(device_id=device_id)
         except ADBError as e:
@@ -114,12 +113,12 @@ class AndroidA11yProvider(VisionProvider):
                 success=False,
                 metadata={"error": str(e)}
             )
-        
+
         elements = self._parse_xml(xml_content)
-        
+
         latency = (time.time() - start) * 1000
         logger.info(f"[AndroidA11y] Extracted {len(elements)} elements in {latency:.0f}ms")
-        
+
         return VisionResult(
             task=task,
             success=True,
@@ -128,60 +127,59 @@ class AndroidA11yProvider(VisionProvider):
             screenshot_path=image_source,
             latency_ms=latency,
         )
-    
+
     def _parse_xml(self, xml_content: str) -> list[UIElement]:
         """Parse UI hierarchy XML into UIElement list."""
         elements = []
         element_id = 0
-        
+
         # Clean up XML: some ADB versions append extra text to the stream
         if not xml_content or not xml_content.strip():
             return []
-            
+
         # Find the actual XML root
         xml_start = xml_content.find("<?xml")
         if xml_start == -1:
             xml_start = xml_content.find("<hierarchy")
-            
+
         if xml_start >= 0:
             # Also find the end of the root element to strip trailing junk
             xml_end = xml_content.rfind(">")
             if xml_end > xml_start:
                 xml_content = xml_content[xml_start : xml_end + 1]
-        
+
         try:
             root = ET.fromstring(xml_content.strip())
         except ET.ParseError as e:
             logger.error(f"XML parse error (content preview: {xml_content[:100]}...): {e}")
             return []
 
-        
         for node in root.iter():
             # Skip container nodes without meaningful content
             text = node.get("text", "") or node.get("content-desc", "")
             clickable = node.get("clickable") == "true"
             focusable = node.get("focusable") == "true"
-            
+
             # Only include interactive elements or elements with text
             if not (text or clickable or focusable):
                 continue
-            
+
             bounds_str = node.get("bounds", "")
             bounds = _parse_bounds(bounds_str)
-            
+
             if not bounds:
                 continue
-            
+
             x1, y1, x2, y2 = bounds
             center_x = (x1 + x2) // 2
             center_y = (y1 + y2) // 2
             width = x2 - x1
             height = y2 - y1
-            
+
             # Skip very small elements (likely invisible)
             if width < 10 or height < 10:
                 continue
-            
+
             element = UIElement(
                 id=element_id,
                 text=text,
@@ -199,10 +197,10 @@ class AndroidA11yProvider(VisionProvider):
                     "package": node.get("package", ""),
                 }
             )
-            
+
             elements.append(element)
             element_id += 1
-        
+
         return elements
 
 

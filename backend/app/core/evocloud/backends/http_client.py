@@ -1,7 +1,6 @@
 import asyncio
 import json
 import logging
-import os
 import time
 from typing import Any
 
@@ -9,10 +8,10 @@ import httpx
 
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.schemas import EvoCloudConfig
+from app.core.identity import identity_service
 from app.utils import http as http_utils
 from app.utils import json as json_utils
 from app.utils.security import generate_hmac_signature
-from app.core.identity import identity_service
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +58,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             except asyncio.CancelledError:
                 pass
             self._flush_task = None
-        
+
         # Final flush
         await self._flush_logs()
 
@@ -75,7 +74,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             identity_service.store.save_cloud_token(token)
         else:
             identity_service.store.delete_cloud_token()
-    
+
     def get_token(self) -> str | None:
         return identity_service.get_cloud_token()
 
@@ -120,7 +119,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
         req_headers = headers or {}
         req_headers.update({
-            "Content-Type": "application/json", 
+            "Content-Type": "application/json",
             "X-Timestamp": str(timestamp)
         })
 
@@ -412,18 +411,18 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data["command_id"] = command_id
         if project_id:
             data["project_id"] = project_id
-        
+
         try:
             # If queue is getting full, trigger immediate flush
             if self._log_queue.qsize() > 100:
                 if self._flush_task is None or self._flush_task.done():
                     self._flush_task = asyncio.create_task(self._process_log_queue())
-            
+
             # Non-blocking put
             self._log_queue.put_nowait(data)
         except asyncio.QueueFull:
             logger.warning("[EvoCloud] Log queue full, dropping log entry")
-        
+
         if self._flush_task is None or self._flush_task.done():
             self._flush_task = asyncio.create_task(self._process_log_queue())
 
@@ -481,8 +480,8 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
                     query_params["project_id"] = pid
 
                 res = await self.request(
-                    "POST", 
-                    "/evolooplink/api/log/upload", 
+                    "POST",
+                    "/evolooplink/api/log/upload",
                     params=query_params,
                     data=payload
                 )

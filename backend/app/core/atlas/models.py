@@ -14,7 +14,7 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, List, Dict, Optional
+from typing import Any
 
 
 @dataclass
@@ -25,18 +25,22 @@ class AtlasElement:
     """
     role: str                        # e.g., "BUTTON", "INPUT", "AXButton"
     label: str                       # e.g., "Save", "File"
-    ax_path: str                     # Primary structural path/locator
-    shortcut: Optional[str] = None      
-    visual_hash: Optional[str] = None   
-    bounds: Optional[Dict[str, int]] = None       
+    ax_path: str = ""                # Primary structural path/locator (Legacy/macOS specific)
+    os_identifier: str | None = None # Cross-platform OS identifier (e.g., Android viewId, Windows AutomationId)
+    ocr_confidence: float | None = None # Vision/OCR confidence score
+    shortcut: str | None = None
+    visual_hash: str | None = None
+    bounds: dict[str, int] | None = None
     is_enabled: bool = True
-    parent_menu: Optional[str] = None   
+    parent_menu: str | None = None
 
     def to_dict(self) -> dict:
         return {
             "role": self.role,
             "label": self.label,
             "ax_path": self.ax_path,
+            "os_identifier": self.os_identifier or self.ax_path,
+            "ocr_confidence": self.ocr_confidence,
             "shortcut": self.shortcut,
             "visual_hash": self.visual_hash,
             "bounds": self.bounds,
@@ -45,7 +49,7 @@ class AtlasElement:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "AtlasElement":
+    def from_dict(cls, data: dict) -> AtlasElement:
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
 
@@ -54,17 +58,17 @@ class AtlasState:
     """
     A snapshot of the application at a given UI state (a 'screen').
     """
-    state_id: str                           
-    window_title: str                       
-    elements: List[AtlasElement] = field(default_factory=list)
-    screenshot_hash: Optional[str] = None      
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    state_id: str
+    window_title: str
+    elements: list[AtlasElement] = field(default_factory=list)
+    screenshot_hash: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
 
-    def get_element_by_label(self, label: str) -> Optional[AtlasElement]:
+    def get_element_by_label(self, label: str) -> AtlasElement | None:
         label_lower = label.lower()
         return next((e for e in self.elements if e.label.lower() == label_lower), None)
 
-    def get_element_by_path(self, ax_path: str) -> Optional[AtlasElement]:
+    def get_element_by_path(self, ax_path: str) -> AtlasElement | None:
         return next((e for e in self.elements if e.ax_path == ax_path), None)
 
     def to_dict(self) -> dict:
@@ -77,7 +81,7 @@ class AtlasState:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "AtlasState":
+    def from_dict(cls, data: dict) -> AtlasState:
         elements = [AtlasElement.from_dict(e) for e in data.get("elements", [])]
         return cls(
             state_id=data["state_id"],
@@ -93,10 +97,10 @@ class AtlasTransition:
     """
     Records a causal link between states.
     """
-    from_state: str          
-    action: AtlasElement        
-    to_state: str            
-    action_type: str = "click"     
+    from_state: str
+    action: AtlasElement
+    to_state: str
+    action_type: str = "click"
     success: bool = True
 
     def to_dict(self) -> dict:
@@ -109,7 +113,7 @@ class AtlasTransition:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "AtlasTransition":
+    def from_dict(cls, data: dict) -> AtlasTransition:
         return cls(
             from_state=data["from_state"],
             action=AtlasElement.from_dict(data["action"]),
@@ -124,15 +128,15 @@ class AtlasApp:
     """
     The complete structural map of an application.
     """
-    app_name: str                                           
-    bundle_id: str                                          
-    platform: str                                           
-    states: Dict[str, AtlasState] = field(default_factory=dict)
-    transitions: List[AtlasTransition] = field(default_factory=list)
-    menu_tree: Dict[str, Any] = field(default_factory=dict)   
-    version_hash: str = ""                                  
+    app_name: str
+    bundle_id: str
+    platform: str
+    states: dict[str, AtlasState] = field(default_factory=dict)
+    transitions: list[AtlasTransition] = field(default_factory=list)
+    menu_tree: dict[str, Any] = field(default_factory=dict)
+    version_hash: str = ""
     explored_at: datetime = field(default_factory=datetime.now)
-    exploration_depth: int = 0                              
+    exploration_depth: int = 0
 
     @property
     def concept_key(self) -> str:
@@ -149,7 +153,7 @@ class AtlasApp:
     def add_transition(self, transition: AtlasTransition) -> None:
         self.transitions.append(transition)
 
-    def get_all_elements(self) -> List[AtlasElement]:
+    def get_all_elements(self) -> list[AtlasElement]:
         elements = []
         for state in self.states.values():
             elements.extend(state.elements)
@@ -172,7 +176,7 @@ class AtlasApp:
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
 
     @classmethod
-    def from_dict(cls, data: dict) -> "AtlasApp":
+    def from_dict(cls, data: dict) -> AtlasApp:
         states = {
             k: AtlasState.from_dict(v) for k, v in data.get("states", {}).items()
         }
@@ -192,5 +196,5 @@ class AtlasApp:
         )
 
     @classmethod
-    def from_json(cls, json_str: str) -> "AtlasApp":
+    def from_json(cls, json_str: str) -> AtlasApp:
         return cls.from_dict(json.loads(json_str))

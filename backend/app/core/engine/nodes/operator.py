@@ -3,15 +3,15 @@ import logging
 import os
 from typing import Any
 
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import HumanMessage
 from langchain_core.runnables import RunnableConfig
 
-from app.core.engine import AgentEngine, repair_message_history
 from app.core.context import ContextManager
-from app.core.engine.state import AgentState
-from app.core.engine.prompts import OperatorPromptBuilder
-from app.core.tools.manager import tool_manager
 from app.core.context.plugins import get_workspace_provider
+from app.core.engine import AgentEngine
+from app.core.engine.prompts import OperatorPromptBuilder
+from app.core.engine.state import AgentState
+from app.core.tools.manager import tool_manager
 
 logger = logging.getLogger(__name__)
 
@@ -32,22 +32,22 @@ class OperatorNode:
         self, state: AgentState, config: RunnableConfig, context: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         """Entry point for Operator Node."""
-        
+
         # 1. Context Handling
         project_id = config.get("metadata", {}).get("project_id", 1)
-        
+
         # 2. Tool Preparation (Static + Dynamic)
         tools = await self._get_tools(state)
-        
+
         # 2b. Skills retrieved via Hydrator (Lazy mode by default for Operator)
         from app.core.engine.nodes.utils import SkillHydrator
         skills = await SkillHydrator.get_node_skills(state, "operator")
-        
+
         # 3. Project Structure (Conditional)
         # Use automated EvoContext hydration if available, otherwise fallback to config/cwd
         ctx = ContextManager.current()
         cwd = ctx.working_directory or config.get("configurable", {}).get("working_directory")
-        
+
         # Always use the centralized cache via the manager.
         if cwd:
             provider = get_workspace_provider()
@@ -57,7 +57,7 @@ class OperatorNode:
                 project_structure = "Workspace provider not configured. Unable to retrieve project structure."
         else:
             project_structure = "No Local Workspace Attached (Operating in Universal/Global Mode)"
-        
+
         # 4. Prompt Construction
         prompt_builder = OperatorPromptBuilder(
             state=state,
@@ -68,31 +68,31 @@ class OperatorNode:
             project_id=project_id,
             skills=skills,
         )
-        
+
         system_msg = prompt_builder.build(config)
-        
+
         # 5. Attention Guidance Hydration (Focus Files)
         scratchpad = state.get("scratchpad", {})
         handoff_context = scratchpad.get("handoff_context", {})
-        
+
         hydration_prompt = await self._hydrate_context(handoff_context, cwd)
         if hydration_prompt:
             system_msg += f"\n\n{hydration_prompt}"
-            
+
         # 6. Instruction Injection & Worker Isolation (v3.1 Stateless)
         execution_ticket = state.get("execution_ticket")
         route_reason = scratchpad.get("route_reason")
         original_messages = list(state.get("messages", []))
-        
+
         if execution_ticket:
             logger.info("[Operator] 🎫 Ticket Match - Enabling Stateless Mode Isolation")
             # In stateless mode, we only care about the System Prompt + Ticket + Latest instruction
             # We don't need the whole multi-hop history which might confuse the worker
-            
+
             # Construct a concentrated instruction
             criteria = "\n".join([f"- {c}" for c in execution_ticket.get("acceptance_criteria", [])])
             constraints = "\n".join([f"- {c}" for c in execution_ticket.get("constraints", []) or []])
-            
+
             isolated_instruction = f"""### MISSION TICKET
 **Goal**: {route_reason or "Assigned Task"}
 **Type**: {execution_ticket.get('ticket_type', 'task')}
@@ -118,7 +118,7 @@ Please execute this mission now. Use your tools to verify success against the cr
         # 7. Execution (Inner Loop handled by AgentEngine)
         # We increase max_steps because the Operator does more things (Edit -> Run -> Fix)
         logger.info("Operator delegating to AgentEngine")
-        
+
         engine_result = await AgentEngine.run_node(
             state={**state, "messages": messages},
             config=config,
@@ -127,26 +127,26 @@ Please execute this mission now. Use your tools to verify success against the cr
             name="Operator",
             max_steps=100, # Higher limit for inner loop
         )
-        
+
         return self._post_process_result(state, engine_result)
-    
+
     def _post_process_result(self, state: AgentState, result: dict) -> dict:
         """Handle cache invalidation based on tool usage."""
         tool_history = result.get("tool_history", [])
-        
+
         # Check for file modification tools
         write_tools = ["write_file", "edit_file", "manage_file"]
         has_changes = any(
-            any(wt in t_sig for wt in write_tools) 
+            any(wt in t_sig for wt in write_tools)
             for t_sig in tool_history
         )
-        
+
         if has_changes:
             logger.info("[Operator] ♻️ File changes detected - Invalidating Project Structure Cache")
             if "scratchpad" not in result:
                 result["scratchpad"] = {}
             result["workspace_context"] = {"structure": None, "structure_updated_at": 0.0}
-            
+
         # [NEW] Phase 8.2: Validation & Verification Capture
         # We no longer use string matching to guess verification status.
         # Just record the tools used and let the Reviewer Agent audit them.
@@ -155,7 +155,7 @@ Please execute this mission now. Use your tools to verify success against the cr
             tool_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
             if tool_name not in verification_summary["signals"]:
                 verification_summary["signals"].append(tool_name)
-                
+
             # Intercept MCP Server requests to update execution ticket
             if tool_name == "use_mcp_server":
                 try:
@@ -173,9 +173,9 @@ Please execute this mission now. Use your tools to verify success against the cr
                             logger.info(f"[Operator] 🔌 Appended MCP server '{server_name}' to execution_ticket.")
                 except Exception as e:
                     logger.error(f"[Operator] Failed to parse use_mcp_server arguments: {e}")
-        
+
         result["verification_status"] = verification_summary
-            
+
         return result
 
     async def _get_tools(self, state: AgentState) -> list[Any]:

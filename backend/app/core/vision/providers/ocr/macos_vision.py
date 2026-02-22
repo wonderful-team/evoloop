@@ -1,13 +1,12 @@
 import logging
-import time
 import os
-from typing import Optional, List
+import time
 
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
-from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
+
 
 class MacOSVisionOCRProvider(VisionProvider):
     """
@@ -26,8 +25,8 @@ class MacOSVisionOCRProvider(VisionProvider):
     async def is_available(self) -> bool:
         """Check if Vision framework is accessible."""
         try:
-            import Vision
             import Quartz
+            import Vision
             return True
         except ImportError:
             return False
@@ -36,7 +35,7 @@ class MacOSVisionOCRProvider(VisionProvider):
         self,
         task: VisionTask,
         image_source: str,
-        prompt: Optional[str] = None,
+        prompt: str | None = None,
         **kwargs
     ) -> VisionResult:
         if task != VisionTask.OCR and task != VisionTask.DETECT:
@@ -47,22 +46,20 @@ class MacOSVisionOCRProvider(VisionProvider):
             )
 
         start_time = time.time()
-        
+
         if not os.path.exists(image_source):
              return VisionResult(task=task, success=False, metadata={"error": "File not found"})
 
         try:
             import Vision
-            import Quartz
             from Cocoa import NSURL
-            from Foundation import NSDictionary
-            
+
             # Load image
             url = NSURL.fileURLWithPath_(image_source)
             request_handler = Vision.VNImageRequestHandler.alloc().initWithURL_options_(url, None)
-            
+
             elements = []
-            
+
             # Create OCR request
             request = Vision.VNRecognizeTextRequest.alloc().init()
             # Set recognition level to accurate (better for UI)
@@ -75,12 +72,12 @@ class MacOSVisionOCRProvider(VisionProvider):
 
             # Perform request
             success, error = request_handler.performRequests_error_([request], None)
-            
+
             if not success:
                 return VisionResult(task=task, success=False, metadata={"error": str(error)})
 
             observations = request.results()
-            
+
             # Get image size to convert normalized coordinates
             # We can get this from the image metadata or use macos_driver
             # For simplicity, we assume the screenshot is full screen or we get dimensions from file
@@ -93,14 +90,14 @@ class MacOSVisionOCRProvider(VisionProvider):
                 candidates = observation.topCandidates_(1)
                 if not candidates:
                     continue
-                
+
                 text_obj = candidates[0]
                 text_val = text_obj.string()
                 confidence = text_obj.confidence()
 
                 # boundingBox is normalized (0,0 at bottom left)
                 bbox = observation.boundingBox()
-                
+
                 # Convert to pixel coordinates (0,0 at top left)
                 # Vision bbox: Origin (x, y) is bottom-left
                 w = int(bbox.size.width * img_w)

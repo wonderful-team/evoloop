@@ -90,20 +90,20 @@ class AwakenedState(BaseModel):
     macos: MacOSEnvironment | None = None
     android_devices: list[AndroidDevice] = []
     network: NetworkStatus = NetworkStatus()
-    
+
     # == Memory Layer ==
     recent_episodes: list[EpisodeSummary] = []
     relevant_concepts: list[ConceptSummary] = []
     journal_highlights: str = ""
-    
+
     # == Preference Layer ==
     user_preferences: dict[str, str] = {}
     system_rules: list[str] = []
-    
+
     # == Capability Boundaries ==
     available_platforms: list[str] = []
     capability_boundaries: list[str] = []
-    
+
     def compute_platforms(self) -> list[str]:
         """Compute available platforms based on environment."""
         platforms = []

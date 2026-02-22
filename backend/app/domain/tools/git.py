@@ -5,13 +5,13 @@ from langchain_core.messages import SystemMessage
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
+from app.core.context.manager import ContextManager
 from app.core.memory import memory_manager
 from app.core.tools import evoloop_tool, get_working_directory
+from app.i18n.service import i18n
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.llm.factory import LLMFactory
-from app.i18n.service import i18n
 from app.logging import logger
-from app.core.context.manager import ContextManager
 from app.utils.git import git_command
 
 

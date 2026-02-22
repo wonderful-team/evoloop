@@ -7,9 +7,9 @@ from typing import Any
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
+from app.domain.codebase.filter import FileFilter
 from app.domain.codebase.indexing.service import IndexingService
 from app.domain.project.sync_service import project_sync_service
-from app.domain.codebase.filter import FileFilter
 from app.utils.detect import is_code_file
 
 logger = logging.getLogger(__name__)
@@ -140,7 +140,7 @@ class IndexingEventHandler(FileSystemEventHandler):
         # 1. Check if the file is a code file (extension/shebang)
         if not is_code_file(path):
             return False
-            
+
         # 2. Check global exclusion rules (node_modules, .git, large files, etc.)
         return self.file_filter.should_include(path)
 

@@ -1,18 +1,20 @@
 import logging
 import os
-from typing import List, Dict, Any, Optional, Tuple
+from typing import Any
+
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.constants import BINARY_EXTENSIONS
-from app.models.conversation import Message
 from app.core.file.document_reader import document_reader_service
+from app.models.conversation import Message
 
 logger = logging.getLogger(__name__)
 
 
 class ReferenceContext(BaseModel):
-    content_blocks: List[Dict[str, Any]]
-    reference_notes: List[str]
+    content_blocks: list[dict[str, Any]]
+    reference_notes: list[str]
     injected_message: str
 
 
@@ -25,9 +27,9 @@ class ReferenceService:
     async def process_references(
         self,
         message_text: str,
-        attachments: List[Dict[str, Any]],
+        attachments: list[dict[str, Any]],
         session: AsyncSession,
-        project_id: Optional[int] = None
+        project_id: int | None = None
     ) -> ReferenceContext:
         """
         Process a list of attachments and inject them into the communication context.
@@ -97,7 +99,7 @@ class ReferenceService:
             injected_message=updated_message
         )
 
-    async def _handle_message_reference(self, msg_id_str: str, name: str, session: AsyncSession) -> Tuple[Optional[str], Optional[str]]:
+    async def _handle_message_reference(self, msg_id_str: str, name: str, session: AsyncSession) -> tuple[str | None, str | None]:
         try:
             msg_id = int(msg_id_str)
             ref_msg = await session.get(Message, msg_id)
@@ -113,7 +115,7 @@ class ReferenceService:
 
         return None, f"Quoted Message (Fetch Failed): {name}"
 
-    async def _handle_file_reference(self, file_path: str, name: str, root_path: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+    async def _handle_file_reference(self, file_path: str, name: str, root_path: str | None = None) -> tuple[str | None, str | None]:
         # Resolve path
         target_path = file_path
         if root_path and not os.path.isabs(file_path):

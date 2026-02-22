@@ -4,11 +4,8 @@ Mirror Session Manager - Handles scrcpy processes for Android mirroring.
 
 import asyncio
 import logging
-import os
 import subprocess
-from typing import Any, Optional
-
-from app.infrastructure.drivers.adb import adb_driver, ADBError
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +17,10 @@ class MirrorSession:
     def __init__(self, session_id: str, device_id: str):
         self.session_id = session_id
         self.device_id = device_id
-        self.process: Optional[subprocess.Popen] = None
+        self.process: subprocess.Popen | None = None
         self.is_active = False
-        self.port: Optional[int] = None
-        self.error: Optional[str] = None
+        self.port: int | None = None
+        self.error: str | None = None
         self.should_be_active = False  # Persists through disconnects
 
     async def start(self, bitrate: str = "2M", max_fps: int = 30) -> bool:
@@ -57,7 +54,7 @@ class MirrorSession:
                 bufsize=1,
                 universal_newlines=True
             )
-            
+
             # Wait a bit to see if it crashes
             await asyncio.sleep(1.0)
             if self.process.poll() is not None:
@@ -70,16 +67,15 @@ class MirrorSession:
             self.is_active = True
             self.should_be_active = True
             logger.info(f"Started scrcpy session {self.session_id} for device {self.device_id}")
-            
+
             # Thread to log output
             def log_output():
                 if self.process and self.process.stderr:
                     for line in self.process.stderr:
                         logger.debug(f"[scrcpy {self.device_id}] {line.strip()}")
-            
-            import threading
+
             threading.Thread(target=log_output, daemon=True).start()
-            
+
             return True
 
         except Exception as e:
@@ -96,10 +92,11 @@ class MirrorSession:
             except subprocess.TimeoutExpired:
                 self.process.kill()
             self.process = None
-        
+
         self.is_active = False
         self.should_be_active = False  # Manual stop clears intention
         logger.info(f"Stopped mirror session {self.session_id}")
+
 
 class MirrorSessionManager:
     """
@@ -112,14 +109,14 @@ class MirrorSessionManager:
         import uuid
         session_id = str(uuid.uuid4())
         session = MirrorSession(session_id, device_id)
-        
+
         success = await session.start()
         if success:
             self.sessions[session_id] = session
-        
+
         return session
 
-    def get_session(self, session_id: str) -> Optional[MirrorSession]:
+    def get_session(self, session_id: str) -> MirrorSession | None:
         return self.sessions.get(session_id)
 
     def stop_session(self, session_id: str) -> bool:

@@ -1,5 +1,6 @@
 import time
 from uuid import uuid4
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
@@ -15,14 +16,14 @@ class ContextMiddleware(BaseHTTPMiddleware):
     - Trace ID (X-Trace-ID)
     - User Identity (Authorization Header - simplified parse)
     """
-    
+
     async def dispatch(self, request: Request, call_next):
         start_time = time.time()
-        
+
         # 1. Extract IDs
         trace_id = request.headers.get("X-Trace-ID", str(uuid4()))
         request_id = request.headers.get("X-Request-ID", str(uuid4()))
-        
+
         # 2. Attempt Identify User (Best Effort)
         # We don't enforce auth here (deps.py does that), we just populate context if possible.
         user_id = None
@@ -36,7 +37,7 @@ class ContextMiddleware(BaseHTTPMiddleware):
                     user_id = payload.get("member_id") or payload.get("sub")
             except Exception:
                 pass
-        
+
         # 3. Create Context
         ctx = EvoContext(
             request_id=request_id,
@@ -45,20 +46,20 @@ class ContextMiddleware(BaseHTTPMiddleware):
             user_id=str(user_id) if user_id else None,
             thread_id=request.headers.get("X-Thread-ID")  # Optional: thread hint
         )
-        
+
         # 3b. Hydrate Subconscious Plugins
         plugin_registry.hydrate_context(ctx)
-        
+
         # 4. Set Context & Run
         token = ContextManager.set(ctx)
-        
+
         try:
             response = await call_next(request)
-            
+
             # Inject Headers
             response.headers["X-Request-ID"] = request_id
             response.headers["X-Trace-ID"] = trace_id
-            
+
             return response
         finally:
             ContextManager.reset(token)

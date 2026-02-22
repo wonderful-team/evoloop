@@ -4,8 +4,9 @@ Device Watcher - Monitors ADB device connection events.
 
 import asyncio
 import logging
-from app.infrastructure.drivers.adb import adb_driver
+
 from app.domain.tools.environment.mirror_session import mirror_manager
+from app.infrastructure.drivers.adb import adb_driver
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class DeviceWatcher:
         Each update from 'adb track-devices' is the ENTIRE list of devices.
         """
         last_devices = set()
-        
+
         while self._running:
             try:
                 logger.info("Restarting 'adb track-devices' process...")
@@ -56,10 +57,10 @@ class DeviceWatcher:
                     if not line:
                         logger.warning("adb track-devices connection lost")
                         break
-                    
+
                     decoded_line = line.decode().strip()
                     if not decoded_line:
-                        # Empty list or end of block? 
+                        # Empty list or end of block?
                         # ADB track-devices sends an empty line if no devices.
                         # We should handle the 'no devices' case.
                         current_serial = None
@@ -68,7 +69,7 @@ class DeviceWatcher:
                         # Strip length prefix if present
                         if len(decoded_line) > 4 and all(c in "0123456789abcdefABCDEF" for c in decoded_line[:4]):
                             decoded_line = decoded_line[4:].strip()
-                        
+
                         parts = decoded_line.split()
                         if len(parts) >= 2:
                             current_serial = parts[0]
@@ -77,7 +78,7 @@ class DeviceWatcher:
                             current_serial = None
                             current_status = None
 
-                    # Note: Simplified detection. In complex environments with many devices, 
+                    # Note: Simplified detection. In complex environments with many devices,
                     # we'd want to buffer the whole 'block' sent by track-devices.
                     # But for 1-2 devices, immediate action is okay.
                     if current_serial:
@@ -91,7 +92,7 @@ class DeviceWatcher:
                                 logger.info(f"Device went {current_status}: {current_serial}")
                                 await self._handle_event(current_serial, current_status)
                                 last_devices.discard(current_serial)
-                    
+
                     # Heartbeat
                     if last_devices:
                         logger.debug(f"DeviceWatcher heartbeat - active: {last_devices}")
@@ -111,9 +112,11 @@ class DeviceWatcher:
     async def _handle_event(self, serial: str, status: str):
         """Handle individual device events via event bus."""
         from app.core.environment.events import (
-            event_bus, DeviceConnectedEvent, DeviceDisconnectedEvent
+            DeviceConnectedEvent,
+            DeviceDisconnectedEvent,
+            event_bus,
         )
-        
+
         if status == "device":
             logger.info(f"Device connected: {serial}")
             # Try to recover sessions marked as 'should_be_active'
@@ -129,9 +132,10 @@ class DeviceWatcher:
             logger.info(f"Device disconnected/offline: {serial} ({status})")
             # Cleanup sessions for this device
             mirror_manager.on_device_disconnected(serial)
-            
+
             # Publish device disconnected event
             await event_bus.publish(DeviceDisconnectedEvent(device_id=serial))
+
 
 # Global Watcher Instance
 device_watcher = DeviceWatcher()

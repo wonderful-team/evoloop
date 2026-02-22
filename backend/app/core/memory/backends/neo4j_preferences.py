@@ -1,7 +1,6 @@
 """Neo4j implementation of preference store."""
 
 import logging
-from typing import Optional
 
 from app.core.memory.interfaces.preferences import IPreferenceStore
 from app.infrastructure.database.graph.driver import get_graph_db
@@ -34,7 +33,7 @@ class Neo4jPreferenceStore(IPreferenceStore):
         key: str,
         value: str,
         description: str = "",
-        project_id: Optional[int] = None,
+        project_id: int | None = None,
     ) -> None:
         """Set a user preference with optional project scoping."""
         driver = await get_graph_db()
@@ -60,7 +59,7 @@ class Neo4jPreferenceStore(IPreferenceStore):
             scope = f"Project {pid_val}" if pid_val else "Global"
             logger.info(f"Stored Preference ({scope}): {key}={value}")
 
-    async def get_merged_preferences(self, user_id: str, project_id: Optional[int] = None) -> str:
+    async def get_merged_preferences(self, user_id: str, project_id: int | None = None) -> str:
         """Get merged preferences with project overrides."""
         driver = await get_graph_db()
         target_pid = project_id if project_id else 0

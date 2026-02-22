@@ -4,15 +4,15 @@ Find Element Tool - Vision-guided UI element selection.
 Uses the Fusion Pipeline for perception and LLM for natural language
 element matching.
 """
-
+import asyncio
 import logging
 from typing import Literal
 
 from app.core.tools import evoloop_tool
-from app.core.vision import vision_engine, VisionTask
+from app.core.vision import VisionTask, vision_engine
 from app.core.vision.pipeline.manager import pipeline_manager
+from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.infrastructure.drivers.macos import macos_driver
-from app.infrastructure.drivers.adb import adb_driver, ADBError
 
 logger = logging.getLogger(__name__)
 
@@ -61,25 +61,24 @@ async def find_element(
                 return f"Android error: {e}"
         else:  # macos
             screenshot_path = macos_driver.screenshot()
-        
+
         # Step 2: Run perception pipeline via VisionEngine
         result = await vision_engine.process(
             task=VisionTask.DETECT,
             image_source=screenshot_path,
             device_id=device_id,
         )
-        
+
         if not result.success or not result.elements:
             return f"No UI elements detected on screen. Error: {result.metadata.get('error', 'None')}"
-        
+
         elements = result.elements
         compressed_path = result.screenshot_path
-        
+
         # Fire UI_TREE_OBSERVED event for spatial mapping (Background)
         try:
-            from app.core.environment.events import event_bus, UiTreeObservedEvent
-            import asyncio
-            
+            from app.core.environment.events import UiTreeObservedEvent, event_bus
+
             if platform == "android":
                 app_info = adb_driver.get_current_app(device_id=device_id)
                 bundle_id = app_info.get("package", "unknown")
@@ -98,21 +97,21 @@ async def find_element(
             )))
         except Exception as e:
             logger.warning(f"Failed to publish UI_TREE_OBSERVED: {e}")
-        
+
         # Step 3: Return all elements if requested
         if return_all or not target:
             formatted = pipeline_manager.format_for_prompt(elements)
             return f"Screenshot: {compressed_path or screenshot_path}\n\n{formatted}"
-        
+
         # Step 4: Find best match
         target_lower = target.lower()
-        
+
         # Score each element
         scored_elements = []
         for element in elements:
             score = 0
             element_text = element.text.lower()
-            
+
             # Exact match
             if target_lower == element_text:
                 score = 100
@@ -129,17 +128,17 @@ async def find_element(
                 common_words = target_words & element_words
                 if common_words:
                     score = 40 * len(common_words) / max(len(target_words), 1)
-            
+
             # Boost clickable elements
             if element.clickable:
                 score += 5
-            
+
             # Apply confidence
             score *= element.confidence
-            
+
             if score > 0:
                 scored_elements.append((element, score))
-        
+
         if not scored_elements:
             # No match found, return all elements for context
             formatted = pipeline_manager.format_for_prompt(elements[:15])
@@ -148,11 +147,11 @@ async def find_element(
                 f"Available elements:\n{formatted}\n\n"
                 f"Screenshot: {compressed_path or screenshot_path}"
             )
-        
+
         # Sort by score
         scored_elements.sort(key=lambda x: x[1], reverse=True)
         best_match, score = scored_elements[0]
-        
+
         result_msg = (
             f"✅ Element found!\n"
             f"Text: \"{best_match.text}\"\n"
@@ -160,24 +159,24 @@ async def find_element(
             f"Type: {best_match.element_type.value}\n"
             f"Match Score: {score:.1f}\n"
         )
-        
+
         # Step 5: Perform Action (Turbo Mode)
         if action == "tap" and platform == "android":
             adb_driver.tap(best_match.x, best_match.y, device_id=device_id)
             result_msg += f"\n👉 ACTION PERFORMED: Tapped at ({best_match.x}, {best_match.y})"
-        
+
         elif action == "click" and platform == "macos":
             macos_driver.click(best_match.x, best_match.y)
             result_msg += f"\n👉 ACTION PERFORMED: Clicked at ({best_match.x}, {best_match.y})"
-            
+
         else:
             result_msg += f"\nReady to interact: {platform}_control(action='tap/click', x={best_match.x}, y={best_match.y})"
-        
+
         # Include screenshot path
         result_msg += f"\n\nScreenshot: {compressed_path or screenshot_path}"
-        
+
         return result_msg
-    
+
     except Exception as e:
         logger.error(f"find_element error: {e}")
         return f"Error: {str(e)}"

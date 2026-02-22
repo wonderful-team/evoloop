@@ -8,13 +8,13 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import uuid4
 
-from app.core.tools import evoloop_tool
 from pydantic import BaseModel, Field
 
+from app.core.evocloud import evocloud_manager
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
+from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
-from app.core.evocloud import evocloud_manager
 
 logger = logging.getLogger(__name__)
 
@@ -302,7 +302,7 @@ async def request_approval(
     }
 
     localized_risk = i18n.get(f"prompts.common.risk_levels.{risk_level}", default=risk_level.upper())
-    
+
     approval_context = f"""
 {risk_emoji.get(risk_level, '⚪')} {i18n.get("prompts.domain_tools.human_input.risk_level", level=localized_risk)}
 

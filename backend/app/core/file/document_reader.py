@@ -6,7 +6,7 @@ import pandas as pd
 from markdownify import markdownify as md
 from pypdf import PdfReader
 
-from app.core.vision import vision_engine, VisionTask
+from app.core.vision import VisionTask, vision_engine
 from app.utils.file import read_file_content
 
 logger = logging.getLogger(__name__)

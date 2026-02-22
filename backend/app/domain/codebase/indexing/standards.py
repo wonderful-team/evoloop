@@ -4,8 +4,8 @@ import random
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from app.infrastructure.llm.factory import LLMFactory
 from app.core.memory import memory_manager
+from app.infrastructure.llm.factory import LLMFactory
 from app.utils.file import read_file_content
 
 logger = logging.getLogger(__name__)

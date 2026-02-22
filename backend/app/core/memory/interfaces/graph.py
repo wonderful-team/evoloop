@@ -1,7 +1,7 @@
 """Graph navigation interface for structural insights (GraphRAG)."""
 
 from abc import abstractmethod
-from typing import Any, Dict, List
+from typing import Any
 
 from app.core.memory.interfaces.base import IMemoryProvider
 
@@ -13,7 +13,7 @@ class IGraphNavigator(IMemoryProvider):
     """
 
     @abstractmethod
-    async def get_node_details(self, node_type: str, filters: Dict[str, Any]) -> dict:
+    async def get_node_details(self, node_type: str, filters: dict[str, Any]) -> dict:
         """
         Retrieve detailed information about a specific node.
 
@@ -29,7 +29,7 @@ class IGraphNavigator(IMemoryProvider):
     @abstractmethod
     async def traverse(
         self, start_node_id: str, relation_type: str, max_depth: int = 2
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Traverse the graph from a starting node following specific relationships.
 

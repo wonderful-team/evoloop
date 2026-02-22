@@ -6,8 +6,8 @@ import logging
 import socket
 
 from app.core.environment.models import (
-    MacOSEnvironment,
     AndroidDevice,
+    MacOSEnvironment,
     NetworkStatus,
 )
 

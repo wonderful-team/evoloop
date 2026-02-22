@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any
 
 try:
     from langchain_anthropic import ChatAnthropic

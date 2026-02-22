@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from app.core.evocloud.schemas import EvoCloudConfig
 import httpx
+
+from app.core.evocloud.schemas import EvoCloudConfig
 
 
 class EvoCloudClientProtocol(ABC):
@@ -22,7 +23,7 @@ class EvoCloudClientProtocol(ABC):
     async def close(self) -> None:
         """Close connections."""
         pass
-    
+
     # --- Auth ---
     @abstractmethod
     def set_token(self, token: str | None) -> None:
@@ -49,7 +50,7 @@ class EvoCloudClientProtocol(ABC):
 
     @abstractmethod
     async def register_device(self, key: str, name: str, os_info: str) -> dict: ...
-    
+
     @abstractmethod
     async def upload_log(self, device_id: int, thread_id: str, log_type: str, content: Any, command_id=None, project_id=None, persistent: bool = True): ...
 

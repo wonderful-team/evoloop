@@ -2,6 +2,7 @@ import logging
 
 import tree_sitter
 
+from app.core.file.service import is_test_file
 from app.domain.codebase.indexing.base import (
     BaseExtractor,
     Document,
@@ -12,7 +13,6 @@ from app.domain.codebase.indexing.base import (
 from app.domain.codebase.indexing.parsers import parser_registry
 from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
 from app.utils.file import get_file_ext
-from app.core.file.service import is_test_file
 
 logger = logging.getLogger(__name__)
 

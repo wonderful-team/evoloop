@@ -41,24 +41,24 @@ class ExecutionTicket(TypedDict):
     ticket_type: str  # e.g., "bugfix", "web_research", "wiki_update"
     priority: str
     acceptance_criteria: list[str]
-    
+
     # Target-specific context
     focus_paths: list[str] | None  # Primary for Operator/Documenter
     topic: str | None              # Primary for Researcher
-    
+
     # Catch-all for specialized parameters
-    parameters: dict[str, Any] | None 
-    
+    parameters: dict[str, Any] | None
+
     # Dynamic Agent Configuration (v4.0)
     agent_config: AgentConfig | None
-    
+
     constraints: list[str] | None
     expected_outcomes: list[str] | None
-    
+
     # Track 8: Deterministic SOP Routing
     namespace_context: str | None
-    
-    
+
+
 class RetrievalContext(TypedDict):
     repo_id: int
     files: list[str]  # Paths
@@ -92,7 +92,7 @@ class AgentState(TypedDict):
 
     # Context retrieved by Researcher
     context: RetrievalContext | None
-    
+
     # [NEW] Shared Workspace Context Cache
     workspace_context: WorkspaceContext | None
 

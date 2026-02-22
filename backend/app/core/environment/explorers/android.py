@@ -1,8 +1,5 @@
 
 import logging
-import asyncio
-import json
-from typing import List
 
 from app.core.environment.explorers.base import BaseExplorer
 from app.infrastructure.drivers.adb import adb_driver

@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.routes import (
     agent,
     auth_proxy,
+    brain,
     conversations,
     devices,
     files,
@@ -25,7 +26,6 @@ from app.api.routes import (
     users,
     utils,
     wiki,
-    brain,
 )
 
 api_router = APIRouter()

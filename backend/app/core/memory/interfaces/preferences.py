@@ -1,7 +1,6 @@
 """Preference management interface for hierarchical user settings."""
 
 from abc import abstractmethod
-from typing import Optional
 
 from app.core.memory.interfaces.base import IMemoryProvider
 
@@ -19,7 +18,7 @@ class IPreferenceStore(IMemoryProvider):
         key: str,
         value: str,
         description: str = "",
-        project_id: Optional[int] = None,
+        project_id: int | None = None,
     ) -> None:
         """
         Set a user preference.
@@ -34,7 +33,7 @@ class IPreferenceStore(IMemoryProvider):
         pass
 
     @abstractmethod
-    async def get_merged_preferences(self, user_id: str, project_id: Optional[int] = None) -> str:
+    async def get_merged_preferences(self, user_id: str, project_id: int | None = None) -> str:
         """
         Get merged preferences with project overrides.
 

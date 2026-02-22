@@ -8,17 +8,16 @@ It produces structured skill configurations that can be registered and executed.
 import logging
 from dataclasses import asdict, dataclass, field
 from typing import Any
-from uuid import uuid4
 
 import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
 from sqlalchemy import select
 
 from app.core.learning.trace_parser import TraceParser, TraceSequence
-from app.infrastructure.llm.factory import LLMFactory
-from app.infrastructure.database.sql.database import session_scope
-from app.models import Message, LearnedSkill
 from app.i18n.service import i18n
+from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.llm.factory import LLMFactory
+from app.models import LearnedSkill, Message
 
 logger = logging.getLogger(__name__)
 
@@ -278,15 +277,15 @@ class WorkflowSynthesizer:
         folder structure based on its namespace.
         """
         import os
-        
+
         # Base workspace skills directory
         base_dir = os.path.expanduser("~/.evoloop/skills")
         namespace_path = os.path.join(base_dir, skill.namespace or "misc", skill.name)
-        
+
         try:
             os.makedirs(namespace_path, exist_ok=True)
             skill_md_path = os.path.join(namespace_path, "SKILL.md")
-            
+
             # Combine YAML frontmatter and Markdown body
             frontmatter = {
                 "name": skill.name,
@@ -295,15 +294,14 @@ class WorkflowSynthesizer:
                 "parameters": [asdict(p) for p in skill.parameters],
                 "preconditions": skill.preconditions,
             }
-            
-            import yaml
+
             content = f"---\n{yaml.dump(frontmatter, sort_keys=False)}---\n\n{skill.instructions or ''}"
-            
+
             with open(skill_md_path, "w", encoding="utf-8") as f:
                 f.write(content)
-                
+
             skill.resource_path = skill_md_path
             logger.info(f"[Synthesizer] Exported physical skill {skill.name} to {skill_md_path}")
-            
+
         except Exception as e:
             logger.error(f"[Synthesizer] Failed to export physical skill file: {e}")

@@ -4,7 +4,6 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.core.config import settings
 from app.core.evocloud import evocloud_manager
 from app.core.evocloud.bridge.handlers import (
     handle_project_switch_event,
@@ -47,10 +46,10 @@ async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Dep
         user_data = result.get("data", {}) # or check structure of result
         # API might return {"success": True, "token": ...} or the full response.
         # Base on `http_client.py` implementation: return {"success": True, "token": token}
-        
-        # We might need to verify the return shape from `http_client.login`. 
+
+        # We might need to verify the return shape from `http_client.login`.
         # It returns {"success": True, "token": token}
-        
+
         # 2. Process login via IdentityService
         local_token = await identity_service.login_with_cloud_result(result)
         if not local_token:
@@ -62,7 +61,7 @@ async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Dep
         # 3. Persist cloud token to Redis for other services if needed (for now)
         user_data = result.get("data", {})
         member_id = result.get("member_id", 0)
-        
+
         try:
             async with redis_client:
                 await redis_client.set("evoloop:link:token", result.get("token"))

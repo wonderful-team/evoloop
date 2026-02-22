@@ -2,8 +2,8 @@ import logging
 import os
 
 from app.core.events import system_bus
-from app.domain.codebase.indexing.service import IndexingService
 from app.core.evocloud import evocloud_manager
+from app.domain.codebase.indexing.service import IndexingService
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ class ProjectSyncService:
         # IndexingManager will subscribe to this event and handle watching/indexing
         try:
             from app.domain.project.events import ProjectCreatedEvent
-            
+
             await system_bus.publish(ProjectCreatedEvent(
                 path=path,
                 repo_id=repo.id,
@@ -102,7 +102,7 @@ class ProjectSyncService:
         # IndexingManager will subscribe and stop watching
         try:
             from app.domain.project.events import ProjectDeletedEvent
-            
+
             await system_bus.publish(ProjectDeletedEvent(
                 path=path,
                 repo_id=repo_id or 0,

@@ -1,4 +1,5 @@
 import logging
+
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine import AgentEngine, AgentState
@@ -14,7 +15,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
     Proactively manages project documentation (Filesystem & Wiki) and knowledge harvesting.
     """
     project_id = state.get("project_id", 1)
-    
+
     # 1. Retrieve Skills (Knowledge Injection)
     skills = []
     try:
@@ -27,7 +28,7 @@ async def documenter_node(state: AgentState, config: RunnableConfig):
 
     # 2. Build Agent System Prompt
     system_prompt = DocumenterPromptBuilder.build_architect_system_prompt(
-        project_id=project_id, 
+        project_id=project_id,
         skills=skills
     )
 

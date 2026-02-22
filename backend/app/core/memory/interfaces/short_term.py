@@ -1,7 +1,6 @@
 """Short-term memory interface for managing conversation context."""
 
 from abc import abstractmethod
-from typing import List
 
 from langchain_core.messages import BaseMessage
 
@@ -26,7 +25,7 @@ class IShortTermMemory(IMemoryProvider):
         pass
 
     @abstractmethod
-    async def get_context(self, thread_id: str, limit: int = 50) -> List[BaseMessage]:
+    async def get_context(self, thread_id: str, limit: int = 50) -> list[BaseMessage]:
         """
         Retrieve recent conversation context.
 

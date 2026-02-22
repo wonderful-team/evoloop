@@ -16,8 +16,8 @@ from typing import Optional
 
 from app.core.environment.context_plugin import EnvironmentContextPlugin
 from app.core.environment.discovery import EnvironmentProbe
-from app.core.environment.models import AwakenedState
 from app.core.environment.memory_replay import replay_memory
+from app.core.environment.models import AwakenedState
 from app.core.environment.preference_priming import prime_preferences
 from app.core.environment.watcher import environment_watcher
 
@@ -41,33 +41,33 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         AwakenedState containing full environment context.
     """
     global _awakened_state, _discovery_task
-    
+
     logger.info("🌅 Agent awakening...")
-    
+
     # 1. Probe Environment (Fast path)
     logger.info("  👁️ Probing environment...")
     macos = await EnvironmentProbe.probe_macos()
     android_devices = await EnvironmentProbe.probe_android_devices()
     network = await EnvironmentProbe.probe_network()
-    
+
     # 2. Replay Memory
     logger.info("  🧠 Replaying memory...")
     memory_context = await replay_memory(project_id)
-    
+
     # 3. Prime Preferences
     logger.info("  🎭 Priming preferences...")
     pref_context = await prime_preferences(project_id)
-    
+
     # 4. Compute capability boundaries
     boundaries = _compute_capability_boundaries(macos, android_devices, network)
-    
+
     # 5. Compute available platforms
     platforms = []
     if macos:
         platforms.append("macos")
     if android_devices:
         platforms.append("android")
-    
+
     # 6. Assemble final state
     _awakened_state = AwakenedState(
         timestamp=datetime.now(),
@@ -82,16 +82,16 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         available_platforms=platforms,
         capability_boundaries=boundaries,
     )
-    
+
     logger.info(f"🧠 Agent awakened. Platforms: {platforms}")
-    
+
     # Publish awakening complete event
-    from app.core.environment.events import event_bus, AwakenEvent, EventType
+    from app.core.environment.events import AwakenEvent, EventType, event_bus
     await event_bus.publish(AwakenEvent(
         event_type=EventType.AWAKENING_COMPLETE,
         data={"platforms": platforms, "project_id": project_id}
     ))
-    
+
     return _awakened_state
 
 
@@ -112,27 +112,27 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
     This is lighter than a full awaken() call as it skips memory replay.
     """
     global _awakened_state
-    
+
     logger.debug("Refreshing environment state...")
-    
+
     # Probe environment (these are fast)
     macos = await EnvironmentProbe.probe_macos()
     android_devices = await EnvironmentProbe.probe_android_devices()
     network = await EnvironmentProbe.probe_network()
-    
+
     # Compute boundaries
     boundaries = _compute_capability_boundaries(macos, android_devices, network)
-    
+
     # Compute platforms
     platforms = []
     if macos:
         platforms.append("macos")
     if android_devices:
         platforms.append("android")
-    
+
     # Preserve memory/preference context from previous state
     prev_state = _awakened_state
-    
+
     _awakened_state = AwakenedState(
         timestamp=datetime.now(),
         macos=macos,
@@ -146,13 +146,13 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
         available_platforms=platforms,
         capability_boundaries=boundaries,
     )
-    
+
     logger.debug(f"Environment refreshed. Platforms: {platforms}")
     return _awakened_state
 
 
 def _compute_capability_boundaries(
-    macos: Optional[object],
+    macos: object | None,
     android_devices: list,
     network: object,
 ) -> list[str]:
@@ -161,15 +161,15 @@ def _compute_capability_boundaries(
         "I CANNOT control iOS devices (no jailbroken hooks available).",
         "I CANNOT perform physical actions like plugging in cables.",
     ]
-    
+
     if not android_devices:
         boundaries.append("I CANNOT control Android devices (none connected via ADB).")
     else:
         boundaries.append("Non-ASCII text input to Android via ADB may have issues.")
-    
+
     if not network.internet_connected:
         boundaries.append("I CANNOT access the internet (offline mode).")
-    
+
     return boundaries
 
 

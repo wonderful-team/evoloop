@@ -1,6 +1,6 @@
 import logging
+
 import keyring
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ class IdentityStore:
             return False
 
     @classmethod
-    def get_cloud_token(cls) -> Optional[str]:
+    def get_cloud_token(cls) -> str | None:
         try:
             return keyring.get_password(cls.SERVICE_NAME, "cloud_token")
         except Exception as e:
@@ -51,7 +51,7 @@ class IdentityStore:
             return False
 
     @classmethod
-    def get_device_key(cls) -> Optional[str]:
+    def get_device_key(cls) -> str | None:
         try:
             return keyring.get_password(cls.SERVICE_NAME, "device_key")
         except Exception as e:
@@ -68,7 +68,7 @@ class IdentityStore:
             return False
 
     @classmethod
-    def get_member_id(cls) -> Optional[int]:
+    def get_member_id(cls) -> int | None:
         try:
             val = keyring.get_password(cls.SERVICE_NAME, "member_id")
             return int(val) if val else None

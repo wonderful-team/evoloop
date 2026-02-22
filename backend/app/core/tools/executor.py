@@ -77,7 +77,7 @@ class ToolExecutor:
                 })
             except Exception as boundary_err:
                 logger.debug(f"Boundary learning failed: {boundary_err}")
-            
+
             output = f"Error executing {tool_name}: {str(e)}"
 
         # 3. Log End

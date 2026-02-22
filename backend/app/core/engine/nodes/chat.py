@@ -3,10 +3,12 @@ from typing import Any
 from langchain_core.messages import SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableConfig
+
 from app.core.engine.message_utils import repair_message_history
 from app.core.engine.state import AgentState
-from app.infrastructure.llm.factory import LLMFactory
+from app.core.environment.prompt_utils import detect_platform_relevance, build_environment_prompt
 from app.i18n.service import i18n
+from app.infrastructure.llm.factory import LLMFactory
 
 
 async def chat_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
@@ -21,8 +23,6 @@ async def chat_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]
     llm = LLMFactory.create_llm(temperature=0.7)
 
     # Detect Platform Relevance
-    from app.core.environment.prompt_utils import build_environment_prompt, detect_platform_relevance
-    
     # Filter out existing System Messages from history + Repair
     raw_messages = list(state.get("messages", []))
     history_messages = [m for m in raw_messages if not isinstance(m, SystemMessage)]

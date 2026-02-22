@@ -11,7 +11,7 @@ from sqlmodel import Session
 from app.core.config import settings
 from app.core.db import engine
 from app.core.evocloud import evocloud_manager
-from app.core.identity import identity_service, decode_local_jwt
+from app.core.identity import decode_local_jwt, identity_service
 from app.infrastructure.database.redis import redis_client
 from app.models import User
 
@@ -42,7 +42,7 @@ async def get_current_user(token: TokenDep) -> User:
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired local session",
             )
-        
+
         member_id = payload.get("member_id")
         if member_id is None:
              raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session payload")
@@ -61,11 +61,11 @@ async def get_current_user(token: TokenDep) -> User:
             cloud_token = identity_service.get_cloud_token()
             if not cloud_token:
                  raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No cloud credentials found")
-            
+
             result = await evocloud_manager.api.get_user_info(cloud_token)
             if result.get("code") != 0:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Cloud verification failed")
-            
+
             user_data = result.get("data", {})
             # Cache it back to Redis
             try:
@@ -137,7 +137,7 @@ async def verify_guest_access(
                 if member_id is not None:
                     # It's a valid local session - Success
                     return
-            
+
             # B. Fallback to Cloud fetch for direct cloud token usage (Legacy/SSE compat)
             result = await evocloud_manager.api.get_user_info(token)
             if result.get("code") == 0:

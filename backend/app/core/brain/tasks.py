@@ -1,5 +1,6 @@
 import asyncio
 import logging
+
 from celery import shared_task
 
 from app.core.brain.consolidation import MemoryConsolidator
@@ -9,13 +10,14 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
 @shared_task(name="brain_consolidate_memory")
 def consolidate_memory(source_message_id: str = None):
     """
     Background task to run the Brain Sleep Cycle.
     """
     logger.info(f"[Celery] Starting Brain Consolidation Task (Source: {source_message_id})...")
-    
+
     async def _run():
         fs = BrainFileSystem(settings.BRAIN_MEMORY_ROOT)
         reflective = ReflectiveDriver()

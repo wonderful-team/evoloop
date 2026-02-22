@@ -4,10 +4,10 @@ Allows the agent to actively search the Brain's long-term memory (Journal + Grap
 """
 import logging
 import os
-from typing import Optional, Literal
+from typing import Literal
 
-from app.core.tools import evoloop_tool
 from app.core.config import settings
+from app.core.tools import evoloop_tool
 
 logger = logging.getLogger(__name__)
 
@@ -23,16 +23,16 @@ async def recall_memory(query: str, domain: Literal["journal", "graph", "both"] 
         domain: Where to search. 'journal' checks the chronological log. 'graph' checks the Knowledge Graph. 'both' checks both.
     """
     results = []
-    
+
     # 1. Journal Search (Simple Grep for now, can be Vector later)
     if domain in ["journal", "both"]:
         try:
             journal_path = os.path.join(settings.BRAIN_MEMORY_ROOT, "knowledge", "journal.md")
             if os.path.exists(journal_path):
                 # Simple exact match line search for speed and simplicity
-                with open(journal_path, "r", encoding="utf-8") as f:
+                with open(journal_path, encoding="utf-8") as f:
                     lines = f.readlines()
-                    
+
                 matches = [line.strip() for line in lines if query.lower() in line.lower()]
                 if matches:
                     results.append(f"### Journal Matches ('{query}')")
@@ -52,11 +52,11 @@ async def recall_memory(query: str, domain: Literal["journal", "graph", "both"] 
             # Re-use existing graph vector/keyword search
             graph_hits = await memory_manager.graph.search(query)
             if graph_hits:
-                results.append(f"\n### Knowledge Graph Matches")
+                results.append("\n### Knowledge Graph Matches")
                 results.append(graph_hits)
             else:
                 results.append(f"\n### Knowledge Graph: No matches for '{query}'")
         except Exception as e:
             logger.error(f"Graph search failed: {e}")
-            
+
     return "\n".join(results)

@@ -1,6 +1,5 @@
 import logging
 import time
-from typing import Optional
 
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import VisionResult, VisionTask
@@ -23,7 +22,7 @@ class MultimodalVLMProvider(VisionProvider):
         return 1.0  # High cost - API calls
 
     async def is_available(self) -> bool:
-        # Assuming if config exists, it's available. 
+        # Assuming if config exists, it's available.
         # Real check might involve API key validation.
         return True
 
@@ -31,12 +30,12 @@ class MultimodalVLMProvider(VisionProvider):
         self,
         task: VisionTask,
         image_source: str,
-        prompt: Optional[str] = None,
+        prompt: str | None = None,
         **kwargs
     ) -> VisionResult:
         """Process vision task using VLM."""
         start_time = time.time()
-        
+
         # Default prompt if none provided
         if not prompt:
             if task == VisionTask.CAPTION:
@@ -50,15 +49,15 @@ class MultimodalVLMProvider(VisionProvider):
             # Logic moved to VisionLLMFactory
             model = kwargs.get("model") or "gpt-4o"
             llm = get_vision_llm(model_name=model)
-            
+
             # Create Message
             message = VisionLLMFactory.create_image_message(image_source, prompt)
-            
+
             # Invoke
             response = await llm.ainvoke([message])
-            
+
             latency = (time.time() - start_time) * 1000
-            
+
             return VisionResult(
                 task=task,
                 success=True,

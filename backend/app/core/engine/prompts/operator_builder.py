@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Any
 
@@ -24,17 +23,17 @@ class OperatorPromptBuilder:
         """
         user_lang = SystemConfigService.get_value("LANGUAGE", "en")
         tree = self.context.get("project_structure", "")
-        
+
         execution_ticket = self.state.get("execution_ticket", {}) or {}
         ticket_type = execution_ticket.get("ticket_type", "task").lower()
-        
+
         # Phase 6: Conditional Context Injection
         non_fs_tasks = ["web_research", "wiki_update", "dynamic_task", "knowledge_harvesting", "data_analysis"]
         if ticket_type in non_fs_tasks:
             tree_section = "- Project Structure: [Omitted for Non-Filesystem Task]"
         else:
             tree_section = f"- Project Structure:\n{tree}"
-        
+
         from app.core.context.manager import ContextManager
         from app.core.context.plugins import plugin_registry
 
@@ -46,15 +45,15 @@ class OperatorPromptBuilder:
             env_lines.append("\n".join(f"- {s}" for s in ctx.environment_summaries))
         else:
             env_lines.append("- Unknown environment state")
-            
+
         if ctx.active_boundaries:
             env_lines.append("\n### ❌ Constraints")
             env_lines.append("\n".join(f"- {b}" for b in ctx.active_boundaries))
-            
+
         if ctx.spatial_awareness:
             env_lines.append("\n### 🔍 Discovery Insights")
             env_lines.append("\n".join(f"- {s}" for s in ctx.spatial_awareness))
-            
+
         env_section = "\n".join(env_lines)
 
         # Skills as Knowledge injection
@@ -109,7 +108,7 @@ You are responsible for the ENTIRE lifecycle of this task. Do not ask for permis
         """
         scratchpad = self.state.get("scratchpad", {})
         clipboard = scratchpad.get("workspace_clipboard", [])
-        
+
         if not clipboard:
             return ""
 
@@ -123,12 +122,12 @@ You are responsible for the ENTIRE lifecycle of this task. Do not ask for permis
             content = item.get("content", "")
             mime_type = item.get("mime_type", "text/plain")
             metadata = item.get("metadata", {})
-            
+
             block = f"#### Item {idx + 1} ({mime_type})\n"
             if metadata:
                 meta_str = ", ".join([f"{k}: {v}" for k, v in metadata.items()])
                 block += f"*Metadata*: {meta_str}\n"
-            
+
             block += f"```\n{content}\n```\n"
             blocks.append(block)
 
@@ -157,7 +156,7 @@ You are responsible for the ENTIRE lifecycle of this task. Do not ask for permis
             else:
                 skill_name = getattr(skill, "name", "Unknown")
                 skill_desc = getattr(skill, "description", "")
-            
+
             block = f"- **{skill_name}**: {skill_desc}"
             blocks.append(block)
 

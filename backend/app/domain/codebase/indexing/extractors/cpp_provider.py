@@ -1,7 +1,6 @@
 """
 C++ Language Semantic Provider
 """
-from typing import Any
 from .sem_provider import LanguageSemanticProvider
 
 

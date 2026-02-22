@@ -7,7 +7,7 @@ class FinishPromptBuilder:
     """
     Constructs the system prompt for the Session Reviewer agent.
     """
-    
+
     def __init__(
         self,
         current_plan: str,
@@ -27,7 +27,7 @@ class FinishPromptBuilder:
         ticket_str = json.dumps(self.execution_ticket, indent=2) if self.execution_ticket else "None"
         v_status_str = json.dumps(self.verification_status, indent=2) if self.verification_status else "No verification recorded"
         user_lang = SystemConfigService.get_language_preference()
-        
+
         return f"""You are the **Session Reviewer** (Acceptance Expert). 
 Your task is to audit the conversation history and the technical outcomes to decide if the session should be finalized.
 

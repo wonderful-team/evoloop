@@ -5,9 +5,9 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
 from app.core.engine import AgentState
-from app.infrastructure.llm.factory import LLMFactory
 from app.core.engine.research.engine import DeepResearchEngine
 from app.i18n.service import i18n
+from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -36,12 +36,12 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
 
     topic = state.get("research_topic", "")
     execution_ticket = state.get("execution_ticket")
-    
+
     # 1. Blackboard Context Handoff (v3.2)
     if execution_ticket:
         logger.info("[DeepResearcher] 🎫 Ticket Match - Enabling Blackboard Isolation")
         topic = execution_ticket.get("topic") or execution_ticket.get("parameters", {}).get("topic")
-        
+
         # Isolation: prune history
         criteria = "\n".join([f"- {c}" for c in execution_ticket.get("acceptance_criteria", [])])
         isolated_msg = f"### RESEARCH MISSION\nTopic: {topic}\n\nAcceptance Criteria:\n{criteria}\n\nPlease proceed with deep research."
@@ -89,7 +89,6 @@ async def deep_researcher_node(state: AgentState, config: RunnableConfig):
         # Pass skills to engine if it supports prompt builders internally (e.g. for sub-tasks)
         # or combine with isolated message.
         if skills:
-            from app.core.engine.prompts import DeepResearchPromptBuilder
             # We can use a helper or builder to format these for the engine's internal planning
             skill_knowledge = "\n".join([f"### 📘 Skill: {s.name}\n{s.instructions}" for s in skills])
             topic = f"{topic}\n\n### EXPERT KNOWLEDGE (SKILLS)\n{skill_knowledge}"

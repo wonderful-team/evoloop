@@ -1,10 +1,9 @@
 import logging
-from typing import List, Optional
 
 from app.core.vision.providers.base import VisionProvider
-from app.core.vision.providers.ocr.ocr_provider import LocalOCRProvider
-from app.core.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider
 from app.core.vision.providers.llm.vlm_provider import MultimodalVLMProvider
+from app.core.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider
+from app.core.vision.providers.ocr.ocr_provider import LocalOCRProvider
 from app.core.vision.types import VisionTask
 
 logger = logging.getLogger(__name__)
@@ -17,21 +16,21 @@ class VisionRouter:
     """
 
     def __init__(self):
-        self.providers: List[VisionProvider] = [
+        self.providers: list[VisionProvider] = [
             MacOSVisionOCRProvider(),
             LocalOCRProvider(),
             MultimodalVLMProvider(),
         ]
 
-    async def get_provider(self, task: VisionTask, **kwargs) -> Optional[VisionProvider]:
+    async def get_provider(self, task: VisionTask, **kwargs) -> VisionProvider | None:
         """
         Route task to the best available provider.
         """
-        # Logic: 
+        # Logic:
         # 1. Capture/OCR -> Local if available
         # 2. Analysis/Caption -> LLM
         # 3. Explicit override in kwargs
-        
+
         explicit_provider = kwargs.get("provider_name")
         if explicit_provider:
             for p in self.providers:
@@ -48,7 +47,7 @@ class VisionRouter:
             for p in self.providers:
                 if isinstance(p, LocalOCRProvider) and await p.is_available():
                     return p
-        
+
         if task in [VisionTask.ANALYZE, VisionTask.CAPTION, VisionTask.COMPARE]:
             # Prefer Multimodal VLM
             for p in self.providers:
@@ -59,5 +58,5 @@ class VisionRouter:
         for p in self.providers:
             if await p.is_available():
                 return p
-        
+
         return None

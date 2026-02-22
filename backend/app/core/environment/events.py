@@ -6,9 +6,10 @@ Now extends the core AsyncEventBus for consistency across the system.
 """
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Awaitable, Callable, Dict
+from typing import Any
 
 from app.core.events.base import AsyncEventBus, BaseEvent
 from app.core.events.registry import AwakeningEventType
@@ -26,7 +27,7 @@ class AwakenEvent(BaseEvent):
     event_type: AwakeningEventType = field(default=AwakeningEventType.AWAKENING_COMPLETE)
     timestamp: datetime = field(default_factory=datetime.now)
     source: str = "awakening"
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -34,7 +35,7 @@ class DeviceConnectedEvent(AwakenEvent):
     """Device connection event"""
     device_id: str = ""
     device_type: str = "android"  # android, macos
-    
+
     def __post_init__(self):
         self.event_type = AwakeningEventType.DEVICE_CONNECTED
         self.data = {"device_id": self.device_id, "device_type": self.device_type}
@@ -44,7 +45,7 @@ class DeviceConnectedEvent(AwakenEvent):
 class DeviceDisconnectedEvent(AwakenEvent):
     """Device disconnection event"""
     device_id: str = ""
-    
+
     def __post_init__(self):
         self.event_type = AwakeningEventType.DEVICE_DISCONNECTED
         self.data = {"device_id": self.device_id}
@@ -57,7 +58,7 @@ class SkillExecutedEvent(AwakenEvent):
     skill_name: str = ""
     success: bool = True
     confidence_delta: float = 0.0
-    
+
     def __post_init__(self):
         self.event_type = AwakeningEventType.SKILL_EXECUTED
         self.data = {
@@ -75,7 +76,7 @@ class SkillPromotedEvent(AwakenEvent):
     skill_name: str = ""
     old_status: str = ""
     new_status: str = ""
-    
+
     def __post_init__(self):
         self.event_type = AwakeningEventType.SKILL_PROMOTED
         self.data = {
@@ -92,7 +93,7 @@ class SkillDeprecatedEvent(AwakenEvent):
     skill_id: int = 0
     skill_name: str = ""
     reason: str = ""
-    
+
     def __post_init__(self):
         self.event_type = AwakeningEventType.SKILL_DEPRECATED
         self.data = {
@@ -110,7 +111,7 @@ class UiTreeObservedEvent(AwakenEvent):
     window_title: str = ""
     elements: list = field(default_factory=list)
     screenshot_hash: str = ""
-    
+
     def __post_init__(self):
         self.event_type = AwakeningEventType.UI_TREE_OBSERVED
         self.data = {
@@ -129,7 +130,7 @@ class BoundaryLearnedEvent(AwakenEvent):
     tool_name: str = ""
     category: str = ""
     description: str = ""
-    
+
     def __post_init__(self):
         self.event_type = AwakeningEventType.BOUNDARY_LEARNED
         self.data = {
@@ -151,7 +152,7 @@ class AwakenEventBus(AsyncEventBus[AwakenEvent]):
     Maintains backward compatibility with existing code.
     """
     _instance = None
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = object.__new__(cls)

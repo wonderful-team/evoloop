@@ -182,7 +182,7 @@ class TraceParser:
                 step = self._parse_global_event(event)
             else:
                 step = self._parse_event(event)
-                
+
             if step:
                 sequence.steps.append(step)
 
@@ -206,15 +206,15 @@ class TraceParser:
             "mouse_click": "mouse_click",
             "window_change": "window_change"
         }
-        
+
         # Check for Mirror (scrcpy) interactions
         # If the click happens inside the scrcpy window, we convert it to a mobile_control action
         is_mirror = event.window_title and ("EvoLoop Mirror" in event.window_title or "scrcpy" in event.window_title.lower())
-        
+
         # Construct meaningful action name
         app_prefix = f"[{event.app_name}] " if event.app_name else ""
         action_name = f"{app_prefix}{action_mapping.get(event.action_type, event.action_type)}"
-        
+
         # Build args
         action_args = {}
         if event.key_name:
@@ -233,13 +233,13 @@ class TraceParser:
                     window_bounds = payload.get("window_bounds")
                 except:
                     pass
-            
+
             if window_bounds and len(window_bounds) == 4 and event.action_type == "mouse_click":
                 wx, wy, ww, wh = window_bounds
                 if ww > 0 and wh > 0:
                     nx = (event.mouse_x - wx) / ww
                     ny = (event.mouse_y - wy) / wh
-                    
+
                     # Ensure it's within bounds
                     if 0 <= nx <= 1 and 0 <= ny <= 1:
                         return TraceStep(

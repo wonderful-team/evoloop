@@ -1,7 +1,6 @@
 """Long-term memory interface for persistent knowledge and experiences."""
 
 from abc import abstractmethod
-from typing import List, Optional
 
 from app.core.memory.interfaces.base import IMemoryProvider
 
@@ -9,7 +8,7 @@ from app.core.memory.interfaces.base import IMemoryProvider
 class SearchResult:
     """Result from a concept search."""
 
-    def __init__(self, name: str, description: str, score: float, files: Optional[List[str]] = None):
+    def __init__(self, name: str, description: str, score: float, files: list[str] | None = None):
         self.name = name
         self.description = description
         self.score = score
@@ -19,7 +18,7 @@ class SearchResult:
 class Concept:
     """Semantic knowledge unit."""
 
-    def __init__(self, name: str, description: str, project_id: int, related_files: Optional[List[str]] = None):
+    def __init__(self, name: str, description: str, project_id: int, related_files: list[str] | None = None):
         self.name = name
         self.description = description
         self.project_id = project_id
@@ -34,9 +33,9 @@ class Episode:
         goal: str,
         result: str,
         plan_summary: str,
-        error_msg: Optional[str],
+        error_msg: str | None,
         project_id: int,
-        source_message_id: Optional[str] = None,
+        source_message_id: str | None = None,
     ):
         self.goal = goal
         self.result = result
@@ -63,8 +62,8 @@ class ILongTermMemory(IMemoryProvider):
         pass
 
     async def search_concepts(
-        self, query: str, project_id: Optional[int] = None, min_score: float = 0.7
-    ) -> List[SearchResult]:
+        self, query: str, project_id: int | None = None, min_score: float = 0.7
+    ) -> list[SearchResult]:
         """
         Semantic search for concepts.
 
@@ -79,7 +78,7 @@ class ILongTermMemory(IMemoryProvider):
         pass
 
     @abstractmethod
-    async def search_concepts_data(self, query: str, project_id: Optional[int] = None) -> List[dict]:
+    async def search_concepts_data(self, query: str, project_id: int | None = None) -> list[dict]:
         """
         Raw data version of search (for internal use).
 
@@ -93,7 +92,7 @@ class ILongTermMemory(IMemoryProvider):
         pass
 
     @abstractmethod
-    async def record_episode(self, episode: Episode) -> Optional[str]:
+    async def record_episode(self, episode: Episode) -> str | None:
         """
         Store a completed task execution as an episode.
 
@@ -122,7 +121,7 @@ class ILongTermMemory(IMemoryProvider):
 
     @abstractmethod
     async def link_episode_to_concepts(
-        self, episode_id: str, concept_names: List[str], project_id: int
+        self, episode_id: str, concept_names: list[str], project_id: int
     ) -> None:
         """
         Link an episode to specific concepts.
@@ -137,7 +136,7 @@ class ILongTermMemory(IMemoryProvider):
     @abstractmethod
     async def find_episodes_by_concept(
         self, concept_name: str, project_id: int, limit: int = 10
-    ) -> List[dict]:
+    ) -> list[dict]:
         """
         Find episodes related to a specific concept.
 
@@ -152,7 +151,7 @@ class ILongTermMemory(IMemoryProvider):
         pass
 
     @abstractmethod
-    async def list_concepts(self, project_id: int, limit: int = 50) -> List[dict]:
+    async def list_concepts(self, project_id: int, limit: int = 50) -> list[dict]:
         """
         List all concepts for a project.
 
@@ -166,7 +165,7 @@ class ILongTermMemory(IMemoryProvider):
         pass
 
     @abstractmethod
-    async def get_project_concepts(self, project_id: int) -> List[str]:
+    async def get_project_concepts(self, project_id: int) -> list[str]:
         """
         Retrieve all concepts associated with a project.
 
@@ -179,7 +178,7 @@ class ILongTermMemory(IMemoryProvider):
         pass
 
     @abstractmethod
-    async def delete_episodes_by_message_ids(self, message_ids: List[str]) -> int:
+    async def delete_episodes_by_message_ids(self, message_ids: list[str]) -> int:
         """
         Delete episodes associated with specific source message IDs.
 

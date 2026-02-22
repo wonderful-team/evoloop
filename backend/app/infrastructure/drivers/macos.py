@@ -73,10 +73,10 @@ class MacOSDriver:
             from Quartz import (
                 CGEventCreateMouseEvent,
                 CGEventPost,
+                CGPointMake,
                 kCGEventLeftMouseDown,
                 kCGEventLeftMouseUp,
                 kCGHIDEventTap,
-                CGPointMake,
             )
 
             point = CGPointMake(x, y)
@@ -157,11 +157,11 @@ class MacOSDriver:
                 CGEventCreateMouseEvent,
                 CGEventPost,
                 CGEventSetIntegerValueField,
+                CGPointMake,
                 kCGEventLeftMouseDown,
                 kCGEventLeftMouseUp,
                 kCGHIDEventTap,
                 kCGMouseEventClickState,
-                CGPointMake,
             )
 
             point = CGPointMake(x, y)
@@ -223,7 +223,7 @@ class MacOSDriver:
 
                 # 3. Trigger Paste (Cmd + V)
                 MacOSDriver.key_press("command+v")
-                
+
                 # 4. Small delay to let the UI process the paste event
                 time.sleep(0.1)
 
@@ -277,7 +277,7 @@ class MacOSDriver:
             "up": 126, "down": 125, "left": 123, "right": 124,
             "pageup": 116, "pagedown": 121, "home": 115, "end": 119,
             "command": 55, "cmd": 55, "shift": 56, "option": 58, "opt": 58, "alt": 58, "control": 59, "ctrl": 59,
-            "f1": 122, "f2": 120, "f3": 99, "f4": 118, "f5": 96, "f6": 97, 
+            "f1": 122, "f2": 120, "f3": 99, "f4": 118, "f5": 96, "f6": 97,
             "f7": 98, "f8": 100, "f9": 101, "f10": 109, "f11": 103, "f12": 111,
         }
 
@@ -372,7 +372,7 @@ class MacOSDriver:
         if result.returncode != 0:
             raise RuntimeError(f"AppleScript failed: {result.stderr}")
 
-        logger.info(f"AppleScript executed successfully")
+        logger.info("AppleScript executed successfully")
         return result.stdout.strip()
 
     @staticmethod
@@ -412,19 +412,25 @@ class MacOSDriver:
                     
                     -- Capture menu bar as well
                     try
+                        set mBarIndex to 1
                         repeat with menuBar in every menu bar
+                            set mItemIndex to 1
                             repeat with menuBarItem in (every menu bar item of menuBar)
                                 set elName to name of menuBarItem
                                 set elRole to role of menuBarItem
                                 set elBounds to size of menuBarItem
                                 set elPos to position of menuBarItem
-                                set elStr to "{'name': '" & elName & "', 'role': '" & elRole & "', 'bounds': [" & (item 1 of elPos) & ", " & (item 2 of elPos) & ", " & (item 1 of elBounds) & ", " & (item 2 of elBounds) & "]},"
+                                set elPath to "menu bar item " & mItemIndex & " of menu bar " & mBarIndex
+                                set elStr to "{'name': '" & elName & "', 'role': '" & elRole & "', 'path': '" & elPath & "', 'bounds': [" & (item 1 of elPos) & ", " & (item 2 of elPos) & ", " & (item 1 of elBounds) & ", " & (item 2 of elBounds) & "]},"
                                 set jsonOutput to jsonOutput & elStr
+                                set mItemIndex to mItemIndex + 1
                             end repeat
+                            set mBarIndex to mBarIndex + 1
                         end repeat
                     end try
 
                     -- Capture window elements
+                    set winElIndex to 1
                     set windowElements to every UI element of win1
                     repeat with uiElement in windowElements
                         try
@@ -433,11 +439,13 @@ class MacOSDriver:
                             set elRole to role of uiElement
                             set elBounds to size of uiElement
                             set elPos to position of uiElement
+                            set elPath to "UI element " & winElIndex & " of window 1"
                             
-                            set elStr to "{'name': '" & elName & "', 'role': '" & elRole & "', 'bounds': [" & (item 1 of elPos) & ", " & (item 2 of elPos) & ", " & (item 1 of elBounds) & ", " & (item 2 of elBounds) & "]},"
+                            set elStr to "{'name': '" & elName & "', 'role': '" & elRole & "', 'path': '" & elPath & "', 'bounds': [" & (item 1 of elPos) & ", " & (item 2 of elPos) & ", " & (item 1 of elBounds) & ", " & (item 2 of elBounds) & "]},"
                             set jsonOutput to jsonOutput & elStr
                             
                             -- One level of sub-elements for buttons/inputs in toolbars
+                            set subElIndex to 1
                             repeat with subElement in (every UI element of uiElement)
                                 try
                                     set subName to name of subElement
@@ -445,11 +453,14 @@ class MacOSDriver:
                                     set subRole to role of subElement
                                     set subBounds to size of subElement
                                     set subPos to position of subElement
-                                    set subStr to "{'name': '" & subName & "', 'role': '" & subRole & "', 'bounds': [" & (item 1 of subPos) & ", " & (item 2 of subPos) & ", " & (item 1 of subBounds) & ", " & (item 2 of subBounds) & "]},"
+                                    set subPath to "UI element " & subElIndex & " of UI element " & winElIndex & " of window 1"
+                                    set subStr to "{'name': '" & subName & "', 'role': '" & subRole & "', 'path': '" & subPath & "', 'bounds': [" & (item 1 of subPos) & ", " & (item 2 of subPos) & ", " & (item 1 of subBounds) & ", " & (item 2 of subBounds) & "]},"
                                     set jsonOutput to jsonOutput & subStr
                                 end try
+                                set subElIndex to subElIndex + 1
                             end repeat
                         end try
+                        set winElIndex to winElIndex + 1
                     end repeat
                 end tell
             on error errMsg
@@ -461,6 +472,33 @@ class MacOSDriver:
         end if
         return jsonOutput & "]"
         """
+        try:
+            return MacOSDriver.run_applescript(script)
+        except Exception as e:
+            return f"Error: {e}"
+
+    @staticmethod
+    def perform_ax_action(element_path: str, action: str = "AXPress") -> str:
+        """
+        Execute an Accessibility action (e.g., click) directly on a UI element path.
+        This bypasses the physical mouse and coordinates.
+        """
+        script = f'''
+        tell application "System Events"
+            try
+                set frontAppList to every application process whose frontmost is true
+                if (count of frontAppList) is 0 then return "Error: No front app"
+                set frontApp to item 1 of frontAppList
+                
+                tell frontApp
+                    perform action "{action}" of {element_path}
+                    return "Success: Performed {action} on {element_path}"
+                end tell
+            on error errMsg
+                return "Error: " & errMsg
+            end try
+        end tell
+        '''
         try:
             return MacOSDriver.run_applescript(script)
         except Exception as e:

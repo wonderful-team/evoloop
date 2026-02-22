@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class ElementType(Enum):
@@ -41,7 +41,7 @@ class UIElement:
     clickable: bool = True
     confidence: float = 1.0
     source: str = ""  # "ocr", "native", "llm"
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
     def bounds(self) -> tuple[int, int, int, int]:
@@ -61,7 +61,7 @@ class UIElement:
         text_preview = self.text[:30] + "..." if len(self.text) > 30 else self.text
         return f"[{self.id}] \"{text_preview}\" ({self.x}, {self.y}) [{type_str}]"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Serialize to dictionary."""
         return {
             "id": self.id,
@@ -83,9 +83,9 @@ class VisionResult:
     """Standardized result from VisionEngine."""
     task: VisionTask
     success: bool
-    elements: List[UIElement] = field(default_factory=list)
-    summary: Optional[str] = None
+    elements: list[UIElement] = field(default_factory=list)
+    summary: str | None = None
     raw_output: Any = None
-    screenshot_path: Optional[str] = None
+    screenshot_path: str | None = None
     latency_ms: float = 0
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)

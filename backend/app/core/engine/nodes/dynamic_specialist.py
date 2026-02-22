@@ -1,17 +1,18 @@
+import json
 import logging
 from typing import Any
 
-from app.core.config import settings
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.core.config import settings
 from app.core.engine import AgentEngine
-
+from app.core.engine.prompts.dynamic_specialist_builder import (
+    DynamicSpecialistPromptBuilder,
+)
 from app.core.engine.state import AgentState
-from app.core.engine.prompts.dynamic_specialist_builder import DynamicSpecialistPromptBuilder
-from app.core.tools.manager import tool_manager
 from app.core.environment import get_awakened_state
-import json
+from app.core.tools.manager import tool_manager
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,7 @@ class DynamicSpecialistNode:
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         execution_ticket = state.get("execution_ticket")
-        
+
         if not execution_ticket or not execution_ticket.get("agent_config"):
             logger.error("[DynamicSpecialist] No AgentConfig found in ticket! Aborting.")
             return {
@@ -39,11 +40,11 @@ class DynamicSpecialistNode:
         role_name = agent_config.get("role_name", "Specialist")
         instructions = agent_config.get("system_instructions", "You are a helpful assistant.")
         tool_names = agent_config.get("tools", [])
-        
+
         logger.info(f"[DynamicSpecialist] 🦎 Hydrating as '{role_name}' with tools: {tool_names}")
 
         # 1. Hydrate Tools (Progressive Disclosure)
-        # The new ToolManager automatically parses the execution_ticket (including agent_config.tools 
+        # The new ToolManager automatically parses the execution_ticket (including agent_config.tools
         # and mcp_servers_required) and securely binds exactly what we need without prompt explosion.
         tools = tool_manager.get_node_tools("dynamic_specialist", state)
 
@@ -67,7 +68,7 @@ class DynamicSpecialistNode:
                     parts = concept.name.split(":")
                     if len(parts) >= 2:
                         known_macos_apps[parts[1]] = concept.description
-        
+
         if known_packages:
             logger.info(f"[DynamicSpecialist] 🧠 Loaded {len(known_packages)} Android packages from Brain.")
         if known_macos_apps:
@@ -77,10 +78,10 @@ class DynamicSpecialistNode:
         # Pass loaded skills and knowledge to the builder
         scratchpad = state.get("scratchpad", {})
         clipboard = scratchpad.get("workspace_clipboard", [])
-        
+
         prompt_builder = DynamicSpecialistPromptBuilder(
-            agent_config, 
-            execution_ticket, 
+            agent_config,
+            execution_ticket,
             skills=relevant_sops,
             known_packages=known_packages,
             known_macos_apps=known_macos_apps,
@@ -94,7 +95,7 @@ class DynamicSpecialistNode:
         # We spawn a mini-engine instance
         try:
             logger.info(f"[DynamicSpecialist] 🚀 Launching '{role_name}' atomic loop...")
-            
+
             engine_result = await AgentEngine.run_node(
                 state={**state, "messages": messages},  # Isolated state (now correctly using graph state)
                 config=config,
@@ -103,27 +104,27 @@ class DynamicSpecialistNode:
                 name=f"Dynamic-{role_name}",
                 max_steps=settings.DYNAMIC_AGENT_MAX_STEPS,  # Configured limit
             )
-            
+
             # 5. Extract Result
-            # We want to summarize what happened. 
+            # We want to summarize what happened.
             # The 'messages' in engine_result are the isolated conversation.
             # We append the final result to the MAIN graph history.
-            
+
             last_msg = engine_result["messages"][-1]
             content = ""
             if isinstance(last_msg, AIMessage):
                 content = last_msg.content
-            
+
             tool_history = engine_result.get("tool_history", [])
             logger.info(f"[DynamicSpecialist][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}")
-            
+
             summary = f"**{role_name} Report**:\n{content}\n\n(Tools used: {len(tool_history)})"
-            
+
             return_state = {
                 "messages": [AIMessage(content=summary)],
                 "next_node": "supervisor",
             }
-            
+
             # Intercept MCP Server requests to update execution ticket
             for t_sig in tool_history:
                 tool_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
@@ -140,7 +141,7 @@ class DynamicSpecialistNode:
                             logger.info(f"[DynamicSpecialist] 🔌 Appended MCP server '{server_name}' to execution_ticket.")
                     except Exception as e:
                         logger.error(f"[DynamicSpecialist] Failed to parse use_mcp_server arguments: {e}")
-            
+
             return return_state
 
         except Exception as e:

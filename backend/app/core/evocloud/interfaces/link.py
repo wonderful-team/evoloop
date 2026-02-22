@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Callable, Any
+from collections.abc import Callable
+from typing import Any
 
-from app.core.evocloud.schemas import EvoCloudConfig
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
+from app.core.evocloud.schemas import EvoCloudConfig
 
 
 class DeviceLinkProtocol(ABC):

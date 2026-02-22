@@ -1,5 +1,6 @@
 import logging
-from typing import Protocol, List, Optional
+from typing import Protocol
+
 from app.core.context.manager import EvoContext
 
 logger = logging.getLogger(__name__)
@@ -21,7 +22,7 @@ class ContextPluginRegistry:
     """Registry for all context plugins."""
 
     def __init__(self):
-        self._plugins: List[ContextPlugin] = []
+        self._plugins: list[ContextPlugin] = []
 
     def register(self, plugin: ContextPlugin) -> None:
         self._plugins.append(plugin)
@@ -53,7 +54,7 @@ class WorkspaceProvider(Protocol):
         ...
 
 
-_workspace_provider: Optional[WorkspaceProvider] = None
+_workspace_provider: WorkspaceProvider | None = None
 
 
 def set_workspace_provider(provider: WorkspaceProvider):
@@ -62,6 +63,6 @@ def set_workspace_provider(provider: WorkspaceProvider):
     _workspace_provider = provider
 
 
-def get_workspace_provider() -> Optional[WorkspaceProvider]:
+def get_workspace_provider() -> WorkspaceProvider | None:
     """Retrieve the global WorkspaceProvider."""
     return _workspace_provider

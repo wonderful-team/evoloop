@@ -1,5 +1,6 @@
-import logging
 import asyncio
+import logging
+import os
 
 from app.core.events.base import BaseEvent, system_bus
 
@@ -25,13 +26,12 @@ async def handle_system_event(event: BaseEvent):
             try:
                 from app.domain.codebase.indexing.manager import indexing_manager
                 from app.domain.codebase.indexing.service import IndexingService
-                import os
-                
+
                 service = IndexingService()
                 repo_name = os.path.basename(path)
                 repo = await service.get_or_create_repo(path, repo_name, project_id=project_id)
                 await indexing_manager.start_watching(path, repo.id)
-                
+
                 # Trigger Smart Full-Indexing for "Staleness Check"
                 asyncio.create_task(indexing_manager.run_indexing_background(repo.id))
             except Exception as e:

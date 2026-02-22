@@ -6,24 +6,17 @@ It analyzes user input, routes to specialized nodes via the route_to tool.
 """
 import json
 import logging
-import os
-import platform
 from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
-from sqlalchemy import or_, select
 
 from app.core.engine import AgentEngine
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
+from app.core.memory import memory_manager
+from app.core.tools.manager import tool_manager
 from app.i18n.service import i18n
-from app.infrastructure.database.sql.database import session_scope
-from app.models.todo import (
-    TodoItem,
-    TodoPriority,
-    TodoStatus,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +129,7 @@ class SupervisorNode:
             # [NEW] Phase 8/9: Universal Blackboard Ticket Population
             execution_ticket = None
             specialists = ["operator", "deep_researcher", "documenter"]
-            
+
             # Phase 8: Naive Topic-based Namespace Deduction
             # Realistically this could be LLM-driven or regex-based on the topic
             base_topic = str(routing_context.get("topic") or routing_context.get("query") or "").lower()
@@ -169,14 +162,14 @@ class SupervisorNode:
                 if agent_config:
                     if "namespace_context" not in agent_config:
                         agent_config["namespace_context"] = inferred_namespace
-                        
+
                     execution_ticket = {
                         "ticket_type": routing_context.get("ticket_type", "adhoc_task"),
                         "priority": "normal",
                         "topic": "Dynamic Task",
                         "acceptance_criteria": routing_context.get("acceptance_criteria", []),
                         "agent_config": agent_config,  # The Blueprint
-                        # Dynamic specialist doesn't usually use focus_paths like Operator, 
+                        # Dynamic specialist doesn't usually use focus_paths like Operator,
                         # but we can pass them if tools support it.
                         "parameters": routing_context.get("parameters", {}),
                         # Required fields (nullable in TypeDict but good to have keys)
@@ -285,20 +278,17 @@ class SupervisorNode:
         self, state: AgentState, config: RunnableConfig, messages: list, project_id: int
     ) -> dict[str, Any]:
         """Build context for LLM planning."""
-        from app.core.tools.manager import tool_manager
-        from app.infrastructure.config.service import SystemConfigService
-
         # 1. Get Tools
         # Track 9: Progressive Disclosure
         # We NO LONGER inject `mcp_client_manager.get_tools()` into the Supervisor.
-        # The Supervisor relies on `search_native_tools` and `use_mcp_server` 
+        # The Supervisor relies on `search_native_tools` and `use_mcp_server`
         # to find capabilities without blowing up the context window.
         core_tools = tool_manager.get_node_tools("supervisor", state)
 
         # 1.1 Context Extraction (Safe access)
         last_msg = get_last_human_message(messages)
 
-        # In the new architecture, we provide a deterministic set of tools 
+        # In the new architecture, we provide a deterministic set of tools
         # plus search_native_tools for on-demand discovery.
         # RAG-based tool retrieval is deprecated.
         tool_dict = {t.name: t for t in core_tools}
@@ -307,8 +297,6 @@ class SupervisorNode:
         # 2. Get Project Concepts
         project_concepts = ""
         try:
-            from app.core.memory import memory_manager
-
             if last_msg:
                 results = await memory_manager.long_term.search_concepts(last_msg, project_id)
                 if results:

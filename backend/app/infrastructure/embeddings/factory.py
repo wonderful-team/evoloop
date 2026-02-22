@@ -1,8 +1,8 @@
+from app.core.config import settings
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.ollama import OllamaEmbedder
 from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
-from app.core.config import settings
 
 
 class EmbedderFactory:

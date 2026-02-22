@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 class DeviceEventHandler:
     """Handles device connection/disconnection events"""
-    
+
     @staticmethod
     async def on_device_connected(event: AwakenEvent) -> None:
         """
@@ -32,18 +32,18 @@ class DeviceEventHandler:
         """
         device_id = event.data.get("device_id")
         device_type = event.data.get("device_type", "android")
-        
+
         logger.info(f"🔌 Device connected: {device_id} ({device_type})")
-        
+
         # Refresh awakened state
         from app.core.environment import _refresh_state
         await _refresh_state()
-        
+
         # Trigger app probing for new Android devices
         if device_type == "android":
             from app.core.environment import get_awakened_state
             from app.core.environment.explorers.android import AndroidExplorer
-            
+
             state = get_awakened_state()
             if state and state.android_devices:
                 device = next((d for d in state.android_devices if d.device_id == device_id), None)
@@ -54,7 +54,7 @@ class DeviceEventHandler:
                         await explorer.scan(device_id)
                     except Exception as e:
                         logger.warning(f"Failed to probe device {device_id}: {e}")
-    
+
     @staticmethod
     async def on_device_disconnected(event: AwakenEvent) -> None:
         """
@@ -64,14 +64,14 @@ class DeviceEventHandler:
         """
         device_id = event.data.get("device_id")
         logger.info(f"🔌 Device disconnected: {device_id}")
-        
+
         from app.core.environment import _refresh_state
         await _refresh_state()
 
 
 class SkillEventHandler:
     """Handles skill execution events for skill evolution"""
-    
+
     @staticmethod
     async def on_skill_executed(event: AwakenEvent) -> None:
         """
@@ -82,12 +82,12 @@ class SkillEventHandler:
         skill_name = event.data.get("skill_name")
         success = event.data.get("success")
         confidence_delta = event.data.get("confidence_delta", 0)
-        
+
         if success:
             logger.info(f"✅ Skill executed: {skill_name} (confidence +{confidence_delta})")
         else:
             logger.warning(f"❌ Skill failed: {skill_name} (confidence {confidence_delta})")
-    
+
     @staticmethod
     async def on_skill_promoted(event: AwakenEvent) -> None:
         """
@@ -99,7 +99,7 @@ class SkillEventHandler:
         old_status = event.data.get("old_status")
         new_status = event.data.get("new_status")
         logger.info(f"🎓 Skill promoted: {skill_name} ({old_status} -> {new_status})")
-    
+
     @staticmethod
     async def on_skill_deprecated(event: AwakenEvent) -> None:
         """
@@ -114,7 +114,7 @@ class SkillEventHandler:
 
 class SystemEventHandler:
     """Handles system-level awakening events"""
-    
+
     @staticmethod
     async def on_awakening_complete(event: AwakenEvent) -> None:
         """
@@ -125,7 +125,7 @@ class SystemEventHandler:
         platforms = event.data.get("platforms", [])
         project_id = event.data.get("project_id")
         logger.info(f"🧠 Awakening complete. Platforms: {platforms}, Project: {project_id}")
-    
+
     @staticmethod
     async def on_state_refreshed(event: AwakenEvent) -> None:
         """
@@ -135,7 +135,7 @@ class SystemEventHandler:
         """
         trigger = event.data.get("trigger", "unknown")
         logger.debug(f"🔄 State refreshed (trigger: {trigger})")
-    
+
     @staticmethod
     async def on_boundary_learned(event: AwakenEvent) -> None:
         """
@@ -151,7 +151,7 @@ class SystemEventHandler:
 
 class AppAtlasEventHandler:
     """Handles spatial mapping events."""
-    
+
     @staticmethod
     async def on_ui_tree_observed(event: AwakenEvent) -> None:
         """
@@ -170,23 +170,23 @@ def register_default_handlers() -> None:
     if event_bus.is_initialized:
         logger.debug("Event handlers already registered, skipping")
         return
-    
+
     # Device events
     event_bus.subscribe(EventType.DEVICE_CONNECTED, DeviceEventHandler.on_device_connected)
     event_bus.subscribe(EventType.DEVICE_DISCONNECTED, DeviceEventHandler.on_device_disconnected)
-    
+
     # Skill events
     event_bus.subscribe(EventType.SKILL_EXECUTED, SkillEventHandler.on_skill_executed)
     event_bus.subscribe(EventType.SKILL_PROMOTED, SkillEventHandler.on_skill_promoted)
     event_bus.subscribe(EventType.SKILL_DEPRECATED, SkillEventHandler.on_skill_deprecated)
-    
+
     # System events
     event_bus.subscribe(EventType.AWAKENING_COMPLETE, SystemEventHandler.on_awakening_complete)
     event_bus.subscribe(EventType.STATE_REFRESHED, SystemEventHandler.on_state_refreshed)
     event_bus.subscribe(EventType.BOUNDARY_LEARNED, SystemEventHandler.on_boundary_learned)
-    
+
     # App Atlas events
     event_bus.subscribe(EventType.UI_TREE_OBSERVED, AppAtlasEventHandler.on_ui_tree_observed)
-    
+
     event_bus.mark_initialized()
     logger.info("📡 Awakening event handlers registered")

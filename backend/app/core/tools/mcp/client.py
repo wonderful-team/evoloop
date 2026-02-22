@@ -304,7 +304,7 @@ class McpClientManager:
                 safe_server_name = server_name.replace(" ", "_").replace("-", "_")
                 safe_tool_name = tool.name.replace(" ", "_").replace("-", "_")
                 formatted_name = f"mcp__{safe_server_name}__{safe_tool_name}"
-                
+
                 # Truncate to 64 chars if necessary (OpenAI limit)
                 if len(formatted_name) > 64:
                     formatted_name = formatted_name[:64]

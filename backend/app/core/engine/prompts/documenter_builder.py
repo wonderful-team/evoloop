@@ -1,5 +1,4 @@
 from app.infrastructure.config.service import SystemConfigService
-from app.i18n.service import i18n
 
 
 class DocumenterPromptBuilder:
@@ -42,7 +41,7 @@ Your mission is to ensure the project has high-quality, up-to-date, and useful d
             from app.core.context.plugins import plugin_registry
             ctx = ContextManager.current()
             plugin_registry.hydrate_context(ctx)
-            
+
             env_lines = ["\n## 🌅 CURRENT ENVIRONMENT\n"]
             if ctx.environment_summaries:
                 env_lines.append("\n".join(f"- {s}" for s in ctx.environment_summaries))

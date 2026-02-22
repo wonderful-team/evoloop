@@ -1,7 +1,11 @@
 import contextvars
+import json
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List
+from typing import Any
 from uuid import uuid4
+
+from app.infrastructure.database.redis import redis_client
+
 
 # ==========================================
 # Core Context Definition
@@ -16,33 +20,33 @@ class EvoContext:
     """
     request_id: str = field(default_factory=lambda: str(uuid4()))
     timestamp: float = field(default_factory=lambda: __import__("time").time())
-    
+
     # Identity
-    user_id: Optional[str] = None
-    project_id: Optional[int] = None
-    thread_id: Optional[str] = None
-    
+    user_id: str | None = None
+    project_id: int | None = None
+    thread_id: str | None = None
+
     # Execution Environment
-    working_directory: Optional[str] = None
-    command_id: Optional[int] = None   # For EvoCloud command tracing
-    trace_id: Optional[str] = None     # Distributed trace ID
-    
+    working_directory: str | None = None
+    command_id: int | None = None   # For EvoCloud command tracing
+    trace_id: str | None = None     # Distributed trace ID
+
     # Feature Flags / Runtime Config
     is_dry_run: bool = False
     language: str = "en"
-    
-    # [Phase 1: Subconscious Pool] 
+
+    # [Phase 1: Subconscious Pool]
     # Dynamically injected context from Environment/Learning plugins via EventBus
-    short_term_memory: List[str] = field(default_factory=list)
-    active_boundaries: List[str] = field(default_factory=list)
-    spatial_awareness: List[str] = field(default_factory=list)
-    environment_summaries: List[str] = field(default_factory=list)
-    memory_replay: List[str] = field(default_factory=list)
-    identity_rules: List[str] = field(default_factory=list)
-    
+    short_term_memory: list[str] = field(default_factory=list)
+    active_boundaries: list[str] = field(default_factory=list)
+    spatial_awareness: list[str] = field(default_factory=list)
+    environment_summaries: list[str] = field(default_factory=list)
+    memory_replay: list[str] = field(default_factory=list)
+    identity_rules: list[str] = field(default_factory=list)
+
     # Extra Metadata (Plugins, etc.)
-    metadata: Dict[str, Any] = field(default_factory=dict)
-    
+    metadata: dict[str, Any] = field(default_factory=dict)
+
     def to_dict(self) -> dict:
         """Convert the context to a serializable dictionary."""
         return {
@@ -64,7 +68,7 @@ class EvoContext:
             "identity_rules": self.identity_rules,
             "metadata": self.metadata,
         }
-        
+
     @classmethod
     def from_dict(cls, data: dict) -> "EvoContext":
         """Reconstruct a context from a dictionary."""
@@ -86,7 +90,7 @@ class ContextManager:
     """
     Static manager for access to the current EvoContext.
     """
-    
+
     @staticmethod
     def current() -> EvoContext:
         """
@@ -112,7 +116,7 @@ class ContextManager:
         Reset the context using a token.
         """
         _context_var.reset(token)
-    
+
     @staticmethod
     def get_var(key: str, default: Any = None) -> Any:
         """
@@ -130,16 +134,13 @@ class ContextManager:
         Phase 4 Autonomy: Persist the current context to Redis using the thread_id.
         Ensures subconscious pool survives restarts.
         """
-        from app.infrastructure.database.redis import redis_client
-        import json
-        
         ctx = ContextManager.current()
         if ctx.request_id == "global-fallback":
             return  # Don't save empty/fallback context
-            
+
         ctx.thread_id = thread_id  # Ensure it matches the save key
         key = f"evo:context:{thread_id}"
-        
+
         try:
             # Save with a 7-day expiration to prevent infinite buildup
             await redis_client.setex(key, 604800, json.dumps(ctx.to_dict()))
@@ -152,9 +153,6 @@ class ContextManager:
         """
         Phase 4 Autonomy: Load context from Redis using the thread_id and set it as current.
         """
-        from app.infrastructure.database.redis import redis_client
-        import json
-        
         key = f"evo:context:{thread_id}"
         try:
             data_str = await redis_client.get(key)
@@ -166,8 +164,9 @@ class ContextManager:
         except Exception as e:
             import logging
             logging.getLogger(__name__).warning(f"Failed to load context from Redis: {e}")
-            
+
         return None
+
 
 # Global Accessor Alias
 get_context = ContextManager.current

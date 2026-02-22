@@ -1,15 +1,15 @@
 import logging
-from typing import Annotated, Literal
+from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 from sqlmodel import Session, select
 
+from app.core.context.manager import ContextManager
 from app.core.db import engine
 from app.core.tools import evoloop_tool
-from app.models.wiki import WikiPage
 from app.domain.wiki.service import wiki_service
-from app.core.context.manager import ContextManager
+from app.models.wiki import WikiPage
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ async def list_wiki_pages(
     """
     ctx = ContextManager.current()
     project_id = ctx.project_id
-    
+
     if not project_id:
         return "Error: No active project context. Please ensure project_id is set."
 
@@ -35,7 +35,7 @@ async def list_wiki_pages(
     lines = [f"Found {len(pages)} Wiki pages:"]
     for p in pages:
         lines.append(f"- {p.title} (slug: {p.slug})")
-    
+
     return "\n".join(lines)
 
 
@@ -49,7 +49,7 @@ async def read_wiki_page(
     """
     ctx = ContextManager.current()
     project_id = ctx.project_id
-    
+
     if not project_id:
         return "Error: No active project context."
 
@@ -59,10 +59,10 @@ async def read_wiki_page(
             WikiPage.slug == slug
         )
         page = session.exec(stmt).first()
-        
+
         if not page:
             return f"Error: Wiki page with slug '{slug}' not found in project {project_id}."
-        
+
         return f"--- Wiki Page: {page.title} ({page.slug}) ---\n\n{page.content}"
 
 
@@ -87,7 +87,7 @@ async def write_wiki_page(
     """
     ctx = ContextManager.current()
     project_id = ctx.project_id
-    
+
     if not project_id:
         return "Error: No active project context."
 
@@ -118,7 +118,7 @@ async def write_wiki_page(
             WikiPage.slug == slug
         )
         existing_page = session.exec(stmt).first()
-        
+
         if existing_page:
             existing_page.title = title
             existing_page.content = content
@@ -137,7 +137,7 @@ async def write_wiki_page(
             )
             session.add(new_page)
             action = "Created"
-            
+
         session.commit()
-        
+
     return f"Successfully {action} Wiki page: {title} ({slug})"

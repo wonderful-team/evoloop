@@ -1,9 +1,7 @@
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Dict
 
-from app.i18n.service import i18n
 from app.core.context.manager import ContextManager
 from app.utils.process import run_command
 
@@ -16,8 +14,8 @@ class TerminalSession:
     Represents a persistent shell session for a specific context (Thread/Task).
     """
     cwd: str
-    env: Dict[str, str] = field(default_factory=lambda: os.environ.copy())
-    
+    env: dict[str, str] = field(default_factory=lambda: os.environ.copy())
+
     def __post_init__(self):
         # Ensure minimal env
         if "TERM" not in self.env:
@@ -31,10 +29,10 @@ class TerminalManager:
     For V1 refactor, we will maintain an in-memory map keyed by thread_id/context_id 
     until we move to a proper Kernel/Sandbox architecture.
     """
-    
+
     # In-memory storage for active sessions
     # Key: thread_id or session_id
-    _sessions: Dict[str, TerminalSession] = {}
+    _sessions: dict[str, TerminalSession] = {}
 
     @classmethod
     def _get_session_key(cls) -> str:
@@ -49,11 +47,11 @@ class TerminalManager:
              # Initialize with context working directory if available
             ctx = ContextManager.current()
             initial_cwd = ctx.working_directory or os.getcwd()
-            
+
             # Create new session
             cls._sessions[key] = TerminalSession(cwd=initial_cwd)
             logger.debug(f"Created new TerminalSession for {key} at {initial_cwd}")
-            
+
         return cls._sessions[key]
 
     @classmethod
@@ -93,7 +91,7 @@ class TerminalManager:
         # Handle ~ expansion
         if path.startswith("~"):
             path = os.path.expanduser(path)
-            
+
         new_path = os.path.abspath(os.path.join(session.cwd, path))
 
         if os.path.isdir(new_path):

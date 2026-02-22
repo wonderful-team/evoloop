@@ -1,15 +1,14 @@
-import os
-import yaml
-import logging
 import json
-from datetime import datetime
-from typing import List, Dict, Any, Optional
+import logging
 from pathlib import Path
+from typing import Any
 
-from app.models.learning import LearnedSkill
-from app.infrastructure.database.sql.database import session_scope
+import yaml
 from sqlalchemy import select
+
 from app.core.learning.skill_validator import SkillValidator
+from app.infrastructure.database.sql.database import session_scope
+from app.models.learning import LearnedSkill
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ class SkillImporter:
     """
 
     @staticmethod
-    async def import_from_directory(root_dir: str) -> Dict[str, Any]:
+    async def import_from_directory(root_dir: str) -> dict[str, Any]:
         """
         Scan a directory recursively for skill folders and import them.
         Each folder must contain a SKILL.md file.
@@ -122,7 +121,7 @@ class SkillImporter:
             return True
 
     @staticmethod
-    def _parse_skill_md(content: str) -> tuple[Optional[Dict], str]:
+    def _parse_skill_md(content: str) -> tuple[dict | None, str]:
         """
         Parse SKILL.md into metadata (dict) and instructions (markdown string).
         """

@@ -1,8 +1,8 @@
 import os
 
+from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
 from app.domain.codebase.indexing.service import IndexingService
-from app.core.context.manager import ContextManager
 
 
 @evoloop_tool

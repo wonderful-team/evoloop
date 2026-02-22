@@ -126,8 +126,8 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
 
         # Normalization & Deduplication
         normalized_input = self._normalize_content(input_str)
-        display_input = normalized_input[:500] 
-        
+        display_input = normalized_input[:500]
+
         # Structured JSON for frontend
         content_to_log = json.dumps({
             "name": tool_name,
@@ -176,7 +176,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
             "grep_search",
         ]
         is_manage_read = (tool_name == "manage_file" and tool_path)
-        
+
         # Optimization: Summarize heavy tool outputs as requested by user
         final_output = output
         if tool_name in ["read_file", "view_file", "read_file_content"] and output:
@@ -215,7 +215,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
     async def on_tool_error(self, error: BaseException, **kwargs: Any) -> Any:
         run_id = str(kwargs.get("run_id"))
         tool_info = self._active_tools.pop(run_id, {})
-        
+
         tool_name = tool_info.get("name", "error")
         arguments = tool_info.get("arguments", "")
 

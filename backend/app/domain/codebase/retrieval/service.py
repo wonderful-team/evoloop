@@ -2,6 +2,7 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.core.context.manager import ContextManager
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.models import (
@@ -10,7 +11,6 @@ from app.models import (
     Repository,
     SourceFile,
 )
-from app.core.context.manager import ContextManager
 
 
 class RetrievalService:

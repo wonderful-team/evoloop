@@ -10,10 +10,10 @@ from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 from sqlalchemy import desc, select
 
+from app.core.evocloud import evocloud_manager
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Message
-from app.core.evocloud import evocloud_manager
 from app.models.schemas.events import MessageEvent
 
 
@@ -237,7 +237,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         # 2. Process Content (Folding/Summarizing)
         # Phase 17: Deprecate Folding. Store strict raw output in content with action_type='tool_output'.
         # Frontend handles display logic (Accordion).
-        
+
         await self._save_log(
             role="tool",
             content=str(output),
@@ -248,7 +248,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     def _get_tool_visibility(self, tool_name: str) -> str:
         # ... (Keep existing visibility logic if needed for HIDDEN check)
         # But FOLDED logic is now handled by frontend via action_type
-        return "VISIBLE" 
+        return "VISIBLE"
 
     # _summarize_tool_output is now unused but can be kept for reference or deleted.
 
@@ -267,7 +267,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         if content:
             # 1. Strip NUL bytes which crash Postgres TEXT fields
             content = content.replace("\x00", "")
-            
+
             # 2. Truncate excessively large outputs (e.g. 300KB+ binary dumps)
             # to keep DB and frontend performance stable.
             LIMIT = 100000
@@ -334,13 +334,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                         frontend_type = "tool"
                     elif log.action_type == "thinking":
                         frontend_type = "thought"
-                    
+
                     msg_data = {
                         "id": str(log.id),
                         "role": log.role,
                         "content": log.content,
                         "thinking": log.thinking,
-                        "type": frontend_type, 
+                        "type": frontend_type,
                         "action_type": log.action_type,
                         "tool_calls": log.tool_calls,
                     }

@@ -1,15 +1,14 @@
 from fastapi import APIRouter, HTTPException
-from typing import List
 
 from app.api.deps import TokenDep
-from app.models.wiki import WikiPageRead, WikiGenerationRequest
 from app.domain.wiki.service import wiki_service
 from app.i18n.service import i18n
+from app.models.wiki import WikiGenerationRequest, WikiPageRead
 
 router = APIRouter(tags=["wiki"])
 
 
-@router.get("/{project_id}", response_model=List[WikiPageRead])
+@router.get("/{project_id}", response_model=list[WikiPageRead])
 async def get_wiki_pages(project_id: int, _token: TokenDep):
     """
     Get all wiki pages for a project.

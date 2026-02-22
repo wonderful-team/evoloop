@@ -3,10 +3,12 @@ Reflective Driver Implementation.
 Adapts to external LLM APIs (Claude, OpenAI) for deep reasoning.
 """
 import logging
-from typing import Optional
+
+from langchain_core.messages import SystemMessage, HumanMessage
 
 from app.core.brain.drivers.abstract import BaseBrainDriver
 from app.core.config import settings
+from app.infrastructure.llm.factory import LLMFactory
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +22,10 @@ class ReflectiveDriver(BaseBrainDriver):
     def __init__(self):
         self.mode = settings.REFLECTIVE_DRIVER_TYPE
 
-    async def generate(self, context: str, user_input: str, system_prompt: Optional[str] = None) -> str:
+    async def generate(self, context: str, user_input: str, system_prompt: str | None = None) -> str:
         """
         Calls external API via EvoLoop LLMFactory.
         """
-        from app.infrastructure.llm.factory import LLMFactory
-        from langchain_core.messages import HumanMessage, SystemMessage
-
         if self.mode == "mock":
             logger.info("Reflective Driver is in MOCK mode. Returning placeholder.")
             return "Reflective Thought (Mock): Consolidation requires a real LLM."

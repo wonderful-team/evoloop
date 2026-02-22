@@ -1,17 +1,17 @@
 import asyncio
 import logging
-from typing import List, Optional
 
 from celery import shared_task
 
+from app.core.learning.trace_recorder import sync_thread_to_graph
 from app.core.memory import memory_manager
 from app.core.memory.interfaces.long_term import Concept as MemConcept
-from app.core.learning.trace_recorder import sync_thread_to_graph
 
 logger = logging.getLogger(__name__)
 
+
 @shared_task(name="engine_harvest_concepts")
-def harvest_concepts_task(concepts_data: List[dict], project_id: int):
+def harvest_concepts_task(concepts_data: list[dict], project_id: int):
     """
     Background task to store harvested concepts in Neo4j.
     concepts_data: List of dicts with 'name' and 'description'.
@@ -31,14 +31,15 @@ def harvest_concepts_task(concepts_data: List[dict], project_id: int):
 
     asyncio.run(_run())
 
+
 @shared_task(name="engine_record_episode")
 def record_episode_task(
     thread_id: str,
     project_id: int,
-    goal: Optional[str] = None,
-    result_summary: Optional[str] = None,
-    concept_names: Optional[List[str]] = None,
-    source_message_id: Optional[str] = None,
+    goal: str | None = None,
+    result_summary: str | None = None,
+    concept_names: list[str] | None = None,
+    source_message_id: str | None = None,
 ):
     """
     Background task to sync thread trace to Neo4j Episode graph.

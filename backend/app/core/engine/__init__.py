@@ -3,11 +3,11 @@ import logging
 from typing import Any
 
 from langchain_core.messages import (
+    AIMessage,
     BaseMessage,
     HumanMessage,
     SystemMessage,
     ToolMessage,
-    AIMessage,
 )
 from langchain_core.runnables import RunnableConfig
 
@@ -208,8 +208,11 @@ class AgentEngine:
 
                 # Check duplication (Phase 4 Autonomy: Allow state-mutating and pollable tools)
                 tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
-                from app.core.tools.registry import is_state_mutating_tool, is_pollable_tool, \
-                    get_tool_affected_paths
+                from app.core.tools.registry import (
+                    get_tool_affected_paths,
+                    is_pollable_tool,
+                    is_state_mutating_tool,
+                )
 
                 # We block if it's already in history AND it's neither state-mutating nor pollable
                 is_blocked = (

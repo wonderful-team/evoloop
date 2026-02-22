@@ -17,7 +17,7 @@ class SystemEventType(str, Enum):
     # Lifecycle Events
     APP_STARTED = "system.app_started"
     APP_STOPPING = "system.app_stopping"
-    
+
     # Error Events
     UNHANDLED_ERROR = "system.unhandled_error"
 
@@ -31,25 +31,25 @@ class AwakeningEventType(str, Enum):
     # Device Events
     DEVICE_CONNECTED = "device.connected"
     DEVICE_DISCONNECTED = "device.disconnected"
-    
+
     # Network Events
     NETWORK_ONLINE = "network.online"
     NETWORK_OFFLINE = "network.offline"
-    
+
     # Memory Events
     CONCEPT_LEARNED = "memory.concept_learned"
     EPISODE_COMPLETED = "memory.episode_completed"
-    
+
     # Skill Events
     SKILL_EXECUTED = "skill.executed"
     SKILL_PROMOTED = "skill.promoted"
     SKILL_DEPRECATED = "skill.deprecated"
-    
+
     # App Events
     APP_LAUNCHED = "app.launched"
     APP_PROBED = "app.probed"
     UI_TREE_OBSERVED = "app.ui_tree_observed"
-    
+
     # System Events
     AWAKENING_COMPLETE = "system.awakening_complete"
     STATE_REFRESHED = "system.state_refreshed"

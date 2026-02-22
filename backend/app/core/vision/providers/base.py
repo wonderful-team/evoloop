@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional
+
 from app.core.vision.types import VisionResult, VisionTask
 
 
@@ -30,7 +30,7 @@ class VisionProvider(ABC):
         self,
         task: VisionTask,
         image_source: str,
-        prompt: Optional[str] = None,
+        prompt: str | None = None,
         **kwargs
     ) -> VisionResult:
         """

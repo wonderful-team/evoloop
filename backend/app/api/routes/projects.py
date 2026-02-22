@@ -6,8 +6,8 @@ from pydantic import BaseModel
 
 from app.api.deps import TokenDep, TokenDepOptional
 from app.core.config import settings
-from app.domain.codebase.indexing.manager import indexing_manager
 from app.core.evocloud import evocloud_manager
+from app.domain.codebase.indexing.manager import indexing_manager
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class UpdateProjectRequest(BaseModel):
 async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDepOptional = None):
     # 1. Fetch from Cloud
     res = await evocloud_manager.api.get_projects(page, page_size)
-    
+
     # Check structure. Usually it returns dict or list.
     # evocloud_manager.api usually returns { "list": [...], "total": ... } or [...]
     # We need to handle safely.
@@ -43,21 +43,20 @@ async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDepOpti
         projects = res["list"]
     elif isinstance(res, list):
         projects = res
-        
+
     if not projects:
         return res
 
     # 2. Enrich with Local System Status (Redis) and Wiki Existence (DB)
-    from app.core.monitoring.activity import activity_monitor
     from app.domain.wiki.service import wiki_service
-    
+
     # Collect IDs for batch DB query
     project_ids = []
     for p in projects:
         pid = p.get("project_id") or p.get("id")
         if pid:
             project_ids.append(pid)
-            
+
     # Batch check wiki existence
     projects_with_wiki = set()
     try:
@@ -67,7 +66,7 @@ async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDepOpti
 
     # Batch enrichment for Local System Status (Redis)
     from app.infrastructure.database.redis import redis_client
-    
+
     pipe = redis_client.pipeline()
     project_keys = []
     for p in projects:
@@ -81,10 +80,10 @@ async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDepOpti
             project_keys.append(pid)
             for k in keys:
                 pipe.hgetall(k)
-    
+
     # Execute batch
     pipeline_results = await pipe.execute()
-    
+
     # Map results back to projects
     status_map = {}
     for i, pid in enumerate(project_keys):
@@ -92,7 +91,7 @@ async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDepOpti
         wiki_res = pipeline_results[i*3]
         idx_res = pipeline_results[i*3 + 1]
         sum_res = pipeline_results[i*3 + 2]
-        
+
         status_map[pid] = {
             "wiki_status": wiki_res.get("status", "idle") if wiki_res else "idle",
             "indexing_status": idx_res.get("status", "idle") if idx_res else "idle",
@@ -106,10 +105,10 @@ async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDepOpti
             # Local Status from map
             statuses = status_map.get(pid, {"wiki_status": "idle", "indexing_status": "idle", "summarization_status": "idle"})
             p.update(statuses)
-            
+
             # Wiki Existence (from DB)
             p["has_wiki"] = pid in projects_with_wiki
-            
+
     return res
 
 
@@ -163,7 +162,6 @@ async def get_project_status(project_id: int):
     """
     Get real-time status of system tasks (Indexing, Summarization) for a project.
     """
-    from app.core.monitoring.activity import activity_monitor
 
     indexing_key = f"sys:{project_id}:indexing"
     summarization_key = f"sys:{project_id}:summarization"
@@ -174,9 +172,9 @@ async def get_project_status(project_id: int):
     pipe.hgetall(indexing_key)
     pipe.hgetall(summarization_key)
     pipe.hgetall(wiki_key)
-    
+
     results = await pipe.execute()
-    
+
     # Helper to parse activity data (mirrors get_activity logic but for raw hgetall results)
     def parse_act(data):
         if not data: return {"status": "idle"}

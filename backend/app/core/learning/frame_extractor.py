@@ -125,7 +125,7 @@ class FrameExtractor:
                     task=VisionTask.OCR,
                     image_source=frame_path
                 )
-                
+
                 if vision_result.success:
                     # Convert UIElement objects to dicts for JSON serialization/easier handling
                     result["ocr_elements"] = [

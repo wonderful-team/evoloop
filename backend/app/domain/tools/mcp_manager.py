@@ -32,18 +32,18 @@ async def use_mcp_server(server_name: str) -> str:
         # Check if server exists
         servers = await mcp_client_manager.list_servers()
         server_exists = any(s["name"] == server_name for s in servers)
-        
+
         if not server_exists:
             return f"Error: MCP server '{server_name}' is not configured or does not exist."
-            
+
         # Ensure connected
         connected = await mcp_client_manager.ensure_connected(server_name)
         if not connected:
             return f"Error: Failed to connect to MCP server '{server_name}'."
-            
+
         tools = await mcp_client_manager.get_tools_for(server_name)
         tool_names = [t.name for t in tools]
-        
+
         # We need to tell the LLM that the tools are available, BUT the LLM's current
         # Runnable loop won't have the tools injected until the Operator node restarts or
         # the AgentEngine rebinds.
@@ -51,7 +51,7 @@ async def use_mcp_server(server_name: str) -> str:
         # step in the same AgentEngine loop, which will FAIL because the tools list was bound
         # at `AgentEngine.run_node` startup.
         # To fix this, we return a special directive that forces the LLM to end its turn.
-        
+
         return (
             f"Successfully connected to MCP Server '{server_name}'. "
             f"Tools available: {', '.join(tool_names)}.\n"

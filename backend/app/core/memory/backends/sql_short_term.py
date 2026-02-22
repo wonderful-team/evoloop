@@ -1,11 +1,9 @@
 """PostgreSQL implementation of short-term memory using Message table."""
 
 import logging
-from typing import List
 
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
-from sqlalchemy import select, delete
-from sqlalchemy.orm import selectinload
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
+from sqlalchemy import delete, select
 
 from app.core.memory.interfaces.short_term import IShortTermMemory
 from app.infrastructure.database.sql.database import session_scope
@@ -57,7 +55,7 @@ class SqlShortTermMemory(IShortTermMemory):
             role = "system"
         else:
             role = "unknown"
-        
+
         # Get next sequence number
         async with session_scope() as db:
             # Get max sequence number for this thread
@@ -67,7 +65,7 @@ class SqlShortTermMemory(IShortTermMemory):
             result = await db.execute(stmt)
             last_seq = result.scalar()
             next_seq = (last_seq or 0) + 1
-            
+
             # Create new message
             new_message = Message(
                 thread_id=thread_id,
@@ -78,10 +76,10 @@ class SqlShortTermMemory(IShortTermMemory):
             )
             db.add(new_message)
             await db.commit()
-            
+
         logger.debug(f"SqlShortTermMemory: Added {role} message to thread {thread_id}")
 
-    async def get_context(self, thread_id: str, limit: int = 50) -> List[BaseMessage]:
+    async def get_context(self, thread_id: str, limit: int = 50) -> list[BaseMessage]:
         """
         Retrieve recent messages for a thread, ordered by sequence_number.
         
@@ -97,12 +95,12 @@ class SqlShortTermMemory(IShortTermMemory):
                 Message.thread_id == thread_id,
                 Message.action_type.in_(["text", "thinking"]),  # Exclude tool_output for cleaner context
             ).order_by(Message.sequence_number.desc()).limit(limit)
-            
+
             result = await db.execute(stmt)
             db_messages = result.scalars().all()
-        
+
         # Convert to LangChain messages (reverse to get chronological order)
-        lc_messages: List[BaseMessage] = []
+        lc_messages: list[BaseMessage] = []
         for msg in reversed(db_messages):
             if msg.role == "human":
                 lc_messages.append(HumanMessage(content=msg.content))
@@ -111,7 +109,7 @@ class SqlShortTermMemory(IShortTermMemory):
             elif msg.role == "system":
                 lc_messages.append(SystemMessage(content=msg.content))
             # Skip unknown roles
-        
+
         logger.debug(f"SqlShortTermMemory: Retrieved {len(lc_messages)} messages for thread {thread_id}")
         return lc_messages
 
@@ -126,27 +124,27 @@ class SqlShortTermMemory(IShortTermMemory):
             thread_id: The conversation thread to prune
         """
         MAX_MESSAGES = 100
-        
+
         async with session_scope() as db:
             # Get total count
             count_stmt = select(Message).where(Message.thread_id == thread_id)
             result = await db.execute(count_stmt)
             all_messages = result.scalars().all()
             total_count = len(all_messages)
-            
+
             if total_count <= MAX_MESSAGES:
                 logger.debug(f"SqlShortTermMemory: No pruning needed for thread {thread_id} ({total_count} messages)")
                 return
-            
+
             # Get IDs of oldest messages to delete
             to_delete = total_count - MAX_MESSAGES
             oldest_stmt = select(Message.id).where(
                 Message.thread_id == thread_id
             ).order_by(Message.sequence_number.asc()).limit(to_delete)
-            
+
             result = await db.execute(oldest_stmt)
             ids_to_delete = [r for r in result.scalars().all()]
-            
+
             if ids_to_delete:
                 delete_stmt = delete(Message).where(Message.id.in_(ids_to_delete))
                 await db.execute(delete_stmt)

@@ -3,16 +3,15 @@ import os
 import shutil
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser
-from app.infrastructure.database.sql.database import get_db
 from app.core.config import settings
 from app.domain.codebase.indexing.service import IndexingService
-from app.models import Repository, SourceFile, User, ProjectResource
-from app.utils.time import utcnow
+from app.infrastructure.database.sql.database import get_db
+from app.models import Repository, SourceFile, User
 
 logger = logging.getLogger(__name__)
 
@@ -38,11 +37,11 @@ async def list_library_files(
 ) -> list[dict[str, Any]]:
     """List all files in the global knowledge base."""
     repo = await get_library_repo(db)
-    
+
     stmt = select(SourceFile).where(SourceFile.repository_id == repo.id)
     result = await db.execute(stmt)
     files = result.scalars().all()
-    
+
     return [
         {
             "id": f.id,
@@ -63,7 +62,7 @@ async def upload_library_file(
 ) -> dict[str, Any]:
     """Upload a file to the global knowledge base and trigger indexing."""
     repo = await get_library_repo(db)
-    
+
     # Save file to LIBRARY_ROOT
     file_path = os.path.join(settings.LIBRARY_ROOT, file.filename)
     try:
@@ -94,16 +93,16 @@ async def delete_library_file(
 ) -> dict[str, Any]:
     """Delete a file from the global knowledge base and clean index."""
     repo = await get_library_repo(db)
-    
+
     stmt = select(SourceFile).where(SourceFile.id == file_id, SourceFile.repository_id == repo.id)
     result = await db.execute(stmt)
     source_file = result.scalars().first()
-    
+
     if not source_file:
         raise HTTPException(status_code=404, detail="File not found")
 
     file_path = os.path.join(settings.LIBRARY_ROOT, source_file.path)
-    
+
     # Trigger removal from index
     indexing_service = IndexingService()
     try:

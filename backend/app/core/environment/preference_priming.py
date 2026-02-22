@@ -21,27 +21,27 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
     """
     preferences = {}
     rules = []
-    
+
     # 1. Retrieve user preferences from Preference Store
     try:
         from app.core.memory import memory_manager
         from app.infrastructure.config.service import SystemConfigService
-        
+
         user_id = 1  # Default user
         prefs_text = await memory_manager.preferences.get_merged_preferences(
             user_id=user_id,
             project_id=project_id,
         )
         preferences = _parse_preferences(prefs_text)
-        
+
         # Add language preference
         language = SystemConfigService.get_language_preference()
         if language:
             preferences["language"] = language
-            
+
     except Exception as e:
         logger.warning(f"Failed to retrieve preferences: {e}")
-    
+
     # 2. System-level inviolable rules (hardcoded for safety)
     rules = [
         "禁止删除 .git 目录",
@@ -50,7 +50,7 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
         "禁止在生产数据库上执行 DROP 或 TRUNCATE 操作",
         "禁止暴露或打印用户的 API 密钥、密码等敏感信息",
     ]
-    
+
     return PreferenceContext(
         preferences=preferences,
         rules=rules,
@@ -60,20 +60,20 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
 def _parse_preferences(raw_text: str) -> dict[str, str]:
     """Parse preference text into key-value pairs."""
     prefs = {}
-    
+
     if not raw_text:
         return prefs
-    
+
     for line in raw_text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        
+
         # Try to split on colon or equals
         for sep in [":", "="]:
             if sep in line:
                 key, value = line.split(sep, 1)
                 prefs[key.strip().lower().replace(" ", "_")] = value.strip()
                 break
-    
+
     return prefs

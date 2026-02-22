@@ -2,7 +2,6 @@
 
 import logging
 import uuid
-from typing import List, Optional
 
 from app.core.config import settings
 from app.core.memory.interfaces.long_term import (
@@ -11,8 +10,8 @@ from app.core.memory.interfaces.long_term import (
     ILongTermMemory,
     SearchResult,
 )
-from app.infrastructure.embeddings.factory import EmbedderFactory
 from app.infrastructure.database.graph.driver import get_graph_db
+from app.infrastructure.embeddings.factory import EmbedderFactory
 
 logger = logging.getLogger(__name__)
 
@@ -176,8 +175,8 @@ class Neo4jLongTermMemory(ILongTermMemory):
         logger.info(f"Stored Concept (Vectorized): {concept.name} (Project {pid_val})")
 
     async def search_concepts(
-        self, query: str, project_id: Optional[int] = None, min_score: float = 0.7
-    ) -> List[SearchResult]:
+        self, query: str, project_id: int | None = None, min_score: float = 0.7
+    ) -> list[SearchResult]:
         """Semantic search for concepts using vector index."""
         driver = await get_graph_db()
 
@@ -194,9 +193,9 @@ class Neo4jLongTermMemory(ILongTermMemory):
         """
         if project_id is not None:
             vector_cypher += "WHERE (c.project_id = $pid OR c.project_id = 0) "
-        
+
         vector_cypher += "AND score >= $min_score " if project_id is not None else "WHERE score >= $min_score "
-        
+
         vector_cypher += """
         OPTIONAL MATCH (c)-[:REFERENCES]->(f:File)
         RETURN c.name as name, c.description as desc, c.project_id as pid, score, collect(f.path) as files
@@ -222,7 +221,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
             for r in records
         ]
 
-    async def search_concepts_data(self, query: str, project_id: Optional[int] = None) -> List[dict]:
+    async def search_concepts_data(self, query: str, project_id: int | None = None) -> list[dict]:
         """Raw data version of search (for internal use)."""
         driver = await get_graph_db()
         embedder = EmbedderFactory.get_embedder()
@@ -234,7 +233,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
         """
         if project_id is not None:
             vector_cypher += "WHERE (c.project_id = $pid OR c.project_id = 0) "
-            
+
         vector_cypher += "RETURN c.name as name, c.description as description, c.project_id as project_id"
         async with driver.session() as session:
             result = await session.run(
@@ -246,7 +245,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
             records = await result.data()
         return records
 
-    async def record_episode(self, episode: Episode) -> Optional[str]:
+    async def record_episode(self, episode: Episode) -> str | None:
         """Store a completed task execution as an Episode."""
         driver = await get_graph_db()
         pid_val = episode.project_id if episode.project_id else 0
@@ -348,7 +347,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
         return "\n".join(lines)
 
     async def link_episode_to_concepts(
-        self, episode_id: str, concept_names: List[str], project_id: int
+        self, episode_id: str, concept_names: list[str], project_id: int
     ) -> None:
         """Explicitly link an Episode to specific Concepts by name."""
         if not concept_names:
@@ -377,7 +376,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
 
     async def find_episodes_by_concept(
         self, concept_name: str, project_id: int, limit: int = 10
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Find Episodes linked to a specific Concept via RELATED_TO edge."""
         driver = await get_graph_db()
         pid_val = project_id if project_id else 0
@@ -398,7 +397,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
             logger.error(f"Failed to find episodes by concept: {e}")
             return []
 
-    async def list_concepts(self, project_id: int, limit: int = 50) -> List[dict]:
+    async def list_concepts(self, project_id: int, limit: int = 50) -> list[dict]:
         """List all Concepts for a project."""
         driver = await get_graph_db()
         pid_val = project_id if project_id else 0
@@ -420,7 +419,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
             logger.error(f"Failed to list concepts: {e}")
             return []
 
-    async def get_project_concepts(self, project_id: int) -> List[str]:
+    async def get_project_concepts(self, project_id: int) -> list[str]:
         """Retrieve all concepts associated with a project."""
         driver = await get_graph_db()
         pid_val = project_id if project_id else 0
@@ -440,7 +439,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
 
         return [f"{r['name']}: {r['description']}" for r in records]
 
-    async def delete_episodes_by_message_ids(self, message_ids: List[str]) -> int:
+    async def delete_episodes_by_message_ids(self, message_ids: list[str]) -> int:
         """Delete episodes linked to specific message IDs."""
         if not message_ids:
             return 0

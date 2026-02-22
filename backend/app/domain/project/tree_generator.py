@@ -124,8 +124,8 @@ class AnnotatedTreeGenerator:
         return text
 
     def _build_tree_structure(self) -> TreeNode:
-        from app.domain.codebase.filter import FileFilter
         from app.core.file.service import walk_tree
+        from app.domain.codebase.filter import FileFilter
 
         self.file_filter = FileFilter()
 

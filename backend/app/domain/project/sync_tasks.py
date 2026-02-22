@@ -1,8 +1,8 @@
 import logging
 
 from app.celery_app import celery_app
-from app.domain.codebase.indexing.service import IndexingService
 from app.core.evocloud import evocloud_manager
+from app.domain.codebase.indexing.service import IndexingService
 
 logger = logging.getLogger(__name__)
 

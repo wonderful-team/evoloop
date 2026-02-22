@@ -1,4 +1,5 @@
 from typing import Any
+
 from langchain_core.runnables import RunnableConfig
 from pydantic import BaseModel, Field
 
@@ -24,7 +25,7 @@ async def get_workspace_tree(
     Returns an annotated ASCII directory tree.
     """
     # 1. Resolve Path
-    # We don't have thread_id here directly in the tool call args usually, 
+    # We don't have thread_id here directly in the tool call args usually,
     # but tools are run within a context where we can get the current directory.
     # For now, we use a simple detection or rely on absolute paths.
 

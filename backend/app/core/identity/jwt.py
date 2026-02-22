@@ -1,12 +1,14 @@
-import jwt
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any
+
+import jwt
+
 from app.core.config import settings
 
 ALGORITHM = "HS256"
 
 
-def create_local_jwt(data: dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:
+def create_local_jwt(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
     """
     Create a JWT for local desktop frontend sessions.
     """
@@ -21,7 +23,7 @@ def create_local_jwt(data: dict[str, Any], expires_delta: Optional[timedelta] = 
     return encoded_jwt
 
 
-def decode_local_jwt(token: str) -> Optional[dict[str, Any]]:
+def decode_local_jwt(token: str) -> dict[str, Any] | None:
     """
     Decode and validate a local JWT.
     """

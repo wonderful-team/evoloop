@@ -12,10 +12,10 @@ from websockets.legacy.client import WebSocketClientProtocol
 from app.core.evocloud.interfaces.client import EvoCloudClientProtocol
 from app.core.evocloud.interfaces.link import DeviceLinkProtocol
 from app.core.evocloud.schemas import EvoCloudConfig
+from app.core.identity import identity_service
 from app.utils import file as file_utils
 from app.utils.async_utils import run_in_thread
 from app.utils.id import gen_uuid
-from app.core.identity import identity_service
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         # 2. Migration: Try legacy file
         base_dir = self.config.app_data_dir or os.path.expanduser("~")
         key_file = os.path.join(base_dir, ".evoloop_device_key")
-        
+
         legacy_file = os.path.expanduser("~/.evoloop_device_key")
         if not os.path.exists(key_file) and os.path.exists(legacy_file):
             key_file = legacy_file
@@ -79,7 +79,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
             except Exception as e:
                 logger.warning(f"Failed to remove legacy key file: {e}")
             return dk
-        
+
         # 3. Create New
         dk = gen_uuid()
         identity_service.store.save_device_key(dk)
@@ -155,7 +155,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
                 except Exception as e:
                     logger.debug(f"Heartbeat failed: {e}")
             await asyncio.sleep(30)
- 
+
     async def _ws_connect_loop(self):
         retry_count = 0
         base_delay = 5
@@ -164,7 +164,7 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
         while self._running:
             try:
                 logger.info(f"[EvoCloud) Connecting WS to {self.config.ws_url}...")
-                
+
                 async with websockets.connect(self.config.ws_url) as ws:
                     self.ws = ws
                     logger.info("[EvoCloud] WS Connected")

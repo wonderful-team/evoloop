@@ -8,8 +8,8 @@ as part of its standard ReAct loop, rather than using a separate routing call.
 import json
 from typing import Any
 
-from app.core.tools import evoloop_tool
 from app.constants import RoutingTarget
+from app.core.tools import evoloop_tool
 
 
 @evoloop_tool

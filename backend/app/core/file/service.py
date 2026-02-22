@@ -10,10 +10,7 @@ from app.constants import (
     TEST_FILE_PATTERNS,
     WHITELIST_FILE_EXTENSIONS,
 )
-from app.utils.file import (
-    get_file_ext,
-    resolve_path as utils_resolve_path,
-)
+from app.utils.file import get_file_ext, resolve_path as utils_resolve_path
 
 logger = logging.getLogger(__name__)
 

@@ -2,9 +2,8 @@
 SSM Driver Implementation.
 Uses LLMFactory for unified API access.
 """
-from typing import Optional
 import logging
-import asyncio
+
 from app.core.brain.drivers.abstract import BaseBrainDriver
 from app.core.config import settings
 
@@ -15,14 +14,14 @@ class SSMDriver(BaseBrainDriver):
     def __init__(self):
         self.client = None
         self.mode = "mock" # Default to mock until initialized
-        
+
     async def initialize(self):
         """
         Initialize the connection to the Flash Brain (SSM/Mamba) via LLMFactory.
         """
         try:
             from app.infrastructure.llm.factory import LLMFactory
-            
+
             # Use Factory to create client
             self.client = LLMFactory.create_completion_client(
                 base_url=settings.SSM_API_BASE,
@@ -30,19 +29,19 @@ class SSMDriver(BaseBrainDriver):
                 model_name=settings.SSM_MODEL_NAME,
                 temperature=0.7
             )
-            
+
             if self.client:
                 self.mode = "active"
                 logger.info(f"Flash Brain (SSM) initialized at {settings.SSM_API_BASE} (Model: {settings.SSM_MODEL_NAME})")
             else:
                 logger.warning("Flash Brain Client creation failed. Falling back to Mock.")
                 self.mode = "mock"
-                
+
         except Exception as e:
             logger.error(f"Flash Brain Initialization Failed: {e}. Falling back to Mock.")
             self.mode = "mock"
 
-    async def generate(self, context: str, user_input: str, system_prompt: Optional[str] = None) -> str:
+    async def generate(self, context: str, user_input: str, system_prompt: str | None = None) -> str:
         """
         Generates text using the standardized client.
         """

@@ -122,7 +122,7 @@ async def get_cloud_status():
     Debug endpoint to check EvoCloud connection status.
     """
     from app.core.evocloud import evocloud_manager
-    
+
     return {
         "is_logged_in": bool(evocloud_manager.get_token()),
         "device_id": evocloud_manager.device_id,
