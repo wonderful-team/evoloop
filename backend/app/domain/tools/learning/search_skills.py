@@ -27,7 +27,7 @@ async def search_skills(query: str, namespace: str = None) -> dict[str, Any]:
     """
     discovery = SkillDiscovery()
 
-    match, relevant = await discovery.exact_search(query=query, namespace_context=namespace)
+    match, relevant, reasoning = await discovery.exact_search(query=query, namespace_context=namespace)
 
     if match and relevant:
         is_fuzzy = match.confidence < 1.0

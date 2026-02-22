@@ -110,7 +110,7 @@ class SupervisorNode:
             if routing_target not in visited_nodes:
                 visited_nodes = visited_nodes + [routing_target]  # Immutable append
 
-            # Phase 21: Extract Context Handoff
+            # Extract Context Handoff
             routing_reason = engine_result.get("_routing_reason", "")
             routing_context = engine_result.get("_routing_context", {})
 
@@ -126,23 +126,12 @@ class SupervisorNode:
             if not isinstance(routing_context, dict):
                 routing_context = {}
 
-            # [NEW] Phase 8/9: Universal Blackboard Ticket Population
+            # Universal Blackboard Ticket Population
             execution_ticket = None
             specialists = ["operator", "deep_researcher", "documenter"]
 
-            # Naive Topic-based Namespace Deduction
-            # Realistically this could be LLM-driven or regex-based on the topic
-            base_topic = str(routing_context.get("topic") or routing_context.get("query") or "").lower()
+            # Intent-driven Namespace (from LLM)
             inferred_namespace = routing_context.get("namespace_context")
-            if not inferred_namespace:
-                if "github" in base_topic or "pr " in base_topic:
-                    inferred_namespace = "browser/github"
-                elif "browser" in base_topic or "website" in base_topic or "safari" in base_topic or "chrome" in base_topic:
-                    inferred_namespace = "browser/mac"
-                elif "mac" in base_topic or "system" in base_topic or "finder" in base_topic:
-                    inferred_namespace = "os/macos"
-                elif "android" in base_topic or "mobile" in base_topic:
-                    inferred_namespace = "os/android"
 
             if routing_target in specialists:
                 execution_ticket = {

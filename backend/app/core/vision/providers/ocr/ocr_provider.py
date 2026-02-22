@@ -39,7 +39,7 @@ def _get_ocr_engine():
     except ImportError:
         pass
 
-    logger.warning("LocalOCRProvider: No OCR library available.")
+    logger.debug("LocalOCRProvider: No external OCR library (EasyOCR/PaddleOCR) available. Falling back to native system providers.")
     return None, None
 
 

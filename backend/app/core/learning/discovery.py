@@ -6,9 +6,11 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from app.infrastructure.database.sql.database import session_scope
+from app.infrastructure.llm.factory import LLMFactory
 from app.models.learning import LearnedSkill
 
 logger = logging.getLogger(__name__)
@@ -20,6 +22,7 @@ class SkillMatch:
     skill_id: int
     skill_name: str
     confidence: float
+    reasoning: str
     extracted_params: dict[str, Any]
 
 
@@ -85,93 +88,112 @@ class SkillDiscovery:
             result = await db.execute(stmt)
             return list(result.scalars().all())
 
-    # --- Tier 1: Regex Matching ---
-
-    def _pattern_to_regex(self, pattern: str) -> str:
-        escaped = re.escape(pattern)
-        regex = re.sub(r"\\{(\w+)\\}", r"(?P<\1>.+?)", escaped)
-        return f"^{regex}$"
-
-    async def _match_regex(self, text_input: str) -> SkillMatch | None:
-        skills = await self._get_active_skills()
-        for skill in skills:
-            if not skill.trigger_patterns:
-                continue
-            try:
-                patterns = json.loads(skill.trigger_patterns) if isinstance(skill.trigger_patterns, str) else skill.trigger_patterns
-                for p in patterns:
-                    regex = self._pattern_to_regex(p)
-                    match = re.match(regex, text_input, re.IGNORECASE)
-                    if match:
-                        return SkillMatch(
-                            skill_id=skill.id,
-                            skill_name=skill.name,
-                            confidence=1.0, # Regex is 100% confident
-                            extracted_params=match.groupdict()
-                        )
-            except Exception:
-                continue
-        return None
-
     # --- Phase 5: Deterministic "Yellow Pages" Discovery ---
 
     async def exact_search(
         self,
         query: str,
+        history: list[dict] | None = None,
         namespace_context: str | None = None
-    ) -> tuple[SkillMatch | None, list[LearnedSkill]]:
+    ) -> tuple[SkillMatch | None, list[LearnedSkill], str]:
         """
-        Deterministic Lookup (Phase 5).
-        1. Exact Regex Hit -> Returns Match (to run immediately)
-        2. Namespace Match -> Returns all SOP instructions under that tree to the LLM (In-Context)
-        3. Fails soft -> Returns empty list, forcing the LLM to write manual bash code.
+        Pure LLM-Based Skill Discovery with History support.
+        Handles Intent Classification and Skill Mapping in one shot.
         """
         # Ensure system SOPs are loaded into the DB
         await self._sync_system_skills()
 
-        # 1. Tier 1: Exact Regex Match (User explicitly commands a known pattern)
-        match = await self._match_regex(query)
-        if match:
-            async with session_scope() as db:
-                skill = await db.get(LearnedSkill, match.skill_id)
-                return match, [skill] if skill else []
+        # 1. Prepare candidate pool
+        all_skills = await self._get_active_skills()
+        if not all_skills:
+            return None, []
 
-        # 2. Tier 2: Namespace Mount (System automatically mounts SOPs for current context)
-        # E.g. If the EvolutionContext bus detects we are in Xcode, query might be implicitly scoped
-        # to `domain/xcode`
-        relevant = []
-        if namespace_context:
-            logger.info(f"[Discovery] Mounting skill tree for namespace: {namespace_context}")
-            relevant = await self._get_skills_by_namespace(namespace_context)
+        # 2. Build LLM Context
+        skill_catalog = "\n".join([
+            f"- ID: {s.id} | Name: {s.name} | Description: {s.description}"
+            for s in all_skills
+        ])
 
-            # Track 8: Fuzzy/Semantic Fallback within Namespace
-            # If we didn't hit a regex match but we have a namespace, try to find a soft match
-            # based on simple keyword overlap in description/name.
-            if relevant:
-                query_tokens = set(re.findall(r'\w+', query.lower()))
-                best_skill = None
-                best_score = 0
-                for skill in relevant:
-                    skill_text = f"{skill.name} {skill.description or ''}".lower()
-                    skill_tokens = set(re.findall(r'\w+', skill_text))
-                    # Jaccard-like or overlap simple score
-                    overlap = len(query_tokens.intersection(skill_tokens))
-                    if overlap > best_score and overlap >= 2: # At least 2 words overlap
-                        best_score = overlap
-                        best_skill = skill
+        system_prompt = """You are the EvoLoop Skill Router. 
+Match the USER_QUERY to the most relevant skill in the CATALOG.
+
+CATALOG:
+{catalog}
+
+RULES:
+1. If the CURRENT_USER_QUERY contains a task request (even if preceded by "nevermind" or "cancel previous"), match it to the best skill.
+2. If the query is ONLY a conversational filler or confirmation (e.g. "Agreed", "Okay", "Done"), return NO_MATCH.
+3. Handle cross-lingual mapping (ZH query -> EN skill).
+4. If the user switched from one task to another in the same message, prioritize the NEW task.
+5. In multi-turn context (PREVIOUS_QUERY/RESPONSE), identify if the user is confirmation a previous suggestion OR starting something new.
+
+OUTPUT FORMAT (JSON ONLY):
+{{
+  "match_found": bool,
+  "skill_id": int or null,
+  "skill_name": "string or null",
+  "confidence": float (0.0 to 1.0),
+  "reasoning": "brief explanation",
+  "parameters": {{ "key": "value" }}
+}}"""
+
+        try:
+            llm = LLMFactory.create_llm(temperature=0.0) # High precision
+            messages = [
+                SystemMessage(content=system_prompt.format(catalog=skill_catalog))
+            ]
+
+            # Incorporate history if provided
+            if history:
+                for msg in history[-5:]: # Last 5 turns for context
+                    role = msg.get("role", "user")
+                    content = msg.get("content", "")
+                    if role == "user":
+                        messages.append(HumanMessage(content=f"PREVIOUS_QUERY: {content}"))
+                    elif role == "assistant":
+                        messages.append(AIMessage(content=f"PREVIOUS_RESPONSE: {content}"))
+
+            messages.append(HumanMessage(content=f"CURRENT_USER_QUERY: {query}"))
+
+            logger.info(f"[Discovery] Invoking LLM for intent matching: {query[:50]}...")
+            response = await llm.ainvoke(messages)
+
+            # Simple brain-style JSON parser
+            content = response.content.strip()
+            logger.debug(f"[Discovery] Raw LLM Response: {content}")
+
+            if "```json" in content:
+                content = content.split("```json")[-1].split("```")[0].strip()
+
+            try:
+                data = json.loads(content)
+            except Exception as e:
+                logger.error(f"[Discovery] JSON Parse Error: {e}. Content: {content}")
+                return None, []
+
+            if data.get("match_found"):
+                # Double check ID exists in our list
+                found_id = data.get("skill_id")
+                best_skill = next((s for s in all_skills if s.id == found_id), None)
 
                 if best_skill:
-                    logger.info(f"[Discovery] Regex failed, but fuzzy matched SOP: {best_skill.name} (score {best_score})")
-                    # Emulate an exact match, but with lower confidence
-                    fuzzy_match = SkillMatch(
+                    match = SkillMatch(
                         skill_id=best_skill.id,
                         skill_name=best_skill.name,
-                        confidence=0.7, # Indicate fuzzy certainty
-                        extracted_params={"fallback": "fuzzy_match"}
+                        confidence=data.get("confidence", 0.8),
+                        reasoning=data.get("reasoning", ""),
+                        extracted_params=data.get("parameters", {})
                     )
-                    return fuzzy_match, [best_skill]
+                    logger.info(f"[Discovery] LLM Match Found: {best_skill.name} (Conf: {match.confidence})")
+                    return match, [best_skill], data.get("reasoning", "")
 
-        return None, relevant
+            reasoning = data.get("reasoning", "No specific reasoning provided.")
+            logger.info(f"[Discovery] LLM decided NO_MATCH for: {query[:50]}. Reasoning: {reasoning}")
+            return None, (all_skills if namespace_context else []), reasoning
+
+        except Exception as e:
+            logger.error(f"[Discovery] LLM matching failed: {e}")
+            return None, [], str(e)
 
     async def get_namespace_index(self, namespace_context: str) -> list[dict[str, str]]:
         """
@@ -188,24 +210,25 @@ class SkillDiscovery:
     async def discover(
         self,
         user_input: str,
+        history: list[dict] | None = None,
         thread_id: str = None,
         top_k: int = 3
-    ) -> tuple[SkillMatch | None, list[LearnedSkill]]:
+    ) -> tuple[SkillMatch | None, list[LearnedSkill], str]:
         """
         Internal dispatcher. Uses exact search by default.
         """
-        return await self.exact_search(user_input)
+        return await self.exact_search(user_input, history=history)
 
-    async def match(self, user_input: str, threshold: float = 0.5, thread_id: str = None) -> SkillMatch | None:
+    async def match(self, user_input: str, history: list[dict] | None = None, threshold: float = 0.5, thread_id: str = None) -> SkillMatch | None:
         """Backward compatible wrapper for intent matching."""
-        match, _ = await self.exact_search(user_input)
+        match, _, _ = await self.exact_search(user_input, history=history)
         if match and match.confidence >= threshold:
             return match
         return None
 
-    async def retrieve(self, topic: str, top_k: int = 3) -> list[LearnedSkill]:
+    async def retrieve(self, topic: str, history: list[dict] | None = None, top_k: int = 3) -> list[LearnedSkill]:
         """Backward compatible wrapper for knowledge retrieval."""
-        _, relevant = await self.exact_search(topic)
+        _, relevant, _ = await self.exact_search(topic, history=history)
         return relevant
 
     # [Deprecated Compatibility]

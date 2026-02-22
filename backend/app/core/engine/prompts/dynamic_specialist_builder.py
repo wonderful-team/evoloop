@@ -143,18 +143,17 @@ Please execute this mission now. Use your tools."""
 ### ⚠️ [ZERO-SOP FALLBACK: AUTONOMOUS EXPLORATION PROTOCOL] ⚠️
 WARNING: There is no predefined Standard Operating Procedure (SOP) available for this task in this environment.
 
-**CRITICAL HITL REQUIREMENT:**
-Because you lack a trusted SOP, your visual exploration might be slow or prone to error. 
-Before you take ANY action that manipulates the system (clicking, typing, opening apps), you MUST:
-1. Call the `request_approval` (or `request_human_input`) tool.
-2. Provide this exact message: "I cannot find a standard procedure for this task. Do I have your permission to autonomously explore and visually navigate the UI to achieve this goal?"
+**AUTONOMOUS EXPLORATION INSTRUCTIONS:**
+Because you lack a trusted SOP, proceed with visual exploration. 
+You are permitted to autonomously explore and visually navigate the UI to achieve this goal.
 
-If the user approves, your workflow MUST be:
+Your workflow MUST be:
 1. **Observe**: Take a screenshot.
 2. **Analyze**: Use `analyze_image` or Atlas to find target elements.
 3. **Act**: Execute a *single* `desktop_control` or `mobile_control` action.
 4. **Verify**: Use `verify_ui_state` to confirm the screen changed as expected.
 Repeat this cycle. Do not guess coordinates blindly.
+
 """
 
         knowledge_blocks = []
