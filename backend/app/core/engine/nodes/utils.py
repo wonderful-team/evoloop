@@ -31,7 +31,7 @@ class SkillHydrator:
 
         # Eager mode: Fetch and return full SOP instructions
         logger.info(f"[Hydrator] Eagerly hydrating skills for topic: {topic}")
-        match, relevant = await skill_discovery.exact_search(
+        match, relevant, reasoning = await skill_discovery.exact_search(
             query=topic,
             namespace_context=namespace_context
         )

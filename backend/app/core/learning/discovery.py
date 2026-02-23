@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy import func, select
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
+from app.core.config import settings
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
 from app.models.learning import LearnedSkill
@@ -138,14 +139,18 @@ OUTPUT FORMAT (JSON ONLY):
 }}"""
 
         try:
-            llm = LLMFactory.create_llm(temperature=0.0) # High precision
+            llm = LLMFactory.create_llm(
+                model_name=settings.SSM_MODEL_NAME,
+                base_url=settings.SSM_API_BASE,
+                temperature=0.0
+            )  # High precision local reasoning
             messages = [
                 SystemMessage(content=system_prompt.format(catalog=skill_catalog))
             ]
 
             # Incorporate history if provided
             if history:
-                for msg in history[-5:]: # Last 5 turns for context
+                for msg in history[-5:]:  # Last 5 turns for context
                     role = msg.get("role", "user")
                     content = msg.get("content", "")
                     if role == "user":

@@ -14,10 +14,15 @@ class LLMFactory:
     """
 
     @staticmethod
-    def create_llm(model_name: str | None = None, temperature: float = 0.7) -> AdaptiveChatOpenAI:
+    def create_llm(
+        model_name: str | None = None,
+        temperature: float = 0.7,
+        base_url: str | None = None,
+        api_key: str | None = None
+    ) -> AdaptiveChatOpenAI:
         """
         Create a standard ChatOpenAI instance.
-        Prioritizes SystemConfig (Dynamic) > Settings (Env Checks).
+        Prioritizes explicit arguments > SystemConfig (Dynamic) > Settings (Env Checks).
         """
         from app.infrastructure.config.service import SystemConfigService
 
@@ -28,21 +33,21 @@ class LLMFactory:
         db_api_key = SystemConfigService.get_value("LLM_API_KEY")
 
         # 2. Resolve
-        base_url = db_base_url or settings.OPENAI_BASE_URL
-        api_key = db_api_key or settings.OPENAI_API_KEY
+        final_base_url = base_url or db_base_url or settings.OPENAI_BASE_URL
+        final_api_key = api_key or db_api_key or settings.OPENAI_API_KEY
         final_model = model_name or db_model or settings.OPENAI_MODEL_NAME
 
-        logger.info(f"LLM Config - Provider: {db_provider}, Base URL: {base_url}, Model: {final_model}")
+        logger.info(f"LLM Config - Provider: {db_provider}, Base URL: {final_base_url}, Model: {final_model}")
 
         # Anthropic / Claude Protocol Support (Zhipu, Kimi, etc.)
-        if db_provider in ["anthropic", "kimi"] or "api/anthropic" in (base_url or ""):
+        if db_provider in ["anthropic", "kimi"] or "api/anthropic" in (final_base_url or ""):
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 
             # Check for Zhipu GLM-4 (requires response patching)
-            if "bigmodel.cn" in (base_url or ""):
+            if "bigmodel.cn" in (final_base_url or ""):
                 return CompatibleChatAnthropic(
-                    api_key=api_key,
-                    base_url=base_url,
+                    api_key=final_api_key,
+                    base_url=final_base_url,
                     model_name=final_model,
                     temperature=temperature,
                     streaming=False,
@@ -51,10 +56,10 @@ class LLMFactory:
                 )
 
             # Check for Kimi / Moonshot
-            if any(domain in (base_url or "") for domain in ["moonshot.cn", "kimi.ai", "kimi.com"]):
+            if any(domain in (final_base_url or "") for domain in ["moonshot.cn", "kimi.ai", "kimi.com"]):
                 return CompatibleChatAnthropic(
-                    api_key=api_key,
-                    base_url=base_url,
+                    api_key=final_api_key,
+                    base_url=final_base_url,
                     model_name=final_model,
                     temperature=temperature,
                     streaming=False,
@@ -63,8 +68,8 @@ class LLMFactory:
                 )
 
             return ChatAnthropic(
-                api_key=api_key,
-                base_url=base_url,
+                api_key=final_api_key,
+                base_url=final_base_url,
                 model_name=final_model,
                 temperature=temperature,
                 streaming=False,  # Disable streaming to prevent httpx.ResponseNotRead on errors
@@ -72,8 +77,8 @@ class LLMFactory:
 
         # Default: OpenAI Compatible (Adaptive)
         return AdaptiveChatOpenAI(
-            api_key=api_key,
-            base_url=base_url,
+            api_key=final_api_key,
+            base_url=final_base_url,
             model=final_model,
             temperature=temperature,
             streaming=True,

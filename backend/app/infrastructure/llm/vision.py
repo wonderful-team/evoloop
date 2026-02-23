@@ -40,7 +40,11 @@ class VisionLLMFactory:
 
     @staticmethod
     def create_vision_llm(
-        model_name: str | None = None, temperature: float = 0.3, max_tokens: int = 4096
+        model_name: str | None = None,
+        temperature: float = 0.3,
+        max_tokens: int = 4096,
+        base_url: str | None = None,
+        api_key: str | None = None
     ) -> BaseChatModel:
         """
         Create a Vision-capable LLM instance using the core LLMFactory.
@@ -63,14 +67,15 @@ class VisionLLMFactory:
         # Use the central LLMFactory to get provider-specific adapters (Anthropic, Moonshot, etc.)
         return LLMFactory.create_llm(
             model_name=final_model,
-            temperature=temperature
+            temperature=temperature,
+            base_url=base_url,
+            api_key=api_key
         )
 
     @staticmethod
     def encode_image(image_path: str, max_size: int = 2048, quality: int = 85) -> str:
         """Encode image file to base64 string, compressing it if it's too large."""
         from io import BytesIO
-
         from PIL import Image
 
         path = Path(image_path)

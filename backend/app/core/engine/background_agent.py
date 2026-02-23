@@ -199,13 +199,8 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
                         # Check for pending tool calls
                         if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
                             last_tool_call = last_msg.tool_calls[-1]
-                            if last_tool_call["name"] in [
-                                "request_approval",
-                                "request_human_input",
-                            ]:
-                                logger.info(
-                                    f"Background Resume: Auto-completing tool {last_tool_call['name']}"
-                                )
+                            if last_tool_call["name"] in ["request_approval", "request_human_input"]:
+                                logger.info(f"Background Resume: Auto-completing tool {last_tool_call['name']}")
                                 last_tool_call_id = last_tool_call["id"]
 
                 # Construct Command

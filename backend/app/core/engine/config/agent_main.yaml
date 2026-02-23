@@ -105,7 +105,7 @@ nodes:
       - "list_app_atlas"
       - "search_native_tools"
       - "request_approval"
-      - "request_human_input"
+      # - "request_human_input"
 
 edges:
   # 1. Supervisor (Router)
@@ -224,4 +224,4 @@ role_tools:
     - "list_app_atlas"
     - "search_native_tools"
     - "request_approval"
-    - "request_human_input"
+    # - "request_human_input"
