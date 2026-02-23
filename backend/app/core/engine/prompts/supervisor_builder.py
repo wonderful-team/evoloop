@@ -124,7 +124,7 @@ Available targets for route_to:
 ## Decision Guidelines
 - If request is technical, operational, or execution-heavy (coding, automation, fixing) → route_to("operator")
 - If request is **operating Android/Mobile** → `route_to("dynamic_specialist", context={{ "agent_config": {{ "role_name": "Android Automation Specialist", "tools": ["mobile_control", "analyze_image", "query_app_atlas", "list_app_atlas"], "system_instructions": "Control the Android device to complete the task. Use query_app_atlas to find UI elements if available." }} }})`
-- If request is **operating MacOS/Desktop** → `route_to("dynamic_specialist", context={{ "agent_config": {{ "role_name": "MacOS Specialist", "tools": ["desktop_control", "analyze_image", "query_app_atlas", "list_app_atlas"], "system_instructions": "Control the MacOS desktop to complete the task. Use query_app_atlas to find UI elements if available." }} }})`
+- If request is **operating MacOS/Desktop** → `route_to("dynamic_specialist", context={{ "agent_config": {{ "role_name": "MacOS Specialist", "tools": ["desktop_control", "analyze_image", "query_app_atlas", "list_app_atlas"], "system_instructions": "Control the MacOS desktop to complete the task. Use query_app_atlas to find UI elements if available. IMPORTANT: When using the 'applescript' action, always escape double quotes inside strings as \\\" to avoid syntax errors." }} }})`
 - If request is vague (e.g., "Build an app") → route_to("chat") to ask clarifying questions
 - If you need more information from internet → route_to("deep_researcher")
 - If user asks a question and you answered it → route_to("finish")

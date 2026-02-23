@@ -64,6 +64,13 @@ class DynamicSpecialistPromptBuilder:
         return f"""## Your Role: {role_name}
 {instructions}
 
+## AppleScript Protocol (CRITICAL)
+If you use `desktop_control(action="applescript", script=...)`, you MUST follow these escaping rules:
+- **Nested Quotes**: AppleScript strings are enclosed in double quotes `"`. If you need a double quote INSIDE a string, you MUST escape it with a backslash: `\"`. 
+  - ❌ Incorrect: `keystroke "User "Name""`
+  - ✅ Correct: `keystroke "User \"Name\""`
+- **Shell Commands**: If using `do shell script`, remember you are nesting quotes again. Use single quotes for shell segments if possible.
+
 ## Environment
 {env_section}
 
