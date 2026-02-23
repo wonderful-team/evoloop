@@ -59,7 +59,7 @@ class VisionLLMFactory:
         return LLMFactory.create_llm(model_name=final_model, temperature=temperature)
 
     @staticmethod
-    def encode_image(image_path: str, max_size: int = 2048, quality: int = 85) -> str:
+    def encode_image(image_path: str, max_size: int = 1920, quality: int = 85) -> str:
         """Encode image file to base64 string, compressing it if it's too large."""
         from io import BytesIO
         from PIL import Image

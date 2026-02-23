@@ -4,7 +4,6 @@ from app.core.config import settings
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.providers.llm.vlm_provider import MultimodalVLMProvider
 from app.core.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider
-from app.core.vision.providers.ocr.ocr_provider import LocalOCRProvider
 from app.core.vision.types import VisionTask
 
 logger = logging.getLogger(__name__)
@@ -14,6 +13,9 @@ class VisionRouter:
     """
     Intelligent router for vision tasks.
     Determines the best provider based on task type, cost, and availability.
+
+    Performance Note: OCR providers disabled by default (slow: ~1500ms).
+    Set ENABLE_VISION_OCR=True to enable OCR tasks.
     """
 
     def __init__(self):
