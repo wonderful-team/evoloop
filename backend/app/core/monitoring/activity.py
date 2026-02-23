@@ -1,4 +1,5 @@
 import json
+import logging
 import time
 from typing import Any
 
@@ -10,6 +11,8 @@ from app.models.schemas.events import (
     StatusEvent,
     StepEvent,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ActivityMonitor:
@@ -309,6 +312,29 @@ class ActivityMonitor:
         await redis_client.publish(
             f"chat:{thread_id}:events", AgentStateEvent(data=state).json()
         )
+
+    async def log_event(self, event_type: str, data: dict[str, Any], thread_id: str = "system"):
+        """Generic event logger for system and session events."""
+        key = f"events:{thread_id}:{event_type}"
+        timestamp = time.time()
+        payload = {
+            "type": event_type,
+            "data": data,
+            "timestamp": timestamp
+        }
+        
+        # Log to a system list in Redis for persistence
+        await redis_client.lpush(f"system:logs:{event_type}", json.dumps(payload))
+        await redis_client.ltrim(f"system:logs:{event_type}", 0, 99) # Keep last 100
+        
+        # Publish to the chat stream if it's a session event
+        if thread_id != "system":
+            await redis_client.publish(
+                f"chat:{thread_id}:events", 
+                json.dumps({"event": "system_log", "data": payload})
+            )
+        
+        logger.info(f"[ActivityMonitor] Event logged: {event_type}")
 
     async def add_artifact(
         self,

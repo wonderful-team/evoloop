@@ -42,13 +42,22 @@ class AtlasEngine:
                 raw_tree = macos_driver.dump_ax_tree()
                 if raw_tree and "Error" not in raw_tree:
                     ax_elements = ast.literal_eval(raw_tree)
+                    scale = macos_driver.get_ui_scale_factor()
 
                     for el_data in elements_data:
                         bounds = el_data.get("bounds", {})
                         if not bounds: continue
 
-                        cx = bounds.get("x", 0) + bounds.get("width", 0) / 2
-                        cy = bounds.get("y", 0) + bounds.get("height", 0) / 2
+                        # Note: If OCR provider already scaled to points, scale will be handled.
+                        # If bounds are in pixels, we normalize them to points here for comparison with AX tree points.
+                        cx = (bounds.get("x", 0) + bounds.get("width", 0) / 2)
+                        cy = (bounds.get("y", 0) + bounds.get("height", 0) / 2)
+                        
+                        # Use a small heuristic: if cx > screen_width, it's definitely pixels
+                        log_w, _ = macos_driver.get_screen_size()
+                        if cx > log_w and scale > 1.0:
+                            cx /= scale
+                            cy /= scale
 
                         for ax_el in ax_elements:
                             ax_bounds = ax_el.get("bounds", [])
@@ -135,6 +144,13 @@ class AtlasEngine:
 
         output.append("\n💡 You can use `query_app_atlas(bundle_id)` to retrieve detailed maps for any of these.")
         return "\n".join(output)
+
+    async def clear_atlas(self) -> None:
+        """
+        Permanently deletes all historical Atlas data from the store.
+        """
+        logger.warning("[AtlasEngine] Permanently clearing all historical data...")
+        await self.store.clear_all_data()
 
     def _generate_state_id(self, bundle_id: str, window_title: str) -> str:
         """Generates a stable semantic ID for a UI state."""

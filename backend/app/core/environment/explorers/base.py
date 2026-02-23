@@ -3,7 +3,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 
-from app.infrastructure.llm.vision import get_vision_llm
+from app.infrastructure.llm.factory import get_default_llm
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class BaseExplorer(ABC):
         try:
             from langchain_core.messages import HumanMessage, SystemMessage
 
-            llm = get_vision_llm(temperature=0)
+            llm = get_default_llm(temperature=0)
 
             prompt = (
                 f"You are an expert at identifying high-value productivity/lifestyle {platform} apps from their names.\n"

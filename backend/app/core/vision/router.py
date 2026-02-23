@@ -1,5 +1,6 @@
 import logging
 
+from app.core.config import settings
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.providers.llm.vlm_provider import MultimodalVLMProvider
 from app.core.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider

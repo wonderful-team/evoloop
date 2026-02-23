@@ -14,41 +14,31 @@ class LLMFactory:
     """
 
     @staticmethod
-    def create_llm(
-        model_name: str | None = None,
-        temperature: float = 0.7,
-        base_url: str | None = None,
-        api_key: str | None = None
-    ) -> AdaptiveChatOpenAI:
+    def create_llm(model_name: str | None = None, temperature: float = 0.3) -> AdaptiveChatOpenAI:
         """
         Create a standard ChatOpenAI instance.
-        Prioritizes explicit arguments > SystemConfig (Dynamic) > Settings (Env Checks).
+        Prioritizes SystemConfig (Dynamic) > Settings (Env Checks).
         """
         from app.infrastructure.config.service import SystemConfigService
 
         # 1. Fetch Config
-        db_provider = SystemConfigService.get_value("LLM_PROVIDER")
-        db_base_url = SystemConfigService.get_value("LLM_BASE_URL")
-        db_model = SystemConfigService.get_value("LLM_MODEL")
-        db_api_key = SystemConfigService.get_value("LLM_API_KEY")
+        provider = SystemConfigService.get_value("LLM_PROVIDER")
+        base_url = SystemConfigService.get_value("LLM_BASE_URL")
+        model_name = model_name or SystemConfigService.get_value("LLM_MODEL")
+        api_key = SystemConfigService.get_value("LLM_API_KEY")
 
-        # 2. Resolve
-        final_base_url = base_url or db_base_url or settings.OPENAI_BASE_URL
-        final_api_key = api_key or db_api_key or settings.OPENAI_API_KEY
-        final_model = model_name or db_model or settings.OPENAI_MODEL_NAME
-
-        logger.info(f"LLM Config - Provider: {db_provider}, Base URL: {final_base_url}, Model: {final_model}")
+        logger.info(f"LLM Config - Provider: {provider}, Base URL: {base_url}, Model: {model_name}")
 
         # Anthropic / Claude Protocol Support (Zhipu, Kimi, etc.)
-        if db_provider in ["anthropic", "kimi"] or "api/anthropic" in (final_base_url or ""):
+        if provider in ["anthropic", "kimi"] or "api/anthropic" in (base_url or ""):
             from app.infrastructure.llm.anthropic_adapter import CompatibleChatAnthropic
 
             # Check for Zhipu GLM-4 (requires response patching)
-            if "bigmodel.cn" in (final_base_url or ""):
+            if "bigmodel.cn" in (base_url or ""):
                 return CompatibleChatAnthropic(
-                    api_key=final_api_key,
-                    base_url=final_base_url,
-                    model_name=final_model,
+                    api_key=api_key,
+                    base_url=base_url,
+                    model_name=model_name,
                     temperature=temperature,
                     streaming=False,
                     fix_tool_args_list=True,
@@ -56,11 +46,11 @@ class LLMFactory:
                 )
 
             # Check for Kimi / Moonshot
-            if any(domain in (final_base_url or "") for domain in ["moonshot.cn", "kimi.ai", "kimi.com"]):
+            if any(domain in (base_url or "") for domain in ["moonshot.cn", "kimi.ai", "kimi.com"]):
                 return CompatibleChatAnthropic(
-                    api_key=final_api_key,
-                    base_url=final_base_url,
-                    model_name=final_model,
+                    api_key=api_key,
+                    base_url=base_url,
+                    model_name=model_name,
                     temperature=temperature,
                     streaming=False,
                     fix_tool_args_list=False,  # Kimi usually follows standard
@@ -68,18 +58,18 @@ class LLMFactory:
                 )
 
             return ChatAnthropic(
-                api_key=final_api_key,
-                base_url=final_base_url,
-                model_name=final_model,
+                api_key=api_key,
+                base_url=base_url,
+                model_name=model_name,
                 temperature=temperature,
                 streaming=False,  # Disable streaming to prevent httpx.ResponseNotRead on errors
             )
 
         # Default: OpenAI Compatible (Adaptive)
         return AdaptiveChatOpenAI(
-            api_key=final_api_key,
-            base_url=final_base_url,
-            model=final_model,
+            api_key=api_key,
+            base_url=base_url,
+            model=model_name,
             temperature=temperature,
             streaming=True,
         )
@@ -95,23 +85,16 @@ class LLMFactory:
         Create a raw Completion client (Legacy/Text-Generation) for SSM/Flash Brain.
         Useful for endpoints that strictly use /v1/completions.
         """
-        # Try to use standard LangChain OpenAI client
-        try:
-            from langchain_openai import OpenAI
-            return OpenAI(
-                openai_api_key=api_key,
-                openai_api_base=base_url,
-                model_name=model_name,
-                temperature=temperature,
-                max_tokens=512
-            )
-        except ImportError as e:
-            # Fallback or error if package missing
-            import sys
-            logger.error(f"Failed to import langchain_openai: {e}. Path: {sys.path}")
-            return None
+        from langchain_openai import OpenAI
+        return OpenAI(
+            openai_api_key=api_key,
+            openai_api_base=base_url,
+            model_name=model_name,
+            temperature=temperature,
+            max_tokens=512
+        )
 
 
 # Global instance for easy import if needed, or prefer using Factory.create()
-def get_default_llm() -> AdaptiveChatOpenAI:
-    return LLMFactory.create_llm()
+def get_default_llm(temperature: float = 0.3) -> AdaptiveChatOpenAI:
+    return LLMFactory.create_llm(temperature=temperature)

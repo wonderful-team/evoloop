@@ -453,10 +453,6 @@ INDEXABLE_EXTENSIONS = SEMANTIC_EXTENSIONS | {
     ".png", ".jpg", ".jpeg", ".bmp", ".webp", ".mp3", ".wav", ".mp4", ".mov", ".avi"
 }
 
-# ====================== Model Constants ======================
-MODEL_GPT4O = "gpt-4o"
-MODEL_CLAUDE_SONNET = "claude-3-5-sonnet-20240620"
-
 # ====================== Security / Filter Patterns ======================
 SUSPICIOUS_JS_PATTERNS = [
     r"\(function\([a-z],[a-z],[a-z]\)",

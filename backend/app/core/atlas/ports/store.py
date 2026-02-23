@@ -38,3 +38,10 @@ class IAtlasStore(ABC):
         List all applications currently mapped in the Atlas.
         """
         pass
+
+    @abstractmethod
+    async def clear_all_data(self) -> None:
+        """
+        Permanently deletes all Atlas data (Apps, States, Transitions).
+        """
+        pass

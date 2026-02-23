@@ -44,9 +44,9 @@ class EmbedderFactory:
 
         # 2. DB Config Exists
         if provider == "openai" or provider == "generic" or provider == "local":
-            base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL") or settings.OPENAI_BASE_URL
-            model = SystemConfigService.get_value("EMBEDDING_MODEL") or settings.EMBEDDING_MODEL_NAME
-            api_key = SystemConfigService.get_value("EMBEDDING_API_KEY") or settings.OPENAI_API_KEY
+            base_url = SystemConfigService.get_value("EMBEDDING_BASE_URL")
+            model = SystemConfigService.get_value("EMBEDDING_MODEL")
+            api_key = SystemConfigService.get_value("EMBEDDING_API_KEY")
             # Robust integer parsing
             dim_val = SystemConfigService.get_value("EMBEDDING_DIMENSIONS")
             dimensions = int(dim_val) if dim_val else settings.EMBEDDING_DIMENSIONS

@@ -108,10 +108,9 @@ class UsageRanker:
         # 3. Apply running boost and score
         for r in records:
             if r.app_name in running_apps or r.bundle_id in running_apps:
-                # Store running status in a temporary attribute for scoring
-                r._is_running = True
+                r.is_running = True
             else:
-                r._is_running = False
+                r.is_running = False
 
         cls._compute_priority_scores(records)
         records.sort(key=lambda r: r.priority_score, reverse=True)
@@ -333,7 +332,7 @@ class UsageRanker:
         freq_raw = [r.total_foreground_ms / max_freq for r in records]
 
         for i, record in enumerate(records):
-            running_val = 1.0 if getattr(record, "_is_running", False) else 0.0
+            running_val = 1.0 if record.is_running else 0.0
             record.priority_score = round(
                 W_RECENCY * recency_raw[i] +
                 W_FREQUENCY * freq_raw[i] +

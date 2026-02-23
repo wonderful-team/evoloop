@@ -169,3 +169,14 @@ class Neo4jAtlasStore(IAtlasStore):
                 """
             )
             return [dict(record) for record in await result.data()]
+
+    async def clear_all_data(self) -> None:
+        """Permanently deletes all App and State nodes."""
+        driver = Neo4jManager.get_driver()
+        async with driver.session() as session:
+            try:
+                await session.run("MATCH (n) WHERE n:App OR n:State DETACH DELETE n")
+                logger.info("[Neo4jAtlasStore] All Atlas data cleared successfully.")
+            except Exception as e:
+                logger.error(f"[Neo4jAtlasStore] Failed to clear Atlas data: {e}")
+                raise e

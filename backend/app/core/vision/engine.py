@@ -102,46 +102,21 @@ class VisionEngine:
 
         # 5. Passive Atlas Learning for non-DETECT tasks
         if task != VisionTask.DETECT and result.success:
-            # Run background perception to feed the Atlas without blocking the response
-            async def background_map():
-                try:
-                    from app.core.vision.pipeline.manager import pipeline_manager
-                    # We use cached results if possible to avoid double processing
-                    bg_elements, _ = await pipeline_manager.perceive(
-                        screenshot_path=image_source,
-                        device_id=kwargs.get("device_id"),
-                        use_cache=True
+            # Dispatch to Celery background worker to offload OCR/Neo4j processing
+            try:
+                from app.celery_app import celery_app
+                celery_app.send_task(
+                    "app.core.atlas.tasks.map_observed_ui",
+                    args=(
+                        image_source,
+                        kwargs.get("device_id"),
+                        "macos",
+                        kwargs.get("scene_hash", "")
                     )
-
-                    if bg_elements:
-                        app_info = macos_driver.get_current_app()
-
-                        # Map vision elements to Atlas semantic format
-                        atlas_elements = []
-                        for el in bg_elements:
-                            atlas_elements.append({
-                                "role": el.metadata.get("role", "AXUnknown"),
-                                "label": el.text,
-                                "ax_path": el.metadata.get("ax_path", f"Unknown.{el.id}"),
-                                "bounds": {
-                                    "x": el.x - el.width // 2,
-                                    "y": el.y - el.height // 2,
-                                    "width": el.width,
-                                    "height": el.height
-                                }
-                            })
-
-                        await event_bus.publish(UiTreeObservedEvent(
-                            platform="macos",
-                            bundle_id=app_info.get("bundle_id", "unknown"),
-                            window_title=app_info.get("title", "unknown"),
-                            elements=atlas_elements,
-                            screenshot_hash=kwargs.get("scene_hash", "")
-                        ))
-                except Exception as ex:
-                    logger.debug(f"[VisionEngine] Background mapping failed: {ex}")
-
-            asyncio.create_task(background_map())
+                )
+                logger.debug(f"[VisionEngine] Dispatched Atlas background mapping for {image_source}")
+            except Exception as ex:
+                logger.debug(f"[VisionEngine] Failed to dispatch Celery task: {ex}")
 
         # 6. Publish Completion Event
         provider_name = provider.name if task != VisionTask.DETECT else "pipeline_manager"

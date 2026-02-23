@@ -22,6 +22,7 @@ class AppUsageRecord(BaseModel):
     last_used_at: datetime | None = None       # Last foreground activity
     total_foreground_ms: int = 0               # Cumulative foreground time (ms)
     priority_score: float = 0.0               # Normalized 0-1 combined score
+    is_running: bool = False                   # Is the app currently running?
 
 
 class MacOSEnvironment(BaseModel):

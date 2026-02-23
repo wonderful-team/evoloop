@@ -5,6 +5,7 @@ import asyncio
 import logging
 import socket
 
+from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
 from app.core.environment.models import (
     AndroidDevice,
     MacOSEnvironment,
@@ -21,6 +22,7 @@ class EnvironmentProbe:
     async def probe_macos() -> MacOSEnvironment | None:
         """Probe MacOS host environment using macos_driver."""
         from app.infrastructure.drivers.macos import macos_driver
+        from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
 
         try:
             # Run blocking driver calls in threads
@@ -42,6 +44,13 @@ class EnvironmentProbe:
                             if usage_stats else "[EnvironmentProbe] UsageRanker: no usage data")
             except Exception as e:
                 logger.warning(f"[EnvironmentProbe] UsageRanker failed (non-fatal): {e}")
+
+            # Autonomous triage for discovered apps
+            try:
+                triage = DynamicAppTriage()
+                await triage.sync_dynamic_apps(macos_apps=apps)
+            except Exception as triage_e:
+                logger.warning(f"[EnvironmentProbe] macOS dynamic app triage failed: {triage_e}")
 
             return MacOSEnvironment(
                 os_version=info.get("os_version", "Unknown"),
@@ -95,6 +104,14 @@ class EnvironmentProbe:
                         installed_packages=packages,
                         is_reachable=True,
                     ))
+
+                    # Autonomous triage for discovered packages
+                    try:
+                        triage = DynamicAppTriage()
+                        await triage.sync_dynamic_apps(android_packages=packages)
+                    except Exception as triage_e:
+                        logger.warning(f"[EnvironmentProbe] Android dynamic app triage failed: {triage_e}")
+
                 except Exception as e:
                     logger.warning(f"Failed to get info for device {device_id}: {e}")
                     devices.append(AndroidDevice(

@@ -9,7 +9,6 @@ from typing import Any
 from sqlalchemy import func, select
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-from app.core.config import settings
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
 from app.models.learning import LearnedSkill
@@ -47,14 +46,14 @@ class SkillDiscovery:
         try:
             from app.core.learning.skill_importer import SkillImporter
 
-            # Resolve the absolute path to the sop_library
+            # Resolve the absolute path to the skills
             # current file is app/core/learning/discovery.py
             base_dir = os.path.dirname(os.path.abspath(__file__))
-            sop_library_path = os.path.join(base_dir, "sop_library")
+            skills_path = os.path.join(base_dir, "skills")
 
-            if os.path.exists(sop_library_path):
-                logger.info(f"[Discovery] Pre-seeding system SOPs from {sop_library_path}")
-                await SkillImporter.import_from_directory(sop_library_path)
+            if os.path.exists(skills_path):
+                logger.info(f"[Discovery] Pre-seeding system Skills from {skills_path}")
+                await SkillImporter.import_from_directory(skills_path)
 
             self._system_skills_synced = True
         except Exception as e:
@@ -139,11 +138,7 @@ OUTPUT FORMAT (JSON ONLY):
 }}"""
 
         try:
-            llm = LLMFactory.create_llm(
-                model_name=settings.SSM_MODEL_NAME,
-                base_url=settings.SSM_API_BASE,
-                temperature=0.0
-            )  # High precision local reasoning
+            llm = LLMFactory.create_llm(temperature=0.0)  # High precision
             messages = [
                 SystemMessage(content=system_prompt.format(catalog=skill_catalog))
             ]

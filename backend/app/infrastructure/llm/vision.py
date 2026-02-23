@@ -40,11 +40,7 @@ class VisionLLMFactory:
 
     @staticmethod
     def create_vision_llm(
-        model_name: str | None = None,
-        temperature: float = 0.3,
-        max_tokens: int = 4096,
-        base_url: str | None = None,
-        api_key: str | None = None
+        model_name: str | None = None, temperature: float = 0.3, max_tokens: int = 4096
     ) -> BaseChatModel:
         """
         Create a Vision-capable LLM instance using the core LLMFactory.
@@ -55,22 +51,12 @@ class VisionLLMFactory:
         db_vision_model = SystemConfigService.get_value("VISION_MODEL")
 
         # Priority: explicit arg > DB Vision > Default
-        final_model = model_name or db_vision_model or "gpt-4o"
-
-        # OpenRouter Logic: Ensure prefix if using OpenRouter
-        if "openrouter.ai" in (settings.OPENAI_BASE_URL or ""):
-            if "/" not in final_model:
-                final_model = f"openai/{final_model}"
+        final_model = model_name or db_vision_model
 
         logger.info(f"Creating Vision LLM - Model: {final_model}")
 
         # Use the central LLMFactory to get provider-specific adapters (Anthropic, Moonshot, etc.)
-        return LLMFactory.create_llm(
-            model_name=final_model,
-            temperature=temperature,
-            base_url=base_url,
-            api_key=api_key
-        )
+        return LLMFactory.create_llm(model_name=final_model, temperature=temperature)
 
     @staticmethod
     def encode_image(image_path: str, max_size: int = 2048, quality: int = 85) -> str:

@@ -4,6 +4,7 @@ import os
 import tempfile
 from datetime import datetime
 
+from app.core.config import settings
 from app.core.vision.pipeline.cache import scene_cache
 from app.core.vision.providers.native.android_a11y import AndroidA11yProvider
 from app.core.vision.providers.native.macos_ax import MacOSAxProvider

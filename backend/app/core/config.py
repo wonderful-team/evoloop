@@ -125,6 +125,8 @@ class Settings(BaseSettings):
     # Search Optimization
     ENABLE_QUERY_REWRITING: bool = True  # P1: Cross-Lingual Query Rewriting
 
+    ENABLE_VISION_OCR: bool = True
+
     ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None
     BRAVE_API_KEY: str | None = None
@@ -133,7 +135,6 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
     # General Agent / Intention
-    GENERAL_AGENT_MODEL: str = "gpt-4o"
     AWAKENING_CORE_APPS: list[str] = ["微信", "支付宝", "12306"]
 
     # --- Cognitive Brain Configuration ---

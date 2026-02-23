@@ -1,5 +1,7 @@
 from typing import Any
 
+from app.core.engine import repair_message_history
+
 try:
     from langchain_anthropic import ChatAnthropic
 
@@ -69,13 +71,11 @@ class CompatibleChatAnthropic(ChatAnthropic):
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
         if self.repair_history:
-            from app.core.engine.message_utils import repair_message_history
             messages = repair_message_history(messages)
         return await super()._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
         if self.repair_history:
-            from app.core.engine.message_utils import repair_message_history
             messages = repair_message_history(messages)
         return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
 
