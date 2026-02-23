@@ -9,7 +9,6 @@ from app.core.vision.pipeline.cache import scene_cache
 from app.core.vision.providers.native.android_a11y import AndroidA11yProvider
 from app.core.vision.providers.native.macos_ax import MacOSAxProvider
 from app.core.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider
-from app.core.vision.providers.ocr.ocr_provider import LocalOCRProvider
 from app.core.vision.types import UIElement, VisionResult, VisionTask
 
 logger = logging.getLogger(__name__)
@@ -112,6 +111,11 @@ class PipelineManager:
     """
     Orchestrates multiple perception providers for comprehensive UI detection.
     (Formerly FusionPipeline)
+
+    Performance Optimized:
+    - By default, only uses native AX providers (fast: ~300ms)
+    - OCR providers disabled by default (slow: ~1500ms)
+    - Use environment variable ENABLE_VISION_OCR=1 to enable OCR fallback
     """
 
     def __init__(self):
@@ -119,8 +123,12 @@ class PipelineManager:
             AndroidA11yProvider(),
             MacOSAxProvider(),
             MacOSVisionOCRProvider(),
-            LocalOCRProvider(),
         ]
+
+        # Optional: Enable OCR via environment variable
+        if settings.ENABLE_VISION_OCR:
+            self.providers.append(MacOSVisionOCRProvider())
+            logger.warning("[PipelineManager] Vision OCR enabled (slow performance)")
 
     async def perceive(
         self,

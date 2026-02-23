@@ -20,10 +20,14 @@ class VisionRouter:
 
     def __init__(self):
         self.providers: list[VisionProvider] = [
-            MacOSVisionOCRProvider(),
-            LocalOCRProvider(),
             MultimodalVLMProvider(),
         ]
+
+        # OCR providers disabled by default for performance
+        # Enable with ENABLE_VISION_OCR=1 environment variable
+        if settings.ENABLE_VISION_OCR:
+            self.providers.append(MacOSVisionOCRProvider())
+            logger.warning("[VisionRouter] OCR enabled (slow performance)")
 
     async def get_provider(self, task: VisionTask, **kwargs) -> VisionProvider | None:
         """
@@ -41,14 +45,10 @@ class VisionRouter:
                     return p
 
         # Default Routing
-        if task == VisionTask.OCR:
+        if settings.ENABLE_VISION_OCR and task == VisionTask.OCR:
             # Prefer native MacOS Vision OCR if on Mac
             for p in self.providers:
                 if isinstance(p, MacOSVisionOCRProvider) and await p.is_available():
-                    return p
-            # Fallback to general local OCR
-            for p in self.providers:
-                if isinstance(p, LocalOCRProvider) and await p.is_available():
                     return p
 
         if task in [VisionTask.ANALYZE, VisionTask.CAPTION, VisionTask.COMPARE]:
