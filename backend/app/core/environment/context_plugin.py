@@ -116,11 +116,9 @@ class EnvironmentContextPlugin(ContextPlugin):
                 if getattr(state, "journal_highlights", None):
                     ctx.memory_replay.append(f"**Recent Learnings:**\n{state.journal_highlights}")
 
+                # Pass raw user preferences to templates for rendering
                 if getattr(state, "user_preferences", None):
                     ctx.metadata["user_preferences"] = state.user_preferences
-
-                if getattr(state, "system_rules", None):
-                    ctx.metadata["system_rules"] = state.system_rules
 
         except Exception as e:
             logger.error(f"Failed to hydrate EnvironmentContextPlugin: {e}")

@@ -18,9 +18,7 @@
 {% include 'fragments/user_preferences.j2' %}
 {% endwith %}
 
-{% with system_rules = environment.system_rules %}
 {% include 'fragments/system_rules.j2' %}
-{% endwith %}
 
 {% if environment.boundaries %}
 ### ❌ Constraints

@@ -76,9 +76,8 @@ class MemoryContext(BaseModel):
 
 
 class PreferenceContext(BaseModel):
-    """User preferences and system rules."""
+    """User preferences."""
     preferences: dict[str, str] = {}
-    rules: list[str] = []
 
 
 class AwakenedState(BaseModel):
@@ -99,7 +98,6 @@ class AwakenedState(BaseModel):
 
     # == Preference Layer ==
     user_preferences: dict[str, str] = {}
-    system_rules: list[str] = []
 
     # == Capability Boundaries ==
     available_platforms: list[str] = []

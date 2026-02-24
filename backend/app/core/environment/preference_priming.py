@@ -1,5 +1,5 @@
 """
-Preference Priming - Loads user preferences and system rules during awakening.
+Preference Priming - Loads user preferences during awakening.
 """
 
 import logging
@@ -11,17 +11,17 @@ logger = logging.getLogger(__name__)
 
 async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
     """
-    Load user preferences and system rules.
-    
+    Load user preferences.
+
     Args:
         project_id: Optional project ID to scope preference retrieval.
-        
+
     Returns:
-        PreferenceContext with preferences and rules.
+        PreferenceContext with user preferences.
     """
     preferences = {}
 
-    # 1. Retrieve user preferences from Preference Store
+    # Retrieve user preferences from Preference Store
     try:
         from app.core.memory import memory_manager
         from app.infrastructure.config.service import SystemConfigService
@@ -41,26 +41,7 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
     except Exception as e:
         logger.warning(f"Failed to retrieve preferences: {e}")
 
-    # 2. System-level inviolable rules (hardcoded for safety)
-    # Critical rules (always shown, high severity)
-    critical_rules = [
-        "NEVER delete .git directories or any version control metadata",
-        "NEVER execute 'rm -rf /' or any recursive deletion commands targeting root or system directories",
-        "NEVER execute DROP, TRUNCATE, or DELETE operations on production databases without confirmation",
-        "NEVER expose, log, or print API keys, passwords, tokens, or any sensitive credentials",
-    ]
-
-    # Important rules (shown when space permits)
-    important_rules = [
-        "NEVER modify core dependency versions in package.json or requirements.txt without explicit user confirmation",
-        "ALWAYS create backups before making significant changes to critical files",
-        "ALWAYS verify the scope of file deletions before execution",
-        "ALWAYS ask for clarification when user intent is ambiguous or destructive",
-    ]
-
-    rules = critical_rules + important_rules
-
-    return PreferenceContext(preferences=preferences, rules=rules)
+    return PreferenceContext(preferences=preferences)
 
 
 def _parse_preferences(raw_text: str) -> dict[str, str]:

@@ -39,7 +39,6 @@ class AppEnvironmentPrompt:
                     "memory_replay": ctx.memory_replay,
                     "spatial_awareness": ctx.spatial_awareness,
                     "user_preferences": ctx.metadata.get("user_preferences", {}),
-                    "system_rules": ctx.metadata.get("system_rules", []),
                 },
                 "tips": True
             }

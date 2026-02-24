@@ -57,7 +57,6 @@ class OperatorPromptBuilder:
                 "boundaries": ctx.active_boundaries,
                 "spatial_awareness": ctx.spatial_awareness,
                 "user_preferences": ctx.metadata.get("user_preferences", {}),
-                "system_rules": ctx.metadata.get("system_rules", []),
                 "mcp_inventory": tool_manager.get_mcp_inventory(),
             },
             "memory": {

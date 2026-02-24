@@ -88,7 +88,6 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         relevant_concepts=memory_context.concepts,
         journal_highlights=memory_context.journal_highlights,
         user_preferences=pref_context.preferences,
-        system_rules=pref_context.rules,
         available_platforms=platforms,
         capability_boundaries=boundaries,
     )
@@ -152,7 +151,6 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
         relevant_concepts=prev_state.relevant_concepts if prev_state else [],
         journal_highlights=prev_state.journal_highlights if prev_state else "",
         user_preferences=prev_state.user_preferences if prev_state else {},
-        system_rules=prev_state.system_rules if prev_state else [],
         available_platforms=platforms,
         capability_boundaries=boundaries,
     )

@@ -70,7 +70,6 @@ class SupervisorPromptBuilder:
                 "memory_replay": ctx.memory_replay,
                 "boundaries": ctx.active_boundaries,
                 "user_preferences": ctx.metadata.get("user_preferences", {}),
-                "system_rules": ctx.metadata.get("system_rules", []),
                 "mcp_inventory": tool_manager.get_mcp_inventory(),
             },
             "blackboard": {
