@@ -50,10 +50,7 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
         "禁止暴露或打印用户的 API 密钥、密码等敏感信息",
     ]
 
-    return PreferenceContext(
-        preferences=preferences,
-        rules=rules,
-    )
+    return PreferenceContext(preferences=preferences, rules=rules)
 
 
 def _parse_preferences(raw_text: str) -> dict[str, str]:

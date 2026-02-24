@@ -27,7 +27,7 @@ class OperatorPromptBuilder:
         """
         Builds the system prompt for the Operator Agent via Jinja2.
         """
-        user_lang = SystemConfigService.get_value("LANGUAGE", "en")
+        user_lang = SystemConfigService.get_language_preference()
         tree = self.context.get("project_structure", "")
 
         execution_ticket = self.state.get("execution_ticket", {}) or {}

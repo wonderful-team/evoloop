@@ -242,9 +242,7 @@ class UsageRanker:
             last_used_at: datetime | None = None
             if last_used_ms:
                 try:
-                    last_used_at = datetime.fromtimestamp(
-                        last_used_ms / 1000, tz=timezone.utc
-                    )
+                    last_used_at = datetime.fromtimestamp(last_used_ms / 1000, tz=timezone.utc)
                 except Exception:
                     pass
 

@@ -27,7 +27,6 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
     """
     episodes = []
     concepts = []
-    journal_highlights = ""
 
     # 1. Retrieve recent episodes from Long-Term Memory
     if project_id:

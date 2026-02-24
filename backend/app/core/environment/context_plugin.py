@@ -3,7 +3,7 @@ import logging
 from app.core.context.manager import EvoContext
 from app.core.context.plugins import ContextPlugin, plugin_registry
 from app.core.environment.boundaries import boundary_manager
-from app.core.environment.prompt_utils import build_environment_summaries
+from app.core.environment.prompt import build_environment_summaries
 
 logger = logging.getLogger(__name__)
 
