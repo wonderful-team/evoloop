@@ -1,0 +1,46 @@
+{# System Rules Fragment - Renders safety and operational rules #}
+{% if system_rules %}
+### 🛡️ System Safety Rules
+
+{# Define critical keywords for severity classification #}
+{% set CRITICAL_KEYWORDS = ['rm -rf', 'drop', 'truncate', 'password', 'api key', 'secret', 'credential', 'never delete', 'never execute'] %}
+
+{# Separate critical and important rules #}
+{% set critical_rules = [] %}
+{% set important_rules = [] %}
+
+{% for rule in system_rules %}
+    {% set rule_lower = rule|lower %}
+    {% set is_critical = false %}
+    {% for kw in CRITICAL_KEYWORDS %}
+        {% if kw in rule_lower %}
+            {% set is_critical = true %}
+        {% endif %}
+    {% endfor %}
+    {% if is_critical %}
+        {% set _ = critical_rules.append(rule) %}
+    {% else %}
+        {% set _ = important_rules.append(rule) %}
+    {% endif %}
+{% endfor %}
+
+{# Always display critical rules #}
+{% if critical_rules %}
+- **🚨 CRITICAL Rules (Never Violate):**
+{% for rule in critical_rules %}
+  - ❌ {{ rule }}
+{% endfor %}
+{% endif %}
+
+{# Display important rules with limit #}
+{% set max_important = 5 - critical_rules|length %}
+{% if important_rules and max_important > 0 %}
+- **⚠️ Important Rules:**
+{% for rule in important_rules[:max_important] %}
+  - {{ rule }}
+{% endfor %}
+{% if important_rules|length > max_important %}
+  - ... and {{ important_rules|length - max_important }} more rules
+{% endif %}
+{% endif %}
+{% endif %}
