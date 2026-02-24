@@ -1,0 +1,16 @@
+### MISSION TICKET
+**Goal**: {{ topic }}
+
+**Acceptance Criteria**:
+{% for c in acceptance_criteria -%}
+- {{ c }}
+{% endfor %}
+
+{% if parameters %}
+**Execution Parameters**:
+{% for k, v in parameters.items() -%}
+- {{ k }}: {{ v }}
+{% endfor %}
+{% endif %}
+
+Please execute this mission now. Use your tools.

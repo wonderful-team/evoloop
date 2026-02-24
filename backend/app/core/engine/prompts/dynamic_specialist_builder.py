@@ -60,39 +60,34 @@ class DynamicSpecialistPromptBuilder:
             return f"You are a Specialist. Error loading template: {e}"
 
     def build_mission_message(self) -> str:
-        """Constructs the user message that initiates the task."""
-        topic = self.ticket.get("topic") or "General Task"
-        criteria = "\n".join([f"- {c}" for c in self.ticket.get("acceptance_criteria", [])])
-        params = self.ticket.get("parameters", {})
-        param_context = ""
-        if params:
-            param_context = "\n**Execution Parameters**:\n" + "\n".join([f"- {k}: {v}" for k, v in params.items()])
-
-        return f"""### MISSION TICKET
-**Goal**: {topic}
-
-**Acceptance Criteria**:
-{criteria}
-{param_context}
-
-Please execute this mission now. Use your tools."""
+        """Constructs the user message that initiates the task via Jinja2."""
+        template_vars = {
+            "topic": self.ticket.get("topic") or "General Task",
+            "acceptance_criteria": self.ticket.get("acceptance_criteria", []),
+            "parameters": self.ticket.get("parameters", {}),
+        }
+        try:
+            template = self.env.get_template("fragments/mission_ticket.j2")
+            return template.render(**template_vars)
+        except Exception as e:
+            logger.error(f"Error rendering Mission Ticket: {e}")
+            return f"### MISSION TICKET\nGoal: {template_vars['topic']}\nPlease execute this mission now."
 
     def _prepare_knowledge_blocks(self) -> list[str]:
         if not self.skills:
             return []
 
         blocks = []
-        for i, skill in enumerate(self.skills):
-            is_primary = (i == 0)
-            header = "### 🚨 [ACTIVE MISSION SOP]" if is_primary else "### 📘 Related Reference SOP"
-
-            block = f"{header}: {skill.name}\n"
-            if is_primary:
-                block += "You MUST treat the following instructions as a strict state-machine. Read Phase 1. Execute. Verify. Only proceed to Phase 2 upon success.\n\n"
-
-            if skill.description:
-                block += f"**Description**: {skill.description}\n"
-            if skill.instructions:
-                block += f"**Expert Guide (操作指南)**:\n{skill.instructions}\n"
-            blocks.append(block)
+        try:
+            template = self.env.get_template("fragments/knowledge_block.j2")
+            for i, skill in enumerate(self.skills):
+                is_primary = (i == 0)
+                block = template.render(skill=skill, is_primary=is_primary)
+                blocks.append(block)
+        except Exception as e:
+            logger.error(f"Error rendering Knowledge Blocks: {e}")
+            # Fallback to simple format if template fails
+            for skill in self.skills:
+                blocks.append(f"### Skill: {getattr(skill, 'name', 'Unknown')}\n{getattr(skill, 'instructions', '')}")
+        
         return blocks

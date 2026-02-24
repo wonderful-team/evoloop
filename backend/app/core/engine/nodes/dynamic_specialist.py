@@ -8,9 +8,7 @@ from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
 from app.core.engine import AgentEngine
-from app.core.engine.prompts.dynamic_specialist_builder import (
-    DynamicSpecialistPromptBuilder,
-)
+from app.core.engine.prompts.dynamic_specialist_builder import DynamicSpecialistPromptBuilder
 from app.core.engine.state import AgentState
 from app.core.environment import get_awakened_state
 from app.core.tools.manager import tool_manager

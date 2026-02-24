@@ -1,0 +1,15 @@
+{% if is_primary -%}
+### 🚨 [ACTIVE MISSION SOP]: {{ skill.name }}
+You MUST treat the following instructions as a strict state-machine. Read Phase 1. Execute. Verify. Only proceed to Phase 2 upon success.
+{%- else -%}
+### 📘 Related Reference SOP: {{ skill.name }}
+{%- endif %}
+
+{% if skill.description -%}
+**Description**: {{ skill.description }}
+{%- endif %}
+
+{% if skill.instructions -%}
+**Expert Guide (操作指南)**:
+{{ skill.instructions }}
+{%- endif %}

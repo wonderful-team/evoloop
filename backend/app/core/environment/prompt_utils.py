@@ -5,9 +5,10 @@ Environment Prompt Utilities - Shared logic for building environment awareness s
 from app.core.environment import get_awakened_state
 
 
-def build_environment_prompt(relevance: str = "auto") -> str:
+def build_environment_summaries(relevance: str = "auto") -> list[str]:
     """
-    Build environment awareness section from awakened state.
+    Build environment awareness summaries from awakened state.
+    Returns a list of strings suitable for EvoContext.environment_summaries.
     
     Args:
         relevance: "android", "macos", "both", or "auto"
@@ -16,27 +17,24 @@ def build_environment_prompt(relevance: str = "auto") -> str:
         state = get_awakened_state()
 
         if not state:
-            return "- **Environment**: Not yet awakened (use default settings)"
+            return ["Environment: Not yet awakened (using default settings)"]
 
-        sections = []
+        summaries = []
 
         # 1. Host (macOS) Info
         if state.macos:
             if relevance in ["macos", "both", "auto"]:
-                sections.append(f"- **Host**: {state.macos.model} ({state.macos.cpu}), macOS {state.macos.os_version}")
-
-                # Bundle ID Awareness (On-demand)
-                sections.append("  💡 Use `list_app_atlas()` to see all applications with structural UI maps available.")
+                summaries.append(f"Host: {state.macos.model} ({state.macos.cpu}), macOS {state.macos.os_version}")
+                summaries.append("💡 Use `list_app_atlas()` to see apps with structural UI maps.")
             else:
-                sections.append("- **Host**: Apple Silicon Mac (MacOS Environment Available)")
+                summaries.append("Host: Apple Silicon Mac (MacOS Environment Available)")
 
         # 2. Android Info
         if state.android_devices:
             if relevance in ["android", "both", "auto"]:
-                sections.append("- **Connected Android Devices**:")
                 for dev in state.android_devices:
                     emoji = "✅" if dev.is_reachable else "⚠️"
-                    dev_info = f"  - {emoji} `{dev.device_id}`: {dev.model} (Android {dev.os_version}), Battery: {dev.battery_percent}%"
+                    dev_info = f"Android Device {emoji} `{dev.device_id}`: {dev.model} (Android {dev.os_version}), Battery: {dev.battery_percent}%"
 
                     # Add Apps info only if mobile is highly relevant
                     if dev.installed_packages and (relevance in ["android", "both"]):
@@ -48,33 +46,37 @@ def build_environment_prompt(relevance: str = "auto") -> str:
                         app_str += "]"
                         dev_info += app_str
 
-                    sections.append(dev_info)
+                    summaries.append(dev_info)
             else:
-                # Summary version when not directly relevant
                 dev_count = len(state.android_devices)
-                sections.append(f"- **Mobile**: {dev_count} Android device(s) connected (ADB Available)")
+                summaries.append(f"Mobile: {dev_count} Android device(s) connected (ADB Available)")
         else:
             if relevance in ["android", "both", "auto"]:
-                sections.append("- **Connected Android Devices**: None (mobile_control will fail)")
+                summaries.append("Connected Android Devices: None (mobile_control will fail)")
 
         # 3. Network
         if state.network:
             net_status = "Online" if state.network.internet_connected else "Offline"
-            sections.append(f"- **Network**: {net_status}")
+            summaries.append(f"Network: {net_status}")
 
-        # 4. Capability Boundaries (static + dynamic)
-        boundaries = get_capability_boundaries()
-        if boundaries:
-            sections.append("- **Limitations**:")
-            for boundary in boundaries[:5]:  # Limit to avoid prompt bloat
-                sections.append(f"  - {boundary}")
-            if len(boundaries) > 5:
-                sections.append(f"  - ...and {len(boundaries) - 5} more constraints")
-
-        return "\n".join(sections)
+        return summaries
 
     except Exception:
-        return "- **Environment**: Unable to retrieve (use default settings)"
+        return ["Environment: Unable to retrieve (using default settings)"]
+
+
+def build_environment_prompt(relevance: str = "auto") -> str:
+    """Legacy wrapper for build_environment_summaries."""
+    summaries = build_environment_summaries(relevance=relevance)
+
+    # Add capability boundaries for the legacy prompt
+    boundaries = get_capability_boundaries()
+    if boundaries:
+        summaries.append("Limitations:")
+        for boundary in boundaries[:5]:
+            summaries.append(f"  - {boundary}")
+
+    return "\n".join([f"- {s}" if not s.startswith(" ") else s for s in summaries])
 
 
 def get_capability_boundaries() -> list[str]:

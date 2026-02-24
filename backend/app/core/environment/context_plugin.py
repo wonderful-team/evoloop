@@ -2,7 +2,9 @@ import logging
 
 from app.core.context.manager import EvoContext
 from app.core.context.plugins import ContextPlugin, plugin_registry
+from app.core.environment import get_awakened_state
 from app.core.environment.boundaries import boundary_manager
+from app.core.environment.prompt_utils import build_environment_summaries
 
 logger = logging.getLogger(__name__)
 
@@ -14,36 +16,26 @@ class EnvironmentContextPlugin(ContextPlugin):
     """
     def hydrate(self, ctx: EvoContext) -> None:
         try:
-            from app.core.environment import get_awakened_state
-
             # 1. Hydrate Active Boundaries
             boundaries = boundary_manager.get_all_boundaries()
             # We copy it over to avoiding attaching the reference
             ctx.active_boundaries = list(boundaries)
 
             # 2. Hydrate Environment Summaries
-            ctx.environment_summaries = []
+            ctx.environment_summaries = build_environment_summaries(relevance="auto")
             ctx.spatial_awareness = []
 
             state = get_awakened_state()
             
-            # Reset flags
+            # Reset metadata flags
             ctx.metadata["has_android"] = False
             ctx.metadata["has_macos"] = False
 
             if state:
                 if state.android_devices:
                     ctx.metadata["has_android"] = True
-                    for d in state.android_devices:
-                        model = getattr(d, 'model', 'Device')
-                        ctx.environment_summaries.append(f"Android Device Connected: {d.device_id} ({model})")
-
                 if state.macos:
                     ctx.metadata["has_macos"] = True
-                    ctx.environment_summaries.append("MacOS Desktop Control is active and available.")
-
-                if getattr(state, "network", None) and not getattr(state.network, "internet_connected", True):
-                    ctx.environment_summaries.append("Offline mode: No internet connection.")
 
                 # 3. Hydrate Spatial Awareness (Discovery Report)
                 if getattr(state, "discovery_report", None):

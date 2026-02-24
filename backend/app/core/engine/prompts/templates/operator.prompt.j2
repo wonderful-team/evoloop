@@ -21,6 +21,10 @@ You are responsible for the ENTIRE lifecycle of this task. Do not ask for permis
 - Language: {{ user_lang }}
 {% include 'fragments/env_awareness.j2' %}
 
+{% include 'fragments/blackboard.j2' %}
+
+{% include 'fragments/memory_section.j2' %}
+
 {% if tree_section %}
 {{ tree_section }}
 {% endif %}
