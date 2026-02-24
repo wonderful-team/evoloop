@@ -1,3 +1,4 @@
+import asyncio
 import os
 import subprocess
 
@@ -45,101 +46,55 @@ Output a JSON object.
 async def auto_harvest_from_git():
     """
     Analyze uncommitted changes (working directory) to extract and save new Knowledge Concepts.
-    Call this at the end of a task to 'learn' from the work done.
-
-    Works with both staged and unstaged changes in the working directory.
+    Now offloaded to a background Celery task to prevent blocking the agent execution.
     """
+    from app.core.engine.tasks import git_harvest_task
+    
     ctx = ContextManager.current()
     project_id = ctx.project_id or 1
     cwd = ctx.working_directory or os.getcwd()
 
-    # 0. Check if Git repo exists
+    # 0. Check if Git repo exists (Fast check)
     git_dir = os.path.join(cwd, ".git")
     if not os.path.exists(git_dir):
         return i18n.get("prompts.domain_tools.learner.no_git")
 
-    # 1. Get Git Diff (working directory vs HEAD)
-    try:
-        # Compare working directory against HEAD (captures uncommitted changes)
-        cmd = ["git", "diff", "HEAD"]
-        process = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=10)
-        diff_text = process.stdout
+    # Dispatch to Celery
+    git_harvest_task.delay(cwd, project_id)
 
-        if not diff_text.strip():
-            return i18n.get("prompts.domain_tools.learner.no_changes")
-
-        # Limit diff size to avoid context overflow
-        if len(diff_text) > 10000:
-            diff_text = diff_text[:10000] + "\n...(truncated)"
-
-    except subprocess.TimeoutExpired:
-        return i18n.get("prompts.domain_tools.learner.git_timeout")
-    except Exception as e:
-        return i18n.get("prompts.domain_tools.learner.git_error", error=str(e))
-
-    # 2. Extract Concepts using LLM
-    llm = LLMFactory.create_llm()
-    structured_llm = llm.with_structured_output(ExtractionResult)
-    user_lang = SystemConfigService.get_language_preference()
-
-    lang_directive = f"\n\nLANGUAGE PROTOCOL:\nUser Language: {user_lang}\nConcept 'description' fields MUST be written in {user_lang}.\nConcept 'name' should usually remain in English (Code)."
-
-    try:
-        result = await structured_llm.ainvoke([
-            SystemMessage(content=HARVEST_PROMPT.format(diff=diff_text) + lang_directive)
-        ], config={"callbacks": []})
-    except Exception as e:
-        logger.error(f"Harvest extraction failed: {e}")
-        return i18n.get("prompts.domain_tools.learner.extract_error", error=str(e))
-
-    # 3. Save to Memory
-    saved_count = 0
-    response_lines = [i18n.get("prompts.domain_tools.learner.harvested_header")]
-
-    if result and result.concepts:
-        for concept in result.concepts:
-            # Add to Neo4j
-            from app.core.memory.interfaces.long_term import Concept as MemConcept
-            mem_concept = MemConcept(concept.name, concept.description, project_id, concept.related_files)
-            await memory_manager.long_term.store_concept(mem_concept)
-            saved_count += 1
-            response_lines.append(f"- {concept.name}")
-
-    if saved_count == 0:
-        return i18n.get("prompts.domain_tools.learner.no_concepts")
-
-    return "\n".join(response_lines)
+    return "Knowledge harvesting initiated in background. I will continue learning from your changes."
 
 
-def _run_git(args: list[str], config: RunnableConfig | None = None) -> str:
+async def _run_git(args: list[str], config: RunnableConfig | None = None) -> str:
     cwd = get_working_directory(config)
 
-    # Use util wrapper
-    res = git_command(args, cwd=cwd)
+    # Use util wrapper in a thread pool to avoid blocking the event loop
+    res = await asyncio.to_thread(git_command, args, cwd=cwd)
+
     if res.success:
         return res.stdout
     return f"Error: Git command failed. {res.stderr}"
 
 
 @evoloop_tool
-def git_status(config: RunnableConfig) -> str:
+async def git_status(config: RunnableConfig) -> str:
     """
     Get the current git status (branch, modified files).
     """
-    return _run_git(["status"], config)
+    return await _run_git(["status"], config)
 
 
 @evoloop_tool
-def git_diff(config: RunnableConfig) -> str:
+async def git_diff(config: RunnableConfig) -> str:
     """
     Show changes between working tree and index (or last commit).
     Useful to verify what you have edited before committing.
     """
-    return _run_git(["diff"], config)
+    return await _run_git(["diff"], config)
 
 
 @evoloop_tool
-def git_commit(message: str, add_all: bool = True, config: RunnableConfig = None) -> str:
+async def git_commit(message: str, add_all: bool = True, config: RunnableConfig = None) -> str:
     """
     Commit changes to the repository.
 
@@ -148,24 +103,24 @@ def git_commit(message: str, add_all: bool = True, config: RunnableConfig = None
         add_all: If True (default), runs 'git add .' before committing.
     """
     if add_all:
-        add_res = _run_git(["add", "."], config)
+        add_res = await _run_git(["add", "."], config)
         if "Error" in add_res:
             return f"Failed to add files: {add_res}"
 
-    return _run_git(["commit", "-m", message], config)
+    return await _run_git(["commit", "-m", message], config)
 
 
 @evoloop_tool
-def git_history(limit: int = 5, config: RunnableConfig = None) -> str:
+async def git_history(limit: int = 5, config: RunnableConfig = None) -> str:
     """
     Show the commit log.
     """
-    return _run_git(["log", f"-n {limit}", "--pretty=format:'%h - %an, %ar : %s'"], config)
+    return await _run_git(["log", f"-n {limit}", "--pretty=format:'%h - %an, %ar : %s'"], config)
 
 
 @evoloop_tool
-def git_create_branch(branch_name: str, config: RunnableConfig) -> str:
+async def git_create_branch(branch_name: str, config: RunnableConfig) -> str:
     """
     Create and checkout a new branch.
     """
-    return _run_git(["checkout", "-b", branch_name], config)
+    return await _run_git(["checkout", "-b", branch_name], config)

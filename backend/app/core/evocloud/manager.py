@@ -3,6 +3,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from app.celery_app import celery_app
 from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
@@ -146,9 +147,26 @@ class EvoCloudManager:
             }
             await self.link.send_message(payload)
 
-        # Persistent storage (DB)
+        # Persistent storage (DB) - Offloaded to Celery
         if persistent:
-            await self.api.upload_log(target_device_id, thread_id, log_type, content, name=name, command_id=command_id, project_id=project_id)
+            try:
+                celery_app.send_task(
+                    "engine_upload_cloud_log",
+                    kwargs={
+                        "device_id": target_device_id,
+                        "thread_id": thread_id,
+                        "log_type": log_type,
+                        "content": content,
+                        "name": name,
+                        "command_id": command_id,
+                        "project_id": project_id
+                    }
+                )
+                logger.debug(f"Dispatched cloud log persistence for {log_type} to Celery")
+            except Exception as ex:
+                logger.warning(f"Failed to dispatch cloud log to Celery: {ex}. Falling back to sync.")
+                # Fallback to direct call if Celery fails
+                await self.api.upload_log(target_device_id, thread_id, log_type, content, name=name, command_id=command_id, project_id=project_id)
 
     async def scan_projects(self) -> list[dict]:
         """Fetch projects from EvoCloud API."""

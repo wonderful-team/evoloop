@@ -2,7 +2,7 @@
 Desktop Control Tool - MacOS desktop interaction capability.
 Provides the Agent with the ability to see and interact with the Mac desktop.
 """
-
+import asyncio
 import logging
 from typing import Literal
 
@@ -60,7 +60,7 @@ async def desktop_control(
         # Helper to resolve coordinates or AX path from the Tri-Engine
         async def resolve_element(name: str, role: str | None = None) -> dict | str:
             # 1. Try Live Accessibility Tree (Fastest and Native)
-            raw_tree = macos_driver.dump_ax_tree()
+            raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
             if not raw_tree or "Error" in raw_tree:
                 return f"Error: Failed to dump Accessibility Tree: {raw_tree}"
 
@@ -294,7 +294,7 @@ async def verify_ui_state(
         timeout_seconds: (Not currently implemented for polling, but performs one immediate check).
     """
     try:
-        raw_tree = macos_driver.dump_ax_tree()
+        raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
         if not raw_tree or "Error" in raw_tree:
             return f"Verification Failed: Could not dump AX Tree. {raw_tree}"
 
@@ -370,7 +370,7 @@ async def quick_check_screen(
 
     while time.time() - check_start < timeout_seconds:
         try:
-            raw_tree = macos_driver.dump_ax_tree()
+            raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
             if not raw_tree or "Error" in raw_tree:
                 await asyncio.sleep(0.5)
                 continue

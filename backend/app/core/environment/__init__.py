@@ -44,19 +44,29 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
 
     logger.info("🌅 Agent awakening...")
 
-    # 1. Probe Environment (Fast path)
-    logger.info("  👁️ Probing environment...")
-    macos = await EnvironmentProbe.probe_macos()
-    android_devices = await EnvironmentProbe.probe_android_devices()
-    network = await EnvironmentProbe.probe_network()
-
-    # 2. Replay Memory
-    logger.info("  🧠 Replaying memory...")
-    memory_context = await replay_memory(project_id)
-
-    # 3. Prime Preferences
-    logger.info("  🎭 Priming preferences...")
-    pref_context = await prime_preferences(project_id)
+    # 1, 2, 3. Parallel Hydration of Awareness components
+    logger.info("  👁️ Awakening cognitive subsystems (Parallel)...")
+    
+    import asyncio
+    
+    # Bundle tasks
+    probe_macos_task = EnvironmentProbe.probe_macos()
+    probe_android_task = EnvironmentProbe.probe_android_devices()
+    probe_network_task = EnvironmentProbe.probe_network()
+    memory_task = replay_memory(project_id)
+    pref_task = prime_preferences(project_id)
+    
+    # Execute all
+    results = await asyncio.gather(
+        probe_macos_task,
+        probe_android_task,
+        probe_network_task,
+        memory_task,
+        pref_task
+    )
+    
+    # Assign results
+    macos, android_devices, network, memory_context, pref_context = results
 
     # 4. Compute capability boundaries
     boundaries = _compute_capability_boundaries(macos, android_devices, network)

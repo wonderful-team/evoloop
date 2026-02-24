@@ -103,7 +103,16 @@ def _parse_concepts(raw_data: str | list[str]) -> list[ConceptSummary]:
             continue
 
         # Try to split on colon or just use the line as name
-        if ":" in line:
+        # Fix: If it starts with android_layout:, we might have name:detail:desc
+        if line.startswith("android_layout:"):
+            parts = line.split(":", 2)
+            if len(parts) >= 2:
+                name = ":".join(parts[:2])
+                desc = parts[2].strip() if len(parts) > 2 else ""
+                concepts.append(ConceptSummary(name=name, description=desc))
+            else:
+                concepts.append(ConceptSummary(name=line))
+        elif ":" in line:
             name, desc = line.split(":", 1)
             concepts.append(ConceptSummary(name=name.strip(), description=desc.strip()))
         else:

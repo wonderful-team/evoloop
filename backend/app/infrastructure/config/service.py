@@ -3,14 +3,21 @@ from sqlmodel import Session, select
 from app.core.db import engine
 from app.models.config import SystemConfig
 
+_cache: dict[str, str] = {}
+
 
 class SystemConfigService:
     @staticmethod
     def get_value(key: str, default: str | None = None) -> str | None:
+        if key in _cache:
+            return _cache[key]
+
         with Session(engine) as session:
             config = session.get(SystemConfig, key)
             if config:
-                return config.value
+                val = config.value
+                _cache[key] = val
+                return val
             return default
 
     @staticmethod
@@ -27,6 +34,9 @@ class SystemConfigService:
                 session.add(config)
             session.commit()
             session.refresh(config)
+
+            # Update cache
+            _cache[key] = value
             return config
 
     @staticmethod

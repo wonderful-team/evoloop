@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any
@@ -143,13 +144,25 @@ class AgentEngine:
         history_messages = [m for m in messages if not isinstance(m, SystemMessage)]
 
         # Always prepend System Prompt
-        loop_messages = [SystemMessage(content=system_prompt)] + history_messages
+        # Optimization: Inject Prompt Caching for Anthropic if provider is set
+        if SystemConfigService.get_value("LLM_PROVIDER") == "anthropic":
+            system_msg = SystemMessage(content=[
+                {
+                    "type": "text",
+                    "text": system_prompt,
+                    "cache_control": {"type": "ephemeral"}
+                }
+            ])
+        else:
+            system_msg = SystemMessage(content=system_prompt)
+
+        loop_messages = [system_msg] + history_messages
 
         if not history_messages:
             logger.warning("[AgentEngine] No history messages (only System Prompt). Skipping LLM call to prevent API errors.")
             return {"messages": []}
 
-        logger.debug(f"--- [AgentEngine] System Prompt (First 500 chars) ---\n{system_prompt[:500]}...\n-----------------------------------------------------")
+        logger.debug(f"--- [AgentEngine] System Prompt ---\n{system_prompt}\n-----------------------------------------------------")
 
         new_messages = []
         local_tool_history = []
@@ -199,14 +212,15 @@ class AgentEngine:
                     }
 
             # Execute Tools
-            for tool_call in response.tool_calls:
-                tool_name = tool_call["name"]
-                tool_args = tool_call["args"]
-                tool_id = tool_call["id"]
+            # Execute Tools in Parallel (asyncio.gather)
+            async def _process_single_tool(tc):
+                tool_name = tc["name"]
+                tool_args = tc["args"]
+                tool_id = tc["id"]
 
                 logger.info(f"[{name}] 🛠️ Call: {tool_name} | Args: {json.dumps(tool_args)}")
 
-                # Check duplication (Phase 4 Autonomy: Allow state-mutating and pollable tools)
+                # Check duplication
                 tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
                 from app.core.tools.registry import (
                     get_tool_affected_paths,
@@ -214,25 +228,18 @@ class AgentEngine:
                     is_state_mutating_tool,
                 )
 
-                # We block if it's already in history AND it's neither state-mutating nor pollable
-                is_blocked = (
-                    tool_sig in local_tool_history
-                    and not is_state_mutating_tool(tool_name)
-                    and not is_pollable_tool(tool_name)
-                )
-
-                if is_blocked:
+                if (tool_sig in local_tool_history 
+                    and not is_state_mutating_tool(tool_name) 
+                    and not is_pollable_tool(tool_name)):
                     content = f"⚠️ SYSTEM ALERT: You have ALREADY executed `{tool_name}` with these exact arguments. Stop."
                     logger.warning(f"[{name}] 🛑 Prevented duplicate tool: {tool_sig}")
                 else:
                     local_tool_history.append(tool_sig)
-
                     tool = tool_map.get(tool_name)
                     executor = ToolExecutor()
 
                     if tool:
                         try:
-                            # Phase 18: Track diffs for atomic file tools
                             thread_id = config.get("configurable", {}).get("thread_id", "unknown")
                             snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
 
@@ -244,43 +251,49 @@ class AgentEngine:
                             # Execute Tool
                             content = await executor.execute(tool, tool_args, config=config)
 
-                            # --- Diff Tracking End ---
+                            # --- Diff Tracking (Calculated Sync, Persisted Async) ---
                             for path in snapshot_paths:
                                 try:
                                     operation, diff, original_content = diff_tracker.compute_diff(path, thread_id)
                                     if diff:
-                                        logger.info(f"📝 Diff Detected ({operation}) on {path}:\n{diff}")
-                                        # Persistence (Phase 24: Formal Changeset Tracking + Undo Support)
-                                        async with session_scope() as session:
-                                            # Use run_id if available for grouping, otherwise tool_id
+                                        logger.info(f"📝 Diff Detected ({operation}) on {path} (Persisting in Background)")
+                                        # Offload DB Write to Celery
+                                        try:
+                                            from app.celery_app import celery_app
                                             msg_id = config.get("configurable", {}).get("run_id") or tool_id
-                                            file_op = FileOperation(
-                                                thread_id=thread_id,
-                                                message_id=str(msg_id),
-                                                file_path=path,
-                                                operation=operation,
-                                                diff_content=diff,
-                                                original_content=original_content,  # For Undo
+                                            celery_app.send_task(
+                                                "engine_persist_file_operation",
+                                                kwargs={
+                                                    "thread_id": thread_id,
+                                                    "message_id": str(msg_id),
+                                                    "file_path": path,
+                                                    "operation": operation,
+                                                    "diff_content": diff,
+                                                    "original_content": original_content,
+                                                }
                                             )
-                                            session.add(file_op)
+                                        except Exception:
+                                            logger.warning("Failed to dispatch FileOperation to Celery.")
                                 except Exception as e:
-                                    logger.error(f"Failed to process diff/persistence for {path}: {e}")
+                                    logger.error(f"Failed to process diff for {path}: {e}")
 
                         except Exception as e:
                             content = f"Error executing {tool_name}: {e}"
                     else:
                         content = f"Error: Tool {tool_name} not found."
 
-                # Create ToolMessage using utility for ID
-                tool_msg = ToolMessage(
+                return ToolMessage(
                     content=truncate_message_content(str(content)),
                     tool_call_id=tool_id,
                     name=tool_name,
                     id=gen_uuid(),
                 )
 
-                logger.info(f"[{name}] ✅ Result ({tool_name}): {str(content)[:200]}...")
+            # Gather all tool results for this step
+            tool_results = await asyncio.gather(*[_process_single_tool(tc) for tc in response.tool_calls])
 
+            for tool_msg in tool_results:
+                logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)[:500]}...")
                 loop_messages.append(tool_msg)
                 new_messages.append(tool_msg)
 

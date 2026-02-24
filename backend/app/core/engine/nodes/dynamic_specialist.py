@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 from typing import Any
@@ -41,17 +42,18 @@ class DynamicSpecialistNode:
         instructions = agent_config.get("system_instructions", "You are a helpful assistant.")
         tool_names = agent_config.get("tools", [])
 
-        logger.info(f"[DynamicSpecialist] 🦎 Hydrating as '{role_name}' with tools: {tool_names}")
-
-        # 1. Hydrate Tools (Progressive Disclosure)
-        # The new ToolManager automatically parses the execution_ticket (including agent_config.tools
-        # and mcp_servers_required) and securely binds exactly what we need without prompt explosion.
-        tools = tool_manager.get_node_tools("dynamic_specialist", state)
-
-        # 2a. Fetch Relevant Skills/Knowledge (JIT Injection - Phase 5)
-        # Using the SkillHydrator middleware to handle Eager/Lazy patterns
+        # 1 & 2. Parallel Hydration (Optimization Phase 5)
+        # We fetch tools and skills concurrently to reduce latency.
         from app.core.engine.nodes.utils import SkillHydrator
-        relevant_sops = await SkillHydrator.get_node_skills(state, "dynamic_specialist")
+
+        logger.info(f"[DynamicSpecialist] 🦎 Hydrating '{role_name}'...")
+        
+        # Note: tool_manager.get_node_tools is currently sync but fast (cached). 
+        # get_node_skills involves SkillDiscovery (now has Redis cache).
+        tools_task = asyncio.to_thread(tool_manager.get_node_tools, "dynamic_specialist", state)
+        skills_task = SkillHydrator.get_node_skills(state, "dynamic_specialist")
+
+        tools, relevant_sops = await asyncio.gather(tools_task, skills_task)
 
         # 2b. Fetch Environmental Knowledge from Awakening System (Brain/Cache)
         awakened_env = get_awakened_state()

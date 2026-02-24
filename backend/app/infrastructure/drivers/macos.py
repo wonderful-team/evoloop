@@ -3,6 +3,7 @@ MacOS Driver - Low-level operations for desktop control.
 Uses native MacOS commands: screencapture, osascript, open.
 """
 
+import json
 import logging
 import os
 import subprocess
@@ -393,8 +394,115 @@ class MacOSDriver:
     def dump_ax_tree() -> str:
         """
         Extract the Accessibility (AX) Tree of the frontmost application.
-        Returns a JSON-like string of UI elements.
+        Uses native Accessibility APIs for high performance.
+        Returns a JSON-able list of dictionaries.
         """
+        try:
+            from AppKit import NSWorkspace
+            from HIServices import (
+                AXUIElementCopyAttributeValue,
+                AXUIElementCreateApplication,
+            )
+            # Use literal strings for constants to ensure robustness across PyObjC versions
+            kAXChildrenAttribute = "AXChildren"
+            kAXDescriptionAttribute = "AXDescription"
+            kAXNameAttribute = "AXName"
+            kAXPositionAttribute = "AXPosition"
+            kAXRoleAttribute = "AXRole"
+            kAXSizeAttribute = "AXSize"
+            kAXWindowsAttribute = "AXWindows"
+
+            workspace = NSWorkspace.sharedWorkspace()
+            active_app = workspace.frontmostApplication()
+            if not active_app:
+                return "[]"
+
+            pid = active_app.processIdentifier()
+            app_element = AXUIElementCreateApplication(pid)
+
+            # Get front window
+            error, windows = AXUIElementCopyAttributeValue(app_element, kAXWindowsAttribute, None)
+            if error != 0 or not windows:
+                return "[]"
+            
+            # Usually the first window in the list is the frontmost/active window
+            front_window = windows[0]
+
+            def get_element_data(element, depth=0, max_depth=2):
+                if depth > max_depth:
+                    return None
+                
+                data = {}
+                # Role
+                _, role = AXUIElementCopyAttributeValue(element, kAXRoleAttribute, None)
+                data["role"] = str(role) if role else "AXUnknown"
+                
+                # Name
+                _, name = AXUIElementCopyAttributeValue(element, kAXNameAttribute, None)
+                if not name:
+                    _, name = AXUIElementCopyAttributeValue(element, kAXDescriptionAttribute, None)
+                data["name"] = str(name) if name else ""
+
+                # Pos & Size
+                _, pos = AXUIElementCopyAttributeValue(element, kAXPositionAttribute, None)
+                _, size = AXUIElementCopyAttributeValue(element, kAXSizeAttribute, None)
+                
+                if pos and size:
+                    # pos and size are structs/dicts depending on the wrapper
+                    # In many PyObjC environments, they have x, y or are lists
+                    try:
+                        data["bounds"] = [int(pos.x), int(pos.y), int(size.width), int(size.height)]
+                    except AttributeError:
+                        # Fallback for different wrapper versions
+                        data["bounds"] = [0, 0, 0, 0]
+                else:
+                    data["bounds"] = [0, 0, 0, 0]
+
+                # Optimization: Only recurse for specific roles like toolbars or groups
+                if depth < max_depth:
+                    _, children = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute, None)
+                    if children:
+                        data_children = []
+                        for child in children:
+                            child_data = get_element_data(child, depth + 1, max_depth)
+                            if child_data:
+                                data_children.append(child_data)
+                        if data_children:
+                            data["children"] = data_children
+                
+                return data
+
+            # Capture tree starting from front window
+            tree = get_element_data(front_window)
+            if not tree:
+                return "[]"
+
+            # Flatten or format to match previous structure (list of elements)
+            flattened = []
+            
+            def flatten(node, path="window 1"):
+                # Simplified node for the list
+                item = {
+                    "name": node["name"],
+                    "role": node["role"],
+                    "path": path,
+                    "bounds": node["bounds"]
+                }
+                flattened.append(item)
+                
+                # Append children with path tracking
+                if "children" in node:
+                    for i, child in enumerate(node["children"]):
+                        flatten(child, path=f"{path} > {child['role']} {i+1}")
+
+            flatten(tree)
+            return json.dumps(flattened)
+
+        except Exception as e:
+            logger.error(f"Native dump_ax_tree failed: {e}", exc_info=True)
+            logger.debug("Falling back to AppleScript.")
+
+        # FALLBACK TO APPLESCRIPT
         script = """
         set jsonOutput to "["
         tell application "System Events"
@@ -534,7 +642,45 @@ class MacOSDriver:
     def get_current_app() -> dict:
         """
         Get the currently focused MacOS application and window title.
+        Uses AppKit and Quartz for high performance (no osascript).
         """
+        try:
+            # TRY NATIVE FIRST (FAST)
+            from AppKit import NSWorkspace
+            from Quartz import (
+                CGWindowListCopyWindowInfo,
+                kCGNullWindowID,
+                kCGWindowLayer,
+                kCGWindowListExcludeDesktopElements,
+                kCGWindowListOptionOnScreenOnly,
+            )
+
+            workspace = NSWorkspace.sharedWorkspace()
+            active_app = workspace.frontmostApplication()
+            if not active_app:
+                return {"name": "unknown", "bundle_id": "unknown", "title": "unknown"}
+
+            app_name = active_app.localizedName() or "unknown"
+            bundle_id = active_app.bundleIdentifier() or "unknown"
+            pid = active_app.processIdentifier()
+
+            # Get window title via Quartz (much faster than osascript)
+            win_title = ""
+            window_list = CGWindowListCopyWindowInfo(
+                kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID
+            )
+            if window_list:
+                for window in window_list:
+                    if window.get("kCGWindowOwnerPID") == pid and window.get("kCGWindowLayer") == 0:
+                        win_title = window.get("kCGWindowName", "")
+                        break
+
+            return {"name": app_name, "bundle_id": bundle_id, "title": win_title}
+
+        except Exception as e:
+            logger.debug(f"Native get_current_app failed: {e}. Falling back to AppleScript.")
+
+        # FALLBACK TO APPLESCRIPT (SLOW)
         script = '''
         tell application "System Events"
             set frontApp to first application process whose frontmost is true
@@ -560,7 +706,7 @@ class MacOSDriver:
                 }
             return {"name": "unknown", "bundle_id": "unknown", "title": "unknown"}
         except Exception as e:
-            logger.error(f"Failed to get current MacOS app: {e}")
+            logger.error(f"Failed to get current MacOS app via AppleScript: {e}")
             return {"name": "error", "bundle_id": "error", "title": "error"}
 
     @staticmethod
@@ -576,26 +722,23 @@ class MacOSDriver:
 
     @staticmethod
     def check_accessibility_permission() -> bool:
-
         """
         Check if accessibility permissions are granted.
-
-        Returns:
-            True if permissions are granted, False otherwise
         """
-        script = '''
-        tell application "System Events"
-            return UI elements enabled
-        end tell
-        '''
+        try:
+            from ApplicationServices import AXIsProcessTrusted
+            return AXIsProcessTrusted()
+        except Exception:
+            pass
 
+        # Fallback to osascript
+        script = 'tell application "System Events" to return UI elements enabled'
         result = subprocess.run(
             ["osascript", "-e", script],
             capture_output=True,
             text=True,
             timeout=5
         )
-
         return result.returncode == 0 and "true" in result.stdout.lower()
 
 

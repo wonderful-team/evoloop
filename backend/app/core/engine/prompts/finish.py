@@ -1,13 +1,15 @@
-import json
-
+import os
+import logging
+from jinja2 import Environment, FileSystemLoader
 from app.infrastructure.config.service import SystemConfigService
+
+logger = logging.getLogger(__name__)
 
 
 class FinishPromptBuilder:
     """
-    Constructs the system prompt for the Session Reviewer agent.
+    Constructs the system prompt for the Session Reviewer agent via Jinja2.
     """
-
     def __init__(
         self,
         current_plan: str,
@@ -20,31 +22,25 @@ class FinishPromptBuilder:
         self.verification_status = verification_status
         self.action_context = action_context
 
+        template_dir = os.path.join(os.path.dirname(__file__), "templates")
+        self.env = Environment(loader=FileSystemLoader(template_dir))
+
     def build(self) -> str:
         """
-        Builds the final Reviewer system prompt.
+        Builds the final Reviewer system prompt via Jinja2.
         """
-        ticket_str = json.dumps(self.execution_ticket, indent=2) if self.execution_ticket else "None"
-        v_status_str = json.dumps(self.verification_status, indent=2) if self.verification_status else "No verification recorded"
-        user_lang = SystemConfigService.get_language_preference()
+        template_vars = {
+            "user_lang": SystemConfigService.get_language_preference(),
+            "blackboard": {
+                "ticket": self.execution_ticket,
+                "verification": self.verification_status,
+            },
+            "audit_context": self.action_context,
+        }
 
-        return f"""You are the **Session Reviewer** (Acceptance Expert). 
-Your task is to audit the conversation history and the technical outcomes to decide if the session should be finalized.
-
-### Your Objectives:
-1. **Audit Mission Success**: Compare the conversation history and the "BLACKBOARD STATUS" below against the User's request and the Technical Plan.
-2. **Harvest Knowledge**: If deep technical patterns or architecture decisions were made, consider routing to "documenter" for harvesting, or call `memorize_concepts` directly if it's straightforward.
-3. **Finalize or Backtrack**:
-   - **Mission Success?**: Call `finalize_session(summary="...", mission_achieved=True)` to end the session.
-   - **Incomplete/Failed?**: Call `route_to(target="operator", reason="...")` to ask the operator to fix the issues. NEVER finalize a project that has failing critical tests or incomplete requirements.
-
-### BLACKBOARD STATUS (MISSION TRUTH):
-- **Execution Ticket**: {ticket_str}
-- **Verification Status**: {v_status_str}
-- **Audit Context (Changes/Activity)**: {self.action_context}
-
-### Knowledge & State Audit:
-If the system state or environment changed significantly but knowledge artifacts (e.g., Wiki, documentation) were NOT updated, consider routing to "documenter" before finalizing.
-
-User Language Preference: {user_lang}. Please write the final summary in this language.
-"""
+        try:
+            template = self.env.get_template("reviewer.prompt.j2")
+            return template.render(**template_vars)
+        except Exception as e:
+            logger.error(f"Error rendering Reviewer template: {e}")
+            return f"You are the Session Reviewer. Error loading template: {e}"

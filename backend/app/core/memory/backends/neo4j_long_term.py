@@ -1,6 +1,5 @@
-"""Neo4j implementation of long-term memory."""
-
 import logging
+import time
 import uuid
 
 from app.core.config import settings
@@ -14,6 +13,10 @@ from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.embeddings.factory import EmbedderFactory
 
 logger = logging.getLogger(__name__)
+
+# In-memory cache for project concepts with TTL
+_CONCEPTS_CACHE: dict[int, tuple[list[str], float]] = {}
+_CACHE_TTL = 60.0  # 60 seconds
 
 
 class Neo4jLongTermMemory(ILongTermMemory):
@@ -132,6 +135,9 @@ class Neo4jLongTermMemory(ILongTermMemory):
             await session.run("MATCH (e:Episode) DETACH DELETE e")
             await session.run("MATCH (p:Preference) DETACH DELETE p")
             await session.run("MATCH (u:User) DETACH DELETE u")
+        
+        # Clear cache
+        _CONCEPTS_CACHE.clear()
         logger.info("Neo4jLongTermMemory: Flushed all data")
 
     async def store_concept(self, concept: Concept) -> None:
@@ -172,6 +178,8 @@ class Neo4jLongTermMemory(ILongTermMemory):
                     """
                     await session.run(file_query, name=concept.name, pid=pid_val, path=file_path)
 
+        # Invalidate cache
+        _CONCEPTS_CACHE.pop(pid_val, None)
         logger.info(f"Stored Concept (Vectorized): {concept.name} (Project {pid_val})")
 
     async def search_concepts(
@@ -421,6 +429,11 @@ class Neo4jLongTermMemory(ILongTermMemory):
 
     async def get_project_concepts(self, project_id: int) -> list[str]:
         """Retrieve all concepts associated with a project."""
+        if project_id in _CONCEPTS_CACHE:
+            payload, timestamp = _CONCEPTS_CACHE[project_id]
+            if time.time() - timestamp < _CACHE_TTL:
+                return payload
+
         driver = await get_graph_db()
         pid_val = project_id if project_id else 0
 
@@ -435,9 +448,13 @@ class Neo4jLongTermMemory(ILongTermMemory):
             records = await result.data()
 
         if not records:
-            return []
+            res = []
+        else:
+            res = [f"{r['name']}: {r['description']}" for r in records]
 
-        return [f"{r['name']}: {r['description']}" for r in records]
+        # Update cache
+        _CONCEPTS_CACHE[project_id] = (res, time.time())
+        return res
 
     async def delete_episodes_by_message_ids(self, message_ids: list[str]) -> int:
         """Delete episodes linked to specific message IDs."""

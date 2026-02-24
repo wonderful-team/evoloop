@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from typing import Any
@@ -41,7 +42,7 @@ def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:
     return deserialized
 
 
-async def _setup_project_context(thread_id: str, project_id: int, command_id: int | None = None):
+async def _setup_project_context(thread_id: str, project_id: int, command_id: int | None = None, loaded_ctx: EvoContext | None = None):
     """Initialize working directory and context vars."""
     # Phase 2 Decoupling: Use API module directly
     from app.core.evocloud import evocloud_manager
@@ -51,8 +52,8 @@ async def _setup_project_context(thread_id: str, project_id: int, command_id: in
 
     working_dir = thread_context_store.get_working_directory(thread_id)
 
-    # Phase 4 Autonomy: Attempt to load persistent context from Redis first
-    ctx = await ContextManager.load_from_redis(thread_id)
+    # Phase 4 Autonomy: Use pre-loaded context from parallel gather
+    ctx = loaded_ctx
     if not ctx:
         # Initialize Core Context
         ctx = EvoContext(
@@ -112,9 +113,30 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         inputs["iteration_count"] = inputs.get("iteration_count", 0)
         project_id = inputs.get("project_id", 1)
 
-        # 2. Context Setup
+        # 2. Context & DB Preparation (Parallelized)
         evoloop_command_id = inputs.get("command_id")
-        working_dir = await _setup_project_context(thread_id, project_id, evoloop_command_id)
+
+        async def get_max_seq():
+            try:
+                async with session_scope() as session:
+                    stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
+                    result = await session.execute(stmt)
+                    return result.scalar() or 0
+            except Exception as e:
+                logger.warning(f"Failed to fetch max sequence number: {e}")
+                return 0
+
+        # Run project setup, DB conversation check, sequence lookup, and Redis context load in parallel
+        setup_results = await asyncio.gather(
+            _ensure_conversation_in_db(thread_id, project_id, inputs),
+            get_max_seq(),
+            ContextManager.load_from_redis(thread_id) # Phase 4 Parallel context load
+        )
+        start_seq = setup_results[1]
+        loaded_ctx = setup_results[2]
+
+        # Project setup (needs result of thread_context_store and potentially loaded_ctx)
+        working_dir = await _setup_project_context(thread_id, project_id, evoloop_command_id, loaded_ctx=loaded_ctx)
 
         # 3. Config Construction
         config = {
@@ -129,22 +151,6 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         if inputs.get("checkpoint_id"):
             config["configurable"]["checkpoint_id"] = inputs["checkpoint_id"]
 
-        # 4. Callbacks & DB Init
-        # Ensure Conversation Exists
-        await _ensure_conversation_in_db(thread_id, project_id, inputs)
-
-        # Get Start Sequence
-        start_seq = 0
-        try:
-            async with session_scope() as session:
-                stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
-                result = await session.execute(stmt)
-                max_seq = result.scalar()
-                if max_seq is not None:
-                    start_seq = max_seq
-        except Exception as e:
-            logger.warning(f"Failed to fetch max sequence number: {e}")
-
         # Initialize Handlers
         callback = TransparentCallbackHandler(thread_id=thread_id)
         db_callback = DatabaseCallbackHandler(
@@ -157,12 +163,13 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         # 5. Execution
         await activity_monitor.start_run(thread_id)
 
-        # Memory Injection
+        # Memory Injection (Parallelized)
         from app.core.memory import memory_manager
 
-        user_prefs = await memory_manager.preferences.get_merged_preferences("user_default")
-        concepts_text = await memory_manager.long_term.get_project_concepts(project_id)
-        concepts_formatted = "\n".join(concepts_text) if concepts_text else "No concepts stored yet."
+        user_prefs, concepts_text = await asyncio.gather(
+            memory_manager.preferences.get_merged_preferences("user_default"),
+            memory_manager.long_term.get_project_concepts(project_id)
+        )
         inputs["user_preferences"] = user_prefs
         inputs["project_concepts"] = concepts_text
 

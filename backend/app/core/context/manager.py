@@ -132,38 +132,81 @@ class ContextManager:
     async def save_to_redis(thread_id: str) -> None:
         """
         Phase 4 Autonomy: Persist the current context to Redis using the thread_id.
-        Ensures subconscious pool survives restarts.
+        Uses HSET for individual fields to allow for partial updates and prevent 
+        serialization bottlenecks.
         """
         ctx = ContextManager.current()
         if ctx.request_id == "global-fallback":
-            return  # Don't save empty/fallback context
+            return
 
-        ctx.thread_id = thread_id  # Ensure it matches the save key
+        ctx.thread_id = thread_id
         key = f"evo:context:{thread_id}"
 
         try:
-            # Save with a 7-day expiration to prevent infinite buildup
-            await redis_client.setex(key, 604800, json.dumps(ctx.to_dict()))
+            # Map context to flat dictionary for HSET
+            # Convert lists/dicts to JSON strings within fields
+            data = ctx.to_dict()
+            hset_data = {}
+            for k, v in data.items():
+                if isinstance(v, (list, dict)):
+                    hset_data[k] = json.dumps(v)
+                elif v is None:
+                    hset_data[k] = ""
+                else:
+                    hset_data[k] = str(v)
+
+            if hset_data:
+                await redis_client.hset(key, mapping=hset_data)
+                # Set expiration on the hash key (7 days)
+                await redis_client.expire(key, 604800)
+
         except Exception as e:
             import logging
-            logging.getLogger(__name__).warning(f"Failed to save context to Redis: {e}")
+            logging.getLogger(__name__).warning(f"Failed to save context to Redis (HSET): {e}")
 
     @staticmethod
     async def load_from_redis(thread_id: str) -> EvoContext | None:
         """
         Phase 4 Autonomy: Load context from Redis using the thread_id and set it as current.
+        Supports Hash mapping (HGETALL).
         """
         key = f"evo:context:{thread_id}"
         try:
-            data_str = await redis_client.get(key)
-            if data_str:
-                data_dict = json.loads(data_str)
-                ctx = EvoContext.from_dict(data_dict)
+            data = await redis_client.hgetall(key)
+            if data:
+                # Convert potential bytes to strings and parse JSON for collections
+                reconstructed = {}
+                # Field types expected by from_dict/dataclass
+                list_fields = {
+                    "short_term_memory", "active_boundaries", "spatial_awareness", 
+                    "environment_summaries", "memory_replay", "identity_rules"
+                }
+                dict_fields = {"metadata"}
+                
+                for k, v in data.items():
+                    if isinstance(v, bytes):
+                        v = v.decode("utf-8")
+                    
+                    if k in list_fields or k in dict_fields:
+                        try:
+                            reconstructed[k] = json.loads(v) if v else ([] if k in list_fields else {})
+                        except Exception:
+                            reconstructed[k] = [] if k in list_fields else {}
+                    elif k == "timestamp":
+                        reconstructed[k] = float(v) if v else 0.0
+                    elif k == "is_dry_run":
+                        reconstructed[k] = v.lower() == "true"
+                    elif k == "project_id" or k == "command_id":
+                        reconstructed[k] = int(v) if v and v.isdigit() else None
+                    else:
+                        reconstructed[k] = v if v != "" else None
+
+                ctx = EvoContext.from_dict(reconstructed)
                 ContextManager.set(ctx)
                 return ctx
         except Exception as e:
             import logging
-            logging.getLogger(__name__).warning(f"Failed to load context from Redis: {e}")
+            logging.getLogger(__name__).warning(f"Failed to load context from Redis (HGETALL): {e}")
 
         return None
 

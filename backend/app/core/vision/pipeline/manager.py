@@ -142,14 +142,17 @@ class PipelineManager:
         compressed_path = None
 
         if screenshot_path and os.path.exists(screenshot_path):
-            compressed_path = smart_compress(screenshot_path)
+            # 1. Compute hash of original screenshot first to avoid redundant compression
+            scene_hash = scene_cache.compute_hash(screenshot_path)
 
-            # Check cache
-            if use_cache:
-                scene_hash = scene_cache.compute_hash(compressed_path)
+            # 2. Check cache using original hash
+            if use_cache and scene_hash:
                 cached = scene_cache.get(scene_hash)
                 if cached is not None:
-                    return cached, compressed_path
+                    return cached, None  # No compressed path needed for cache hit
+
+            # 3. Cache Miss: Compress and detect
+            compressed_path = smart_compress(screenshot_path)
 
         # Run available providers in parallel
         available_providers = []

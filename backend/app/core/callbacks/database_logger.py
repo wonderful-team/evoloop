@@ -10,6 +10,7 @@ from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 from sqlalchemy import desc, select
 
+from app.celery_app import celery_app
 from app.core.evocloud import evocloud_manager
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
@@ -292,134 +293,82 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         try:
             self._sequence_counter += 1
-            async with session_scope() as session:
-                # ... (Parent ID logic unchanged)
-                parent_id = None
-                stmt = (
-                    select(Message.id)
-                    .where(Message.thread_id == self.thread_id)
-                    .order_by(desc(Message.sequence_number))
-                    .limit(1)
-                )
-                result = await session.execute(stmt)
-                parent_id = result.scalar_one_or_none()
+            # Parent ID and DB Persistence now offloaded to Celery background task
+            # to prevent blocking the agent loop with IO.
 
-                log = Message(
-                    thread_id=self.thread_id,
-                    project_id=self.project_id,
-                    role=role,
-                    content=content,
-                    thinking=thinking,
-                    sequence_number=self._sequence_counter,
-                    run_id=self.run_id,
-                    status=status,
-                    parent_id=parent_id,
-                    tool_calls=tool_calls,
-                    # tool_output=tool_output, # DEPRECATED
-                    action_type=action_type,
-                )
-                session.add(log)
-                await session.flush()  # Get ID
+            # Send to Background
+            celery_app.send_task(
+                "engine_persist_message",
+                kwargs={
+                    "thread_id": self.thread_id,
+                    "project_id": self.project_id,
+                    "role": role,
+                    "content": content,
+                    "thinking": thinking,
+                    "sequence_number": self._sequence_counter,
+                    "run_id": self.run_id,
+                    "status": status,
+                    "tool_calls": tool_calls,
+                    "references": references,
+                    "action_type": action_type,
+                }
+            )
 
-                # Real-time History Sync
-                try:
-                    from app.core.monitoring.activity import activity_monitor
+            # Real-time History Sync (Non-blocking Redis Publish)
+            try:
+                from app.core.monitoring.activity import activity_monitor
 
-                    # Map action_type to frontend type
-                    # Mobile expects: 'user', 'thought', 'tool', 'error', 'hitl_request'
-                    frontend_type = "text"
-                    if log.role == "user":
-                        frontend_type = "user"
-                    elif log.action_type == "tool_output":
-                        frontend_type = "tool"
-                    elif log.action_type == "thinking":
-                        frontend_type = "thought"
+                # Map action_type to frontend type
+                frontend_type = "text"
+                if role == "user":
+                    frontend_type = "user"
+                elif action_type == "tool_output":
+                    frontend_type = "tool"
+                elif action_type == "thinking":
+                    frontend_type = "thought"
 
-                    msg_data = {
-                        "id": str(log.id),
-                        "role": log.role,
-                        "content": log.content,
-                        "thinking": log.thinking,
-                        "type": frontend_type,
-                        "action_type": log.action_type,
-                        "tool_calls": log.tool_calls,
-                    }
+                msg_data = {
+                    "id": f"temp-{time.time()}",  # Temp ID for UI, DB id will follow
+                    "role": role,
+                    "content": content,
+                    "thinking": thinking,
+                    "type": frontend_type,
+                    "action_type": action_type,
+                    "tool_calls": tool_calls,
+                }
 
-                    # Fire and forget
-                    if activity_monitor and hasattr(activity_monitor, "client"):
-                        await activity_monitor.client.publish(
-                            f"chat:{self.thread_id}:events",
-                            MessageEvent(data=msg_data).json(),
-                        )
-                except Exception:
-                    pass
+                # Fire and forget
+                if activity_monitor and hasattr(activity_monitor, "client"):
+                    await activity_monitor.client.publish(
+                        f"chat:{self.thread_id}:events",
+                        MessageEvent(data=msg_data).json(),
+                    )
+            except Exception:
+                pass
 
-                # Save References
-                if references:
-                    from app.models import MessageReference
-
-                    for ref in references:
-                        mr = MessageReference(
-                            id=str(UUID(int=hash(f"{log.id}-{ref['target_id']}-{time.time()}") & ((1 << 128) - 1))),
-                            # Pseudo UUID
-                            message_id=log.id,
-                            type=ref["type"],
-                            target_id=ref["target_id"],
-                            target_name=ref["target_name"],
-                        )
-                        session.add(mr)
-
-                # session_scope commits automatically
         except Exception as e:
-            # Phase 18 Fix: Log error explicitly. Do not swallow fatal DB errors silently,
-            # although we might still want to avoid crashing the whole agent if just logging fails?
-            # Actually, if logging fails, we lose history. It's critical.
-            # But crashing the agent mid-thought is also bad.
-            # Let's log ERROR and re-raise if it's a connection issue?
-            # For now, just logging ERROR is better than silent 'pass'.
             import logging
-            logging.getLogger(__name__).error(f"CRITICAL: Failed to persist message log: {e}", exc_info=True)
+            logging.getLogger(__name__).error(f"CRITICAL: Failed to publish message event or offload to background: {e}", exc_info=True)
             # We don't re-raise to avoid killing the agent execution loop,
             # but this error will now be visible in logs.
 
     async def snapshot_steps_to_last_message(self, steps: list):
         """
         Phase 6: Persist executed steps to the last AI message for historical rendering.
-        Called when a run completes (done/failed/cancelled).
+        Offloaded to Celery to avoid blocking the agent loop.
         """
         if not steps:
             return
 
         try:
-            async with session_scope() as session:
-                # Find the last AI message for this thread/run
-                stmt = (
-                    select(Message)
-                    .where(Message.thread_id == self.thread_id)
-                    .where(Message.role == "ai")
-                )
-                if self.run_id:
-                    stmt = stmt.where(Message.run_id == self.run_id)
-                stmt = stmt.order_by(desc(Message.sequence_number)).limit(1)
-
-                result = await session.execute(stmt)
-                last_msg = result.scalar_one_or_none()
-
-                if last_msg:
-                    # Serialize steps (strip non-essential fields like start_time)
-                    serialized_steps = [
-                        {
-                            "id": t.get("id"),
-                            "name": t.get("name"),
-                            "status": t.get("status"),
-                            "type": t.get("type"),
-                            "time": t.get("time"),
-                            "details": t.get("details"),
-                        }
-                        for t in steps
-                    ]
-                    last_msg.steps_snapshot = serialized_steps
-                    # session commits on exit
+            celery_app.send_task(
+                "engine_snapshot_steps",
+                kwargs={
+                    "thread_id": self.thread_id,
+                    "project_id": self.project_id,
+                    "run_id": self.run_id,
+                    "steps": steps
+                }
+            )
         except Exception:
-            # Non-critical - don't crash the run
             pass

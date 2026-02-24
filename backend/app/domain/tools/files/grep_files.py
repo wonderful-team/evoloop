@@ -1,3 +1,4 @@
+import asyncio
 from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
@@ -11,7 +12,7 @@ from .actions.utils import resolve_and_validate_path
 
 
 @evoloop_tool
-def grep_files(
+async def grep_files(
     pattern: str,
     path: str = ".",
     case_insensitive: bool = False,
@@ -37,7 +38,7 @@ def grep_files(
     cmd.append(pattern)
     cmd.append(target_path)
 
-    res = run_command(cmd)
+    res = await asyncio.to_thread(run_command, cmd)
     if not res.success:
         # grep returns 1 if no lines found
         if res.returncode == 1:

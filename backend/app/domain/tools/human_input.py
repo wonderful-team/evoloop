@@ -2,7 +2,7 @@
 Human-in-the-Loop Tools for Agent collaboration with users.
 Enables the agent to pause execution, request user input, and seek approval for actions.
 """
-
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Literal
@@ -237,9 +237,9 @@ async def request_human_input(
         },
     )
 
-    # Sync to EvoCloud (Mobile)
+    # Sync to EvoCloud (Mobile) - Backgrounded to ensure immediate interrupt
     try:
-        await evocloud_manager.upload_log(
+        asyncio.create_task(evocloud_manager.upload_log(
             thread_id=thread_id,
             log_type="hitl_request",
             content={
@@ -252,9 +252,9 @@ async def request_human_input(
             },
             project_id=project_id,
             command_id=command_id,
-        )
+        ))
     except Exception as e:
-        logger.warning(f"Failed to sync HITL request: {e}")
+        logger.warning(f"Failed to initiate HITL request sync: {e}")
 
     # Raise Interrupt Exception to pause execution
     # This ensures the graph stops immediately
@@ -345,9 +345,9 @@ async def request_approval(
         },
     )
 
-    # Sync to EvoCloud (Mobile)
+    # Sync to EvoCloud (Mobile) - Backgrounded
     try:
-        await evocloud_manager.upload_log(
+        asyncio.create_task(evocloud_manager.upload_log(
             thread_id=thread_id,
             log_type="hitl_request",
             content={
@@ -360,9 +360,9 @@ async def request_approval(
             },
             project_id=project_id,
             command_id=command_id,
-        )
+        ))
     except Exception as e:
-        logger.warning(f"Failed to sync HITL request: {e}")
+        logger.warning(f"Failed to initiate HITL approval sync: {e}")
 
     # Raise Interrupt Exception to pause execution
     raise AgentHumanInterruptException(request.id, response_text)

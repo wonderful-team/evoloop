@@ -1,3 +1,5 @@
+import asyncio
+
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
 from app.domain.codebase.retrieval.graph_explorer import graph_explorer
@@ -25,13 +27,18 @@ async def search_codebase(query: str, project_id: int | None = None) -> str:
     # Resolve implicit context
     pid = project_id or ContextManager.current().project_id or 1
 
-    # 1. Graph / Structure Search (Exact/Fuzzy Symbol Match)
-    try:
-        # We assume query might be a symbol name.
-        # Don't try graph search if query is clearly a natural language sentence
-        if len(query.split()) < 3:
-            graph_result = await retriever.get_entity_relations(query, project_id=pid)
-            if "error" not in graph_result:
+    # Run both searches in parallel
+    graph_task = None
+    if len(query.split()) < 3:
+        graph_task = asyncio.create_task(retriever.get_entity_relations(query, project_id=pid))
+
+    vector_task = asyncio.create_task(retriever.search(query, project_id=pid, limit=5))
+
+    # 1. Handle Graph / Structure Search
+    if graph_task:
+        try:
+            graph_result = await graph_task
+            if graph_result and "error" not in graph_result:
                 relations = graph_result.get("relations", {})
                 outgoing = relations.get("outgoing", [])
                 incoming = relations.get("incoming", [])
@@ -50,13 +57,12 @@ async def search_codebase(query: str, project_id: int | None = None) -> str:
                         graph_text.append(f"- {r}")
 
                 output_parts.append("\n".join(graph_text))
-    except Exception as e:
-        # Graph failure shouldn't block RAG
-        output_parts.append(f"(Graph lookup failed: {e})")
+        except Exception as e:
+            output_parts.append(f"(Graph lookup failed: {e})")
 
-    # 2. Semantic Search (RAG)
+    # 2. Handle Semantic Search (RAG)
     try:
-        results = await retriever.search(query, project_id=pid, limit=5)
+        results = await vector_task
         if results:
             rag_text = ["### 📄 Semantic Matches:"]
             for r in results:

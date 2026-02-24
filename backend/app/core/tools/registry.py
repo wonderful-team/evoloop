@@ -42,6 +42,10 @@ class AutoDiscoveryRegistry:
             self._tools.append(tool)
             logger.debug(f"Manually registered tool: {tool.name}")
 
+            # Invalidate global cache
+            global _cached_tool_map
+            _cached_tool_map = None
+
     def scan(self, package_name: str):
         """
         Recursively scan a package for tools.
@@ -84,6 +88,10 @@ class AutoDiscoveryRegistry:
                         if obj not in self._tools:
                             self._tools.append(obj)
                             logger.debug(f"Registered tool: {obj.name} from {module.__name__}")
+
+                            # Invalidate global cache
+                            global _cached_tool_map
+                            _cached_tool_map = None
                 except Exception as e:
                     logger.warning(f"Failed to inspect tool {name} in {module.__name__}: {e}")
 
@@ -105,12 +113,33 @@ REGISTRY.scan("app.core.brain.tools")
 
 # --- Core Registry Accessors ---
 
+_cached_tool_map: dict[str, BaseTool] | None = None
+_cached_node_tools: dict[str, list[BaseTool]] = {}  # Cache for role-level hydration
+
+
+def clear_registry_cache():
+    """Clear all internal caches (e.g. after dynamic skill import)."""
+    global _cached_tool_map
+    _cached_tool_map = None
+    _cached_node_tools.clear()
+    _load_yaml_config.cache_clear()
+
+
+def get_tool_map() -> dict[str, BaseTool]:
+    """Return a cached mapping of tool names to objects."""
+    global _cached_tool_map
+    if _cached_tool_map is None:
+        all_available = REGISTRY.get_all_tools() + get_runtime_tools()
+        _cached_tool_map = {t.name: t for t in all_available if t.name}
+    return _cached_tool_map
+
+
 def get_all_tools() -> list[BaseTool]:
     """
     Return a list of all natively available python tools (Static + Runtime).
     WARNING: Does NOT include MCP tools. Use ToolManager for that.
     """
-    return REGISTRY.get_all_tools() + get_runtime_tools()
+    return list(get_tool_map().values())
 
 
 def get_tools_by_names(
@@ -121,8 +150,7 @@ def get_tools_by_names(
     Hydrate a list of tool names into actual BaseTool objects.
     Uses AutoDiscoveryRegistry as lookup source. MCP tools are managed by ToolManager.
     """
-    all_available = get_all_tools()
-    tool_map = {t.name: t for t in all_available if t.name}
+    tool_map = get_tool_map()
 
     hydrated_tools: list[BaseTool] = []
     missing_tools: list[str] = []
@@ -182,6 +210,10 @@ def _report_missing_tools(node_role: str, missing_tools: list[str]):
 
 def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseTool]:
     """Get tools for a specific agent node/role from YAML config."""
+    # 0. Check cache first
+    if not config_path and node_role in _cached_node_tools:
+        return _cached_node_tools[node_role]
+
     config = _load_yaml_config(config_path)
     tool_names: list[str] = []
 
@@ -201,7 +233,13 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
         _report_missing_tools(node_role, [f"<no config for role '{node_role}'>"])
         return []
 
-    return get_tools_by_names(tool_names, source_role=node_role)
+    hydrated = get_tools_by_names(tool_names, source_role=node_role)
+
+    # Cache if using default config
+    if not config_path:
+        _cached_node_tools[node_role] = hydrated
+
+    return hydrated
 
 
 # --- Convenience Accessors for Key Roles ---

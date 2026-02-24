@@ -1,0 +1,21 @@
+## 🏢 LIVE EXECUTION STATUS (Blackboard)
+{% if blackboard.ticket %}
+### ACTIVE TICKET: {{ blackboard.ticket.ticket_type|upper }}
+- **Goal**: {{ blackboard.route_reason or 'N/A' }}
+- **Focus Files**: {{ blackboard.ticket.focus_paths|join(', ') if blackboard.ticket.focus_paths else 'N/A' }}
+{% if blackboard.ticket.acceptance_criteria %}
+- **Acceptance Criteria**:
+{% for c in blackboard.ticket.acceptance_criteria -%}
+  - {{ c }}
+{% endfor %}
+{% endif %}
+{% else %}
+- No active execution ticket.
+{% endif %}
+
+{% if blackboard.verification %}
+### VERIFICATION STATUS: {{ blackboard.verification.status|upper }}
+{% if blackboard.verification.status == 'verified' %}
+- Specialist node has attempted verification. Check history for pass/fail details.
+{% endif %}
+{% endif %}

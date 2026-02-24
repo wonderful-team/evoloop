@@ -2,7 +2,7 @@
 Mobile Control Tool - Android device interaction capability via ADB.
 Provides the Agent with the ability to see and interact with Android devices.
 """
-
+import asyncio
 import logging
 from typing import Literal
 
@@ -90,7 +90,7 @@ async def mobile_control(
     """
     try:
         if action == "list_devices":
-            devices = adb_driver.list_devices()
+            devices = await asyncio.to_thread(adb_driver.list_devices)
             if not devices:
                 return "No Android devices connected.\n\nTo connect a device:\n1. Enable Developer Options on your Android device\n2. Enable USB Debugging\n3. Connect via USB and accept the prompt"
 
@@ -102,7 +102,7 @@ async def mobile_control(
             return "\n".join(lines)
 
         elif action == "screenshot":
-            filepath = adb_driver.screenshot(device_id=device_id)
+            filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
             return f"Screenshot saved to: {filepath}\n\nUse analyze_image tool to understand what's on screen."
 
         elif action == "tap":
@@ -110,57 +110,57 @@ async def mobile_control(
                 return "Error: 'x' and 'y' coordinates are required for tap action."
 
             # Validate coordinates
-            screen_w, screen_h = adb_driver.get_screen_size(device_id=device_id)
+            screen_w, screen_h = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
             if not (0 <= x <= screen_w and 0 <= y <= screen_h):
                 return f"Error: Coordinates ({x}, {y}) are out of screen bounds ({screen_w}x{screen_h})."
 
-            adb_driver.tap(x, y, device_id=device_id)
+            await asyncio.to_thread(adb_driver.tap, x, y, device_id=device_id)
             result = f"Tapped at ({x}, {y})"
 
         elif action == "long_press":
             # Validate coordinates
-            screen_w, screen_h = adb_driver.get_screen_size(device_id=device_id)
+            screen_w, screen_h = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
             if isinstance(x, float) and 0.0 <= x <= 1.0: x = int(x * screen_w)
             if isinstance(y, float) and 0.0 <= y <= 1.0: y = int(y * screen_h)
 
             # Long press = swipe to same position with longer duration
             press_duration = duration_ms if duration_ms > 300 else 800
-            adb_driver.swipe(x, y, x, y, duration_ms=press_duration, device_id=device_id)
+            await asyncio.to_thread(adb_driver.swipe, x, y, x, y, duration_ms=press_duration, device_id=device_id)
             result = f"Long-pressed at ({x}, {y}) for {press_duration}ms."
 
         elif action == "swipe":
             if any(v is None for v in [x, y, x2, y2]):
                 return "Error: 'x', 'y', 'x2', 'y2' are all required for swipe action."
 
-            screen_w, screen_h = adb_driver.get_screen_size(device_id=device_id)
+            screen_w, screen_h = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
             if isinstance(x, float) and 0.0 <= x <= 1.0: x = int(x * screen_w)
             if isinstance(y, float) and 0.0 <= y <= 1.0: y = int(y * screen_h)
             if isinstance(x2, float) and 0.0 <= x2 <= 1.0: x2 = int(x2 * screen_w)
             if isinstance(y2, float) and 0.0 <= y2 <= 1.0: y2 = int(y2 * screen_h)
 
-            adb_driver.swipe(x, y, x2, y2, duration_ms=duration_ms, device_id=device_id)
+            await asyncio.to_thread(adb_driver.swipe, x, y, x2, y2, duration_ms=duration_ms, device_id=device_id)
             result = f"Swiped from ({x}, {y}) to ({x2}, {y2})"
 
         elif action == "input_text":
             if not text:
                 return "Error: 'text' is required for input_text action."
 
-            adb_driver.input_text(text, device_id=device_id)
+            await asyncio.to_thread(adb_driver.input_text, text, device_id=device_id)
             result = f"Input text: {text[:50]}{'...' if len(text) > 50 else ''}"
 
         elif action == "press_key":
             if keycode is None:
                 return "Error: 'keycode' is required for press_key action.\n\nCommon keys: home, back, enter, menu, search, tab, space"
 
-            adb_driver.press_key(keycode, device_id=device_id)
+            await asyncio.to_thread(adb_driver.press_key, keycode, device_id=device_id)
             result = f"Pressed key: {keycode}"
 
         elif action == "get_info":
-            info = adb_driver.get_system_info(device_id=device_id)
+            info = await asyncio.to_thread(adb_driver.get_system_info, device_id=device_id)
             return f"Device Info: {info}"
 
         elif action == "list_apps":
-            apps = adb_driver.list_installed_apps(device_id=device_id)
+            apps = await asyncio.to_thread(adb_driver.list_installed_apps, device_id=device_id)
             return f"Installed Apps: {apps}"
 
         elif action == "open_app":
@@ -168,23 +168,23 @@ async def mobile_control(
                 return "Error: 'text' (package name) is required for open_app action."
 
             # Use 'text' argument as package name
-            adb_driver.launch_app(text, device_id=device_id)
+            await asyncio.to_thread(adb_driver.launch_app, text, device_id=device_id)
             result = f"Opened application: {text}"
 
         elif action == "push":
             if not local_path or not remote_path:
                 return "Error: Both 'local_path' and 'remote_path' are required for push action."
-            adb_driver.push(local_path, remote_path, device_id=device_id)
+            await asyncio.to_thread(adb_driver.push, local_path, remote_path, device_id=device_id)
             result = f"Pushed {local_path} to {remote_path}"
 
         elif action == "pull":
             if not local_path or not remote_path:
                 return "Error: Both 'local_path' and 'remote_path' are required for pull action."
-            adb_driver.pull(remote_path, local_path, device_id=device_id)
+            await asyncio.to_thread(adb_driver.pull, remote_path, local_path, device_id=device_id)
             result = f"Pulled {remote_path} to {local_path}"
 
         elif action == "dump_ui":
-            xml = adb_driver.dump_ui(device_id=device_id)
+            xml = await asyncio.to_thread(adb_driver.dump_ui, device_id=device_id)
 
             # Truncate if extreme (200k chars is usually enough for complex apps)
             if len(xml) > 200000:
@@ -197,7 +197,6 @@ async def mobile_control(
 
         # Wait after action if requested (helps with UI animations)
         if wait_after_ms > 0:
-            import asyncio
             await asyncio.sleep(wait_after_ms / 1000)
             result += f" (waited {wait_after_ms}ms)"
 

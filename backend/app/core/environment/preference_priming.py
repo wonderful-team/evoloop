@@ -20,7 +20,6 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
         PreferenceContext with preferences and rules.
     """
     preferences = {}
-    rules = []
 
     # 1. Retrieve user preferences from Preference Store
     try:

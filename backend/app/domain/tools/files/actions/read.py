@@ -22,7 +22,10 @@ async def handle_read(
 
     # Smart routing: if it looks like a doc, use read_document logic
     if path.lower().endswith((".pdf", ".docx", ".doc", ".xlsx", ".xls")):
-        return await read_document.ainvoke({"file_path": path}, config=config)
+        return await read_document.ainvoke(
+            {"file_path": path, "start_page": start_line, "end_page": end_line}, 
+            config=config
+        )
 
     if not os.path.exists(target_path):
         # Smart Error Handling

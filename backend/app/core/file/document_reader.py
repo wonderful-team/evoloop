@@ -39,8 +39,8 @@ class DocumentReaderService:
             elif ext in [".mp3", ".wav", ".mp4", ".mov", ".avi"]:
                 return await self._read_media(file_path)
             else:
-                # Text/Code fallback
-                content, _ = read_file_content(file_path)
+                # Text/Code fallback with paging support
+                content, _ = read_file_content(file_path, start_page, end_page)
                 return content
         except Exception as e:
             logger.error(f"Failed to read document {file_path}: {e}")
@@ -73,10 +73,15 @@ class DocumentReaderService:
         xl = pd.ExcelFile(path)
         text = []
         for sheet_name in xl.sheet_names:
-            df = pd.read_excel(path, sheet_name=sheet_name)
+            # OPTIMIZATION: Use the already opened 'xl' object instead of re-reading file Path
+            df = pd.read_excel(xl, sheet_name=sheet_name)
             if not df.empty:
                 text.append(f"### Sheet: {sheet_name}\n")
-                text.append(df.to_markdown(index=False))
+                try:
+                    text.append(df.to_markdown(index=False))
+                except ImportError:
+                    # Fallback if tabulate is not installed
+                    text.append(df.to_csv(index=False))
                 text.append("\n")
         return "\n".join(text)
 

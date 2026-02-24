@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 import os
@@ -9,6 +10,7 @@ from typing import Any
 from sqlalchemy import func, select
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
+from app.infrastructure.database.redis import redis_client
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
 from app.models.learning import LearnedSkill
@@ -97,9 +99,41 @@ class SkillDiscovery:
         namespace_context: str | None = None
     ) -> tuple[SkillMatch | None, list[LearnedSkill], str]:
         """
-        Pure LLM-Based Skill Discovery with History support.
-        Handles Intent Classification and Skill Mapping in one shot.
+        Pure LLM-Based Skill Discovery with History support and Redis Caching.
         """
+        # 0. Check Cache (Phase 5 Optimization)
+        history_str = json.dumps(history[-3:] if history else [])
+        cache_key = f"evo:intent_cache:{hashlib.md5((query + history_str).encode()).hexdigest()}"
+        
+        try:
+            cached_res = await redis_client.get(cache_key)
+            if cached_res:
+                data = json.loads(cached_res)
+                logger.info(f"[Discovery] Intent Cache Hit for: {query[:30]}...")
+                
+                match = None
+                if data.get("match"):
+                    m = data["match"]
+                    match = SkillMatch(
+                        skill_id=m["skill_id"],
+                        skill_name=m["skill_name"],
+                        confidence=m["confidence"],
+                        reasoning=m["reasoning"] + " (Cached)",
+                        extracted_params=m["extracted_params"]
+                    )
+                
+                # Note: For simplicity in cache, we don't full-hydrate the 'relevant' list if missed, 
+                # but SkillMatch presence is the primary driver.
+                relevant = []
+                if match:
+                    async with session_scope() as db:
+                        s = await db.get(LearnedSkill, match.skill_id)
+                        if s: relevant = [s]
+                
+                return match, relevant, data.get("reasoning", "")
+        except Exception as e:
+            logger.warning(f"[Discovery] Cache lookup failed: {e}")
+
         # Ensure system SOPs are loaded into the DB
         await self._sync_system_skills()
 
@@ -160,8 +194,6 @@ OUTPUT FORMAT (JSON ONLY):
 
             # Simple brain-style JSON parser
             content = response.content.strip()
-            logger.debug(f"[Discovery] Raw LLM Response: {content}")
-
             if "```json" in content:
                 content = content.split("```json")[-1].split("```")[0].strip()
 
@@ -170,6 +202,10 @@ OUTPUT FORMAT (JSON ONLY):
             except Exception as e:
                 logger.error(f"[Discovery] JSON Parse Error: {e}. Content: {content}")
                 return None, []
+
+            match = None
+            relevant = []
+            reasoning = data.get("reasoning", "")
 
             if data.get("match_found"):
                 # Double check ID exists in our list
@@ -181,15 +217,33 @@ OUTPUT FORMAT (JSON ONLY):
                         skill_id=best_skill.id,
                         skill_name=best_skill.name,
                         confidence=data.get("confidence", 0.8),
-                        reasoning=data.get("reasoning", ""),
+                        reasoning=reasoning,
                         extracted_params=data.get("parameters", {})
                     )
+                    relevant = [best_skill]
                     logger.info(f"[Discovery] LLM Match Found: {best_skill.name} (Conf: {match.confidence})")
-                    return match, [best_skill], data.get("reasoning", "")
 
-            reasoning = data.get("reasoning", "No specific reasoning provided.")
-            logger.info(f"[Discovery] LLM decided NO_MATCH for: {query[:50]}. Reasoning: {reasoning}")
-            return None, (all_skills if namespace_context else []), reasoning
+            # 3. Store in Cache (5 minutes)
+            try:
+                cache_data = {
+                    "match": {
+                        "skill_id": match.skill_id,
+                        "skill_name": match.skill_name,
+                        "confidence": match.confidence,
+                        "reasoning": match.reasoning,
+                        "extracted_params": match.extracted_params
+                    } if match else None,
+                    "reasoning": reasoning
+                }
+                await redis_client.set(cache_key, json.dumps(cache_data), ex=300)
+            except Exception as e:
+                logger.warning(f"[Discovery] Cache write failed: {e}")
+
+            if not match:
+                logger.info(f"[Discovery] LLM decided NO_MATCH for: {query[:50]}. Reasoning: {reasoning}")
+                relevant = (all_skills if namespace_context else [])
+
+            return match, relevant, reasoning
 
         except Exception as e:
             logger.error(f"[Discovery] LLM matching failed: {e}")

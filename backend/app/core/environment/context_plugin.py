@@ -26,13 +26,20 @@ class EnvironmentContextPlugin(ContextPlugin):
             ctx.spatial_awareness = []
 
             state = get_awakened_state()
+            
+            # Reset flags
+            ctx.metadata["has_android"] = False
+            ctx.metadata["has_macos"] = False
+
             if state:
                 if state.android_devices:
+                    ctx.metadata["has_android"] = True
                     for d in state.android_devices:
                         model = getattr(d, 'model', 'Device')
                         ctx.environment_summaries.append(f"Android Device Connected: {d.device_id} ({model})")
 
                 if state.macos:
+                    ctx.metadata["has_macos"] = True
                     ctx.environment_summaries.append("MacOS Desktop Control is active and available.")
 
                 if getattr(state, "network", None) and not getattr(state.network, "internet_connected", True):
@@ -77,7 +84,41 @@ class EnvironmentContextPlugin(ContextPlugin):
                         ctx.memory_replay.append(f"- [{ep.date}] {ep.goal} → {ep.result}")
 
                 if getattr(state, "relevant_concepts", None):
-                    concept_names = ", ".join([c.name for c in state.relevant_concepts[:5]])
+                    unique_names = []
+                    # package_id -> display_name
+                    layout_map = {}
+                    seen_others = set()
+                    
+                    for c in state.relevant_concepts:
+                        name = c.name
+                        if name.startswith("android_layout:"):
+                            # Extract package: android_layout:com.pkg -> com.pkg
+                            parts = name.split(":", 1)
+                            if len(parts) > 1:
+                                pkg = parts[1].strip()
+                                # Clean up common app names if they are in the pkg string (heuristic)
+                                # e.g. "Alibaba Cloud (com.alibaba.aliyun)"
+                                if "(" in pkg and ")" in pkg:
+                                    # Deep deduplication: Extract just the ID inside brackets
+                                    import re
+                                    match = re.search(r'\((.*?)\)', pkg)
+                                    pkg_id = match.group(1) if match else pkg
+                                else:
+                                    pkg_id = pkg
+                                
+                                # Only keep the most descriptive one (heuristic: longest string)
+                                if pkg_id not in layout_map or len(pkg) > len(layout_map[pkg_id]):
+                                    layout_map[pkg_id] = pkg
+                        else:
+                            if name not in seen_others:
+                                unique_names.append(name)
+                                seen_others.add(name)
+                    
+                    # Re-assemble layouts
+                    formatted_layouts = [f"android_layout({val})" for val in layout_map.values()]
+                    final_concepts = formatted_layouts + unique_names
+                    
+                    concept_names = ", ".join(final_concepts[:5])
                     ctx.memory_replay.append(f"**Key Knowledge:** {concept_names}")
 
                 if getattr(state, "journal_highlights", None):
