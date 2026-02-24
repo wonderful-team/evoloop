@@ -3,11 +3,19 @@ import logging
 import time
 from typing import Dict, Tuple
 
+from langchain_core.messages import SystemMessage
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import VisionResult, VisionTask
 from app.infrastructure.llm.vision import VisionLLMFactory, get_vision_llm
 
 logger = logging.getLogger(__name__)
+
+VISION_SYSTEM_PROMPT = (
+    "You are a precise vision analysis assistant. "
+    "Analyze the provided image(s) accurately. "
+    "Be concise, direct, and avoid any repetitive loops in your response. "
+    "If you are describing a UI, focus on the functional elements and their current state."
+)
 
 
 class MultimodalVLMProvider(VisionProvider):
@@ -108,11 +116,12 @@ class MultimodalVLMProvider(VisionProvider):
 
         llm = get_vision_llm()
 
-        # Create Message
-        message = VisionLLMFactory.create_image_message(image_source, prompt)
+        # Create Messages (System + Human)
+        system_msg = SystemMessage(content=VISION_SYSTEM_PROMPT)
+        human_msg = VisionLLMFactory.create_image_message(image_source, prompt)
 
         # Invoke
-        response = await llm.ainvoke([message])
+        response = await llm.ainvoke([system_msg, human_msg])
 
         result = VisionResult(
             task=task,

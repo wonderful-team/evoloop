@@ -8,6 +8,7 @@ from typing import Literal
 
 import markdownify
 
+from app.constants import MAX_OUTPUT_LENGTH
 from app.core.tools import evoloop_tool
 from app.infrastructure.drivers.macos import macos_driver
 
@@ -240,10 +241,6 @@ async def desktop_control(
                 return "Error: 'script' is required for applescript action."
 
             output = macos_driver.run_applescript(script)
-
-            # Intelligent Output Processing
-            from app.constants import MAX_OUTPUT_LENGTH
-
             if output:
                 # 1. Detect HTML-like content (common in Notes.app output)
                 if "</div>" in output or "</body>" in output or "<br>" in output:

@@ -293,7 +293,7 @@ class AgentEngine:
             tool_results = await asyncio.gather(*[_process_single_tool(tc) for tc in response.tool_calls])
 
             for tool_msg in tool_results:
-                logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)[:500]}...")
+                logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)}")
                 loop_messages.append(tool_msg)
                 new_messages.append(tool_msg)
 

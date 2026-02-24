@@ -2,7 +2,6 @@ import logging
 
 from app.core.context.manager import EvoContext
 from app.core.context.plugins import ContextPlugin, plugin_registry
-from app.core.environment import get_awakened_state
 from app.core.environment.boundaries import boundary_manager
 from app.core.environment.prompt_utils import build_environment_summaries
 
@@ -16,6 +15,8 @@ class EnvironmentContextPlugin(ContextPlugin):
     """
     def hydrate(self, ctx: EvoContext) -> None:
         try:
+            from app.core.environment import get_awakened_state
+
             # 1. Hydrate Active Boundaries
             boundaries = boundary_manager.get_all_boundaries()
             # We copy it over to avoiding attaching the reference

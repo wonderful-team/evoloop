@@ -1,8 +1,7 @@
 """
 Environment Prompt Utilities - Shared logic for building environment awareness sections.
 """
-
-from app.core.environment import get_awakened_state
+from langchain_core.messages import BaseMessage
 
 
 def build_environment_summaries(relevance: str = "auto") -> list[str]:
@@ -14,6 +13,8 @@ def build_environment_summaries(relevance: str = "auto") -> list[str]:
         relevance: "android", "macos", "both", or "auto"
     """
     try:
+        from app.core.environment import get_awakened_state
+
         state = get_awakened_state()
 
         if not state:
@@ -105,7 +106,6 @@ def detect_platform_relevance(messages: list) -> str:
     history_text = ""
     # Look at last 5 messages for context
     # messages can be langchain BaseMessage list
-    from langchain_core.messages import BaseMessage
 
     for msg in messages[-5:]:
         content = ""
@@ -120,7 +120,10 @@ def detect_platform_relevance(messages: list) -> str:
     has_android = any(k in history_text for k in ["android", "adb", "mobile", "phone", "mirror", "scrcpy", "tap", "swipe"])
     has_macos = any(k in history_text for k in ["mac", "desktop", "macos", "apple", "click", "type", "screenshot", "terminal"])
 
-    if has_android and not has_macos: return "android"
-    if has_macos and not has_android: return "macos"
-    if has_android and has_macos: return "both"
-    return "auto" # Balanced summary
+    if has_android and not has_macos:
+        return "android"
+    if has_macos and not has_android:
+        return "macos"
+    if has_android and has_macos:
+        return "both"
+    return "auto"  # Balanced summary

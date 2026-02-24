@@ -390,6 +390,30 @@ class MacOSDriver:
         except Exception:
             return 1920, 1080
 
+    @classmethod
+    def get_ui_scale_factor(cls) -> float:
+        """
+        Calculate the scale factor between logical points and physical pixels.
+        Returns 2.0 for Retina, 1.0 for standard displays.
+        """
+        try:
+            # Get logical size
+            log_w, _ = cls.get_screen_size()
+
+            # Take a temporary small screenshot to check pixel size
+            # Capturing a 1x1 region is enough to get the file but we need the full image
+            # metadata. Actually, a full screenshot (cached) is fine.
+            screenshot_path = cls.screenshot(use_cache=True)
+            from PIL import Image
+            with Image.open(screenshot_path) as img:
+                pixel_w, _ = img.size
+
+            scale = round(pixel_w / log_w, 1) if log_w > 0 else 1.0
+            return scale
+        except Exception as e:
+            logger.debug(f"[MacOSDriver] Failed to calculate scale factor: {e}")
+            return 1.0
+
     @staticmethod
     def dump_ax_tree() -> str:
         """
