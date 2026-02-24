@@ -27,7 +27,8 @@ class ChatPromptBuilder:
                 "summaries": ctx.environment_summaries,
                 "boundaries": ctx.active_boundaries,
                 "memory_replay": ctx.memory_replay,
-                "identity_rules": ctx.identity_rules,
+                "user_preferences": ctx.metadata.get("user_preferences", {}),
+                "system_rules": ctx.metadata.get("system_rules", []),
             }
         }
 

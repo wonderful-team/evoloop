@@ -42,13 +42,23 @@ async def prime_preferences(project_id: int | None = None) -> PreferenceContext:
         logger.warning(f"Failed to retrieve preferences: {e}")
 
     # 2. System-level inviolable rules (hardcoded for safety)
-    rules = [
-        "禁止删除 .git 目录",
-        "禁止执行 rm -rf / 或任何递归删除根目录的命令",
-        "未经用户确认不得修改 package.json 或 requirements.txt 的核心依赖版本",
-        "禁止在生产数据库上执行 DROP 或 TRUNCATE 操作",
-        "禁止暴露或打印用户的 API 密钥、密码等敏感信息",
+    # Critical rules (always shown, high severity)
+    critical_rules = [
+        "NEVER delete .git directories or any version control metadata",
+        "NEVER execute 'rm -rf /' or any recursive deletion commands targeting root or system directories",
+        "NEVER execute DROP, TRUNCATE, or DELETE operations on production databases without confirmation",
+        "NEVER expose, log, or print API keys, passwords, tokens, or any sensitive credentials",
     ]
+
+    # Important rules (shown when space permits)
+    important_rules = [
+        "NEVER modify core dependency versions in package.json or requirements.txt without explicit user confirmation",
+        "ALWAYS create backups before making significant changes to critical files",
+        "ALWAYS verify the scope of file deletions before execution",
+        "ALWAYS ask for clarification when user intent is ambiguous or destructive",
+    ]
+
+    rules = critical_rules + important_rules
 
     return PreferenceContext(preferences=preferences, rules=rules)
 

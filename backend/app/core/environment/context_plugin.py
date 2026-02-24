@@ -67,9 +67,8 @@ class EnvironmentContextPlugin(ContextPlugin):
                     if macos_verified:
                         ctx.spatial_awareness.append(f"MacOS Tools Verified: {', '.join(macos_verified)}")
 
-                # 4. Hydrate Memory Replay & Identity Rules
+                # 4. Hydrate Memory Replay
                 ctx.memory_replay = []
-                ctx.identity_rules = []
 
                 if getattr(state, "recent_episodes", None):
                     ctx.memory_replay.append("**Recent Tasks:**")
@@ -118,13 +117,10 @@ class EnvironmentContextPlugin(ContextPlugin):
                     ctx.memory_replay.append(f"**Recent Learnings:**\n{state.journal_highlights}")
 
                 if getattr(state, "user_preferences", None):
-                    prefs = ", ".join([f"{k}={v}" for k, v in list(state.user_preferences.items())[:5]])
-                    ctx.identity_rules.append(f"- **User Preferences**: {prefs}")
+                    ctx.metadata["user_preferences"] = state.user_preferences
 
                 if getattr(state, "system_rules", None):
-                    ctx.identity_rules.append("- **Inviolable Rules**:")
-                    for rule in state.system_rules[:3]:
-                        ctx.identity_rules.append(f"  - ❌ {rule}")
+                    ctx.metadata["system_rules"] = state.system_rules
 
         except Exception as e:
             logger.error(f"Failed to hydrate EnvironmentContextPlugin: {e}")

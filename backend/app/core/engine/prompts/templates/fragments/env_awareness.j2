@@ -14,12 +14,13 @@
 {% endfor %}
 {%- endif %}
 
-{% if environment.identity_rules %}
-### 🎭 Identity & Rules
-{% for r in environment.identity_rules -%}
-{{ r }}
-{% endfor %}
-{%- endif %}
+{% with user_preferences = environment.user_preferences %}
+{% include 'fragments/user_preferences.j2' %}
+{% endwith %}
+
+{% with system_rules = environment.system_rules %}
+{% include 'fragments/system_rules.j2' %}
+{% endwith %}
 
 {% if environment.boundaries %}
 ### ❌ Constraints

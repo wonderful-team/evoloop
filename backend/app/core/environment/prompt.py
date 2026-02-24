@@ -37,8 +37,9 @@ class AppEnvironmentPrompt:
                     "summaries": ctx.environment_summaries,
                     "boundaries": ctx.active_boundaries,
                     "memory_replay": ctx.memory_replay,
-                    "identity_rules": ctx.identity_rules,
                     "spatial_awareness": ctx.spatial_awareness,
+                    "user_preferences": ctx.metadata.get("user_preferences", {}),
+                    "system_rules": ctx.metadata.get("system_rules", []),
                 },
                 "tips": True
             }

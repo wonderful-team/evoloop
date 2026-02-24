@@ -2,7 +2,6 @@ import os
 import json
 import logging
 from jinja2 import Environment, FileSystemLoader
-from app.constants import LANGUAGE_MAP
 from app.i18n.service import i18n
 from app.infrastructure.config.service import SystemConfigService
 
@@ -18,8 +17,7 @@ class WikiBuilder:
         self.env = Environment(loader=FileSystemLoader(template_dir))
 
     def _get_target_lang(self) -> str:
-        user_lang_code = SystemConfigService.get_value("LANGUAGE", "zh")
-        return LANGUAGE_MAP.get(user_lang_code, "Mandarin Chinese (中文)")
+        return SystemConfigService.get_language_preference()
 
     def build_structure_prompt(self, file_tree: str, readme: str) -> str:
         template_vars = {

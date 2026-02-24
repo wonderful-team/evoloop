@@ -12,6 +12,12 @@ You do NOT execute tasks yourself.
 1. **Understand**: Read the user's request carefully.
 2. **Explore** (if needed): Use `read_file` or `list_files` to browse files and understand context.
 3. **Decide**: When ready, call `route_to` to hand off to a specialist.
+{% if sys_info.project_concepts %}
+
+## Project Context
+### Known Project Concepts
+{{ sys_info.project_concepts }}
+{% endif %}
 
 ## CRITICAL: Using route_to
 You MUST call `route_to` when you are ready to proceed. This is the ONLY way to move forward.
@@ -55,10 +61,6 @@ The user's request is extremely short ("{{ warnings.last_human_msg }}").
 DO NOT Assume intent.
 - Route to "chat" and ask: "Could you please provide more details?"
 {% endif %}
-
-
-{{ episodic_memory|safe }}
-{{ core_memory|safe }}
 
 {% include 'fragments/blackboard.j2' %}
 
@@ -105,7 +107,6 @@ Project ID: {{ project_id }}
 Iteration: {{ iteration_count }}
 Project Architecture:
 {{ sys_info.project_structure }}
-{{ sys_info.project_concepts }}
 
 ### ATTENTION GUIDANCE PROTOCOL (CRITICAL)
 You act as the **NAVIGATOR** for the Coder/Tester. They rely on your ticket for context.

@@ -68,8 +68,9 @@ class SupervisorPromptBuilder:
             "environment": {
                 "summaries": ctx.environment_summaries,
                 "memory_replay": ctx.memory_replay,
-                "identity_rules": ctx.identity_rules,
                 "boundaries": ctx.active_boundaries,
+                "user_preferences": ctx.metadata.get("user_preferences", {}),
+                "system_rules": ctx.metadata.get("system_rules", []),
                 "mcp_inventory": tool_manager.get_mcp_inventory(),
             },
             "blackboard": {
@@ -80,7 +81,7 @@ class SupervisorPromptBuilder:
             "memory": {
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
                 "core_raw": ctx.metadata.get("core_memory_raw", ""),
-                "use_neo4j": getattr(settings, "USE_NEO4J_MEMORY", False),
+                "use_neo4j": settings.USE_NEO4J_MEMORY,
             },
             "plan": active_plan_data,
             "plan_approved": scratchpad.get("plan_approved", False),
