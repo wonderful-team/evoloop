@@ -44,7 +44,7 @@ class VisionEngine:
         # Specialized Logic: DETECTION (Multiple Providers)
         if task == VisionTask.DETECT:
             from app.core.vision.pipeline.manager import pipeline_manager
-            elements, compressed_path = await pipeline_manager.perceive(
+            elements, screenshot_path = await pipeline_manager.perceive(
                 screenshot_path=image_source,
                 device_id=kwargs.get("device_id"),
                 use_cache=kwargs.get("use_cache", True)
@@ -53,7 +53,7 @@ class VisionEngine:
                 task=task,
                 success=True,
                 elements=elements,
-                screenshot_path=compressed_path or image_source,
+                screenshot_path=screenshot_path or image_source,
                 summary=f"Detected {len(elements)} items using PipelineManager."
             )
 

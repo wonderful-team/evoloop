@@ -403,7 +403,7 @@ class MacOSDriver:
             # Take a temporary small screenshot to check pixel size
             # Capturing a 1x1 region is enough to get the file but we need the full image
             # metadata. Actually, a full screenshot (cached) is fine.
-            screenshot_path = cls.screenshot(use_cache=True)
+            screenshot_path = cls.screenshot()
             from PIL import Image
             with Image.open(screenshot_path) as img:
                 pixel_w, _ = img.size

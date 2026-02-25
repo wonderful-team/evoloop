@@ -73,7 +73,6 @@ async def find_element(
             return f"No UI elements detected on screen. Error: {result.metadata.get('error', 'None')}"
 
         elements = result.elements
-        compressed_path = result.screenshot_path
 
         # Fire UI_TREE_OBSERVED event for spatial mapping (Background)
         try:
@@ -101,7 +100,7 @@ async def find_element(
         # Step 3: Return all elements if requested
         if return_all or not target:
             formatted = pipeline_manager.format_for_prompt(elements)
-            return f"Screenshot: {compressed_path or screenshot_path}\n\n{formatted}"
+            return f"Screenshot: {screenshot_path}\n\n{formatted}"
 
         # Step 4: Find best match
         target_lower = target.lower()
@@ -145,7 +144,7 @@ async def find_element(
             return (
                 f"No element matching '{target}' found.\n\n"
                 f"Available elements:\n{formatted}\n\n"
-                f"Screenshot: {compressed_path or screenshot_path}"
+                f"Screenshot: {screenshot_path}"
             )
 
         # Sort by score
@@ -173,7 +172,7 @@ async def find_element(
             result_msg += f"\nReady to interact: {platform}_control(action='tap/click', x={best_match.x}, y={best_match.y})"
 
         # Include screenshot path
-        result_msg += f"\n\nScreenshot: {compressed_path or screenshot_path}"
+        result_msg += f"\n\nScreenshot: {screenshot_path}"
 
         return result_msg
 

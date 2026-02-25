@@ -14,41 +14,7 @@ from app.core.vision.types import UIElement, VisionResult, VisionTask
 logger = logging.getLogger(__name__)
 
 
-def smart_compress(image_path: str, max_width: int = 1280) -> str:
-    """
-    Compress screenshot while preserving UI element clarity.
-    """
-    try:
-        from PIL import Image
-    except ImportError:
-        logger.warning("Pillow not installed, skipping compression. Install with: pip install Pillow")
-        return image_path
 
-    try:
-        img = Image.open(image_path)
-
-        # Only resize if larger than max_width
-        if img.width > max_width:
-            ratio = max_width / img.width
-            new_size = (max_width, int(img.height * ratio))
-            img = img.resize(new_size, Image.LANCZOS)
-
-        # Save as WebP for better compression
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        output_path = os.path.join(
-            tempfile.gettempdir(),
-            f"compressed_{timestamp}.webp"
-        )
-        img.save(output_path, 'WEBP', quality=90)
-
-        original_size = os.path.getsize(image_path)
-        compressed_size = os.path.getsize(output_path)
-        logger.info(f"[Compress] {original_size//1024}KB → {compressed_size//1024}KB ({100*compressed_size//original_size}%)")
-
-        return output_path
-    except Exception as e:
-        logger.warning(f"Compression failed: {e}, using original")
-        return image_path
 
 
 def merge_elements(results: list[VisionResult]) -> list[UIElement]:
@@ -139,7 +105,6 @@ class PipelineManager:
         """
         Run perception pipeline to extract UI elements.
         """
-        compressed_path = None
 
         if screenshot_path and os.path.exists(screenshot_path):
             # 1. Compute hash of original screenshot first to avoid redundant compression
@@ -151,8 +116,8 @@ class PipelineManager:
                 if cached is not None:
                     return cached, None  # No compressed path needed for cache hit
 
-            # 3. Cache Miss: Compress and detect
-            compressed_path = smart_compress(screenshot_path)
+            # 3. Cache Miss: detect directly (compression removed)
+            pass
 
         # Run available providers in parallel
         available_providers = []
@@ -162,13 +127,13 @@ class PipelineManager:
 
         if not available_providers:
             logger.warning("[PipelineManager] No providers available")
-            return [], compressed_path
+            return [], None
 
         # Execute in parallel
         tasks = [
             provider.process(
                 task=VisionTask.DETECT,
-                image_source=compressed_path or screenshot_path or "",
+                image_source=screenshot_path or "",
                 device_id=device_id,
             )
             for provider in available_providers
@@ -187,13 +152,13 @@ class PipelineManager:
         elements = merge_elements(valid_results)
 
         # Cache results
-        if use_cache and compressed_path:
-            scene_hash = scene_cache.compute_hash(compressed_path)
-            scene_cache.put(scene_hash, elements, compressed_path)
+        if use_cache and screenshot_path:
+            scene_hash = scene_cache.compute_hash(screenshot_path)
+            scene_cache.put(scene_hash, elements, screenshot_path)
 
         logger.info(f"[PipelineManager] Total: {len(elements)} elements from {len(valid_results)} providers")
 
-        return elements, compressed_path
+        return elements, screenshot_path
 
     def format_for_prompt(self, elements: list[UIElement], max_elements: int = 30) -> str:
         """
