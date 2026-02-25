@@ -35,7 +35,7 @@ async def desktop_control(
     force_keystroke: bool = False,
     actions: list[dict] | None = None,
     continue_on_error: bool = True,
-    delay_ms: int = 100,
+    delay_ms: int = 300,
 ) -> str:
     """
     Control the MacOS desktop - screenshot, click, type, and more.
@@ -267,8 +267,7 @@ async def desktop_control(
             if not app_name:
                 return "Error: 'app_name' is required for open_app action."
 
-            macos_driver.open_app(app_name)
-            return f"Opened application: {app_name}"
+            return macos_driver.open_app(app_name)
 
         elif action == "applescript":
             if not script:
