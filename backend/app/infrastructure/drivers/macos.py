@@ -345,26 +345,7 @@ class MacOSDriver:
             String containing the app info and bounds: "Activated {name} at {x,y,w,h}"
         """
         # 1. Trigger open
-        try:
-            subprocess.run(["open", "-a", app_name], capture_output=True, check=True)
-        except subprocess.CalledProcessError:
-            # Fallback: Try to find the app in /Applications if the direct name fails
-            logger.info(f"[MacOSDriver] Direct open failed for '{app_name}', attempting lookup...")
-            installed = MacOSDriver.list_installed_apps()
-            
-            # Simple case-insensitive match
-            match = next((a for a in installed if a.lower() == app_name.lower()), None)
-            
-            # Partial match if no exact match (e.g. "Chrome" -> "Google Chrome")
-            if not match:
-                match = next((a for a in installed if app_name.lower() in a.lower()), None)
-            
-            if match:
-                logger.info(f"[MacOSDriver] Found alternative name match: '{match}' for '{app_name}'")
-                subprocess.run(["open", "-a", match], capture_output=True, check=True)
-                app_name = match # Update name for the polling loop
-            else:
-                raise RuntimeError(f"Application '{app_name}' not found in /Applications and direct open failed.")
+        subprocess.run(["open", "-a", app_name], capture_output=True, check=True)
         
         # 2. Poll for focus (up to 5s)
         start = time.time()
