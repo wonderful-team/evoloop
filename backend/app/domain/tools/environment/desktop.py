@@ -2,14 +2,18 @@
 Desktop Control Tool - MacOS desktop interaction capability.
 Provides the Agent with the ability to see and interact with the Mac desktop.
 """
+import ast
 import asyncio
 import logging
+import time
 from typing import Literal
 
 import markdownify
 
 from app.constants import MAX_OUTPUT_LENGTH
+from app.core.atlas import atlas_engine
 from app.core.tools import evoloop_tool
+from app.core.vision import vision_engine, VisionTask
 from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
@@ -65,7 +69,6 @@ async def desktop_control(
             if not raw_tree or "Error" in raw_tree:
                 return f"Error: Failed to dump Accessibility Tree: {raw_tree}"
 
-            import ast
             try:
                 # The AppleScript returns a string like "[{'name': '...', ...}, ...]"
                 # Using ast.literal_eval since it often uses single quotes
@@ -102,7 +105,6 @@ async def desktop_control(
 
             # 2. Try App Atlas Fallback (Historical Memory)
             try:
-                from app.core.atlas import atlas_engine
                 app_info = macos_driver.get_current_app()
                 bundle_id = app_info.get("bundle_id")
 
@@ -142,9 +144,6 @@ async def desktop_control(
 
             # 3. Try Local Vision OCR (Newly implemented)
             try:
-                from app.core.vision.engine import vision_engine
-                from app.core.vision.types import VisionTask
-
                 # Take a quick screenshot
                 temp_img = macos_driver.screenshot()
                 # Run OCR task
@@ -295,7 +294,6 @@ async def verify_ui_state(
         if not raw_tree or "Error" in raw_tree:
             return f"Verification Failed: Could not dump AX Tree. {raw_tree}"
 
-        import ast
         elements = ast.literal_eval(raw_tree)
 
         found_element = False
@@ -359,9 +357,6 @@ async def quick_check_screen(
         # Instead of analyze_image asking "Do you see 'AI news'?"
         quick_check_screen("has_text", "AI新闻")
     """
-    import time
-    import asyncio
-
     start_time = time.time()
     check_start = time.time()
 
@@ -372,7 +367,6 @@ async def quick_check_screen(
                 await asyncio.sleep(0.5)
                 continue
 
-            import ast
             try:
                 elements = ast.literal_eval(raw_tree.replace("missing value", "None"))
             except:
@@ -458,9 +452,6 @@ async def batch_desktop_actions(
             {"action": "key_press", "key": "command+c"}
         ])
     """
-    import asyncio
-    import time
-
     start_time = time.time()
     results = []
     total_actions = len(actions)
