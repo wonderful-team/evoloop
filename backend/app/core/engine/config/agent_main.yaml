@@ -35,8 +35,8 @@ nodes:
   - id: "flash_brain"
     path: "app.core.brain.node.flash_brain_node"
 
-  - id: "dynamic_specialist"
-    path: "app.core.engine.nodes.dynamic_specialist.dynamic_specialist_node"
+  - id: "worker"
+    path: "app.core.engine.nodes.worker.worker_node"
     tools:
       # Universal Worker Toolkit (v5 — gated at runtime by ExecutionTicket)
       # Desktop & Mobile Automation
@@ -90,12 +90,12 @@ edges:
     map:
       chat: "chat"
       supervisor: "supervisor"
-      finish: "dynamic_specialist"
+      finish: "worker"
       flash_brain: "flash_brain"
-      dynamic_specialist: "dynamic_specialist"
+      worker: "worker"
 
   # 2. Worker -> Supervisor
-  - from: "dynamic_specialist"
+  - from: "worker"
     to: "supervisor"
     type: "simple"
 

@@ -26,7 +26,7 @@ def route_to(target: RoutingTarget, reason: str, context: dict[str, Any] | None 
     - "documenter": Generate documentation, wiki, or README.
     - "chat": Ask the user clarifying questions or provide final chat response.
     - "finish": Task completion or question fully answered.
-    - "dynamic_specialist": Temporary, specialized sub-agent (e.g., "SQL Runner").
+    - "worker": Universal Worker — neutral executor that acquires expertise via Skills and ExecutionTicket.
     - "flash_brain": Fast, low-cost reasoning or memory lookup.
 
     Args:

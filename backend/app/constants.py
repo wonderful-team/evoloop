@@ -488,7 +488,7 @@ class RoutingTarget(str, Enum):
     DOCUMENTER = "documenter"
     CHAT = "chat"
     FINISH = "finish"
-    DYNAMIC_SPECIALIST = "dynamic_specialist"
+    WORKER = "worker"
     FLASH_BRAIN = "flash_brain"
 
 
@@ -506,7 +506,7 @@ ROUTING_TARGETS = {
     RoutingTarget.DOCUMENTER: "Documentation and wiki generation.",
     RoutingTarget.CHAT: "Ambiguous requests requiring clarification.",
     RoutingTarget.FINISH: "Task completion.",
-    RoutingTarget.DYNAMIC_SPECIALIST: "Temporary, specialized sub-agent (e.g., SQLRunner).",
+    RoutingTarget.WORKER: "Universal Worker — neutral executor that acquires expertise via Skills and ExecutionTicket.",
     RoutingTarget.FLASH_BRAIN: "Fast, low-cost reasoning or memory lookup.",
 }
 

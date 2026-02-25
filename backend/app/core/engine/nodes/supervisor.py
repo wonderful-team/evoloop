@@ -21,6 +21,45 @@ from app.i18n.service import i18n
 logger = logging.getLogger(__name__)
 
 
+# ===== v5 UNIFIED ROUTING =====
+# Static role persona configs for auto-generating agent_config when the Supervisor
+# routes to a standard role (operator, deep_researcher, etc.).
+# The Worker node uses these to adopt the right persona at runtime.
+ROLE_CONFIGS = {
+    "operator": {
+        "role_name": "Workspace Operator",
+        "system_instructions": (
+            "You are a full-stack systems operator. Execute coding, testing, "
+            "and file management tasks. Search for relevant SOPs using "
+            "search_skills before complex operations."
+        ),
+    },
+    "deep_researcher": {
+        "role_name": "Deep Researcher",
+        "system_instructions": (
+            "You are an expert analyst. Conduct thorough multi-step research "
+            "using file reads, web searches, and codebase exploration. "
+            "Synthesize findings into a comprehensive conclusion."
+        ),
+    },
+    "documenter": {
+        "role_name": "Documentation Architect",
+        "system_instructions": (
+            "You are a documentation expert. Manage project docs, wiki pages, "
+            "and knowledge harvesting. Read existing docs before creating new ones."
+        ),
+    },
+    "finish": {
+        "role_name": "Session Auditor",
+        "system_instructions": (
+            "You are an acceptance tester. Audit the conversation history against "
+            "the mission criteria. Call finalize_session when done, or route_to "
+            "operator if incomplete."
+        ),
+    },
+}
+
+
 def get_last_human_message(messages: list) -> str | None:
     """Extract the last human message content from a message list."""
     for msg in reversed(messages):
@@ -130,29 +169,10 @@ class SupervisorNode:
             # Intent-driven Namespace (from LLM)
             inferred_namespace = routing_context.get("namespace_context")
 
-            # All specialist routes now go through the Universal Worker (dynamic_specialist).
+            # All specialist routes now go through the Universal Worker.
             # We auto-generate an agent_config based on the intended role.
-            ROLE_CONFIGS = {
-                "operator": {
-                    "role_name": "Workspace Operator",
-                    "system_instructions": "You are a full-stack systems operator. Execute coding, testing, and file management tasks. Search for relevant SOPs using search_skills before complex operations.",
-                },
-                "deep_researcher": {
-                    "role_name": "Deep Researcher",
-                    "system_instructions": "You are an expert analyst. Conduct thorough multi-step research using file reads, web searches, and codebase exploration. Synthesize findings into a comprehensive conclusion.",
-                },
-                "documenter": {
-                    "role_name": "Documentation Architect",
-                    "system_instructions": "You are a documentation expert. Manage project docs, wiki pages, and knowledge harvesting. Read existing docs before creating new ones.",
-                },
-                "finish": {
-                    "role_name": "Session Auditor",
-                    "system_instructions": "You are an acceptance tester. Audit the conversation history against the mission criteria. Call finalize_session when done, or route_to operator if incomplete.",
-                },
-            }
-
-            # Resolve the agent_config: either from LLM (dynamic_specialist) or auto-generated (legacy routes)
-            if routing_target == "dynamic_specialist":
+            # Resolve the agent_config: either from LLM (worker) or auto-generated (legacy routes)
+            if routing_target == "worker":
                 agent_config = routing_context.get("agent_config")
                 if agent_config and "namespace_context" not in agent_config:
                     agent_config["namespace_context"] = inferred_namespace
@@ -165,7 +185,7 @@ class SupervisorNode:
                     "namespace_context": inferred_namespace,
                 }
                 # Redirect to Worker
-                routing_target = "dynamic_specialist"
+                routing_target = "worker"
             else:
                 agent_config = None
 
@@ -218,7 +238,7 @@ class SupervisorNode:
         logger.warning("[Supervisor] ⚠️ No routing signal and no text response - defaulting to Worker")
         return {
             "messages": new_messages,
-            "next_node": "dynamic_specialist",
+            "next_node": "worker",
             "current_plan": state.get("current_plan"),
             **cleanup_state
         }

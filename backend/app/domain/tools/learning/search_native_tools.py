@@ -63,5 +63,5 @@ async def search_native_tools(query: str = "") -> dict[str, Any]:
         "result_type": "success",
         "total_tools_matched": len(results),
         "tools": results,
-        "instruction": "These are the built-in system tools. You may instruct downstream nodes (like dynamic_specialist) to use them in the `agent_config.tools` array of the Execution Ticket."
+        "instruction": "These are the built-in system tools. You may instruct downstream nodes (like worker) to use them in the `agent_config.tools` array of the Execution Ticket."
     }

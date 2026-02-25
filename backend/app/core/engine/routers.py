@@ -21,14 +21,14 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
     # [Compatibility] Remap legacy targets if LLM hallucinates old node names
     if next_node in ["coder", "tester", "planner", "operator", "deep_researcher", "documenter"]:
-        logger.info(f"[Router] Remapping legacy routing '{next_node}' -> 'dynamic_specialist'")
-        return "dynamic_specialist"
+        logger.info(f"[Router] Remapping legacy routing '{next_node}' -> 'worker'")
+        return "worker"
 
     # Parallel Research (v5: each branch runs as a Worker with researcher persona)
     if next_node == "map_research":
         tasks = state.get("parallel_research_tasks", [])
         project_id = state.get("project_id", 1)
-        return [Send("dynamic_specialist", {
+        return [Send("worker", {
             "research_topic": topic,
             "project_id": project_id,
             "execution_ticket": {
@@ -42,8 +42,8 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             },
         }) for topic in tasks]
 
-    # Valid v5 nodes: dynamic_specialist, chat, flash_brain, finish (remapped via YAML edges)
-    return next_node or "dynamic_specialist"
+    # Valid v5 nodes: worker, chat, flash_brain, finish (remapped via YAML edges)
+    return next_node or "worker"
 
 
 def route_by_next_node_field(state: AgentState):
