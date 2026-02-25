@@ -33,6 +33,7 @@ async def desktop_control(
     script: str | None = None,
     region: str | None = None,
     force_keystroke: bool = False,
+    ocr: bool = False,
     actions: list[dict] | None = None,
     continue_on_error: bool = True,
     delay_ms: int = 300,
@@ -65,6 +66,7 @@ async def desktop_control(
         script: AppleScript code for applescript action.
         region: Optional region "x,y,w,h" for screenshot action.
         force_keystroke: If True for type_text, uses slow AppleScript keystroke instead of fast clipboard paste.
+        ocr: If True for "screenshot", immediately performs OCR and returns text elements + coordinates.
         actions: List of action dicts for batch mode. Each dict has "action" and matching params.
         continue_on_error: For batch mode, whether to continue on error (default True).
         delay_ms: For batch mode, delay between actions in ms (default 100).
@@ -190,7 +192,27 @@ async def desktop_control(
 
         if action == "screenshot":
             filepath = macos_driver.screenshot(region=region)
-            return f"Screenshot saved to: {filepath}"
+            result_msg = f"Screenshot saved to: {filepath}"
+            
+            if ocr:
+                try:
+                    ocr_result = await vision_engine.process(VisionTask.OCR, filepath)
+                    if ocr_result.success and ocr_result.elements:
+                        texts = []
+                        for el in ocr_result.elements:
+                            # Use the to_prompt_line format for consistency
+                            texts.append(el.to_prompt_line())
+                        
+                        if texts:
+                            result_msg += "\n\n### OCR Results (Detected Text & Coordinates):\n"
+                            result_msg += "\n".join(texts)
+                    else:
+                        result_msg += "\n\n(OCR requested but no text detected)"
+                except Exception as e:
+                    logger.error(f"[Desktop] Integrated OCR failed: {e}")
+                    result_msg += f"\n\n(OCR Error: {e})"
+            
+            return result_msg
 
         elif action in ["click", "double_click"]:
             target_x, target_y = x, y
@@ -327,7 +349,10 @@ async def desktop_control(
                     elif step_action == "applescript":
                         params["script"] = action_dict.get("script")
                     elif step_action == "screenshot":
-                        params["region"] = action_dict.get("region")
+                        params.update({
+                            "region": action_dict.get("region"),
+                            "ocr": action_dict.get("ocr", False),
+                        })
                     else:
                         raise ValueError(f"Unknown action '{step_action}'")
 
