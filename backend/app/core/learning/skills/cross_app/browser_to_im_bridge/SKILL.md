@@ -23,8 +23,8 @@ parameters:
 The ultimate "Assistant" SOP for bridging data siloes.
 
 ## Execution
-1. **Scrape Source**: Navigate to `url`. Capture the critical failure/status message via `take_screenshot` + OCR.
-2. **Switch Context**: Use `os/macos/open_and_focus_app` for `im_app`.
+1. **Scrape Source**: Navigate to `url`. Capture the critical failure/status message via `desktop_control(action="screenshot")` + OCR.
+2. **Switch Context**: Use `desktop_control(action="open_app", app_name=im_app)`.
 3. **Find Contact**:
    - Locate the Search/Filter bar in the IM app.
    - Type `contact_name` and Press `Enter`.

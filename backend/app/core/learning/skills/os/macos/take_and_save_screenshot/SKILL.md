@@ -17,7 +17,7 @@ parameters:
 ---
 
 # 🧠 Expert Guide (心法)
-This SOP defines how to take system-level screenshots and ensure they are saved to a known location, rather than relying solely on the Agent's internal `take_screenshot` tool which only returns base64 data to the LLM context.
+This SOP defines how to take system-level screenshots and ensure they are saved to a known location, rather than relying solely on the Agent's internal `desktop_control(action="screenshot")` action which only returns base64 data to the LLM context.
 
 ## Setup & Preconditions
 1. Ensure the target `app_name` or `region` is visible on the screen.

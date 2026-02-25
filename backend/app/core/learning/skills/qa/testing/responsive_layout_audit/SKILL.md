@@ -37,7 +37,7 @@ Execute the following steps for **each** target breakpoint defined above.
         ```
 2.  **Wait for Reflow**: Wait 2 seconds for CSS Media Queries to apply and animations to settle.
 3.  **Visual Sweep (The Audit)**:
-    *   Take a `take_screenshot` of the top of the page.
+    *   Take a `desktop_control(action="screenshot")` of the top of the page.
     *   Execute a `keyboard` `Page Down` scroll.
     *   Take another screenshot. Repeat 2-3 times to cover the main content.
 4.  **VLM Analysis (`analyze_image`)**: Instruct the VLM to scrutinize the screenshots for the following specific defects:

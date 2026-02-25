@@ -32,7 +32,7 @@ This SOP dictates how to reliably extract structured data (tables, grids, lists)
 
 ## Phase 2: Execution Loop (Scroll & Extract)
 This loop is critical to prevent data loss or duplication.
-1.  **Take Snapshot**: Use `take_screenshot` of the current visible table view.
+1.  **Take Snapshot**: Use `desktop_control(action="screenshot")` of the current visible table view.
 2.  **Extract Row Data**: Use the VLM to transcribe the visible rows into structured JSON or CSV format.
 3.  **Identify Overlap Marker**: Identify the content of the *last completely visible row* in the current snapshot. This is your overlap marker.
 4.  **Execute Scroll**:

@@ -22,13 +22,13 @@ This SOP dictates how to handle anti-bot friction (captchas) encountered during 
 ## Execution Matrix based on Captcha Type
 
 ### Type 1: Text/Image Recognition (Find the Traffic Lights)
-1.  **Analyze Image**: Use `take_screenshot` to capture the entire captcha challenge box.
+1.  **Analyze Image**: Use `desktop_control(action="screenshot")` to capture the entire captcha challenge box.
 2.  **VLM Deduction**: Instruct the VLM (`analyze_image`) to identify the exact coordinates `(x, y)` of the requested objects (e.g., "all images with traffic lights").
 3.  **Execute Clicks**: Use the `click` tool sequentially on each identified coordinate. Wait 0.5s between clicks.
 4.  **Submit**: Click the "Verify" or "Submit" button within the captcha widget.
 
 ### Type 2: Slider/Puzzle (Drag to Fit)
-1.  **Take Snapshot**: Use `take_screenshot` of the slider widget.
+1.  **Take Snapshot**: Use `desktop_control(action="screenshot")` of the slider widget.
 2.  **Identify Targets**:
     *   Find the **slider thumb** (usually a small button or arrow block). `(start_x, start_y)`
     *   Find the **target cutout/puzzle hole** in the main image. `(end_x, end_y)`

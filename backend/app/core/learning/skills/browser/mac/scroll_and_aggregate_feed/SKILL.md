@@ -27,12 +27,13 @@ This SOP defines the optimal strategy for interacting with infinite-scroll feeds
 2. Establish a `seen_posts` (List or Set) in your memory or `workspace_clipboard` to prevent deduplication errors.
 
 ## Phase 1: Establish Baseline
-1.  **Analyze View**: Use `take_screenshot` of the current viewport. Identify individual "posts", "cards", or "tweets".
+1.  **Analyze View**: Use `desktop_control(action="screenshot")` of the current viewport. Identify individual "posts", "cards", or "tweets".
+    *   **Tip**: Use crop/region if only a specific Feed column is relevant.
 2.  **Define End Condition**: Determine what signifies the "end of the feed" (e.g., a "No more posts" message, or no new content loading after 3 seconds).
 
 ## Phase 2: Execution Loop (Scroll & Extract)
 This loop is critical to prevent infinite recursion and duplicated content.
-1.  **Take Snapshot**: Use `take_screenshot`.
+1.  **Take Snapshot**: Use `desktop_control(action="screenshot")`.
 2.  **Extract Post Data**: Use the VLM (`analyze_image`) to transcribe all completely visible posts in the current snapshot into structured JSON.
 3.  **Filter & De-duplicate**:
     *   Iterate through the extracted posts.

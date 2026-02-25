@@ -28,7 +28,7 @@ Browsers are dynamic environments. Navigation should prioritize the Address Bar 
 - **AX Tree**: Look for `AXTextField` with role "address and search bar".
 
 ## 3. Strategic Guidance
-- **Phase 1 (Targeting)**: Use `key_press(key="command+l")` to focus the address bar.
+- **Phase 1 (Targeting)**: Use `desktop_control(action="key_press", key="command+l")` to focus the address bar.
 - **Phase 2 (Input)**: Type the URL or query and press ENTER.
 - **Phase 3 (Observation)**: Use `analyze_image` to wait for the page to stop "spinning" (loading bar completion).
 

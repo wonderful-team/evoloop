@@ -28,7 +28,7 @@ This SOP defines how an Agent performs automated Visual QA, a traditionally brit
 3. If `baseline_criteria` is not provided, you must ask for it or look in your `workspace_clipboard` for a "Design Spec".
 
 ## Phase 1: Baseline Capture
-1.  **Take Screenshot**: Execute `take_screenshot` of the entire viewport or the specific `component` area.
+1.  **Take Screenshot**: Execute `desktop_control(action="screenshot")` of the entire viewport or the specific `component` area.
 2.  **Define Assertions**: Parse the `baseline_criteria` into 3-5 distinct visual assertions. For example:
     *   *Assertion 1*: Button background color is green.
     *   *Assertion 2*: Text says "Buy Now".

@@ -29,7 +29,7 @@ Execute the following loop iteratively. You must carefully track the visual stat
 
 1.  **Initial Focus**: Execute a `keyboard` action: `Tab`.
 2.  **Visual Sweep & VLM Assertion**:
-    *   Take a `take_screenshot`.
+    *   Take a `desktop_control(action="screenshot")`.
     *   Use `analyze_image` to explicitly find the *Focus Ring* (an outline, underline, or highlight indicating the currently active element).
     *   **Pass**: A clear focus ring is visible around an interactive element (link, button, input).
     *   **Fail (Hidden Focus)**: No focus ring is visible anywhere on the page, meaning the user is "lost".

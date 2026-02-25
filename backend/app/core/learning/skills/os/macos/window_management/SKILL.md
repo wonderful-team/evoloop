@@ -21,7 +21,7 @@ parameters:
 This SOP defines the standard protocol for manipulating application windows visually. It is critical for clearing clutter before complex visual tasks.
 
 ## Setup & Preconditions
-1. If `app_name` is provided, you MUST first ensure the application is focused. Use the `os/macos/open_and_focus_app` SOP if necessary.
+1. If `app_name` is provided, you MUST first ensure the application is focused. Use `desktop_control(action="open_app", app_name=app_name)` if necessary.
 2. If `app_name` is NOT provided, assume the action applies to the currently active foreground window.
 
 ## Execution Matrix based on `action`
