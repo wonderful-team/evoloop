@@ -3,7 +3,7 @@ import logging
 from app.core.context.manager import EvoContext
 from app.core.context.plugins import ContextPlugin, plugin_registry
 from app.core.environment.boundaries import boundary_manager
-from app.core.environment.prompt import build_environment_summaries
+from app.core.environment.prompt import build_environment_summaries, AppEnvironmentPrompt
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,10 @@ class EnvironmentContextPlugin(ContextPlugin):
             ctx.environment_summaries = build_environment_summaries(relevance="auto")
             ctx.spatial_awareness = []
 
+            # 2.5 Compute the final Environment Block (Autonomous Sensing Output)
+            # This pre-rendered block is what the Engine will use.
+            ctx.environment_block = AppEnvironmentPrompt.render_environment_block()
+            
             state = get_awakened_state()
             
             # Reset metadata flags

@@ -1,7 +1,0 @@
-{# User Preferences Fragment - Renders user settings and preferences #}
-{% if user_preferences %}
-### 👤 User Preferences
-{% for key, value in user_preferences.items() %}
-- **{{ key }}**: {{ value }}
-{% endfor %}
-{% endif %}

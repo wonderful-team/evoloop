@@ -23,12 +23,7 @@ class ChatPromptBuilder:
 
         template_vars = {
             "user_lang": SystemConfigService.get_language_preference(),
-            "environment": {
-                "summaries": ctx.environment_summaries,
-                "boundaries": ctx.active_boundaries,
-                "memory_replay": ctx.memory_replay,
-                "user_preferences": ctx.metadata.get("user_preferences", {}),
-            }
+            "environment_block": ctx.environment_block,
         }
 
         try:

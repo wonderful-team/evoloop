@@ -1,39 +1,30 @@
 ## 🌅 ENVIRONMENT AWARENESS
-{% if environment.summaries %}
-{% for s in environment.summaries -%}
+{% if environment.summaries %}{% for s in environment.summaries -%}
 - {{ s }}
 {% endfor %}
 {%- else %}
 - Unknown environment state
 {% endif %}
-
 {% if environment.memory_replay %}
-### 🧠 Memory Replay (Recent Trends)
-{% for m in environment.memory_replay -%}
+### 🧠 Memory Replay (Recent Trends){% for m in environment.memory_replay -%}
 {{ m }}
-{% endfor %}
-{%- endif %}
-
+{% endfor %}{%- endif %}
 {% with user_preferences = environment.user_preferences %}
 {% include 'fragments/user_preferences.j2' %}
 {% endwith %}
-
 {% include 'fragments/system_rules.j2' %}
-
 {% if environment.boundaries %}
 ### ❌ Constraints
 {% for b in environment.boundaries -%}
 - {{ b }}
 {% endfor %}
 {%- endif %}
-
 {% if environment.spatial_awareness %}
 ### 🔍 Discovery Insights
 {% for s in environment.spatial_awareness -%}
 - {{ s }}
 {% endfor %}
 {%- endif %}
-
 {% if environment.mcp_inventory %}
 {{ environment.mcp_inventory }}
 {% endif %}

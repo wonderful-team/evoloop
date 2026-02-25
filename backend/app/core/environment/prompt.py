@@ -11,6 +11,7 @@ from langchain_core.messages import BaseMessage
 
 from app.core.context.manager import ContextManager
 from app.core.context.plugins import plugin_registry
+from app.core.tools.manager import tool_manager
 
 logger = logging.getLogger(__name__)
 
@@ -22,14 +23,22 @@ class AppEnvironmentPrompt:
 
     @staticmethod
     def build(messages: list[dict] = None) -> str:
+        """Legacy alias for render_environment_block."""
+        return AppEnvironmentPrompt.render_environment_block()
+
+    @staticmethod
+    def render_environment_block(tips: bool = True) -> str:
         """
-        Build the environment context string using Jinja2 fragments.
+        Render the full 'Awakening' block using localized sensing templates.
+        This is the primary interface for autonomous sensing output.
         """
         try:
             ctx = ContextManager.current()
-            plugin_registry.hydrate_context(ctx)
+            # Hydrate if not already done (usually done by middleware/registry)
+            if not ctx.environment_summaries:
+                plugin_registry.hydrate_context(ctx)
 
-            template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "engine", "prompts", "templates")
+            template_dir = os.path.join(os.path.dirname(__file__), "templates")
             env = Environment(loader=FileSystemLoader(template_dir))
 
             template_vars = {
@@ -39,15 +48,16 @@ class AppEnvironmentPrompt:
                     "memory_replay": ctx.memory_replay,
                     "spatial_awareness": ctx.spatial_awareness,
                     "user_preferences": ctx.metadata.get("user_preferences", {}),
+                    "mcp_inventory": tool_manager.get_mcp_inventory(),
                 },
-                "tips": True
+                "tips": tips
             }
 
             template = env.get_template("awakening.prompt.j2")
             return template.render(**template_vars)
 
         except Exception as e:
-            logger.error(f"Failed to build AppEnvironmentPrompt via Jinja2: {e}")
+            logger.error(f"Failed to render environment block: {e}")
             return ""
 
 
@@ -73,6 +83,19 @@ def build_environment_summaries(relevance: str = "auto") -> list[str]:
         if state.macos:
             if relevance in ["macos", "both", "auto"]:
                 summaries.append(f"Host: {state.macos.model} ({state.macos.cpu}), macOS {state.macos.os_version}")
+                
+                # Add Top Installed Apps for precise naming in open_app
+                if state.macos.installed_apps:
+                    # Prefer usage stats if available, otherwise just alphabetically
+                    top_apps = []
+                    if state.macos.app_usage_stats:
+                        top_apps = [s.app_name for s in state.macos.app_usage_stats[:15]]
+                    else:
+                        top_apps = sorted(state.macos.installed_apps)[:15]
+                    
+                    apps_str = ", ".join(top_apps)
+                    summaries.append(f"💡 Installed macOS Apps (Top): {apps_str}")
+                
                 summaries.append("💡 Use `list_app_atlas()` to see apps with structural UI maps.")
             else:
                 summaries.append("Host: Apple Silicon Mac (MacOS Environment Available)")
@@ -84,11 +107,11 @@ def build_environment_summaries(relevance: str = "auto") -> list[str]:
                     emoji = "✅" if dev.is_reachable else "⚠️"
                     dev_info = f"Android Device {emoji} `{dev.device_id}`: {dev.model} (Android {dev.os_version}), Battery: {dev.battery_percent}%"
 
-                    # Add Apps info only if mobile is highly relevant
-                    if dev.installed_packages and (relevance in ["android", "both"]):
-                        top_apps = ", ".join(dev.installed_packages[:5])
-                        more_count = max(0, len(dev.installed_packages) - 5)
-                        app_str = f" [Apps: {top_apps}"
+                    # Add Apps info
+                    if dev.installed_packages:
+                        top_pkgs = dev.installed_packages[:10]
+                        more_count = max(0, len(dev.installed_packages) - 10)
+                        app_str = f" [Packages: {', '.join(top_pkgs)}"
                         if more_count > 0:
                             app_str += f", and {more_count} more"
                         app_str += "]"

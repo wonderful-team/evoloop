@@ -50,7 +50,7 @@ nodes:
       - "edit_file"
       - "list_files"
       - "file_system"
-      - "bash"
+      # - "bash"
       - "consult_lsp"
       - "manage_git"
       - "explore_codebase"
@@ -81,6 +81,7 @@ nodes:
       # Control
       - "request_approval"
       - "use_mcp_server"
+      - "wait"
 
 edges:
   # 1. Supervisor (Router)
@@ -132,6 +133,7 @@ role_tools:
     - "get_workspace_tree"
     - "search_skills"
     - "use_mcp_server"
+    - "wait"
 
   deep_researcher:
     - "read_file"

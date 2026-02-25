@@ -58,8 +58,18 @@ class TraceCallbackHandler(AsyncCallbackHandler):
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Capture Tool Output as Environment Feedback."""
         tool_name = kwargs.get("name", "unknown_tool")
+        
+        # Ensure output is a string before slicing (prevents TypeError: unhashable type: 'slice')
+        if not isinstance(output, str):
+            try:
+                output_str = json.dumps(output, default=str)
+            except Exception:
+                output_str = str(output)
+        else:
+            output_str = output
+
         # Truncate long outputs to keep DB size manageable
-        truncated_output = output[:2000] if output else ""
+        truncated_output = output_str[:2000] if output_str else ""
 
         await self._save_event(
             action_type="tool_result",
@@ -121,21 +131,22 @@ class TraceCallbackHandler(AsyncCallbackHandler):
     def _sanitize_snapshot(self, state: Any) -> dict:
         """Clean up state for storage (remove huge lists, tokens, etc)."""
         if not isinstance(state, dict):
-            # If state is not a dict (e.g. an AIMessage or string), wrap it
+            # 1. Handle Pydantic models (like messages)
             if hasattr(state, "dict"):
                 try:
                     return state.dict()
                 except Exception:
                     pass
-            return {"raw_input": str(state)}
+            # 2. Handle known wrapper objects or primitives
+            return {"raw_state_type": type(state).__name__, "raw_state_value": str(state)}
 
         clean = {}
         for k, v in state.items():
-            # Filter out known huge objects if any
-            if k == "messages":
-                # For learning, full context is better, but DB size...
-                # Let's keep it full for now, we can prune later.
-                pass
+            # Filter out potentially huge or redundant fields to optimize DB storage
+            # We keep 'messages' and 'current_plan' as they are critical for learning
+            if k == "environment_block":
+                # Don't store the massive rendered prompt block in EVERY step
+                continue
             clean[k] = v
         return clean
 

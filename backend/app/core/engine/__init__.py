@@ -60,7 +60,7 @@ class AgentEngine:
 
         # 2. Config & Context
         config = AgentEngine._setup_callbacks(config)
-        final_system_prompt = AgentEngine._inject_system_context(system_prompt)
+        # final_system_prompt = AgentEngine._inject_system_context(system_prompt)
 
         # 3. Message Handling & Repair
         raw_messages = list(state.get("messages", []))
@@ -84,7 +84,7 @@ class AgentEngine:
             llm_with_tools=llm_with_tools,
             tool_map=tool_map,
             messages=repaired_messages,
-            system_prompt=final_system_prompt,
+            system_prompt=system_prompt,
             config=config,
             max_steps=max_steps,
             name=name,

@@ -43,6 +43,7 @@ class EvoContext:
     environment_summaries: list[str] = field(default_factory=list)
     memory_replay: list[str] = field(default_factory=list)
     identity_rules: list[str] = field(default_factory=list)
+    environment_block: str | None = None
 
     # Extra Metadata (Plugins, etc.)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -66,6 +67,7 @@ class EvoContext:
             "environment_summaries": self.environment_summaries,
             "memory_replay": self.memory_replay,
             "identity_rules": self.identity_rules,
+            "environment_block": self.environment_block,
             "metadata": self.metadata,
         }
 

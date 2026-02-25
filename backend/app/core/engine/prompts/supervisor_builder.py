@@ -65,13 +65,7 @@ class SupervisorPromptBuilder:
             "project_id": self.project_id,
             "iteration_count": self.iteration_count,
             "user_lang": user_lang,
-            "environment": {
-                "summaries": ctx.environment_summaries,
-                "memory_replay": ctx.memory_replay,
-                "boundaries": ctx.active_boundaries,
-                "user_preferences": ctx.metadata.get("user_preferences", {}),
-                "mcp_inventory": tool_manager.get_mcp_inventory(),
-            },
+            "environment_block": ctx.environment_block,
             "blackboard": {
                 "ticket": self.context.get("execution_ticket"),
                 "verification": self.context.get("verification_status"),

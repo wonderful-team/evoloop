@@ -1,5 +1,5 @@
-## 🏢 LIVE EXECUTION STATUS (Blackboard)
 {% if blackboard.ticket %}
+## 🏢 LIVE EXECUTION STATUS (Blackboard)
 ### ACTIVE TICKET: {{ blackboard.ticket.ticket_type|upper }}
 - **Goal**: {{ blackboard.route_reason or 'N/A' }}
 - **Focus Files**: {{ blackboard.ticket.focus_paths|join(', ') if blackboard.ticket.focus_paths else 'N/A' }}
@@ -7,15 +7,10 @@
 - **Acceptance Criteria**:
 {% for c in blackboard.ticket.acceptance_criteria -%}
   - {{ c }}
-{% endfor %}
+{% endfor %}{% endif %}
 {% endif %}
-{% else %}
-- No active execution ticket.
-{% endif %}
-
 {% if blackboard.verification %}
 ### VERIFICATION STATUS: {{ blackboard.verification.status|upper }}
 {% if blackboard.verification.status == 'verified' %}
 - Worker has attempted verification. Check history for pass/fail details.
-{% endif %}
-{% endif %}
+{% endif %}{% endif %}
