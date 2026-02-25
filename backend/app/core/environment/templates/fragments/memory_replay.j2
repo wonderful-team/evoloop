@@ -1,0 +1,24 @@
+{% if memory_replay %}
+### 🧠 Memory Replay (Recent Trends)
+{% if memory_replay.episodes %}
+**Recent Tasks:**
+{% for ep in memory_replay.episodes -%}
+- [{{ ep.date }}] {{ ep.goal }} → {{ ep.result }}
+{% endfor %}
+{% endif %}
+
+{% if memory_replay.concepts %}
+**Key Knowledge:** {{ memory_replay.concepts | join(', ') }}
+{% endif %}
+
+{% if memory_replay.highlights %}
+**Recent Learnings:**
+{{ memory_replay.highlights }}
+{% endif %}
+
+{% if memory_replay.insights %}
+{% for insight in memory_replay.insights -%}
+- {{ insight }}
+{% endfor %}
+{% endif %}
+{% endif %}
