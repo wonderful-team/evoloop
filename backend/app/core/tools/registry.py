@@ -4,7 +4,7 @@ Unified Tool Registry — Dynamic Discovery & RBAC.
 This module centralizes tool registration, auto-discovery, and role-based access control (RBAC).
 It replaces the legacy registry_utils.py and provides a single source of truth for tools.
 """
-
+import asyncio
 import importlib
 import inspect
 import logging
@@ -195,7 +195,7 @@ def _report_missing_tools(node_role: str, missing_tools: list[str]):
 
     try:
         from app.core.monitoring.activity import activity_monitor
-        activity_monitor.log_event(
+        coro = activity_monitor.log_event(
             event_type="tool_missing",
             data={
                 "node_role": node_role,
@@ -204,6 +204,13 @@ def _report_missing_tools(node_role: str, missing_tools: list[str]):
                 "severity": "warning",
             },
         )
+        try:
+            loop = asyncio.get_running_loop()
+            if loop.is_running():
+                loop.create_task(coro)
+        except RuntimeError:
+            # No running loop, just ignore or log to standard logger
+            pass
     except Exception as e:
         logger.debug(f"Failed to report missing tools to activity monitor: {e}")
 
