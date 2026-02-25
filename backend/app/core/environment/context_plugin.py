@@ -24,7 +24,7 @@ class EnvironmentContextPlugin(ContextPlugin):
 
             # 2. Hydrate Environment Summaries
             ctx.environment_summaries = build_environment_summaries(relevance="auto")
-            ctx.spatial_awareness = []
+            ctx.spatial_awareness = {}
 
             # 2.5 Compute the final Environment Block (Autonomous Sensing Output)
             # This pre-rendered block is what the Engine will use.
@@ -55,9 +55,9 @@ class EnvironmentContextPlugin(ContextPlugin):
                             all_missing_skills.extend(discovery["missing_skills"])
 
                     if all_new_apps:
-                        ctx.spatial_awareness.append(f"New Apps Found: {', '.join(all_new_apps[:5])}")
+                        ctx.spatial_awareness["new_apps"] = all_new_apps[:5]
                     if all_missing_skills:
-                        ctx.spatial_awareness.append(f"Missing Expert Guides: {', '.join(set(all_missing_skills))}")
+                        ctx.spatial_awareness["missing_skills"] = list(set(all_missing_skills))
 
                     verified_layouts = []
                     if getattr(state, "relevant_concepts", None):
@@ -65,19 +65,20 @@ class EnvironmentContextPlugin(ContextPlugin):
                             if c.name.startswith("android_layout:"):
                                 verified_layouts.append(c.name.split(":", 1)[1])
                     if verified_layouts:
-                        ctx.spatial_awareness.append(f"Verified UI Baselines: {', '.join(verified_layouts)}")
+                        ctx.spatial_awareness["verified_layouts"] = verified_layouts
 
                     macos_verified = report.get("macos", {}).get("verified_apps", [])
                     if macos_verified:
-                        ctx.spatial_awareness.append(f"MacOS Tools Verified: {', '.join(macos_verified)}")
+                        ctx.spatial_awareness["macos_verified"] = macos_verified
 
                 # 4. Hydrate Memory Replay
-                ctx.memory_replay = []
+                ctx.memory_replay = {}
 
                 if getattr(state, "recent_episodes", None):
-                    ctx.memory_replay.append("**Recent Tasks:**")
-                    for ep in state.recent_episodes[:3]:
-                        ctx.memory_replay.append(f"- [{ep.date}] {ep.goal} → {ep.result}")
+                    ctx.memory_replay["episodes"] = [
+                        {"date": ep.date, "goal": ep.goal, "result": ep.result}
+                        for ep in state.recent_episodes[:3]
+                    ]
 
                 if getattr(state, "relevant_concepts", None):
                     unique_names = []
@@ -112,13 +113,10 @@ class EnvironmentContextPlugin(ContextPlugin):
                     
                     # Re-assemble layouts
                     formatted_layouts = [f"android_layout({val})" for val in layout_map.values()]
-                    final_concepts = formatted_layouts + unique_names
-                    
-                    concept_names = ", ".join(final_concepts[:5])
-                    ctx.memory_replay.append(f"**Key Knowledge:** {concept_names}")
+                    ctx.memory_replay["concepts"] = (formatted_layouts + unique_names)[:5]
 
                 if getattr(state, "journal_highlights", None):
-                    ctx.memory_replay.append(f"**Recent Learnings:**\n{state.journal_highlights}")
+                    ctx.memory_replay["highlights"] = state.journal_highlights
 
                 # Pass raw user preferences to templates for rendering
                 if getattr(state, "user_preferences", None):

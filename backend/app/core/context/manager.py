@@ -39,9 +39,9 @@ class EvoContext:
     # Dynamically injected context from Environment/Learning plugins via EventBus
     short_term_memory: list[str] = field(default_factory=list)
     active_boundaries: list[str] = field(default_factory=list)
-    spatial_awareness: list[str] = field(default_factory=list)
-    environment_summaries: list[str] = field(default_factory=list)
-    memory_replay: list[str] = field(default_factory=list)
+    spatial_awareness: list[str] | dict[str, Any] = field(default_factory=list)
+    environment_summaries: list[str] | dict[str, Any] = field(default_factory=list)
+    memory_replay: list[str] | dict[str, Any] = field(default_factory=list)
     identity_rules: list[str] = field(default_factory=list)
     environment_block: str | None = None
 
@@ -180,18 +180,21 @@ class ContextManager:
                 reconstructed = {}
                 # Field types expected by from_dict/dataclass
                 list_fields = {
-                    "short_term_memory", "active_boundaries", "spatial_awareness", 
-                    "environment_summaries", "memory_replay", "identity_rules"
+                    "short_term_memory", "active_boundaries", "identity_rules"
                 }
+                # Support both dict and list for flexible context fields
+                flexible_fields = {"spatial_awareness", "environment_summaries", "memory_replay"}
                 dict_fields = {"metadata"}
                 
                 for k, v in data.items():
                     if isinstance(v, bytes):
                         v = v.decode("utf-8")
                     
-                    if k in list_fields or k in dict_fields:
+                    if k in list_fields or k in flexible_fields or k in dict_fields:
                         try:
-                            reconstructed[k] = json.loads(v) if v else ([] if k in list_fields else {})
+                            reconstructed[k] = json.loads(v) if v else (
+                                [] if k in list_fields else ({} if k in dict_fields or k in flexible_fields else [])
+                            )
                         except Exception:
                             reconstructed[k] = [] if k in list_fields else {}
                     elif k == "timestamp":

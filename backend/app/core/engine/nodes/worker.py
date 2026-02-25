@@ -60,8 +60,14 @@ class WorkerNode:
         ctx = ContextManager.current()
         awakened_env = get_awakened_state()
         if awakened_env and awakened_env.relevant_concepts:
-            for concept in awakened_env.relevant_concepts:
-                ctx.spatial_awareness.append(f"💡 {concept.name}: {concept.description}")
+            if isinstance(ctx.spatial_awareness, dict):
+                insights = ctx.spatial_awareness.setdefault("insights", [])
+                for concept in awakened_env.relevant_concepts:
+                    insights.append(f"💡 {concept.name}: {concept.description}")
+            else:
+                # Fallback for unexpected types
+                for concept in awakened_env.relevant_concepts:
+                    ctx.spatial_awareness.append(f"💡 {concept.name}: {concept.description}")
             logger.info(f"[Worker] 🧠 Enriched context with {len(awakened_env.relevant_concepts)} concepts from Brain.")
 
         # 3. Construct Prompts (Using Builder)

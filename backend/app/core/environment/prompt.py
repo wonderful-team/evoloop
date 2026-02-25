@@ -42,14 +42,12 @@ class AppEnvironmentPrompt:
             env = Environment(loader=FileSystemLoader(template_dir))
 
             template_vars = {
-                "environment": {
-                    "summaries": ctx.environment_summaries,
-                    "boundaries": ctx.active_boundaries,
-                    "memory_replay": ctx.memory_replay,
-                    "spatial_awareness": ctx.spatial_awareness,
-                    "user_preferences": ctx.metadata.get("user_preferences", {}),
-                    "mcp_inventory": tool_manager.get_mcp_inventory(),
-                },
+                "environment": ctx.environment_summaries, # Now contains raw data
+                "memory_replay": ctx.memory_replay,
+                "spatial_awareness": ctx.spatial_awareness,
+                "boundaries": ctx.active_boundaries,
+                "user_preferences": ctx.metadata.get("user_preferences", {}),
+                "mcp_inventory": tool_manager.get_mcp_inventory(),
                 "tips": tips
             }
 
@@ -63,10 +61,10 @@ class AppEnvironmentPrompt:
 
 # Environment Prompt Utilities - Shared logic for building environment awareness sections.
 
-def build_environment_summaries(relevance: str = "auto") -> list[str]:
+def build_environment_summaries(relevance: str = "auto") -> dict:
     """
-    Build environment awareness summaries from awakened state.
-    Returns a list of strings suitable for EvoContext.environment_summaries.
+    Build environment awareness data from awakened state.
+    Returns a dictionary suitable for templates.
 
     Args:
         relevance: "android", "macos", "both", or "auto"
@@ -75,62 +73,58 @@ def build_environment_summaries(relevance: str = "auto") -> list[str]:
         from app.core.environment import get_awakened_state
         state = get_awakened_state()
         if not state:
-            return ["Environment: Not yet awakened (using default settings)"]
+            return {}
 
-        summaries = []
+        data = {
+            "macos": None,
+            "android_devices": [],
+            "network": None
+        }
 
         # 1. Host (macOS) Info
         if state.macos:
+            macos_info = {
+                "model": state.macos.model,
+                "cpu": state.macos.cpu,
+                "os_version": state.macos.os_version,
+                "top_apps": []
+            }
             if relevance in ["macos", "both", "auto"]:
-                summaries.append(f"Host: {state.macos.model} ({state.macos.cpu}), macOS {state.macos.os_version}")
-                
-                # Add Top Installed Apps for precise naming in open_app
                 if state.macos.installed_apps:
-                    # Prefer usage stats if available, otherwise just alphabetically
-                    top_apps = []
                     if state.macos.app_usage_stats:
-                        top_apps = [s.app_name for s in state.macos.app_usage_stats[:15]]
+                        macos_info["top_apps"] = [s.app_name for s in state.macos.app_usage_stats[:15]]
                     else:
-                        top_apps = sorted(state.macos.installed_apps)[:15]
-                    
-                    apps_str = ", ".join(top_apps)
-                    summaries.append(f"💡 Installed macOS Apps (Top): {apps_str}")
-                
-                summaries.append("💡 Use `list_app_atlas()` to see apps with structural UI maps.")
-            else:
-                summaries.append("Host: Apple Silicon Mac (MacOS Environment Available)")
+                        macos_info["top_apps"] = sorted(state.macos.installed_apps)[:15]
+            data["macos"] = macos_info
 
         # 2. Android Info
         if state.android_devices:
             if relevance in ["android", "both", "auto"]:
                 for dev in state.android_devices:
-                    emoji = "✅" if dev.is_reachable else "⚠️"
-                    dev_info = f"Android Device {emoji} `{dev.device_id}`: {dev.model} (Android {dev.os_version}), Battery: {dev.battery_percent}%"
-
-                    # Add Apps info
+                    dev_data = {
+                        "is_reachable": dev.is_reachable,
+                        "device_id": dev.device_id,
+                        "model": dev.model,
+                        "os_version": dev.os_version,
+                        "battery_percent": dev.battery_percent,
+                        "top_pkgs": [],
+                        "more_count": 0
+                    }
                     if dev.installed_packages:
-                        top_pkgs = dev.installed_packages[:10]
-                        more_count = max(0, len(dev.installed_packages) - 10)
-                        app_str = f" [Packages: {', '.join(top_pkgs)}"
-                        if more_count > 0:
-                            app_str += f", and {more_count} more"
-                        app_str += "]"
-                        dev_info += app_str
-
-                    summaries.append(dev_info)
-            else:
-                dev_count = len(state.android_devices)
-                summaries.append(f"Mobile: {dev_count} Android device(s) connected (ADB Available)")
-        else:
-            if relevance in ["android", "both", "auto"]:
-                summaries.append("Connected Android Devices: None (mobile_control will fail)")
-
+                        dev_data["top_pkgs"] = dev.installed_packages[:10]
+                        dev_data["more_count"] = max(0, len(dev.installed_packages) - 10)
+                    data["android_devices"].append(dev_data)
+        
         # 3. Network
         if state.network:
-            net_status = "Online" if state.network.internet_connected else "Offline"
-            summaries.append(f"Network: {net_status}")
+            data["network"] = {
+                "internet_connected": state.network.internet_connected
+            }
 
-        return summaries
+        return data
+
+    except Exception:
+        return {}
 
     except Exception:
         return ["Environment: Unable to retrieve (using default settings)"]
