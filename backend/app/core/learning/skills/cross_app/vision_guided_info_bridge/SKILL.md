@@ -41,7 +41,7 @@ This skill leverages "Window-Aware Vision" to ensure precision in complex UI env
 ### 2. Contextual Focus (Target App)
 - **Targeting**: Use `desktop_control(action="open_app")` to focus `im_app`. Wait for the tool to return the window `bounds`.
 - **Coordinate Extraction**: Split the `bounds` string into `win_x, win_y, win_w, win_h`.
-- **ROI Scanning**: Use `desktop_control(action="screenshot", region=bounds)` to performs an OCR scan focused strictly on the application's interface.
+- **ROI Scanning**: Use `desktop_control(action="screenshot", region=bounds, ocr=True)` to performs an OCR scan focused strictly on the application's interface.
 
 ### 3. Precise Navigation & Interaction
 - **Search**: Locate the search icon or bar using the OCR result from the focused scan.
