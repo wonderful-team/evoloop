@@ -184,8 +184,10 @@ class SupervisorNode:
                     "tools": [],  # ToolManager will use the YAML profile
                     "namespace_context": inferred_namespace,
                 }
-                # Redirect to Worker
-                routing_target = "worker"
+                # Redirect legacy specialist targets to the Worker node ID.
+                # Note: 'finish' remains its own target to handle graph exit in agent_main.yaml.
+                if routing_target != "finish":
+                    routing_target = "worker"
             else:
                 agent_config = None
 

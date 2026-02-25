@@ -45,7 +45,7 @@ class WorkerPromptBuilder:
             template = self.env.get_template("worker.prompt.j2")
             return template.render(**template_vars)
         except Exception as e:
-            logger.error(f"Error rendering DynamicSpecialist template: {e}")
+            logger.error(f"Error rendering Worker template: {e}")
             return f"You are a Specialist. Error loading template: {e}"
 
     def build_mission_message(self) -> str:

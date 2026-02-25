@@ -24,7 +24,9 @@ class EnvironmentContextPlugin(ContextPlugin):
 
             # 2. Hydrate Environment Summaries
             ctx.environment_summaries = build_environment_summaries(relevance="auto")
-            ctx.spatial_awareness = {}
+            
+            if not isinstance(ctx.spatial_awareness, dict):
+                ctx.spatial_awareness = {}
 
             # 2.5 Compute the final Environment Block (Autonomous Sensing Output)
             # This pre-rendered block is what the Engine will use.

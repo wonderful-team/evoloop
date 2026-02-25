@@ -29,12 +29,6 @@ nodes:
       - "update_focus"
       - "memorize"
 
-  - id: "chat"
-    path: "app.core.engine.nodes.chat.chat_node"
-
-  - id: "flash_brain"
-    path: "app.core.brain.node.flash_brain_node"
-
   - id: "worker"
     path: "app.core.engine.nodes.worker.worker_node"
     tools:
@@ -65,12 +59,6 @@ nodes:
       - "memorize_concepts"
       # Research
       - "search_web"
-      # Documentation
-      - "write_document"
-      - "edit_document"
-      - "list_wiki_pages"
-      - "read_wiki_page"
-      - "write_wiki_page"
       # Planning & Audit
       - "create_plan"
       - "update_step_status"
@@ -83,15 +71,46 @@ nodes:
       - "use_mcp_server"
       - "wait"
 
+  - id: "documenter"
+    path: "app.core.engine.nodes.documenter.documenter_node"
+    tools:
+      - "read_file"
+      - "list_files"
+      - "write_document"
+      - "edit_document"
+      - "list_wiki_pages"
+      - "read_wiki_page"
+      - "write_wiki_page"
+      - "memorize_concepts"
+      - "manage_memory"
+      - "explore_codebase"
+      - "grep_files"
+
+  - id: "finish"
+    path: "app.core.engine.nodes.finish.finish_node"
+    tools:
+      - "read_file"
+      - "list_files"
+      - "manage_todo"
+      - "memorize_concepts"
+      - "finalize_session"
+
+  - id: "chat"
+    path: "app.core.engine.nodes.chat.chat_node"
+
+  - id: "flash_brain"
+    path: "app.core.brain.node.flash_brain_node"
+
 edges:
   # 1. Supervisor (Router)
   - from: "supervisor"
     type: "conditional"
     router: "app.core.engine.routers.route_supervisor"
     map:
+      documenter: "documenter"
       chat: "chat"
       supervisor: "supervisor"
-      finish: "worker"
+      finish: "finish"
       flash_brain: "flash_brain"
       worker: "worker"
 
@@ -100,12 +119,22 @@ edges:
     to: "supervisor"
     type: "simple"
 
-  # 3. Chat -> End
+  # 3. Documenter
+  - from: "documenter"
+    to: "supervisor"
+    type: "simple"
+
+  # 4. Chat -> End
   - from: "chat"
     to: "END"
     type: "simple"
 
-  # 4. Flash Brain -> Supervisor
+  # 5. Finish -> End
+  - from: "finish"
+    to: "END"
+    type: "simple"
+
+  # 6. Flash Brain -> Supervisor
   - from: "flash_brain"
     to: "supervisor"
     type: "simple"
@@ -171,3 +200,4 @@ role_tools:
     - "list_app_atlas"
     - "search_native_tools"
     - "request_approval"
+    # - "request_human_input"

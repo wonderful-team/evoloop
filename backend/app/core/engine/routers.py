@@ -42,8 +42,11 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             },
         }) for topic in tasks]
 
+    if next_node == "finish":
+        return "finish"
+
     # Valid v5 nodes: worker, chat, flash_brain, finish (remapped via YAML edges)
-    return next_node or "worker"
+    return next_node or "finish"
 
 
 def route_by_next_node_field(state: AgentState):

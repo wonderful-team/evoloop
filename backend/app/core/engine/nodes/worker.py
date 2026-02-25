@@ -126,15 +126,19 @@ class WorkerNode:
         """
         last_msg = engine_result["messages"][-1]
         content = last_msg.content if isinstance(last_msg, AIMessage) else ""
-
         tool_history = engine_result.get("tool_history", [])
-        logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}")
+        routing_target = engine_result.get("_routing_target")
+        # Handle Session Finalization (explicit signal from finalize_session tool)
+        if "[SESSION_FINALIZED]" in content:
+            routing_target = "END"
+
+        logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}, Target: {routing_target}")
 
         summary = f"**{role_name} Report**:\n{content}\n\n(Tools used: {len(tool_history)})"
 
         return_state: dict[str, Any] = {
             "messages": [AIMessage(content=summary)],
-            "next_node": "supervisor",
+            "next_node": routing_target or "supervisor",
         }
 
         # 5a. Cache Invalidation (from Operator)
