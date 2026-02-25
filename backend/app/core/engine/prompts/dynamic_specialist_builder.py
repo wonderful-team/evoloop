@@ -3,6 +3,8 @@ import logging
 from typing import Any
 from jinja2 import Environment, FileSystemLoader
 
+from app.core.context import ContextManager, plugin_registry
+
 logger = logging.getLogger(__name__)
 
 
@@ -30,9 +32,6 @@ class DynamicSpecialistPromptBuilder:
         self.env = Environment(loader=FileSystemLoader(template_dir))
 
     def build(self, config: Any = None) -> str:
-        from app.core.context.manager import ContextManager
-        from app.core.context.plugins import plugin_registry
-
         ctx = ContextManager.current()
         plugin_registry.hydrate_context(ctx)
 
@@ -45,6 +44,7 @@ class DynamicSpecialistPromptBuilder:
                 "summaries": ctx.environment_summaries,
                 "boundaries": ctx.active_boundaries,
                 "spatial_awareness": ctx.spatial_awareness,
+                "user_preferences": ctx.metadata.get("user_preferences", {}),
             },
             "known_packages": self.known_packages,
             "known_macos_apps": self.known_macos_apps,
