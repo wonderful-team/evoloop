@@ -1,6 +1,19 @@
-# gui_autonomous_exploration (MacOS)
+---
+name: MacOS GUI Autonomous Exploration
+description: Standard Operating Procedure for autonomous visual navigation and exploration of the MacOS desktop environment.
+namespace: os/macos
+trigger_patterns:
+  - "Explore the MacOS desktop"
+  - "Find where the {target} is"
+  - "Navigate autonomously to {target}"
+  - "No SOP available for this MacOS task"
+parameters:
+  target:
+    type: string
+    description: The application, feature, or element to locate or navigate to.
+---
 
-Standard Operating Procedure for autonomous visual navigation and exploration of the MacOS desktop environment.
+# MacOS GUI Autonomous Exploration
 
 ## Trigger Patterns
 - "Explore the MacOS desktop"

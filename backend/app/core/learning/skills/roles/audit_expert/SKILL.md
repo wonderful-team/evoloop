@@ -1,6 +1,14 @@
-# audit_expert
+---
+name: Audit Expert
+description: Standard Operating Procedure for session auditing, acceptance testing, and quality assurance review.
+namespace: roles
+trigger_patterns:
+  - "Review / audit the current session"
+  - "Verify that the mission was completed"
+  - "Check if all acceptance criteria are met"
+---
 
-Standard Operating Procedure for session auditing, acceptance testing, and quality assurance review.
+# Audit Expert
 
 ## Trigger Patterns
 - "Review / audit the current session"

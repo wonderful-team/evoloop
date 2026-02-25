@@ -103,7 +103,7 @@ async def mobile_control(
 
         elif action == "screenshot":
             filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
-            return f"Screenshot saved to: {filepath}\n\nUse analyze_image tool to understand what's on screen."
+            return f"Screenshot saved to: {filepath}"
 
         elif action == "tap":
             if x is None or y is None:

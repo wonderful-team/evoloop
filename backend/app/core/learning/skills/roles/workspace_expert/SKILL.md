@@ -1,6 +1,14 @@
-# workspace_expert
+---
+name: Workspace Expert
+description: Standard Operating Procedure for full-stack workspace operations including code editing, testing, and file management.
+namespace: roles
+trigger_patterns:
+  - "Fix this bug / implement this feature"
+  - "Edit / refactor / write code"
+  - "Run tests and verify"
+---
 
-Standard Operating Procedure for full-stack workspace operations: code editing, testing, file management, and project structure awareness.
+# Workspace Expert
 
 ## Trigger Patterns
 - "Fix this bug / implement this feature"

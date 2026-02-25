@@ -1,6 +1,24 @@
-# deep_research
+---
+name: Deep Research
+description: Standard Operating Procedure for multi-turn, in-depth research and analysis of complex technical topics.
+namespace: roles
+trigger_patterns:
+  - "Research / investigate / analyze {topic}"
+  - "How does {system_module} work?"
+  - "What is the architecture of {component}?"
+parameters:
+  topic:
+    type: string
+    description: The subject to research.
+  system_module:
+    type: string
+    description: The system or module to investigate.
+  component:
+    type: string
+    description: The component to analyze.
+---
 
-Standard Operating Procedure for multi-turn, in-depth research and analysis of complex technical topics.
+# Deep Research
 
 ## Trigger Patterns
 - "Research / investigate / analyze [topic]"

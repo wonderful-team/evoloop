@@ -1,3 +1,18 @@
+---
+name: Android GUI Autonomous Exploration
+description: Standard Operating Procedure for autonomous visual navigation and exploration of the Android mobile environment.
+namespace: os/android
+trigger_patterns:
+  - "Explore the Android device"
+  - "Find where the {target} is in the app"
+  - "Navigate autonomously to {target} on Android"
+  - "No SOP available for this Android task"
+parameters:
+  target:
+    type: string
+    description: The application, feature, or element to locate or navigate to.
+---
+
 # gui_autonomous_exploration (Android)
 
 Standard Operating Procedure for autonomous visual navigation and exploration of connected Android devices via ADB/Mobile Control.

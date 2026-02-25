@@ -1,6 +1,18 @@
-# docs_architect
+---
+name: Docs Architect
+description: Standard Operating Procedure for proactive documentation management, wiki maintenance, and knowledge harvesting.
+namespace: roles
+trigger_patterns:
+  - "Update / write documentation"
+  - "Create wiki page for {topic}"
+  - "Harvest knowledge from this session"
+parameters:
+  topic:
+    type: string
+    description: The subject to document or create a wiki page for.
+---
 
-Standard Operating Procedure for proactive documentation management, wiki maintenance, and knowledge harvesting.
+# Docs Architect
 
 ## Trigger Patterns
 - "Update / write documentation"

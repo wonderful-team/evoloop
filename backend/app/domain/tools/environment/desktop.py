@@ -190,7 +190,7 @@ async def desktop_control(
 
         if action == "screenshot":
             filepath = macos_driver.screenshot(region=region)
-            return f"Screenshot saved to: {filepath}\n\nUse analyze_image tool to understand what's on screen."
+            return f"Screenshot saved to: {filepath}"
 
         elif action in ["click", "double_click"]:
             target_x, target_y = x, y
