@@ -126,47 +126,61 @@ class SupervisorNode:
             if not isinstance(routing_context, dict):
                 routing_context = {}
 
-            # Universal Blackboard Ticket Population
-            execution_ticket = None
-            specialists = ["operator", "deep_researcher", "documenter"]
-
+            # ===== v5 UNIFIED ROUTING =====
             # Intent-driven Namespace (from LLM)
             inferred_namespace = routing_context.get("namespace_context")
 
-            if routing_target in specialists:
-                execution_ticket = {
-                    "ticket_type": routing_context.get("ticket_type", "task"),
-                    "priority": routing_context.get("priority", "normal"),
-                    "focus_paths": routing_context.get("focus_paths", []),
-                    "topic": routing_context.get("topic") or routing_context.get("query"),
-                    "acceptance_criteria": routing_context.get("acceptance_criteria", []),
-                    "constraints": routing_context.get("constraints", []),
-                    "expected_outcomes": routing_context.get("expected_outcomes", []),
-                    "parameters": routing_context.get("parameters", {}),
+            # All specialist routes now go through the Universal Worker (dynamic_specialist).
+            # We auto-generate an agent_config based on the intended role.
+            ROLE_CONFIGS = {
+                "operator": {
+                    "role_name": "Workspace Operator",
+                    "system_instructions": "You are a full-stack systems operator. Execute coding, testing, and file management tasks. Search for relevant SOPs using search_skills before complex operations.",
+                },
+                "deep_researcher": {
+                    "role_name": "Deep Researcher",
+                    "system_instructions": "You are an expert analyst. Conduct thorough multi-step research using file reads, web searches, and codebase exploration. Synthesize findings into a comprehensive conclusion.",
+                },
+                "documenter": {
+                    "role_name": "Documentation Architect",
+                    "system_instructions": "You are a documentation expert. Manage project docs, wiki pages, and knowledge harvesting. Read existing docs before creating new ones.",
+                },
+                "finish": {
+                    "role_name": "Session Auditor",
+                    "system_instructions": "You are an acceptance tester. Audit the conversation history against the mission criteria. Call finalize_session when done, or route_to operator if incomplete.",
+                },
+            }
+
+            # Resolve the agent_config: either from LLM (dynamic_specialist) or auto-generated (legacy routes)
+            if routing_target == "dynamic_specialist":
+                agent_config = routing_context.get("agent_config")
+                if agent_config and "namespace_context" not in agent_config:
+                    agent_config["namespace_context"] = inferred_namespace
+            elif routing_target in ROLE_CONFIGS:
+                role_cfg = ROLE_CONFIGS[routing_target]
+                agent_config = {
+                    "role_name": role_cfg["role_name"],
+                    "system_instructions": role_cfg["system_instructions"],
+                    "tools": [],  # ToolManager will use the YAML profile
                     "namespace_context": inferred_namespace,
                 }
-            elif routing_target == "dynamic_specialist":
-                # Dynamic Agent Ticket Population
-                agent_config = routing_context.get("agent_config")
-                if agent_config:
-                    if "namespace_context" not in agent_config:
-                        agent_config["namespace_context"] = inferred_namespace
+                # Redirect to Worker
+                routing_target = "dynamic_specialist"
+            else:
+                agent_config = None
 
-                    execution_ticket = {
-                        "ticket_type": routing_context.get("ticket_type", "adhoc_task"),
-                        "priority": "normal",
-                        "topic": routing_reason or "Dynamic Task",
-                        "acceptance_criteria": routing_context.get("acceptance_criteria", []),
-                        "agent_config": agent_config,  # The Blueprint
-                        # Dynamic specialist doesn't usually use focus_paths like Operator,
-                        # but we can pass them if tools support it.
-                        "parameters": routing_context.get("parameters", {}),
-                        # Required fields (nullable in TypeDict but good to have keys)
-                        "focus_paths": None,
-                        "constraints": None,
-                        "expected_outcomes": None,
-                        "namespace_context": inferred_namespace,
-                    }
+            execution_ticket = {
+                "ticket_type": routing_context.get("ticket_type", "task"),
+                "priority": routing_context.get("priority", "normal"),
+                "focus_paths": routing_context.get("focus_paths", []),
+                "topic": routing_context.get("topic") or routing_context.get("query") or routing_reason,
+                "acceptance_criteria": routing_context.get("acceptance_criteria", []),
+                "constraints": routing_context.get("constraints", []),
+                "expected_outcomes": routing_context.get("expected_outcomes", []),
+                "parameters": routing_context.get("parameters", {}),
+                "namespace_context": inferred_namespace,
+                "agent_config": agent_config,
+            }
 
             return {
                 **cleanup_state,  # Clear old ticket first
@@ -200,11 +214,11 @@ class SupervisorNode:
                     **cleanup_state
                 }
 
-        # Ultimate fallback: default to deep_researcher
-        logger.warning("[Supervisor] ⚠️ No routing signal and no text response - defaulting to deep_researcher")
+        # Ultimate fallback: default to Worker
+        logger.warning("[Supervisor] ⚠️ No routing signal and no text response - defaulting to Worker")
         return {
             "messages": new_messages,
-            "next_node": "deep_researcher",
+            "next_node": "dynamic_specialist",
             "current_plan": state.get("current_plan"),
             **cleanup_state
         }

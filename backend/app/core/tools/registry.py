@@ -242,11 +242,11 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
     return hydrated
 
 
-# --- Convenience Accessors for Key Roles ---
+# --- Convenience Accessors ---
 
-def get_operator_tools() -> list[BaseTool]:
-    """Return standard tools for the Operator agent."""
-    return tool_manager.get_node_tools("operator")
+def get_worker_tools(role: str = "operator") -> list[BaseTool]:
+    """Return tools for the Universal Worker in the specified role persona."""
+    return tool_manager.get_node_tools(role)
 
 
 def get_supervisor_tools() -> list[BaseTool]:

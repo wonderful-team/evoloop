@@ -17,15 +17,11 @@ class DynamicSpecialistPromptBuilder:
         agent_config: dict,
         ticket: dict,
         skills: list = None,
-        known_packages: dict[str, str] = None,
-        known_macos_apps: dict[str, str] = None,
         clipboard: list[dict[str, Any]] = None
     ):
         self.agent_config = agent_config
         self.ticket = ticket
         self.skills = skills or []
-        self.known_packages = known_packages or {}
-        self.known_macos_apps = known_macos_apps or {}
         self.clipboard = clipboard or []
 
         template_dir = os.path.join(os.path.dirname(__file__), "templates")
@@ -46,8 +42,6 @@ class DynamicSpecialistPromptBuilder:
                 "spatial_awareness": ctx.spatial_awareness,
                 "user_preferences": ctx.metadata.get("user_preferences", {}),
             },
-            "known_packages": self.known_packages,
-            "known_macos_apps": self.known_macos_apps,
             "knowledge_blocks": knowledge_blocks,
             "clipboard": self.clipboard,
         }

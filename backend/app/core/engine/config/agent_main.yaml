@@ -29,67 +29,6 @@ nodes:
       - "update_focus"
       - "memorize"
 
-  - id: "operator"
-    path: "app.core.engine.nodes.operator.operator_node"
-    tools:
-      - "read_file"
-      - "write_file"
-      - "edit_file"
-      - "list_files"
-      - "file_system"
-      - "consult_lsp"
-      - "manage_git"
-      - "manage_memory"
-      - "consult_architecture"
-      - "request_approval"
-      - "create_plan"
-      - "update_step_status"
-      - "analyze_feasibility"
-      - "explore_codebase"
-      - "grep_files"
-      - "query_app_atlas"
-      - "list_app_atlas"
-      - "bash"
-      - "search_native_tools"
-      - "get_workspace_tree"
-      - "search_skills"
-      - "use_mcp_server"
-
-  - id: "deep_researcher"
-    path: "app.core.engine.nodes.deep_researcher.deep_researcher_node"
-    tools:
-      - "read_file"
-      - "list_files"
-      - "manage_memory"
-      - "crawl_url"
-      - "search_web"
-      - "explore_codebase"
-      - "grep_files"
-
-  - id: "documenter"
-    path: "app.core.engine.nodes.documenter.documenter_node"
-    tools:
-      - "read_file"
-      - "list_files"
-      - "write_document"
-      - "edit_document"
-      - "list_wiki_pages"
-      - "read_wiki_page"
-      - "write_wiki_page"
-      - "memorize_concepts"
-      - "manage_memory"
-      - "explore_codebase"
-      - "grep_files"
-
-  - id: "finish"
-    path: "app.core.engine.nodes.finish.finish_node"
-    tools:
-      - "read_file"
-      - "list_files"
-      - "manage_todo"
-      - "memorize_concepts"
-      - "finalize_session"
-
   - id: "chat"
     path: "app.core.engine.nodes.chat.chat_node"
 
@@ -99,13 +38,49 @@ nodes:
   - id: "dynamic_specialist"
     path: "app.core.engine.nodes.dynamic_specialist.dynamic_specialist_node"
     tools:
+      # Universal Worker Toolkit (v5 — gated at runtime by ExecutionTicket)
+      # Desktop & Mobile Automation
       - "desktop_control"
+      - "mobile_control"
       - "analyze_image"
+      - "verify_ui_state"
+      # Workspace & Code
+      - "read_file"
+      - "write_file"
+      - "edit_file"
+      - "list_files"
+      - "file_system"
+      - "bash"
+      - "consult_lsp"
+      - "manage_git"
+      - "explore_codebase"
+      - "grep_files"
+      - "get_workspace_tree"
+      # Knowledge & Memory
+      - "manage_memory"
+      - "search_skills"
       - "query_app_atlas"
       - "list_app_atlas"
       - "search_native_tools"
+      - "memorize_concepts"
+      # Research
+      - "search_web"
+      # Documentation
+      - "write_document"
+      - "edit_document"
+      - "list_wiki_pages"
+      - "read_wiki_page"
+      - "write_wiki_page"
+      # Planning & Audit
+      - "create_plan"
+      - "update_step_status"
+      - "analyze_feasibility"
+      - "consult_architecture"
+      - "manage_todo"
+      - "finalize_session"
+      # Control
       - "request_approval"
-      # - "request_human_input"
+      - "use_mcp_server"
 
 edges:
   # 1. Supervisor (Router)
@@ -113,109 +88,79 @@ edges:
     type: "conditional"
     router: "app.core.engine.routers.route_supervisor"
     map:
-      operator: "operator"
-      deep_researcher: "deep_researcher"
-      documenter: "documenter"
       chat: "chat"
       supervisor: "supervisor"
-      finish: "finish"
+      finish: "dynamic_specialist"
       flash_brain: "flash_brain"
       dynamic_specialist: "dynamic_specialist"
 
-  # 2. Operator Loop (Self-Correcting)
-  # Operator node handles its own loops via max_steps.
-  # When it returns, it yields control back to Supervisor.
-  - from: "operator"
-    to: "supervisor"
-    type: "simple"
-
-  # 3. Researcher
-  - from: "deep_researcher"
-    to: "supervisor"
-    type: "simple"
-
-  # 4. Documenter
-  - from: "documenter"
-    to: "supervisor"
-    type: "simple"
-
-  # 5. Chat -> End
-  - from: "chat"
-    to: "END"
-    type: "simple"
-
-  # 6. Finish -> End
-  - from: "finish"
-    to: "END"
-    type: "simple"
-
-  # 7. Flash Brain -> Supervisor
-  - from: "flash_brain"
-    to: "supervisor"
-    type: "simple"
-
-  # 8. Dynamic Specialist -> Supervisor
+  # 2. Worker -> Supervisor
   - from: "dynamic_specialist"
     to: "supervisor"
     type: "simple"
 
-# Additional role mappings for non-graph nodes (used by SkillExecutor, etc.)
+  # 3. Chat -> End
+  - from: "chat"
+    to: "END"
+    type: "simple"
+
+  # 4. Flash Brain -> Supervisor
+  - from: "flash_brain"
+    to: "supervisor"
+    type: "simple"
+
+# Role-specific tool profiles (v5 Unified Roles)
+# Used by ToolManager to hydrate tools for the Universal Worker based on its current persona.
 role_tools:
-  coder:
+  operator:
     - "read_file"
     - "write_file"
     - "edit_file"
     - "list_files"
     - "file_system"
+    - "bash"
     - "consult_lsp"
     - "manage_git"
     - "manage_memory"
     - "consult_architecture"
     - "request_approval"
-    - "explore_codebase"
-    - "grep_files"
-    - "search_native_tools"
-
-  planner:
-    - "read_file"
-    - "list_files"
     - "create_plan"
     - "update_step_status"
     - "analyze_feasibility"
-    - "consult_architecture"
-    - "request_approval"
     - "explore_codebase"
     - "grep_files"
-    - "query_app_atlas"
-    - "list_app_atlas"
-    - "search_native_tools"
+    - "get_workspace_tree"
+    - "search_skills"
+    - "use_mcp_server"
 
-  researcher:
+  deep_researcher:
     - "read_file"
     - "list_files"
     - "manage_memory"
-    - "crawl_url"
     - "search_web"
     - "explore_codebase"
     - "grep_files"
+    - "search_skills"
 
-  requirement_analyst:
+  documenter:
     - "read_file"
     - "list_files"
     - "write_document"
     - "edit_document"
+    - "list_wiki_pages"
+    - "read_wiki_page"
+    - "write_wiki_page"
+    - "memorize_concepts"
     - "manage_memory"
     - "explore_codebase"
     - "grep_files"
 
-  tester:
+  finish:
     - "read_file"
-    - "write_file"
-    - "edit_file"
     - "list_files"
-    - "manage_memory"
-    - "explore_codebase"
-    - "grep_files"
+    - "manage_todo"
+    - "memorize_concepts"
+    - "finalize_session"
 
   "MacOS Automation Specialist":
     - "desktop_control"
@@ -224,4 +169,3 @@ role_tools:
     - "list_app_atlas"
     - "search_native_tools"
     - "request_approval"
-    # - "request_human_input"

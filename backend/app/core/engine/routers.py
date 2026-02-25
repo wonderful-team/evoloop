@@ -19,25 +19,31 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     """
     next_node = state.get("next_node")
 
-    # [Compatibility] Remap legacy targets if LLM hallucinates
-    if next_node in ["coder", "tester", "planner"]:
-        logger.info(f"[Router] Remapping legacy routing '{next_node}' -> 'operator'")
-        return "operator"
+    # [Compatibility] Remap legacy targets if LLM hallucinates old node names
+    if next_node in ["coder", "tester", "planner", "operator", "deep_researcher", "documenter"]:
+        logger.info(f"[Router] Remapping legacy routing '{next_node}' -> 'dynamic_specialist'")
+        return "dynamic_specialist"
 
-    # Parallel Research
+    # Parallel Research (v5: each branch runs as a Worker with researcher persona)
     if next_node == "map_research":
         tasks = state.get("parallel_research_tasks", [])
         project_id = state.get("project_id", 1)
-        return [Send("deep_researcher", {
+        return [Send("dynamic_specialist", {
             "research_topic": topic,
             "project_id": project_id,
+            "execution_ticket": {
+                "ticket_type": "web_research",
+                "topic": topic,
+                "agent_config": {
+                    "role_name": "Deep Researcher",
+                    "system_instructions": "You are an expert analyst. Conduct thorough research on the assigned topic.",
+                    "tools": [],
+                },
+            },
         }) for topic in tasks]
 
-    if next_node == "finish":
-        return "finish"
-
-    # Valid functional nodes: operator, deep_researcher, documenter, etc.
-    return next_node or "finish"
+    # Valid v5 nodes: dynamic_specialist, chat, flash_brain, finish (remapped via YAML edges)
+    return next_node or "dynamic_specialist"
 
 
 def route_by_next_node_field(state: AgentState):
