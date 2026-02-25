@@ -688,8 +688,9 @@ class MacOSDriver:
             bundle_id = active_app.bundleIdentifier() or "unknown"
             pid = active_app.processIdentifier()
 
-            # Get window title via Quartz (much faster than osascript)
+            # Get window title and bounds via Quartz (much faster than osascript)
             win_title = ""
+            win_bounds = ""
             window_list = CGWindowListCopyWindowInfo(
                 kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID
             )
@@ -697,9 +698,18 @@ class MacOSDriver:
                 for window in window_list:
                     if window.get("kCGWindowOwnerPID") == pid and window.get("kCGWindowLayer") == 0:
                         win_title = window.get("kCGWindowName", "")
+                        bounds = window.get("kCGWindowBounds", {})
+                        if bounds:
+                            # Format: x,y,w,h
+                            win_bounds = f"{int(bounds.get('X', 0))},{int(bounds.get('Y', 0))},{int(bounds.get('Width', 0))},{int(bounds.get('Height', 0))}"
                         break
 
-            return {"name": app_name, "bundle_id": bundle_id, "title": win_title}
+            return {
+                "name": app_name,
+                "bundle_id": bundle_id,
+                "title": win_title,
+                "bounds": win_bounds
+            }
 
         except Exception as e:
             logger.debug(f"Native get_current_app failed: {e}. Falling back to AppleScript.")
@@ -711,24 +721,37 @@ class MacOSDriver:
             set appName to name of frontApp
             set bundleId to bundle identifier of frontApp
             set winTitle to ""
+            set winBounds to ""
             try
                 tell frontApp
-                    set winTitle to name of front window
+                    set win to window 1
+                    set winTitle to name of win
+                    set {x, y} to position of win
+                    set {w, h} to size of win
+                    set winBounds to (x as string) & "," & (y as string) & "," & (w as string) & "," & (h as string)
                 end tell
             end try
-            return appName & ":::" & bundleId & ":::" & winTitle
+            return appName & ":::" & bundleId & ":::" & winTitle & ":::" & winBounds
         end tell
         '''
         try:
             output = MacOSDriver.run_applescript(script)
             parts = output.split(":::")
-            if len(parts) >= 3:
+            if len(parts) >= 4:
                 return {
                     "name": parts[0],
                     "bundle_id": parts[1] if parts[1] != "missing value" else parts[0],
-                    "title": parts[2]
+                    "title": parts[2],
+                    "bounds": parts[3]
                 }
-            return {"name": "unknown", "bundle_id": "unknown", "title": "unknown"}
+            elif len(parts) >= 3:
+                 return {
+                    "name": parts[0],
+                    "bundle_id": parts[1] if parts[1] != "missing value" else parts[0],
+                    "title": parts[2],
+                    "bounds": ""
+                }
+            return {"name": "unknown", "bundle_id": "unknown", "title": "unknown", "bounds": ""}
         except Exception as e:
             logger.error(f"Failed to get current MacOS app via AppleScript: {e}")
             return {"name": "error", "bundle_id": "error", "title": "error"}

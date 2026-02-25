@@ -5,6 +5,7 @@ Provides the Agent with the ability to see and interact with the Mac desktop.
 import ast
 import asyncio
 import logging
+import os
 import time
 from typing import Literal
 
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool
 async def desktop_control(
-    action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps"],
+    action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app"],
     x: int | None = None,
     y: int | None = None,
     element_name: str | None = None,
@@ -32,6 +33,9 @@ async def desktop_control(
     script: str | None = None,
     region: str | None = None,
     force_keystroke: bool = False,
+    actions: list[dict] | None = None,
+    continue_on_error: bool = True,
+    delay_ms: int = 100,
 ) -> str:
     """
     Control the MacOS desktop - screenshot, click, type, and more.
@@ -50,6 +54,7 @@ async def desktop_control(
             - "applescript": Execute raw AppleScript code.
             - "get_info": Get system hardware and OS environment info.
             - "list_apps": List installed applications in /Applications.
+            - "get_active_app": Get the currently focused application's name, title, and window bounds.
         x: X coordinate for click action.
         y: Y coordinate for click action.
         element_name: Semantic name/label of the UI element to click (e.g., "Login", "Close").
@@ -60,6 +65,9 @@ async def desktop_control(
         script: AppleScript code for applescript action.
         region: Optional region "x,y,w,h" for screenshot action.
         force_keystroke: If True for type_text, uses slow AppleScript keystroke instead of fast clipboard paste.
+        actions: List of action dicts for batch mode. Each dict has "action" and matching params.
+        continue_on_error: For batch mode, whether to continue on error (default True).
+        delay_ms: For batch mode, delay between actions in ms (default 100).
     """
     try:
         # Helper to resolve coordinates or AX path from the Tri-Engine
@@ -103,7 +111,8 @@ async def desktop_control(
                     if res:
                         return res
 
-            # 2. Try App Atlas Fallback (Historical Memory)
+            # 2. Try App Atlas Fallback (Historical Memory) - Only use ax_path/os_identifier, NOT coordinates
+            # Atlas coordinates are absolute and become invalid when window moves
             try:
                 app_info = macos_driver.get_current_app()
                 bundle_id = app_info.get("bundle_id")
@@ -120,41 +129,63 @@ async def desktop_control(
                                     # Fallback covers old (text/name) and new (label) variations
                                     el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
                                     if name.lower() in el_name:
-                                        res = {}
-                                        if el.get("os_identifier"):
-                                            res["type"] = "path"
-                                            res["value"] = el["os_identifier"]
-
-                                        bounds = el.get("bounds", {})
-                                        if bounds:
-                                            res["x"] = int(bounds.get("x", 0) + bounds.get("width", 0) / 2)
-                                            res["y"] = int(bounds.get("y", 0) + bounds.get("height", 0) / 2)
-                                            if "type" not in res:
-                                                res["type"] = "coords"
-                                        elif "x" in el and "y" in el:
-                                            res["x"] = int(el["x"])
-                                            res["y"] = int(el["y"])
-                                            if "type" not in res:
-                                                res["type"] = "coords"
-
-                                        if res:
-                                            return res
+                                        # Only use structural path, NOT bounds (coordinates become stale when window moves)
+                                        if el.get("os_identifier") or el.get("ax_path"):
+                                            return {
+                                                "type": "path",
+                                                "value": el.get("os_identifier") or el.get("ax_path")
+                                            }
+                                        # No valid path found, skip Atlas for this element
+                                        break
             except Exception as e:
                 logger.debug(f"[Desktop] Atlas fallback failed: {e}")
 
             # 3. Try Local Vision OCR (Newly implemented)
             try:
-                # Take a quick screenshot
-                temp_img = macos_driver.screenshot()
+                # 3a. Get current app bounds for a focused scan
+                app_info = macos_driver.get_current_app()
+                bounds_str = app_info.get("bounds")
+                win_x, win_y = 0, 0
+                
+                if bounds_str:
+                    try:
+                        win_x, win_y, _, _ = map(int, bounds_str.split(","))
+                        # Take focused screenshot
+                        temp_img = macos_driver.screenshot(region=bounds_str)
+                        logger.debug(f"[Desktop] Performing focused OCR scan for '{name}' in {app_info.get('name')}")
+                    except ValueError:
+                        temp_img = macos_driver.screenshot()
+                else:
+                    temp_img = macos_driver.screenshot()
+
                 # Run OCR task
                 result = await vision_engine.process(VisionTask.OCR, temp_img)
+                
+                import unicodedata
+                target_name = unicodedata.normalize('NFC', name).strip().lower().replace(" ", "").replace("\u3000", "")
+                
                 if result.success:
+                    # Cleanup temp image
+                    if os.path.exists(temp_img):
+                        os.remove(temp_img)
+                    
                     for el in result.elements:
-                        if name.lower() in (el.text or "").lower():
-                            return {"type": "coords", "x": el.x, "y": el.y}
+                        # Normalize and remove ALL whitespace for robust matching (common in Chinese OCR)
+                        el_text_raw = (el.text or "")
+                        el_text = unicodedata.normalize('NFC', el_text_raw).strip().lower().replace(" ", "").replace("\u3000", "")
+                        
+                        # Use substring match
+                        if target_name in el_text:
+                            # Adjust relative coordinates to absolute screen coordinates
+                            logger.info(f"[Desktop] Resolved '{name}' via OCR at relative ({el.x}, {el.y}) -> Absolute ({win_x + el.x}, {win_y + el.y})")
+                            return {"type": "coords", "x": win_x + el.x, "y": win_y + el.y}
+                
+                if os.path.exists(temp_img):
+                    os.remove(temp_img)
             except Exception as e:
                 logger.debug(f"[Desktop] Vision OCR fallback failed: {e}")
 
+            logger.error(f"[Desktop] Failed to resolve '{name}'.")
             return f"Error: Could not find element with name '{name}' in live AX tree, Atlas memory, or via local OCR."
 
         if action == "screenshot":
@@ -221,6 +252,10 @@ async def desktop_control(
             apps = macos_driver.list_installed_apps()
             return f"Installed Apps: {apps}"
 
+        elif action == "get_active_app":
+            app_info = macos_driver.get_current_app()
+            return f"Active Application: {app_info}"
+
         elif action == "key_press":
             if not key:
                 return "Error: 'key' is required for key_press action."
@@ -244,13 +279,9 @@ async def desktop_control(
                 # 1. Detect HTML-like content (common in Notes.app output)
                 if "</div>" in output or "</body>" in output or "<br>" in output:
                     try:
-                        # Convert HTML to Markdown (strips extensive tags & base64 images usually)
-                        # heading_style="ATX" ensures # Header format
                         md_output = markdownify.markdownify(output, heading_style="ATX")
                         if md_output.strip():
                             output = f"[Converted from HTML to Markdown]\n{md_output}"
-                    except ImportError:
-                        pass # Fallback to raw output if lib missing
                     except Exception as e:
                         logger.warning(f"Markdown conversion failed: {e}")
 
@@ -260,6 +291,84 @@ async def desktop_control(
                     output = output[:MAX_OUTPUT_LENGTH] + f"\n... [Output truncated, length: {truncated_len}]"
 
             return f"AppleScript executed.\nOutput: {output}" if output else "AppleScript executed successfully."
+
+        elif action == "batch":
+            if not actions:
+                return "Error: 'actions' list is required for batch action."
+
+            batch_start = time.time()
+            results = []
+            total = len(actions)
+
+            logger.info(f"[Batch] Starting {total} actions (continue_on_error={continue_on_error})")
+
+            for i, action_dict in enumerate(actions, 1):
+                step_start = time.time()
+                step_action = action_dict.get("action", "unknown")
+
+                try:
+                    params = {"action": step_action}
+
+                    if step_action in ["click", "double_click"]:
+                        params.update({
+                            "x": action_dict.get("x"),
+                            "y": action_dict.get("y"),
+                            "element_name": action_dict.get("element_name"),
+                            "element_role": action_dict.get("element_role"),
+                        })
+                    elif step_action == "type_text":
+                        params.update({
+                            "text": action_dict.get("text"),
+                            "force_keystroke": action_dict.get("force_keystroke", False),
+                        })
+                    elif step_action == "key_press":
+                        params["key"] = action_dict.get("key")
+                    elif step_action == "open_app":
+                        params["app_name"] = action_dict.get("app_name")
+                    elif step_action == "applescript":
+                        params["script"] = action_dict.get("script")
+                    elif step_action == "screenshot":
+                        params["region"] = action_dict.get("region")
+                    else:
+                        raise ValueError(f"Unknown action '{step_action}'")
+
+                    params = {k: v for k, v in params.items() if v is not None}
+                    result = await desktop_control.ainvoke(params)
+
+                    latency = int((time.time() - step_start) * 1000)
+                    results.append({
+                        "step": i, "action": step_action,
+                        "status": "success" if not result.startswith("Error") else "error",
+                        "result": result, "latency_ms": latency,
+                    })
+
+                except Exception as e:
+                    latency = int((time.time() - step_start) * 1000)
+                    results.append({
+                        "step": i, "action": step_action,
+                        "status": "error", "result": str(e), "latency_ms": latency,
+                    })
+                    if not continue_on_error:
+                        break
+
+                if i < total and delay_ms > 0:
+                    await asyncio.sleep(delay_ms / 1000)
+
+            total_time = time.time() - batch_start
+            ok = sum(1 for r in results if r["status"] == "success")
+            fail = len(results) - ok
+
+            lines = [
+                f"✅ Batch Complete: {ok}/{total} succeeded, {fail} failed ({total_time:.2f}s)",
+                "",
+            ]
+            for r in results:
+                icon = "✅" if r["status"] == "success" else "❌"
+                lines.append(f"  {icon} Step {r['step']}: {r['action']} ({r['latency_ms']}ms)")
+                if r["status"] == "error":
+                    lines.append(f"      Error: {r['result'][:100]}")
+
+            return "\n".join(lines)
 
         else:
             return f"Error: Unknown action '{action}'."
@@ -374,8 +483,7 @@ async def quick_check_screen(
                 continue
 
             if check_type == "is_loaded":
-                # Check if we have meaningful UI elements (not just empty)
-                if len(elements) > 3:  # Has some UI elements
+                if len(elements) > 3:
                     elapsed = time.time() - start_time
                     return f"✅ Screen appears loaded ({len(elements)} UI elements detected in {elapsed:.2f}s)"
 
@@ -400,7 +508,6 @@ async def quick_check_screen(
                             return f"✅ Found element '{target}' at ({x}, {y}) (in {elapsed:.2f}s)"
                         return f"✅ Found element '{target}' (in {elapsed:.2f}s)"
 
-            # Not found yet, wait and retry
             await asyncio.sleep(0.5)
 
         except Exception as e:
@@ -411,143 +518,3 @@ async def quick_check_screen(
     if check_type == "is_loaded":
         return f"❌ Screen may not be fully loaded after {elapsed:.1f}s"
     return f"❌ Did not find '{target}' after {elapsed:.1f}s"
-
-
-@evoloop_tool
-async def batch_desktop_actions(
-    actions: list[dict],
-    continue_on_error: bool = True,
-    delay_ms: int = 100,
-) -> str:
-    """
-    Execute multiple desktop actions in sequence to reduce LLM round-trips.
-
-    Performance: This tool reduces total execution time by ~60% for multi-step workflows
-    by eliminating repeated LLM calls between actions.
-
-    Args:
-        actions: List of action dictionaries. Each dict must have:
-            - "action": One of "click", "double_click", "type_text", "key_press", "open_app"
-            - Other params match desktop_control (element_name, x, y, text, key, app_name, etc.)
-            Example: [
-                {"action": "click", "element_name": "搜索框"},
-                {"action": "type_text", "text": "AI新闻"},
-                {"action": "key_press", "key": "enter"}
-            ]
-        continue_on_error: If True, continue executing remaining actions even if one fails.
-        delay_ms: Delay between actions in milliseconds (default 100ms) to allow UI to update.
-
-    Returns:
-        Summary of all actions performed with their results.
-
-    Example:
-        # Open Chrome, search, copy results - all in one tool call
-        batch_desktop_actions([
-            {"action": "open_app", "app_name": "Google Chrome"},
-            {"action": "click", "element_name": "地址栏"},
-            {"action": "type_text", "text": "latest AI news"},
-            {"action": "key_press", "key": "enter"},
-            {"action": "click", "element_name": "第一个结果"},
-            {"action": "key_press", "key": "command+a"},
-            {"action": "key_press", "key": "command+c"}
-        ])
-    """
-    start_time = time.time()
-    results = []
-    total_actions = len(actions)
-
-    logger.info(f"[BatchDesktop] Starting {total_actions} actions (continue_on_error={continue_on_error})")
-
-    for i, action_dict in enumerate(actions, 1):
-        action_start = time.time()
-        action_type = action_dict.get("action", "unknown")
-
-        logger.info(f"[BatchDesktop] Step {i}/{total_actions}: {action_type}")
-
-        try:
-            # Map action to desktop_control parameters
-            action = action_dict.get("action")
-
-            # Build parameters dict for ainvoke
-            params = {"action": action}
-
-            if action in ["click", "double_click"]:
-                params.update({
-                    "x": action_dict.get("x"),
-                    "y": action_dict.get("y"),
-                    "element_name": action_dict.get("element_name"),
-                    "element_role": action_dict.get("element_role"),
-                })
-            elif action == "type_text":
-                params.update({
-                    "text": action_dict.get("text"),
-                    "force_keystroke": action_dict.get("force_keystroke", False),
-                })
-            elif action == "key_press":
-                params.update({
-                    "key": action_dict.get("key"),
-                })
-            elif action == "open_app":
-                params.update({
-                    "app_name": action_dict.get("app_name"),
-                })
-            else:
-                result = f"Error: Unknown action '{action}'"
-                raise ValueError(result)
-
-            # Call desktop_control using ainvoke (it's a StructuredTool)
-            # Filter out None values to avoid validation issues
-            params = {k: v for k, v in params.items() if v is not None}
-            result = await desktop_control.ainvoke(params)
-
-            action_latency = time.time() - action_start
-            results.append({
-                "step": i,
-                "action": action_type,
-                "status": "success" if not result.startswith("Error") else "error",
-                "result": result,
-                "latency_ms": int(action_latency * 1000),
-            })
-
-        except Exception as e:
-            action_latency = time.time() - action_start
-            results.append({
-                "step": i,
-                "action": action_type,
-                "status": "error",
-                "result": str(e),
-                "latency_ms": int(action_latency * 1000),
-            })
-
-            if not continue_on_error:
-                logger.warning(f"[BatchDesktop] Stopping at step {i} due to error (continue_on_error=False)")
-                break
-
-        # Delay between actions (except for the last one)
-        if i < total_actions and delay_ms > 0:
-            await asyncio.sleep(delay_ms / 1000)
-
-    total_time = time.time() - start_time
-    success_count = sum(1 for r in results if r["status"] == "success")
-    error_count = len(results) - success_count
-
-    # Format results
-    summary_lines = [
-        f"✅ Batch Desktop Actions Complete",
-        f"",
-        f"Summary: {success_count}/{total_actions} succeeded, {error_count} failed",
-        f"Total time: {total_time:.2f}s",
-        f"",
-        f"Step Details:",
-    ]
-
-    for r in results:
-        status_icon = "✅" if r["status"] == "success" else "❌"
-        summary_lines.append(f"  {status_icon} Step {r['step']}: {r['action']} ({r['latency_ms']}ms)")
-        if r["status"] == "error":
-            summary_lines.append(f"      Error: {r['result'][:100]}")
-
-    summary_lines.append("")
-    summary_lines.append(f"💡 Performance saved: ~{max(0, (total_actions - 1) * 5)}s (avoided {total_actions - 1} LLM round-trips)")
-
-    return "\n".join(summary_lines)

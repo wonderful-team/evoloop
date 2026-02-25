@@ -46,8 +46,7 @@ class VisionEngine:
             from app.core.vision.pipeline.manager import pipeline_manager
             elements, screenshot_path = await pipeline_manager.perceive(
                 screenshot_path=image_source,
-                device_id=kwargs.get("device_id"),
-                use_cache=kwargs.get("use_cache", True)
+                device_id=kwargs.get("device_id")
             )
             result = VisionResult(
                 task=task,
@@ -68,7 +67,7 @@ class VisionEngine:
                     bundle_id=app_info.get("bundle_id", "unknown"),
                     window_title=app_info.get("title", "unknown"),
                     elements=[e.to_dict() for e in elements],
-                    screenshot_hash=kwargs.get("scene_hash", "")
+                    screenshot_hash=""
                 ))
                 logger.debug(f"[VisionEngine] Emitted UiTreeObservedEvent for {app_info.get('bundle_id')}")
             except Exception as e:
@@ -111,7 +110,7 @@ class VisionEngine:
                         image_source,
                         kwargs.get("device_id"),
                         "macos",
-                        kwargs.get("scene_hash", "")
+                        ""
                     )
                 )
                 logger.debug(f"[VisionEngine] Dispatched Atlas background mapping for {image_source}")

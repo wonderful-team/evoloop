@@ -5,16 +5,12 @@ import tempfile
 from datetime import datetime
 
 from app.core.config import settings
-from app.core.vision.pipeline.cache import scene_cache
 from app.core.vision.providers.native.android_a11y import AndroidA11yProvider
 from app.core.vision.providers.native.macos_ax import MacOSAxProvider
 from app.core.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider
 from app.core.vision.types import UIElement, VisionResult, VisionTask
 
 logger = logging.getLogger(__name__)
-
-
-
 
 
 def merge_elements(results: list[VisionResult]) -> list[UIElement]:
@@ -100,25 +96,10 @@ class PipelineManager:
         self,
         screenshot_path: str | None = None,
         device_id: str | None = None,
-        use_cache: bool = True,
     ) -> tuple[list[UIElement], str | None]:
         """
         Run perception pipeline to extract UI elements.
         """
-
-        if screenshot_path and os.path.exists(screenshot_path):
-            # 1. Compute hash of original screenshot first to avoid redundant compression
-            scene_hash = scene_cache.compute_hash(screenshot_path)
-
-            # 2. Check cache using original hash
-            if use_cache and scene_hash:
-                cached = scene_cache.get(scene_hash)
-                if cached is not None:
-                    return cached, None  # No compressed path needed for cache hit
-
-            # 3. Cache Miss: detect directly (compression removed)
-            pass
-
         # Run available providers in parallel
         available_providers = []
         for provider in self.providers:
@@ -150,12 +131,6 @@ class PipelineManager:
 
         # Merge results
         elements = merge_elements(valid_results)
-
-        # Cache results
-        if use_cache and screenshot_path:
-            scene_hash = scene_cache.compute_hash(screenshot_path)
-            scene_cache.put(scene_hash, elements, screenshot_path)
-
         logger.info(f"[PipelineManager] Total: {len(elements)} elements from {len(valid_results)} providers")
 
         return elements, screenshot_path

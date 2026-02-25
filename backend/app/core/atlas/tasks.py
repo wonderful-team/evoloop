@@ -44,11 +44,10 @@ def map_observed_ui_task(
         try:
             from app.core.vision.pipeline.manager import pipeline_manager
             
-            # 1. Run perception pipeline (Cached results will be reused if available)
+            # 1. Run perception pipeline
             elements, _ = await pipeline_manager.perceive(
                 screenshot_path=image_source,
-                device_id=device_id,
-                use_cache=True
+                device_id=device_id
             )
 
             if not elements:
