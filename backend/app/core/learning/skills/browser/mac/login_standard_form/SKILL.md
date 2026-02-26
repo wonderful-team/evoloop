@@ -16,37 +16,34 @@ parameters:
 ---
 
 # 🧠 Expert Guide (心法)
-This SOP defines the robust procedure for authenticating into standard web applications via visual interaction, bypassing traditional selenium scripting issues like dynamic element IDs or hidden iframes.
+This SOP defines the robust procedure for authenticating into standard web applications via `browser_control`, leveraging DOM selectors for precision and using visual analysis only as a fallback.
 
 ## Setup & Preconditions
-1.  **Locate Credentials**: Ensure you have access to the required credentials (username/email, password). Check the `workspace_clipboard` or ask the user if they are not provided initially. Ensure you do not expose passwords in plaintext logs.
-2.  **Navigate to Login**: If a `url` is provided, use the `browser/mac/navigate_and_search` SOP to open the page. Otherwise, search for the `app_name` login page.
+1.  **Locate Credentials**: Ensure credentials (username/email, password) are handled securely.
+2.  **Navigate to Login**: Use `browser_control(action="navigate", url=url)` to reach the login page.
 
 ## Phase 1: Establish Baseline
-1.  **Analyze Page**: Wait 3 seconds for the page to fully load. Take a screenshot and analyze it (`analyze_image`).
+1.  **Analyze DOM**: Use `browser_control(action="get_html")` or `browser_control(action="screenshot")` (with OCR) to identify input field selectors.
 2.  **Identify Form Type**:
-    *   **Single-Step**: Username and Password fields are on the same screen along with a Submit/Sign In button.
-    *   **Multi-Step (SSO style)**: A "Continue with Email" or similar workflow requiring inserting Username first, clicking Next, then Password.
-    *   **OAuth**: "Login with Google/GitHub/etc." buttons.
+    *   **Single-Step**: `input[type="text"]`, `input[type="password"]`, and a submit button are present.
+    *   **Multi-Step**: Only the identifier field is visible initially.
 
-## Phase 2: Execution (Single-Step Example)
-1.  **Locate Username**: Identify the input field for the Username/Email.
-2.  **Input Username**: Click the field. Wait 0.5s. Use the `keyboard` tool to type the username.
-3.  **Locate Password**: Identify the input field for the Password.
-4.  **Input Password**: Click the field. Wait 0.5s. Type the password.
-5.  **Submit**: Click the "Sign In" or "Log In" button. Alternatively, press `Enter` while focused on the password field.
+## Phase 2: Execution (DOM-First)
+1.  **Input Identifier**:
+    *   Use `browser_control(action="type_text", selector="input[name='login'], #username, ...", text=username)`.
+2.  **Transition (If Multi-Step)**:
+    *   Click "Next" or press Enter. Wait for the password field to appear via `browser_control(action="wait_for", selector="input[type='password']")`.
+3.  **Input Password**:
+    *   Use `browser_control(action="type_text", selector="input[type='password']", text=password)`.
+4.  **Submit**:
+    *   Use `browser_control(action="click", selector="button[type='submit']")` or `browser_control(action="key_press", key="Enter")`.
 
 ## Phase 3: Verification & Handling Mfa
-1.  **Wait for Transition**: Wait 3-5 seconds for network requests to complete.
-2.  **Verify New State**: Take a new screenshot. Call `verify_ui_state`.
-    *   **Success**: The user avatar, dashboard, or "Log Out" button is visible.
-    *   **Failure (Invalid Credentials)**: Look for red error text (e.g., "Invalid username or password").
-    *   **MFA / Verification**: Look for prompts like "Enter code sent to..." or "Two-Factor Authentication".
-3.  **Handle MFA (If Required)**:
-    *   If a code is requested via email/SMS, you must pause the current login flow.
-    *   If you have access to the user's email client (e.g., via `os/macos`), open it, wait for the new email, extract the code, and return to the browser.
-    *   If you cannot access the code autonomously, you MUST call `request_human_input` and ask the user to provide the code.
+1.  **Wait for Transition**: `browser_control`'s `network_wait` can be used to monitor for dashboard API calls.
+2.  **Verify New State**: Use `browser_control(action="screenshot")` to confirm successful login (e.g., presence of "Logout" button).
+3.  **Handle MFA**: If prompted, request human input or access the MFA source via appropriate tools.
 
 ## 🛟 Recovery Strategy
-- **Captcha Encountered**: If a slider, puzzle, or reCAPTCHA appears, immediately transition to the `browser/mac/bypass_captcha_login` SOP. Do NOT attempt to brute-force text inputs if a captcha is present.
-- **Hidden Password Manager**: If a system password manager (like 1Password or iCloud Keychain) covers the input fields, click an empty area of the page to dismiss the popup before proceeding.
+- **Captcha Encountered**: Transition to the `browser/mac/bypass_captcha_login` SOP.
+- **Selector Change**: If fixed selectors fail, use `browser_control(action="click", x=..., y=...)` using coordinates from the OCR result.
+- **Hidden Password Manager**: Click a neutral area of the page if a system popup obscures the UI.

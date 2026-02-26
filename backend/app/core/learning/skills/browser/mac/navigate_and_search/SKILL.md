@@ -21,17 +21,20 @@ preconditions:
 # Expert Skill Guide: Browser Navigation & Search
 
 ## 1. Mental Model
-Browsers are dynamic environments. Navigation should prioritize the Address Bar (`Cmd+L`) over clicking internal page elements which may shift.
+Prefer `browser_control` for navigation as it interacts directly with the browser's engine, handling network events and loading states more reliably than coordinate-based or keyboard-simulated interaction.
 
 ## 2. Contextual Anchors
-- **Visual Evidence**: The URL bar should contain the target domain.
-- **AX Tree**: Look for `AXTextField` with role "address and search bar".
+- **API Mode**: `browser_control` is active (CDP or Auto-Launch).
+- **Execution State**: Browser is ready to receive navigation commands.
 
 ## 3. Strategic Guidance
-- **Phase 1 (Targeting)**: Use `desktop_control(action="key_press", key="command+l")` to focus the address bar.
-- **Phase 2 (Input)**: Type the URL or query and press ENTER.
-- **Phase 3 (Observation)**: Use `analyze_image` to wait for the page to stop "spinning" (loading bar completion).
+- **Phase 1 (Navigation)**: If a `url` is provided, use `browser_control(action="navigate", url=url)`. This automatically waits for the page to reach `networkidle` state.
+- **Phase 2 (Searching)**: If a `query` is provided (and no URL or just a search engine URL):
+    1. Navigate to the search engine (e.g., `google.com`).
+    2. Use `browser_control(action="type_text", selector="textarea[name='q']", text=query)` (or appropriate search selector).
+    3. Use `browser_control(action="key_press", key="Enter")`.
+- **Phase 3 (Perception)**: Use `browser_control(action="screenshot")` to verify the search results page has loaded.
 
 ## 4. Recovery
-- If the page loads a 404 or error, check network status.
-- If the address bar isn't focused, click the top 10% of the window center.
+- If `navigate` fails due to timeout, try manual reload via `browser_control(action="reload")`.
+- If selectors fail, fall back to `browser_control(action="click", x=..., y=...)` using coordinates from the OCR result of a previous screenshot.

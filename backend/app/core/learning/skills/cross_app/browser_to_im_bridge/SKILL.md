@@ -20,19 +20,21 @@ parameters:
 ---
 
 # 🧠 Expert Guide (心法)
-The ultimate "Assistant" SOP for bridging data siloes.
+The ultimate "Assistant" SOP for bridging data siloes using high-precision browser and OS tools.
 
 ## Execution
-1. **Scrape Source**: Navigate to `url`. Capture the critical failure/status message via `desktop_control(action="screenshot")` + OCR.
-2. **Switch Context**: Use `desktop_control(action="open_app", app_name=im_app)`.
+1. **Scrape Source**:
+    *   Navigate to `url` via `browser_control(action="navigate")`.
+    *   Capture critical data using `browser_control(action="get_text", selector="...")` or `browser_control(action="screenshot")` with OCR.
+2. **Switch Context**: Use `desktop_control(action="open_app", app_name=im_app)` to bring the IM app to the foreground.
 3. **Find Contact**:
-   - Locate the Search/Filter bar in the IM app.
-   - Type `contact_name` and Press `Enter`.
+    - Locate the Search/Filter bar in the IM app.
+    - Type `contact_name` and Press `Enter`.
 4. **Compose & Send**:
-   - Type a concise summary: "Found alert on [URL]: [Captured Text]."
-   - Paste the screenshot (`Cmd+V` if screenshot was taken to clipboard, otherwise drag from Desktop).
-   - Press `Enter` to send.
+    - Type a concise summary: "Found alert on [URL]: [Captured Text]."
+    - If a screenshot was taken, use `Cmd+V` (the tool ensures it's in the clipboard) or drag-and-drop.
+    - Press `Enter` to send.
 
 ## 🛟 Recovery Strategy
-- **Search Failed**: If multiple contacts match `contact_name`, pick the one with the closest match or ask the user for clarification.
-- **Privacy Barrier**: If the IM app requires a login or QR code, immediately call `request_human_input`.
+- **Search Failed**: If multiple contacts match `contact_name`, ask the user for clarification.
+- **Privacy Barrier**: If the IM app requires a login/QR, call `request_human_input`.

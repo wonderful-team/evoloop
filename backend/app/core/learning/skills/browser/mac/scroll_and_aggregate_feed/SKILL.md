@@ -20,30 +20,26 @@ parameters:
 ---
 
 # 🧠 Expert Guide (心法)
-This SOP defines the optimal strategy for interacting with infinite-scroll feeds. These interfaces are notoriously difficult for automated scripts because they reuse DOM elements and lazy-load data. You must rely on visual parsing.
+This SOP defines the optimal strategy for interacting with infinite-scroll feeds using `browser_control`, which provides direct scrolling and DOM monitoring.
 
 ## Setup & Preconditions
 1. Ensure the browser is open and focused on the target feed (`platform`).
-2. Establish a `seen_posts` (List or Set) in your memory or `workspace_clipboard` to prevent deduplication errors.
 
 ## Phase 1: Establish Baseline
-1.  **Analyze View**: Use `desktop_control(action="screenshot")` of the current viewport. Identify individual "posts", "cards", or "tweets".
-    *   **Tip**: Use crop/region if only a specific Feed column is relevant.
-2.  **Define End Condition**: Determine what signifies the "end of the feed" (e.g., a "No more posts" message, or no new content loading after 3 seconds).
+1.  **Analyze View**: Use `browser_control(action="screenshot")` or `browser_control(action="get_links")` to identify individual post containers.
+2.  **Define End Condition**: Determine if the feed has a "No more posts" indicator or if `browser_control(action="scroll")` stops increasing the page height.
 
 ## Phase 2: Execution Loop (Scroll & Extract)
-This loop is critical to prevent infinite recursion and duplicated content.
-1.  **Take Snapshot**: Use `desktop_control(action="screenshot")`.
-2.  **Extract Post Data**: Use the VLM (`analyze_image`) to transcribe all completely visible posts in the current snapshot into structured JSON.
-3.  **Filter & De-duplicate**:
-    *   Iterate through the extracted posts.
-    *   If a `keyword` is provided, discard posts that do not contain it.
-    *   Compare the remaining posts against your `seen_posts` list. Add only novel posts.
-4.  **Identify Overlap Marker**: Identify the content of the *last completely visible post* in the current snapshot.
-5.  **Execute Scroll**: Execute a `keyboard` action: `Page Down`. Do NOT use `Spacebar` as it might scroll multiple items out of view.
-6.  **Verify New State**: Wait 1-2 seconds for lazy-loading. Call `verify_ui_state` to confirm the viewport changed and the overlap marker has moved UP the screen.
-7.  **Loop Tracking**: Increment your scroll counter. If `max_scrolls` is reached, BREAK the loop.
+1.  **Take Snapshot**: Use `browser_control(action="screenshot")` with OCR.
+2.  **Extract Data**:
+    *   Use `browser_control(action="get_text", selector=".post-content")` or similar to pull novel data.
+    *   Alternatively, use `browser_control(action="run_js")` to scrape multiple posts into JSON directly.
+3.  **Execute Scroll**:
+    *   Use `browser_control(action="scroll", direction="down", amount=1200)`.
+4.  **Verify New State**:
+    *   Use `browser_control(action="wait_for", state="attached")` or `network_wait` for lazy-loaded assets.
+5.  **Loop Tracking**: Increment scroll counter. Break if `max_scrolls` is reached or no new posts are found.
 
 ## 🛟 Recovery Strategy
-- **Video Autoplay Distraction**: If a video automatically plays or expands and breaks your visual parsing layout, use the `keyboard` tool to press `Escape` or `M` (mute) and attempt to scroll past it quickly.
-- **Login Modal Blocks Feed**: Platforms often throw a "Sign in to see more" modal after 3-4 scrolls. You MUST use the `browser/mac/login_standard_form` SOP to clear the modal, or locate and click the "Not Now / X" button before continuing the scroll loop.
+- **Video Autoplay**: If a video disrupts the flow, ignore it and continue scrolling or use `browser_control(action="key_press", key="Escape")`.
+- **Login Modals**: If a modal appears, use the `browser/mac/login_standard_form` SOP or `browser_control(action="click", selector=".close-button")`.
