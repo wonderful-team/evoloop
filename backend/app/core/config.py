@@ -25,6 +25,12 @@ def parse_cors(v: Any) -> list[str] | str:
     raise ValueError(v)
 
 
+def expand_path(v: Any) -> str:
+    if isinstance(v, str):
+        return os.path.expanduser(v)
+    return v
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         # Use top level .env file (one level above ./backend/)
@@ -153,6 +159,26 @@ class Settings(BaseSettings):
     # Browser Agent
     BROWSER_USE_API_KEY: str = "sk-dummy-key-for-local-dev"
     BROWSER_MODEL_NAME: str | None = "gpt-4o"
+
+    # Browser Control (Native CDP)
+    CDP_URL: str = Field("http://localhost:9222", validation_alias="EVOLOOP_CHROME_CDP_URL")
+    CHROME_EXECUTABLE: str = Field(
+        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+        validation_alias="EVOLOOP_CHROME_EXECUTABLE",
+    )
+    CHROME_USER_DATA: Annotated[str, BeforeValidator(expand_path)] = Field(
+        default_factory=lambda: os.path.expanduser("~/Library/Application Support/Google/Chrome"),
+        validation_alias="EVOLOOP_CHROME_USER_DATA",
+    )
+    CHROME_AUTOMATION_USER_DATA: Annotated[str, BeforeValidator(expand_path)] = Field(
+        default_factory=lambda: os.path.expanduser(
+            "~/Library/Application Support/Google/Chrome-Automation"
+        ),
+        validation_alias="EVOLOOP_CHROME_AUTOMATION_USER_DATA",
+    )
+    CHROME_PROFILE: str = Field("Default", validation_alias="EVOLOOP_CHROME_PROFILE")
+    CDP_STARTUP_TIMEOUT: int = Field(5, validation_alias="EVOLOOP_CHROME_STARTUP_TIMEOUT")
+
 
     # Computer Agent (Agent S)
     OS_PROVIDER: str = "openai"

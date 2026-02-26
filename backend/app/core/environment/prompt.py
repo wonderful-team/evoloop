@@ -48,6 +48,7 @@ class AppEnvironmentPrompt:
                 "boundaries": ctx.active_boundaries,
                 "user_preferences": ctx.metadata.get("user_preferences", {}),
                 "mcp_inventory": tool_manager.get_mcp_inventory(),
+                "browser_status": _get_browser_status(),
                 "tips": tips
             }
 
@@ -191,4 +192,16 @@ def detect_platform_relevance(messages: list) -> str:
         return "macos"
     if has_android and has_macos:
         return "both"
-    return "auto"  # Balanced summary
+    return "auto" # Balanced summary
+
+
+def _get_browser_status() -> dict | None:
+    """Helper to safely retrieve browser status for prompt injection."""
+    try:
+        from app.domain.tools.environment.browser import browser_manager
+        return browser_manager.get_status()
+    except ImportError:
+        return None
+    except Exception as e:
+        logger.debug(f"Failed to get browser status: {e}")
+        return None

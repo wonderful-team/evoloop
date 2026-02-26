@@ -16,12 +16,12 @@ import os
 import re
 import tempfile
 import time
-from typing import Any, Literal
-
+from app.core.config import settings
 from app.core.tools import evoloop_tool
 from app.core.vision import vision_engine, VisionTask
 
 logger = logging.getLogger(__name__)
+
 
 # ─────────────────────────────────────────────
 #  Browser Manager (Persistent Singleton)
@@ -29,33 +29,35 @@ logger = logging.getLogger(__name__)
 
 class BrowserManager:
     """
-    Manages a single, persistent Playwright browser session backed by the
-    user's **real Chrome profile** (via launch_persistent_context).
+    Manages a single, persistent Playwright browser session.
 
-    • Inherits all cookies, login sessions, and extensions from Chrome.
-    • Chrome must NOT be running when this is first initialised.
-    • Override profile path via env vars EVOLOOP_CHROME_USER_DATA /
-      EVOLOOP_CHROME_EXECUTABLE / EVOLOOP_CHROME_PROFILE.
+    Dual-mode architecture:
+    ─────────────────────────────────────────────────────────
+    Mode 1 (Takeover / CDP):  Detects an existing Chrome with `--remote-debugging-port`
+                              and connects via ChromeDevTools Protocol. Agent actions
+                              directly appear in the user's own browser window.
+
+    Mode 2 (Auto-Launch / CDP): No existing Chrome found → launches a dedicated
+                                Chrome instance (arch -arm64, separate profile dir)
+                                with `--remote-debugging-port`, waits for it to boot,
+                                then connects via CDP.
+
+    Both modes use the same CDP connection path, so the rest of the codebase is
+    completely unaware of which mode is active.
+
+    Settings are managed in app.core.config.
     """
 
-    CHROME_USER_DATA = os.environ.get(
-        "EVOLOOP_CHROME_USER_DATA",
-        os.path.expanduser("~/Library/Application Support/Google/Chrome"),
-    )
-    CHROME_EXECUTABLE = os.environ.get(
-        "EVOLOOP_CHROME_EXECUTABLE",
-        "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    )
-    CHROME_PROFILE = os.environ.get("EVOLOOP_CHROME_PROFILE", "Default")
 
     def __init__(self) -> None:
         self._playwright = None
-        # With launch_persistent_context there is no separate Browser object;
-        # the call returns a BrowserContext directly.
+        self._browser = None
         self._context = None
         self._pages: list = []
         self._active_page_idx: int = 0
         self._lock = asyncio.Lock()
+        self._is_cdp = False
+        self._chrome_proc = None  # Set if we auto-launched Chrome via subprocess
 
     async def get_page(self):
         """Return the active Page, lazily starting Chrome if needed."""
@@ -72,40 +74,81 @@ class BrowserManager:
             return self._pages[self._active_page_idx]
 
     async def _start(self) -> None:
+        import subprocess
         from playwright.async_api import async_playwright
         self._playwright = await async_playwright().start()
 
-        profile_path = os.path.join(self.CHROME_USER_DATA, self.CHROME_PROFILE)
-        logger.info(f"[Browser] Launching Chrome with profile: {profile_path}")
-
+        # ─── Mode 1: Try Takeover (CDP – external Chrome already running) ──
+        logger.info(f"[Browser] Attempting CDP takeover: {settings.CDP_URL}")
         try:
-            self._context = await self._playwright.chromium.launch_persistent_context(
-                user_data_dir=profile_path,
-                executable_path=self.CHROME_EXECUTABLE,
-                headless=False,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-sandbox",
-                    "--disable-infobars",
-                ],
-                viewport={"width": 1440, "height": 900},
-                locale="zh-CN",
-                timezone_id="Asia/Shanghai",
+            self._browser = await self._playwright.chromium.connect_over_cdp(
+                settings.CDP_URL, timeout=3000  # fast probe, 3 s
             )
+            if self._browser.contexts:
+                self._context = self._browser.contexts[0]
+            else:
+                self._context = await self._browser.new_context()
+            logger.info("✅ [Browser] Mode 1: Took over existing Chrome via CDP.")
+            self._is_cdp = True
         except Exception as e:
-            if "user data directory is already in use" in str(e).lower():
-                raise RuntimeError(
-                    "Chrome is already running with this profile. "
-                    "Please quit Chrome first, then retry."
-                ) from e
-            raise
+            logger.info(f"ℹ️ [Browser] No external Chrome found ({type(e).__name__}). Will auto-launch.")
+            self._is_cdp = False
 
+        # ─── Mode 2: Auto-Launch (subprocess → CDP) ─────────────────────────
+        if not self._context:
+            automation_dir = settings.CHROME_AUTOMATION_USER_DATA
+            logger.info(f"[Browser] Mode 2: Launching Chrome-Automation → {automation_dir}")
+            os.makedirs(automation_dir, exist_ok=True)
+
+            import platform
+            chrome_cmd = [settings.CHROME_EXECUTABLE]
+            
+            # Performance optimization: force native ARM64 on Apple Silicon Macs
+            if platform.system() == "Darwin" and platform.machine() == "arm64":
+                chrome_cmd = ["arch", "-arm64"] + chrome_cmd
+
+            chrome_cmd.extend([
+                f"--remote-debugging-port=9222",
+                f"--user-data-dir={automation_dir}",
+                "--disable-blink-features=AutomationControlled",
+                "--disable-infobars",
+                "--enable-extensions",
+                "--no-first-run",
+            ])
+            try:
+                self._chrome_proc = subprocess.Popen(
+                    chrome_cmd,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+                logger.info(f"[Browser] Chrome launched (pid={self._chrome_proc.pid}). Waiting {settings.CDP_STARTUP_TIMEOUT}s...")
+                await asyncio.sleep(settings.CDP_STARTUP_TIMEOUT)
+
+                self._browser = await self._playwright.chromium.connect_over_cdp(
+                    settings.CDP_URL, timeout=10000  # more lenient after launch
+                )
+
+                if self._browser.contexts:
+                    self._context = self._browser.contexts[0]
+                else:
+                    self._context = await self._browser.new_context()
+                self._is_cdp = True
+                logger.info("✅ [Browser] Mode 2: auto-launched Chrome + CDP connected.")
+            except Exception as e:
+                logger.error(f"[Browser] Mode 2 (auto-launch CDP) failed: {e}")
+                raise RuntimeError(
+                    f"Browser startup failed. Could not connect to CDP at {settings.CDP_URL}. "
+                    "Please ensure Google Chrome is installed at the default path."
+                ) from e
+
+
+        # ─── Initialize page list ────────────────────────────────────────────
         if self._context.pages:
             self._pages = list(self._context.pages)
         else:
             self._pages = [await self._context.new_page()]
         self._active_page_idx = 0
-        logger.info(f"[Browser] Chrome launched with real profile ({len(self._pages)} page(s) open).")
+        logger.info(f"[Browser] Ready — {len(self._pages)} page(s), mode={'CDP-Takeover' if self._is_cdp and not hasattr(self, '_chrome_proc') else 'CDP-AutoLaunch' if self._is_cdp else 'Launch'}.")
 
     async def new_tab(self, url: str | None = None):
         """Open a new tab, optionally navigate to url, and switch to it."""
@@ -127,16 +170,60 @@ class BrowserManager:
     def tab_count(self) -> int:
         return len(self._pages)
 
+    def get_status(self) -> dict:
+        """Return connectivity and state info for environment prompts."""
+        if not self._context:
+            return {"mode": "Disconnected", "cdp_url": settings.CDP_URL, "tab_count": 0}
+        
+        mode = "CDP-Takeover" if self._is_cdp and not self._chrome_proc else "CDP-AutoLaunch" if self._is_cdp else "Launch"
+        active_url = "None"
+        try:
+            if self._pages and self._active_page_idx < len(self._pages):
+                active_url = self._pages[self._active_page_idx].url
+        except Exception:
+            pass
+
+        return {
+            "mode": mode,
+            "cdp_url": settings.CDP_URL,
+            "active_url": active_url,
+            "tab_count": len(self._pages),
+        }
+
+
     async def close(self) -> None:
         async with self._lock:
-            # With persistent context there is no separate Browser to close
-            if self._context:
+            # 1. Close Playwright browser/context
+            if self._is_cdp and self._browser:
+                await self._browser.close()
+            elif self._context:
                 await self._context.close()
+            
             if self._playwright:
                 await self._playwright.stop()
+            
+            # 2. Terminate auto-launched subprocess if any
+            if self._chrome_proc:
+                logger.info(f"[Browser] Terminating auto-launched Chrome (pid={self._chrome_proc.pid})")
+                try:
+                    self._chrome_proc.terminate()
+                    # Wait slightly for it to die
+                    for _ in range(10):
+                        if self._chrome_proc.poll() is not None:
+                            break
+                        await asyncio.sleep(0.1)
+                    if self._chrome_proc.poll() is None:
+                        self._chrome_proc.kill()
+                except Exception as e:
+                    logger.warning(f"[Browser] Failed to terminate Chrome subprocess: {e}")
+                self._chrome_proc = None
+
+            # 3. Reset state
             self._context = None
+            self._browser = None
             self._playwright = None
             self._pages = []
+            self._is_cdp = False
             self._active_page_idx = 0
         logger.info("[Browser] Browser closed.")
 
@@ -336,19 +423,19 @@ async def browser_control(
         if action == "navigate":
             if not url:
                 return "Error: 'url' is required for navigate."
-            await page.goto(url, wait_until="networkidle", timeout=30_000)
+            await page.goto(url, wait_until="load", timeout=60_000)
             return f"✅ Navigated to: {page.url}\nTitle: {await page.title()}"
 
         elif action == "back":
-            await page.go_back(wait_until="networkidle", timeout=15_000)
+            await page.go_back(wait_until="load", timeout=15_000)
             return f"✅ Navigated back. URL: {page.url}"
 
         elif action == "forward":
-            await page.go_forward(wait_until="networkidle", timeout=15_000)
+            await page.go_forward(wait_until="load", timeout=15_000)
             return f"✅ Navigated forward. URL: {page.url}"
 
         elif action == "reload":
-            await page.reload(wait_until="networkidle", timeout=20_000)
+            await page.reload(wait_until="load", timeout=20_000)
             return f"✅ Page reloaded. URL: {page.url}"
 
         elif action == "get_url":
