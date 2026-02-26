@@ -30,7 +30,7 @@ class EnvironmentContextPlugin(ContextPlugin):
 
             # 2.5 Compute the final Environment Block (Autonomous Sensing Output)
             # This pre-rendered block is what the Engine will use.
-            ctx.environment_block = AppEnvironmentPrompt.render_environment_block()
+            ctx.environment_block = AppEnvironmentPrompt.render_environment_block(skip_hydrate=True)
             
             state = get_awakened_state()
             

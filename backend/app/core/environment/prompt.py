@@ -27,7 +27,7 @@ class AppEnvironmentPrompt:
         return AppEnvironmentPrompt.render_environment_block()
 
     @staticmethod
-    def render_environment_block(tips: bool = True) -> str:
+    def render_environment_block(tips: bool = True, skip_hydrate: bool = False) -> str:
         """
         Render the full 'Awakening' block using localized sensing templates.
         This is the primary interface for autonomous sensing output.
@@ -35,7 +35,7 @@ class AppEnvironmentPrompt:
         try:
             ctx = ContextManager.current()
             # Hydrate if not already done (usually done by middleware/registry)
-            if not ctx.environment_summaries:
+            if not skip_hydrate and not ctx.environment_summaries:
                 plugin_registry.hydrate_context(ctx)
 
             template_dir = os.path.join(os.path.dirname(__file__), "templates")
