@@ -151,6 +151,60 @@ def list_pending_requests(thread_id: str | None = None):
     return get_all_pending_requests()
 
 
+def _normalize_skill_params(params_raw: str | list | dict | None) -> list[dict]:
+    """
+    Normalize skill parameters from various formats (dict, incomplete list)
+    to a standard list of SkillParameter objects for the API.
+    """
+    if not params_raw:
+        return []
+
+    try:
+        if isinstance(params_raw, str):
+            data = json.loads(params_raw)
+        else:
+            data = params_raw
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+    normalized = []
+
+    # Case 1: Legacy Dict format {"param_name": {"type": "...", "description": "..."}}
+    if isinstance(data, dict):
+        for name, info in data.items():
+            if isinstance(info, dict):
+                normalized.append({
+                    "name": name,
+                    "type": info.get("type", "string"),
+                    "description": info.get("description", ""),
+                    "required": info.get("required", True),
+                    "default": info.get("default")
+                })
+            else:
+                # Fallback for simple key-value if any
+                normalized.append({
+                    "name": name,
+                    "type": "string",
+                    "description": str(info),
+                    "required": True,
+                    "default": None
+                })
+
+    # Case 2: List format (ensure all required fields exist)
+    elif isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict) and "name" in item:
+                normalized.append({
+                    "name": item["name"],
+                    "type": item.get("type") or "string", # Fix for missing type
+                    "description": item.get("description", ""),
+                    "required": item.get("required", True),
+                    "default": item.get("default")
+                })
+
+    return normalized
+
+
 @router.get("/human-requests/{request_id}", response_model=HumanInputRequestOut)
 def get_request(request_id: str):
     """
@@ -730,8 +784,8 @@ async def list_skills(
                     "id": s.id,
                     "name": s.name,
                     "description": s.description,
-                    "trigger_patterns": json.loads(s.trigger_patterns),
-                    "parameters": json.loads(s.parameters) if s.parameters else [],
+                    "trigger_patterns": json.loads(s.trigger_patterns) if s.trigger_patterns else [],
+                    "parameters": _normalize_skill_params(s.parameters),
                     "tools_used": json.loads(s.tools_used) if s.tools_used else [],
                     "success_count": s.success_count,
                     "failure_count": s.failure_count,
@@ -769,8 +823,8 @@ async def get_skill(skill_id: int):
             "name": skill.name,
             "description": skill.description,
             "namespace": skill.namespace,
-            "trigger_patterns": json.loads(skill.trigger_patterns),
-            "parameters": json.loads(skill.parameters),
+            "trigger_patterns": json.loads(skill.trigger_patterns) if skill.trigger_patterns else [],
+            "parameters": _normalize_skill_params(skill.parameters),
             "preconditions": json.loads(skill.preconditions) if skill.preconditions else [],
             "tools_used": json.loads(skill.tools_used) if skill.tools_used else [],
             "source_thread_id": skill.source_thread_id,
