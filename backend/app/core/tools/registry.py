@@ -269,7 +269,8 @@ def is_pollable_tool(tool_name: str) -> bool:
     pollable = {
         "wait", "list_files", "search_web",
         "read_file", "find_element", "request_approval",
-        "desktop_control", "analyze_image"  # Added for UI grounding loops
+        "desktop_control", "analyze_image",  # Added for UI grounding loops
+        "browser_control",  # Added for browser wait_for / polling loops
     }
     return tool_name in pollable
 

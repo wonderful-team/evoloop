@@ -38,6 +38,7 @@ nodes:
       - "mobile_control"
       - "analyze_image"
       - "verify_ui_state"
+      - "browser_control"
       # Workspace & Code
       - "read_file"
       - "write_file"
