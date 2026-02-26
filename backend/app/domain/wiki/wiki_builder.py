@@ -1,20 +1,26 @@
-import os
 import json
 import logging
+import os
+
 from jinja2 import Environment, FileSystemLoader
+
 from app.i18n.service import i18n
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
+# Template directory is co-located in app/domain/wiki/
+_TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
+
 
 class WikiBuilder:
     """
     Builder for Wiki Generation prompts via Jinja2.
+    Co-located with WikiService in app/domain/wiki/.
     """
+
     def __init__(self):
-        template_dir = os.path.join(os.path.dirname(__file__), "templates")
-        self.env = Environment(loader=FileSystemLoader(template_dir))
+        self.env = Environment(loader=FileSystemLoader(_TEMPLATE_DIR))
 
     def _get_target_lang(self) -> str:
         return SystemConfigService.get_language_preference()

@@ -8,6 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
+from app.core.context import ContextManager
 from app.core.engine import AgentEngine
 from app.core.engine.prompts import WorkerPromptBuilder
 from app.core.engine.state import AgentState
@@ -42,8 +43,6 @@ class WorkerNode:
 
         agent_config = execution_ticket["agent_config"]
         role_name = agent_config.get("role_name", "Specialist")
-        instructions = agent_config.get("system_instructions", "You are a helpful assistant.")
-        tool_names = agent_config.get("tools", [])
 
         # 1 & 2. Parallel Hydration (Optimization Phase 5)
         from app.core.engine.nodes.utils import SkillHydrator
@@ -56,7 +55,6 @@ class WorkerNode:
         tools, relevant_sops = await asyncio.gather(tools_task, skills_task)
 
         # 2b. Generic Context Enrichment from Awakening System
-        from app.core.context import ContextManager
         ctx = ContextManager.current()
         awakened_env = get_awakened_state()
         if awakened_env and awakened_env.relevant_concepts:
@@ -128,9 +126,6 @@ class WorkerNode:
         content = last_msg.content if isinstance(last_msg, AIMessage) else ""
         tool_history = engine_result.get("tool_history", [])
         routing_target = engine_result.get("_routing_target")
-        # Handle Session Finalization (explicit signal from finalize_session tool)
-        if "[SESSION_FINALIZED]" in content:
-            routing_target = "END"
 
         logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}, Target: {routing_target}")
 

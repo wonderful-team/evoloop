@@ -22,42 +22,11 @@ logger = logging.getLogger(__name__)
 
 
 # ===== v5 UNIFIED ROUTING =====
-# Static role persona configs for auto-generating agent_config when the Supervisor
-# routes to a standard role (operator, deep_researcher, etc.).
-# The Worker node uses these to adopt the right persona at runtime.
-ROLE_CONFIGS = {
-    "operator": {
-        "role_name": "Workspace Operator",
-        "system_instructions": (
-            "You are a full-stack systems operator. Execute coding, testing, "
-            "and file management tasks. Search for relevant SOPs using "
-            "search_skills before complex operations."
-        ),
-    },
-    "deep_researcher": {
-        "role_name": "Deep Researcher",
-        "system_instructions": (
-            "You are an expert analyst. Conduct thorough multi-step research "
-            "using file reads, web searches, and codebase exploration. "
-            "Synthesize findings into a comprehensive conclusion."
-        ),
-    },
-    "documenter": {
-        "role_name": "Documentation Architect",
-        "system_instructions": (
-            "You are a documentation expert. Manage project docs, wiki pages, "
-            "and knowledge harvesting. Read existing docs before creating new ones."
-        ),
-    },
-    "finish": {
-        "role_name": "Session Auditor",
-        "system_instructions": (
-            "You are an acceptance tester. Audit the conversation history against "
-            "the mission criteria. Call finalize_session when done, or route_to "
-            "operator if incomplete."
-        ),
-    },
-}
+# ROLE_CONFIGS removed. Routing is fully YAML + Skill SOP driven.
+# The Supervisor LLM must call route_to('worker', context={agent_config:{...}})
+# for all execution roles. Role personas and SOPs live in:
+#   app/core/learning/skills/roles/*.SKILL.md
+# Fixed nodes (finish, documenter, chat) route directly via YAML edges.
 
 
 def get_last_human_message(messages: list) -> str | None:
@@ -169,26 +138,19 @@ class SupervisorNode:
             # Intent-driven Namespace (from LLM)
             inferred_namespace = routing_context.get("namespace_context")
 
-            # All specialist routes now go through the Universal Worker.
-            # We auto-generate an agent_config based on the intended role.
-            # Resolve the agent_config: either from LLM (worker) or auto-generated (legacy routes)
+            # Worker: LLM must provide agent_config explicitly in routing_context.
+            # Fixed nodes (finish, documenter, chat): no agent_config needed.
             if routing_target == "worker":
                 agent_config = routing_context.get("agent_config")
                 if agent_config and "namespace_context" not in agent_config:
                     agent_config["namespace_context"] = inferred_namespace
-            elif routing_target in ROLE_CONFIGS:
-                role_cfg = ROLE_CONFIGS[routing_target]
-                agent_config = {
-                    "role_name": role_cfg["role_name"],
-                    "system_instructions": role_cfg["system_instructions"],
-                    "tools": [],  # ToolManager will use the YAML profile
-                    "namespace_context": inferred_namespace,
-                }
-                # Redirect legacy specialist targets to the Worker node ID.
-                # Note: 'finish' remains its own target to handle graph exit in agent_main.yaml.
-                if routing_target != "finish":
-                    routing_target = "worker"
+                if not agent_config:
+                    logger.warning(
+                        "[Supervisor] route_to('worker') called without agent_config! "
+                        "LLM must supply role_name and system_instructions in context."
+                    )
             else:
+                # finish, documenter, chat — these are fixed nodes, no agent_config
                 agent_config = None
 
             execution_ticket = {

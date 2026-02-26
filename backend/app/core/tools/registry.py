@@ -224,20 +224,15 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
     config = _load_yaml_config(config_path)
     tool_names: list[str] = []
 
-    # 1. Check graph node declarations first
+    # Check graph node declarations (only source of truth — role_tools removed)
     for node in config.get("nodes", []):
         if node.get("id") == node_role and node.get("tools"):
             tool_names = node["tools"]
             break
 
-    # 2. If not found in nodes, check role_tools section
     if not tool_names:
-        role_tools = config.get("role_tools", {})
-        tool_names = role_tools.get(node_role, [])
-
-    if not tool_names:
-        logger.warning(f"[ToolRBAC] No tools declared for role '{node_role}' in YAML config.")
-        _report_missing_tools(node_role, [f"<no config for role '{node_role}'>"])
+        logger.warning(f"[ToolRBAC] No tools declared for node '{node_role}' in YAML config.")
+        _report_missing_tools(node_role, [f"<no config for node '{node_role}'>"])
         return []
 
     hydrated = get_tools_by_names(tool_names, source_role=node_role)
@@ -250,10 +245,6 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
 
 
 # --- Convenience Accessors ---
-
-def get_worker_tools(role: str = "operator") -> list[BaseTool]:
-    """Return tools for the Universal Worker in the specified role persona."""
-    return tool_manager.get_node_tools(role)
 
 
 def get_supervisor_tools() -> list[BaseTool]:

@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 
 from app.core.config import settings
 from app.core.db import engine
-from app.core.engine.prompts import WikiBuilder
+from app.domain.wiki.wiki_builder import WikiBuilder
 from app.core.evocloud import evocloud_manager
 from app.core.file.service import filter_code_files, walk_tree
 from app.core.memory import memory_manager

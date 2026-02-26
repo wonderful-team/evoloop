@@ -65,26 +65,10 @@ nodes:
       - "analyze_feasibility"
       - "consult_architecture"
       - "manage_todo"
-      - "finalize_session"
       # Control
       - "request_approval"
       - "use_mcp_server"
       - "wait"
-
-  - id: "documenter"
-    path: "app.core.engine.nodes.documenter.documenter_node"
-    tools:
-      - "read_file"
-      - "list_files"
-      - "write_document"
-      - "edit_document"
-      - "list_wiki_pages"
-      - "read_wiki_page"
-      - "write_wiki_page"
-      - "memorize_concepts"
-      - "manage_memory"
-      - "explore_codebase"
-      - "grep_files"
 
   - id: "finish"
     path: "app.core.engine.nodes.finish.finish_node"
@@ -93,7 +77,6 @@ nodes:
       - "list_files"
       - "manage_todo"
       - "memorize_concepts"
-      - "finalize_session"
 
   - id: "chat"
     path: "app.core.engine.nodes.chat.chat_node"
@@ -107,7 +90,6 @@ edges:
     type: "conditional"
     router: "app.core.engine.routers.route_supervisor"
     map:
-      documenter: "documenter"
       chat: "chat"
       supervisor: "supervisor"
       finish: "finish"
@@ -119,17 +101,12 @@ edges:
     to: "supervisor"
     type: "simple"
 
-  # 3. Documenter
-  - from: "documenter"
-    to: "supervisor"
-    type: "simple"
-
-  # 4. Chat -> End
+  # 3. Chat -> End
   - from: "chat"
     to: "END"
     type: "simple"
 
-  # 5. Finish -> End
+  # 4. Finish -> END (always terminal)
   - from: "finish"
     to: "END"
     type: "simple"
@@ -139,65 +116,4 @@ edges:
     to: "supervisor"
     type: "simple"
 
-# Role-specific tool profiles (v5 Unified Roles)
-# Used by ToolManager to hydrate tools for the Universal Worker based on its current persona.
-role_tools:
-  operator:
-    - "read_file"
-    - "write_file"
-    - "edit_file"
-    - "list_files"
-    - "file_system"
-    - "bash"
-    - "consult_lsp"
-    - "manage_git"
-    - "manage_memory"
-    - "consult_architecture"
-    - "request_approval"
-    - "create_plan"
-    - "update_step_status"
-    - "analyze_feasibility"
-    - "explore_codebase"
-    - "grep_files"
-    - "get_workspace_tree"
-    - "search_skills"
-    - "use_mcp_server"
-    - "wait"
 
-  deep_researcher:
-    - "read_file"
-    - "list_files"
-    - "manage_memory"
-    - "search_web"
-    - "explore_codebase"
-    - "grep_files"
-    - "search_skills"
-
-  documenter:
-    - "read_file"
-    - "list_files"
-    - "write_document"
-    - "edit_document"
-    - "list_wiki_pages"
-    - "read_wiki_page"
-    - "write_wiki_page"
-    - "memorize_concepts"
-    - "manage_memory"
-    - "explore_codebase"
-    - "grep_files"
-
-  finish:
-    - "read_file"
-    - "list_files"
-    - "manage_todo"
-    - "memorize_concepts"
-    - "finalize_session"
-
-  "MacOS Automation Specialist":
-    - "desktop_control"
-    - "analyze_image"
-    - "query_app_atlas"
-    - "list_app_atlas"
-    - "search_native_tools"
-    - "request_approval"
-    # - "request_human_input"
