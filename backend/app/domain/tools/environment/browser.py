@@ -111,7 +111,6 @@ class BrowserManager:
             chrome_cmd.extend([
                 f"--remote-debugging-port=9222",
                 f"--user-data-dir={automation_dir}",
-                "--disable-blink-features=AutomationControlled",
                 "--disable-infobars",
                 "--enable-extensions",
                 "--no-first-run",
