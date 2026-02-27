@@ -57,16 +57,24 @@ class WorkerNode:
         # 2b. Generic Context Enrichment from Awakening System
         ctx = ContextManager.current()
         awakened_env = get_awakened_state()
+        has_android = ctx.metadata.get("has_android", False)
+
         if awakened_env and awakened_env.relevant_concepts:
             if isinstance(ctx.spatial_awareness, dict):
                 insights = ctx.spatial_awareness.setdefault("insights", [])
                 for concept in awakened_env.relevant_concepts:
+                    # Platform-aware filtering for Android-specific concepts
+                    android_prefixes = ("android_layout:", "android:", "adb:", "mobile:", "apk:")
+                    if concept.name.lower().startswith(android_prefixes) and not has_android:
+                        continue
                     insights.append(f"💡 {concept.name}: {concept.description}")
             else:
                 # Fallback for unexpected types
                 for concept in awakened_env.relevant_concepts:
+                    if concept.name.startswith("android_layout:") and not has_android:
+                        continue
                     ctx.spatial_awareness.append(f"💡 {concept.name}: {concept.description}")
-            logger.info(f"[Worker] 🧠 Enriched context with {len(awakened_env.relevant_concepts)} concepts from Brain.")
+            logger.info(f"[Worker] 🧠 Enriched context with relevant concepts from Brain (Android Filter: {'ON' if not has_android else 'OFF'}).")
 
         # 3. Construct Prompts (Using Builder)
         scratchpad = state.get("scratchpad", {})

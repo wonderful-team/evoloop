@@ -16,11 +16,19 @@ class EnvironmentContextPlugin(ContextPlugin):
     def hydrate(self, ctx: EvoContext) -> None:
         try:
             from app.core.environment import get_awakened_state
+            state = get_awakened_state()
+            has_android = False
+            if state and state.android_devices:
+                has_android = True
 
             # 1. Hydrate Active Boundaries
             boundaries = boundary_manager.get_all_boundaries()
-            # We copy it over to avoiding attaching the reference
-            ctx.active_boundaries = list(boundaries)
+            if not has_android:
+                # Remove Android-specific boundaries if no device connected
+                android_keywords = ("adb", "android", "phone", "mobile", "apk")
+                ctx.active_boundaries = [b for b in boundaries if not any(k in b.lower() for k in android_keywords)]
+            else:
+                ctx.active_boundaries = list(boundaries)
 
             # 2. Hydrate Environment Summaries
             ctx.environment_summaries = build_environment_summaries(relevance="auto")
@@ -66,7 +74,7 @@ class EnvironmentContextPlugin(ContextPlugin):
                         for c in state.relevant_concepts:
                             if c.name.startswith("android_layout:"):
                                 verified_layouts.append(c.name.split(":", 1)[1])
-                    if verified_layouts:
+                    if verified_layouts and state.android_devices:
                         ctx.spatial_awareness["verified_layouts"] = verified_layouts
 
                     macos_verified = report.get("macos", {}).get("verified_apps", [])
@@ -90,7 +98,10 @@ class EnvironmentContextPlugin(ContextPlugin):
                     
                     for c in state.relevant_concepts:
                         name = c.name
-                        if name.startswith("android_layout:"):
+                        android_prefixes = ("android_layout:", "android:", "adb:", "mobile:", "apk:")
+                        if name.lower().startswith(android_prefixes):
+                            if not has_android:
+                                continue
                             # Extract package: android_layout:com.pkg -> com.pkg
                             parts = name.split(":", 1)
                             if len(parts) > 1:
@@ -112,9 +123,12 @@ class EnvironmentContextPlugin(ContextPlugin):
                             if name not in seen_others:
                                 unique_names.append(name)
                                 seen_others.add(name)
-                    
-                    # Re-assemble layouts
-                    formatted_layouts = [f"android_layout({val})" for val in layout_map.values()]
+
+                    # Re-assemble layouts only if android is available
+                    formatted_layouts = []
+                    if has_android:
+                        formatted_layouts = [f"android_layout({val})" for val in layout_map.values()]
+
                     ctx.memory_replay["concepts"] = (formatted_layouts + unique_names)[:5]
 
                 if getattr(state, "journal_highlights", None):

@@ -13,8 +13,11 @@ from app.core.config import settings
 from app.core.learning.trace_recorder import sync_thread_to_graph
 from app.core.memory import memory_manager
 from app.core.memory.interfaces.long_term import Concept as MemConcept
+from app.core.environment.events import UiTreeObservedEvent, event_bus
 from app.infrastructure.database.sql.database import session_scope
 from app.models import FileOperation
+import xml.etree.ElementTree as ET
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -120,10 +123,83 @@ def snapshot_steps_task(
     asyncio.run(_run())
 
 
+def _parse_android_bounds(bounds_str: str) -> tuple[int, int, int, int] | None:
+    """Parse bounds string like '[100,200][300,400]' to (x1, y1, x2, y2)."""
+    match = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", bounds_str)
+    if match:
+        return tuple(map(int, match.groups()))
+    return None
+
+
+def _dehydrate_android_layout(xml_content: str) -> tuple[list[dict], str]:
+    """Extract key UI elements and generate a concise summary from raw Android XML."""
+    if not xml_content or not xml_content.strip():
+        return [], "Empty layout."
+
+    # Clean up XML: handle typical ADB dump noise
+    xml_start = xml_content.find("<?xml")
+    if xml_start == -1:
+        xml_start = xml_content.find("<hierarchy")
+    if xml_start >= 0:
+        xml_end = xml_content.rfind(">")
+        if xml_end > xml_start:
+            xml_content = xml_content[xml_start: xml_end + 1]
+
+    try:
+        root = ET.fromstring(xml_content.strip())
+    except Exception as e:
+        return [], f"XML Parse Error: {str(e)}"
+
+    elements = []
+    summary_parts = []
+    package_name = ""
+    unique_labels = set()
+
+    for node in root.iter():
+        text = node.get("text", "") or node.get("content-desc", "")
+        res_id = node.get("resource-id", "")
+        clickable = node.get("clickable") == "true"
+        focusable = node.get("focusable") == "true"
+        pkg = node.get("package", "")
+        if pkg:
+            package_name = pkg
+
+        # Dehydration rule: only keep interactive or labeled elements
+        if not (text or res_id or clickable or (focusable and node.get("class", "").endswith("WebView"))):
+            continue
+
+        bounds_str = node.get("bounds", "")
+        bounds = _parse_android_bounds(bounds_str)
+        if not bounds:
+            continue
+
+        x1, y1, x2, y2 = bounds
+        role = node.get("class", "").split('.')[-1]
+        
+        element = {
+            "role": role,
+            "label": text,
+            "resource_id": res_id,
+            "bounds": {"x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1},
+            "clickable": clickable
+        }
+        elements.append(element)
+
+        if text and text not in unique_labels and len(summary_parts) < 5:
+            summary_parts.append(f"'{text}'")
+            unique_labels.add(text)
+
+    summary = f"Android Layout for {package_name}. Total {len(elements)} key elements."
+    if summary_parts:
+        summary += f" Contains: {', '.join(summary_parts)}."
+
+    return elements, summary
+
+
 @shared_task(name="engine_harvest_concepts")
 def harvest_concepts_task(concepts_data: list[dict], project_id: int):
     """
-    Background task to store harvested concepts in Neo4j.
+    Background task to store harvested concepts in Neo4j with structural layout optimization.
     concepts_data: List of dicts with 'name' and 'description'.
     """
     if not concepts_data:
@@ -132,12 +208,36 @@ def harvest_concepts_task(concepts_data: list[dict], project_id: int):
     async def _run():
         logger.info(f"[Celery] Harvesting {len(concepts_data)} concepts...")
         for c in concepts_data:
+            name = c["name"]
+            description = c["description"]
+            
             try:
-                mem_concept = MemConcept(c["name"], c["description"], project_id, [])
+                # Optimized logic for Android layouts
+                if name.startswith("android_layout:"):
+                    logger.info(f"Optimizing layout concept: {name}")
+                    elements, summary = _dehydrate_android_layout(description)
+                    
+                    if elements:
+                        # 1. Trigger App Atlas mapping (Structured Storage)
+                        pkg_match = re.search(r"\(([^)]+)\)", name)
+                        bundle_id = pkg_match.group(1) if pkg_match else "unknown"
+                        
+                        await event_bus.publish(UiTreeObservedEvent(
+                            platform="android",
+                            bundle_id=bundle_id,
+                            window_title=name.replace("android_layout:", "").split('(')[0].strip(),
+                            elements=elements
+                        ))
+                        
+                        # 2. Use dehydrated summary as Concept description
+                        description = summary
+                        logger.debug(f"Dehydrated {name} into summary: {summary}")
+
+                mem_concept = MemConcept(name, description, project_id, [])
                 await memory_manager.long_term.store_concept(mem_concept)
-                logger.info(f"Harvested concept: {c['name']}")
+                logger.info(f"Harvested concept: {name}")
             except Exception as e:
-                logger.warning(f"Failed to store concept {c['name']}: {e}")
+                logger.warning(f"Failed to store concept {name}: {e}")
 
     asyncio.run(_run())
 

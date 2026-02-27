@@ -92,10 +92,49 @@ class AtlasEngine:
         except Exception as e:
             logger.error(f"[AtlasEngine] Failed to index observed UI tree for {bundle_id}: {e}")
 
-    async def query_app_atlas(self, bundle_ids: str | list[str], platform: str = "macos") -> str:
+    async def query_app_atlas(self, bundle_ids: str | list[str] = None, state_id: str = None, platform: str = "macos") -> str:
         """
-        Formats a structural summary of the app map for one or more applications.
+        Formats a structural summary of the app map or details of a specific state.
+        Args:
+            bundle_ids: One or more application IDs to summarize.
+            state_id: If provided, returns the detailed element list for this specific state.
+            platform: Filter by platform.
         """
+        if state_id:
+            # Handle detailed state query
+            # We need to find the bundle_id for this state_id if not provided, 
+            # but usually it's better to require bundle_id for performance if possible.
+            # For simplicity in tools, we'll try to find it.
+            if isinstance(bundle_ids, str):
+                target_bundle = bundle_ids
+            else:
+                target_bundle = bundle_ids[0] if bundle_ids else None
+                
+            if not target_bundle:
+                # Fallback: list apps to find matches if needed, but Neo4j store can find by state_id
+                # Neo4jAtlasStore.get_state_detail already takes bundle_id.
+                return "Error: bundle_id is required when querying state_id."
+
+            detail = await self.store.get_state_detail(target_bundle, state_id, platform=platform)
+            if not detail:
+                return f"No details found for state '{state_id}' in app '{target_bundle}'."
+
+            output = [
+                f"### 🖼️ UI State Detail: {detail['window_title']} (ID: {state_id})",
+                f"App: {target_bundle}",
+                "\n**Key Elements:**"
+            ]
+            for el in detail["elements"]:
+                # Format: [Role] Label (resource_id) @ [Bounds]
+                label_str = f"'{el['label']}'" if el.get("label") else "No Label"
+                id_str = f"({el['resource_id']})" if el.get("resource_id") else ""
+                output.append(f"- [{el['role']}] {label_str} {id_str} | Bounds: {el['bounds']}")
+
+            return "\n".join(output)
+
+        if not bundle_ids:
+            return "Please provide bundle_id(s) or a state_id."
+
         if isinstance(bundle_ids, str):
             bundle_ids = [bundle_ids]
 
@@ -123,11 +162,8 @@ class AtlasEngine:
 
             all_outputs.append("\n".join(output))
 
-        if not all_outputs:
-            return "No bundle IDs provided or found."
-
         final_result = "\n\n---\n\n".join(all_outputs)
-        final_result += "\n\n💡 Tip: Use AX paths extracted from individual states to target specific buttons."
+        final_result += "\n\n💡 Tip: Use `query_app_atlas(bundle_ids='...', state_id='...')` to see all buttons/inputs in a state."
         return final_result
 
     async def list_apps(self) -> str:

@@ -166,14 +166,16 @@ def _compute_capability_boundaries(
 ) -> list[str]:
     """Compute what the Agent CANNOT do based on current environment."""
     boundaries = [
-        "I CANNOT control iOS devices (no jailbroken hooks available).",
         "I CANNOT perform physical actions like plugging in cables.",
     ]
 
-    if not android_devices:
-        boundaries.append("I CANNOT control Android devices (none connected via ADB).")
-    else:
+    # Only mention mobile boundaries if devices are present. 
+    # For common desktop tasks, don't clutter with "I can't do mobile".
+    if android_devices:
         boundaries.append("Non-ASCII text input to Android via ADB may have issues.")
+    
+    # We keep it lean. If a user asks for iOS, the tool will fail or the Planner will handle it.
+    # No need to inject denial for every single prompt.
 
     if not network.internet_connected:
         boundaries.append("I CANNOT access the internet (offline mode).")
