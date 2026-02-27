@@ -25,8 +25,8 @@ parameters:
 When operating without a specific task-level SOP, you must adopt a **High-Precision Visual Loop**. Avoid blind clicking or guessing coordinates.
 
 1. **Window Anchoring**: Before any interaction, call `desktop_control(action="get_active_app")` to retrieve the current window's bounding box.
-2. **ROI Focused Observation**: Take a screenshot of the specific region identified in the bounds: `desktop_control(action="screenshot", region=bounds)`. 
-3. **Semantic Analysis**: Use `analyze_image` or `query_app_atlas` to identify target elements within the captured region.
+2. **ROI Focused Observation**: Take a screenshot of the specific region identified in the bounds: `desktop_control(action="screenshot", region=bounds, ocr=True)`.
+3. **Semantic Analysis**: Use `analyze_image` or the Integrated OCR results to identify target elements. For "Opaque" applications (e.g., WeChat), rely strictly on OCR/Vision.
 4. **Single-Action Execution**: Perform ONE atomic action (click, type, key_press) based on the analysis.
 5. **Incremental Verification**: Wait for the UI to transition, then repeat Step 1 to verify the state change.
 

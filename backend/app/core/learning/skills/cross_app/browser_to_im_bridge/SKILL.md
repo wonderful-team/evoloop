@@ -1,6 +1,6 @@
 ---
 name: Browser to IM Bridge (Cross-App)
-description: Scraping a browser alert/summary and immediately forwarding it to a contact in WeChat, Lark, or Slack.
+description: Scraping a browser alert/summary and immediately forwarding it to a contact in an IM application (e.g., WeChat, Lark, Slack).
 namespace: cross_app
 trigger_patterns:
   - "forward the status of \\{url\\} to \\{contact_name\\}"
@@ -29,6 +29,7 @@ The ultimate "Assistant" SOP for bridging data siloes using high-precision brows
 2. **Switch Context**: Use `desktop_control(action="open_app", app_name=im_app)` to bring the IM app to the foreground.
 3. **Find Contact**:
     - Locate the Search/Filter bar in the IM app.
+    - If the app uses a **Custom UI (e.g., WeChat)**, use `desktop_control(action="screenshot", ocr=True)` to find the search bar coordinates.
     - Type `contact_name` and Press `Enter`.
 4. **Compose & Send**:
     - Type a concise summary: "Found alert on [URL]: [Captured Text]."

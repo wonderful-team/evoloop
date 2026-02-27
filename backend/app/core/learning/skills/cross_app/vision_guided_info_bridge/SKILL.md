@@ -1,10 +1,10 @@
 ---
 name: Vision-Guided Info Bridge
-description: A high-precision cross-app skill that scrapes information from a source application (e.g., Browser) and shares it with a verified contact in a target app (e.g., WeChat) using window-aware vision scanning.
+description: A high-precision cross-app skill that scrapes information from a source application (e.g., Browser) and shares it with a verified contact in a target app (e.g., WeChat, Lark) using window-aware vision scanning.
 namespace: cross_app
 trigger_patterns:
-  - "find information about \\{topic\\} on Chrome and send a summary to \\{contact_name\\} in WeChat"
-  - "share the latest \\{topic\\} news with \\{contact_name\\}"
+  - "find information about \\{topic\\} on Chrome and send a summary to \\{contact_name\\} in \\{im_app\\}"
+  - "share the latest \\{topic\\} news with \\{contact_name\\} on \\{im_app\\}"
   - "research \\{topic\\} and forward the results to \\{contact_name\\} on \\{im_app\\}"
 parameters:
   topic:
@@ -22,14 +22,12 @@ parameters:
 ---
 
 # 🧠 Expert Guide (心法)
-This skill leverages "Window-Aware Vision" to ensure precision in complex UI environments. It eliminates background noise by focusing the Agent's "eyes" only on the active window bounds.
+This skill leverages "Window-Aware Vision" to ensure precision in complex or "Custom UI" environments. It eliminates background noise by focusing the Agent's "eyes" only on the active window bounds.
 
 > [!IMPORTANT]
-> **The Coordinate Offset Rule (必杀技)**:
-> When using `screenshot(region="x,y,w,h")`, the OCR results will be relative to that region.
-> You MUST manually calculate the absolute screen coordinates before clicking:
-> `Absolute_X = window_x + relative_x`
-> `Absolute_Y = window_y + relative_y`
+> **The Custom UI / Opaque App Strategy (必杀技)**:
+> For applications that do not expose a native Accessibility Tree (e.g., WeChat, some cross-platform apps), DO NOT waste time with `quick_check_screen`. 
+> IMMEDIATELY switch to `desktop_control(action="screenshot", region=bounds, ocr=True)`.
 
 ## 🚀 Execution Workflow
 
