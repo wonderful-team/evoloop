@@ -7,8 +7,7 @@ Provides the Agent with native browser-level control:
   - Visual perception (screenshot + immediate OCR)
   - Advanced capabilities (JS execution, cookies, network wait, dialogs)
 
-Designed to complement `desktop_control` (OS-level) for precision
-web automation without relying on coordinate-based OCR guessing.
+`browser_control` is self-starting (will auto-launch Chrome if needed) and operates independently of OS-level tools for most web tasks.
 """
 import asyncio
 import logging
