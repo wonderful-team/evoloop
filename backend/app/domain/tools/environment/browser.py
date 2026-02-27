@@ -596,11 +596,15 @@ async def browser_control(
         # ── Perception ────────────────────────────────────────────────────
         elif action == "screenshot":
             filepath = _tmp_screenshot_path()
-            if selector:
-                elem = page.locator(selector).first
-                await elem.screenshot(path=filepath)
-            else:
-                await page.screenshot(path=filepath, full_page=full_page)
+            try:
+                if selector:
+                    elem = page.locator(selector).first
+                    await elem.screenshot(path=filepath, animations="disabled", timeout=timeout_ms)
+                else:
+                    await page.screenshot(path=filepath, full_page=full_page, animations="disabled", timeout=timeout_ms)
+            except Exception as e:
+                logger.error(f"[Browser] Screenshot action failed: {e}")
+                return f"Error: Screenshot failed (timeout={timeout_ms}ms). Details: {e}"
 
             result_msg = f"Screenshot saved to: {filepath}"
             result_msg += await _run_ocr(filepath)

@@ -462,7 +462,7 @@ class MacOSDriver:
             # Usually the first window in the list is the frontmost/active window
             front_window = windows[0]
 
-            def get_element_data(element, depth=0, max_depth=2):
+            def get_element_data(element, depth=0, max_depth=8):
                 if depth > max_depth:
                     return None
                 
@@ -492,8 +492,13 @@ class MacOSDriver:
                 else:
                     data["bounds"] = [0, 0, 0, 0]
 
-                # Optimization: Only recurse for specific roles like toolbars or groups
+                # Optimization: Only recurse for specific roles or if it's likely a container
+                # We skip deep recursion for simple leaf nodes like StaticText or Image unless they are high level
                 if depth < max_depth:
+                    # Skip recursing into very deep static text nodes
+                    if depth > 4 and data["role"] in ["AXStaticText", "AXImage"]:
+                         return data
+
                     _, children = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute, None)
                     if children:
                         data_children = []

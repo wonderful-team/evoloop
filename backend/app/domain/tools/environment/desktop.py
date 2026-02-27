@@ -82,36 +82,60 @@ async def desktop_control(
             try:
                 # The AppleScript returns a string like "[{'name': '...', ...}, ...]"
                 # Using ast.literal_eval since it often uses single quotes
-                elements = ast.literal_eval(raw_tree)
+                elements = ast.literal_eval(raw_tree.replace("missing value", "None"))
             except Exception as e:
                 logger.error(f"[Desktop] Failed to parse AX Tree: {e}")
                 return f"Error: AX Tree parsing failed: {e}"
 
+            import unicodedata
+            def normalize_text(t: str) -> str:
+                if not t: return ""
+                return unicodedata.normalize('NFC', str(t)).lower().strip().replace(" ", "").replace("\u3000", "")
+
+            target_norm = normalize_text(name)
+            
+            candidates = []
             for el in elements:
-                el_name = str(el.get("name", "")).lower()
+                el_name = normalize_text(el.get("name", ""))
                 el_role = str(el.get("role", "")).lower()
 
-                name_match = name.lower() in el_name
-                role_match = not role or role.lower() in el_role
+                # Scoring and matching
+                # 1. Exact match (Highest priority)
+                if el_name == target_norm:
+                    score = 100
+                # 2. Substring match
+                elif target_norm in el_name:
+                    score = 50
+                else:
+                    continue
 
-                if name_match and role_match:
-                    res = {}
-                    if "path" in el:
-                        res["type"] = "path"
-                        res["value"] = el["path"]
+                # Role filter boost
+                if role and role.lower() in el_role:
+                    score += 10
+                
+                candidates.append((score, el))
 
-                    bounds = el.get("bounds", [])
-                    if len(bounds) == 4:
-                        # Click the center of the element
-                        target_x = int(bounds[0] + bounds[2] / 2)
-                        target_y = int(bounds[1] + bounds[3] / 2)
-                        res["x"] = target_x
-                        res["y"] = target_y
-                        if "type" not in res:
-                            res["type"] = "coords"
+            if candidates:
+                # Sort by score descending
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                best_el = candidates[0][1]
+                
+                res = {}
+                if "path" in best_el:
+                    res["type"] = "path"
+                    res["value"] = best_el["path"]
 
-                    if res:
-                        return res
+                bounds = best_el.get("bounds", [])
+                if len(bounds) == 4:
+                    target_x = int(bounds[0] + bounds[2] / 2)
+                    target_y = int(bounds[1] + bounds[3] / 2)
+                    res["x"] = target_x
+                    res["y"] = target_y
+                    if "type" not in res:
+                        res["type"] = "coords"
+                
+                if res:
+                    return res
 
             # 2. Try App Atlas Fallback (Historical Memory) - Only use ax_path/os_identifier, NOT coordinates
             # Atlas coordinates are absolute and become invalid when window moves
@@ -193,7 +217,7 @@ async def desktop_control(
         if action == "screenshot":
             filepath = macos_driver.screenshot(region=region)
             result_msg = f"Screenshot saved to: {filepath}"
-            
+
             if ocr:
                 try:
                     ocr_result = await vision_engine.process(VisionTask.OCR, filepath)
@@ -202,7 +226,7 @@ async def desktop_control(
                         for el in ocr_result.elements:
                             # Use the to_prompt_line format for consistency
                             texts.append(el.to_prompt_line())
-                        
+
                         if texts:
                             result_msg += "\n\n### OCR Results (Detected Text & Coordinates):\n"
                             result_msg += "\n".join(texts)
@@ -211,7 +235,7 @@ async def desktop_control(
                 except Exception as e:
                     logger.error(f"[Desktop] Integrated OCR failed: {e}")
                     result_msg += f"\n\n(OCR Error: {e})"
-            
+
             return result_msg
 
         elif action in ["click", "double_click"]:
