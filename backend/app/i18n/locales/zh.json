@@ -55,6 +55,12 @@
         "common": {
             "tool_not_found": "错误：找不到工具 {name}。",
             "tool_execution_error": "执行工具 {name} 时出错：{error}",
+            "pronouns": [
+                "它",
+                "这个",
+                "那个",
+                "它们"
+            ],
             "risk_levels": {
                 "low": "低",
                 "medium": "中",

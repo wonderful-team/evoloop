@@ -138,17 +138,73 @@ class SupervisorNode:
             # Intent-driven Namespace (from LLM)
             inferred_namespace = routing_context.get("namespace_context")
 
-            # Worker: LLM must provide agent_config explicitly in routing_context.
-            # Fixed nodes (finish, documenter, chat): no agent_config needed.
             if routing_target == "worker":
-                agent_config = routing_context.get("agent_config")
-                if agent_config and "namespace_context" not in agent_config:
+                agent_config = routing_context.get("agent_config") or {}
+                if "namespace_context" not in agent_config:
                     agent_config["namespace_context"] = inferred_namespace
-                if not agent_config:
+                if not agent_config.get("role_name"):
                     logger.warning(
-                        "[Supervisor] route_to('worker') called without agent_config! "
+                        "[Supervisor] route_to('worker') called without full agent_config! "
                         "LLM must supply role_name and system_instructions in context."
                     )
+
+                # --- 🏅 Plan B: Supervisor-Driven Directed Tool Routing ---
+                topic = routing_context.get("topic") or routing_context.get("query") or routing_reason
+
+                try:
+                    # 1. Discover SOP dependencies preemptively
+                    from app.core.learning.discovery import skill_discovery
+                    _, relevant_skills, _ = await skill_discovery.exact_search(
+                        query=topic, 
+                        namespace_context=inferred_namespace
+                    )
+
+                    required_tools = set()
+                    for skill in relevant_skills:
+                        if skill.tools_used:
+                            try:
+                                tools = json.loads(skill.tools_used)
+                                if isinstance(tools, list):
+                                    required_tools.update(tools)
+                            except Exception:
+                                pass
+
+                    # 2. Fetch baseline capabilities and apply ecosystem masking
+                    from app.core.tools.manager import tool_manager
+                    from app.core.environment.focus import classify_ecosystems
+
+                    baseline_tools = tool_manager.get_node_tools("worker", state=None)
+                    ecosystems = classify_ecosystems(context.get("entity_focus", []))
+                    
+                    is_mobile_focused = "android" in ecosystems
+                    is_web_focused = "web" in ecosystems
+
+                    allowed_tools = set()
+                    if is_mobile_focused and is_web_focused:
+                        allowed_tools.update(t.name for t in baseline_tools if hasattr(t, "name"))
+                    else:
+                        for t in baseline_tools:
+                            name = getattr(t, "name", "")
+                            if not name: continue
+                            if is_mobile_focused and name == "browser_control":
+                                logger.info(f"[Supervisor] 🎭 Masking '{name}' (Mobile Focus Active)")
+                                continue
+                            if is_web_focused and name == "mobile_control":
+                                logger.info(f"[Supervisor] 🎭 Masking '{name}' (Web Focus Active)")
+                                continue
+                            allowed_tools.add(name)
+
+                    # 3. Hybrid Authorization: Merge SOP explicit dependencies
+                    for rt in required_tools:
+                        if rt not in allowed_tools:
+                            logger.info(f"[Supervisor] 🔓 SOP Dependency Override: Granting '{rt}' for '{topic}'")
+                    
+                    allowed_tools.update(required_tools)
+                    agent_config["tools"] = list(allowed_tools)
+
+                except Exception as e:
+                    logger.error(f"[Supervisor] Tool Authorization Error: {e}")
+
             else:
                 # finish, documenter, chat — these are fixed nodes, no agent_config
                 agent_config = None
@@ -302,11 +358,17 @@ class SupervisorNode:
         cwd = config.get("configurable", {}).get("working_directory")
         ctx.metadata["cwd"] = cwd
         ctx.metadata["project_concepts"] = project_concepts
+        
+        # --- Phase 4: Entity Focus Extraction ---
+        # Decoupled semantic focus resolution. Logic moved to app.core.environment.
+        if last_msg:
+            from app.core import environment
+            ctx.entity_focus = environment.resolve_focus(last_msg, current_focus=ctx.entity_focus)
 
         # User language preference will be fetched by prompt builder directly
         plugin_registry.hydrate_context(ctx)
 
-        logger.info(f"[Supervisor] 📂 Context Hydrated: Concepts {len(project_concepts)} chars.")
+        logger.info(f"[Supervisor] 📂 Context Hydrated: Concepts {len(project_concepts)} chars. Focus: {ctx.entity_focus}")
 
         return {
             "tools": tools,

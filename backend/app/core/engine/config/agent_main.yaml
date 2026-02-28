@@ -32,7 +32,15 @@ nodes:
   - id: "worker"
     path: "app.core.engine.nodes.worker.worker_node"
     tools:
-      # Universal Worker Toolkit (v5 — gated at runtime by ExecutionTicket)
+      # =====================================================================
+      # 🏅 WORKER BASELINE CAPABILITY POOL (v5.0 - Plan B Architecture)
+      # =====================================================================
+      # This is NOT the final tool list the Worker receives. 
+      # The Supervisor intercepts these tools during `route_to('worker')`.
+      # 1. It masks cross-platform tools based on the current `ecosystem` focus.
+      # 2. It forcibly injects any generic tools strictly required by the matched SOPs.
+      # The resulting strict Allowlist is passed via `ExecutionTicket.agent_config.tools`.
+      # =====================================================================
       # Desktop & Mobile Automation
       - "desktop_control"
       - "mobile_control"

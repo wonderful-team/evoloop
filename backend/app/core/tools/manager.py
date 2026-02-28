@@ -96,6 +96,12 @@ class ToolManager:
                 except Exception as e:
                     logger.error(f"[ToolManager] Failed to progressively load MCP tools: {e}")
 
+            # 3. Strict Supervisor Allowlist Enforcement
+            if dynamic_tools:
+                # If Supervisor provided a strict tool allowlist, we prune any tool not in the list.
+                allowed = set(dynamic_tools)
+                combined_map = {k: v for k, v in combined_map.items() if k in allowed}
+
         return list(combined_map.values())
 
     def get_all_capabilities(self) -> list[BaseTool]:

@@ -20,6 +20,7 @@ from app.core.environment.memory_replay import replay_memory
 from app.core.environment.models import AwakenedState
 from app.core.environment.preference_priming import prime_preferences
 from app.core.environment.watcher import environment_watcher
+from app.core.environment.focus import resolve_focus, classify_ecosystems
 
 logger = logging.getLogger(__name__)
 
@@ -190,4 +191,6 @@ __all__ = [
     "AwakenedState",
     "environment_watcher",
     "EnvironmentContextPlugin",
+    "resolve_focus",
+    "classify_ecosystems",
 ]

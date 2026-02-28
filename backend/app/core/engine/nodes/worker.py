@@ -119,6 +119,8 @@ class WorkerNode:
                 "next_node": "supervisor"
             }
 
+        return return_state
+
     def _post_process_result(
         self,
         state: AgentState,

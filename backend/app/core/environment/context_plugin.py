@@ -126,10 +126,32 @@ class EnvironmentContextPlugin(ContextPlugin):
 
                     # Re-assemble layouts only if android is available
                     formatted_layouts = []
-                    if has_android:
-                        formatted_layouts = [f"android_layout({val})" for val in layout_map.values()]
 
-                    ctx.memory_replay["concepts"] = (formatted_layouts + unique_names)[:5]
+                    if has_android:
+                        # Phase 4 Intent-Aware Filtering: Prioritize focused apps
+                        focused_layouts = []
+                        other_layouts = []
+                        
+                        focus_keywords = getattr(ctx, "entity_focus", [])
+                        
+                        for val in layout_map.values():
+                            val_lower = val.lower()
+                            # Check if layout label or package matches any focus keyword
+                            if any(k in val_lower for k in focus_keywords):
+                                focused_layouts.append(f"android_layout({val})  <-- [Focus Active]")
+                            else:
+                                other_layouts.append(f"android_layout({val})")
+                                
+                        # Combine: prioritize focused, append others up to a limit
+                        max_layouts = 3 if focus_keywords else 5
+                        formatted_layouts = focused_layouts + other_layouts[:max_layouts - len(focused_layouts)]
+
+                    # Prioritize focus in unique names too
+                    focus_concepts = [n for n in unique_names if any(k in n.lower() for k in getattr(ctx, "entity_focus", []))]
+                    other_concepts = [n for n in unique_names if n not in focus_concepts]
+                    filtered_unique_names = focus_concepts + other_concepts[:5 - len(focus_concepts)]
+
+                    ctx.memory_replay["concepts"] = (formatted_layouts + filtered_unique_names)[:5]
 
                 if getattr(state, "journal_highlights", None):
                     ctx.memory_replay["highlights"] = state.journal_highlights

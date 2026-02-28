@@ -44,6 +44,10 @@ class EvoContext:
     memory_replay: list[str] | dict[str, Any] = field(default_factory=list)
     identity_rules: list[str] = field(default_factory=list)
     environment_block: str | None = None
+    
+    # [Phase 4: Intent-Aware Context]
+    # Tracks the "active" application, entities, or elements mentioned in recent dialogue
+    entity_focus: list[str] = field(default_factory=list)
 
     # Extra Metadata (Plugins, etc.)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -68,6 +72,7 @@ class EvoContext:
             "memory_replay": self.memory_replay,
             "identity_rules": self.identity_rules,
             "environment_block": self.environment_block,
+            "entity_focus": self.entity_focus,
             "metadata": self.metadata,
         }
 
@@ -180,7 +185,7 @@ class ContextManager:
                 reconstructed = {}
                 # Field types expected by from_dict/dataclass
                 list_fields = {
-                    "short_term_memory", "active_boundaries", "identity_rules"
+                    "short_term_memory", "active_boundaries", "identity_rules", "entity_focus"
                 }
                 # Support both dict and list for flexible context fields
                 flexible_fields = {"spatial_awareness", "environment_summaries", "memory_replay"}

@@ -55,6 +55,12 @@
         "common": {
             "tool_not_found": "Error: Tool {name} not found.",
             "tool_execution_error": "Error executing tool {name}: {error}",
+            "pronouns": [
+                "it",
+                "that",
+                "this",
+                "them"
+            ],
             "risk_levels": {
                 "low": "Low",
                 "medium": "Medium",
