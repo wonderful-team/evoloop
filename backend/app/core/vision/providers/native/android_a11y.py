@@ -180,6 +180,12 @@ class AndroidA11yProvider(VisionProvider):
             if width < 10 or height < 10:
                 continue
 
+            # Phase 6: Enhanced metadata for element classification
+            scrollable = node.get("scrollable") == "true"
+            checkable = node.get("checkable") == "true"
+            checked = node.get("checked") == "true"
+            selected = node.get("selected") == "true"
+
             element = UIElement(
                 id=element_id,
                 text=text,
@@ -195,6 +201,14 @@ class AndroidA11yProvider(VisionProvider):
                     "class": node.get("class", ""),
                     "resource_id": node.get("resource-id", ""),
                     "package": node.get("package", ""),
+                    # Phase 6: Additional attributes for element classification
+                    "scrollable": scrollable,
+                    "checkable": checkable,
+                    "checked": checked,
+                    "focusable": focusable,
+                    "selected": selected,
+                    "content_desc": node.get("content-desc", ""),
+                    "index": node.get("index", ""),
                 }
             )
 

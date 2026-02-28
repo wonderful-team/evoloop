@@ -7,64 +7,88 @@ from app.infrastructure.database.redis import get_redis_client
 
 logger = logging.getLogger(__name__)
 
-REDIS_KEY_DYNAMIC_APPS = "system:dynamic_apps"
-REDIS_KEY_APP_REASONING = "system:app_categorization"
+REDIS_KEY_DYNAMIC_APPS_PREFIX = "system:dynamic_apps"
+REDIS_KEY_APP_REASONING_PREFIX = "system:app_categorization"
 
 
 class DynamicAppTriage(BaseExplorer):
     """
     Autonomous discovery of dynamic (coordinate-unstable) applications.
     Uses LLM to categorize apps and persists results in Redis.
+    Platform-specific to avoid conflicts between different OS versions.
     """
+
+    @staticmethod
+    def _get_dynamic_apps_key(platform: str) -> str:
+        """Generate platform-specific Redis key for dynamic apps."""
+        return f"{REDIS_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
+
+    @staticmethod
+    def _get_reasoning_key(platform: str) -> str:
+        """Generate platform-specific Redis key for app reasoning."""
+        return f"{REDIS_KEY_APP_REASONING_PREFIX}:{platform}"
 
     async def scan(self, *args, **kwargs) -> list:
         # Not used directly for scan, but part of BaseExplorer interface
         return []
 
-    async def sync_dynamic_apps(self, macos_apps: list[str] = None, android_packages: list[str] = None):
+    async def sync_dynamic_apps(
+        self,
+        macos_apps: list[str] = None,
+        android_packages: list[str] = None,
+        device_id: str | None = None
+    ):
         """
         Sync discovery state with Redis and LLM.
         Supports partial updates (e.g. just macOS or just one Android device).
+        Platform-specific storage prevents conflicts.
         """
         redis = await get_redis_client()
-        
-        # 1. Get all previously processed apps from Redis
-        processed_key = "system:processed_apps"
-        processed_apps = await redis.smembers(processed_key)
-        
-        all_new_apps = []
+
+        # Process by platform
+        platforms_to_process = []
         if macos_apps:
-            all_new_apps.extend([a for a in macos_apps if a not in processed_apps])
+            platforms_to_process.append(("macos", macos_apps))
         if android_packages:
-            all_new_apps.extend([p for p in android_packages if p not in processed_apps])
+            platforms_to_process.append(("android", android_packages))
 
-        if not all_new_apps:
-            logger.debug("[DynamicAppTriage] No new apps to triage.")
-            return
+        for platform, apps in platforms_to_process:
+            # 1. Get all previously processed apps from Redis for this platform
+            processed_key = f"system:processed_apps:{platform}"
+            processed_apps = await redis.smembers(processed_key)
 
-        logger.info(f"[DynamicAppTriage] Triaging {len(all_new_apps)} new apps via LLM...")
-        
-        # 2. LLM Triage
-        triage_results = await self._triage_with_llm(all_new_apps)
-        
-        # 3. Update Redis
-        if triage_results:
-            pipe = redis.pipeline()
-            for app_id, data in triage_results.items():
-                is_dynamic = data.get("is_dynamic", False)
-                reason = data.get("reason", "Unknown")
-                
-                # Mark as processed
-                pipe.sadd(processed_key, app_id)
-                
-                if is_dynamic:
-                    pipe.sadd(REDIS_KEY_DYNAMIC_APPS, app_id)
-                    pipe.hset(REDIS_KEY_APP_REASONING, app_id, reason)
-                    logger.info(f"[DynamicAppTriage] Marked '{app_id}' as DYNAMIC: {reason}")
-                else:
-                    logger.debug(f"[DynamicAppTriage] Marked '{app_id}' as STATIC")
-            
-            await pipe.execute()
+            new_apps = [a for a in apps if a not in processed_apps]
+
+            if not new_apps:
+                logger.debug(f"[DynamicAppTriage] No new {platform} apps to triage.")
+                continue
+
+            logger.info(f"[DynamicAppTriage] Triaging {len(new_apps)} new {platform} apps via LLM...")
+
+            # 2. LLM Triage
+            triage_results = await self._triage_with_llm(new_apps)
+
+            # 3. Update Redis with platform-specific keys
+            if triage_results:
+                dynamic_key = self._get_dynamic_apps_key(platform)
+                reasoning_key = self._get_reasoning_key(platform)
+
+                pipe = redis.pipeline()
+                for app_id, data in triage_results.items():
+                    is_dynamic = data.get("is_dynamic", False)
+                    reason = data.get("reason", "Unknown")
+
+                    # Mark as processed (platform-specific)
+                    pipe.sadd(processed_key, app_id)
+
+                    if is_dynamic:
+                        pipe.sadd(dynamic_key, app_id)
+                        pipe.hset(reasoning_key, app_id, reason)
+                        logger.info(f"[DynamicAppTriage] Marked '{platform}:{app_id}' as DYNAMIC: {reason}")
+                    else:
+                        logger.debug(f"[DynamicAppTriage] Marked '{platform}:{app_id}' as STATIC")
+
+                await pipe.execute()
 
     async def _triage_with_llm(self, app_ids: list[str]) -> dict[str, dict]:
         """
@@ -110,27 +134,20 @@ class DynamicAppTriage(BaseExplorer):
             return {}
 
     @staticmethod
-    async def get_dynamic_apps() -> set[str]:
-        """Helper to fetch the current dynamic app set from Redis + Hardcoded safeguards."""
-        # 1. Hardcoded safeguards for common dynamic apps to ensure immediate safety
-        # bundle_ids for common communication/scrolling apps
-        known_dynamic = {
-            "com.tencent.xinWeChat",  # WeChat
-            "com.webex.meeting",      # Webex
-            "com.microsoft.Teams",    # Teams
-            "com.tinyspeck.slackmacgap", # Slack
-            "work.feishu.main",       # Feishu
-            "com.whatsapp.WhatsApp",  # WhatsApp
-            "com.apple.Safari",       # Safari
-            "com.google.Chrome",      # Chrome
-        }
-        
+    async def get_dynamic_apps(platform: str = "android") -> set[str]:
+        """Helper to fetch the current dynamic app set from Redis for a specific platform.
+
+        Pure dynamic configuration - no hardcoded fallbacks.
+        Apps are classified via LLM triage and stored in Redis.
+
+        Args:
+            platform: Platform identifier ("android", "macos", etc.)
+        """
         try:
             redis = await get_redis_client()
-            app_ids = await redis.smembers(REDIS_KEY_DYNAMIC_APPS)
-            if app_ids:
-                known_dynamic.update(app_ids)
+            dynamic_key = f"{REDIS_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
+            app_ids = await redis.smembers(dynamic_key)
+            return set(app_ids) if app_ids else set()
         except Exception as e:
-            logger.debug(f"[DynamicAppTriage] Redis fetch failed, using only hardcoded: {e}")
-            
-        return known_dynamic
+            logger.error(f"[DynamicAppTriage] Redis fetch failed for {platform}: {e}")
+            return set()

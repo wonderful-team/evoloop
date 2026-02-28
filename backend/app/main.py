@@ -75,6 +75,15 @@ async def lifespan(_app: FastAPI):
 
         # Start background environment watcher
         await environment_watcher.start()
+
+        # 2.6 Atlas Configuration Initialization
+        try:
+            from app.initial_data import init_atlas_config
+            await init_atlas_config()
+            logger.info("Atlas configuration initialized.")
+        except Exception as e:
+            logger.warning(f"Atlas config initialization failed (non-critical): {e}")
+
     except Exception as e:
         logger.warning(f"Agent Awakening failed (non-critical): {e}")
 

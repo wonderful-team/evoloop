@@ -12,12 +12,58 @@ from typing import Literal
 import markdownify
 
 from app.constants import MAX_OUTPUT_LENGTH
-from app.core.atlas import atlas_engine
+from app.core.atlas import atlas_engine, get_bundle_id
 from app.core.tools import evoloop_tool
 from app.core.vision import vision_engine, VisionTask
 from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
+
+
+# Phase 6: Helper function to trigger Atlas harvest for macOS
+async def _trigger_atlas_harvest_macos(bundle_id: str):
+    """Trigger Atlas harvest for macOS static apps."""
+    try:
+        from app.core.environment.events import UiTreeObservedEvent, event_bus
+
+        # Get current UI info
+        app_info = macos_driver.get_current_app()
+        if app_info.get("bundle_id") != bundle_id:
+            logger.debug(f"[AtlasHarvest] App mismatch, skipping harvest for {bundle_id}")
+            return
+
+        # Get AX Tree
+        ax_output = macos_driver.dump_ax_tree()
+        if not ax_output or "Error" in ax_output:
+            logger.debug(f"[AtlasHarvest] Failed to get AX tree for {bundle_id}")
+            return
+
+        # Parse elements
+        import ast
+        try:
+            elements_data = ast.literal_eval(ax_output.replace("missing value", "None"))
+        except:
+            logger.debug(f"[AtlasHarvest] Failed to parse AX tree for {bundle_id}")
+            return
+
+        # Create event
+        event = type('Event', (), {
+            'data': {
+                'bundle_id': bundle_id,
+                'window_title': app_info.get('title', 'Unknown'),
+                'platform': 'macos',
+                'screenshot_hash': '',
+                'version_hash': ''
+            },
+            'elements': elements_data
+        })()
+
+        # Publish event for Atlas processing
+        await atlas_engine.on_ui_tree_observed(event)
+        logger.info(f"[AtlasHarvest] Completed harvest for static app: {bundle_id}")
+
+    except Exception as e:
+        logger.warning(f"[AtlasHarvest] Failed to harvest for {bundle_id}: {e}")
 
 
 @evoloop_tool
@@ -144,25 +190,54 @@ async def desktop_control(
                 bundle_id = app_info.get("bundle_id")
 
                 if bundle_id:
-                    # Query the summary and check states
-                    summary = await atlas_engine.store.get_app_summary(bundle_id)
-                    if summary and "states" in summary:
-                        for state in summary["states"]:
-                            # Fetch full state to see elements
-                            full_state = await atlas_engine.store.get_state_detail(bundle_id, state["id"])
-                            if full_state and "elements" in full_state:
-                                for el in full_state["elements"]:
-                                    # Fallback covers old (text/name) and new (label) variations
-                                    el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
-                                    if name.lower() in el_name:
-                                        # Only use structural path, NOT bounds (coordinates become stale when window moves)
-                                        if el.get("os_identifier") or el.get("ax_path"):
-                                            return {
-                                                "type": "path",
-                                                "value": el.get("os_identifier") or el.get("ax_path")
-                                            }
-                                        # No valid path found, skip Atlas for this element
-                                        break
+                    # Phase 6: Check if this is a dynamic app
+                    is_dynamic = await atlas_engine.is_dynamic_app(bundle_id, "macos")
+
+                    if is_dynamic:
+                        # For dynamic apps, try strategy-based resolution
+                        strategy = await atlas_engine.get_app_strategy(bundle_id, "macos")
+                        if strategy:
+                            # Check infrastructure elements (static like toolbars)
+                            infra_elem = strategy.get_infrastructure_element(name)
+                            if infra_elem and (infra_elem.get("resource_id") or infra_elem.get("ax_path")):
+                                logger.info(f"[Desktop] Resolved '{name}' via Strategy (infrastructure)")
+                                return {
+                                    "type": "path",
+                                    "value": infra_elem.get("resource_id") or infra_elem.get("ax_path")
+                                }
+
+                            # Check for strategy
+                            strat = strategy.get_strategy_for(name)
+                            if strat:
+                                logger.info(f"[Desktop] Using strategy '{strat.strategy_type}' for '{name}'")
+                                return {
+                                    "strategy": strat.strategy_type,
+                                    "parameters": strat.parameters,
+                                    "source": "atlas_strategy"
+                                }
+
+                        # No strategy found, skip Atlas for dynamic apps
+                        logger.debug(f"[Desktop] Dynamic app '{bundle_id}' - skipping coordinate fallback")
+                    else:
+                        # Static app: use normal Atlas fallback
+                        summary = await atlas_engine.store.get_app_summary(bundle_id, platform="macos")
+                        if summary and "states" in summary:
+                            for state in summary["states"]:
+                                # Fetch full state to see elements
+                                full_state = await atlas_engine.store.get_state_detail(bundle_id, state["id"], platform="macos")
+                                if full_state and "elements" in full_state:
+                                    for el in full_state["elements"]:
+                                        # Fallback covers old (text/name) and new (label) variations
+                                        el_name = str(el.get("label") or el.get("text") or el.get("name") or "").lower()
+                                        if name.lower() in el_name:
+                                            # Only use structural path, NOT bounds (coordinates become stale when window moves)
+                                            if el.get("os_identifier") or el.get("ax_path"):
+                                                return {
+                                                    "type": "path",
+                                                    "value": el.get("os_identifier") or el.get("ax_path")
+                                                }
+                                            # No valid path found, skip Atlas for this element
+                                            break
             except Exception as e:
                 logger.debug(f"[Desktop] Atlas fallback failed: {e}")
 
@@ -248,6 +323,24 @@ async def desktop_control(
                 if isinstance(resolved, str): # Error message
                     return resolved
 
+                # Phase 6: Handle strategy-based resolution for dynamic apps
+                if resolved.get("source") == "atlas_strategy":
+                    strategy_type = resolved.get("strategy")
+                    params = resolved.get("parameters", {})
+
+                    if strategy_type == "search_then_click":
+                        # For dynamic content, we need to execute the search strategy
+                        # This is a hint to the agent that direct coordinates are unreliable
+                        return (
+                            f"[Strategy Required] '{element_name}' is in a dynamic app. "
+                            f"Use search approach: {params.get('description', 'Search for the element')}. "
+                            f"Direct coordinates are unreliable for this target."
+                        )
+                    elif strategy_type == "static_click" and params.get("resource_id"):
+                        # Infrastructure element with known path
+                        element_path = params.get("resource_id")
+                        logger.info(f"[Desktop] Using infrastructure path from strategy: {element_path}")
+
                 if resolved.get("type") == "path":
                     element_path = resolved.get("value")
                     logger.info(f"[Desktop] Resolved '{element_name}' natively to: {element_path}")
@@ -313,7 +406,33 @@ async def desktop_control(
             if not app_name:
                 return "Error: 'app_name' is required for open_app action."
 
-            return macos_driver.open_app(app_name)
+            # Phase 6: Check app type before opening
+            # Get bundle ID from app name (Redis -> auto-detect)
+            bundle_id = await get_bundle_id(app_name)
+            is_dynamic = await atlas_engine.is_dynamic_app(bundle_id, "macos") if bundle_id else False
+            app_type_str = "DYNAMIC" if is_dynamic else "STATIC"
+            icon = "🔄" if is_dynamic else "📍"
+            logger.info(f"[Desktop] Opening {app_type_str} app: {app_name} ({bundle_id})")
+
+            result = macos_driver.open_app(app_name)
+
+            # Phase 6: Post-open actions based on app type
+            if is_dynamic:
+                # For dynamic apps: preload strategy
+                strategy = await atlas_engine.get_app_strategy(bundle_id, "macos")
+                if strategy:
+                    logger.info(f"[Desktop] Preloaded strategy for {bundle_id}: {len(strategy.infrastructure)} infrastructure elements")
+                else:
+                    logger.info(f"[Desktop] No strategy yet for {bundle_id}, will rely on real-time perception")
+            else:
+                # For static apps: trigger immediate Atlas harvest in background
+                logger.info(f"[Desktop] Static app opened, triggering Atlas harvest for {bundle_id}")
+                asyncio.create_task(_trigger_atlas_harvest_macos(bundle_id))
+
+            # Append type info to result (always include type marker)
+            if "Error" not in result:
+                return f"{icon} {result} [{app_type_str}]"
+            return result
 
         elif action == "applescript":
             if not script:

@@ -22,9 +22,14 @@ class AtlasElement:
     """
     A semantic anchor for a single interactive UI element.
     Platform-agnostic representation.
+
+    Phase 6: Element Classification
+    - element_category: Classifies element type (static/dynamic/container)
+    - is_infrastructure: True for static elements like toolbars (reliable coordinates)
+    - coordinate_confidence: 0.0-1.0, low for dynamic content
     """
-    role: str                        # e.g., "BUTTON", "INPUT", "AXButton"
-    label: str                       # e.g., "Save", "File"
+    role: str = ""                   # e.g., "BUTTON", "INPUT", "AXButton"
+    label: str = ""                  # e.g., "Save", "File"
     ax_path: str = ""                # Primary structural path/locator (Legacy/macOS specific)
     os_identifier: str | None = None # Cross-platform OS identifier (e.g., Android viewId, Windows AutomationId)
     ocr_confidence: float | None = None # Vision/OCR confidence score
@@ -33,6 +38,13 @@ class AtlasElement:
     bounds: dict[str, int] | None = None
     is_enabled: bool = True
     parent_menu: str | None = None
+
+    # Phase 6: Element classification
+    element_category: str = "unknown"  # static | static_navigation | static_toolbar | dynamic | dynamic_content | container_*
+    is_infrastructure: bool = False     # True for reliable static elements
+    coordinate_confidence: float = 1.0  # 0.0-1.0, reliability of coordinates
+    clickable: bool = False             # Whether element is interactive
+    metadata: dict[str, Any] = field(default_factory=dict)  # Platform-specific metadata
 
     def to_dict(self) -> dict:
         return {
@@ -46,23 +58,37 @@ class AtlasElement:
             "bounds": self.bounds,
             "is_enabled": self.is_enabled,
             "parent_menu": self.parent_menu,
+            "element_category": self.element_category,
+            "is_infrastructure": self.is_infrastructure,
+            "coordinate_confidence": self.coordinate_confidence,
+            "clickable": self.clickable,
+            "metadata": self.metadata,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> AtlasElement:
-        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+        # Filter only valid fields
+        valid_fields = cls.__dataclass_fields__.keys()
+        filtered = {k: v for k, v in data.items() if k in valid_fields}
+        return cls(**filtered)
 
 
 @dataclass
 class AtlasState:
     """
     A snapshot of the application at a given UI state (a 'screen').
+
+    Phase 6: Infrastructure-only states
+    - is_infrastructure_only: True for dynamic apps (only stores static UI like toolbars)
     """
     state_id: str
     window_title: str
     elements: list[AtlasElement] = field(default_factory=list)
     screenshot_hash: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    # Phase 6: Mark if this state only contains infrastructure elements
+    is_infrastructure_only: bool = False
 
     def get_element_by_label(self, label: str) -> AtlasElement | None:
         label_lower = label.lower()
@@ -78,6 +104,7 @@ class AtlasState:
             "elements": [e.to_dict() for e in self.elements],
             "screenshot_hash": self.screenshot_hash,
             "metadata": self.metadata,
+            "is_infrastructure_only": self.is_infrastructure_only,
         }
 
     @classmethod
@@ -89,6 +116,7 @@ class AtlasState:
             elements=elements,
             screenshot_hash=data.get("screenshot_hash"),
             metadata=data.get("metadata", {}),
+            is_infrastructure_only=data.get("is_infrastructure_only", False),
         )
 
 
@@ -127,6 +155,9 @@ class AtlasTransition:
 class AtlasApp:
     """
     The complete structural map of an application.
+
+    Phase 6: Dynamic app marking
+    - is_dynamic: True for coordinate-unstable apps (WeChat, browsers, etc)
     """
     app_name: str
     bundle_id: str
@@ -137,6 +168,9 @@ class AtlasApp:
     version_hash: str = ""
     explored_at: datetime = field(default_factory=datetime.now)
     exploration_depth: int = 0
+
+    # Phase 6: Mark if this is a coordinate-unstable dynamic app
+    is_dynamic: bool = False
 
     @property
     def concept_key(self) -> str:
@@ -170,6 +204,7 @@ class AtlasApp:
             "version_hash": self.version_hash,
             "explored_at": self.explored_at.isoformat(),
             "exploration_depth": self.exploration_depth,
+            "is_dynamic": self.is_dynamic,
         }
 
     def to_json(self) -> str:
@@ -193,6 +228,7 @@ class AtlasApp:
             version_hash=data.get("version_hash", ""),
             explored_at=datetime.fromisoformat(data["explored_at"]) if "explored_at" in data else datetime.now(),
             exploration_depth=data.get("exploration_depth", 0),
+            is_dynamic=data.get("is_dynamic", False),
         )
 
     @classmethod

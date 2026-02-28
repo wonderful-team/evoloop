@@ -129,6 +129,14 @@ class MacOSAxProvider(VisionProvider):
             if w <= 0 or h <= 0:
                 continue
 
+            # Phase 6: Enhanced metadata for element classification
+            role = raw.get("role", "")
+            subrole = raw.get("subrole", "")
+            path = raw.get("path", "")
+
+            # Check for scrollable indicators
+            is_scrollable = "scroll" in role.lower() or "scroll" in subrole.lower()
+
             element = UIElement(
                 id=i,
                 text=name,
@@ -136,12 +144,17 @@ class MacOSAxProvider(VisionProvider):
                 y=y + h // 2,
                 width=w,
                 height=h,
-                element_type=_infer_element_type(raw.get("role", "")),
-                clickable=True, # In Ax Tree, most elements we list are interactive or useful
+                element_type=_infer_element_type(role),
+                clickable=True,  # In Ax Tree, most elements we list are interactive or useful
                 confidence=1.0,
                 source=self.name,
                 metadata={
-                    "role": raw.get("role", ""),
+                    "role": role,
+                    "subrole": subrole,
+                    "path": path,
+                    # Phase 6: Additional attributes for element classification
+                    "is_scrollable": is_scrollable,
+                    "ax_description": raw.get("description", ""),
                 }
             )
             elements.append(element)

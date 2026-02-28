@@ -54,6 +54,13 @@ def init() -> None:
         SystemConfigService.set_value("INTENT_MIN_CONFIDENCE", "0.35", "Intent Classifier Threshold (0.0-1.0)")
 
 
+async def init_atlas_config() -> None:
+    """Initialize Atlas configuration (Redis-based, no hardcoding)."""
+    logger.info("Initializing Atlas configuration...")
+    from app.core.atlas.config_manager import AtlasConfigManager
+    await AtlasConfigManager.initialize_defaults()
+
+
 async def init_mcp() -> None:
     logger.info("Initializing MCP configuration...")
     # Use the SQLAlchemy URI from settings
@@ -106,9 +113,13 @@ def main() -> None:
     logger.info("Creating initial data")
     init()
 
-    # Run Async Init for MCP
+    # Run Async Init for MCP and Atlas
+    async def async_init():
+        await init_atlas_config()
+        await init_mcp()
+
     try:
-        asyncio.run(init_mcp())
+        asyncio.run(async_init())
     except Exception as e:
         logger.error(f"Async initialization failed: {e}")
 

@@ -2,6 +2,7 @@ import logging
 
 from app.core.tools import evoloop_tool
 from app.core.vision import VisionTask, vision_engine
+from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,6 @@ async def analyze_image(
 
     if include_ax_tree:
         try:
-            from app.infrastructure.drivers.macos import macos_driver
             ax_tree = macos_driver.dump_ax_tree()
             if ax_tree and "Error" not in ax_tree:
                 final_prompt += f"\n\n### macOS Accessibility (AX) Tree Context:\n{ax_tree}\n\nUse the element names and bounds above to provide precise coordinates if asked to click or interact."

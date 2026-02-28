@@ -261,32 +261,62 @@ async def mobile_control(
                         curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
                         bundle_id = curr_app.get("package")
                         if bundle_id:
-                            summary = await atlas_engine.store.get_app_summary(bundle_id)
-                            stored_hash = summary.get("version_hash", "")
+                            # Phase 6: Check if this is a dynamic app
+                            is_dynamic = await atlas_engine.is_dynamic_app(bundle_id, "android")
 
-                            # Phase 6: Version Drift Fallback
-                            is_stale = False
-                            if stored_hash:
-                                try:
-                                    pkg_meta = await asyncio.to_thread(adb_driver.get_package_info, bundle_id, device_id=device_id)
-                                    dummy = AtlasApp(app_name=bundle_id, bundle_id=bundle_id, platform="android")
-                                    live_hash = dummy.compute_version_hash(
-                                        str(pkg_meta.get("version_name", "0")),
-                                        str(pkg_meta.get("last_update_time", "0"))
-                                    )
-                                    if live_hash != stored_hash:
-                                        is_stale = True
-                                        logger.warning(f"[Mobile] Bypassing stale Atlas data (v:{stored_hash} vs live:{live_hash})")
-                                except:
-                                    pass
+                            if is_dynamic:
+                                # For dynamic apps, try strategy-based resolution
+                                strategy = await atlas_engine.get_app_strategy(bundle_id, "android")
+                                if strategy:
+                                    # Check if we have infrastructure element (static)
+                                    infra_elem = strategy.get_infrastructure_element(name)
+                                    if infra_elem and infra_elem.get("bounds"):
+                                        bounds = infra_elem["bounds"]
+                                        logger.info(f"[Mobile] Resolved '{name}' via Strategy (infrastructure)")
+                                        return {"x": bounds.get("x", 0), "y": bounds.get("y", 0)}
 
-                            if not is_stale and summary and "states" in summary:
-                                for state in summary["states"][:3]:
-                                    detail = await atlas_engine.store.get_state_detail(bundle_id, state["id"])
-                                    for el in detail.get("elements", []):
-                                        if name.lower() in str(el.get("label", "")).lower():
-                                            logger.info(f"[Mobile] Resolved '{name}' via Atlas Prior")
-                                            return {"x": el["x"], "y": el["y"]}
+                                    # Check if we have a strategy for this target
+                                    strat = strategy.get_strategy_for(name)
+                                    if strat:
+                                        logger.info(f"[Mobile] Using strategy '{strat.strategy_type}' for '{name}'")
+                                        # Return strategy instead of coordinates
+                                        # The caller needs to handle this
+                                        return {
+                                            "strategy": strat.strategy_type,
+                                            "parameters": strat.parameters,
+                                            "source": "atlas_strategy"
+                                        }
+
+                                # No strategy found, skip Atlas coordinate fallback for dynamic apps
+                                logger.debug(f"[Mobile] Dynamic app '{bundle_id}' - skipping coordinate fallback")
+                            else:
+                                # Static app: use normal Atlas coordinate fallback
+                                summary = await atlas_engine.store.get_app_summary(bundle_id, platform="android")
+                                stored_hash = summary.get("version_hash", "")
+
+                                # Phase 6: Version Drift Fallback
+                                is_stale = False
+                                if stored_hash:
+                                    try:
+                                        pkg_meta = await asyncio.to_thread(adb_driver.get_package_info, bundle_id, device_id=device_id)
+                                        dummy = AtlasApp(app_name=bundle_id, bundle_id=bundle_id, platform="android")
+                                        live_hash = dummy.compute_version_hash(
+                                            str(pkg_meta.get("version_name", "0")),
+                                            str(pkg_meta.get("last_update_time", "0"))
+                                        )
+                                        if live_hash != stored_hash:
+                                            is_stale = True
+                                            logger.warning(f"[Mobile] Bypassing stale Atlas data (v:{stored_hash} vs live:{live_hash})")
+                                    except:
+                                        pass
+
+                                if not is_stale and summary and "states" in summary:
+                                    for state in summary["states"][:3]:
+                                        detail = await atlas_engine.store.get_state_detail(bundle_id, state["id"], platform="android")
+                                        for el in detail.get("elements", []):
+                                            if name.lower() in str(el.get("label", "")).lower():
+                                                logger.info(f"[Mobile] Resolved '{name}' via Atlas Prior")
+                                                return {"x": el["x"], "y": el["y"]}
                     except:
                         pass
 
@@ -468,9 +498,29 @@ async def mobile_control(
             if not text:
                 return "Error: package name in 'text' required."
 
+            # Phase 6: Check app type before opening
+            is_dynamic = await atlas_engine.is_dynamic_app(text, "android")
+            app_type_str = "DYNAMIC" if is_dynamic else "STATIC"
+            icon = "🔄" if is_dynamic else "📍"
+            logger.info(f"[Mobile] Opening {app_type_str} app: {text}")
+
             # Use 'text' argument as package name
             await asyncio.to_thread(adb_driver.launch_app, text, device_id=device_id)
-            return await finish_action(f"Opened: {text}")
+
+            # Phase 6: Post-open actions based on app type
+            if is_dynamic:
+                # For dynamic apps: preload strategy
+                strategy = await atlas_engine.get_app_strategy(text, "android")
+                if strategy:
+                    logger.info(f"[Mobile] Preloaded strategy for {text}: {len(strategy.infrastructure)} infrastructure elements")
+                else:
+                    logger.info(f"[Mobile] No strategy yet for {text}, will rely on real-time perception")
+            else:
+                # For static apps: trigger immediate Atlas harvest in background
+                logger.info(f"[Mobile] Static app opened, triggering Atlas harvest for {text}")
+                asyncio.create_task(trigger_atlas_harvest(bundle_id=text))
+
+            return await finish_action(f"{icon} Opened: {text} [{app_type_str}]")
 
         elif action == "push":
             if not local_path or not remote_path:
