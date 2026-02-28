@@ -5,8 +5,10 @@ Uses the Android Debug Bridge (adb) command-line tool.
 
 import logging
 import os
+import re
 import subprocess
 import tempfile
+import time
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -129,19 +131,39 @@ class ADBDriver:
 
         return devices
 
-    def screenshot(self, device_id: str | None = None) -> str:
+    def screenshot(
+        self,
+        device_id: str | None = None,
+        purpose: str = "temp",
+        bundle_id: str | None = None,
+        suffix: str | None = None
+    ) -> str:
         """
         Capture a screenshot from the device.
-        
+
         Args:
             device_id: Optional device serial
-            
+            purpose: Storage purpose ("temp", "atlas", "debug", "dataset")
+            bundle_id: App identifier for organization
+            suffix: Additional identifier
+
         Returns:
             Path to the saved screenshot PNG file.
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"android_screenshot_{timestamp}.png"
-        filepath = os.path.join(tempfile.gettempdir(), filename)
+        # Use hierarchical storage if available, fallback to temp
+        try:
+            from app.core.vision.storage import screenshot_storage
+            filepath = screenshot_storage.get_path(
+                purpose=purpose,
+                platform="android",
+                bundle_id=bundle_id,
+                suffix=suffix
+            )
+        except Exception as e:
+            logger.warning(f"[ADB] Failed to use hierarchical storage: {e}, using temp")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"android_screenshot_{timestamp}.png"
+            filepath = os.path.join(tempfile.gettempdir(), filename)
 
         # Use screencap and pull in one pipeline
         # Method 1: exec-out (faster, streams directly)
@@ -177,6 +199,16 @@ class ADBDriver:
         self._run_adb(["shell", "input", "tap", str(x), str(y)], device_id=device_id)
         logger.info(f"Tapped at ({x}, {y})")
 
+    def long_press(self, x: int, y: int, duration_ms: int = 1000, device_id: str | None = None) -> None:
+        """
+        Long-press at the specified coordinates using swipe with zero distance.
+        """
+        self._run_adb(
+            ["shell", "input", "swipe", str(x), str(y), str(x), str(y), str(duration_ms)],
+            device_id=device_id
+        )
+        logger.info(f"Long-pressed at ({x}, {y}) for {duration_ms}ms")
+
     def swipe(
         self,
         x1: int,
@@ -204,16 +236,41 @@ class ADBDriver:
     def input_text(self, text: str, device_id: str | None = None) -> None:
         """
         Input text to the device.
-        Note: ADB doesn't support non-ASCII characters well.
+        Note: Standard ADB input text doesn't support non-ASCII well and can NPE on some ROMs.
         """
-        # ADB input text doesn't handle spaces well - use %s instead
-        # Also need to escape shell metacharacters for the 'adb shell input text' command
-        # A safer way is to use single quotes around the text, but adb shell handles them differently
-        # for different OSes. The most robust simple way:
-        shell_text = text.replace(" ", "%s").replace("'", "\\'").replace('"', '\\"').replace("|", "\\|").replace("&", "\\&")
+        start = time.time()
+        
+        # 1. Attempt broadcast-based input (requires ADBKeyBoard/Yosemite/etc, common in silky automation)
+        # This is non-blocking and safe even if no receiver exists (just does nothing)
+        try:
+            self._run_adb([
+                "shell", "am", "broadcast", "-a", "ADB_INPUT_TEXT", "--es", "msg", f"'{text}'"
+            ], device_id=device_id)
+        except:
+            pass
 
-        self._run_adb(["shell", "input", "text", f"'{shell_text}'"], device_id=device_id)
-        logger.info(f"Input text: {text[:20]}...")
+        # 2. Attempt standard input text for ASCII/compatibility
+        # We handle spaces with %s and use quotes to protect other chars
+        # But for Chinese, we try a safer quoting or direct pass
+        is_ascii = all(ord(c) < 128 for c in text)
+        processed_text = text.replace(" ", "%s")
+        
+        try:
+            # Wrap in double quotes for better shell compatibility in modern Android
+            # If it contains complex chars, we use a single-quoted block but escape internal ones
+            if is_ascii:
+                self._run_adb(["shell", "input", "text", processed_text], device_id=device_id)
+            else:
+                # Experimental: try double-quoting for Chinese
+                self._run_adb(["shell", "input", "text", f'"{processed_text}"'], device_id=device_id)
+            
+            logger.info(f"Input text '{text[:10]}...' in {(time.time()-start)*1000:.0f}ms")
+        except ADBError as e:
+            if "NullPointerException" in str(e):
+                logger.warning(f"ADB 'input text' NPE detected for '{text}'. The device ROM doesn't support native non-ASCII input via standard ADB.")
+                raise RuntimeError(f"Failed to input text: '{text}'. Device ROM rejected the non-ASCII characters. Consider using clipboard/paste strategy if possible, or stick to English.")
+            else:
+                raise e
 
     def press_key(self, keycode: int | str, device_id: str | None = None) -> None:
         """
@@ -293,17 +350,12 @@ class ADBDriver:
     def dump_ui(self, device_id: str | None = None) -> str:
         """
         Dump the current UI hierarchy as XML.
-        
-        Args:
-            device_id: Optional device serial
-            
-        Returns:
-            XML string of the UI hierarchy.
+        Uses --compressed to bypass 'idle state' issues common on real devices.
         """
         import time
         start = time.time()
 
-        # Method 1: Try direct exec-out (faster, single command)
+        # Method 1: Try direct exec-out with --compressed (fastest)
         cmd = [self._adb_path]
         if device_id:
             cmd.extend(["-s", device_id])
@@ -311,12 +363,24 @@ class ADBDriver:
         # Use /dev/tty as output to get direct streaming
         # Some devices support this, some don't
         try:
+            # Note: Not all devices support --compressed for dump, but it's worth a try 
+            # as it solves the "could not get idle state" error.
+            # We try with --compressed first.
             result = subprocess.run(
-                cmd + ["exec-out", "uiautomator", "dump", "/dev/tty"],
+                cmd + ["exec-out", "uiautomator", "dump", "--compressed", "/dev/tty"],
                 capture_output=True,
                 text=True,
-                timeout=15
+                timeout=10
             )
+
+            # If it failed or returns empty, try without --compressed
+            if result.returncode != 0 or not result.stdout.strip():
+                 result = subprocess.run(
+                    cmd + ["exec-out", "uiautomator", "dump", "/dev/tty"],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
 
             if result.returncode == 0 and result.stdout.strip():
                 # Output format: "UI hierchary dumped to: /dev/tty\n<xml>..."
@@ -331,12 +395,17 @@ class ADBDriver:
                     logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (exec-out)")
                     return xml_content
         except Exception as e:
-            logger.debug(f"exec-out method failed: {e}, using fallback")
+            logger.debug(f"exec-out method failed: {e}")
 
-        # Method 2: Fallback to file-based approach
-        remote_path = "/sdcard/window_dump.xml"
+        # Method 2: Fallback to file-based approach with --compressed
+        remote_path = "/data/local/tmp/window_dump.xml"
+        try:
+            # Try with --compressed first to avoid "idle" error
+            self._run_adb(["shell", "uiautomator", "dump", "--compressed", remote_path], device_id=device_id)
+        except ADBError:
+            # Final fallback: standard dump
+            self._run_adb(["shell", "uiautomator", "dump", remote_path], device_id=device_id)
 
-        self._run_adb(["shell", "uiautomator", "dump", remote_path], device_id=device_id)
         stdout, _ = self._run_adb(["shell", "cat", remote_path], device_id=device_id)
 
         # Cleanup (async, don't wait)
@@ -394,21 +463,101 @@ class ADBDriver:
     def get_current_app(self, device_id: str | None = None) -> dict:
         """
         Get the currently focused application package and activity.
+        Improved version with multiple fallback strategies for different Android versions.
         """
         try:
-            # dumpsys window windows | grep -E 'mCurrentFocus'
+            # Strategy 1: dumpsys activity activities (Most accurate for recently resumed)
+            stdout, _ = self._run_adb(["shell", "dumpsys", "activity", "activities"], device_id=device_id)
+            for line in stdout.splitlines():
+                if ("mResumedActivity" in line or "topResumedActivity" in line) and "/" in line:
+                    match = re.search(r'([\w\.]+)/([\w\.\$]+)', line)
+                    if match:
+                        return {"package": match.group(1), "activity": match.group(2)}
+
+            # Strategy 2: dumpsys window | grep mCurrentFocus
             stdout, _ = self._run_adb(["shell", "dumpsys", "window", "windows"], device_id=device_id)
             for line in stdout.splitlines():
-                if "mCurrentFocus" in line and "/" in line:
+                if ("mCurrentFocus" in line or "mFocusedApp" in line) and "/" in line:
                     # Example: mCurrentFocus=Window{... u0 com.example.app/com.example.app.MainActivity}
-                    parts = line.split("/")
-                    package = parts[0].split()[-1]
-                    activity = "".join(parts[1:]).replace("}", "").strip()
-                    return {"package": package, "activity": activity}
+                    match = re.search(r'([\w\.]+)/([\w\.\$]+)', line)
+                    if match:
+                        return {"package": match.group(1), "activity": match.group(2)}
+
+            # Strategy 3: dumpsys activity top
+            stdout, _ = self._run_adb(["shell", "dumpsys", "activity", "top"], device_id=device_id, timeout=5)
+            for line in stdout.splitlines():
+                if "ACTIVITY" in line and "/" in line:
+                    # ACTIVITY com.android.settings/.Settings u0
+                    match = re.search(r'ACTIVITY\s+([\w\.]+)/([\w\.\$]+)', line)
+                    if match:
+                        return {"package": match.group(1), "activity": match.group(2)}
+
             return {"package": "unknown", "activity": "unknown"}
         except Exception as e:
             logger.error(f"Failed to get current Android app: {e}")
             return {"package": "error", "activity": "error"}
+
+    def get_package_info(self, package: str, device_id: str | None = None) -> dict:
+        """
+        Get metadata about an installed package (versionCode, versionName, lastUpdateTime).
+        Used for version drift detection in App Atlas.
+        """
+        try:
+            stdout, _ = self._run_adb(["shell", "dumpsys", "package", package], device_id=device_id, timeout=10)
+            info = {"package": package}
+            
+            # Extract versionCode
+            vc_match = re.search(r'versionCode=(\d+)', stdout)
+            if vc_match:
+                info["version_code"] = int(vc_match.group(1))
+            
+            # Extract versionName
+            vn_match = re.search(r'versionName=([\d\.\w\-]+)', stdout)
+            if vn_match:
+                info["version_name"] = vn_match.group(1).strip()
+                
+            # Extract lastUpdateTime
+            lut_match = re.search(r'lastUpdateTime=([\d\-: ]+)', stdout)
+            if lut_match:
+                info["last_update_time"] = lut_match.group(1).strip()
+                
+            return info
+        except Exception as e:
+            logger.error(f"Failed to get package info for {package}: {e}")
+            return {"package": package, "error": str(e)}
+
+    def check_app_status(self, package: str, device_id: str | None = None) -> str:
+        """
+        Check if an app is running, crashed, or showing an ANR.
+        Returns: 'foreground', 'background', 'crashed', 'not_installed', 'unknown'
+        """
+        try:
+            # Check if package is installed
+            stdout, _ = self._run_adb(["shell", "pm", "path", package], device_id=device_id, timeout=5)
+            if not stdout.strip():
+                return "not_installed"
+
+            # Check if foreground
+            curr = self.get_current_app(device_id=device_id)
+            if curr.get("package") == package:
+                return "foreground"
+
+            # Check for crash dialogs in window list
+            stdout, _ = self._run_adb(["shell", "dumpsys", "window", "windows"], device_id=device_id, timeout=10)
+            if "Application Error:" in stdout or "Application Not Responding:" in stdout:
+                if package in stdout:
+                    return "crashed"
+
+            # Check if running at all
+            try:
+                stdout, _ = self._run_adb(["shell", "pidof", package], device_id=device_id, timeout=5)
+                if stdout.strip():
+                    return "background"
+            except: pass
+
+            return "unknown"
+        except Exception:
+            return "unknown"
 
     def list_installed_apps(self, device_id: str | None = None) -> list[str]:
         """
@@ -421,6 +570,71 @@ class ADBDriver:
             return sorted(packages)
         except Exception:
             return []
+
+    def read_sms(self, regex_pattern: str | None = None, timeout: int = 30, device_id: str | None = None) -> list[dict]:
+        """
+        Read recent SMS messages from the device inbox.
+        If a regex_pattern is provided, polls for up to timeout seconds until a match is found.
+        
+        Args:
+            regex_pattern: Optional regex to match against message bodies (e.g., r'\d{4,6}').
+            timeout: Maximum seconds to poll if regex_pattern is provided.
+            device_id: Optional device serial
+            
+        Returns:
+            List of matching SMS dicts with 'body', 'date', and 'extract' keys.
+        """
+        start_time = time.time()
+        
+        while True:
+            try:
+                # Query the latest 5 messages
+                cmd = ["shell", "content", "query", "--uri", "content://sms/inbox", "--projection", "body,date"]
+                stdout_str, _ = self._run_adb(cmd, device_id=device_id)
+                
+                messages = []
+                for line in stdout_str.splitlines():
+                    if not line.startswith("Row:"):
+                        continue
+                        
+                    # Parse: Row: X body=Some text, date=1680581222876
+                    body_match = re.search(r'body=(.*?), date=', line)
+                    date_match = re.search(r'date=(\d+)', line)
+                    
+                    if body_match and date_match:
+                        body_text = body_match.group(1).strip()
+                        date_val = int(date_match.group(1))
+                        msg_dict = {"body": body_text, "date": date_val, "extract": None}
+                        
+                        if regex_pattern:
+                            extract_match = re.search(regex_pattern, body_text)
+                            if extract_match:
+                                msg_dict["extract"] = extract_match.group(0)
+                                messages.append(msg_dict)
+                        else:
+                            messages.append(msg_dict)
+                
+                # If we are looking for a specific pattern and found it, return immediately
+                if regex_pattern and len(messages) > 0:
+                    # Sort by date descending (newest first)
+                    messages.sort(key=lambda x: x["date"], reverse=True)
+                    return messages
+                
+                # If we are not polling for a pattern, just return the raw messages
+                if not regex_pattern:
+                    messages.sort(key=lambda x: x["date"], reverse=True)
+                    return messages
+                    
+            except Exception as e:
+                logger.warning(f"Failed to read SMS: {e}")
+                
+            elapsed = time.time() - start_time
+            if elapsed >= timeout:
+                break
+                
+            time.sleep(2.0)
+            
+        return []
 
     def is_available(self) -> bool:
 

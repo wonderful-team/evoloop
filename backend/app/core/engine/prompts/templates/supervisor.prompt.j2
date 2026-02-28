@@ -49,7 +49,7 @@ The Worker will automatically find matching SOPs via `search_skills`. You can ba
 ## Decision Guidelines
 - If request is technical, operational, or execution-heavy (coding, automation, fixing) → `route_to("worker")` with `role_name: "Workspace Operator"`
 {% if has_android -%}
-- If request is **operating Android/Mobile** → `route_to("worker", context={ "agent_config": { "role_name": "Android Automation Specialist", "tools": ["mobile_control", "query_app_atlas", "list_app_atlas"], "system_instructions": "Control the Android device to complete the task. Use query_app_atlas to find UI elements if available." } })`
+- If request is **operating Android/Mobile** → `route_to("worker", context={ "agent_config": { "role_name": "Android Automation Specialist", "tools": ["mobile_control", "query_app_atlas", "list_app_atlas"], "system_instructions": "Control the Android device. For multi-step sequences (e.g. search -> click), guide the sub-agent to use 'intent_flow' in 'mobile_control' for fluid interaction." } })`
 {% endif -%}
 {% if has_macos -%}
 - If request is **operating MacOS/Desktop** → `route_to("worker", context={ "agent_config": { "role_name": "MacOS Specialist", "tools": ["desktop_control", "query_app_atlas", "list_app_atlas"], "system_instructions": "Control the MacOS desktop to complete the task. Use query_app_atlas to find UI elements if available." } })`

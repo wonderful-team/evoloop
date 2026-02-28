@@ -1,10 +1,12 @@
 import asyncio
 import logging
-from typing import Any, List
+import os
 
 from celery import shared_task
 
+from app.core.atlas.models import AtlasApp
 from app.core.environment.events import UiTreeObservedEvent, event_bus
+from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
@@ -32,17 +34,19 @@ def map_observed_ui_task(
     image_source: str,
     device_id: str | None,
     platform: str,
-    scene_hash: str = ""
+    scene_hash: str = "",
+    bundle_id: str | None = None  # Pre-computed bundle_id from caller
 ):
     """
     Background Celery task to perform UI perception and map it to the App Atlas.
     Decouples heavy OCR/Perception from the Agent's main loop.
     """
     logger.info(f"[AtlasTask] Starting background mapping for {image_source} (Platform: {platform})")
-    
+
     async def _execute():
         try:
             from app.core.vision.pipeline.manager import pipeline_manager
+            from app.core.vision.storage import screenshot_storage
             
             # 1. Run perception pipeline
             elements, _ = await pipeline_manager.perceive(
@@ -55,8 +59,48 @@ def map_observed_ui_task(
                 return
 
             # 2. Get current app context
-            # Caching in macos_driver (0.5s) helps here if called rapidly
-            app_info = macos_driver.get_current_app()
+            # Use provided bundle_id if available, otherwise detect from system
+            detected_bundle_id = None
+            if platform == "macos":
+                app_info = macos_driver.get_current_app()
+                detected_bundle_id = app_info.get("bundle_id", "unknown")
+                window_title = app_info.get("title", "unknown")
+                version_hash = ""
+            elif platform == "android":
+                app_info = adb_driver.get_current_app(device_id=device_id)
+                detected_bundle_id = app_info.get("package", "unknown")
+                window_title = app_info.get("activity", "unknown")
+
+                # Phase 6: Version Awareness
+                version_hash = ""
+                # Use detected bundle_id for version lookup if no explicit bundle_id provided
+                version_lookup_id = bundle_id or detected_bundle_id
+                if version_lookup_id and version_lookup_id != "unknown":
+                    try:
+                        pkg_meta = adb_driver.get_package_info(version_lookup_id, device_id=device_id)
+                        ver_name = str(pkg_meta.get("version_name", "0"))
+                        upd_time = str(pkg_meta.get("last_update_time", "0"))
+
+                        # Compute stable version hash using AtlasApp's logic
+                        dummy_app = AtlasApp(app_name=version_lookup_id, bundle_id=version_lookup_id, platform="android")
+                        version_hash = dummy_app.compute_version_hash(ver_name, upd_time)
+                    except Exception as ve:
+                        logger.warning(f"[AtlasTask] Failed to get version info for {version_lookup_id}: {ve}")
+            else:
+                detected_bundle_id = "unknown"
+                window_title = "unknown"
+                version_hash = ""
+
+            # Priority: use provided bundle_id, fallback to detected
+            final_bundle_id = bundle_id or detected_bundle_id or "unknown"
+
+            # Warn if there's a mismatch between provided and detected
+            if bundle_id and detected_bundle_id and bundle_id != detected_bundle_id:
+                logger.warning(
+                    f"[AtlasTask] Bundle ID mismatch: "
+                    f"provided={bundle_id}, detected={detected_bundle_id}. "
+                    f"Using provided: {final_bundle_id}"
+                )
 
             # 3. Map vision elements to Atlas semantic format
             atlas_elements = []
@@ -70,21 +114,39 @@ def map_observed_ui_task(
                         "y": el.y - el.height // 2,
                         "width": el.width,
                         "height": el.height
-                    }
+                    },
+                    # Phase 5/6: Structured IDs
+                    "os_identifier": el.metadata.get("resource_id") or el.metadata.get("view_id") or el.metadata.get("ax_path")
                 })
 
-            # 4. Trigger the Atlas engine via the event bus
-            # In a Celery worker, we can directly call the engine if needed, 
-            # but using events preserves the modular architecture.
+            # 4. Ensure screenshot is stored in atlas directory (if not already)
+            if image_source and os.path.exists(image_source):
+                # Check if already in atlas directory
+                if "atlas" not in image_source:
+                    try:
+                        stored_path = screenshot_storage.copy_to_purpose(
+                            source_path=image_source,
+                            purpose="atlas",
+                            platform=platform,  # type: ignore
+                            bundle_id=final_bundle_id,
+                            suffix="harvest"
+                        )
+                        if stored_path:
+                            logger.info(f"[AtlasTask] Screenshot copied to: {stored_path}")
+                    except Exception as copy_err:
+                        logger.warning(f"[AtlasTask] Failed to copy screenshot: {copy_err}")
+
+            # 5. Trigger the Atlas engine via the event bus
             await event_bus.publish(UiTreeObservedEvent(
                 platform=platform,
-                bundle_id=app_info.get("bundle_id", "unknown"),
-                window_title=app_info.get("title", "unknown"),
+                bundle_id=final_bundle_id,
+                window_title=window_title,
                 elements=atlas_elements,
-                screenshot_hash=scene_hash
+                screenshot_hash=scene_hash,
+                version_hash=version_hash
             ))
-            
-            logger.info(f"[AtlasTask] Successfully mapped {len(atlas_elements)} elements for {app_info.get('bundle_id')}")
+
+            logger.info(f"[AtlasTask] Successfully mapped {len(atlas_elements)} elements for {final_bundle_id}")
             
         except Exception as e:
             logger.error(f"[AtlasTask] Background mapping failed: {e}", exc_info=True)

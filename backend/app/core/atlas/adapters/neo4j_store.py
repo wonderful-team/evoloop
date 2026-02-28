@@ -93,6 +93,7 @@ class Neo4jAtlasStore(IAtlasStore):
                 MATCH (a:App {bundle_id: $bundle_id, platform: $platform})
                 OPTIONAL MATCH (a)-[:HAS_STATE]->(s:State)
                 RETURN a.app_name as app_name, 
+                       a.version_hash as version_hash,
                        count(s) as state_count,
                        collect({id: s.state_id, title: s.window_title}) as states
                 """,
@@ -107,6 +108,7 @@ class Neo4jAtlasStore(IAtlasStore):
                 "app_name": record["app_name"],
                 "bundle_id": bundle_id,
                 "platform": platform,
+                "version_hash": record.get("version_hash", ""),
                 "state_count": record["state_count"],
                 "states": record["states"]
             }

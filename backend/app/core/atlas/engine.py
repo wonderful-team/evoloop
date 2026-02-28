@@ -29,6 +29,7 @@ class AtlasEngine:
         platform = event.data.get("platform", "macos")
         elements_data = event.elements
         screenshot_hash = event.data.get("screenshot_hash")
+        version_hash = event.data.get("version_hash", "")
 
         if not bundle_id or bundle_id == "unknown" or not elements_data:
             return
@@ -46,7 +47,8 @@ class AtlasEngine:
 
                     for el_data in elements_data:
                         bounds = el_data.get("bounds", {})
-                        if not bounds: continue
+                        if not bounds:
+                            continue
 
                         # Note: If OCR provider already scaled to points, scale will be handled.
                         # If bounds are in pixels, we normalize them to points here for comparison with AX tree points.
@@ -72,7 +74,12 @@ class AtlasEngine:
 
         try:
             # We use 'name' or 'bundle_id' for app_name as default
-            app_model = AtlasApp(app_name=bundle_id, bundle_id=bundle_id, platform=platform)
+            app_model = AtlasApp(
+                app_name=bundle_id, 
+                bundle_id=bundle_id, 
+                platform=platform,
+                version_hash=version_hash
+            )
             state_id = self._generate_state_id(bundle_id, window_title)
 
             # Elements are passed as standardized dicts from the event payload
@@ -87,7 +94,7 @@ class AtlasEngine:
             app_model.add_state(state)
 
             await self.store.save_app_model(app_model)
-            logger.debug(f"[AtlasEngine] Background mapped state '{window_title}' for {bundle_id}")
+            logger.info(f"[AtlasEngine] Background mapped state '{window_title}' for {bundle_id} (Version: {version_hash or 'Legacy'})")
 
         except Exception as e:
             logger.error(f"[AtlasEngine] Failed to index observed UI tree for {bundle_id}: {e}")
@@ -145,12 +152,36 @@ class AtlasEngine:
                 all_outputs.append(f"No atlas data found for application: {bundle_id}")
                 continue
 
+            # Phase 6: Version Drift Detection
+            is_stale = False
+            stored_hash = summary.get("version_hash", "")
+            if platform == "android" and stored_hash:
+                try:
+                    from app.infrastructure.drivers.adb import adb_driver
+                    pkg_meta = adb_driver.get_package_info(bundle_id)
+                    if pkg_meta and "error" not in pkg_meta:
+                        from app.core.atlas.models import AtlasApp
+                        dummy = AtlasApp(app_name=bundle_id, bundle_id=bundle_id, platform="android")
+                        live_hash = dummy.compute_version_hash(
+                            str(pkg_meta.get("version_name", "0")),
+                            str(pkg_meta.get("last_update_time", "0"))
+                        )
+                        if live_hash != stored_hash:
+                            is_stale = True
+                except Exception:
+                    pass
+
             transitions = await self.store.get_transitions_summary(bundle_id, platform=platform)
 
             output = [
                 f"### 🗺️ App UI Atlas: {summary['app_name']} ({bundle_id})",
-                f"**Known States ({summary['state_count']})**:"
             ]
+            
+            if is_stale:
+                output.append("> [!WARNING]")
+                output.append("> **STALE DATA DETECTED**: The application version has changed since the last map was created. Coordinates may be inaccurate. **Priority: Use real-time perception (Vision/OCR).**")
+            
+            output.append(f"**Known States ({summary['state_count']})**:")
 
             for state in summary["states"]:
                 output.append(f"- {state['title']} (ID: {state['id']})")

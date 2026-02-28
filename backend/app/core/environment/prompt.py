@@ -49,6 +49,8 @@ class AppEnvironmentPrompt:
                 "user_preferences": ctx.metadata.get("user_preferences", {}),
                 "mcp_inventory": tool_manager.get_mcp_inventory(),
                 "browser_status": _get_browser_status(),
+                "has_android": ctx.metadata.get("has_android", False),
+                "has_macos": ctx.metadata.get("has_macos", False),
                 "tips": tips
             }
 

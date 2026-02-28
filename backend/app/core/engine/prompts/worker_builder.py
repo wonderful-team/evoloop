@@ -39,6 +39,8 @@ class WorkerPromptBuilder:
             "environment_block": ctx.environment_block,
             "knowledge_blocks": knowledge_blocks,
             "clipboard": self.clipboard,
+            "has_macos": ctx.metadata.get("has_macos", False),
+            "has_android": ctx.metadata.get("has_android", False),
         }
 
         try:

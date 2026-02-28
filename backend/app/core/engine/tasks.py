@@ -179,7 +179,7 @@ def _dehydrate_android_layout(xml_content: str) -> tuple[list[dict], str]:
         element = {
             "role": role,
             "label": text,
-            "resource_id": res_id,
+            "os_identifier": res_id,
             "bounds": {"x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1},
             "clickable": clickable
         }

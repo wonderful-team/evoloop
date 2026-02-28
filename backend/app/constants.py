@@ -602,3 +602,21 @@ LANGUAGE_MAP = {
 
 # ====================== Output Constraints ======================
 MAX_OUTPUT_LENGTH = 20000  # Max characters for tool output before truncation
+
+
+# ====================== Mobile / Reactor Constants ======================
+# Phase 4: Common artifact buttons to intercept
+INTERCEPT_TARGETS = [
+    "跳过",
+    "知道了",
+    "跳过广告",
+    "×",
+    "关闭",
+    "以后再说"
+]
+
+# Phase 6: High-risk keywords for interactive safety guard
+RISK_KEYWORDS = [
+    "delete", "pay", "transfer", "uninstall", "buy", "confirm payment",
+    "删除", "支付", "转账", "卸载", "买", "清除"
+]

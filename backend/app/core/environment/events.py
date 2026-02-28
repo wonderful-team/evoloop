@@ -111,6 +111,7 @@ class UiTreeObservedEvent(AwakenEvent):
     window_title: str = ""
     elements: list = field(default_factory=list)
     screenshot_hash: str = ""
+    version_hash: str = ""
 
     def __post_init__(self):
         self.event_type = AwakeningEventType.UI_TREE_OBSERVED
@@ -120,7 +121,8 @@ class UiTreeObservedEvent(AwakenEvent):
             "window_title": self.window_title,
             # We don't store full elements in the data dict for performance logging reasons,
             # but they remain available on the event object for the subscriber to process.
-            "screenshot_hash": self.screenshot_hash
+            "screenshot_hash": self.screenshot_hash,
+            "version_hash": self.version_hash
         }
 
 

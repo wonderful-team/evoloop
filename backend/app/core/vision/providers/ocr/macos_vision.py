@@ -4,6 +4,7 @@ import time
 
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
+from app.infrastructure.drivers.macos import macos_driver
 
 logger = logging.getLogger(__name__)
 
@@ -72,22 +73,18 @@ class MacOSVisionOCRProvider(VisionProvider):
 
             # Perform request
             success, error = request_handler.performRequests_error_([request], None)
-
             if not success:
                 return VisionResult(task=task, success=False, metadata={"error": str(error)})
 
             observations = request.results()
 
-            # Get image size to convert normalized coordinates
-            # We can get this from the image metadata or use macos_driver
-            # For simplicity, we assume the screenshot is full screen or we get dimensions from file
+            # Get image size
             from PIL import Image
             with Image.open(image_source) as img:
                 img_w, img_h = img.size
             
             # Get scale factor if this is a MacOS screenshot
-            from app.infrastructure.drivers.macos import macos_driver
-            scale = macos_driver.get_ui_scale_factor()
+            scale = self._get_ui_scale_factor(image_source)
 
             for i, observation in enumerate(observations):
                 # getTopCandidates returns list of VNRecognizedText
@@ -99,7 +96,7 @@ class MacOSVisionOCRProvider(VisionProvider):
                 text_val = text_obj.string()
                 confidence = text_obj.confidence()
 
-                # boundingBox is normalized (0,0 at bottom left)
+                # Vision bbox: Origin (x, y) is bottom-left (normalized)
                 bbox = observation.boundingBox()
 
                 # Convert to pixel coordinates (0,0 at top left)
@@ -109,7 +106,7 @@ class MacOSVisionOCRProvider(VisionProvider):
                 x = int(bbox.origin.x * img_w)
                 y = int((1.0 - bbox.origin.y - bbox.size.height) * img_h)
 
-                # Normalize to Logical Points (Quartz coordinates)
+                # Normalize to Logical Points (Handle Retina scaling for MacOS)
                 logical_x = (x + w // 2) / scale
                 logical_y = (y + h // 2) / scale
 
@@ -131,7 +128,7 @@ class MacOSVisionOCRProvider(VisionProvider):
                 task=task,
                 success=True,
                 elements=elements,
-                summary=f"Extracted {len(elements)} text elements using MacOS Vision.",
+                summary=f"Extracted {len(elements)} elements using {self.name}.",
                 screenshot_path=image_source,
                 latency_ms=latency
             )
@@ -139,5 +136,14 @@ class MacOSVisionOCRProvider(VisionProvider):
             return result
 
         except Exception as e:
-            logger.error(f"MacOSVisionOCRProvider failed: {e}")
+            logger.error(f"{self.name} failed: {e}")
             return VisionResult(task=task, success=False, metadata={"error": str(e)})
+
+    def _get_ui_scale_factor(self, image_source: str) -> float:
+        """Get host-specific scale factor only if image is from macOS."""
+        # Check if this is a macOS image by directory
+        # macOS ones from ~/.evoloop/artifacts/screenshots
+        try:
+            return macos_driver.get_ui_scale_factor()
+        except:
+            return 1.0

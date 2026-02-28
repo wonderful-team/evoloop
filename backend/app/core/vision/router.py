@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.providers.llm.vlm_provider import MultimodalVLMProvider
 from app.core.vision.providers.ocr.macos_vision import MacOSVisionOCRProvider
+from app.core.vision.providers.ocr.android_vision import AndroidVisionOCRProvider
 from app.core.vision.types import VisionTask
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ class VisionRouter:
         # OCR providers disabled by default for performance
         # Enable with ENABLE_VISION_OCR=1 environment variable
         if settings.ENABLE_VISION_OCR:
+            self.providers.append(AndroidVisionOCRProvider())
             self.providers.append(MacOSVisionOCRProvider())
             logger.warning("[VisionRouter] OCR enabled (slow performance)")
 
@@ -46,9 +48,15 @@ class VisionRouter:
 
         # Default Routing
         if settings.ENABLE_VISION_OCR and task == VisionTask.OCR:
-            # Prefer native MacOS Vision OCR if on Mac
+            # 1. Android Specific OCR
+            if kwargs.get("on_android") or "android" in str(kwargs.get("image_source", "")).lower():
+                for p in self.providers:
+                    if isinstance(p, AndroidVisionOCRProvider) and await p.is_available():
+                        return p
+
+            # 2. MacOS Native Vision (Retina Aware)
             for p in self.providers:
-                if isinstance(p, MacOSVisionOCRProvider) and await p.is_available():
+                if isinstance(p, MacOSVisionOCRProvider) and not isinstance(p, AndroidVisionOCRProvider) and await p.is_available():
                     return p
 
         if task in [VisionTask.ANALYZE, VisionTask.CAPTION, VisionTask.COMPARE]:
