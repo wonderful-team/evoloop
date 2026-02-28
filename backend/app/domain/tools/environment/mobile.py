@@ -197,19 +197,37 @@ async def mobile_control(
             return msg
 
         async def resolve_element(name: str, role: str | None = None, timeout: float = 8.0, expected_pkg: str | None = None) -> dict | str:
-            """Reactor: High-frequency poll for element with fallback."""
+            """Reactor: High-frequency poll for element with fallback.
+
+            Optimizations:
+            1. Exponential backoff: Initial 200ms, gradually increasing to 1s
+            2. Sentinel interval check: Every 1s instead of every loop
+            3. OCR limit: Max 2 attempts to reduce resource usage
+            """
             start_time = time.time()
             target_norm = normalize_text(name)
-            
+
             # Phase 4: Initial intercept
             await flash_intercept()
 
             is_h5 = await probe_hybrid()
 
+            # Optimization 1: Exponential backoff (start at 200ms, max 1s)
+            retry_delay = 0.2
+
+            # Optimization 3: Limit OCR attempts
+            ocr_attempts = 0
+            max_ocr_attempts = 2
+
+            last_sentinel_check = start_time
+
             while time.time() - start_time < timeout:
-                # Phase 4: Sentinel Check
-                if expected_pkg:
+                loop_start = time.time()
+
+                # Optimization 2: Sentinel interval check (every 1s)
+                if expected_pkg and (loop_start - last_sentinel_check >= 1.0):
                     await check_sentinel(expected_pkg)
+                    last_sentinel_check = loop_start
 
                 # 1. Try A11y (Native)
                 a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
@@ -236,8 +254,9 @@ async def mobile_control(
                         logger.info(f"[Mobile] Resolved '{name}' via A11y (Score: {candidates[0][0]}) in {time.time()-start_time:.1f}s")
                         return {"x": best_el.x, "y": best_el.y}
 
-                # 2. Try Atlas Fallback (Historical)
-                if time.time() - start_time > 1.5:
+                # 2. Try Atlas Fallback (Historical) - after 1.5s
+                elapsed = time.time() - start_time
+                if elapsed > 1.5:
                     try:
                         curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
                         bundle_id = curr_app.get("package")
@@ -271,19 +290,27 @@ async def mobile_control(
                     except:
                         pass
 
-                # 3. Try Vision OCR (Hybrid/H5 Fallback)
-                if is_h5 or (time.time() - start_time > 3.0):
-                    temp_img = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
-                    ocr_result = await vision_engine.process(VisionTask.OCR, temp_img, on_android=True, device_id=device_id)
-                    if os.path.exists(temp_img):
-                        os.remove(temp_img)
-                    if ocr_result.success:
-                        for el in ocr_result.elements:
-                            if target_norm in normalize_text(el.text):
-                                logger.info(f"[Mobile] Resolved '{name}' via OCR (Hybrid Mode)")
-                                return {"x": el.x, "y": el.y}
+                # 3. Try Vision OCR (Hybrid/H5 Fallback) - with attempt limit
+                # Optimization 3: Only attempt OCR max 2 times
+                can_ocr = (is_h5 or elapsed > 3.0) and ocr_attempts < max_ocr_attempts
+                if can_ocr:
+                    ocr_attempts += 1
+                    try:
+                        temp_img = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
+                        ocr_result = await vision_engine.process(VisionTask.OCR, temp_img, on_android=True, device_id=device_id)
+                        if os.path.exists(temp_img):
+                            os.remove(temp_img)
+                        if ocr_result.success:
+                            for el in ocr_result.elements:
+                                if target_norm in normalize_text(el.text):
+                                    logger.info(f"[Mobile] Resolved '{name}' via OCR (Hybrid Mode, attempt {ocr_attempts}/{max_ocr_attempts})")
+                                    return {"x": el.x, "y": el.y}
+                    except Exception as e:
+                        logger.debug(f"[Mobile] OCR attempt {ocr_attempts} failed: {e}")
 
-                await asyncio.sleep(0.5)  # Fast retry
+                # Optimization 1: Exponential backoff with 1s cap
+                await asyncio.sleep(retry_delay)
+                retry_delay = min(retry_delay * 1.5, 1.0)
 
             return f"ERR_ELEMENT_NOT_FOUND: Could not find element '{name}' on device."
 
@@ -391,7 +418,9 @@ async def mobile_control(
             await asyncio.to_thread(adb_driver.swipe, rx, ry, rx2, ry2, duration_ms=duration_ms, device_id=device_id)
 
             # Phase 5: Automated Harvesting
-            asyncio.create_task(trigger_atlas_harvest(bundle_id=curr_app.get("package")))
+            curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
+            base_pkg = curr_app.get("package")
+            asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
             return await finish_action(f"Swiped from ({rx}, {ry}) to ({rx2}, {ry2})")
 
         elif action == "input_text":
