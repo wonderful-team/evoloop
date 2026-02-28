@@ -1,0 +1,243 @@
+"""
+Atlas Configuration Manager
+
+Manages dynamic configurations for Atlas system:
+- App name to bundle ID mappings
+- Dynamic app classifications
+- Default interaction strategies
+
+All configurations are stored in Redis (for fast lookup) with database persistence.
+"""
+
+import json
+import logging
+from typing import Any
+
+from app.infrastructure.database.redis import get_redis_client
+from app.models.config import SystemConfig
+from sqlmodel import Session, select
+from app.core.db import engine
+
+logger = logging.getLogger(__name__)
+
+# Redis keys
+REDIS_KEY_APP_NAME_MAP = "atlas:app_name_map"  # Hash: name -> bundle_id
+REDIS_KEY_DYNAMIC_APPS_PREFIX = "system:dynamic_apps"  # Set: bundle_ids (platform-specific)
+REDIS_KEY_APP_STRATEGIES = "atlas:strategies"  # Key pattern: atlas:strategies:{platform}:{bundle_id}
+
+
+class AtlasConfigManager:
+    """Centralized configuration manager for Atlas system."""
+
+    @staticmethod
+    async def get_bundle_id(app_name: str) -> str | None:
+        """Get bundle ID from app name (Redis first, fallback to system detection)."""
+        if not app_name:
+            return None
+
+        # 1. Try Redis
+        try:
+            redis = await get_redis_client()
+            bundle_id = await redis.hget(REDIS_KEY_APP_NAME_MAP, app_name)
+            if bundle_id:
+                return bundle_id
+        except Exception as e:
+            logger.debug(f"[AtlasConfig] Redis lookup failed: {e}")
+
+        # 2. Try auto-detection for macOS
+        return await AtlasConfigManager._detect_bundle_id(app_name)
+
+    @staticmethod
+    async def _detect_bundle_id(app_name: str) -> str | None:
+        """Auto-detect bundle ID from system (macOS only)."""
+        import subprocess
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", f'id of app "{app_name}"'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                bundle_id = result.stdout.strip()
+                # Cache in Redis for future use
+                await AtlasConfigManager.set_app_name_mapping(app_name, bundle_id)
+                return bundle_id
+        except Exception as e:
+            logger.debug(f"[AtlasConfig] Bundle ID detection failed for {app_name}: {e}")
+        return None
+
+    @staticmethod
+    async def set_app_name_mapping(app_name: str, bundle_id: str, persist: bool = True):
+        """Add or update app name to bundle ID mapping."""
+        try:
+            redis = await get_redis_client()
+            await redis.hset(REDIS_KEY_APP_NAME_MAP, app_name, bundle_id)
+
+            if persist:
+                # Also persist to database (using sync Session)
+                config_key = f"atlas:app_name:{app_name}"
+                with Session(engine) as session:
+                    existing = session.get(SystemConfig, config_key)
+                    if existing:
+                        existing.value = bundle_id
+                    else:
+                        session.add(SystemConfig(
+                            key=config_key,
+                            value=bundle_id,
+                            description=f"Atlas: App name '{app_name}' -> Bundle ID"
+                        ))
+                    session.commit()
+
+            logger.info(f"[AtlasConfig] Mapped '{app_name}' -> '{bundle_id}'")
+        except Exception as e:
+            logger.error(f"[AtlasConfig] Failed to set mapping: {e}")
+
+    @staticmethod
+    async def remove_app_name_mapping(app_name: str):
+        """Remove app name mapping."""
+        try:
+            redis = await get_redis_client()
+            await redis.hdel(REDIS_KEY_APP_NAME_MAP, app_name)
+
+            # Remove from database (using sync Session)
+            config_key = f"atlas:app_name:{app_name}"
+            with Session(engine) as session:
+                existing = session.get(SystemConfig, config_key)
+                if existing:
+                    session.delete(existing)
+                    session.commit()
+
+            logger.info(f"[AtlasConfig] Removed mapping for '{app_name}'")
+        except Exception as e:
+            logger.error(f"[AtlasConfig] Failed to remove mapping: {e}")
+
+    @staticmethod
+    def _get_dynamic_apps_key(platform: str) -> str:
+        """Generate platform-specific key for dynamic apps set."""
+        return f"{REDIS_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
+
+    @staticmethod
+    async def get_dynamic_apps(platform: str = "android") -> set[str]:
+        """Get all dynamic app bundle IDs from Redis for a specific platform."""
+        try:
+            redis = await get_redis_client()
+            key = AtlasConfigManager._get_dynamic_apps_key(platform)
+            apps = await redis.smembers(key)
+            return set(apps) if apps else set()
+        except Exception as e:
+            logger.error(f"[AtlasConfig] Failed to get dynamic apps: {e}")
+            return set()
+
+    @staticmethod
+    async def mark_app_dynamic(bundle_id: str, platform: str = "android", reason: str = ""):
+        """Mark an app as dynamic (coordinate-unstable)."""
+        try:
+            redis = await get_redis_client()
+            key = AtlasConfigManager._get_dynamic_apps_key(platform)
+            await redis.sadd(key, bundle_id)
+            if reason:
+                # Include platform in categorization key
+                await redis.hset(f"system:app_categorization:{platform}", bundle_id, reason)
+
+            logger.info(f"[AtlasConfig] Marked '{platform}:{bundle_id}' as DYNAMIC: {reason}")
+        except Exception as e:
+            logger.error(f"[AtlasConfig] Failed to mark app dynamic: {e}")
+
+    @staticmethod
+    async def unmark_app_dynamic(bundle_id: str, platform: str = "android"):
+        """Remove app from dynamic list."""
+        try:
+            redis = await get_redis_client()
+            key = AtlasConfigManager._get_dynamic_apps_key(platform)
+            await redis.srem(key, bundle_id)
+            await redis.hdel(f"system:app_categorization:{platform}", bundle_id)
+
+            logger.info(f"[AtlasConfig] Unmarked '{platform}:{bundle_id}' as dynamic")
+        except Exception as e:
+            logger.error(f"[AtlasConfig] Failed to unmark app: {e}")
+
+    @staticmethod
+    async def is_dynamic_app(bundle_id: str | None, platform: str = "android") -> bool:
+        """Check if an app is marked as dynamic for a specific platform."""
+        if not bundle_id:
+            return False
+
+        dynamic_apps = await AtlasConfigManager.get_dynamic_apps(platform)
+        return bundle_id in dynamic_apps
+
+    @staticmethod
+    async def get_app_strategy(bundle_id: str, platform: str = "android") -> dict[str, Any] | None:
+        """Get default strategy for an app on a specific platform."""
+        try:
+            from app.core.atlas.strategy import AtlasStrategyStore
+            strategy = await AtlasStrategyStore.get_strategy(bundle_id, platform)
+            if strategy:
+                return strategy.to_dict()
+        except Exception as e:
+            logger.debug(f"[AtlasConfig] Failed to get strategy: {e}")
+        return None
+
+    @staticmethod
+    async def set_app_strategy(bundle_id: str, strategy: dict[str, Any], platform: str = "android"):
+        """Set default strategy for an app on a specific platform."""
+        try:
+            from app.core.atlas.strategy import AtlasStrategyStore, AppStrategy
+            app_strategy = AppStrategy.from_dict(strategy)
+            await AtlasStrategyStore.save_strategy(app_strategy)
+            logger.info(f"[AtlasConfig] Set strategy for '{platform}:{bundle_id}'")
+        except Exception as e:
+            logger.error(f"[AtlasConfig] Failed to set strategy: {e}")
+
+    @staticmethod
+    async def initialize_defaults():
+        """Initialize default configurations (called on startup)."""
+        logger.info("[AtlasConfig] Initializing default configurations...")
+
+        # 1. Initialize app name mappings (minimal defaults)
+        default_mappings = {
+            "WeChat": "com.tencent.xinWeChat",
+            "微信": "com.tencent.xinWeChat",
+            "Safari": "com.apple.Safari",
+            "Chrome": "com.google.Chrome",
+        }
+
+        try:
+            redis = await get_redis_client()
+
+            # Check if mappings already exist
+            existing = await redis.hlen(REDIS_KEY_APP_NAME_MAP)
+            if existing == 0:
+                await redis.hset(REDIS_KEY_APP_NAME_MAP, mapping=default_mappings)
+                logger.info(f"[AtlasConfig] Initialized {len(default_mappings)} app name mappings")
+
+            # 2. Initialize minimal dynamic app safeguards
+            # Check macOS dynamic apps
+            existing_dynamic_macos = await redis.scard(AtlasConfigManager._get_dynamic_apps_key("macos"))
+            if existing_dynamic_macos == 0:
+                # Add macOS WeChat as minimal safeguard
+                await redis.sadd(AtlasConfigManager._get_dynamic_apps_key("macos"), "com.tencent.xinWeChat")
+                logger.info("[AtlasConfig] Initialized minimal dynamic app safeguard for macOS (WeChat)")
+
+            # Check Android dynamic apps
+            existing_dynamic_android = await redis.scard(AtlasConfigManager._get_dynamic_apps_key("android"))
+            if existing_dynamic_android == 0:
+                # Add Android WeChat as minimal safeguard
+                await redis.sadd(AtlasConfigManager._get_dynamic_apps_key("android"), "com.tencent.mm")
+                logger.info("[AtlasConfig] Initialized minimal dynamic app safeguard for Android (WeChat)")
+
+            # 3. Initialize default strategies
+            from app.core.atlas.strategy import AtlasStrategyStore
+            await AtlasStrategyStore.init_default_strategies()
+
+        except Exception as e:
+            logger.error(f"[AtlasConfig] Failed to initialize defaults: {e}")
+
+
+# Convenience functions for direct use
+async def get_bundle_id(app_name: str) -> str | None:
+    return await AtlasConfigManager.get_bundle_id(app_name)
+
+
+async def is_dynamic_app(bundle_id: str | None, platform: str = "android") -> bool:
+    return await AtlasConfigManager.is_dynamic_app(bundle_id, platform)
