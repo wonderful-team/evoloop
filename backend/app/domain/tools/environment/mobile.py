@@ -411,7 +411,7 @@ async def mobile_control(
                 resolved = await resolve_element(element_name, element_role, expected_pkg=base_pkg, timeout=timeout)
                 if isinstance(resolved, str):
                     return resolved
-                await asyncio.to_thread(adb_driver.tap, res["x"], res["y"], device_id=device_id)
+                await asyncio.to_thread(adb_driver.tap, resolved["x"], resolved["y"], device_id=device_id)
                 await asyncio.sleep(0.5)  # Wait for keyboard/focus
 
             await asyncio.to_thread(adb_driver.input_text, text, device_id=device_id)
