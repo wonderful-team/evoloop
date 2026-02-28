@@ -445,7 +445,7 @@ async def extract_keyframes(body: ExtractKeyframesRequest, background_tasks: Bac
                     event_ids.append(evt.id)
 
             # 3. Extract frames and analyze with OCR
-            extractor = FrameExtractor(body.video_path)
+            extractor = FrameExtractor(body.video_path, session_id=body.session_id)
             # Use extract_and_analyze instead of extract_frames
             results = await extractor.extract_and_analyze(timestamps_ms)
 
@@ -568,25 +568,26 @@ async def record_events(body: RecordEventsRequest):
                 screenshot_path = None
                 if event.screenshot_base64:
                     try:
-                        # Ensure upload directory exists
-                        upload_dir = settings.SCREENSHOTS_DIR
-                        os.makedirs(upload_dir, exist_ok=True)
+                        # Use hierarchical storage for dataset (IL training data)
+                        from app.core.vision.storage import screenshot_storage
 
-                        # Generate unique filename
-                        filename = f"{body.session_id}_{idx}_{int(event.timestamp)}.png"
-                        file_path = os.path.join(upload_dir, filename)
-
-                        # Decode and save
-                        # Remove header if present (e.g. "data:image/png;base64,")
+                        # Decode base64
                         b64_data = event.screenshot_base64
                         if "," in b64_data:
                             b64_data = b64_data.split(",", 1)[1]
 
-                        with open(file_path, "wb") as f:
-                            f.write(base64.b64decode(b64_data))
+                        image_data = base64.b64decode(b64_data)
 
-                        # Store relative path
-                        screenshot_path = os.path.relpath(file_path, os.getcwd())
+                        # Save to dataset directory with session organization
+                        screenshot_path = screenshot_storage.save_screenshot(
+                            image_data=image_data,
+                            purpose="dataset",
+                            platform="macos",  # Desktop recording
+                            bundle_id=body.session_id,  # Use session_id for organization
+                            suffix=f"event_{idx}"
+                        )
+
+                        logger.debug(f"Saved screenshot to: {screenshot_path}")
                     except Exception as e:
                         logger.warning(f"Failed to save screenshot: {e}")
                         # Don't fail the event recording, just skip screenshot
@@ -1029,25 +1030,26 @@ async def stop_mirror_session(body: StopMirrorRequest):
 async def upload_screenshot(file: UploadFile = File(...)):
     """
     Upload a screenshot for a skill step.
+    Uses hierarchical storage (dataset category for training data).
     """
     try:
-        # Ensure upload directory exists
-        upload_dir = settings.SCREENSHOTS_DIR
-        os.makedirs(upload_dir, exist_ok=True)
+        # Use hierarchical storage for dataset
+        from app.core.vision.storage import screenshot_storage
 
-        # Generate unique filename using timestamp
-        filename = f"manual_upload_{int(datetime.utcnow().timestamp())}_{file.filename}"
-        file_path = os.path.join(upload_dir, filename)
+        # Read file content
+        content = await file.read()
 
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-
-        # Return relative path consistent with other endpoints
-        rel_path = os.path.relpath(file_path, os.getcwd())
+        # Save to dataset directory
+        file_path = screenshot_storage.save_screenshot(
+            image_data=content,
+            purpose="dataset",
+            platform="macos",
+            suffix=f"upload_{file.filename}"
+        )
 
         return UploadScreenshotResponse(
             success=True,
-            path=rel_path,
+            path=file_path,
             message="Screenshot uploaded successfully"
         )
     except Exception as e:

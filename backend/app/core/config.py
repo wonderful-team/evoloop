@@ -242,9 +242,74 @@ class Settings(BaseSettings):
     @computed_field
     @property
     def SCREENSHOTS_DIR(self) -> str:
+        """Legacy screenshots directory - kept for backward compatibility."""
         path = os.path.join(self.APP_DATA_DIR, "artifacts", "screenshots")
         os.makedirs(path, exist_ok=True)
         return path
+
+    # --- Hierarchical Screenshot Storage (分层截图存储) ---
+
+    @computed_field
+    @property
+    def SCREENSHOTS_TEMP_DIR(self) -> str:
+        """Temporary screenshots - for immediate OCR/processing, auto-cleaned."""
+        path = os.path.join(self.APP_DATA_DIR, "artifacts", "screenshots", "temp")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    @computed_field
+    @property
+    def SCREENSHOTS_ATLAS_DIR(self) -> str:
+        """Atlas learning screenshots - stored by app for knowledge graph building."""
+        path = os.path.join(self.APP_DATA_DIR, "artifacts", "screenshots", "atlas")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    @computed_field
+    @property
+    def SCREENSHOTS_DEBUG_DIR(self) -> str:
+        """Debug screenshots - for troubleshooting and error analysis."""
+        path = os.path.join(self.APP_DATA_DIR, "artifacts", "screenshots", "debug")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    @computed_field
+    @property
+    def SCREENSHOTS_DATASET_DIR(self) -> str:
+        """Dataset screenshots - for IL training data collection."""
+        path = os.path.join(self.APP_DATA_DIR, "artifacts", "screenshots", "dataset")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    # Screenshot retention policy (in days)
+    SCREENSHOT_TEMP_RETENTION_DAYS: int = 1
+    SCREENSHOT_DEBUG_RETENTION_DAYS: int = 7
+    SCREENSHOT_ATLAS_RETENTION_DAYS: int = 90  # Longer retention for knowledge graph
+    SCREENSHOT_DATASET_RETENTION_DAYS: int = 365  # Keep training data for a year
+
+    # --- Screen Recording Storage (屏幕录制存储) ---
+
+    @computed_field
+    @property
+    def SCREEN_RECORDINGS_DIR(self) -> str:
+        """Screen recording videos - for IL training and replay."""
+        path = os.path.join(self.APP_DATA_DIR, "artifacts", "recordings")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    @computed_field
+    @property
+    def SCREEN_RECORDING_FRAMES_DIR(self) -> str:
+        """Extracted frames from screen recordings."""
+        path = os.path.join(self.APP_DATA_DIR, "artifacts", "recordings", "frames")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    # Screen recording retention policy
+    SCREEN_RECORDING_RETENTION_DAYS: int = 30  # 保留30天
+    SCREEN_RECORDING_MAX_SIZE_GB: int = 10     # 总容量限制10GB
+    SCREEN_RECORDING_MAX_DURATION_MIN: int = 10  # 单次录制最大10分钟
+    SCREEN_RECORDING_MAX_SIZE_MB: int = 500    # 单次录制最大500MB
 
     @computed_field
     @property

@@ -19,17 +19,36 @@ logger = logging.getLogger(__name__)
 class FrameExtractor:
     """Extracts keyframes from a recorded video file using ffmpeg."""
 
-    def __init__(self, video_path: str):
+    def __init__(self, video_path: str, session_id: str | None = None):
         """
         Args:
             video_path: Absolute path to the .mov/.mp4 video file.
+            session_id: Recording session ID for hierarchical frame storage.
         """
         self.video_path = video_path
+        self.session_id = session_id
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"Video file not found: {video_path}")
 
-    def _get_output_dir(self) -> Path:
-        """Create and return the output directory for extracted frames."""
+    def _get_output_dir(self, session_id: str | None = None) -> Path:
+        """
+        Create and return the output directory for extracted frames.
+
+        Args:
+            session_id: Recording session ID for hierarchical storage
+
+        Returns:
+            Path to the frames directory
+        """
+        # Use hierarchical storage if session_id provided
+        if session_id:
+            try:
+                from app.core.vision.storage import screen_recording_storage
+                return Path(screen_recording_storage.get_frames_dir(session_id))
+            except Exception as e:
+                logger.warning(f"[FrameExtractor] Failed to use hierarchical storage: {e}, using fallback")
+
+        # Fallback: legacy directory structure (alongside video)
         video_name = Path(self.video_path).stem
         output_dir = Path(self.video_path).parent / f"{video_name}_frames"
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -45,7 +64,7 @@ class FrameExtractor:
         Returns:
             List of absolute paths to extracted PNG images.
         """
-        output_dir = self._get_output_dir()
+        output_dir = self._get_output_dir(self.session_id)
         extracted_paths = []
 
         for ts_ms in timestamps_ms:

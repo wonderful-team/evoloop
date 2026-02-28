@@ -22,19 +22,38 @@ class MacOSDriver:
     """
 
     @staticmethod
-    def screenshot(region: str | None = None) -> str:
+    def screenshot(
+        region: str | None = None,
+        purpose: str = "debug",  # Default to debug for macOS as it's mainly for troubleshooting
+        bundle_id: str | None = None,
+        suffix: str | None = None
+    ) -> str:
         """
         Capture a screenshot of the screen.
 
         Args:
             region: Optional region "x,y,w,h" to capture. None = full screen.
+            purpose: Storage purpose ("temp", "atlas", "debug", "dataset")
+            bundle_id: App identifier for organization
+            suffix: Additional identifier
 
         Returns:
             Path to the saved screenshot PNG file.
         """
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"screenshot_{timestamp}.png"
-        filepath = os.path.join(settings.SCREENSHOTS_DIR, filename)
+        # Use hierarchical storage if available
+        try:
+            from app.core.vision.storage import screenshot_storage
+            filepath = screenshot_storage.get_path(
+                purpose=purpose,
+                platform="macos",
+                bundle_id=bundle_id,
+                suffix=suffix
+            )
+        except Exception as e:
+            logger.warning(f"[MacOSDriver] Failed to use hierarchical storage: {e}, using legacy")
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"screenshot_{timestamp}.png"
+            filepath = os.path.join(settings.SCREENSHOTS_DIR, filename)
 
         cmd = ["screencapture", "-x"]  # -x = silent (no sound)
 

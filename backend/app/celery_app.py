@@ -14,6 +14,7 @@ celery_app = Celery(
         "app.core.brain.tasks",
         "app.core.engine.tasks",
         "app.core.atlas.tasks",
+        "app.core.vision.cleanup",
     ],
 )
 
@@ -28,6 +29,17 @@ celery_app.conf.update(
             "task": "learning_embed_skills",
             "schedule": 300.0,  # 5 minutes
             "args": (50,),     # batch size
+        },
+        # Storage cleanup tasks - run daily at low-traffic hours
+        "cleanup-screenshots-daily": {
+            "task": "app.core.vision.cleanup_screenshots",
+            "schedule": 86400.0,  # 24 hours
+            "args": (False,),     # dry_run=False
+        },
+        "cleanup-screen-recordings-daily": {
+            "task": "app.core.vision.cleanup_screen_recordings",
+            "schedule": 86400.0,  # 24 hours
+            "args": (False,),     # dry_run=False
         },
     },
 )

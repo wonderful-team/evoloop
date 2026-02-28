@@ -235,10 +235,24 @@ browser_manager = BrowserManager()
 #  Helpers
 # ─────────────────────────────────────────────
 
-def _tmp_screenshot_path() -> str:
-    """Return a unique temp path for a browser screenshot."""
-    os.makedirs("/tmp/evoloop", exist_ok=True)
-    return os.path.join("/tmp/evoloop", f"browser_{int(time.time() * 1000)}.png")
+def _tmp_screenshot_path(
+    purpose: str = "temp",
+    bundle_id: str | None = None,
+    suffix: str | None = None
+) -> str:
+    """Return a unique path for a browser screenshot using hierarchical storage."""
+    try:
+        from app.core.vision.storage import screenshot_storage
+        return screenshot_storage.get_path(
+            purpose=purpose,
+            platform="browser",
+            bundle_id=bundle_id,
+            suffix=suffix
+        )
+    except Exception as e:
+        logger.warning(f"[Browser] Failed to use hierarchical storage: {e}, using fallback")
+        os.makedirs("/tmp/evoloop", exist_ok=True)
+        return os.path.join("/tmp/evoloop", f"browser_{int(time.time() * 1000)}.png")
 
 
 async def _run_ocr(filepath: str) -> str:
