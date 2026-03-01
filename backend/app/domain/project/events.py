@@ -100,3 +100,26 @@ class ProjectSwitchedEvent(ProjectEvent):
             "project_name": self.project_name,
             "path": self.path
         }
+
+
+@dataclass
+class NewProjectDetectedEvent(ProjectEvent):
+    """
+    Published when a new project directory is detected but not yet imported.
+
+    This event is used to notify the frontend to show a confirmation dialog.
+    Importing/indexing should NOT start until user confirms.
+    """
+    repo_id: int = 0
+    path: str = ""
+    name: str = ""
+    detected_at: datetime = field(default_factory=datetime.now)
+
+    def __post_init__(self):
+        self.event_type = ProjectEventType.NEW_PROJECT_DETECTED
+        self.data = {
+            "repo_id": self.repo_id,
+            "path": self.path,
+            "name": self.name,
+            "detected_at": self.detected_at.isoformat()
+        }

@@ -749,6 +749,10 @@
     "actions": "操作",
     "stop": "停止",
     "loading": "加载中...",
+    "upload": "上传",
+    "uploading": "上传中...",
+    "selectFile": "选择文件",
+    "back": "返回",
     "done": "完成",
     "enabled": "开启",
     "disabled": "关闭",
@@ -759,7 +763,17 @@
     "error": {
       "message": "发生错误"
     },
-    "new": "新建"
+    "new": "新建",
+    "ignore": "忽略",
+    "import": "导入",
+    "restore": "恢复",
+    "refresh": "刷新",
+    "later": "稍后",
+    "time": {
+      "justNow": "刚刚",
+      "minutesAgo": "{{count}} 分钟前",
+      "hoursAgo": "{{count}} 小时前"
+    }
   },
   "projects": {
     "actions": {
@@ -846,7 +860,119 @@
       "files": "文件",
       "overview": "概览",
       "tasks": "任务",
-      "wiki": "百科"
+      "wiki": "百科",
+      "requirements": "需求"
+    },
+    "requirements": {
+      "title": "需求文档",
+      "subtitle": "上传需求文档，AI 将自动分析并拆解为开发任务",
+      "upload": {
+        "title": "上传需求文档",
+        "dragDrop": "拖放文件到此处，或点击选择",
+        "supportedFormats": "支持 Word、Excel、PDF、Markdown、Text 格式",
+        "maxSize": "最大 50MB",
+        "button": "选择文件",
+        "uploading": "上传中...",
+        "success": "上传成功",
+        "error": "上传失败"
+      },
+      "list": {
+        "title": "文档列表",
+        "description": "点击文档查看详情，分析完成后可在对话中查看结果"
+      },
+      "documentList": {
+        "title": "文档列表",
+        "empty": "暂无文档",
+        "emptyDesc": "上传需求文档开始分析",
+        "columns": {
+          "name": "文件名",
+          "size": "大小",
+          "status": "状态",
+          "created": "创建时间",
+          "actions": "操作"
+        },
+        "status": {
+          "pending": "待分析",
+          "analyzed": "已分析",
+          "confirmed": "已确认",
+          "breakdown_completed": "已拆解"
+        },
+        "delete": {
+          "title": "删除文档",
+          "confirm": "确定要删除文档 {{name}} 吗？此操作不可撤销。",
+          "success": "文档删除成功",
+          "error": "删除失败"
+        }
+      },
+      "detail": {
+        "title": "文档详情",
+        "notFound": "文档不存在",
+        "contentPreview": "内容预览",
+        "analysisHistory": "分析历史",
+        "versions": "个版本",
+        "noAnalysis": "暂无分析结果",
+        "analysisInProgress": "分析可能正在进行中，请稍后再查看",
+        "back": "返回"
+      },
+      "analysis": {
+        "title": "需求分析",
+        "version": "版本",
+        "edited": "已编辑",
+        "functionalRequirements": "功能需求",
+        "nonFunctionalRequirements": "非功能需求",
+        "userStories": "用户故事",
+        "technicalSuggestions": "技术建议",
+        "risks": "风险与缓解",
+        "dependencies": "依赖项",
+        "mitigation": "缓解措施",
+        "asA": "作为",
+        "iWant": "我想要",
+        "soThat": "以便",
+        "confirmTitle": "确认分析结果",
+        "confirmDesc": "确认后将开始任务拆解",
+        "confirmButton": "确认并拆解任务",
+        "requestChanges": "请求修改",
+        "requestChangesTitle": "请求修改分析",
+        "requestChangesDesc": "请描述您需要的修改",
+        "requestChangesPlaceholder": "请输入您的修改意见...",
+        "submitFeedback": "提交反馈",
+        "editMode": "编辑模式",
+        "viewMode": "查看模式",
+        "editTitle": "编辑标题",
+        "editSummary": "编辑摘要",
+        "addRequirement": "添加需求",
+        "addUserStory": "添加用户故事",
+        "addTechnicalSuggestion": "添加技术建议",
+        "addRisk": "添加风险",
+        "remove": "删除",
+        "priority": "优先级",
+        "category": "分类",
+        "impact": "影响",
+        "area": "领域",
+        "rationale": "理由",
+        "confirmed": "分析结果已确认，开始拆解任务...",
+        "confirmedWithModifications": "分析结果已确认（含修改），开始拆解任务...",
+        "requestingChanges": "我对分析结果有一些修改意见：{{feedback}}，请重新分析。"
+      },
+      "tasks": {
+        "title": "任务列表",
+        "noTasks": "暂无任务",
+        "analysisNotConfirmed": "请先确认分析结果以生成任务",
+        "syncProgress": "EvoCloud 同步进度",
+        "syncComplete": "同步完成",
+        "partialSync": "部分同步",
+        "syncing": "同步中...",
+        "synced": "已同步",
+        "pending": "待同步",
+        "failed": "失败",
+        "listView": "列表",
+        "mappingView": "映射",
+        "tasks": "个任务",
+        "unmapped": "未关联需求",
+        "estimatedHours": "预计工时",
+        "acceptanceCriteria": "验收标准",
+        "syncError": "同步错误"
+      }
     },
     "details": {
       "created": "创建时间",
@@ -881,7 +1007,131 @@
       "description": "项目 #{{id}} 的报表和分析功能正在开发中。"
     },
     "noDescription": "暂无描述。",
-    "loading": "加载项目中..."
+    "loading": "加载项目中...",
+    "import": {
+      "title": "项目导入",
+      "subtitle": "管理检测到的项目和已忽略的项目",
+      "tabDetected": "待导入",
+      "tabIgnored": "已忽略",
+      "detectedAt": "检测时间",
+      "noDetected": "暂无待导入项目",
+      "noDetectedDesc": "项目目录中的新文件夹将显示在此处",
+      "noIgnored": "暂无已忽略项目",
+      "noIgnoredDesc": "已忽略的项目可以在此处恢复",
+      "importSuccess": "项目导入成功",
+      "importFailed": "导入项目失败",
+      "ignored": "项目已忽略",
+      "ignoreFailed": "忽略项目失败",
+      "unignored": "项目已恢复到待导入状态",
+      "unignoreFailed": "恢复项目失败",
+      "backToProjects": "返回项目列表",
+      "batchMode": "批量选择",
+      "selectAll": "全选",
+      "batchIgnore": "批量忽略",
+      "batchImport": "批量导入",
+      "batchImportSuccess": "成功导入 {{success}} 个项目，{{failed}} 个失败",
+      "batchImportFailed": "批量导入失败",
+      "batchIgnoreSuccess": "成功忽略 {{success}} 个项目，{{failed}} 个失败",
+      "batchIgnoreFailed": "批量忽略失败",
+      "newProjectsDetected": "检测到新项目",
+      "detectedDescription": "在您的项目目录中检测到以下文件夹。选择要导入文件夹。",
+      "loading": "正在加载检测到的项目...",
+      "importAll": "全部导入 ({{count}})",
+      "importAllSuccess": "{{count}} 个项目已导入",
+      "importAllFailed": "{{count}} 个项目导入失败",
+      "detected": "已检测"
+    }
+  },
+  "requirements": {
+    "title": "需求文档",
+    "subtitle": "上传需求文档，AI 将自动分析并拆解为开发任务",
+    "upload": {
+      "title": "上传需求文档",
+      "dragDrop": "拖拽文件到这里，或点击选择",
+      "supportedTypes": "支持",
+      "invalidType": "不支持的文件类型。请上传: {{types}}",
+      "tooLarge": "文件大小不能超过 50MB"
+    },
+    "list": {
+      "title": "文档列表",
+      "description": "点击文档查看详情，分析完成后可在对话中查看结果",
+      "empty": "暂无需求文档",
+      "emptyDesc": "上传需求文档，AI 将自动分析并拆解任务",
+      "deleteTitle": "删除文档",
+      "deleteConfirm": "确定要删除 \"{{file}}\" 吗？此操作将同时删除所有相关的分析结果和任务。",
+      "analysisCount": "{{count}} 个分析版本"
+    },
+    "analysis": {
+      "badge": "需求分析结果",
+      "untitled": "未命名需求",
+      "functionalRequirements": "功能需求",
+      "nonFunctionalRequirements": "非功能需求",
+      "userStories": "用户故事",
+      "technicalSuggestions": "技术建议",
+      "risks": "风险与缓解",
+      "dependencies": "依赖项",
+      "feedback": "修改意见",
+      "feedbackPlaceholder": "如有修改意见，请在此输入...",
+      "requestChanges": "请求修改",
+      "confirm": "确认分析",
+      "saveAndConfirm": "保存并确认",
+      "asA": "作为",
+      "iWant": "我想要",
+      "soThat": "以便",
+      "mitigation": "缓解措施",
+      "confirmed": "我已确认分析结果，请继续拆解任务。",
+      "confirmedWithModifications": "我已确认分析结果并进行了修改，请继续拆解任务。",
+      "requestingChanges": "我对分析结果有一些修改意见：{{feedback}}，请重新分析。",
+      "priority": {
+        "high": "高",
+        "medium": "中",
+        "low": "低",
+        "urgent": "紧急"
+      },
+      "impact": {
+        "high": "高",
+        "medium": "中",
+        "low": "低"
+      }
+    },
+    "status": {
+      "pending": "待分析",
+      "analyzed": "已分析",
+      "confirmed": "已确认",
+      "breakdown_completed": "已拆解"
+    },
+    "detail": {
+      "title": "文档详情",
+      "notFound": "文档不存在",
+      "contentPreview": "内容预览",
+      "analysisHistory": "分析历史",
+      "versions": "个版本",
+      "noAnalysis": "暂无分析结果",
+      "analysisInProgress": "分析可能正在进行中，请稍后再查看",
+      "tasksSynced": "任务已同步",
+      "edited": "已编辑",
+      "version": "版本",
+      "overview": "概览",
+      "tasks": "任务"
+    },
+    "tasks": {
+      "title": "任务列表",
+      "noTasks": "暂无任务",
+      "analysisNotConfirmed": "请先确认分析结果以生成任务",
+      "syncProgress": "EvoCloud 同步进度",
+      "syncComplete": "同步完成",
+      "partialSync": "部分同步",
+      "syncing": "同步中...",
+      "synced": "已同步",
+      "pending": "待同步",
+      "failed": "失败",
+      "listView": "列表",
+      "mappingView": "映射",
+      "tasks": "个任务",
+      "unmapped": "未关联需求",
+      "estimatedHours": "预计工时",
+      "acceptanceCriteria": "验收标准"
+    }
   },
   "wiki": {
     "pageList": "页面列表",

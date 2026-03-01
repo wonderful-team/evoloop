@@ -106,6 +106,9 @@ class Settings(BaseSettings):
     APP_ENV: Literal["development", "production", "testing"] = "development"
     LOG_LEVEL: str = "INFO"
 
+    # File Upload
+    UPLOAD_DIR: str | None = None  # Directory for uploaded files (defaults to /tmp/evoloop/uploads)
+
     # Graph (Neo4j)
     NEO4J_URI: str = "bolt://localhost:7687"
     NEO4J_USER: str = "neo4j"

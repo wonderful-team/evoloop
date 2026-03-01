@@ -3,6 +3,7 @@ import ErrorComponent from "@/components/Common/ErrorComponent"
 import NotFound from "@evoloop/shared/components/NotFound"
 import { useState } from "react"
 import StartupScreen from "@/components/Startup/StartupScreen"
+import { DetectedProjectAlert } from "@/components/Projects/Import"
 
 export const Route = createRootRoute({
   component: RootComponent,
@@ -21,6 +22,7 @@ function RootComponent() {
     <>
       <HeadContent />
       <Outlet />
+      <DetectedProjectAlert />
     </>
   )
 }

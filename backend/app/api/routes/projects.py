@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 
@@ -215,3 +216,214 @@ async def run_indexing_endpoint(req: IndexingRequest):
     """
     indexing_manager.dispatch_full_index(req.project_id)
     return {"status": "queued", "project_id": req.project_id}
+
+
+# ============================================================================
+# Project Import Management Endpoints
+# ============================================================================
+
+@router.get("/detected")
+async def get_detected_projects(_token: TokenDepOptional = None):
+    """
+    Get all newly detected projects awaiting user confirmation.
+
+    Returns projects with sync_status="DETECTED" that need to be imported or ignored.
+    """
+    from app.domain.project.sync_service import project_sync_service
+
+    try:
+        repos = await project_sync_service.get_detected_projects()
+        return {
+            "items": [
+                {
+                    "id": r.id,
+                    "name": r.name,
+                    "path": r.local_path,
+                    "detected_at": r.detected_at.isoformat() if r.detected_at else None,
+                }
+                for r in repos
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to get detected projects: {e}")
+        raise HTTPException(500, f"Failed to get detected projects: {str(e)}")
+
+
+@router.post("/{repo_id}/import")
+async def import_detected_project(repo_id: int, _token: TokenDep):
+    """
+    Import a detected project (user confirmed).
+
+    This will:
+    1. Update project status to PENDING_CREATION
+    2. Start file watching and indexing
+    3. Dispatch cloud sync task
+    """
+    from app.domain.project.sync_service import project_sync_service
+
+    try:
+        repo = await project_sync_service.import_project(repo_id)
+        return {
+            "status": "success",
+            "repo_id": repo.id,
+            "name": repo.name,
+            "message": f"Project '{repo.name}' imported successfully"
+        }
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.error(f"Failed to import project {repo_id}: {e}")
+        raise HTTPException(500, f"Failed to import project: {str(e)}")
+
+
+@router.post("/{repo_id}/ignore")
+async def ignore_detected_project(repo_id: int, _token: TokenDep):
+    """
+    Ignore a detected project (user chose not to import).
+
+    Marks the project as IGNORED. Can be restored later.
+    """
+    from app.domain.project.sync_service import project_sync_service
+
+    try:
+        await project_sync_service.ignore_project(repo_id)
+        return {"status": "ignored", "repo_id": repo_id}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.error(f"Failed to ignore project {repo_id}: {e}")
+        raise HTTPException(500, f"Failed to ignore project: {str(e)}")
+
+
+@router.get("/ignored")
+async def get_ignored_projects(_token: TokenDep):
+    """
+    Get all ignored projects.
+
+    These projects can be restored (un-ignored) later.
+    """
+    from app.domain.project.sync_service import project_sync_service
+
+    try:
+        repos = await project_sync_service.get_ignored_projects()
+        return {
+            "items": [
+                {
+                    "id": r.id,
+                    "name": r.name,
+                    "path": r.local_path,
+                    "detected_at": r.detected_at.isoformat() if r.detected_at else None,
+                }
+                for r in repos
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to get ignored projects: {e}")
+        raise HTTPException(500, f"Failed to get ignored projects: {str(e)}")
+
+
+@router.post("/{repo_id}/unignore")
+async def unignore_project(repo_id: int, _token: TokenDep):
+    """
+    Restore an ignored project to detected status.
+
+    Allows the project to be imported.
+    """
+    from app.domain.project.sync_service import project_sync_service
+
+    try:
+        repo = await project_sync_service.unignore_project(repo_id)
+        return {
+            "status": "restored",
+            "repo_id": repo.id,
+            "name": repo.name,
+            "message": f"Project '{repo.name}' restored to detected state"
+        }
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        logger.error(f"Failed to unignore project {repo_id}: {e}")
+        raise HTTPException(500, f"Failed to restore project: {str(e)}")
+
+
+class BatchImportRequest(BaseModel):
+    repo_ids: list[int]
+
+
+@router.post("/batch/import")
+async def batch_import_projects(req: BatchImportRequest, _token: TokenDep):
+    """
+    Import multiple detected projects in batch.
+
+    This will:
+    1. Import each project sequentially
+    2. Return summary of successes and failures
+    """
+    from app.domain.project.sync_service import project_sync_service
+
+    results = {
+        "success": [],
+        "failed": [],
+        "total": len(req.repo_ids)
+    }
+
+    for repo_id in req.repo_ids:
+        try:
+            repo = await project_sync_service.import_project(repo_id)
+            results["success"].append({
+                "repo_id": repo.id,
+                "name": repo.name
+            })
+        except ValueError as e:
+            results["failed"].append({
+                "repo_id": repo_id,
+                "error": str(e)
+            })
+        except Exception as e:
+            logger.error(f"Failed to import project {repo_id}: {e}")
+            results["failed"].append({
+                "repo_id": repo_id,
+                "error": str(e)
+            })
+
+    return {
+        "status": "completed",
+        "summary": f"Imported {len(results['success'])} of {results['total']} projects",
+        "results": results
+    }
+
+
+@router.post("/batch/ignore")
+async def batch_ignore_projects(req: BatchImportRequest, _token: TokenDep):
+    """
+    Ignore multiple detected projects in batch.
+    """
+    from app.domain.project.sync_service import project_sync_service
+
+    results = {
+        "success": [],
+        "failed": [],
+        "total": len(req.repo_ids)
+    }
+
+    for repo_id in req.repo_ids:
+        try:
+            await project_sync_service.ignore_project(repo_id)
+            results["success"].append({"repo_id": repo_id})
+        except ValueError as e:
+            results["failed"].append({
+                "repo_id": repo_id,
+                "error": str(e)
+            })
+        except Exception as e:
+            logger.error(f"Failed to ignore project {repo_id}: {e}")
+            results["failed"].append({
+                "repo_id": repo_id,
+                "error": str(e)
+            })
+
+    return {
+        "status": "completed",
+        "summary": f"Ignored {len(results['success'])} of {results['total']} projects",
+        "results": results
+    }

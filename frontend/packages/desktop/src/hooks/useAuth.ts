@@ -93,5 +93,5 @@ const useAuth = () => {
   }
 }
 
-export { isLoggedIn }
+export { isLoggedIn, useAuth }
 export default useAuth

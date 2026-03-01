@@ -219,24 +219,35 @@ class ProjectDiscoveryEventHandler(FileSystemEventHandler):
     def on_created(self, event):
         if not event.is_directory:
             return
+        # Only handle direct children of root_path
         parent = os.path.dirname(event.src_path)
-        if os.path.abspath(parent) != os.path.abspath(self.root_path):
+        if os.path.normpath(parent) != os.path.normpath(self.root_path):
             return
         logger.info(f"Project Created (Detected): {event.src_path}")
+        self._schedule_async(self._handle_project_created(event.src_path))
 
     def on_moved(self, event):
         if not event.is_directory:
             return
-        parent = os.path.dirname(event.src_path)
-        if os.path.abspath(parent) != os.path.abspath(self.root_path):
-            return
-        # Ensure dest is also in root (rename)
+        # src_path is the OLD path. If its parent was root_path, it's a rename or move-out.
+        src_parent = os.path.dirname(event.src_path)
         dest_parent = os.path.dirname(event.dest_path)
-        if os.path.abspath(dest_parent) != os.path.abspath(self.root_path):
-            return
 
-        logger.info(f"Project Moved/Renamed (Detected): {event.src_path} -> {event.dest_path}")
-        self._schedule_async(self._handle_project_moved(event.src_path, event.dest_path))
+        is_src_in_root = os.path.normpath(src_parent) == os.path.normpath(self.root_path)
+        is_dest_in_root = os.path.normpath(dest_parent) == os.path.normpath(self.root_path)
+
+        if is_src_in_root and is_dest_in_root:
+            # Rename in-place
+            logger.info(f"Project Renamed (Detected): {event.src_path} -> {event.dest_path}")
+            self._schedule_async(self._handle_project_moved(event.src_path, event.dest_path))
+        elif is_src_in_root and not is_dest_in_root:
+            # Moved out of root -> Treat as deletion
+            logger.info(f"Project Moved Out (Detected): {event.src_path} -> {event.dest_path}")
+            self._schedule_async(self._handle_project_deleted(event.src_path))
+        elif not is_src_in_root and is_dest_in_root:
+            # Moved into root from elsewhere -> Treat as creation
+            logger.info(f"Project Moved In (Detected): {event.src_path} -> {event.dest_path}")
+            self._schedule_async(self._handle_project_created(event.dest_path))
 
     def _schedule_async(self, coro):
         asyncio.run_coroutine_threadsafe(coro, self.loop)

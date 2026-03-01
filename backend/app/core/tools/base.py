@@ -72,7 +72,7 @@ def evoloop_tool(*args, is_pollable: bool = False, is_state_mutating: bool = Fal
         tool_instance = langchain_tool(*args, **kwargs)(wrapper)
 
         # Inject EvoLoop metadata for engine orchestration
-        if not hasattr(tool_instance, "metadata"):
+        if not hasattr(tool_instance, "metadata") or tool_instance.metadata is None:
             tool_instance.metadata = {}
         tool_instance.metadata["is_pollable"] = is_pollable
         tool_instance.metadata["is_state_mutating"] = is_state_mutating

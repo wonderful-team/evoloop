@@ -4,6 +4,7 @@ import {
   BarChart2,
   CheckSquare,
   ChevronLeft,
+  ClipboardList,
   Clock,
   FileCode,
   FileText,
@@ -79,6 +80,12 @@ function ProjectLayout() {
       label: t("projects.tabs.files"),
       icon: FileCode,
       path: "/files",
+    },
+    {
+      id: "requirements",
+      label: t("projects.tabs.requirements", "需求文档"),
+      icon: ClipboardList,
+      path: "/requirements",
     },
     {
       id: "timesheet",

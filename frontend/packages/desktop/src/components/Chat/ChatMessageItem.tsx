@@ -29,6 +29,11 @@ import { MessageContent } from "./MessageContent"
 import { ExecutionSteps } from "./ExecutionSteps"
 import { SourcesFooter } from "./SourcesFooter"
 import { AgentProcess, AgentProcessStep } from "./AgentProcess"
+import { AnalysisResultMessage } from "./AnalysisResultMessage"
+import {
+  detectRequirementAnalysis,
+  parseRequirementAnalysis,
+} from "./requirementAnalysis"
 
 
 export interface Message {
@@ -199,11 +204,20 @@ const ChatMessageItem = memo(
                       const trimmed = msg.content.trim()
                       if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
                         const obj = JSON.parse(trimmed)
-                        if (
-                          obj.type === "artifact" &&
-                          obj.artifact_type === "test_report"
-                        ) {
-                          return <TestReportCard data={obj.data} />
+                        if (obj.type === "artifact") {
+                          if (obj.artifact_type === "test_report") {
+                            return <TestReportCard data={obj.data} />
+                          }
+                          if (obj.artifact_type === "requirement_analysis") {
+                            return (
+                              <AnalysisResultMessage
+                                analysisId={obj.data.analysis_id}
+                                documentId={obj.data.document_id}
+                                projectId={obj.data.project_id}
+                                data={obj.data.analysis}
+                              />
+                            )
+                          }
                         }
                       }
                     } catch (_e) {

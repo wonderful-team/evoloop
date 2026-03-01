@@ -5,7 +5,7 @@ export { useAuth } from "./useAuth"
 export { useCopyToClipboard } from "./useCopyToClipboard"
 export { useGlobalRecorder } from "./useGlobalRecorder"
 export { useMemberCancellation } from "./useMemberCancellation"
-export { useMobile } from "./useMobile"
+export { useIsMobile } from "./useMobile"
 export {
     useMultimodalSynthesis,
     useRecordingWithSynthesis,

@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 
 from app.celery_app import celery_app
 from app.core.evocloud import evocloud_manager
@@ -63,3 +64,107 @@ def sync_project_to_cloud_task(_self, repo_id: int):
 
     # Run the async loop
     asyncio.run(_sync())
+
+
+@celery_app.task(
+    name="sync_tasks_to_evocloud",
+    bind=True,
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_backoff_max=300,
+    max_retries=3,
+)
+def sync_tasks_to_evocloud_task(_self, analysis_id: str, task_ids: list[str]):
+    """
+    Background task to sync requirement tasks to EvoCloud.
+    Called automatically after requirement analysis is confirmed.
+    """
+    import asyncio
+
+    from app.domain.project.requirements.models import ProjectRequirementTask
+    from app.infrastructure.database.sql.database import async_session_factory
+
+    async def _sync():
+        logger.info(f"[ReqSync] Starting sync for analysis {analysis_id}, {len(task_ids)} tasks")
+
+        async with async_session_factory() as session:
+            from sqlalchemy import select
+
+            # Get all tasks to sync
+            stmt = select(ProjectRequirementTask).where(
+                ProjectRequirementTask.id.in_(task_ids)
+            )
+            result = await session.execute(stmt)
+            tasks = result.scalars().all()
+
+            if not tasks:
+                logger.warning(f"[ReqSync] No tasks found for analysis {analysis_id}")
+                return
+
+            synced_count = 0
+            failed_count = 0
+
+            for task in tasks:
+                try:
+                    task_data = task.task_data
+
+                    # Prepare EvoCloud payload
+                    payload = {
+                        "project_id": task.project_id,
+                        "task_name": task_data.get("title", "Untitled"),
+                        "task_desc": _format_task_description(task_data),
+                        "priority": _map_priority(task_data.get("priority", "medium")),
+                        "estimated_time": task_data.get("estimated_hours", 0),
+                        "tags": task_data.get("tags", []),
+                    }
+
+                    # Call EvoCloud API
+                    result = await evocloud_manager.api.create_task(payload)
+
+                    if result.get("code") == 0:
+                        task.evocloud_task_id = result["data"]["task_id"]
+                        task.sync_status = "synced"
+                        task.synced_at = datetime.now()
+                        synced_count += 1
+                        logger.info(f"[ReqSync] Task {task.id} synced: {task.evocloud_task_id}")
+                    else:
+                        task.sync_status = "failed"
+                        task.sync_error = result.get("message", "Unknown error")
+                        failed_count += 1
+                        logger.error(f"[ReqSync] Task {task.id} failed: {task.sync_error}")
+
+                except Exception as e:
+                    task.sync_status = "failed"
+                    task.sync_error = str(e)
+                    failed_count += 1
+                    logger.exception(f"[ReqSync] Task {task.id} exception: {e}")
+
+            await session.commit()
+            logger.info(f"[ReqSync] Sync complete. Success: {synced_count}, Failed: {failed_count}")
+
+    asyncio.run(_sync())
+
+
+def _map_priority(priority: str) -> int:
+    """Map priority string to EvoCloud priority number."""
+    mapping = {"urgent": 1, "high": 2, "medium": 3, "low": 4}
+    return mapping.get(priority.lower(), 3)
+
+
+def _format_task_description(task_data: dict) -> str:
+    """Format task data into description for EvoCloud."""
+    lines = [task_data.get("description", "")]
+
+    # Add requirement refs
+    refs = task_data.get("requirement_refs", [])
+    if refs:
+        lines.append(f"\n\n**关联需求**: {', '.join(refs)}")
+
+    # Add acceptance criteria
+    criteria = task_data.get("acceptance_criteria", [])
+    if criteria:
+        lines.append("\n\n**验收标准**:")
+        for c in criteria:
+            lines.append(f"- {c}")
+
+    return "\n".join(lines)

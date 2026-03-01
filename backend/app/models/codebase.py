@@ -21,8 +21,17 @@ class Repository(Base):
     # We index it for faster lookups, but DO NOT enforce foreign key constraint to a local table
     project_id: Mapped[int | None] = mapped_column(Integer, index=True, nullable=True)
 
-    # Sync Status: SYNCED, PENDING_CREATION, DISCONNECTED
-    sync_status: Mapped[str] = mapped_column(String(50), default="SYNCED")
+    # Sync Status:
+    # - "DETECTED": Newly detected, awaiting user confirmation
+    # - "IGNORED": User chose to ignore
+    # - "PENDING_CREATION": User confirmed, awaiting cloud sync
+    # - "SYNCED": Successfully synced with cloud
+    # - "DISCONNECTED": Local directory deleted
+    sync_status: Mapped[str] = mapped_column(String(50), default="DETECTED")
+
+    # Detection and import timestamps
+    detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=utcnow)
+    imported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     name: Mapped[str] = mapped_column(String(255))
     url: Mapped[str] = mapped_column(String(1024))

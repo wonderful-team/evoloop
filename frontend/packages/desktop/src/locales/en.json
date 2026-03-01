@@ -714,6 +714,10 @@
     "actions": "Actions",
     "stop": "Stop",
     "loading": "Loading...",
+    "upload": "Upload",
+    "uploading": "Uploading...",
+    "selectFile": "Select File",
+    "back": "Back",
     "done": "Done",
     "enabled": "Enabled",
     "disabled": "Disabled",
@@ -724,7 +728,17 @@
     "error": {
       "message": "An error occurred"
     },
-    "new": "New"
+    "new": "New",
+    "ignore": "Ignore",
+    "import": "Import",
+    "restore": "Restore",
+    "refresh": "Refresh",
+    "later": "Later",
+    "time": {
+      "justNow": "Just now",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago"
+    }
   },
   "projects": {
     "actions": {
@@ -811,7 +825,119 @@
       "files": "Files",
       "overview": "Overview",
       "tasks": "Tasks",
-      "wiki": "Wiki"
+      "wiki": "Wiki",
+      "requirements": "Requirements"
+    },
+    "requirements": {
+      "title": "Requirements",
+      "subtitle": "Upload requirement documents, AI will analyze and break down into development tasks",
+      "upload": {
+        "title": "Upload Requirement Document",
+        "dragDrop": "Drag and drop files here, or click to select",
+        "supportedFormats": "Supports Word, Excel, PDF, Markdown, Text formats",
+        "maxSize": "Max 50MB",
+        "button": "Select File",
+        "uploading": "Uploading...",
+        "success": "Upload successful",
+        "error": "Upload failed"
+      },
+      "list": {
+        "title": "Documents",
+        "description": "Click a document to view details. Analysis results will appear in chat when ready."
+      },
+      "documentList": {
+        "title": "Documents",
+        "empty": "No documents",
+        "emptyDesc": "Upload a requirement document to start analysis",
+        "columns": {
+          "name": "File Name",
+          "size": "Size",
+          "status": "Status",
+          "created": "Created",
+          "actions": "Actions"
+        },
+        "status": {
+          "pending": "Pending",
+          "analyzed": "Analyzed",
+          "confirmed": "Confirmed",
+          "breakdown_completed": "Breakdown Complete"
+        },
+        "delete": {
+          "title": "Delete Document",
+          "confirm": "Are you sure you want to delete {{name}}? This action cannot be undone.",
+          "success": "Document deleted successfully",
+          "error": "Delete failed"
+        }
+      },
+      "detail": {
+        "title": "Document Details",
+        "notFound": "Document not found",
+        "contentPreview": "Content Preview",
+        "analysisHistory": "Analysis History",
+        "versions": "versions",
+        "noAnalysis": "No analysis results",
+        "analysisInProgress": "Analysis may be in progress, please check later",
+        "back": "Back"
+      },
+      "analysis": {
+        "title": "Requirement Analysis",
+        "version": "Version",
+        "edited": "Edited",
+        "functionalRequirements": "Functional Requirements",
+        "nonFunctionalRequirements": "Non-Functional Requirements",
+        "userStories": "User Stories",
+        "technicalSuggestions": "Technical Suggestions",
+        "risks": "Risks & Mitigation",
+        "dependencies": "Dependencies",
+        "mitigation": "Mitigation",
+        "asA": "As a",
+        "iWant": "I want",
+        "soThat": "So that",
+        "confirmTitle": "Confirm Analysis Results",
+        "confirmDesc": "Tasks will be broken down after confirmation",
+        "confirmButton": "Confirm & Breakdown Tasks",
+        "requestChanges": "Request Changes",
+        "requestChangesTitle": "Request Analysis Changes",
+        "requestChangesDesc": "Please describe the changes you need",
+        "requestChangesPlaceholder": "Enter your feedback...",
+        "submitFeedback": "Submit Feedback",
+        "editMode": "Edit Mode",
+        "viewMode": "View Mode",
+        "editTitle": "Edit Title",
+        "editSummary": "Edit Summary",
+        "addRequirement": "Add Requirement",
+        "addUserStory": "Add User Story",
+        "addTechnicalSuggestion": "Add Suggestion",
+        "addRisk": "Add Risk",
+        "remove": "Remove",
+        "priority": "Priority",
+        "category": "Category",
+        "impact": "Impact",
+        "area": "Area",
+        "rationale": "Rationale",
+        "confirmed": "Analysis confirmed, starting task breakdown...",
+        "confirmedWithModifications": "Analysis confirmed (with modifications), starting task breakdown...",
+        "requestingChanges": "I have some feedback on the analysis: {{feedback}}, please re-analyze."
+      },
+      "tasks": {
+        "title": "Tasks",
+        "noTasks": "No tasks",
+        "analysisNotConfirmed": "Please confirm analysis results to generate tasks",
+        "syncProgress": "EvoCloud Sync Progress",
+        "syncComplete": "Sync Complete",
+        "partialSync": "Partial Sync",
+        "syncing": "Syncing...",
+        "synced": "Synced",
+        "pending": "Pending",
+        "failed": "Failed",
+        "listView": "List",
+        "mappingView": "Mapping",
+        "tasks": "tasks",
+        "unmapped": "Unmapped",
+        "estimatedHours": "Estimated Hours",
+        "acceptanceCriteria": "Acceptance Criteria",
+        "syncError": "Sync Error"
+      }
     },
     "details": {
       "created": "Created",
@@ -846,7 +972,131 @@
       "description": "Project reports and analytics for Project #{{id}} are under development."
     },
     "noDescription": "No description available.",
-    "loading": "Loading projects..."
+    "loading": "Loading projects...",
+    "import": {
+      "title": "Project Import",
+      "subtitle": "Manage detected and ignored projects",
+      "tabDetected": "To Import",
+      "tabIgnored": "Ignored",
+      "detectedAt": "Detected",
+      "noDetected": "No projects waiting to be imported",
+      "noDetectedDesc": "New folders in your projects directory will appear here",
+      "noIgnored": "No ignored projects",
+      "noIgnoredDesc": "Ignored projects can be restored from here",
+      "importSuccess": "Project imported successfully",
+      "importFailed": "Failed to import project",
+      "ignored": "Project ignored",
+      "ignoreFailed": "Failed to ignore project",
+      "unignored": "Project restored to detected state",
+      "unignoreFailed": "Failed to restore project",
+      "backToProjects": "Back to Projects",
+      "batchMode": "Batch Select",
+      "selectAll": "Select All",
+      "batchIgnore": "Ignore Selected",
+      "batchImport": "Import Selected",
+      "batchImportSuccess": "Imported {{success}} projects, {{failed}} failed",
+      "batchImportFailed": "Batch import failed",
+      "batchIgnoreSuccess": "Ignored {{success}} projects, {{failed}} failed",
+      "batchIgnoreFailed": "Batch ignore failed",
+      "newProjectsDetected": "New Projects Detected",
+      "detectedDescription": "The following folders were detected in your projects directory. Choose which ones to import.",
+      "loading": "Loading detected projects...",
+      "importAll": "Import All ({{count}})",
+      "importAllSuccess": "{{count}} projects imported",
+      "importAllFailed": "{{count}} projects failed",
+      "detected": "Detected"
+    }
+  },
+  "requirements": {
+    "title": "Requirements",
+    "subtitle": "Upload requirement documents, AI will analyze and break down into development tasks",
+    "upload": {
+      "title": "Upload Requirements",
+      "dragDrop": "Drag files here or click to select",
+      "supportedTypes": "Supports",
+      "invalidType": "Unsupported file type. Please upload: {{types}}",
+      "tooLarge": "File size cannot exceed 50MB"
+    },
+    "list": {
+      "title": "Documents",
+      "description": "Click documents to view details. Results appear in chat after analysis.",
+      "empty": "No requirement documents",
+      "emptyDesc": "Upload documents, AI will analyze and break down tasks",
+      "deleteTitle": "Delete Document",
+      "deleteConfirm": "Delete \"{{file}}\"? This will also remove all related analysis results and tasks.",
+      "analysisCount": "{{count}} analysis versions"
+    },
+    "analysis": {
+      "badge": "Requirement Analysis",
+      "untitled": "Untitled Requirement",
+      "functionalRequirements": "Functional Requirements",
+      "nonFunctionalRequirements": "Non-Functional Requirements",
+      "userStories": "User Stories",
+      "technicalSuggestions": "Technical Suggestions",
+      "risks": "Risks & Mitigation",
+      "dependencies": "Dependencies",
+      "feedback": "Feedback",
+      "feedbackPlaceholder": "Enter modification suggestions...",
+      "requestChanges": "Request Changes",
+      "confirm": "Confirm Analysis",
+      "saveAndConfirm": "Save & Confirm",
+      "asA": "As a",
+      "iWant": "I want",
+      "soThat": "so that",
+      "mitigation": "Mitigation",
+      "confirmed": "I've confirmed the analysis. Please continue with task breakdown.",
+      "confirmedWithModifications": "I've confirmed the analysis with modifications. Please continue with task breakdown.",
+      "requestingChanges": "I have feedback on the analysis: {{feedback}}. Please re-analyze.",
+      "priority": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low",
+        "urgent": "Urgent"
+      },
+      "impact": {
+        "high": "High",
+        "medium": "Medium",
+        "low": "Low"
+      }
+    },
+    "status": {
+      "pending": "Pending",
+      "analyzed": "Analyzed",
+      "confirmed": "Confirmed",
+      "breakdown_completed": "Breakdown Complete"
+    },
+    "detail": {
+      "title": "Document Detail",
+      "notFound": "Document not found",
+      "contentPreview": "Content Preview",
+      "analysisHistory": "Analysis History",
+      "versions": "versions",
+      "noAnalysis": "No analysis results",
+      "analysisInProgress": "Analysis may be in progress, please check later",
+      "tasksSynced": "tasks synced",
+      "edited": "Edited",
+      "version": "Version",
+      "overview": "Overview",
+      "tasks": "Tasks"
+    },
+    "tasks": {
+      "title": "Task List",
+      "noTasks": "No tasks yet",
+      "analysisNotConfirmed": "Please confirm the analysis first to generate tasks",
+      "syncProgress": "EvoCloud Sync Progress",
+      "syncComplete": "Sync Complete",
+      "partialSync": "Partially Synced",
+      "syncing": "Syncing...",
+      "synced": "Synced",
+      "pending": "Pending",
+      "failed": "Failed",
+      "listView": "List",
+      "mappingView": "Mapping",
+      "tasks": "tasks",
+      "unmapped": "Unmapped",
+      "estimatedHours": "Estimated Hours",
+      "acceptanceCriteria": "Acceptance Criteria"
+    }
   },
   "wiki": {
     "pageList": "Pages",

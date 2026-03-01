@@ -26,6 +26,7 @@ import { Route as LayoutProjectsProjectIdIndexRouteImport } from './routes/_layo
 import { Route as LayoutProjectsProjectIdWikiRouteImport } from './routes/_layout/projects.$projectId.wiki'
 import { Route as LayoutProjectsProjectIdTimesheetRouteImport } from './routes/_layout/projects.$projectId.timesheet'
 import { Route as LayoutProjectsProjectIdTasksRouteImport } from './routes/_layout/projects.$projectId.tasks'
+import { Route as LayoutProjectsProjectIdRequirementsRouteImport } from './routes/_layout/projects.$projectId.requirements'
 import { Route as LayoutProjectsProjectIdReportsRouteImport } from './routes/_layout/projects.$projectId.reports'
 import { Route as LayoutProjectsProjectIdGanttRouteImport } from './routes/_layout/projects.$projectId.gantt'
 import { Route as LayoutProjectsProjectIdFilesRouteImport } from './routes/_layout/projects.$projectId.files'
@@ -118,6 +119,12 @@ const LayoutProjectsProjectIdTasksRoute =
     path: '/tasks',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
+const LayoutProjectsProjectIdRequirementsRoute =
+  LayoutProjectsProjectIdRequirementsRouteImport.update({
+    id: '/requirements',
+    path: '/requirements',
+    getParentRoute: () => LayoutProjectsProjectIdRoute,
+  } as any)
 const LayoutProjectsProjectIdReportsRoute =
   LayoutProjectsProjectIdReportsRouteImport.update({
     id: '/reports',
@@ -153,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
+  '/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
@@ -173,6 +181,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
+  '/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
   '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
@@ -196,6 +205,7 @@ export interface FileRoutesById {
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/_layout/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
+  '/_layout/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
   '/_layout/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
   '/_layout/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/_layout/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
     | '/projects/$projectId/reports'
+    | '/projects/$projectId/requirements'
     | '/projects/$projectId/tasks'
     | '/projects/$projectId/timesheet'
     | '/projects/$projectId/wiki'
@@ -239,6 +250,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
     | '/projects/$projectId/reports'
+    | '/projects/$projectId/requirements'
     | '/projects/$projectId/tasks'
     | '/projects/$projectId/timesheet'
     | '/projects/$projectId/wiki'
@@ -261,6 +273,7 @@ export interface FileRouteTypes {
     | '/_layout/projects/$projectId/files'
     | '/_layout/projects/$projectId/gantt'
     | '/_layout/projects/$projectId/reports'
+    | '/_layout/projects/$projectId/requirements'
     | '/_layout/projects/$projectId/tasks'
     | '/_layout/projects/$projectId/timesheet'
     | '/_layout/projects/$projectId/wiki'
@@ -396,6 +409,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdTasksRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
+    '/_layout/projects/$projectId/requirements': {
+      id: '/_layout/projects/$projectId/requirements'
+      path: '/requirements'
+      fullPath: '/projects/$projectId/requirements'
+      preLoaderRoute: typeof LayoutProjectsProjectIdRequirementsRouteImport
+      parentRoute: typeof LayoutProjectsProjectIdRoute
+    }
     '/_layout/projects/$projectId/reports': {
       id: '/_layout/projects/$projectId/reports'
       path: '/reports'
@@ -424,6 +444,7 @@ interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
   LayoutProjectsProjectIdGanttRoute: typeof LayoutProjectsProjectIdGanttRoute
   LayoutProjectsProjectIdReportsRoute: typeof LayoutProjectsProjectIdReportsRoute
+  LayoutProjectsProjectIdRequirementsRoute: typeof LayoutProjectsProjectIdRequirementsRoute
   LayoutProjectsProjectIdTasksRoute: typeof LayoutProjectsProjectIdTasksRoute
   LayoutProjectsProjectIdTimesheetRoute: typeof LayoutProjectsProjectIdTimesheetRoute
   LayoutProjectsProjectIdWikiRoute: typeof LayoutProjectsProjectIdWikiRoute
@@ -435,6 +456,8 @@ const LayoutProjectsProjectIdRouteChildren: LayoutProjectsProjectIdRouteChildren
     LayoutProjectsProjectIdFilesRoute: LayoutProjectsProjectIdFilesRoute,
     LayoutProjectsProjectIdGanttRoute: LayoutProjectsProjectIdGanttRoute,
     LayoutProjectsProjectIdReportsRoute: LayoutProjectsProjectIdReportsRoute,
+    LayoutProjectsProjectIdRequirementsRoute:
+      LayoutProjectsProjectIdRequirementsRoute,
     LayoutProjectsProjectIdTasksRoute: LayoutProjectsProjectIdTasksRoute,
     LayoutProjectsProjectIdTimesheetRoute:
       LayoutProjectsProjectIdTimesheetRoute,
