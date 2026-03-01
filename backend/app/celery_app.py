@@ -25,11 +25,6 @@ celery_app.conf.update(
     timezone="UTC",
     enable_utc=True,
     beat_schedule={
-        "update-skill-embeddings-every-5-minutes": {
-            "task": "learning_embed_skills",
-            "schedule": 300.0,  # 5 minutes
-            "args": (50,),     # batch size
-        },
         # Storage cleanup tasks - run daily at low-traffic hours
         "cleanup-screenshots-daily": {
             "task": "app.core.vision.cleanup_screenshots",

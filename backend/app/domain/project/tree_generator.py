@@ -97,18 +97,18 @@ class AnnotatedTreeGenerator:
             return render
 
         # Level 2: No Methods
-        render = self._render_node(root_node, include_classes=True, include_methods=False, max_depth=self.max_depth)
+        render = self._render_node(root_node, include_classes=True, include_methods=False)
         if self._is_within_limit(render):
             return render + "\n(Methods hidden due to size)"
 
         # Level 3: No Classes (Files only)
-        render = self._render_node(root_node, include_classes=False, include_methods=False, max_depth=self.max_depth)
+        render = self._render_node(root_node, include_classes=False, include_methods=False)
         if self._is_within_limit(render):
             return render + "\n(Symbols hidden due to size)"
 
         # Level 4: Truncated Files (enforce max_lines during rendering)
-        render = self._render_node(root_node, include_classes=False, include_methods=False, max_depth=self.max_depth, truncate_at_line=self.max_lines)
-        return render + "\n(Tree truncated due to size. Use 'get_workspace_tree' with deeper filters to see more.)"
+        render = self._render_node(root_node, include_classes=False, include_methods=False)
+        return self._truncate_lines(render) + "\n(Tree truncated due to size. Use 'get_workspace_tree' with deeper filters to see more.)"
 
     def _is_within_limit(self, text: str) -> bool:
         if not self.max_lines:

@@ -155,7 +155,8 @@ class WikiService:
 
         try:
             # Build extraction prompt
-            extraction_prompt = WikiBuilder.build_concept_extraction_prompt(page_title, page_content)
+            builder = WikiBuilder()
+            extraction_prompt = builder.build_concept_extraction_prompt(page_title, page_content)
 
             # Try structured output first
             try:
@@ -197,7 +198,8 @@ class WikiService:
         Returns updated structure with any missing pages added.
         """
         try:
-            validation_prompt = WikiBuilder.build_validation_prompt(structure_data, project_context)
+            builder = WikiBuilder()
+            validation_prompt = builder.build_validation_prompt(structure_data, project_context)
             response = await llm.ainvoke([HumanMessage(content=validation_prompt)])
             response_text = response.content
 
@@ -275,7 +277,8 @@ class WikiService:
         readme_path = os.path.join(project_path, "README.md")
         readme_content = self._read_file_safe(readme_path)
 
-        structure_prompt = WikiBuilder.build_structure_prompt(file_tree, readme_content)
+        builder = WikiBuilder()
+        structure_prompt = builder.build_structure_prompt(file_tree, readme_content)
 
         try:
             # Call LLM for structure
@@ -396,7 +399,8 @@ class WikiService:
                 valid_paths.append("README.md")
 
             joined_context = "\n".join(context_buffer)
-            content_prompt = WikiBuilder.build_content_prompt(page_title, joined_context, valid_paths)
+            builder = WikiBuilder()
+            content_prompt = builder.build_content_prompt(page_title, joined_context, valid_paths)
 
             try:
                 content_response = await llm.ainvoke([HumanMessage(content=content_prompt)])
