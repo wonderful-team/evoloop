@@ -12,7 +12,7 @@ from app.core.tools import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def recall_memory(query: str, domain: Literal["journal", "graph", "both"] = "both") -> str:
     """
     Search the agent's long-term memory for information.
