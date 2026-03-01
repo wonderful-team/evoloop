@@ -249,6 +249,16 @@ class ProjectDiscoveryEventHandler(FileSystemEventHandler):
             logger.info(f"Project Moved In (Detected): {event.src_path} -> {event.dest_path}")
             self._schedule_async(self._handle_project_created(event.dest_path))
 
+    def on_deleted(self, event):
+        if not event.is_directory:
+            return
+        # Only handle direct children of root_path
+        parent = os.path.dirname(event.src_path)
+        if os.path.normpath(parent) != os.path.normpath(self.root_path):
+            return
+        logger.info(f"Project Deleted (Detected): {event.src_path}")
+        self._schedule_async(self._handle_project_deleted(event.src_path))
+
     def _schedule_async(self, coro):
         asyncio.run_coroutine_threadsafe(coro, self.loop)
 

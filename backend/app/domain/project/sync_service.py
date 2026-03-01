@@ -404,7 +404,29 @@ class ProjectSyncService:
             logger.info(f"[ProjectSync] Found offline creation: {p}")
             await self.handle_project_created(p)
 
-        # B. Retry Pending Cloud Sync for Imported Projects
+        # B. Restored Projects (In DB as DISCONNECTED, but now in FS)
+        for p in known_paths & fs_paths:
+            repo = known_projects_map[p]
+            if repo.sync_status == "DISCONNECTED":
+                logger.info(f"[ProjectSync] Restoring disconnected project: {p}")
+                try:
+                    async with AsyncSessionLocal() as session:
+                        r = await session.get(Repository, repo.id)
+                        if r:
+                            # If it has project_id, it was likely SYNCED. 
+                            # If not, it was DETECTED or PENDING_CREATION.
+                            if r.project_id:
+                                r.sync_status = "SYNCED"
+                            else:
+                                r.sync_status = "DETECTED"
+                            session.add(r)
+                            await session.commit()
+                            # Update map for subsequent steps
+                            repo.sync_status = r.sync_status
+                except Exception as e:
+                    logger.error(f"[ProjectSync] Failed to restore project {p}: {e}")
+
+        # C. Retry Pending Cloud Sync for Imported Projects
         for p in known_paths:
             if p in fs_paths:
                 repo = known_projects_map[p]
