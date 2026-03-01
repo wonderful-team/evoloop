@@ -17,7 +17,7 @@ class SearchSkillsSchema(BaseModel):
     )
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def search_skills(query: str, namespace: str = None) -> dict[str, Any]:
     """
     Yellow Pages directory for finding Standard Operating Procedures (SOPs). Use this when you don't know how to perform a specific action before attempting to guess or write your own code.

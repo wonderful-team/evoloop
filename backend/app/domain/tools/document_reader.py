@@ -128,7 +128,7 @@ def query_excel_sql(file_path: str, sql_query: str) -> str:
         return f"SQL Execution Error: {str(e)}"
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def read_document(file_path: str, start_page: int | None = None, end_page: int | None = None) -> str:
     """
     Read and parse content from various document formats (PDF, DOCX, XLSX, MD, TXT, HTML, PY, JS, IMG, etc.).

@@ -12,7 +12,7 @@ class UseMcpServerSchema(BaseModel):
     server_name: str = Field(description="The name of the MCP server to activate (e.g., 'github', 'postgres').")
 
 
-@evoloop_tool("use_mcp_server", args_schema=UseMcpServerSchema)
+@evoloop_tool("use_mcp_server", args_schema=UseMcpServerSchema, is_state_mutating=True)
 async def use_mcp_server(server_name: str) -> str:
     """
     Activates an external MCP server to load its specialized tools into your current session.

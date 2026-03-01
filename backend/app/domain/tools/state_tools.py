@@ -5,7 +5,7 @@ from langchain_core.runnables import RunnableConfig
 from app.core.tools import evoloop_tool
 
 
-@evoloop_tool
+@evoloop_tool(is_state_mutating=True)
 def update_scratchpad(key: str, value: Any, _config: RunnableConfig) -> str:
     """
     Updates the agent's dynamic state (scratchpad) with a key-value pair.

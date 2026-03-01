@@ -137,7 +137,7 @@ class LSPManager:
         self.servers.clear()
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def consult_lsp(
     action: Literal["check_errors", "find_definition", "hover"],
     file_path: str,

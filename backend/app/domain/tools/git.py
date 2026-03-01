@@ -76,7 +76,7 @@ async def _run_git(args: list[str], config: RunnableConfig | None = None) -> str
     return f"Error: Git command failed. {res.stderr}"
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def git_status(config: RunnableConfig) -> str:
     """
     Get the current git status (branch, modified files).
@@ -84,7 +84,7 @@ async def git_status(config: RunnableConfig) -> str:
     return await _run_git(["status"], config)
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def git_diff(config: RunnableConfig) -> str:
     """
     Show changes between working tree and index (or last commit).
@@ -93,7 +93,7 @@ async def git_diff(config: RunnableConfig) -> str:
     return await _run_git(["diff"], config)
 
 
-@evoloop_tool
+@evoloop_tool(is_state_mutating=True)
 async def git_commit(message: str, add_all: bool = True, config: RunnableConfig = None) -> str:
     """
     Commit changes to the repository.
@@ -110,7 +110,7 @@ async def git_commit(message: str, add_all: bool = True, config: RunnableConfig 
     return await _run_git(["commit", "-m", message], config)
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def git_history(limit: int = 5, config: RunnableConfig = None) -> str:
     """
     Show the commit log.
@@ -118,7 +118,7 @@ async def git_history(limit: int = 5, config: RunnableConfig = None) -> str:
     return await _run_git(["log", f"-n {limit}", "--pretty=format:'%h - %an, %ar : %s'"], config)
 
 
-@evoloop_tool
+@evoloop_tool(is_state_mutating=True)
 async def git_create_branch(branch_name: str, config: RunnableConfig) -> str:
     """
     Create and checkout a new branch.

@@ -8,7 +8,7 @@ from app.core.tools import evoloop_tool
 from .actions.list import handle_list
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def list_files(
     path: str,
     depth: int = 3,

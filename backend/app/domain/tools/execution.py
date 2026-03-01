@@ -6,7 +6,7 @@ from app.core.tools import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(is_state_mutating=True)
 async def bash(command: str) -> str:
     """
     Run a shell command (e.g., 'pytest', 'npm install', 'ls -la').

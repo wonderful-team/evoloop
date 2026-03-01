@@ -12,7 +12,7 @@ from app.constants import RoutingTarget
 from app.core.tools import evoloop_tool
 
 
-@evoloop_tool
+@evoloop_tool(is_state_mutating=True)
 def route_to(target: RoutingTarget, reason: str, context: dict[str, Any] | None = None) -> str:
     """
     Route the current task to a specialist node.

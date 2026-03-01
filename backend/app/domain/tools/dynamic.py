@@ -76,7 +76,7 @@ class CreatePythonToolInput(BaseModel):
     version: str | None = Field("1.0.0", description="Version string.")
 
 
-@evoloop_tool("create_python_tool", args_schema=CreatePythonToolInput)
+@evoloop_tool("create_python_tool", args_schema=CreatePythonToolInput, is_state_mutating=True)
 def create_python_tool(name: str, description: str, code: str, version: str = "1.0.0") -> str:
     """
     Creates a new Python tool at runtime.

@@ -282,7 +282,7 @@ def _resolve_selector(selector: str | None, text: str | None) -> str | None:
 #  Main Tool
 # ─────────────────────────────────────────────
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def browser_control(
     action: Literal[
         # Navigation

@@ -98,7 +98,7 @@ async def desktop_control(
             - "type_text": Type the given text string.
             - "key_press": Press a special key (enter, escape, tab, etc.).
             - "open_app": Open or focus an application by name.
-            - "applescript": Execute raw AppleScript code.
+            - "applescript": Execute raw AppleScript code. WARNING: Do NOT use this for dynamic apps (WeChat, Chrome, Electron apps) as they lack robust AppleScript support. Use native type_text/click instead.
             - "get_info": Get system hardware and OS environment info.
             - "list_apps": List installed applications in /Applications.
             - "get_active_app": Get the currently focused application's name, title, and window bounds.

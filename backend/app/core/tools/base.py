@@ -33,10 +33,10 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
     return os.getcwd()
 
 
-def evoloop_tool(*args, **kwargs):
+def evoloop_tool(*args, is_pollable: bool = False, is_state_mutating: bool = False, **kwargs):
     """
     Decorator that applies standard EvoLoop tool behaviors.
-    Can be used as @evoloop_tool or @evoloop_tool(name="...", args_schema=...).
+    Can be used as @evoloop_tool or @evoloop_tool(name="...", is_pollable=True, ...).
     """
     import inspect
 
@@ -70,6 +70,12 @@ def evoloop_tool(*args, **kwargs):
 
         # Apply LangChain's @tool (passing through any arguments)
         tool_instance = langchain_tool(*args, **kwargs)(wrapper)
+
+        # Inject EvoLoop metadata for engine orchestration
+        if not hasattr(tool_instance, "metadata"):
+            tool_instance.metadata = {}
+        tool_instance.metadata["is_pollable"] = is_pollable
+        tool_instance.metadata["is_state_mutating"] = is_state_mutating
 
         # Enable error handling to return validation errors as text to the Agent
         tool_instance.handle_tool_error = True

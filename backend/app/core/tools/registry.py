@@ -256,24 +256,20 @@ def get_supervisor_tools() -> list[BaseTool]:
 
 def is_state_mutating_tool(tool_name: str) -> bool:
     """Return True if the tool mutates state and should bypass strict dedup."""
-    mutating = {
-        "write_file", "edit_file", "manage_file", "file_system",
-        "write_document", "edit_document", "write_wiki_page",
-        "sql_query",
-    }
-    return tool_name in mutating
+    tool_map = get_tool_map()
+    if tool_name not in tool_map:
+        return False
+    # Check custom EvoLoop metadata injected via @evoloop_tool(is_state_mutating=True)
+    return getattr(tool_map[tool_name], "metadata", {}).get("is_state_mutating", False)
 
 
 def is_pollable_tool(tool_name: str) -> bool:
     """Return True if the tool is safe to poll repeatedly without causing a dedup error."""
-    pollable = {
-        "wait", "list_files", "search_web",
-        "read_file", "find_element", "request_approval",
-        "desktop_control", "analyze_image",  # Added for UI grounding loops
-        "browser_control",  # Added for browser wait_for / polling loops
-        "mobile_control",   # Added for mobile E2E automation loops
-    }
-    return tool_name in pollable
+    tool_map = get_tool_map()
+    if tool_name not in tool_map:
+        return False
+    # Check custom EvoLoop metadata injected via @evoloop_tool(is_pollable=True)
+    return getattr(tool_map[tool_name], "metadata", {}).get("is_pollable", False)
 
 
 def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:

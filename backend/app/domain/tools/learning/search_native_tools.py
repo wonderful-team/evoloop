@@ -12,7 +12,7 @@ class SearchNativeToolsSchema(BaseModel):
     )
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def search_native_tools(query: str = "") -> dict[str, Any]:
     """
     Yellow Pages directory for Native Python and MCP Tools. 

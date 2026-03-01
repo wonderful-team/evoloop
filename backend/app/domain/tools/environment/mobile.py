@@ -19,7 +19,7 @@ from app.infrastructure.drivers.adb import ADBError, adb_driver
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def mobile_control(
     action: Literal["screenshot", "tap", "click", "long_press", "swipe", "input_text", "press_key", "dump_ui", "list_devices", "get_info", "list_apps", "open_app", "push", "pull", "intent_flow", "read_sms"],
     x: int | None = None,

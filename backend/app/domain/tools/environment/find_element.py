@@ -17,7 +17,7 @@ from app.infrastructure.drivers.macos import macos_driver
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def find_element(
     target: str,
     platform: Literal["macos", "android"] = "android",

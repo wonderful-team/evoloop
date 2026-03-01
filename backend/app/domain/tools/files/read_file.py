@@ -5,7 +5,7 @@ from app.core.tools import evoloop_tool
 from .actions.read import handle_read
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def read_file(
     path: str | None = None,
     start_line: str | int | None = None,

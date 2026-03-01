@@ -3,7 +3,7 @@ from app.core.tools import evoloop_tool
 from .actions.write import handle_write
 
 
-@evoloop_tool
+@evoloop_tool(is_state_mutating=True)
 async def write_file(
     path: str | None = None,
     content: str | None = None,

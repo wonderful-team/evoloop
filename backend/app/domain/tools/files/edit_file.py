@@ -3,7 +3,7 @@ from app.core.tools import evoloop_tool
 from .actions.edit import handle_edit
 
 
-@evoloop_tool
+@evoloop_tool(is_state_mutating=True)
 async def edit_file(
     path: str | None = None,
     target: str | None = None,

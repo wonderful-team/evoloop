@@ -17,7 +17,7 @@ from app.models.todo import (
 from app.utils.time import utcnow
 
 
-@evoloop_tool
+@evoloop_tool(is_state_mutating=True)
 async def manage_todo(
     action: Literal["add", "list", "update", "delete"],
     title: str | None = None,

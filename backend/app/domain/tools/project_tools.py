@@ -8,7 +8,7 @@ from app.core.tools import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(is_state_mutating=True)
 async def create_project_task(project_id: int | None = None, task_data: str = "") -> str:
     """
     Create a task in the remote project management system via EvoCloud.

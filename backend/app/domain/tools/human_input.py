@@ -150,7 +150,7 @@ def cancel_request(request_id: str) -> bool:
 # ============ Tools ============
 
 
-@evoloop_tool("request_human_input", args_schema=RequestHumanInputArgs)
+@evoloop_tool("request_human_input", args_schema=RequestHumanInputArgs, is_pollable=True)
 async def request_human_input(
     prompt: str,
     input_type: Literal["text", "choice", "confirmation"] = "text",
@@ -261,7 +261,7 @@ async def request_human_input(
     raise AgentHumanInterruptException(request.id, response_text)
 
 
-@evoloop_tool("request_approval", args_schema=RequestApprovalArgs)
+@evoloop_tool("request_approval", args_schema=RequestApprovalArgs, is_pollable=True)
 async def request_approval(
     action_description: str,
     risk_level: Literal["low", "medium", "high", "critical"] = "medium",

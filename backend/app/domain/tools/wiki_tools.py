@@ -14,7 +14,7 @@ from app.models.wiki import WikiPage
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def list_wiki_pages(
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
@@ -39,7 +39,7 @@ async def list_wiki_pages(
     return "\n".join(lines)
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def read_wiki_page(
     slug: str,
     config: Annotated[RunnableConfig, InjectedToolArg] = None
@@ -66,7 +66,7 @@ async def read_wiki_page(
         return f"--- Wiki Page: {page.title} ({page.slug}) ---\n\n{page.content}"
 
 
-@evoloop_tool
+@evoloop_tool(is_state_mutating=True)
 async def write_wiki_page(
     title: str,
     content: str,

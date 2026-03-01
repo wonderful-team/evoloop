@@ -1,7 +1,7 @@
 from app.core.tools.base import evoloop_tool
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def search_web(query: str) -> str:
     """
     Searches the web for the given query.
