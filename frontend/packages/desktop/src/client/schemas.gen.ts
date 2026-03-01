@@ -1730,6 +1730,107 @@ export const StopRecordingResponseSchema = {
     title: 'StopRecordingResponse'
 } as const;
 
+export const SynthesizeFromRecordingRequestSchema = {
+    properties: {
+        video_path: {
+            type: 'string',
+            title: 'Video Path'
+        },
+        session_id: {
+            type: 'string',
+            title: 'Session Id'
+        },
+        task_description: {
+            type: 'string',
+            title: 'Task Description'
+        },
+        thread_id: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Thread Id'
+        }
+    },
+    type: 'object',
+    required: ['video_path', 'session_id', 'task_description'],
+    title: 'SynthesizeFromRecordingRequest',
+    description: '从录制合成 Skill 的请求'
+} as const;
+
+export const SynthesizeFromRecordingResponseSchema = {
+    properties: {
+        success: {
+            type: 'boolean',
+            title: 'Success'
+        },
+        skill_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Skill Id'
+        },
+        skill_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Skill Name'
+        },
+        skill_yaml: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Skill Yaml'
+        },
+        error: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Error'
+        },
+        processing_time_seconds: {
+            type: 'number',
+            title: 'Processing Time Seconds'
+        },
+        frames_analyzed: {
+            type: 'integer',
+            title: 'Frames Analyzed'
+        },
+        events_processed: {
+            type: 'integer',
+            title: 'Events Processed'
+        }
+    },
+    type: 'object',
+    required: ['success', 'skill_id', 'skill_name', 'skill_yaml', 'error', 'processing_time_seconds', 'frames_analyzed', 'events_processed'],
+    title: 'SynthesizeFromRecordingResponse',
+    description: '从录制合成 Skill 的响应'
+} as const;
+
 export const SynthesizeRequestSchema = {
     properties: {
         thread_id: {

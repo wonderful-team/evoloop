@@ -418,6 +418,30 @@ export type StopRecordingResponse = {
     message: string;
 };
 
+/**
+ * 从录制合成 Skill 的请求
+ */
+export type SynthesizeFromRecordingRequest = {
+    video_path: string;
+    session_id: string;
+    task_description: string;
+    thread_id?: (string | null);
+};
+
+/**
+ * 从录制合成 Skill 的响应
+ */
+export type SynthesizeFromRecordingResponse = {
+    success: boolean;
+    skill_id: (number | null);
+    skill_name: (string | null);
+    skill_yaml: (string | null);
+    error: (string | null);
+    processing_time_seconds: number;
+    frames_analyzed: number;
+    events_processed: number;
+};
+
 export type SynthesizeRequest = {
     thread_id: string;
     session_id?: (string | null);
@@ -1000,6 +1024,19 @@ export type LearningValidateSkillData = {
 };
 
 export type LearningValidateSkillResponse = (unknown);
+
+export type LearningSynthesizeFromRecordingData = {
+    requestBody: SynthesizeFromRecordingRequest;
+};
+
+export type LearningSynthesizeFromRecordingResponse = (SynthesizeFromRecordingResponse);
+
+export type LearningPreviewRecordingDataData = {
+    sessionId: string;
+    videoPath: string;
+};
+
+export type LearningPreviewRecordingDataResponse = (unknown);
 
 export type LibraryListLibraryFilesData = {
     requestBody?: User;

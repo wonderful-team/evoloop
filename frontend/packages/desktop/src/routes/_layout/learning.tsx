@@ -9,7 +9,7 @@ import { useState } from "react"
 import { McpView } from "@/components/Learning/McpView"
 import { RecordingButton } from "@/components/Chat/RecordingButton"
 import { useRecordingStore } from "@/stores/recordingStore"
-import { SynthesizeSkillDialog } from "@/components/Learning/SynthesizeSkillDialog"
+import { MultimodalSynthesizeDialog } from "@/components/Learning/MultimodalSynthesizeDialog"
 
 export const Route = createFileRoute("/_layout/learning")({
     component: LearningPage,
@@ -21,7 +21,7 @@ function LearningPage() {
     const [highlightSkillId, setHighlightSkillId] = useState<number | null>(null)
     const [synthesizeOpen, setSynthesizeOpen] = useState(false)
 
-    const { sessionId, postRecordingAction, setPostRecordingAction } = useRecordingStore()
+    const { sessionId, videoPath, postRecordingAction, setPostRecordingAction } = useRecordingStore()
 
     // Automatic trigger for synthesis dialog
     useEffect(() => {
@@ -95,7 +95,7 @@ function LearningPage() {
                 </TabsContent>
             </Tabs>
 
-            <SynthesizeSkillDialog
+            <MultimodalSynthesizeDialog
                 open={synthesizeOpen}
                 onOpenChange={(open) => {
                     setSynthesizeOpen(open)
@@ -103,6 +103,7 @@ function LearningPage() {
                 }}
                 sessionId={sessionId || ""}
                 threadId="global"
+                videoPath={videoPath}
                 onOpenEditor={handleOpenEditor}
             />
         </div>

@@ -2,7 +2,7 @@ import { Circle, Square, Monitor, ShieldAlert, Video } from "lucide-react"
 import { toast } from "sonner"
 import { useState, useEffect } from "react"
 import { useTranslation } from "react-i18next"
-import { SynthesizeSkillDialog } from "@/components/Learning/SynthesizeSkillDialog"
+import { MultimodalSynthesizeDialog } from "@/components/Learning/MultimodalSynthesizeDialog"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
@@ -31,7 +31,8 @@ export function RecordingButton({
     eventCount,
     isGlobalMode,
     setIsGlobalMode,
-    sessionId: storedSessionId
+    sessionId: storedSessionId,
+    videoPath: storedVideoPath
   } = useRecordingStore()
 
   const [showSynthesizeDialog, setShowSynthesizeDialog] = useState(false)
@@ -192,11 +193,12 @@ export function RecordingButton({
         </TooltipContent>
       </Tooltip>
 
-      <SynthesizeSkillDialog
+      <MultimodalSynthesizeDialog
         open={showSynthesizeDialog}
         onOpenChange={setShowSynthesizeDialog}
         sessionId={storedSessionId || ""}
         threadId={threadId}
+        videoPath={storedVideoPath}
       />
     </div>
   )

@@ -23,6 +23,10 @@ from app.core.engine.background_agent import run_agent_background
 from app.core.learning.skill_importer import SkillImporter
 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.learning.skill_validator import SkillValidator
+from app.core.learning.multimodal_synthesizer import (
+    MultimodalSkillSynthesizer,
+    RecordingSession,
+)
 from app.domain.tools.environment.mirror_session import mirror_manager
 from app.domain.tools.human_input import (
     cancel_request,
@@ -1080,3 +1084,208 @@ async def validate_skill(skill_id: int):
             "success": True,
             "validation": validation.dict()
         }
+
+
+# ============ Multimodal Synthesis API (NEW) ============
+
+
+class SynthesizeFromRecordingRequest(BaseModel):
+    """从录制合成 Skill 的请求"""
+    video_path: str           # Tauri 返回的视频文件路径
+    session_id: str           # 关联事件的 session_id
+    task_description: str     # 用户描述的任务
+    thread_id: str | None = None
+
+
+class SynthesizeFromRecordingResponse(BaseModel):
+    """从录制合成 Skill 的响应"""
+    success: bool
+    skill_id: int | None
+    skill_name: str | None
+    skill_yaml: str | None
+    error: str | None
+    processing_time_seconds: float
+    frames_analyzed: int
+    events_processed: int
+
+
+@router.post("/skills/synthesize-from-recording", response_model=SynthesizeFromRecordingResponse)
+async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
+    """
+    从视频录制同步合成 Skill（多模态版本）
+
+    流程：
+    1. 根据 session_id 获取事件序列
+    2. 从视频提取关键帧
+    3. 压缩帧并归一化坐标
+    4. 调用 Kimi 多模态 LLM 分析
+    5. 解析并保存 Skill
+
+    **注意**：此 API 是同步的，处理时间约 10-60 秒，请设置合适的客户端超时。
+    """
+    import time
+    start_time = time.time()
+
+    logger.info(f"Received synthesis request: session={request.session_id}, video={request.video_path}")
+
+    try:
+        # 验证视频文件存在
+        if not os.path.exists(request.video_path):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Video file not found: {request.video_path}"
+            )
+
+        # 创建合成器
+        synthesizer = MultimodalSkillSynthesizer()
+
+        # 构建录制会话
+        recording = RecordingSession(
+            video_path=request.video_path,
+            session_id=request.session_id,
+            task_description=request.task_description,
+            thread_id=request.thread_id
+        )
+
+        # 执行合成
+        result = await synthesizer.synthesize(recording)
+        skill_data = result["skill"]
+        metadata = result["metadata"]
+
+        # 保存到数据库
+        async with session_scope() as db:
+            # 处理名称冲突
+            base_name = skill_data["name"]
+            unique_name = base_name
+            counter = 1
+
+            while True:
+                stmt = select(LearnedSkill).where(LearnedSkill.name == unique_name)
+                existing = (await db.execute(stmt)).scalar_one_or_none()
+                if not existing:
+                    break
+                unique_name = f"{base_name}_{counter}"
+                counter += 1
+
+            if unique_name != base_name:
+                logger.info(f"Skill name collision resolved: {base_name} -> {unique_name}")
+                skill_data["name"] = unique_name
+
+            # 创建 Skill 记录
+            db_skill = LearnedSkill(
+                name=skill_data["name"],
+                description=skill_data["description"],
+                namespace=skill_data.get("namespace", "misc"),
+                trigger_patterns=json.dumps(skill_data.get("trigger_patterns", [])),
+                parameters=json.dumps(skill_data.get("parameters", [])),
+                instructions=skill_data["instructions"],
+                source_session_id=skill_data.get("source_session_id"),
+                source_thread_id=skill_data.get("source_thread_id"),
+                skill_source="multimodal_record",
+                status="draft",
+                is_active=True,
+            )
+            db.add(db_skill)
+            await db.flush()
+
+            # 生成 YAML 输出
+            skill_yaml = f"""---
+name: {skill_data['name']}
+namespace: {skill_data.get('namespace', 'misc')}
+description: {skill_data['description']}
+trigger_patterns: {json.dumps(skill_data.get('trigger_patterns', []))}
+parameters: {json.dumps(skill_data.get('parameters', []))}
+---
+
+{skill_data['instructions']}
+"""
+
+            processing_time = time.time() - start_time
+
+            return SynthesizeFromRecordingResponse(
+                success=True,
+                skill_id=db_skill.id,
+                skill_name=skill_data["name"],
+                skill_yaml=skill_yaml,
+                error=None,
+                processing_time_seconds=round(processing_time, 2),
+                frames_analyzed=metadata["frames_analyzed"],
+                events_processed=metadata["events_processed"]
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Multimodal synthesis failed: {e}")
+        processing_time = time.time() - start_time
+        return SynthesizeFromRecordingResponse(
+            success=False,
+            skill_id=None,
+            skill_name=None,
+            skill_yaml=None,
+            error=str(e),
+            processing_time_seconds=round(processing_time, 2),
+            frames_analyzed=0,
+            events_processed=0
+        )
+
+
+@router.get("/skills/synthesize-from-recording/preview")
+async def preview_recording_data(
+    session_id: str,
+    video_path: str
+):
+    """
+    预览录制数据（调试用）
+
+    返回关键帧提取计划和事件统计，不实际调用 LLM。
+    """
+    from app.core.learning.multimodal_synthesizer import MultimodalSkillSynthesizer
+    from app.core.learning.frame_compressor import KeyframeSelector
+
+    try:
+        # 获取视频信息
+        synthesizer = MultimodalSkillSynthesizer()
+        video_info = await synthesizer._get_video_info(video_path)
+
+        # 获取事件
+        events = await synthesizer._fetch_events(session_id)
+
+        # 预览关键帧选择
+        selector = KeyframeSelector()
+        keyframes = selector.select_keyframes(
+            events=events,
+            video_duration=video_info.duration,
+            video_resolution=(video_info.width, video_info.height)
+        )
+
+        return {
+            "video_info": {
+                "path": video_path,
+                "duration": video_info.duration,
+                "resolution": f"{video_info.width}x{video_info.height}",
+                "fps": video_info.fps,
+            },
+            "events": {
+                "total": len(events),
+                "types": list(set(e.action_type for e in events)),
+            },
+            "keyframes": {
+                "planned": len(keyframes),
+                "est_frames": min(len(keyframes), 15),
+                "est_tokens": f"~{len(keyframes) * 1000}-{len(keyframes) * 1500}",
+                "details": [
+                    {
+                        "timestamp": k.timestamp,
+                        "context": k.context,
+                        "description": k.description,
+                        "priority": k.priority,
+                    }
+                    for k in keyframes[:5]  # 只显示前5个
+                ],
+            },
+        }
+
+    except Exception as e:
+        logger.exception(f"Preview failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

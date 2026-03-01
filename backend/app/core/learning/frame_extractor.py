@@ -161,3 +161,46 @@ class FrameExtractor:
             results.append(result)
 
         return results
+
+    async def extract_single_frame(self, timestamp_sec: float) -> str:
+        """
+        从视频提取单帧（供多模态合成器使用）
+
+        Args:
+            timestamp_sec: 时间戳（秒）
+
+        Returns:
+            提取的帧文件路径
+        """
+        output_path = self._get_output_dir(self.session_id) / f"frame_{int(timestamp_sec * 1000)}.jpg"
+
+        # 如果已存在，直接返回
+        if output_path.exists():
+            return str(output_path)
+
+        try:
+            result = subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",  # 覆盖
+                    "-ss", f"{timestamp_sec:.3f}",
+                    "-i", self.video_path,
+                    "-frames:v", "1",
+                    "-q:v", "2",  # 高质量
+                    str(output_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            if result.returncode == 0 and output_path.exists():
+                logger.debug(f"Extracted single frame at {timestamp_sec}s -> {output_path}")
+                return str(output_path)
+            else:
+                raise RuntimeError(f"ffmpeg failed: {result.stderr[:200]}")
+
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"ffmpeg timed out extracting frame at {timestamp_sec}s")
+        except FileNotFoundError:
+            raise RuntimeError("ffmpeg not found. Install it with: brew install ffmpeg")
