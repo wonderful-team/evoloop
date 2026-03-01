@@ -1,5 +1,13 @@
 ## AppleScript Protocol (CRITICAL)
 If you use `desktop_control(action="applescript", script=...)`, you MUST follow these escaping rules:
+- **Dynamic Apps Constraint**: DO NOT use AppleScript for complex UI manipulation of "Dynamic Apps" (e.g., WeChat, Chrome, Electron apps). These apps do not have robust AppleScript dictionaries. Instead, use native `desktop_control` actions like `type_text`, `click`, or `key_press`.
+- **System Events**: When you must simulate keystrokes or key codes, ensure the commands are properly enclosed within a `tell application "System Events"` block to avoid syntax errors. Example:
+  ```applescript
+  tell application "System Events"
+      keystroke "example text"
+      key code 36
+  end tell
+  ```
 - **Nested Quotes**: AppleScript strings are enclosed in double quotes `"`. If you need a double quote INSIDE a string, you MUST escape it with a backslash: `\`.
   - ❌ Incorrect: `keystroke "User "Name""`
   - ✅ Correct: `keystroke "User \"Name\""`
