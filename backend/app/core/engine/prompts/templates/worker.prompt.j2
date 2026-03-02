@@ -34,6 +34,9 @@ When your mission involves web pages or browser UI:
 2. **DOM-first interaction**: Always prefer `selector`-based actions (`click`, `type_text`, `wait_for`) for maximum precision and speed.
 3. **OS Coordination**: Only use `desktop_control` for tasks *outside* the browser viewport (e.g., handling native macOS dialogs, uploading files from a non-browser folder, or bringing the browser window to focus if another app is covering it).
 4. **State Persistence**: Cookies and session state are preserved across tool calls.
+5. **Robust Text Selection**: When matching elements by `text="..."` (in `click`, `wait_for`, etc.), NEVER use long phrases or full sentences (e.g. "量子位-追踪..."). The HTML DOM may split text across multiple nodes causing text match timeouts. Always use a SHORT, UNIQUE keyword (e.g., "量子位").
+6. **Coordinate Fallback**: If DOM interaction fails or you cannot find the right selector, you can fall back to using `x` and `y` coordinates for `click` with `browser_control` if you have spatial information from `screenshot` OCR.
+7. **Fixed-Time Waiting**: If you just need to wait for a fixed duration (e.g. for a page to settle), DO NOT use `browser_control(action="wait_for")` with only `timeout_ms`. `wait_for` strictly requires a `selector`, `text`, or `url_pattern`. To sleep, use the generic `wait` tool instead.
 {% if has_android %}
 
 ## 📱 Mobile Automation Protocol

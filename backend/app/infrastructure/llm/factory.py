@@ -7,11 +7,19 @@ from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
 
 logger = logging.getLogger(__name__)
 
-# Global Shared HTTP Client for Connection Pooling (HTTP/2 enabled)
-_SHARED_HTTP_CLIENT = httpx.AsyncClient(
-    http2=True,
-    timeout=httpx.Timeout(60.0, connect=10.0),
-    limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
+from app.utils.async_utils import LoopBoundResource
+
+# Global Shared HTTP Client for Connection Pooling (HTTP/2 enabled), per Event Loop
+async def _close_client(client: httpx.AsyncClient):
+    await client.aclose()
+
+_HTTP_CLIENT_POOL = LoopBoundResource(
+    factory=lambda: httpx.AsyncClient(
+        http2=True,
+        timeout=httpx.Timeout(60.0, connect=10.0),
+        limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
+    ),
+    cleanup=_close_client
 )
 
 
@@ -79,7 +87,7 @@ class LLMFactory:
             model=model_name,
             temperature=temperature,
             streaming=True,
-            http_async_client=_SHARED_HTTP_CLIENT,
+            http_async_client=_HTTP_CLIENT_POOL.get(),
         )
 
     @staticmethod

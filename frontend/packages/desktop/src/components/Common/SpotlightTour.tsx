@@ -300,7 +300,7 @@ function SpotlightOverlay() {
                 <button
                     onClick={skipTour}
                     className="absolute top-3 right-3 text-muted-foreground hover:text-foreground transition-colors"
-                    aria-label="Skip tour"
+                    aria-label={t("tour.skipAriaLabel")}
                 >
                     <X size={16} />
                 </button>

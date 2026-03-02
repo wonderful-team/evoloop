@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
+import { useEffect } from "react"
 import { z } from "zod"
 import { AuthLayout } from "@/components/Common/AuthLayout"
 import {
@@ -63,6 +64,11 @@ export const Route = createFileRoute("/signup")({
 
 function SignUp() {
   const { t } = useTranslation()
+
+  useEffect(() => {
+    document.title = t("auth.signup.pageTitle", "Sign Up - EvoLoop")
+  }, [t])
+
   const { signUpMutation } = useAuth()
   const formSchema = createSchema(t)
   const form = useForm<FormData>({
@@ -110,7 +116,7 @@ function SignUp() {
                   <FormControl>
                     <Input
                       data-testid="full-name-input"
-                      placeholder="User"
+                      placeholder={t("auth.register.fullNamePlaceholder")}
                       type="text"
                       {...field}
                     />

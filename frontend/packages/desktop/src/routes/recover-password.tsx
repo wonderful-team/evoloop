@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
+import { useEffect } from "react"
 import { z } from "zod"
 
 import { AuthLayout } from "@/components/Common/AuthLayout"
@@ -50,6 +51,11 @@ export const Route = createFileRoute("/recover-password")({
 
 function RecoverPassword() {
   const { t } = useTranslation()
+
+  useEffect(() => {
+    document.title = t("auth.recoverPassword.pageTitle", "Recover Password - EvoLoop")
+  }, [t])
+
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {

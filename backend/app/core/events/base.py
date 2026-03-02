@@ -13,6 +13,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Generic, TypeVar
 
+from app.utils.async_utils import LoopBoundResource
+
 logger = logging.getLogger(__name__)
 
 
@@ -67,7 +69,7 @@ class AsyncEventBus(Generic[E]):
         self._handlers: dict[str, list[EventHandler]] = {}
         self._global_handlers: list[EventHandler] = []
         self._initialized = False
-        self._lock = asyncio.Lock()
+        self._lock_pool = LoopBoundResource(asyncio.Lock)
 
     @property
     def name(self) -> str:

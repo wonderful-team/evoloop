@@ -213,7 +213,7 @@ export function EmbeddingSettings() {
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a provider" />
+                        <SelectValue placeholder={t("settings.embedding.selectProvider")} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>

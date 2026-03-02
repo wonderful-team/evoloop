@@ -12,7 +12,7 @@ from app.logging import logger
 sys.modules["app.infrastructure.database.sql.database"] = MagicMock()
 sys.modules["app.models"] = MagicMock()
 sys.modules["app.domain.codebase.indexing.vectors.factory"] = MagicMock()
-sys.modules["app.core.llm.factory"] = MagicMock()
+sys.modules["app.infrastructure.llm.factory"] = MagicMock()
 
 async def verify_components():
     print("--- Verifying Vector Optimization Components ---")

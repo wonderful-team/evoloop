@@ -190,7 +190,7 @@ export function ChatInterface() {
         }
       }
     } catch (_e) {
-      toast.error("Failed to delete chat")
+      toast.error(t("chat.interface.deleteChatError"))
     }
   }
 
@@ -202,7 +202,7 @@ export function ChatInterface() {
       await AgentService.stopChat({
         requestBody: { thread_id: id, message: "" },
       })
-      toast.info("Stopped")
+      toast.info(t("chat.interface.stopAgentSuccess"))
     }
   }
 
@@ -227,7 +227,7 @@ export function ChatInterface() {
       })
     },
     onSuccess: () => {
-      toast.success("Added to Memory")
+      toast.success(t("chat.interface.addMemorySuccess"))
       queryClient.invalidateQueries({ queryKey: ["projectMemory"] })
       setIsMemoryDialogOpen(false)
       setMemoryName("")
@@ -249,7 +249,7 @@ export function ChatInterface() {
       // Reload store
       if (activeThreadId && projectId) setThread(activeThreadId, projectId)
       const filesMsg = data.files_reverted && data.files_reverted > 0
-        ? ` (${data.files_reverted} files reverted)`
+        ? ` (${t("chat.interface.filesReverted", { count: data.files_reverted })})`
         : ""
 
       // If we are rewinding a human message, refill the input
@@ -258,7 +258,7 @@ export function ChatInterface() {
         setRewindContent("")
       }
 
-      toast.success(`Rewinded${filesMsg}`)
+      toast.success(`${t("chat.interface.rewindSuccess")}${filesMsg}`)
       setIsRewindDialogOpen(false)
     },
   })
@@ -361,7 +361,7 @@ export function ChatInterface() {
         el.classList.add("ring-2", "ring-primary/20", "rounded-lg")
         setTimeout(() => el.classList.remove("ring-2", "ring-primary/20", "rounded-lg"), 2000)
       } else {
-        toast.info("Message for this step not loaded in view")
+        toast.info(t("chat.interface.messageNotLoaded"))
       }
     }
 
@@ -414,7 +414,7 @@ export function ChatInterface() {
                   variant="ghost"
                   size="icon"
                   onClick={() => setShowContextPanel(true)}
-                  title="Open Context Panel"
+                  title={t("common.openContextPanel")}
                 >
                   <Brain className="h-5 w-5 text-muted-foreground" />
                 </Button>
@@ -555,13 +555,13 @@ export function ChatInterface() {
                 id="name"
                 value={memoryName}
                 onChange={(e) => setMemoryName(e.target.value)}
-                placeholder="e.g. Project Architecture"
+                placeholder={t("chat.interface.conceptPlaceholder")}
                 className="col-span-3"
                 autoFocus
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Content</Label>
+              <Label className="text-right">{t("chat.interface.contentLabel")}</Label>
               <div className="col-span-3 text-xs text-muted-foreground line-clamp-3 bg-muted p-2 rounded">
                 {memoryContent}
               </div>
@@ -569,7 +569,7 @@ export function ChatInterface() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsMemoryDialogOpen(false)}>
-              Cancel
+              {t("chat.interface.cancel")}
             </Button>
             <Button onClick={() => addToMemoryMutation.mutate({ text: memoryContent, name: memoryName })}>
               {t("chat.interface.save", "Save")}

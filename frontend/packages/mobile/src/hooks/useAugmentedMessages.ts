@@ -82,7 +82,7 @@ export function useAugmentedMessages(messages: LogMessage[]) {
 
             // If tool call
             if (item.type === "tool") {
-                let toolName = item.name || "Tool"
+                let toolName = item.name || t("common.tool.defaultName", "Tool")
                 let args = item.content
 
                 let output = undefined

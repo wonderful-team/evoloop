@@ -74,7 +74,7 @@ function FileTree({
     )
   if (error)
     return (
-      <div className="p-4 text-sm text-destructive">Failed to load files</div>
+      <div className="p-4 text-sm text-destructive">{t("files.error")}</div>
     )
 
   return (
@@ -150,7 +150,7 @@ function FileTreeNode({
         <div>
           {isLoading ? (
             <div className="pl-6 py-1 text-xs text-muted-foreground flex items-center gap-2">
-              <Loader2 size={10} className="animate-spin" /> Loading...
+              <Loader2 size={10} className="animate-spin" /> {t("files.loading")}
             </div>
           ) : (
             children?.map((child: any) => (
@@ -199,7 +199,7 @@ function FileContentV({
       <div className="border-b px-4 py-2 text-sm font-medium bg-muted/10 flex items-center justify-between">
         <span className="text-muted-foreground">{path}</span>
         <span className="text-xs uppercase text-slate-400">
-          {fileData?.language || "TEXT"}
+          {fileData?.language || t("files.text")}
         </span>
       </div>
       <div className="flex-1 overflow-auto p-4 bg-[#1e1e1e] text-slate-200 font-mono text-sm leading-relaxed">

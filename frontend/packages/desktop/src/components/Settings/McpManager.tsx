@@ -104,7 +104,7 @@ export function McpManager() {
               {t("settings.mcp.args")}
             </label>
             <Input
-              placeholder="e.g. mcp-server-git ."
+              placeholder={t("settings.mcp.argsPlaceholder")}
               value={args}
               onChange={(e) => setArgs(e.target.value)}
             />

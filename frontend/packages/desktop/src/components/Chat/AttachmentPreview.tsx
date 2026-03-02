@@ -36,7 +36,7 @@ export function AttachmentPreview({
         >
           {att.type === "image" ? (
             <div className="relative w-4 h-4 overflow-hidden rounded-sm shrink-0">
-              <img src={att.url} alt="preview" className="w-full h-full object-cover" />
+              <img src={att.url} alt={t("common.preview")} className="w-full h-full object-cover" />
             </div>
           ) : att.type === "message" ? (
             <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-70" />

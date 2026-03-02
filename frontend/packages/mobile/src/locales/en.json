@@ -68,14 +68,10 @@
     "messageList": {
       "initializing": "Initializing...",
       "offline": "Device Offline",
-      "readyDesc": "Send instructions to control the remote agent.",
-      "agentThought": "Agent Thought Process",
       "offlineDesc": "The remote device is currently not connected.",
-      "ready": "Ready to Connect",
       "imageViewer": "Image Viewer",
       "clickToOpen": "Click to open",
-      "copy": "Copy",
-      "toolExecution": "Tool Execution"
+      "copy": "Copy"
     },
     "header": {
       "deviceFallback": "Device #{{id}}",
@@ -89,7 +85,6 @@
       "agentOffline": "Agent Offline",
       "deliveryFailed": "Failed to deliver message: ",
       "connecting": "Connecting...",
-      "deviceOffline": "Device Offline",
       "sendFailed": "Failed to send command: ",
       "backToLive": "Back to Live"
     },
@@ -243,7 +238,6 @@
     "guestDesc": "Log in to view your profile",
     "currentPlan": "Current Plan",
     "language": "Language",
-    "title": "Profile",
     "pro": "PRO",
     "confirmWithdraw": "Withdraw account deletion request?"
   },
@@ -252,7 +246,6 @@
     "id": "ID: ",
     "guestDesc": "Manage your cloud projects and sync them across devices.",
     "failedToLoad": "Failed to load projects",
-    "errorMissingDeviceId": "Project missing device ID",
     "noProjects": "No projects",
     "title": "Projects"
   },
@@ -260,11 +253,11 @@
     "noDesc": "No description",
     "switching": "Switching to {{name}}...",
     "searchPlaceholder": "Search project...",
-    "label": "Project",
     "select": "Select Project",
     "switched": "Switched to {{name}}",
     "title": "Select Project",
-    "noProjects": "No projects found"
+    "noProjects": "No projects found",
+    "switchFailed": "Failed to switch project"
   },
   "devices": {
     "guestDesc": "Access your remote devices and control them from anywhere.",
@@ -291,8 +284,6 @@
   },
   "hitl": {
     "responseSent": "Response sent",
-    "approvalRequired": "Approval Required",
-    "enterResponse": "Enter your response...",
     "sendFailed": "Failed to send response: "
   },
   "chat_request": {
@@ -321,7 +312,19 @@
     "yes": "Yes",
     "loading": "Loading...",
     "error": {
-      "title": "Error"
+      "title": "Error",
+      "unknown": "Unknown error",
+      "microphoneAccess": "Cannot access microphone",
+      "sessionStartFailed": "Failed to start session"
+    },
+    "alt": {
+      "captcha": "Captcha",
+      "avatar": "Avatar",
+      "preview": "Preview",
+      "fullView": "Full view"
+    },
+    "tool": {
+      "defaultName": "Tool"
     }
   }
 }

@@ -20,8 +20,10 @@ from typing import Any, Literal
 from app.core.config import settings
 from app.core.tools import evoloop_tool
 from app.core.vision import vision_engine, VisionTask
+from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
+
 
 
 # ─────────────────────────────────────────────
@@ -55,13 +57,13 @@ class BrowserManager:
         self._context = None
         self._pages: list = []
         self._active_page_idx: int = 0
-        self._lock = asyncio.Lock()
+        self._lock_pool = LoopBoundResource(asyncio.Lock)
         self._is_cdp = False
         self._chrome_proc = None  # Set if we auto-launched Chrome via subprocess
 
     async def get_page(self):
         """Return the active Page, lazily starting Chrome if needed."""
-        async with self._lock:
+        async with self._lock_pool.get():
             if self._context is None:
                 await self._start()
             ctx_pages = self._context.pages
@@ -189,7 +191,7 @@ class BrowserManager:
         }
 
     async def close(self) -> None:
-        async with self._lock:
+        async with self._lock_pool.get():
             # 1. Close Playwright browser/context
             if self._is_cdp and self._browser:
                 await self._browser.close()

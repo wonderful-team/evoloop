@@ -105,7 +105,7 @@ export function MobileProjectSwitcher({
       )
     } catch (error: any) {
       console.error("Switch project failed:", error)
-      toast.error(error.message || "Failed to switch project")
+      toast.error(error.message || t("projectSwitcher.switchFailed"))
     }
   }
 

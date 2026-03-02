@@ -1,0 +1,51 @@
+# Test Makefile for EvoLoop
+
+.PHONY: test test-unit test-integration test-e2e test-coverage test-parallel test-all clean-coverage
+
+# Default: run unit tests
+test:
+	pytest tests/unit -v --tb=short
+
+# Run unit tests
+test-unit:
+	pytest tests/unit -v --tb=short -m "not slow"
+
+# Run integration tests (requires external services)
+test-integration:
+	pytest tests/integration -v --tb=short -m "integration"
+
+# Run e2e tests (requires full system)
+test-e2e:
+	pytest tests/e2e -v --tb=short -m "e2e"
+
+# Run with coverage report
+test-coverage:
+	pytest tests/unit -v --cov=app --cov-report=html --cov-report=term-missing
+
+# Run tests in parallel
+test-parallel:
+	pytest tests/unit -n auto --dist=loadfile
+
+# Run all tests
+test-all:
+	pytest tests -v --tb=short
+
+# Clean coverage reports
+clean-coverage:
+	rm -rf htmlcov .coverage coverage.xml
+
+# Run specific test file
+test-file:
+	pytest $(FILE) -v
+
+# Run with debugger
+test-debug:
+	pytest tests/unit -v --pdb
+
+# Run failed tests only
+test-failed:
+	pytest tests --lf -v
+
+# Generate test report
+test-report:
+	pytest tests -v --junitxml=test-results.xml

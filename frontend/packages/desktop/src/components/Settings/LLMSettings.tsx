@@ -270,12 +270,12 @@ export function LLMSettings() {
               name="vision_model"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Vision Model (Optional)</FormLabel>
+                  <FormLabel>{t("settings.modelFields.visionModel")}</FormLabel>
                   <FormControl>
                     <Input placeholder="gpt-4o" {...field} />
                   </FormControl>
                   <FormDescription>
-                    Model used for image analysis (e.g. gpt-4o, claude-3-opus).
+                    {t("settings.modelFields.visionModelDesc")}
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

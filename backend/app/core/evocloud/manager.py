@@ -13,17 +13,21 @@ from app.core.evocloud.schemas import EvoCloudConfig
 logger = logging.getLogger(__name__)
 
 
+from app.utils.async_utils import LoopBoundResource
+
 class EvoCloudManager:
     """
     Unified Facade for EvoCloud Core Module.
-    Manages API Client and WebSocket Link lifecycles.
+    Manages API Client and WebSocket Link lifecycles using Loop-Bound mechanisms.
     """
 
     def __init__(self):
         self._initialized = False
         self._config: EvoCloudConfig | None = None
-        self._api: EvoCloudHTTPClient | None = None
-        self.link: EvoCloudWebSocketLink | None = None
+        self._api_pool: LoopBoundResource[EvoCloudHTTPClient] | None = None
+        self._link_pool: LoopBoundResource[EvoCloudWebSocketLink] | None = None
+        self._command_handler = None
+        self._event_handler = None
 
     def initialize(self, config: EvoCloudConfig | None = None) -> None:
         """
@@ -46,8 +50,30 @@ class EvoCloudManager:
             )
 
         self._config = config
-        self._api = EvoCloudHTTPClient(config)
-        self.link = EvoCloudWebSocketLink(config, self._api)
+        
+        async def cleanup_api(api):
+            await api.close()
+            
+        async def cleanup_link(link):
+            await link.stop()
+            
+        self._api_pool = LoopBoundResource(
+            factory=lambda: EvoCloudHTTPClient(self._config),
+            cleanup=cleanup_api
+        )
+        
+        def create_link():
+            link = EvoCloudWebSocketLink(self._config, self.api)
+            if self._command_handler:
+                link.set_command_handler(self._command_handler)
+            if self._event_handler:
+                link.set_event_handler(self._event_handler)
+            return link
+            
+        self._link_pool = LoopBoundResource(
+            factory=create_link,
+            cleanup=cleanup_link
+        )
 
         self._initialized = True
         logger.info("EvoCloudManager: Initialized")
@@ -55,30 +81,28 @@ class EvoCloudManager:
     # --- Lifecycle ---
 
     async def start(self) -> None:
-        """Start background services (Link)."""
+        """Start background services (Link) for the current loop."""
         if self.link:
             await self.link.start()
 
     async def stop(self) -> None:
-        """Stop background services."""
-        if self.link:
-            await self.link.stop()
-        if self._api:
-            await self._api.close()
+        """Stop background services across all tracked loops."""
+        if self._link_pool:
+            await self._link_pool.flush_all()
+        if self._api_pool:
+            await self._api_pool.flush_all()
 
     # --- Callbacks / Bridge ---
 
     def set_command_handler(self, handler: Callable[[dict[str, Any]], None]):
-        if self.link:
+        self._command_handler = handler
+        if self._initialized:
             self.link.set_command_handler(handler)
-        else:
-            logger.warning("Attempted to set command handler before initialization")
 
     def set_event_handler(self, handler: Callable[[str, dict[str, Any]], None]):
-        if self.link:
+        self._event_handler = handler
+        if self._initialized:
             self.link.set_event_handler(handler)
-        else:
-            logger.warning("Attempted to set event handler before initialization")
 
     # --- Proxy Methods (Common Actions) ---
 
@@ -102,15 +126,21 @@ class EvoCloudManager:
 
     @property
     def config(self) -> EvoCloudConfig:
-        if not self._config:
+        if not self._initialized:
             self.initialize()
         return self._config
 
     @property
     def api(self) -> EvoCloudHTTPClient:
-        if not self._api:
+        if not self._initialized:
             self.initialize()
-        return self._api
+        return self._api_pool.get()
+
+    @property
+    def link(self) -> EvoCloudWebSocketLink:
+        if not self._initialized:
+            self.initialize()
+        return self._link_pool.get()
 
     # Chat Sync (Agent.py support)
     async def upload_log(self, thread_id: str, log_type: str, content: Any, name: str | None = None, device_id: int | None = None, command_id=None, project_id=None, persistent: bool = True):

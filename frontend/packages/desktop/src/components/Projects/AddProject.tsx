@@ -108,7 +108,7 @@ export default function AddProject() {
                 <FormItem>
                   <FormLabel>{t("projects.create.nameLabel")}</FormLabel>
                   <FormControl>
-                    <Input placeholder="my-awesome-project" {...field} />
+                    <Input placeholder={t("projects.create.namePlaceholder")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

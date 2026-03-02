@@ -28,7 +28,7 @@ function ImageViewer({
         <div className="relative w-full h-full flex items-center justify-center p-2">
           <img
             src={src}
-            alt="Full view"
+            alt={t("common.fullView")}
             className="max-w-full max-h-full object-contain"
           />
           <Button

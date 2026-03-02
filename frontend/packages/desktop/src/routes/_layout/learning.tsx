@@ -53,7 +53,7 @@ function LearningPage() {
 
                 <div className="flex items-center gap-2 bg-muted/30 p-1.5 rounded-xl border">
                     <span className="text-xs font-medium text-muted-foreground px-2">
-                        {t("learning.quickStart", "Quick Record")}:
+                        {t("learning.quickStart")}:
                     </span>
                     <RecordingButton threadId="global" />
                 </div>
@@ -63,15 +63,15 @@ function LearningPage() {
                 <TabsList className="bg-muted/30 p-1 rounded-lg border self-start mb-2">
                     <TabsTrigger value="library" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left">
                         <BookOpen className="h-3.5 w-3.5" />
-                        {t("learning.tabs.library", "Skill Library")}
+                        {t("learning.tabs.library")}
                     </TabsTrigger>
                     <TabsTrigger value="recording" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left">
                         <Sparkles className="h-3.5 w-3.5" />
-                        {t("learning.tabs.recording", "Active Recording")}
+                        {t("learning.tabs.recording")}
                     </TabsTrigger>
                     <TabsTrigger value="mcp" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left">
                         <Server className="h-3.5 w-3.5" />
-                        {t("sidebar.mcpServers", "MCP Servers")}
+                        {t("learning.tabs.mcpServers", "MCP Servers")}
                     </TabsTrigger>
                 </TabsList>
 

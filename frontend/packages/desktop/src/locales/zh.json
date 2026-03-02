@@ -1,5 +1,6 @@
 {
   "settings": {
+    "pageTitle": "设置 - EvoLoop",
     "password": {
       "new": "新密码",
       "title": "修改密码",
@@ -26,6 +27,11 @@
       "selectLanguageDesc": "选择您偏好的界面语言。",
       "success": "设置保存成功",
       "language": "语言",
+      "languageOptions": {
+        "en": "English",
+        "zh": "中文 (Chinese)"
+      },
+      "projectsRootPlaceholder": "/path/to/projects",
       "error": "保存设置失败",
       "description": "配置全局系统偏好设置和路径。",
       "deviceNameDesc": "此名称用于在 EvoLoop 网络中标识此设备。",
@@ -46,6 +52,7 @@
     },
     "mcp": {
       "args": "参数 (空格分隔)",
+      "argsPlaceholder": "例如：mcp-server-git .",
       "add": "添加",
       "description": "管理用于外部工具集成的 Model Context Protocol 服务器。",
       "table": {
@@ -80,7 +87,8 @@
       "success_updated": "Embedding 模型已更新并触发重建索引",
       "description": "配置用于代码搜索和记忆的 Embedding 模型。",
       "warning": "警告",
-      "title": "模型设置"
+      "title": "模型设置",
+      "selectProvider": "选择提供商"
     },
     "intro": "管理您的账户和 EvoLoop 配置。",
     "llm": {
@@ -117,7 +125,9 @@
       "provider": "提供商",
       "modelName": "模型名称",
       "baseUrl": "API 地址",
-      "apiKey": "API 密钥"
+      "apiKey": "API 密钥",
+      "visionModel": "视觉模型（可选）",
+      "visionModelDesc": "用于图像分析的模型（例如 gpt-4o, claude-3-opus）。"
     },
     "title": "设置"
   },
@@ -142,7 +152,16 @@
     "loading": "加载中...",
     "empty": "空",
     "selectPrompt": "选择文件以查看内容",
-    "title": "文件"
+    "title": "文件",
+    "text": "文本",
+    "openExternal": "正在外部应用中打开文件...",
+    "openExternalError": "打开文件失败",
+    "noMatches": "未找到匹配项",
+    "loadingContent": "正在加载内容...",
+    "pdfPreview": "PDF 预览",
+    "selectFileToView": "选择文件以查看",
+    "previewNotAvailable": "暂不支持预览此文件类型。",
+    "downloadFile": "下载文件"
   },
   "learning": {
     "totalSkills": "项技能",
@@ -156,18 +175,12 @@
     "successes": "次成功",
     "expertGuide": "专家级战略指南",
     "optimizedBadge": "LLM 已优化",
-    "noGuideYet": "此技能为原始录制，尚未生成专家指南。",
-    "rawSteps": "技术执行步骤",
     "history": "历史记录",
     "created": "创建于",
     "successCountLabel": "累计成功次数",
     "synthesisSuccess": "技能合成成功！",
     "synthesisFailed": "技能合成失败",
     "synthesisError": "合成过程中发生错误",
-    "openFullEditor": "打开完整编辑器",
-    "autoOptimize": "自动优化步骤",
-    "autoOptimizeDesc": "移除冗余动作并精简逻辑",
-    "synthesisPrompt": "这将使用 AI 分析您的操作，并生成可在以后使用的参数化技能。",
     "skillCreated": "技能已创建！",
     "skillCreatedDesc": "该技能已添加到您的库中。",
     "createSkill": "创建技能",
@@ -179,14 +192,13 @@
     "recordingStarted": "录制已开始",
     "recordingStopped": "录制已停止，捕捉到 {{count}} 个操作",
     "noEvents": "未捕捉到任何操作，跳过技能创建。",
-    "na": "暂无",
     "triggerPatterns": "触发模式",
     "parameters": "用户输入项",
     "centerTitle": "学习中心",
     "centerSubtitle": "管理已学习的技能，并通过交互式录制会话训练智能体。",
+    "synthesizingProgress": "正在分析录制内容...",
     "editor": {
       "skillDescription": "描述",
-      "invalidJson": "无效的参数 JSON",
       "skillName": "技能名称",
       "triggerPatterns": "触发模式",
       "title": "编辑技能：{{name}}",
@@ -202,83 +214,17 @@
       "paramName": "引用 ID",
       "paramType": "输入类型",
       "paramDesc": "问题 / 标签",
-      "stats": "性能统计",
       "noTriggers": "尚未定义触发模式。",
       "nameRequired": "技能名称为必填项",
       "paramNameRequired": "引用 ID 为必填项",
       "paramNameNoSpaces": "引用 ID 不能包含空格",
       "paramNameHelp": "系统引用时的唯一 ID (例如: user_name)",
       "paramDescHelp": "运行时机器人向您提问的文本 (例如: 请输入用户名)",
-      "insertVariable": "插入输入项",
-      "tabs": {
-        "general": "常规设置",
-        "logic": "执行逻辑",
-        "stats": "性能统计"
-      },
       "aiOptimize": "AI 优化",
-      "aiOptimizeDesc": "使用 AI 改进技能描述和触发短语",
-      "preview": "实时预览",
-      "showPreview": "显示预览",
-      "hidePreview": "隐藏预览",
       "configSidebar": "技能配置",
-      "logicHelp": "技能执行的具体步骤，记录了机器人在不同场景下的动作序列。",
-      "modeHelp": "简单模式显示友好描述，JSON 模式显示底层参数详情。",
-      "noLogic": "尚无记录的执行逻辑",
-      "addStep": "添加步骤",
-      "addInnerStep": "添加内部步骤",
-      "effectiveness": "有效性",
-      "avgDuration": "平均时长",
-      "recentRuns": "最近运行",
-      "phase6Notice": "详细的执行日志将在第 6 阶段出现。",
-      "instructions": "技能说明 (SKILL.md)",
-      "untitledSkill": "未命名技能",
-      "noDescription": "暂无描述。",
-      "editorInsights": "编辑器洞察",
-      "triggersCount": "触发器数量",
-      "complexity": "复杂度",
-      "complexityMedium": "中等",
-      "complexityLow": "低",
-      "previewNotice": "这是技能在库中显示效果的实时预览。",
-      "simpleMode": "简易模式",
-      "jsonMode": "JSON 模式",
       "aiRefinedDesc": "AI 基于执行逻辑优化了描述。",
       "automatedPrefix": "自动生成的 ",
-      "optimizedSuffix": " (已优化)",
-      "uploadSuccess": "截图更新成功",
-      "uploadError": "截图更新失败",
-      "inputText": "输入文本",
-      "changeScreenshot": "点击更换截图",
-      "noImage": "无图像",
-      "deviceStatus": {
-        "device": "在线",
-        "offline": "离线",
-        "unauthorized": "未授权"
-      },
-      "validationStatus": {
-        "healthy": "健康",
-        "warning": "警告",
-        "error": "错误"
-      },
-      "debug": {
-        "none": "无",
-        "status": {
-          "active": "运行中",
-          "idle": "空闲"
-        }
-      },
-      "headers": {
-        "conditionPlaceholder": "例如 1 == 1"
-      },
-      "import": {
-        "placeholder": "例如 skills/skills"
-      },
-      "statusBadge": {
-        "draft": "草稿",
-        "active": "活跃",
-        "verified": "已验证",
-        "archived": "已归档",
-        "deprecated": "已弃用"
-      }
+      "optimizedSuffix": " (已优化)"
     },
     "mirror": {
       "title": "Android 镜像控制台",
@@ -303,87 +249,12 @@
       "starting": "正在启动...",
       "runNow": "立即运行"
     },
-    "categories": {
-      "mobile": "移动端交互",
-      "desktop": "桌面端交互",
-      "logic": "逻辑控制"
-    },
-    "actions": {
-      "mobile": {
-        "tap": "点击 (Tap)",
-        "tapDesc": "点击特定坐标",
-        "input_text": "输入文本",
-        "textDesc": "在输入框中输入文本",
-        "swipe": "滑动 (Swipe)",
-        "swipeDesc": "执行滑动该手势",
-        "home": "主屏幕",
-        "homeDesc": "返回主屏幕",
-        "back": "返回",
-        "backDesc": "返回上一页",
-        "open_app": "打开应用",
-        "openAppDesc": "通过包名打开应用",
-        "press_key": "按键",
-        "pressKeyDesc": "按下物理按键",
-        "screenshot": "截屏",
-        "screenshotDesc": "捕获屏幕截图"
-      },
-      "desktop": {
-        "click": "点击 (Click)",
-        "clickDesc": "鼠标点击",
-        "double_click": "双击",
-        "doubleClickDesc": "鼠标双击",
-        "type_text": "输入文本",
-        "typeDesc": "键盘输入",
-        "key_press": "按键",
-        "keyPressDesc": "按下键盘按键",
-        "open_app": "打开应用",
-        "openAppDesc": "打开系统应用程序",
-        "screenshot": "截屏",
-        "screenshotDesc": "捕获屏幕截图"
-      },
-      "wait": "等待",
-      "waitDesc": "暂停执行",
-      "loop": "循环",
-      "loopDesc": "重复执行步骤",
-      "condition": "条件",
-      "conditionDesc": "If/Else 分支逻辑",
-      "group": "分组",
-      "groupDesc": "步骤容器",
-      "instruction": "指令",
-      "instructionDesc": "自然语言指令"
-    },
-    "selector": {
-      "title": "选择动作",
-      "searchPlaceholder": "搜索执行动作...",
-      "noResults": "未找到相关动作。"
-    },
     "viewDetails": "查看详情",
     "startRecording": "录制",
     "toolsCount": "{{count}} 个工具",
     "successCount": "{{count}} 次成功",
     "stopRecording": "停止",
-    "runSkill": "运行技能",
     "noSkills": "暂无技能。尝试录制一段操作来合成新技能。",
-    "table": {
-      "type": "类型",
-      "name": "名称",
-      "description": "描述"
-    },
-    "statusBadge": {
-      "active": "已激活",
-      "draft": "草稿",
-      "verified": "已验证",
-      "archived": "已归档",
-      "deprecated": "已弃用"
-    },
-    "tabs": {
-      "library": "技能库",
-      "recording": "动态录制",
-      "general": "常规设置",
-      "logic": "执行逻辑",
-      "stats": "性能统计",
-      "discovery": "自主探索"
-    },
     "import": {
       "title": "导入外部技能",
       "description": "批量从包含 SKILL.md 包的目录导入标准技能。",
@@ -405,12 +276,14 @@
       "quit": "退出",
       "show": "显示主界面",
       "startRecording": "开始录制 (⌘R)",
-      "stopRecording": "停止录制 (⌘R)",
-      "videoRecordingFailed": "视频录制启动失败: {{error}}",
-      "recordingAutoStoppedTimeout": "录制已自动停止：已达 10 分钟时长上限。",
-      "recordingAutoStoppedSize": "录制已自动停止：文件超过 500MB 限制。",
-      "recordingAutoStopped": "录制已自动停止。"
-    }
+      "stopRecording": "停止录制 (⌘R)"
+    },
+    "tabs": {
+      "library": "技能库",
+      "recording": "移动录制",
+      "mcpServers": "MCP 服务器"
+    },
+    "quickStart": "操作录制"
   },
   "todos": {
     "create": {
@@ -536,7 +409,8 @@
       "projectFiles": "项目文件",
       "agentChanges": "Agent 变更",
       "noProject": "未选择项目",
-      "searchPlaceholder": "搜索对话..."
+      "searchPlaceholder": "搜索对话...",
+      "copiedPath": "已复制路径: {{path}}"
     },
     "resourceRemoved": "资源已移除",
     "context": {
@@ -574,7 +448,6 @@
       "memoryTitle": "项目记忆",
       "noState": "暂无状态数据。",
       "openImagicBox": "打开 IMagicBox",
-      "tabKnowledge": "代码搜索",
       "statusActive": "活跃",
       "statusOffline": "离线",
       "title": "Agent 工作台",
@@ -584,9 +457,7 @@
       "viewAllMemories": "查看所有 {{count}} 条记忆",
       "relatedTasksTitle": "与 \"{{concept}}\" 相关的任务",
       "relatedTasksDesc": "与此概念关联的历史任务",
-      "noEpisodesFound": "未找到相关任务",
-      "tabChanges": "变更",
-      "noChanges": "暂无已修改的文件。"
+      "noEpisodesFound": "未找到相关任务"
     },
     "diff": {
       "tip": "提示：红线表示删除，绿线表示新增。"
@@ -600,7 +471,6 @@
       "quoteFile": "引用文件",
       "selectProject": "选择一个项目开始对话",
       "retrying": "正在从上一条用户消息重试...",
-      "filesReverted": "个文件已恢复",
       "startPrompt": "开启新对话或选择下方任务。",
       "memorize": "记住",
       "uploadSuccess": "文件上传成功",
@@ -612,7 +482,16 @@
       "uploadError": "上传失败",
       "uploadFile": "上传文件",
       "retry": "重试",
-      "rewind": "回撤"
+      "rewind": "回撤",
+      "conceptPlaceholder": "例如：项目架构",
+      "contentLabel": "内容",
+      "cancel": "取消",
+      "deleteChatError": "删除对话失败",
+      "addMemorySuccess": "已添加到记忆",
+      "stopAgentSuccess": "已停止",
+      "rewindSuccess": "已撤回",
+      "filesReverted": "{{count}} 个文件已恢复",
+      "messageNotLoaded": "此步骤的消息未在视图中加载"
     },
     "rewind": {
       "confirmTitle": "确认撤回",
@@ -677,6 +556,8 @@
     },
     "stateScratchpad": "草稿纸 (Scratchpad)",
     "addLinkTitle": "添加外部链接",
+    "linkNamePlaceholder": "例如：API 文档",
+    "linkUrlPlaceholder": "https://...",
     "stateProject": "项目ID",
     "linkFailed": "添加链接失败",
     "linkAdded": "链接已添加",
@@ -691,45 +572,6 @@
     "login": "登录",
     "upgradeToPro": "升级到专业版",
     "manageSubscription": "管理订阅"
-  },
-  "dashboard": {
-    "projects": {
-      "recent": "最近项目",
-      "create": "创建项目",
-      "remote": "远程",
-      "local": "本地",
-      "noProjectsDesc": "通过创建您的第一个项目工作区开始。",
-      "openWorkspace": "打开工作区",
-      "noProjects": "未找到项目",
-      "viewAll": "查看全部"
-    },
-    "ecosystem": {
-      "subtitle": "已连接工具与资源",
-      "noServers": "未连接 MCP 服务器。",
-      "manage": "管理集成",
-      "title": "系统生态",
-      "toolsAvailable": "{{count}} 个可用工具",
-      "active": "活跃",
-      "coreAgent": "核心 Agent",
-      "evaluationLoop": "Evoloop",
-      "online": "在线"
-    },
-    "stats": {
-      "pendingTasksDesc": "等待行动",
-      "activeProjects": "活跃项目",
-      "pendingTasks": "待处理任务",
-      "totalTasks": "总任务",
-      "systemServices": "系统服务",
-      "totalTasksDesc": "所有项目",
-      "activeProjectsDesc": "本地可用项目",
-      "systemServicesDesc": "已连接 MCP 服务器"
-    },
-    "greeting": {
-      "afternoon": "下午好",
-      "welcome": "欢迎来到您的 EvoLoop 指挥中心。这是您的系统概览。",
-      "morning": "早上好",
-      "evening": "晚上好"
-    }
   },
   "common": {
     "edit": "编辑",
@@ -754,25 +596,35 @@
     "selectFile": "选择文件",
     "back": "返回",
     "done": "完成",
-    "enabled": "开启",
-    "disabled": "关闭",
     "saveAndClose": "保存并关闭",
     "search": "搜索",
     "scanning": "扫描中...",
     "global": "全局",
-    "error": {
-      "message": "发生错误"
-    },
-    "new": "新建",
     "ignore": "忽略",
     "import": "导入",
     "restore": "恢复",
     "refresh": "刷新",
     "later": "稍后",
+    "openMenu": "打开菜单",
+    "none": "无",
     "time": {
       "justNow": "刚刚",
       "minutesAgo": "{{count}} 分钟前",
       "hoursAgo": "{{count}} 小时前"
+    },
+    "copyCode": "复制代码",
+    "openContextPanel": "打开上下文面板",
+    "preview": "预览",
+    "fullView": "完整视图",
+    "status": {
+      "active": "运行中",
+      "idle": "空闲"
+    },
+    "error": {
+      "unknown": "未知错误"
+    },
+    "tool": {
+      "defaultName": "工具"
     }
   },
   "projects": {
@@ -812,10 +664,25 @@
         "save": "保存记录",
         "title": "记录工作时间"
       },
-      "logTime": "记录工时"
+      "logTime": "记录工时",
+      "errors": {
+        "loadFailed": "加载工时记录失败",
+        "fillRequired": "请填写所有必填字段",
+        "addFailed": "添加工时记录失败"
+      },
+      "success": {
+        "added": "工时记录添加成功"
+      }
     },
     "status": {
-      "indexing": "索引中"
+      "indexing": "索引中",
+      "analyzing": "分析中"
+    },
+    "overview": {
+      "title": "项目概览",
+      "recentActivity": "最近活动",
+      "noActivity": "暂无最近活动",
+      "quickActions": "快捷操作"
     },
     "tasks": {
       "failedToLoad": "加载任务失败",
@@ -838,7 +705,20 @@
         "inProgress": "进行中",
         "completed": "已完成"
       },
-      "keyModules": "核心模块"
+      "priority": {
+        "normal": "普通",
+        "high": "高",
+        "urgent": "紧急"
+      },
+      "unassigned": "未分配",
+      "noModules": "未识别到模块",
+      "noChallenges": "未识别到技术难点",
+      "noAnalysis": "暂无分析结果",
+      "commentsComingSoon": "评论功能即将推出",
+      "processing": "处理中...",
+      "keyModules": "核心模块",
+      "executeError": "启动执行失败",
+      "executeFailed": "执行任务失败"
     },
     "gantt": {
       "noTasks": "未找到任务。",
@@ -863,117 +743,6 @@
       "wiki": "百科",
       "requirements": "需求"
     },
-    "requirements": {
-      "title": "需求文档",
-      "subtitle": "上传需求文档，AI 将自动分析并拆解为开发任务",
-      "upload": {
-        "title": "上传需求文档",
-        "dragDrop": "拖放文件到此处，或点击选择",
-        "supportedFormats": "支持 Word、Excel、PDF、Markdown、Text 格式",
-        "maxSize": "最大 50MB",
-        "button": "选择文件",
-        "uploading": "上传中...",
-        "success": "上传成功",
-        "error": "上传失败"
-      },
-      "list": {
-        "title": "文档列表",
-        "description": "点击文档查看详情，分析完成后可在对话中查看结果"
-      },
-      "documentList": {
-        "title": "文档列表",
-        "empty": "暂无文档",
-        "emptyDesc": "上传需求文档开始分析",
-        "columns": {
-          "name": "文件名",
-          "size": "大小",
-          "status": "状态",
-          "created": "创建时间",
-          "actions": "操作"
-        },
-        "status": {
-          "pending": "待分析",
-          "analyzed": "已分析",
-          "confirmed": "已确认",
-          "breakdown_completed": "已拆解"
-        },
-        "delete": {
-          "title": "删除文档",
-          "confirm": "确定要删除文档 {{name}} 吗？此操作不可撤销。",
-          "success": "文档删除成功",
-          "error": "删除失败"
-        }
-      },
-      "detail": {
-        "title": "文档详情",
-        "notFound": "文档不存在",
-        "contentPreview": "内容预览",
-        "analysisHistory": "分析历史",
-        "versions": "个版本",
-        "noAnalysis": "暂无分析结果",
-        "analysisInProgress": "分析可能正在进行中，请稍后再查看",
-        "back": "返回"
-      },
-      "analysis": {
-        "title": "需求分析",
-        "version": "版本",
-        "edited": "已编辑",
-        "functionalRequirements": "功能需求",
-        "nonFunctionalRequirements": "非功能需求",
-        "userStories": "用户故事",
-        "technicalSuggestions": "技术建议",
-        "risks": "风险与缓解",
-        "dependencies": "依赖项",
-        "mitigation": "缓解措施",
-        "asA": "作为",
-        "iWant": "我想要",
-        "soThat": "以便",
-        "confirmTitle": "确认分析结果",
-        "confirmDesc": "确认后将开始任务拆解",
-        "confirmButton": "确认并拆解任务",
-        "requestChanges": "请求修改",
-        "requestChangesTitle": "请求修改分析",
-        "requestChangesDesc": "请描述您需要的修改",
-        "requestChangesPlaceholder": "请输入您的修改意见...",
-        "submitFeedback": "提交反馈",
-        "editMode": "编辑模式",
-        "viewMode": "查看模式",
-        "editTitle": "编辑标题",
-        "editSummary": "编辑摘要",
-        "addRequirement": "添加需求",
-        "addUserStory": "添加用户故事",
-        "addTechnicalSuggestion": "添加技术建议",
-        "addRisk": "添加风险",
-        "remove": "删除",
-        "priority": "优先级",
-        "category": "分类",
-        "impact": "影响",
-        "area": "领域",
-        "rationale": "理由",
-        "confirmed": "分析结果已确认，开始拆解任务...",
-        "confirmedWithModifications": "分析结果已确认（含修改），开始拆解任务...",
-        "requestingChanges": "我对分析结果有一些修改意见：{{feedback}}，请重新分析。"
-      },
-      "tasks": {
-        "title": "任务列表",
-        "noTasks": "暂无任务",
-        "analysisNotConfirmed": "请先确认分析结果以生成任务",
-        "syncProgress": "EvoCloud 同步进度",
-        "syncComplete": "同步完成",
-        "partialSync": "部分同步",
-        "syncing": "同步中...",
-        "synced": "已同步",
-        "pending": "待同步",
-        "failed": "失败",
-        "listView": "列表",
-        "mappingView": "映射",
-        "tasks": "个任务",
-        "unmapped": "未关联需求",
-        "estimatedHours": "预计工时",
-        "acceptanceCriteria": "验收标准",
-        "syncError": "同步错误"
-      }
-    },
     "details": {
       "created": "创建时间",
       "description": "描述",
@@ -982,12 +751,6 @@
         "discussion": "讨论"
       }
     },
-    "overview": {
-      "recentActivity": "最近活动",
-      "title": "项目概览",
-      "quickActions": "快捷操作",
-      "noActivity": "暂无最近活动"
-    },
     "create": {
       "title": "创建新项目",
       "errorNameFormat": "项目名称只能包含字母、数字、下划线或连字符",
@@ -995,6 +758,7 @@
       "errorNameRequired": "项目名称为必填项",
       "success": "项目创建成功",
       "nameLabel": "项目名称",
+      "namePlaceholder": "my-awesome-project",
       "submit": "创建项目"
     },
     "filesCount": "个文件",
@@ -1043,8 +807,6 @@
     }
   },
   "requirements": {
-    "title": "需求文档",
-    "subtitle": "上传需求文档，AI 将自动分析并拆解为开发任务",
     "upload": {
       "title": "上传需求文档",
       "dragDrop": "拖拽文件到这里，或点击选择",
@@ -1065,7 +827,6 @@
       "badge": "需求分析结果",
       "untitled": "未命名需求",
       "functionalRequirements": "功能需求",
-      "nonFunctionalRequirements": "非功能需求",
       "userStories": "用户故事",
       "technicalSuggestions": "技术建议",
       "risks": "风险与缓解",
@@ -1081,24 +842,7 @@
       "mitigation": "缓解措施",
       "confirmed": "我已确认分析结果，请继续拆解任务。",
       "confirmedWithModifications": "我已确认分析结果并进行了修改，请继续拆解任务。",
-      "requestingChanges": "我对分析结果有一些修改意见：{{feedback}}，请重新分析。",
-      "priority": {
-        "high": "高",
-        "medium": "中",
-        "low": "低",
-        "urgent": "紧急"
-      },
-      "impact": {
-        "high": "高",
-        "medium": "中",
-        "low": "低"
-      }
-    },
-    "status": {
-      "pending": "待分析",
-      "analyzed": "已分析",
-      "confirmed": "已确认",
-      "breakdown_completed": "已拆解"
+      "requestingChanges": "我对分析结果有一些修改意见：{{feedback}}，请重新分析。"
     },
     "detail": {
       "title": "文档详情",
@@ -1108,9 +852,6 @@
       "versions": "个版本",
       "noAnalysis": "暂无分析结果",
       "analysisInProgress": "分析可能正在进行中，请稍后再查看",
-      "tasksSynced": "任务已同步",
-      "edited": "已编辑",
-      "version": "版本",
       "overview": "概览",
       "tasks": "任务"
     },
@@ -1131,7 +872,29 @@
       "unmapped": "未关联需求",
       "estimatedHours": "预计工时",
       "acceptanceCriteria": "验收标准"
+    },
+    "toast": {
+      "fetchError": "获取需求文档失败",
+      "uploadSuccess": "文档上传成功，AI 分析中...",
+      "uploadError": "上传文档失败",
+      "fetchDetailError": "获取文档详情失败",
+      "deleteSuccess": "文档已删除",
+      "deleteError": "删除文档失败",
+      "confirmSuccess": "分析已确认，开始任务拆解...",
+      "confirmError": "确认分析失败",
+      "feedbackSuccess": "修改意见已提交，AI 正在重新分析...",
+      "feedbackError": "提交反馈失败",
+      "fetchTasksError": "获取任务列表失败"
+    },
+    "status": {
+      "pending": "待分析",
+      "analyzed": "已分析",
+      "confirmed": "已确认",
+      "breakdown_completed": "已拆解"
     }
+  },
+  "mermaid": {
+    "renderError": "图表渲染失败"
   },
   "wiki": {
     "pageList": "页面列表",
@@ -1159,9 +922,7 @@
       "unknown": "未知",
       "name": "名称"
     },
-    "serverInstruction": "要在其他工具（如 Claude Desktop）中使用 EvoLoop 作为 MCP 服务器，请使用以下命令进行配置：",
     "commandRequired": "命令为必填项",
-    "serverTitle": "EvoLoop MCP 服务器",
     "add": "添加服务器",
     "delete": "删除",
     "argsPlaceholder": "例如 mcp-server-git .",
@@ -1178,7 +939,6 @@
     "learning": "学习中心",
     "projects": "项目",
     "chat": "对话",
-    "dashboard": "仪表盘",
     "searchFilesPlaceholder": "搜索项目文件...",
     "excelPreviewError": "无法渲染 Excel 预览。",
     "csvPreviewError": "无法渲染 CSV 表格。",
@@ -1218,31 +978,6 @@
     "description": "选择要切换的项目或管理您的项目。",
     "indexingTooltip": "索引中..."
   },
-  "skills": {
-    "actions": {
-      "mobile": {
-        "tap": "点击",
-        "input_text": "输入文本",
-        "swipe": "滑动",
-        "press_key": "按键",
-        "screenshot": "截屏"
-      },
-      "desktop": {
-        "click": "鼠标点击",
-        "type_text": "键盘输入",
-        "open_app": "打开应用",
-        "key_press": "按键"
-      },
-      "wait": "等待"
-    },
-    "editor": {
-      "inputText": "输入内容",
-      "simpleMode": "简单模式",
-      "jsonMode": "JSON 模式",
-      "noImage": "暂无图片",
-      "target": "目标"
-    }
-  },
   "pending": {
     "items": {
       "description": "描述",
@@ -1261,7 +996,11 @@
     "systemCheckPassed": "✓ 系统检查通过。就绪。",
     "backendReady": "后端就绪！正在启动...",
     "waitingLogs": "等待后端日志...",
-    "initializing": "正在初始化系统服务..."
+    "initializing": "正在初始化系统服务...",
+    "logTitle": "system.log"
+  },
+  "app": {
+    "name": "EvoLoop"
   },
   "auth": {
     "recover": {
@@ -1272,7 +1011,8 @@
       "title": "找回密码",
       "notImplemented": "SDK 未实现密码找回功能",
       "success": "密码重置邮件已发送",
-      "rememberPassword": "记起密码了？"
+      "rememberPassword": "记起密码了？",
+      "pageTitle": "找回密码 - EvoLoop"
     },
     "errors": {
       "confirmPasswordRequired": "请确认密码",
@@ -1289,23 +1029,28 @@
       "submit": "重置密码",
       "rememberPassword": "记起密码了？",
       "success": "密码更新成功",
-      "login": "登录"
+      "login": "登录",
+      "pageTitle": "重置密码 - EvoLoop"
     },
     "register": {
       "email": "邮箱",
       "emailPlaceholder": "user@example.com",
       "fullName": "全名",
+      "fullNamePlaceholder": "User",
       "desktopTitle": "创建新账户",
-      "confirmPasswordPlaceholder": "确认密码"
+      "confirmPasswordPlaceholder": "确认密码",
+      "pageTitle": "注册 - EvoLoop"
     },
     "login": {
       "emailOrUsername": "邮箱或用户名",
-      "desktopTitle": "登录您的账户"
+      "desktopTitle": "登录您的账户",
+      "pageTitle": "登录 - EvoLoop"
     }
   },
   "tour": {
     "replayDesc": "再次查看产品功能介绍",
-    "replayTitle": "重新播放引导"
+    "replayTitle": "重新播放引导",
+    "skipAriaLabel": "跳过引导"
   },
   "system": {
     "initializationDesc": "请配置以下系统设置以继续。",

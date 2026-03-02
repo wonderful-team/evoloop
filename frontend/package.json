@@ -14,7 +14,14 @@
     "tauri:mobile": "tauri android dev --config src-tauri/tauri.mobile.conf.json",
     "dev:mobile": "cd packages/mobile && vite --port 5174",
     "mobile:android": "export JAVA_HOME=$(/usr/libexec/java_home -v 17) && npm run tauri:mobile",
-    "build:android": "export JAVA_HOME=$(/usr/libexec/java_home -v 17) && tauri android build --config src-tauri/tauri.mobile.conf.json"
+    "build:android": "export JAVA_HOME=$(/usr/libexec/java_home -v 17) && tauri android build --config src-tauri/tauri.mobile.conf.json",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:all": "npm run test:coverage && npm run test:e2e"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -86,17 +93,26 @@
     "@tanstack/router-devtools": "^1.140.0",
     "@tanstack/router-plugin": "^1.140.0",
     "@tauri-apps/cli": "^2",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^25.0.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@types/uuid": "^10.0.0",
     "@typescript-eslint/parser": "^8.53.1",
     "@vitejs/plugin-react-swc": "^4.2.2",
+    "@vitest/coverage-v8": "^3.0.5",
+    "@vitest/ui": "^3.0.5",
     "dotenv": "^17.2.3",
     "eslint": "^9.39.2",
+    "jsdom": "^26.0.0",
+    "msw": "^2.7.0",
     "tw-animate-css": "^1.4.0",
     "typescript": "^5.9.3",
-    "vite": "^7.3.0"
+    "vite": "^7.3.0",
+    "vitest": "^3.0.5"
   },
   "packageManager": "pnpm@8.8.0+sha1.9922e8b650d393700209ccd81e0ebdbcbe43b0d3"
 }

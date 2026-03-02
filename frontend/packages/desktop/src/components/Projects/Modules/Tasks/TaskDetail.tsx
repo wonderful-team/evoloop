@@ -99,11 +99,15 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
         navigate({ to: "/chat", search: { thread_id: res.thread_id } })
         onOpenChange(false)
       } else {
-        alert(`Failed to start execution: ${res.message || "Unknown error"}`)
+        toast.error(
+          t("projects.tasks.executeError", "Failed to start execution") +
+            ": " +
+            (res.message || t("common.error.unknown", "Unknown error")),
+        )
       }
     } catch (error) {
       console.error("Execute task failed:", error)
-      alert("Execute task failed")
+      toast.error(t("projects.tasks.executeFailed", "Execute task failed"))
     } finally {
       setExecuting(false)
     }
@@ -126,15 +130,15 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
               </Badge>
               <Badge variant="outline">
                 {task?.priority === 3
-                  ? "High"
+                  ? t("projects.tasks.priority.high")
                   : task?.priority === 4
-                    ? "Urgent"
-                    : "Normal"}
+                    ? t("projects.tasks.priority.urgent")
+                    : t("projects.tasks.priority.normal")}
               </Badge>
             </div>
           </div>
           <SheetTitle className="text-xl">
-            {task?.task_title || "Loading..."}
+            {task?.task_title || t("common.loading")}
           </SheetTitle>
         </SheetHeader>
 
@@ -142,7 +146,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
           <div className="p-6 space-y-8">
             {loading ? (
               <div className="flex items-center justify-center h-40 text-muted-foreground">
-                Loading...
+                {t("common.loading")}
               </div>
             ) : task ? (
               <>
@@ -170,11 +174,11 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                       <div className="flex items-center gap-2">
                         <Avatar className="h-6 w-6">
                           <AvatarFallback>
-                            {task.assignee_member_name?.substring(0, 2) || "UN"}
+                            {task.assignee_member_name?.substring(0, 2) || t("projects.tasks.unassigned").substring(0, 2)}
                           </AvatarFallback>
                         </Avatar>
                         <p className="text-sm font-medium">
-                          {task.assignee_member_name || "Unassigned"}
+                          {task.assignee_member_name || t("projects.tasks.unassigned")}
                         </p>
                       </div>
                     </div>
@@ -228,7 +232,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-2">
-                        {task.relevance_analysis || "No analysis available."}
+                        {task.relevance_analysis || t("projects.tasks.noAnalysis")}
                       </p>
                     </div>
 
@@ -255,7 +259,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                             )
                           ) : (
                             <span className="text-sm text-muted-foreground">
-                              None identified
+                              {t("projects.tasks.noModules")}
                             </span>
                           )}
                         </div>
@@ -279,7 +283,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                               ),
                             )
                           ) : (
-                            <li>None identified</li>
+                            <li>{t("projects.tasks.noChallenges")}</li>
                           )}
                         </ul>
                       </div>
@@ -296,7 +300,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
                     {t("projects.details.tabs.discussion", "Discussion")}
                   </h3>
                   <div className="flex flex-col items-center justify-center py-8 text-muted-foreground bg-muted/20 rounded-lg">
-                    <p>Comments coming soon.</p>
+                    <p>{t("projects.tasks.commentsComingSoon")}</p>
                   </div>
                 </div>
               </>
@@ -315,7 +319,7 @@ export const TaskDetail: React.FC<TaskDetailProps> = ({
             onClick={handleExecuteTask}
           >
             {executing ? (
-              <>Processing...</>
+              <>{t("projects.tasks.processing")}</>
             ) : (
               <>
                 <Play className="w-4 h-4 mr-2 fill-current" />

@@ -176,7 +176,7 @@ export function ProfileScreen() {
             {user?.headimg ? (
               <img
                 src={user.headimg}
-                alt="Avatar"
+                alt={t("common.alt.avatar")}
                 className="w-full h-full object-cover"
               />
             ) : (

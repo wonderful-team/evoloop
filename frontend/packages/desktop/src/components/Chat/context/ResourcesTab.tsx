@@ -121,7 +121,7 @@ export function ResourcesTab({ projectId }: ResourcesTabProps) {
                                     <Label htmlFor="linkName">{t("common.name")}</Label>
                                     <Input
                                         id="linkName"
-                                        placeholder="e.g. API Docs"
+                                        placeholder={t("chat.linkNamePlaceholder")}
                                         value={newLinkName}
                                         onChange={(e) => setNewLinkName(e.target.value)}
                                     />
@@ -130,7 +130,7 @@ export function ResourcesTab({ projectId }: ResourcesTabProps) {
                                     <Label htmlFor="linkUrl">{t("common.url")}</Label>
                                     <Input
                                         id="linkUrl"
-                                        placeholder="https://..."
+                                        placeholder={t("chat.linkUrlPlaceholder")}
                                         value={newLinkUrl}
                                         onChange={(e) => setNewLinkUrl(e.target.value)}
                                     />

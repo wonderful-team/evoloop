@@ -80,7 +80,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
                         )}
                     </div>
                     <div>
-                        <h1 className="text-2xl font-bold tracking-tight">EvoLoop</h1>
+                        <h1 className="text-2xl font-bold tracking-tight">{t("app.name", "EvoLoop")}</h1>
                         <p className="text-sm text-zinc-400">
                             {isHealthy ? t("startup.backendReady") : t("startup.initializing")}
                         </p>
@@ -95,7 +95,7 @@ export default function StartupScreen({ onReady }: StartupScreenProps) {
                             <div className="h-3 w-3 rounded-full bg-yellow-500/20 border border-yellow-500/50" />
                             <div className="h-3 w-3 rounded-full bg-green-500/20 border border-green-500/50" />
                         </div>
-                        <div className="text-xs font-medium text-zinc-500 font-mono">system.log</div>
+                        <div className="text-xs font-medium text-zinc-500 font-mono">{t("startup.logTitle", "system.log")}</div>
                     </div>
 
                     <div

@@ -92,7 +92,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ onClose }) => {
                         </div>
                         <div className="bg-muted/30 p-3 rounded-xl border border-muted/50 max-h-40 overflow-hidden relative">
                             <div className="text-[11px] leading-relaxed break-all">
-                                {previousResult ? renderValue(previousResult) : <span className="text-muted-foreground italic">None</span>}
+                                {previousResult ? renderValue(previousResult) : <span className="text-muted-foreground italic">{t("common.none")}</span>}
                             </div>
                         </div>
                     </div>
@@ -138,7 +138,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ onClose }) => {
                     <div className="flex items-center gap-1.5">
                         <div className={`w-2 h-2 rounded-full ${status === "running" ? "bg-emerald-500 animate-pulse" : "bg-muted-foreground/30"}`} />
                         <span className={status === "running" ? "text-emerald-500" : "text-muted-foreground"}>
-                            {status === "running" ? "ACTIVE" : "IDLE"}
+                            {status === "running" ? t("common.status.active") : t("common.status.idle")}
                         </span>
                     </div>
                 </div>

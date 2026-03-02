@@ -1,5 +1,6 @@
 {
   "settings": {
+    "pageTitle": "Settings - EvoLoop",
     "password": {
       "new": "New Password",
       "title": "Change Password",
@@ -26,6 +27,11 @@
       "selectLanguageDesc": "Select your preferred interface language.",
       "success": "Settings saved successfully",
       "language": "Language",
+      "languageOptions": {
+        "en": "English",
+        "zh": "中文 (Chinese)"
+      },
+      "projectsRootPlaceholder": "/path/to/projects",
       "error": "Failed to save settings",
       "description": "Configure global system preferences and paths.",
       "deviceNameDesc": "This name identifies this device in the EvoLoop network.",
@@ -46,6 +52,7 @@
     },
     "mcp": {
       "args": "Args (Space separated)",
+      "argsPlaceholder": "e.g. mcp-server-git .",
       "add": "Add",
       "description": "Manage Model Context Protocol servers for external tool integration.",
       "table": {
@@ -80,7 +87,8 @@
       "success_updated": "Embedding Model Updated & Re-indexing Triggered",
       "description": "Configure the embedding model used for Code Search and Memory.",
       "warning": "Warning",
-      "title": "Model Settings"
+      "title": "Model Settings",
+      "selectProvider": "Select a provider"
     },
     "intro": "Manage your account and EvoLoop configurations.",
     "llm": {
@@ -117,7 +125,9 @@
       "provider": "Provider",
       "modelName": "Model Name",
       "baseUrl": "Base URL",
-      "apiKey": "API Key"
+      "apiKey": "API Key",
+      "visionModel": "Vision Model (Optional)",
+      "visionModelDesc": "Model used for image analysis (e.g. gpt-4o, claude-3-opus)."
     },
     "title": "Settings"
   },
@@ -142,7 +152,16 @@
     "loading": "Loading...",
     "empty": "Empty",
     "selectPrompt": "Select a file to view content",
-    "title": "Files"
+    "title": "Files",
+    "text": "TEXT",
+    "openExternal": "Opening file in external app...",
+    "openExternalError": "Failed to open file",
+    "noMatches": "No matches found",
+    "loadingContent": "Loading content...",
+    "pdfPreview": "PDF Preview",
+    "selectFileToView": "Select a file to view",
+    "previewNotAvailable": "Preview not available for this file type.",
+    "downloadFile": "Download File"
   },
   "learning": {
     "totalSkills": "skills",
@@ -156,18 +175,12 @@
     "successes": "Successes",
     "expertGuide": "Expert Strategic Guide",
     "optimizedBadge": "LLM OPTIMIZED",
-    "noGuideYet": "This skill is a raw recording without an expert guide.",
-    "rawSteps": "Technical Execution Steps",
     "history": "History",
     "created": "Created",
     "successCountLabel": "Success Count",
     "synthesisSuccess": "Skill created successfully!",
     "synthesisFailed": "Failed to create skill",
     "synthesisError": "An error occurred during synthesis",
-    "openFullEditor": "Open Full Editor",
-    "autoOptimize": "Auto-Optimize Steps",
-    "autoOptimizeDesc": "Remove redundant actions and streamline logic",
-    "synthesisPrompt": "This will analyze your actions using AI and generate a parameterized skill you can use later.",
     "skillCreated": "Skill Created!",
     "skillCreatedDesc": "The skill has been added to your library.",
     "createSkill": "Create Skill",
@@ -179,15 +192,16 @@
     "recordingStarted": "Recording started",
     "recordingStopped": "Recording stopped, {{count}} events captured",
     "noEvents": "No events captured, skipping skill creation.",
-    "na": "N/A",
     "triggerPatterns": "Trigger Patterns",
     "parameters": "Parameters",
     "centerTitle": "Learning Center",
     "centerSubtitle": "Manage your learned skills and train the agent through interactive recording sessions.",
+    "synthesizingProgress": "Analyzing recording content...",
     "editor": {
       "skillDescription": "Description",
-      "invalidJson": "Invalid Parameters JSON",
       "skillName": "Skill Name",
+      "nameHelp": "Unique display name for this skill.",
+      "descHelp": "Detailed description of what the skill does. Helps AI understand and optimize.",
       "triggerPatterns": "Trigger Patterns",
       "title": "Edit Skill: {{name}}",
       "saveChanges": "Save Changes",
@@ -199,53 +213,18 @@
       "paramName": "Field ID",
       "paramType": "Input Type",
       "paramDesc": "Question / Label",
-      "stats": "Performance Stats",
       "noTriggers": "No trigger patterns defined.",
       "nameRequired": "Name is required",
       "paramNameRequired": "Field ID is required",
       "paramNameNoSpaces": "Field IDs cannot contain spaces",
       "paramNameHelp": "Unique ID used by the system (e.g., user_name)",
       "paramDescHelp": "The question the agent asks you (e.g., Please enter user name)",
-      "insertVariable": "Insert Input",
-      "tabs": {
-        "general": "General",
-        "logic": "Logic",
-        "stats": "Stats"
-      },
+      "paramHelp": "Define parameters the user needs to provide before executing this skill (e.g., search term, city name).",
       "aiOptimize": "AI Optimize",
-      "aiOptimizeDesc": "Refine description and triggers using AI",
-      "preview": "Live Preview",
-      "showPreview": "Show Preview",
-      "hidePreview": "Hide Preview",
       "configSidebar": "Skill Configuration",
-      "logicHelp": "Sequence of actions recorded by the agent.",
-      "modeHelp": "Switch between visual and code view.",
-      "noLogic": "No execution logic recorded yet",
-      "addStep": "Add Step",
-      "addInnerStep": "Add Inner Step",
-      "effectiveness": "Effectiveness",
-      "avgDuration": "Avg. Duration",
-      "recentRuns": "RECENT RUNS",
-      "phase6Notice": "Detailed execution logs will appear here in Phase 6.",
-      "instructions": "Skill Instructions (SKILL.md)",
-      "untitledSkill": "Untitled Skill",
-      "noDescription": "No description provided.",
-      "editorInsights": "EDITOR INSIGHTS",
-      "triggersCount": "Triggers Count",
-      "complexity": "Complexity",
-      "complexityMedium": "Medium",
-      "complexityLow": "Low",
-      "previewNotice": "This is a live representation of how your skill will appear in the library.",
-      "simpleMode": "Simple",
-      "jsonMode": "JSON",
       "aiRefinedDesc": "AI refined description based on execution logic.",
       "automatedPrefix": "automated ",
-      "optimizedSuffix": " (Optimized)",
-      "uploadSuccess": "Screenshot updated",
-      "uploadError": "Failed to update screenshot",
-      "inputText": "Input Text",
-      "changeScreenshot": "Click to change screenshot",
-      "noImage": "NO IMAGE"
+      "optimizedSuffix": " (Optimized)"
     },
     "mirror": {
       "title": "Android Mirror Console",
@@ -270,87 +249,12 @@
       "starting": "Starting...",
       "runNow": "Run Now"
     },
-    "categories": {
-      "mobile": "Mobile Interaction",
-      "desktop": "Desktop Interaction",
-      "logic": "Logic Control"
-    },
-    "actions": {
-      "mobile": {
-        "tap": "Tap",
-        "tapDesc": "Tap at specific coordinates",
-        "input_text": "Input Text",
-        "textDesc": "Type text into a field",
-        "swipe": "Swipe",
-        "swipeDesc": "Swipe gestures",
-        "home": "Home",
-        "homeDesc": "Go to home screen",
-        "back": "Back",
-        "backDesc": "Go back",
-        "open_app": "Open App",
-        "openAppDesc": "Open an app by package name",
-        "press_key": "Press Key",
-        "pressKeyDesc": "Press a physical button",
-        "screenshot": "Screenshot",
-        "screenshotDesc": "Capture screen"
-      },
-      "desktop": {
-        "click": "Click",
-        "clickDesc": "Mouse click",
-        "double_click": "Double Click",
-        "doubleClickDesc": "Mouse double click",
-        "type_text": "Type Text",
-        "typeDesc": "Keyboard input",
-        "key_press": "Key Press",
-        "keyPressDesc": "Press a keyboard key",
-        "open_app": "Open App",
-        "openAppDesc": "Open an application",
-        "screenshot": "Screenshot",
-        "screenshotDesc": "Capture screen"
-      },
-      "wait": "Wait",
-      "waitDesc": "Pause execution",
-      "loop": "Loop",
-      "loopDesc": "Repeat steps multiple times",
-      "condition": "Condition",
-      "conditionDesc": "If/Else branching logic",
-      "group": "Group",
-      "groupDesc": "Container for steps",
-      "instruction": "Instruction",
-      "instructionDesc": "Natural language instruction"
-    },
-    "selector": {
-      "title": "Select Action",
-      "searchPlaceholder": "Search implementation actions...",
-      "noResults": "No actions found."
-    },
     "viewDetails": "View Details",
     "startRecording": "Record",
     "toolsCount": "{{count}} tools",
     "successCount": "{{count}} success",
     "stopRecording": "Stop",
-    "runSkill": "Run Skill",
     "noSkills": "No skills found. Try recording actions to synthesize a new skill.",
-    "table": {
-      "type": "Type",
-      "name": "Name",
-      "description": "Description"
-    },
-    "statusBadge": {
-      "active": "Active",
-      "draft": "Draft",
-      "verified": "Verified",
-      "archived": "Archived",
-      "deprecated": "Deprecated"
-    },
-    "tabs": {
-      "library": "Library",
-      "recording": "Recording",
-      "general": "General",
-      "logic": "Logic",
-      "stats": "Stats",
-      "discovery": "Autonomous Discovery"
-    },
     "import": {
       "title": "Import External Skills",
       "description": "Batch import standard skills from directories containing SKILL.md packages.",
@@ -372,12 +276,14 @@
       "quit": "Quit",
       "show": "Show Main Interface",
       "startRecording": "Start Recording (⌘R)",
-      "stopRecording": "Stop Recording (⌘R)",
-      "videoRecordingFailed": "Video recording failed: {{error}}",
-      "recordingAutoStoppedTimeout": "Recording stopped automatically: 10-minute limit reached.",
-      "recordingAutoStoppedSize": "Recording stopped automatically: file size limit (500MB) reached.",
-      "recordingAutoStopped": "Recording was stopped automatically."
-    }
+      "stopRecording": "Stop Recording (⌘R)"
+    },
+    "tabs": {
+      "library": "Skill Library",
+      "recording": "Active Recording",
+      "mcpServers": "MCP Servers"
+    },
+    "quickStart": "Quick Record"
   },
   "todos": {
     "create": {
@@ -503,7 +409,8 @@
       "projectFiles": "Project Files",
       "agentChanges": "Agent Changes",
       "noProject": "No project selected",
-      "searchPlaceholder": "Search conversations..."
+      "searchPlaceholder": "Search conversations...",
+      "copiedPath": "Copied path: {{path}}"
     },
     "resourceRemoved": "Resource removed",
     "context": {
@@ -541,7 +448,6 @@
       "memoryTitle": "Project Memory",
       "noState": "No state data available.",
       "openImagicBox": "Open IMagicBox",
-      "tabKnowledge": "Code Search",
       "statusActive": "Active",
       "statusOffline": "Offline",
       "title": "Agent Workstation",
@@ -551,9 +457,7 @@
       "viewAllMemories": "View all {{count}} memories",
       "relatedTasksTitle": "Tasks related to \"{{concept}}\"",
       "relatedTasksDesc": "Historical episodes linked to this concept",
-      "noEpisodesFound": "No episodes found",
-      "tabChanges": "Changes",
-      "noChanges": "No files modified yet."
+      "noEpisodesFound": "No episodes found"
     },
     "diff": {
       "tip": "Tip: Red lines are deletions, green lines are additions."
@@ -567,7 +471,6 @@
       "quoteFile": "Quote File",
       "selectProject": "Select a project to start chatting",
       "retrying": "Retrying from last user message...",
-      "filesReverted": "files reverted",
       "startPrompt": "Start a new conversation or choose a task below.",
       "memorize": "Memorize",
       "uploadSuccess": "File uploaded successfully",
@@ -579,7 +482,16 @@
       "uploadError": "Upload failed",
       "uploadFile": "Upload File",
       "retry": "Retry",
-      "rewind": "Rewind"
+      "rewind": "Rewind",
+      "conceptPlaceholder": "e.g. Project Architecture",
+      "contentLabel": "Content",
+      "cancel": "Cancel",
+      "deleteChatError": "Failed to delete chat",
+      "addMemorySuccess": "Added to Memory",
+      "stopAgentSuccess": "Stopped",
+      "rewindSuccess": "Rewinded",
+      "filesReverted": "{{count}} files reverted",
+      "messageNotLoaded": "Message for this step not loaded in view"
     },
     "rewind": {
       "confirmTitle": "Confirm Rewind",
@@ -644,6 +556,8 @@
     },
     "stateScratchpad": "Scratchpad",
     "addLinkTitle": "Add External Link",
+    "linkNamePlaceholder": "e.g. API Docs",
+    "linkUrlPlaceholder": "https://...",
     "stateProject": "Project",
     "linkFailed": "Failed to add link",
     "linkAdded": "Link added",
@@ -658,43 +572,6 @@
     "login": "Log In",
     "upgradeToPro": "Upgrade to PRO",
     "manageSubscription": "Manage Subscription"
-  },
-  "dashboard": {
-    "projects": {
-      "recent": "Recent Projects",
-      "remote": "Remote",
-      "noProjectsDesc": "Get started by creating your first project workspace.",
-      "openWorkspace": "Open Workspace",
-      "noProjects": "No projects found",
-      "viewAll": "View All"
-    },
-    "ecosystem": {
-      "subtitle": "Connected Tools & Resources",
-      "noServers": "No MCP servers connected.",
-      "manage": "Manage Integrations",
-      "title": "System Ecosystem",
-      "toolsAvailable": "{{count}} tools available",
-      "active": "Active",
-      "coreAgent": "Core Agent",
-      "evaluationLoop": "Evaluation Loop",
-      "online": "Online"
-    },
-    "stats": {
-      "pendingTasksDesc": "Tasks awaiting action",
-      "activeProjects": "Active Projects",
-      "pendingTasks": "Pending Tasks",
-      "totalTasks": "Total Tasks",
-      "systemServices": "System Services",
-      "totalTasksDesc": "Across all projects",
-      "activeProjectsDesc": "Locally available projects",
-      "systemServicesDesc": "Connected MCP Servers"
-    },
-    "greeting": {
-      "afternoon": "Good afternoon",
-      "welcome": "Welcome to your EvoLoop command center. Here is your system overview.",
-      "morning": "Good morning",
-      "evening": "Good evening"
-    }
   },
   "common": {
     "edit": "Edit",
@@ -719,25 +596,35 @@
     "selectFile": "Select File",
     "back": "Back",
     "done": "Done",
-    "enabled": "Enabled",
-    "disabled": "Disabled",
     "saveAndClose": "Save & Close",
     "search": "Search",
     "scanning": "Scanning...",
     "global": "Global",
-    "error": {
-      "message": "An error occurred"
-    },
-    "new": "New",
     "ignore": "Ignore",
     "import": "Import",
     "restore": "Restore",
     "refresh": "Refresh",
     "later": "Later",
+    "openMenu": "Open menu",
+    "none": "None",
     "time": {
       "justNow": "Just now",
       "minutesAgo": "{{count}}m ago",
       "hoursAgo": "{{count}}h ago"
+    },
+    "copyCode": "Copy Code",
+    "openContextPanel": "Open Context Panel",
+    "preview": "Preview",
+    "fullView": "Full view",
+    "status": {
+      "active": "ACTIVE",
+      "idle": "IDLE"
+    },
+    "error": {
+      "unknown": "Unknown error"
+    },
+    "tool": {
+      "defaultName": "Tool"
     }
   },
   "projects": {
@@ -777,10 +664,25 @@
         "save": "Save Log",
         "title": "Log Work Time"
       },
-      "logTime": "Log Time"
+      "logTime": "Log Time",
+      "errors": {
+        "loadFailed": "Failed to load timesheets",
+        "fillRequired": "Please fill in all required fields",
+        "addFailed": "Failed to add time log"
+      },
+      "success": {
+        "added": "Time log added successfully"
+      }
     },
     "status": {
-      "indexing": "Indexing"
+      "indexing": "Indexing",
+      "analyzing": "Analyzing"
+    },
+    "overview": {
+      "title": "Project Overview",
+      "recentActivity": "Recent Activity",
+      "noActivity": "No recent activity",
+      "quickActions": "Quick Actions"
     },
     "tasks": {
       "failedToLoad": "Failed to load tasks",
@@ -803,7 +705,20 @@
         "inProgress": "In Progress",
         "completed": "Done"
       },
-      "keyModules": "Key Modules"
+      "priority": {
+        "normal": "Normal",
+        "high": "High",
+        "urgent": "Urgent"
+      },
+      "unassigned": "Unassigned",
+      "noModules": "None identified",
+      "noChallenges": "None identified",
+      "noAnalysis": "No analysis available",
+      "commentsComingSoon": "Comments coming soon",
+      "processing": "Processing...",
+      "keyModules": "Key Modules",
+      "executeError": "Failed to start execution",
+      "executeFailed": "Execute task failed"
     },
     "gantt": {
       "noTasks": "No tasks found.",
@@ -828,117 +743,6 @@
       "wiki": "Wiki",
       "requirements": "Requirements"
     },
-    "requirements": {
-      "title": "Requirements",
-      "subtitle": "Upload requirement documents, AI will analyze and break down into development tasks",
-      "upload": {
-        "title": "Upload Requirement Document",
-        "dragDrop": "Drag and drop files here, or click to select",
-        "supportedFormats": "Supports Word, Excel, PDF, Markdown, Text formats",
-        "maxSize": "Max 50MB",
-        "button": "Select File",
-        "uploading": "Uploading...",
-        "success": "Upload successful",
-        "error": "Upload failed"
-      },
-      "list": {
-        "title": "Documents",
-        "description": "Click a document to view details. Analysis results will appear in chat when ready."
-      },
-      "documentList": {
-        "title": "Documents",
-        "empty": "No documents",
-        "emptyDesc": "Upload a requirement document to start analysis",
-        "columns": {
-          "name": "File Name",
-          "size": "Size",
-          "status": "Status",
-          "created": "Created",
-          "actions": "Actions"
-        },
-        "status": {
-          "pending": "Pending",
-          "analyzed": "Analyzed",
-          "confirmed": "Confirmed",
-          "breakdown_completed": "Breakdown Complete"
-        },
-        "delete": {
-          "title": "Delete Document",
-          "confirm": "Are you sure you want to delete {{name}}? This action cannot be undone.",
-          "success": "Document deleted successfully",
-          "error": "Delete failed"
-        }
-      },
-      "detail": {
-        "title": "Document Details",
-        "notFound": "Document not found",
-        "contentPreview": "Content Preview",
-        "analysisHistory": "Analysis History",
-        "versions": "versions",
-        "noAnalysis": "No analysis results",
-        "analysisInProgress": "Analysis may be in progress, please check later",
-        "back": "Back"
-      },
-      "analysis": {
-        "title": "Requirement Analysis",
-        "version": "Version",
-        "edited": "Edited",
-        "functionalRequirements": "Functional Requirements",
-        "nonFunctionalRequirements": "Non-Functional Requirements",
-        "userStories": "User Stories",
-        "technicalSuggestions": "Technical Suggestions",
-        "risks": "Risks & Mitigation",
-        "dependencies": "Dependencies",
-        "mitigation": "Mitigation",
-        "asA": "As a",
-        "iWant": "I want",
-        "soThat": "So that",
-        "confirmTitle": "Confirm Analysis Results",
-        "confirmDesc": "Tasks will be broken down after confirmation",
-        "confirmButton": "Confirm & Breakdown Tasks",
-        "requestChanges": "Request Changes",
-        "requestChangesTitle": "Request Analysis Changes",
-        "requestChangesDesc": "Please describe the changes you need",
-        "requestChangesPlaceholder": "Enter your feedback...",
-        "submitFeedback": "Submit Feedback",
-        "editMode": "Edit Mode",
-        "viewMode": "View Mode",
-        "editTitle": "Edit Title",
-        "editSummary": "Edit Summary",
-        "addRequirement": "Add Requirement",
-        "addUserStory": "Add User Story",
-        "addTechnicalSuggestion": "Add Suggestion",
-        "addRisk": "Add Risk",
-        "remove": "Remove",
-        "priority": "Priority",
-        "category": "Category",
-        "impact": "Impact",
-        "area": "Area",
-        "rationale": "Rationale",
-        "confirmed": "Analysis confirmed, starting task breakdown...",
-        "confirmedWithModifications": "Analysis confirmed (with modifications), starting task breakdown...",
-        "requestingChanges": "I have some feedback on the analysis: {{feedback}}, please re-analyze."
-      },
-      "tasks": {
-        "title": "Tasks",
-        "noTasks": "No tasks",
-        "analysisNotConfirmed": "Please confirm analysis results to generate tasks",
-        "syncProgress": "EvoCloud Sync Progress",
-        "syncComplete": "Sync Complete",
-        "partialSync": "Partial Sync",
-        "syncing": "Syncing...",
-        "synced": "Synced",
-        "pending": "Pending",
-        "failed": "Failed",
-        "listView": "List",
-        "mappingView": "Mapping",
-        "tasks": "tasks",
-        "unmapped": "Unmapped",
-        "estimatedHours": "Estimated Hours",
-        "acceptanceCriteria": "Acceptance Criteria",
-        "syncError": "Sync Error"
-      }
-    },
     "details": {
       "created": "Created",
       "description": "Description",
@@ -947,12 +751,6 @@
         "discussion": "Discussion"
       }
     },
-    "overview": {
-      "recentActivity": "Recent Activity",
-      "title": "Project Overview",
-      "quickActions": "Quick Actions",
-      "noActivity": "No recent activity"
-    },
     "create": {
       "title": "Create New Project",
       "errorNameFormat": "Project name must contain only letters, numbers, underscores, or hyphens",
@@ -960,6 +758,7 @@
       "errorNameRequired": "Project name is required",
       "success": "Project created successfully",
       "nameLabel": "Project Name",
+      "namePlaceholder": "my-awesome-project",
       "submit": "Create Project"
     },
     "filesCount": "Files",
@@ -1008,8 +807,6 @@
     }
   },
   "requirements": {
-    "title": "Requirements",
-    "subtitle": "Upload requirement documents, AI will analyze and break down into development tasks",
     "upload": {
       "title": "Upload Requirements",
       "dragDrop": "Drag files here or click to select",
@@ -1030,7 +827,6 @@
       "badge": "Requirement Analysis",
       "untitled": "Untitled Requirement",
       "functionalRequirements": "Functional Requirements",
-      "nonFunctionalRequirements": "Non-Functional Requirements",
       "userStories": "User Stories",
       "technicalSuggestions": "Technical Suggestions",
       "risks": "Risks & Mitigation",
@@ -1046,18 +842,7 @@
       "mitigation": "Mitigation",
       "confirmed": "I've confirmed the analysis. Please continue with task breakdown.",
       "confirmedWithModifications": "I've confirmed the analysis with modifications. Please continue with task breakdown.",
-      "requestingChanges": "I have feedback on the analysis: {{feedback}}. Please re-analyze.",
-      "priority": {
-        "high": "High",
-        "medium": "Medium",
-        "low": "Low",
-        "urgent": "Urgent"
-      },
-      "impact": {
-        "high": "High",
-        "medium": "Medium",
-        "low": "Low"
-      }
+      "requestingChanges": "I have feedback on the analysis: {{feedback}}. Please re-analyze."
     },
     "status": {
       "pending": "Pending",
@@ -1073,9 +858,6 @@
       "versions": "versions",
       "noAnalysis": "No analysis results",
       "analysisInProgress": "Analysis may be in progress, please check later",
-      "tasksSynced": "tasks synced",
-      "edited": "Edited",
-      "version": "Version",
       "overview": "Overview",
       "tasks": "Tasks"
     },
@@ -1096,7 +878,23 @@
       "unmapped": "Unmapped",
       "estimatedHours": "Estimated Hours",
       "acceptanceCriteria": "Acceptance Criteria"
+    },
+    "toast": {
+      "fetchError": "Failed to fetch requirement documents",
+      "uploadSuccess": "Document uploaded successfully, AI analyzing...",
+      "uploadError": "Failed to upload document",
+      "fetchDetailError": "Failed to fetch document details",
+      "deleteSuccess": "Document deleted",
+      "deleteError": "Failed to delete document",
+      "confirmSuccess": "Analysis confirmed, starting task breakdown...",
+      "confirmError": "Failed to confirm analysis",
+      "feedbackSuccess": "Feedback submitted, AI is re-analyzing...",
+      "feedbackError": "Failed to submit feedback",
+      "fetchTasksError": "Failed to fetch task list"
     }
+  },
+  "mermaid": {
+    "renderError": "Failed to render diagram"
   },
   "wiki": {
     "pageList": "Pages",
@@ -1112,6 +910,7 @@
     }
   },
   "mcp": {
+    "add": "Add",
     "nameLabel": "Name",
     "commandPlaceholder": "e.g. uvx",
     "title": "MCP Servers",
@@ -1124,9 +923,7 @@
       "unknown": "unknown",
       "name": "Name"
     },
-    "serverInstruction": "To use EvoLoop as an MCP Server in other tools (like Claude Desktop), configure it with the following command:",
     "commandRequired": "Command is required",
-    "serverTitle": "EvoLoop MCP Server",
     "delete": "Delete",
     "argsPlaceholder": "e.g. mcp-server-git .",
     "namePlaceholder": "e.g. git",
@@ -1142,7 +939,6 @@
     "learning": "Learning Center",
     "projects": "Projects",
     "chat": "Chat",
-    "dashboard": "Dashboard",
     "searchFilesPlaceholder": "Search project files...",
     "excelPreviewError": "Failed to render Excel preview.",
     "csvPreviewError": "Failed to render CSV table.",
@@ -1182,31 +978,6 @@
     "description": "Select a project to switch to or manage your projects.",
     "indexingTooltip": "Indexing..."
   },
-  "skills": {
-    "actions": {
-      "mobile": {
-        "tap": "Tap",
-        "input_text": "Input Text",
-        "swipe": "Swipe",
-        "press_key": "Press Key",
-        "screenshot": "Screenshot"
-      },
-      "desktop": {
-        "click": "Click",
-        "type_text": "Type Text",
-        "open_app": "Open App",
-        "key_press": "Key Press"
-      },
-      "wait": "Wait"
-    },
-    "editor": {
-      "inputText": "Input Text",
-      "simpleMode": "Simple",
-      "jsonMode": "JSON",
-      "noImage": "No Image",
-      "target": "Target"
-    }
-  },
   "pending": {
     "items": {
       "description": "Description",
@@ -1225,7 +996,11 @@
     "systemCheckPassed": "✓ System checks passed. Ready.",
     "backendReady": "Backend Ready! Launching...",
     "waitingLogs": "Waiting for backend logs...",
-    "initializing": "Initializing System Services..."
+    "initializing": "Initializing System Services...",
+    "logTitle": "system.log"
+  },
+  "app": {
+    "name": "EvoLoop"
   },
   "auth": {
     "recover": {
@@ -1236,7 +1011,8 @@
       "title": "Password Recovery",
       "notImplemented": "Password recovery not implemented in SDK",
       "success": "Password recovery email sent successfully",
-      "rememberPassword": "Remember your password?"
+      "rememberPassword": "Remember your password?",
+      "pageTitle": "Recover Password - EvoLoop"
     },
     "errors": {
       "confirmPasswordRequired": "Password confirmation is required",
@@ -1252,6 +1028,7 @@
       "confirmPassword": "Confirm Password",
       "submit": "Reset Password",
       "rememberPassword": "Remember your password?",
+      "pageTitle": "Reset Password - EvoLoop",
       "success": "Password updated successfully",
       "login": "Log in"
     },
@@ -1259,17 +1036,21 @@
       "email": "Email",
       "emailPlaceholder": "user@example.com",
       "fullName": "Full Name",
+      "fullNamePlaceholder": "User",
       "desktopTitle": "Create an account",
-      "confirmPasswordPlaceholder": "Confirm Password"
+      "confirmPasswordPlaceholder": "Confirm Password",
+      "pageTitle": "Sign Up - EvoLoop"
     },
     "login": {
       "emailOrUsername": "Email or Username",
-      "desktopTitle": "Login to your account"
+      "desktopTitle": "Login to your account",
+      "pageTitle": "Log In - EvoLoop"
     }
   },
   "tour": {
     "replayDesc": "View the product feature introduction again",
-    "replayTitle": "Replay Tour"
+    "replayTitle": "Replay Tour",
+    "skipAriaLabel": "Skip tour"
   },
   "system": {
     "initializationDesc": "Please configure the following system settings to proceed.",

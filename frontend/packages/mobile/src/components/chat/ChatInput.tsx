@@ -189,7 +189,7 @@ export function ChatInput({
                   {att.type === "image" ? (
                     <img
                       src={att.previewUrl || att.url}
-                      alt="preview"
+                      alt={t("common.alt.preview")}
                       className="w-full h-full object-cover"
                     />
                   ) : (

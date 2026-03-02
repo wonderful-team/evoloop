@@ -98,6 +98,8 @@ dev-dependencies = [
     "types-passlib<2.0.0.0,>=1.7.7.20240106",
     "coverage<8.0.0,>=7.4.3",
     "pyinstaller>=6.18.0",
+    "vcrpy>=8.1.1",
+    "pytest-recording>=0.13.4",
 ]
 
 [build-system]

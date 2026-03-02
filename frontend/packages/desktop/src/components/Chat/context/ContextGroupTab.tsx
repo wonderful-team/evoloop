@@ -172,11 +172,11 @@ export function ContextGroupTab({ projectId }: ContextGroupTabProps) {
                                     <div className="grid gap-4 py-4">
                                         <div className="grid gap-2">
                                             <Label>{t("common.name")}</Label>
-                                            <Input value={newLinkName} onChange={(e) => setNewLinkName(e.target.value)} placeholder="e.g. API Docs" />
+                                            <Input value={newLinkName} onChange={(e) => setNewLinkName(e.target.value)} placeholder={t("chat.linkNamePlaceholder")} />
                                         </div>
                                         <div className="grid gap-2">
                                             <Label>{t("common.url")}</Label>
-                                            <Input value={newLinkUrl} onChange={(e) => setNewLinkUrl(e.target.value)} placeholder="https://..." />
+                                            <Input value={newLinkUrl} onChange={(e) => setNewLinkUrl(e.target.value)} placeholder={t("chat.linkUrlPlaceholder")} />
                                         </div>
                                     </div>
                                     <DialogFooter>

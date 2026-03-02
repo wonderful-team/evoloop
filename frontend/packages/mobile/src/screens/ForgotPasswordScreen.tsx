@@ -242,7 +242,7 @@ export function ForgotPasswordScreen() {
                     {captcha.img && (
                       <img
                         src={captcha.img}
-                        alt="Captcha"
+                        alt={t("common.alt.captcha")}
                         className="absolute right-1 top-1 h-8 cursor-pointer"
                         onClick={refreshCaptcha}
                       />

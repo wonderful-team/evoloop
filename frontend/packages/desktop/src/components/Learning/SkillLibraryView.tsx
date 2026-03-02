@@ -263,7 +263,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                         disabled={page <= 1 || isLoading}
                         onClick={() => setPage(p => Math.max(1, p - 1))}
                     >
-                        &lt; {t("common.prev", "Prev")}
+                        &lt; {t("common.previous")}
                     </Button>
                     <span className="text-muted-foreground">
                         {page} / {totalPages}
@@ -274,7 +274,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                         disabled={page >= totalPages || isLoading}
                         onClick={() => setPage(p => p + 1)}
                     >
-                        {t("common.next", "Next")} &gt;
+                        {t("common.next")} &gt;
                     </Button>
                 </div>
             )}

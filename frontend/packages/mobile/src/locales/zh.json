@@ -68,14 +68,10 @@
     "messageList": {
       "initializing": "初始化中...",
       "offline": "设备离线",
-      "readyDesc": "发送指令以控制远程 Agent。",
-      "agentThought": "Agent 思考过程",
       "offlineDesc": "远程设备当前未连接。",
-      "ready": "准备连接",
       "imageViewer": "图片查看器",
       "clickToOpen": "点击打开",
-      "copy": "复制",
-      "toolExecution": "工具执行"
+      "copy": "复制"
     },
     "header": {
       "deviceFallback": "设备 #{{id}}",
@@ -89,7 +85,6 @@
       "agentOffline": "Agent 离线",
       "deliveryFailed": "消息投递失败：",
       "connecting": "连接中...",
-      "deviceOffline": "设备离线",
       "sendFailed": "发送指令失败：",
       "backToLive": "回到实时"
     },
@@ -243,7 +238,6 @@
     "guestDesc": "登录以查看个人资料",
     "currentPlan": "当前方案",
     "language": "语言",
-    "title": "个人中心",
     "pro": "PRO",
     "confirmWithdraw": "撤销注销申请？"
   },
@@ -252,7 +246,6 @@
     "id": "ID：",
     "guestDesc": "管理您的云端项目并跨设备同步。",
     "failedToLoad": "加载项目失败",
-    "errorMissingDeviceId": "项目缺少设备 ID",
     "noProjects": "暂无项目",
     "title": "项目"
   },
@@ -260,11 +253,11 @@
     "noDesc": "暂无描述",
     "switching": "正在切换至 {{name}}...",
     "searchPlaceholder": "搜索项目...",
-    "label": "项目",
     "select": "选择项目",
     "switched": "已切换至 {{name}}",
     "title": "选择项目",
-    "noProjects": "未找到项目"
+    "noProjects": "未找到项目",
+    "switchFailed": "切换项目失败"
   },
   "devices": {
     "guestDesc": "随时随地访问和控制您的远程设备。",
@@ -291,8 +284,6 @@
   },
   "hitl": {
     "responseSent": "回复已发送",
-    "approvalRequired": "需要审批",
-    "enterResponse": "请输入您的回复...",
     "sendFailed": "发送回复失败: "
   },
   "chat_request": {
@@ -321,7 +312,19 @@
     "yes": "是",
     "loading": "加载中...",
     "error": {
-      "title": "错误"
+      "title": "错误",
+      "unknown": "未知错误",
+      "microphoneAccess": "无法访问麦克风",
+      "sessionStartFailed": "启动会话失败"
+    },
+    "alt": {
+      "captcha": "验证码",
+      "avatar": "头像",
+      "preview": "预览",
+      "fullView": "完整视图"
+    },
+    "tool": {
+      "defaultName": "工具"
     }
   }
 }

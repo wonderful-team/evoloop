@@ -86,7 +86,7 @@ export const ProjectOverview: React.FC = () => {
   }, [projectId])
 
   if (loading) {
-    return <div className="p-6">Loading...</div>
+    return <div className="p-6">{t("common.loading")}</div>
   }
 
   return (
@@ -102,7 +102,7 @@ export const ProjectOverview: React.FC = () => {
               variant="secondary"
               className="bg-blue-100 text-blue-700 gap-1"
             >
-              <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Indexing
+              <RefreshCw className="h-3.5 w-3.5 animate-spin" /> {t("projects.status.indexing")}
             </Badge>
           )}
           {(currentProject?.summarization_status === "running" ||
@@ -111,7 +111,7 @@ export const ProjectOverview: React.FC = () => {
                 variant="secondary"
                 className="bg-purple-100 text-purple-700 gap-1"
               >
-                <ListTodo className="h-3.5 w-3.5 animate-pulse" /> Analyzing
+                <ListTodo className="h-3.5 w-3.5 animate-pulse" /> {t("projects.status.analyzing")}
               </Badge>
             )}
         </div>
@@ -202,10 +202,10 @@ export const ProjectOverview: React.FC = () => {
                         variant={task.status === 2 ? "default" : "secondary"}
                       >
                         {task.status === 2
-                          ? "In Progress"
+                          ? t("projects.tasks.statusLabel.inProgress")
                           : task.status === 3
-                            ? "Done"
-                            : "Pending"}
+                            ? t("projects.tasks.statusLabel.completed")
+                            : t("projects.tasks.statusLabel.pending")}
                       </Badge>
                     </div>
                   </div>

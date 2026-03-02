@@ -26,7 +26,7 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         self.base_url = str(config.api_url).rstrip("/")
         self.timeout = 30.0
 
-        self._clients: dict[asyncio.AbstractEventLoop, httpx.AsyncClient] = {}
+        self._client: httpx.AsyncClient | None = None
 
         # Log Batching
         self._log_queue: asyncio.Queue = asyncio.Queue(maxsize=1000)
@@ -34,20 +34,9 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
     async def get_client(self) -> httpx.AsyncClient:
         """Get httpx client bound to current event loop"""
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return http_utils.create_client(timeout=self.timeout)
-
-        if loop in self._clients:
-            client = self._clients[loop]
-            if not client.is_closed:
-                return client
-
-        # Create new
-        client = http_utils.create_client(timeout=self.timeout)
-        self._clients[loop] = client
-        return client
+        if self._client is None or self._client.is_closed:
+            self._client = http_utils.create_client(timeout=self.timeout)
+        return self._client
 
     async def close(self):
         # Stop log batching and flush remaining
@@ -62,10 +51,9 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         # Final flush
         await self._flush_logs()
 
-        for client in self._clients.values():
-            if not client.is_closed:
-                await client.aclose()
-        self._clients.clear()
+        if self._client and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
     # --- Auth Helpers ---
 

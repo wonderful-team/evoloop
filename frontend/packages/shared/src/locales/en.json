@@ -34,7 +34,8 @@
     "previous": "Previous",
     "approve": "Approve",
     "next": "Next",
-    "loading": "Loading..."
+    "loading": "Loading...",
+    "manage": "Manage"
   },
   "auth": {
     "register": {
@@ -123,8 +124,6 @@
     "recordingStopped": "Recording stopped. {{count}} events captured.",
     "stopRecording": "Stop Recording",
     "startRecording": "Start Recording",
-    "recordingTooltip": "Recording your actions for learning",
-    "startRecordingTooltip": "Start recording your actions",
     "globalMode": "System Monitoring Active (Global)",
     "domMode": "App Only (DOM)",
     "permissionRequired": "Permission required for global recording",
@@ -137,7 +136,6 @@
     "createSkillDesc": "Analyze the recorded actions to create a reusable skill.",
     "skillName": "Skill Name",
     "synthesisPrompt": "This will use AI to analyze your actions and generate a parameterized skill that can be used later.",
-    "synthesizing": "Synthesizing...",
     "synthesize": "Synthesize Skill"
   }
 }

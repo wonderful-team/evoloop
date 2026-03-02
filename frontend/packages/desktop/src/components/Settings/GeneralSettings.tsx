@@ -169,8 +169,8 @@ export default function GeneralSettings() {
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="en">English</SelectItem>
-                      <SelectItem value="zh">中文 (Chinese)</SelectItem>
+                      <SelectItem value="en">{t("settings.general.languageOptions.en")}</SelectItem>
+                      <SelectItem value="zh">{t("settings.general.languageOptions.zh")}</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormDescription>
@@ -209,7 +209,7 @@ export default function GeneralSettings() {
                     <FormLabel>{t("settings.general.projectsRoot")}</FormLabel>
                     <div className="flex gap-2">
                       <FormControl>
-                        <Input placeholder="/path/to/projects" {...field} />
+                        <Input placeholder={t("settings.general.projectsRootPlaceholder")} {...field} />
                       </FormControl>
                       <Button
                         type="button"

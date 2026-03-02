@@ -179,10 +179,10 @@ function FilesPage() {
         projectId: Number(projectId),
         requestBody: { path: selectedFile.path },
       })
-      toast.success("Opening file in external app...")
+      toast.success(t("files.openExternal"))
     } catch (error) {
       console.error(error)
-      toast.error("Failed to open file")
+      toast.error(t("files.openExternalError"))
     }
   }
 
@@ -257,7 +257,7 @@ function FilesPage() {
                   ))}
                   {isSearching && !isLoadingSearch && searchResults?.length === 0 && (
                     <div className="text-center py-8 text-muted-foreground text-xs italic">
-                      No matches found
+                      {t("files.noMatches")}
                     </div>
                   )}
                 </div>
@@ -329,7 +329,7 @@ function FilesPage() {
                     key="pdf"
                     src={rawUrl}
                     className="w-full h-full"
-                    title="PDF Preview"
+                    title={t("files.pdfPreview")}
                   />
                 ) : fileType === "docx" ||
                   fileType === "xlsx" ||
@@ -345,7 +345,7 @@ function FilesPage() {
                     className="h-full flex items-center justify-center text-muted-foreground text-sm"
                   >
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Loading content...
+                    {t("files.loadingContent")}
                   </div>
                 ) : fileType === "markdown" ? (
                   <div
@@ -386,7 +386,7 @@ function FilesPage() {
                     {(fileContent as any)?.content || ""}
                     {!(fileContent as any)?.content && !isContentLoading && (
                       <div className="text-center text-muted-foreground mt-10">
-                        Preview not available for this file type.
+                        {t("files.previewNotAvailable")}
                         <br />
                         <a
                           href={rawUrl}
@@ -394,7 +394,7 @@ function FilesPage() {
                           rel="noreferrer"
                           className="text-primary hover:underline mt-2 inline-block"
                         >
-                          Download File
+                          {t("files.downloadFile")}
                         </a>
                       </div>
                     )}
@@ -405,7 +405,7 @@ function FilesPage() {
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground/50 bg-muted/5">
               <FileCode className="h-16 w-16 mb-4 opacity-10" />
-              <p>Select a file to view</p>
+              <p>{t("files.selectFileToView")}</p>
             </div>
           )}
         </div>

@@ -1,0 +1,42 @@
+{
+  "trace_id": "test-trace-001",
+  "thread_id": "test-thread-001",
+  "timestamp": "2024-01-01T00:00:00Z",
+  "messages": [
+    {
+      "role": "human",
+      "content": "Create a hello world Python script"
+    },
+    {
+      "role": "ai",
+      "content": "I'll create a hello world script for you"
+    },
+    {
+      "role": "tool",
+      "name": "write_file",
+      "args": {
+        "path": "hello.py",
+        "content": "print('Hello, World!')"
+      },
+      "result": "File written successfully"
+    },
+    {
+      "role": "ai",
+      "content": "Created hello.py with a hello world program"
+    }
+  ],
+  "tool_calls": [
+    {
+      "name": "write_file",
+      "args": {
+        "path": "hello.py",
+        "content": "print('Hello, World!')"
+      },
+      "timestamp": "2024-01-01T00:00:01Z"
+    }
+  ],
+  "metadata": {
+    "project_id": 1,
+    "execution_time_ms": 1500
+  }
+}

@@ -52,5 +52,9 @@ class GenericOpenAIEmbedder(BaseEmbedder):
             logger.error(f"Embedding Error (Query): {e}\nParams: {kwargs}")
             raise e
 
+    # LangChain-compatible aliases
+    aembed_documents = embed_documents
+    aembed_query = embed_query
+
 
 OpenAIEmbedder = GenericOpenAIEmbedder

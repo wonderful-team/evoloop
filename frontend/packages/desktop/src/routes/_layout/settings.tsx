@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router"
 import { useTranslation } from "react-i18next"
+import { useEffect } from "react"
 import GeneralSettings from "@/components/Settings/GeneralSettings"
 import { ModelSettings } from "@/components/Settings/ModelSettings"
 import AppearanceSettings from "@/components/UserSettings/AppearanceSettings"
@@ -58,6 +59,11 @@ export const Route = createFileRoute("/_layout/settings")({
 
 function UserSettings() {
   const { t } = useTranslation()
+
+  useEffect(() => {
+    document.title = t("settings.pageTitle", "Settings - EvoLoop")
+  }, [t])
+
   const { user: currentUser } = useAuth()
   // All users have access to all tabs
   const finalTabs = TabsConfig()

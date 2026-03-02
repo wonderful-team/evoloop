@@ -1,4 +1,5 @@
 import { useCallback, useState } from "react"
+import { useTranslation } from "react-i18next"
 import { invoke } from "@tauri-apps/api/core"
 import { LearningService } from "@/client/sdk.gen"
 
@@ -43,6 +44,7 @@ export interface UseMultimodalSynthesisOptions {
  * ```
  */
 export function useMultimodalSynthesis(options: UseMultimodalSynthesisOptions = {}) {
+    const { t } = useTranslation()
     const { onSuccess, onError } = options
     const [isSynthesizing, setIsSynthesizing] = useState(false)
     const [progress, setProgress] = useState<string>("")
@@ -54,7 +56,7 @@ export function useMultimodalSynthesis(options: UseMultimodalSynthesisOptions = 
         threadId?: string
     }): Promise<SynthesisResult | null> => {
         setIsSynthesizing(true)
-        setProgress("正在分析录制内容...")
+        setProgress(t("learning.synthesizingProgress", "正在分析录制内容..."))
 
         try {
             const result = await LearningService.synthesizeFromRecording({

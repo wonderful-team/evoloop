@@ -8,6 +8,7 @@ from app.domain.codebase.indexing.service import IndexingService
 from app.domain.watchers import RepoWatcher
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.models import Repository
+from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class IndexingManager:
     def __init__(self):
         self._watchers: dict[str, RepoWatcher] = {}  # path -> watcher
         self._service = IndexingService()  # Shared service
-        self._lock = asyncio.Lock()
+        self._lock_pool = LoopBoundResource(asyncio.Lock)
 
         # Track Active Jobs: project_id -> status dict
         # Status: "queuing", "indexing", "error", "done"
@@ -36,7 +37,7 @@ class IndexingManager:
         """
         Start watching a directory. Idempotent.
         """
-        async with self._lock:
+        async with self._lock_pool.get():
             if path in self._watchers:
                 logger.debug(f"Already watching {path}")
                 return
@@ -53,7 +54,7 @@ class IndexingManager:
         """
         Stop watching a directory.
         """
-        async with self._lock:
+        async with self._lock_pool.get():
             if path in self._watchers:
                 watcher = self._watchers.pop(path)
                 watcher.stop()
@@ -61,7 +62,7 @@ class IndexingManager:
 
     async def stop_all(self):
         """Stop all watchers."""
-        async with self._lock:
+        async with self._lock_pool.get():
             for _path, watcher in self._watchers.items():
                 watcher.stop()
             self._watchers.clear()

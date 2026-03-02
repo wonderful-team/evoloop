@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
+import { useEffect } from "react"
 import { z } from "zod"
 
 import type { Body_login_login_access_token as AccessToken } from "@/client"
@@ -45,17 +46,28 @@ export const Route = createFileRoute("/login")({
       })
     }
   },
-  head: () => ({
-    meta: [
-      {
-        title: "Log In - EvoCloud",
-      },
-    ],
-  }),
+  head: () => {
+    // Use i18n directly since head doesn't have access to hook
+    // This runs before component, so we use a static approach
+    // The title will be updated by the component's useEffect
+    return {
+      meta: [
+        {
+          title: "Log In - EvoLoop",
+        },
+      ],
+    }
+  },
 })
 
 function Login() {
   const { t } = useTranslation()
+
+  // Update page title dynamically
+  useEffect(() => {
+    document.title = t("auth.login.pageTitle", "Log In - EvoLoop")
+  }, [t])
+
   const { loginMutation } = useAuth()
   const formSchema = createSchema(t)
   const form = useForm<FormData>({

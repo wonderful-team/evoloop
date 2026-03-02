@@ -176,7 +176,7 @@ export function ProjectSwitcher() {
                       <div className="flex items-center gap-4 text-xs text-muted-foreground shrink-0">
                         <div
                           className="flex items-center gap-1.5 w-24"
-                          title="Tasks"
+                          title={t("projectSwitcher.tasks")}
                         >
                           <ListTodo className="h-3.5 w-3.5" />
                           <span>

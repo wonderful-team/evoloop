@@ -69,7 +69,7 @@ export const TimesheetList: React.FC = () => {
       }
     } catch (error) {
       console.error(error)
-      toast.error("Failed to load timesheets")
+      toast.error(t("projects.timesheet.errors.loadFailed"))
     } finally {
       setIsLoading(false)
     }
@@ -84,7 +84,7 @@ export const TimesheetList: React.FC = () => {
     if (!projectId) return
 
     if (!hours || !description) {
-      toast.error("Please fill in all required fields")
+      toast.error(t("projects.timesheet.errors.fillRequired"))
       return
     }
 
@@ -100,7 +100,7 @@ export const TimesheetList: React.FC = () => {
         },
         authorization: token,
       })
-      toast.success("Time log added successfully")
+      toast.success(t("projects.timesheet.success.added"))
       setIsDialogOpen(false)
       // Reset form
       setHours("")
@@ -108,7 +108,7 @@ export const TimesheetList: React.FC = () => {
       fetchTimesheets()
     } catch (error) {
       console.error(error)
-      toast.error("Failed to add time log")
+      toast.error(t("projects.timesheet.errors.addFailed"))
     } finally {
       setIsSubmitting(false)
     }

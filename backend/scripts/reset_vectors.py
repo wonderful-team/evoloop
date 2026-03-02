@@ -6,11 +6,11 @@ from sqlmodel import Session
 from app.core.config import settings
 from app.core.db import engine
 from app.infrastructure.database.graph.driver import get_graph_db
-from app.domain.codebase.indexing.manager import indexing_manager
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 async def reset_vectors():
     target_dim = settings.EMBEDDING_DIMENSIONS

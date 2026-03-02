@@ -47,7 +47,7 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                 projectId={projectId}
                 onSelectFile={(file) => {
                   navigator.clipboard.writeText(file.path)
-                  toast.success(`Copied path: ${file.path}`)
+                  toast.success(t("chat.sidebar.copiedPath", { path: file.path }))
                 }}
                 onQuoteFile={onQuoteFile}
               />

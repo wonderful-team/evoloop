@@ -126,7 +126,7 @@ export function TestReportCard({ data }: TestReportCardProps) {
                         e.stopPropagation()
                         copyFix()
                       }}
-                      title="Copy Code"
+                      title={t("common.copyCode")}
                     >
                       <Copy size={12} />
                     </Button>

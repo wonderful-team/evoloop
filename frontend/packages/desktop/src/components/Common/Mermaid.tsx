@@ -1,6 +1,7 @@
 
 import mermaid from "mermaid"
 import { useEffect, useRef } from "react"
+import { useTranslation } from "react-i18next"
 
 // Initialize mermaid
 mermaid.initialize({
@@ -11,6 +12,7 @@ mermaid.initialize({
 })
 
 export const Mermaid = ({ chart }: { chart: string }) => {
+    const { t } = useTranslation()
     const ref = useRef<HTMLDivElement>(null)
     const id = useRef(`mermaid-${Math.random().toString(36).slice(2)}`)
 
@@ -25,7 +27,7 @@ export const Mermaid = ({ chart }: { chart: string }) => {
             } catch (error) {
                 console.error("Mermaid rendering error:", error)
                 if (ref.current) {
-                    ref.current.innerHTML = `<div class="text-red-500 text-xs p-2 border border-red-500 rounded bg-red-500/10">Failed to render diagram</div>`
+                    ref.current.innerHTML = `<div class="text-red-500 text-xs p-2 border border-red-500 rounded bg-red-500/10">${t("mermaid.renderError", "Failed to render diagram")}</div>`
                 }
             }
         }

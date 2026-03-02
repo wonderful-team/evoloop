@@ -34,7 +34,8 @@
     "previous": "上一页",
     "approve": "批准",
     "next": "下一页",
-    "loading": "加载中..."
+    "loading": "加载中...",
+    "manage": "管理"
   },
   "auth": {
     "register": {
@@ -123,8 +124,6 @@
     "recordingStopped": "录制已停止。共捕获 {{count}} 个事件。",
     "stopRecording": "停止录制",
     "startRecording": "开始录制",
-    "recordingTooltip": "正在录制您的操作以用于学习",
-    "startRecordingTooltip": "开始录制您的操作",
     "globalMode": "系统监控已激活 (全局)",
     "domMode": "仅应用内 (DOM)",
     "permissionRequired": "全局录制需要权限",
@@ -137,7 +136,6 @@
     "createSkillDesc": "分析录制的操作以创建可重用的技能。",
     "skillName": "技能名称",
     "synthesisPrompt": "这将使用 AI 分析您的操作并生成可供稍后使用的参数化技能。",
-    "synthesizing": "正在合成...",
     "synthesize": "合成技能"
   }
 }

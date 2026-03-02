@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
+import { useEffect } from "react"
 import { z } from "zod"
 
 import { AuthLayout } from "@/components/Common/AuthLayout"
@@ -69,6 +70,11 @@ export const Route = createFileRoute("/reset-password")({
 
 function ResetPassword() {
   const { t } = useTranslation()
+
+  useEffect(() => {
+    document.title = t("auth.resetPassword.pageTitle", "Reset Password - EvoLoop")
+  }, [t])
+
   const { token } = Route.useSearch()
   const { showSuccessToast, showErrorToast } = useCustomToast()
   const navigate = useNavigate()

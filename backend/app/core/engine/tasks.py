@@ -48,7 +48,14 @@ def persist_file_operation_task(
         except Exception as e:
             logger.error(f"[Celery] Failed to persist file operation: {e}")
 
-    asyncio.run(_run())
+    async def _run_with_flush():
+        try:
+            await _run()
+        finally:
+            from app.utils.async_utils import flush_loop_bound_resources
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())
 
 
 @shared_task(name="engine_upload_cloud_log")
@@ -76,7 +83,14 @@ def upload_cloud_log_task(
         except Exception as e:
             logger.error(f"[Celery] Cloud log upload failed: {e}")
 
-    asyncio.run(_run())
+    async def _run_with_flush():
+        try:
+            await _run()
+        finally:
+            from app.utils.async_utils import flush_loop_bound_resources
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())
 
 
 @shared_task(name="engine_snapshot_steps")
@@ -120,7 +134,14 @@ def snapshot_steps_task(
         except Exception as e:
             logger.error(f"[Celery] Failed to snapshot steps: {e}")
 
-    asyncio.run(_run())
+    async def _run_with_flush():
+        try:
+            await _run()
+        finally:
+            from app.utils.async_utils import flush_loop_bound_resources
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())
 
 
 def _parse_android_bounds(bounds_str: str) -> tuple[int, int, int, int] | None:
@@ -239,7 +260,14 @@ def harvest_concepts_task(concepts_data: list[dict], project_id: int):
             except Exception as e:
                 logger.warning(f"Failed to store concept {name}: {e}")
 
-    asyncio.run(_run())
+    async def _run_with_flush():
+        try:
+            await _run()
+        finally:
+            from app.utils.async_utils import flush_loop_bound_resources
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())
 
 
 @shared_task(name="engine_record_episode")
@@ -270,7 +298,14 @@ def record_episode_task(
         except Exception as e:
             logger.error(f"[Celery] Failed to record episode: {e}")
 
-    asyncio.run(_run())
+    async def _run_with_flush():
+        try:
+            await _run()
+        finally:
+            from app.utils.async_utils import flush_loop_bound_resources
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())
 
 
 @shared_task(name="engine_prune_checkpoints")
@@ -304,7 +339,14 @@ def prune_checkpoints_task(keep_days: int = 7):
         except Exception as e:
             logger.error(f"[Celery] Failed to prune checkpoints: {e}")
 
-    asyncio.run(_run())
+    async def _run_with_flush():
+        try:
+            await _run()
+        finally:
+            from app.utils.async_utils import flush_loop_bound_resources
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())
 
 
 @shared_task(name="engine_persist_message")
@@ -371,7 +413,14 @@ def persist_message_task(
         except Exception as e:
             logger.error(f"[Celery] Failed to persist message: {e}")
 
-    asyncio.run(_run())
+    async def _run_with_flush():
+        try:
+            await _run()
+        finally:
+            from app.utils.async_utils import flush_loop_bound_resources
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())
 
 
 @shared_task(name="engine_cleanup_artifacts")
@@ -443,4 +492,11 @@ def git_harvest_task(cwd: str, project_id: int):
         except Exception as e:
             logger.error(f"[Celery] Harvest extraction failed: {e}")
 
-    asyncio.run(_run())
+    async def _run_with_flush():
+        try:
+            await _run()
+        finally:
+            from app.utils.async_utils import flush_loop_bound_resources
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())
