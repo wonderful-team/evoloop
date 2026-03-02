@@ -1,167 +1,278 @@
-# FastAPI Project - Backend
+# EvoLoop Backend
 
-## Requirements
+EvoLoop 后端服务，基于 FastAPI 构建，提供 API 服务和异步任务处理能力。
 
-* [Docker](https://www.docker.com/).
-* [uv](https://docs.astral.sh/uv/) for Python package and environment management.
+## 系统要求
 
-## Docker Compose
+* [Docker](https://www.docker.com/) - 用于运行数据库等服务
+* [uv](https://docs.astral.sh/uv/) - Python 包管理和环境管理
+* Python 3.11+
 
-Start the local development environment with Docker Compose following the guide in [../development.md](../development.md).
+## 快速开始
 
-## General Process
-
-By default, the dependencies are managed with [uv](https://docs.astral.sh/uv/), go there and install it.
-
-From `./backend/` you can install all the dependencies with:
+### 1. 安装依赖
 
 ```console
+$ cd backend
 $ uv sync
 ```
 
-Then you can activate the virtual environment with:
+### 2. 启动服务
+
+我们提供了统一的 CLI 工具 `evo` 来管理所有操作：
+
+```console
+# 查看所有可用命令
+$ bin/evo help
+
+# 启动开发服务器
+$ bin/evo dev
+
+# 启动 Celery Worker（需要另一个终端）
+$ bin/evo worker
+```
+
+### 3. 数据库初始化
+
+```console
+# 运行迁移
+$ bin/evo db migrate
+
+# 填充测试数据（可选）
+$ bin/evo db seed
+```
+
+## 项目结构
+
+```
+backend/
+├── bin/                    # 可执行脚本
+│   ├── evo                 # Evo CLI 工具（主入口）
+│   ├── run.py              # Python 运行入口
+│   └── run_sidecar.py      # PyInstaller 打包入口
+├── app/                    # 应用代码
+├── scripts/                # 工具脚本（清理、测试等）
+├── tests/                  # 测试用例
+└── docs/                   # 文档
+```
+
+## evo CLI 工具
+
+`evo` 是 EvoLoop 的统一命令行工具，封装了日常开发所需的所有命令。
+
+### 常用命令
+
+```bash
+# 开发环境
+bin/evo dev           # 启动 API 开发服务器
+bin/evo worker        # 启动 Celery Worker
+bin/evo stop          # 停止所有服务
+
+# 代码质量
+bin/evo lint          # 代码检查
+bin/evo format        # 代码格式化
+bin/evo check         # 全面代码检查（lint + type check）
+
+# 测试
+bin/evo test          # 运行单元测试
+bin/evo test cov      # 运行测试并生成覆盖率报告
+bin/evo test e2e      # 运行端到端测试
+
+# 数据库
+bin/evo db migrate    # 运行数据库迁移
+bin/evo db reset      # 重置数据库
+bin/evo db seed       # 填充测试数据
+
+# 知识库
+bin/evo kb reset      # 清空并重建知识库索引
+
+# 系统清理
+bin/evo clean         # 清理运行时缓存
+```
+
+查看完整命令列表：`bin/evo help`
+
+## 开发环境配置
+
+### 使用虚拟环境
 
 ```console
 $ source .venv/bin/activate
 ```
 
-Make sure your editor is using the correct Python virtual environment, with the interpreter at `backend/.venv/bin/python`.
+确保编辑器使用正确的 Python 解释器：`backend/.venv/bin/python`
+
+### VS Code 支持
+
+项目已配置 VS Code 调试器，支持：
+- 断点调试
+- 测试面板集成
+- 代码格式化（Ruff）
+
+### 环境变量
+
+复制 `.env.example` 到 `.env` 并根据需要修改：
+
+```bash
+cp .env.example .env
+```
+
+关键配置项：
+- `POSTGRES_*` - 数据库连接
+- `REDIS_URL` - Redis 连接
+- `SECRET_KEY` - JWT 密钥
+- `OPENAI_API_KEY` - OpenAI API 密钥
 
 Modify or add SQLModel models for data and SQL tables in `./backend/app/models.py`, API endpoints in `./backend/app/api/`, CRUD (Create, Read, Update, Delete) utils in `./backend/app/crud.py`.
 
-## VS Code
+## 测试
 
-There are already configurations in place to run the backend through the VS Code debugger, so that you can use breakpoints, pause and explore variables, etc.
+```bash
+# 运行所有测试
+bin/evo test
 
-The setup is also already configured so you can run the tests through the VS Code Python tests tab.
+# 运行测试并生成覆盖率报告
+bin/evo test cov
 
-## Docker Compose Override
+# 运行端到端测试
+bin/evo test e2e
 
-During development, you can change Docker Compose settings that will only affect the local development environment in the file `docker-compose.override.yml`.
-
-The changes to that file only affect the local development environment, not the production environment. So, you can add "temporary" changes that help the development process.
-
-For example, the directory with the backend code is synchronized in the Docker container, copying the code you change live to the directory inside the container. That allows you to test your changes right away, without having to build the Docker image again. It should only be done during development, for production, you should build the Docker image with a recent version of the backend code. But during development, it allows you to iterate very fast.
-
-There is also a command override that runs `fastapi run --reload` instead of the default `fastapi run`. It starts a single server process (instead of multiple, as would be for production) and reloads the process whenever the code changes. Have in mind that if you have a syntax error and save the Python file, it will break and exit, and the container will stop. After that, you can restart the container by fixing the error and running again:
-
-```console
-$ docker compose watch
+# 运行特定模块测试
+bin/evo test brain
+bin/evo test atlas
 ```
 
-There is also a commented out `command` override, you can uncomment it and comment the default one. It makes the backend container run a process that does "nothing", but keeps the container alive. That allows you to get inside your running container and execute commands inside, for example a Python interpreter to test installed dependencies, or start the development server that reloads when it detects changes.
+测试覆盖率报告生成在 `htmlcov/index.html`，可在浏览器中查看。
 
-To get inside the container with a `bash` session you can start the stack with:
+## 部署
 
-```console
-$ docker compose watch
+### 开发部署
+
+```bash
+# 启动完整开发环境（API + Worker）
+bin/evo dev        # 终端 1
+bin/evo worker     # 终端 2
 ```
 
-and then in another terminal, `exec` inside the running container:
+### 生产部署（PyInstaller 打包）
+
+```bash
+# 构建可执行文件
+pyinstaller evoloop-backend.spec
+
+# 运行打包后的程序
+./dist/evoloop-backend api     # 启动 API
+./dist/evoloop-backend worker  # 启动 Worker
+```
+
+### Docker 部署
+
+使用 Docker Compose 快速启动完整环境：
+
+```bash
+# 启动所有服务
+docker compose up -d
+
+# 查看日志
+docker compose logs -f backend
+
+# 进入容器执行命令
+docker compose exec backend bash
+```
+
+#### Docker Compose 开发配置
+
+开发环境可使用 `docker-compose.override.yml` 覆盖默认配置：
+
+- 代码热重载
+- 调试模式
+- 本地代码挂载
+
+```bash
+# 开发模式启动
+docker compose watch
+```
+
+#### 进入容器调试
 
 ```console
 $ docker compose exec backend bash
-```
-
-You should see an output like:
-
-```console
 root@7f2607af31c3:/app#
 ```
 
-that means that you are in a `bash` session inside your container, as a `root` user, under the `/app` directory, this directory has another directory called "app" inside, that's where your code lives inside the container: `/app/app`.
-
-There you can use the `fastapi run --reload` command to run the debug live reloading server.
+现在你可以在容器内使用 `evo` 命令：
 
 ```console
-$ fastapi run --reload app/main.py
+root@7f2607af31c3:/app# evo dev
 ```
 
-...it will look like:
+## bin/ 目录详解
 
-```console
-root@7f2607af31c3:/app# fastapi run --reload app/main.py
+```
+bin/
+├── evo              # 主 CLI 工具（bash）
+├── run.py           # Python 运行入口
+└── run_sidecar.py   # PyInstaller 打包入口
 ```
 
-and then hit enter. That runs the live reloading server that auto reloads when it detects code changes.
-
-Nevertheless, if it doesn't detect a change but a syntax error, it will just stop with an error. But as the container is still alive and you are in a Bash session, you can quickly restart it after fixing the error, running the same command ("up arrow" and "Enter").
-
-...this previous detail is what makes it useful to have the container alive doing nothing and then, in a Bash session, make it run the live reload server.
-
-## Backend tests
-
-To test the backend run:
-
-```console
-$ bash ./scripts/test.sh
-```
-
-The tests run with Pytest, modify and add tests to `./backend/tests/`.
-
-If you use GitHub Actions the tests will run automatically.
-
-### Test running stack
-
-If your stack is already up and you just want to run the tests, you can use:
-
-```bash
-docker compose exec backend bash scripts/tests-start.sh
-```
-
-That `/app/scripts/tests-start.sh` script just calls `pytest` after making sure that the rest of the stack is running. If you need to pass extra arguments to `pytest`, you can pass them to that command and they will be forwarded.
-
-For example, to stop on first error:
-
-```bash
-docker compose exec backend bash scripts/tests-start.sh -x
-```
+- `evo` - 开发/运维的统一命令入口
+- `run.py` - 可直接用 Python 运行：`python bin/run.py api`
+- `run_sidecar.py` - 打包后的桌面应用入口，委托给 `run.py`
 
 ### Test Coverage
 
 When the tests are run, a file `htmlcov/index.html` is generated, you can open it in your browser to see the coverage of the tests.
 
-## Migrations
+## 数据库迁移
 
-As during local development your app directory is mounted as a volume inside the container, you can also run the migrations with `alembic` commands inside the container and the migration code will be in your app directory (instead of being only inside the container). So you can add it to your git repository.
+使用 Alembic 管理数据库迁移：
 
-Make sure you create a "revision" of your models and that you "upgrade" your database with that revision every time you change them. As this is what will update the tables in your database. Otherwise, your application will have errors.
+### 创建迁移
 
-* Start an interactive session in the backend container:
+修改模型后，创建新的迁移版本：
 
-```console
-$ docker compose exec backend bash
+```bash
+# 使用 evo 命令
+bin/evo db migrate
+
+# 或直接使用 alembic
+alembic revision --autogenerate -m "添加用户字段"
 ```
 
-* Alembic is already configured to import your SQLModel models from `./backend/app/models.py`.
+### 常用命令
 
-* After changing a model (for example, adding a column), inside the container, create a revision, e.g.:
+```bash
+# 升级到最新版本
+alembic upgrade head
 
-```console
-$ alembic revision --autogenerate -m "Add column last_name to User model"
+# 降级到指定版本
+alembic downgrade -1
+
+# 查看当前版本
+alembic current
+
+# 查看历史
+alembic history
 ```
 
-* Commit to the git repository the files generated in the alembic directory.
+### 不使用迁移（仅开发）
 
-* After creating the revision, run the migration in the database (this is what will actually change the database):
+如需在开发环境自动创建表（不推荐用于生产）：
 
-```console
-$ alembic upgrade head
-```
+1. 在 `app/core/db.py` 中取消注释：
+   ```python
+   SQLModel.metadata.create_all(engine)
+   ```
 
-If you don't want to use migrations at all, uncomment the lines in the file at `./backend/app/core/db.py` that end in:
+2. 删除 `alembic/versions/` 下的所有迁移文件
 
-```python
-SQLModel.metadata.create_all(engine)
-```
+## 进阶配置
 
-and comment the line in the file `scripts/prestart.sh` that contains:
+## 更多文档
 
-```console
-$ alembic upgrade head
-```
-
-If you don't want to start with the default models and want to remove them / modify them, from the beginning, without having any previous revision, you can remove the revision files (`.py` Python files) under `./backend/app/alembic/versions/`. And then create a first migration as described above.
+- [evo CLI 完整文档](./docs/EVO_CLI.md)
+- [系统清理指南](./docs/SCRIPTS_CLEANUP_PLAN.md)
+- [API 文档](http://localhost:8000/docs)（启动后访问）
 
 ## Email Templates
 

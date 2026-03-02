@@ -9,7 +9,7 @@
 bin/evo help
 
 # 方式2: 创建全局命令
-chmod +x bin/evo
+chmod +x bin/evo bin/run_sidecar.py
 sudo ln -s $(pwd)/bin/evo /usr/local/bin/evo
 
 # 然后可以在任何地方使用

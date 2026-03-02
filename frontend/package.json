@@ -9,7 +9,7 @@
     "lint": "biome check --write --unsafe --no-errors-on-unmatched --files-ignore-unknown=true ./",
     "lint:mobile": "npx eslint src/mobile --config eslint.mobile.config.mjs",
     "preview": "cd packages/desktop && vite preview",
-    "generate-client": "cd ../backend/ && uv run export_openapi.py && cd ../frontend/ && openapi-ts",
+    "generate-client": "cd ../backend/ && bin/evo export openapi && cd ../frontend/ && openapi-ts",
     "tauri": "tauri",
     "tauri:mobile": "tauri android dev --config src-tauri/tauri.mobile.conf.json",
     "dev:mobile": "cd packages/mobile && vite --port 5174",

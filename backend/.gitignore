@@ -7,3 +7,5 @@ htmlcov
 .cache
 .venv
 /build/
+*.db
+!*.db.example

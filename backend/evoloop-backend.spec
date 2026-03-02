@@ -85,7 +85,7 @@ datas += [
 block_cipher = None
 
 a = Analysis(
-    ['run_sidecar.py'],
+    ['bin/run_sidecar.py'],
     pathex=[],
     binaries=[],
     datas=datas,

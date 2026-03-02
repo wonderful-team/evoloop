@@ -1,6 +1,12 @@
+from pathlib import Path
+
 from celery import Celery
 
 from app.core.config import settings
+
+# Ensure database directory exists for Celery beat schedule
+db_dir = Path.home() / ".evoloop" / "database"
+db_dir.mkdir(parents=True, exist_ok=True)
 
 celery_app = Celery(
     "evoloop_worker",
@@ -24,6 +30,7 @@ celery_app.conf.update(
     result_serializer="json",
     timezone="UTC",
     enable_utc=True,
+    beat_schedule_filename=str(db_dir / "celerybeat-schedule.db"),
     beat_schedule={
         # Storage cleanup tasks - run daily at low-traffic hours
         "cleanup-screenshots-daily": {
