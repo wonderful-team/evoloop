@@ -228,7 +228,9 @@ case "${1:-help}" in
                 ;;
             reset)
                 info "重置数据库..."
-                bash scripts/prestart.sh
+                uv run python app/backend_pre_start.py
+                uv run alembic upgrade head
+                uv run python app/initial_data.py
                 ;;
             seed)
                 info "填充测试数据..."
