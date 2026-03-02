@@ -6,7 +6,7 @@ from app.core.tools import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def query_app_atlas(bundle_ids: str | list[str]) -> str:
     """
     Retrieves structural UI maps (Atlas) for one or more applications from the graph database.
@@ -27,7 +27,7 @@ async def query_app_atlas(bundle_ids: str | list[str]) -> str:
         return f"Error: Unable to retrieve atlas for {bundle_ids}. Details: {str(e)}"
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def list_app_atlas() -> str:
     """
     Lists all applications that have structural UI maps (Atlas) available in the graph database.

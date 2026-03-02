@@ -80,6 +80,7 @@ dependencies = [
     "keyring>=25.0.0",
     "pyobjc-framework-vision>=12.1",
     "pyobjc>=12.1",
+    "playwright>=1.40.0",
 ]
 
 [tool.uv]

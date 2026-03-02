@@ -49,3 +49,24 @@ async def delete_mcp_server(name: str):
         return {"status": "success", "message": f"Server {name} removed"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/server/{name}/connect", response_model=Any)
+async def connect_mcp_server(name: str):
+    """
+    Manually trigger a connection to an MCP server.
+    """
+    try:
+        success = await mcp_client_manager.ensure_connected(name)
+        if not success:
+            raise HTTPException(status_code=400, detail=f"Failed to connect to MCP server '{name}'")
+        
+        # Get current tools to return verification
+        tools = await mcp_client_manager.get_tools_for(name)
+        return {
+            "status": "connected",
+            "name": name,
+            "tools_count": len(tools)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))

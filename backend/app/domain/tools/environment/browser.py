@@ -49,7 +49,6 @@ class BrowserManager:
     Settings are managed in app.core.config.
     """
 
-
     def __init__(self) -> None:
         self._playwright = None
         self._browser = None
@@ -80,10 +79,10 @@ class BrowserManager:
         self._playwright = await async_playwright().start()
 
         # ─── Mode 1: Try Takeover (CDP – external Chrome already running) ──
-        logger.info(f"[Browser] Attempting CDP takeover: {settings.CDP_URL}")
+        logger.info(f"[Browser] Attempting CDP takeover: {settings.CHROME_CDP_URL}")
         try:
             self._browser = await self._playwright.chromium.connect_over_cdp(
-                settings.CDP_URL, timeout=3000  # fast probe, 3 s
+                settings.CHROME_CDP_URL, timeout=3000  # fast probe, 3 s
             )
             if self._browser.contexts:
                 self._context = self._browser.contexts[0]
@@ -121,11 +120,11 @@ class BrowserManager:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
-                logger.info(f"[Browser] Chrome launched (pid={self._chrome_proc.pid}). Waiting {settings.CDP_STARTUP_TIMEOUT}s...")
-                await asyncio.sleep(settings.CDP_STARTUP_TIMEOUT)
+                logger.info(f"[Browser] Chrome launched (pid={self._chrome_proc.pid}). Waiting {settings.CHROME_STARTUP_TIMEOUT}s...")
+                await asyncio.sleep(settings.CHROME_STARTUP_TIMEOUT)
 
                 self._browser = await self._playwright.chromium.connect_over_cdp(
-                    settings.CDP_URL, timeout=10000  # more lenient after launch
+                    settings.CHROME_CDP_URL, timeout=10000  # more lenient after launch
                 )
 
                 if self._browser.contexts:
@@ -137,10 +136,9 @@ class BrowserManager:
             except Exception as e:
                 logger.error(f"[Browser] Mode 2 (auto-launch CDP) failed: {e}")
                 raise RuntimeError(
-                    f"Browser startup failed. Could not connect to CDP at {settings.CDP_URL}. "
+                    f"Browser startup failed. Could not connect to CDP at {settings.CHROME_CDP_URL}. "
                     "Please ensure Google Chrome is installed at the default path."
                 ) from e
-
 
         # ─── Initialize page list ────────────────────────────────────────────
         if self._context.pages:
@@ -173,7 +171,7 @@ class BrowserManager:
     def get_status(self) -> dict:
         """Return connectivity and state info for environment prompts."""
         if not self._context:
-            return {"mode": "Disconnected", "cdp_url": settings.CDP_URL, "tab_count": 0}
+            return {"mode": "Disconnected", "cdp_url": settings.CHROME_CDP_URL, "tab_count": 0}
         
         mode = "CDP-Takeover" if self._is_cdp and not self._chrome_proc else "CDP-AutoLaunch" if self._is_cdp else "Launch"
         active_url = "None"
@@ -185,11 +183,10 @@ class BrowserManager:
 
         return {
             "mode": mode,
-            "cdp_url": settings.CDP_URL,
+            "cdp_url": settings.CHROME_CDP_URL,
             "active_url": active_url,
             "tab_count": len(self._pages),
         }
-
 
     async def close(self) -> None:
         async with self._lock:

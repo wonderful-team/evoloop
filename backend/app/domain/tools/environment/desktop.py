@@ -66,7 +66,7 @@ async def _trigger_atlas_harvest_macos(bundle_id: str):
         logger.warning(f"[AtlasHarvest] Failed to harvest for {bundle_id}: {e}")
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def desktop_control(
     action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app"],
     x: int | None = None,
@@ -548,7 +548,7 @@ async def desktop_control(
         return f"Error: {str(e)}"
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def verify_ui_state(
     expected_element: str | None = None,
     expected_role: str | None = None,
@@ -601,7 +601,7 @@ async def verify_ui_state(
         return f"Verification Error: {str(e)}"
 
 
-@evoloop_tool
+@evoloop_tool(is_pollable=True)
 async def quick_check_screen(
     check_type: Literal["has_text", "has_element", "is_loaded"],
     target: str | None = None,

@@ -2,7 +2,7 @@ import hashlib
 import json
 import logging
 import os
-import re
+import shutil
 import time
 from dataclasses import dataclass
 from typing import Any
@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import func, select
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
+from app.core.config import settings
 from app.infrastructure.database.redis import redis_client
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
@@ -41,25 +42,62 @@ class SkillDiscovery:
         self._system_skills_synced = False
 
     async def _sync_system_skills(self):
-        """Sync system SOPs from the local library to the DB."""
+        """
+        Sync system skills to the DB.
+
+        Workflow:
+        1. Copy built-in skills from app/core/learning/skills to ~/.evoloop/skills
+        2. Scan ~/.evoloop/skills directory and import/update skills in DB
+        """
         if self._system_skills_synced:
             return
 
         try:
             from app.core.learning.skill_importer import SkillImporter
 
-            # Resolve the absolute path to the skills
-            # current file is app/core/learning/discovery.py
+            # Step 1: Copy built-in skills to user skills directory
             base_dir = os.path.dirname(os.path.abspath(__file__))
-            skills_path = os.path.join(base_dir, "skills")
+            builtin_skills_path = os.path.join(base_dir, "skills")
+            user_skills_path = settings.SKILLS_DIR
 
-            if os.path.exists(skills_path):
-                logger.info(f"[Discovery] Pre-seeding system Skills from {skills_path}")
-                await SkillImporter.import_from_directory(skills_path)
+            if os.path.exists(builtin_skills_path):
+                logger.info(f"[Discovery] Syncing built-in skills to {user_skills_path}")
+                self._copy_builtin_skills(builtin_skills_path, user_skills_path)
+
+            # Step 2: Import skills from user skills directory
+            if os.path.exists(user_skills_path):
+                logger.info(f"[Discovery] Loading skills from {user_skills_path}")
+                await SkillImporter.import_from_directory(user_skills_path)
 
             self._system_skills_synced = True
         except Exception as e:
             logger.error(f"[Discovery] Failed to sync system SOPs: {e}")
+
+    def _copy_builtin_skills(self, builtin_path: str, user_path: str) -> None:
+        """
+        Copy built-in skills to user skills directory.
+        Only copies new or updated skills (based on modification time).
+        """
+        if not os.path.exists(user_path):
+            os.makedirs(user_path, exist_ok=True)
+
+        for root, dirs, files in os.walk(builtin_path):
+            # Calculate relative path from builtin skills root
+            rel_path = os.path.relpath(root, builtin_path)
+            target_dir = os.path.join(user_path, rel_path)
+
+            # Create target directory
+            os.makedirs(target_dir, exist_ok=True)
+
+            # Copy files
+            for file in files:
+                source_file = os.path.join(root, file)
+                target_file = os.path.join(target_dir, file)
+
+                # Copy if target doesn't exist or source is newer
+                if not os.path.exists(target_file) or os.path.getmtime(source_file) > os.path.getmtime(target_file):
+                    shutil.copy2(source_file, target_file)
+                    logger.debug(f"[Discovery] Copied skill file: {rel_path}/{file}")
 
     async def _get_active_skills(self) -> list[LearnedSkill]:
         """Cache-active skills from DB."""

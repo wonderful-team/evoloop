@@ -20,6 +20,7 @@ def consolidate_memory(source_message_id: str = None):
 
     async def _run():
         fs = BrainFileSystem(settings.BRAIN_MEMORY_ROOT)
+        fs.initialize()  # Ensure directories exist before reading
         reflective = ReflectiveDriver()
         consolidator = MemoryConsolidator(reflective, fs)
         await consolidator.run_cycle(source_message_id=source_message_id)

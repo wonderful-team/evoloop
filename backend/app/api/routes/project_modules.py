@@ -30,12 +30,12 @@ class TimesheetQuickAddRequest(BaseModel):
 
 @router.get("/budget/list")
 async def get_budget_list(project_id: int, page: int = 1, page_size: int = 50, token: TokenDep = None):
-    return await evocloud_manager.api.get_budget_list(project_id, page, page_size, token)
+    return await evocloud_manager.api.get_budget_list(project_id, page, page_size)
 
 
 @router.get("/budget/overview")
 async def get_budget_overview(project_id: int, token: TokenDep = None):
-    return await evocloud_manager.api.get_budget_overview(project_id, token)
+    return await evocloud_manager.api.get_budget_overview(project_id)
 
 
 @router.get("/timesheet/list")
@@ -46,7 +46,7 @@ async def get_timesheet_list(
     authorization: str | None = Header(None),
 ):
     token = get_token(authorization)
-    res = await evocloud_manager.api.get_timesheet_list(project_id, page, page_size, token=token)
+    res = await evocloud_manager.api.get_timesheet_list(project_id, page, page_size)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400, detail=res.get("message", "Failed to get timesheet list")
@@ -60,7 +60,7 @@ async def quick_add_timesheet(
 ):
     token = get_token(authorization)
     data = req.model_dump()
-    res = await evocloud_manager.api.add_timesheet_quick(data, token=token)
+    res = await evocloud_manager.api.add_timesheet_quick(data)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400, detail=res.get("message", "Failed to add timesheet")
@@ -76,7 +76,7 @@ async def get_project_statistics(
     project_id: int | None = None, authorization: str | None = Header(None)
 ):
     token = get_token(authorization)
-    res = await evocloud_manager.api.get_project_statistics(project_id, token=token)
+    res = await evocloud_manager.api.get_project_statistics(project_id)
     if res.get("code") != 0:
         raise HTTPException(
             status_code=400,

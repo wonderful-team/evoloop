@@ -77,7 +77,7 @@ nodes:
       # Control
       - "request_approval"
       - "use_mcp_server"
-      - "wait"
+      - "wait_for"
 
   - id: "finish"
     path: "app.core.engine.nodes.finish.finish_node"

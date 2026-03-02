@@ -33,9 +33,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# --- Models ---
-
-
 class ChatRequest(BaseModel):
     thread_id: str
     message: str
@@ -57,9 +54,6 @@ class ResumeRequest(BaseModel):
     thread_id: str
     user_input: str | None = None  # Optional user response for HITL
     command_id: int | None = None  # Explicit command_id for resumption trace
-
-
-# --- Endpoints ---
 
 
 @router.post("/chat", dependencies=[Depends(verify_guest_access)])
@@ -95,7 +89,7 @@ async def chat_endpoint(
         )
 
     content_blocks = ref_context.content_blocks
-    reference_notes = ref_context.reference_notes
+    # reference_notes = ref_context.reference_notes
 
     # Final LangChain message format
     messages = [{"type": "human", "content": content_blocks}]

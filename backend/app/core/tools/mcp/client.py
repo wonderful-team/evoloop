@@ -439,11 +439,15 @@ class McpClientManager:
             output = []
             for s in servers:
                 is_connected = s.name in self.sessions
+                # If connected, fetch real tools count. If not, it's 0 because we don't scan offline.
+                tools_count = len(self._tools_cache.get(s.name, [])) if is_connected else 0
+                
                 output.append({
                     "name": s.name,
                     "command": s.command,
-                    "status": "connected" if is_connected else "disconnected",
-                    "tools_count": len(self._tools_cache.get(s.name, [])) if is_connected else 0
+                    "status": "connected" if is_connected else "available",  # Changed 'disconnected' to 'available'
+                    "tools_count": tools_count,
+                    "enabled": s.enabled
                 })
             return output
 

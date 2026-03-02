@@ -6,8 +6,8 @@ from app.core.tools import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
-async def wait(seconds: float) -> str:
+@evoloop_tool(is_pollable=True, is_state_mutating=True)
+async def wait_for(seconds: float) -> str:
     """
     Wait for a specified number of seconds.
     Useful for UI automation to wait for elements to load or animations to finish.

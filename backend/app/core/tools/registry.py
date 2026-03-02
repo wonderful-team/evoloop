@@ -16,7 +16,6 @@ from pathlib import Path
 import yaml
 from langchain_core.tools import BaseTool
 
-from app.core.tools.manager import tool_manager
 from app.core.tools.runtime_registry import get_runtime_tools
 
 logger = logging.getLogger(__name__)
@@ -249,6 +248,7 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
 
 def get_supervisor_tools() -> list[BaseTool]:
     """Return tools for the Supervisor agent."""
+    from app.core.tools.manager import tool_manager
     return tool_manager.get_node_tools("supervisor")
 
 

@@ -33,9 +33,7 @@ from app.utils.file import write_file_contents as utils_write_file
 
 
 @evoloop_tool(is_state_mutating=True)
-async def write_document(
-    path: str, content: str, config: Annotated[RunnableConfig, InjectedToolArg] = None
-) -> str:
+async def write_document(path: str, content: str, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
     """
     [DOCS-ONLY] Write documentation files (.md, .txt, .json, .yaml, .csv) ONLY.
     """

@@ -21,7 +21,7 @@ class SendCommandRequest(BaseModel):
 @router.get("/")
 async def get_devices(token: TokenDep):
     """List devices connected to account"""
-    res = await evocloud_manager.api.get_devices(token=token)
+    res = await evocloud_manager.api.get_devices()
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
@@ -30,7 +30,7 @@ async def get_devices(token: TokenDep):
 @router.post("/{device_id}/command")
 async def send_command(device_id: int, req: SendCommandRequest, token: TokenDep):
     """Send remote command"""
-    res = await evocloud_manager.api.send_command_to_device(device_id, req.dict(), token=token)
+    res = await evocloud_manager.api.send_command_to_device(device_id, req.dict())
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data")
@@ -44,7 +44,7 @@ async def get_recent_logs(
     token: TokenDep = None,
 ):
     """Get recent logs from device"""
-    res = await evocloud_manager.api.get_device_logs(device_id, limit, project_id, token=token)
+    res = await evocloud_manager.api.get_device_logs(device_id, limit, project_id)
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])
@@ -59,7 +59,7 @@ async def search_logs(
     token: TokenDep = None,
 ):
     """Search logs"""
-    res = await evocloud_manager.api.search_device_logs(device_id, query, limit, project_id, token=token)
+    res = await evocloud_manager.api.search_device_logs(device_id, query, limit, project_id)
     if res.get("code") != 0:
         raise HTTPException(500, res.get("message"))
     return res.get("data", [])

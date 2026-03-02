@@ -19,10 +19,9 @@ from app.core.engine.message_utils import (
 )
 from app.core.engine.state import AgentState
 from app.core.tools.executor import ToolExecutor
+from app.core.tools.registry import is_state_mutating_tool, is_pollable_tool, get_tool_affected_paths
 from app.infrastructure.config.service import SystemConfigService
-from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
-from app.models import FileOperation
 from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
@@ -222,15 +221,8 @@ class AgentEngine:
 
                 # Check duplication
                 tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
-                from app.core.tools.registry import (
-                    get_tool_affected_paths,
-                    is_pollable_tool,
-                    is_state_mutating_tool,
-                )
 
-                if (tool_sig in local_tool_history 
-                    and not is_state_mutating_tool(tool_name) 
-                    and not is_pollable_tool(tool_name)):
+                if tool_sig in local_tool_history and not is_state_mutating_tool(tool_name) and not is_pollable_tool(tool_name):
                     content = f"⚠️ SYSTEM ALERT: You have ALREADY executed `{tool_name}` with these exact arguments. Stop."
                     logger.warning(f"[{name}] 🛑 Prevented duplicate tool: {tool_sig}")
                 else:

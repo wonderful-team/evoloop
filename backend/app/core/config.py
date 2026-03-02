@@ -48,16 +48,12 @@ class Settings(BaseSettings):
     EXECUTION_MODE: Literal["local", "docker"] = "local"
     SANDBOX_IMAGE: str = "evoloop-sandbox"
 
-    BACKEND_CORS_ORIGINS: Annotated[
-        list[AnyUrl] | str, BeforeValidator(parse_cors)
-    ] = []
+    BACKEND_CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_cors)] = []
 
     @computed_field  # type: ignore[prop-decorator]
     @property
     def all_cors_origins(self) -> list[str]:
-        return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [
-            self.FRONTEND_HOST
-        ]
+        return [str(origin).rstrip("/") for origin in self.BACKEND_CORS_ORIGINS] + [self.FRONTEND_HOST]
 
     PROJECT_NAME: str
     SENTRY_DSN: HttpUrl | None = None
@@ -140,31 +136,37 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str | None = None
     BRAVE_API_KEY: str | None = None
 
-    # Local LLM
-    OLLAMA_BASE_URL: str = "http://localhost:11434"
-
-    # General Agent / Intention
-    AWAKENING_CORE_APPS: list[str] = ["微信", "支付宝", "12306"]
-
     # --- Cognitive Brain Configuration ---
     # Memory Architecture Toggle (Phase 4 Autonomy)
     USE_NEO4J_MEMORY: bool = False  # Toggle between Neo4j graph memory and legacy flat-file brain
 
     # File System
-    BRAIN_MEMORY_ROOT: str = ".brain_memory"
+    # Brain Memory now stored in ~/.evoloop/memory/ for consistency with other app data
+    @computed_field
+    @property
+    def BRAIN_MEMORY_ROOT(self) -> str:
+        """Brain memory storage location in app data directory."""
+        path = os.path.join(self.APP_DATA_DIR, "memory")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    # Skills Directory
+    @computed_field
+    @property
+    def SKILLS_DIR(self) -> str:
+        """Skills storage directory in app data directory."""
+        path = os.path.join(self.APP_DATA_DIR, "skills")
+        os.makedirs(path, exist_ok=True)
+        return path
 
     # Drivers: 'mock', 'local_ssm', 'remote_api'
-    SSM_MODEL_NAME: str = "local-model" # Default for LM Studio/Ollama
-    SSM_API_BASE: str = "http://localhost:1234/v1" # For LM Studio / LocalAI
+    SSM_MODEL_NAME: str = "local-model"  # Default for LM Studio/Ollama
+    SSM_API_BASE: str = "http://localhost:1234/v1"  # For LM Studio / LocalAI
 
     REFLECTIVE_DRIVER_TYPE: str = "active"
 
-    # Browser Agent
-    BROWSER_USE_API_KEY: str = "sk-dummy-key-for-local-dev"
-    BROWSER_MODEL_NAME: str | None = "gpt-4o"
-
     # Browser Control (Native CDP)
-    CDP_URL: str = Field("http://localhost:9222", validation_alias="EVOLOOP_CHROME_CDP_URL")
+    CHROME_CDP_URL: str = Field("http://localhost:9222", validation_alias="EVOLOOP_CHROME_CDP_URL")
     CHROME_EXECUTABLE: str = Field(
         "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
         validation_alias="EVOLOOP_CHROME_EXECUTABLE",
@@ -174,28 +176,11 @@ class Settings(BaseSettings):
         validation_alias="EVOLOOP_CHROME_USER_DATA",
     )
     CHROME_AUTOMATION_USER_DATA: Annotated[str, BeforeValidator(expand_path)] = Field(
-        default_factory=lambda: os.path.expanduser(
-            "~/Library/Application Support/Google/Chrome-Automation"
-        ),
+        default_factory=lambda: os.path.expanduser("~/Library/Application Support/Google/Chrome-Automation"),
         validation_alias="EVOLOOP_CHROME_AUTOMATION_USER_DATA",
     )
     CHROME_PROFILE: str = Field("Default", validation_alias="EVOLOOP_CHROME_PROFILE")
-    CDP_STARTUP_TIMEOUT: int = Field(5, validation_alias="EVOLOOP_CHROME_STARTUP_TIMEOUT")
-
-
-    # Computer Agent (Agent S)
-    OS_PROVIDER: str = "openai"
-    OS_MODEL: str = "gpt-4o"
-    OS_GROUND_PROVIDER: str = "huggingface"
-    OS_GROUND_URL: str | None = "http://localhost:8080"
-    OS_GROUND_MODEL: str = "ui-tars-1.5-7b"
-    OS_GROUND_API_KEY: str | None = None
-
-    # Mobile Agent (AutoGLM)
-    PHONE_AGENT_BASE_URL: str = "http://localhost:8000/v1"
-    PHONE_AGENT_MODEL: str = "autoglm-phone-9b"
-    PHONE_AGENT_DEVICE_ID: str | None = None
-    PHONE_AGENT_LANG: Literal["cn", "en"] = "cn"
+    CHROME_STARTUP_TIMEOUT: int = Field(5, validation_alias="EVOLOOP_CHROME_STARTUP_TIMEOUT")
 
     # EvoCloud API
     EVOCLOUD_API_URL: str = Field("https://mall.imagicbox.cn", validation_alias="EVOCLOUD_API_URL")
@@ -213,7 +198,7 @@ class Settings(BaseSettings):
     # 2. ~/Projects (Standard)
     # 3. ~/projects (Standard lower)
     # 4. ~ (Home)
-    def _default_projects_root():
+    def _default_projects_root(self):
         home = os.path.expanduser("~")
         candidates = [
             os.path.join(home, "项目"),

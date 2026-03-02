@@ -4,6 +4,7 @@ import uuid
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.engine import AgentEngine
 from app.core.engine.prompts.finish import FinishPromptBuilder
@@ -47,8 +48,20 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str):
 
         message_id = config.get("configurable", {}).get("run_id") or str(uuid.uuid4())
 
+        from app.core.brain.filesystem.manager import BrainFileSystem
+        from app.core.brain.filesystem.protocol import MemoryZone, MemoryFile
         from app.core.brain.tasks import consolidate_memory
         from app.core.engine.tasks import record_episode_task
+
+        # Bridge: Sync to Brain Working Memory (for Consolidation Cycle)
+        try:
+            fs = BrainFileSystem(settings.BRAIN_MEMORY_ROOT)
+            fs.initialize()
+            task_path = f"{MemoryZone.WORKING.value}/{MemoryFile.TASK.value}"
+            fs.write_file(task_path, summary)
+            logger.info(f"Finish: 🧠 Synced session summary to Brain memory: {task_path}")
+        except Exception as brain_err:
+            logger.warning(f"Finish: Failed to sync to brain memory: {brain_err}")
 
         record_episode_task.delay(
             thread_id=thread_id,
