@@ -167,3 +167,67 @@ evo analyze                # 分析循环
 ## 扩展
 
 如需添加新命令，编辑 `evo` 文件，在 `case` 语句中添加新的命令处理。
+
+## 服务管理
+
+### 一键启动所有服务
+
+```bash
+# 启动 API + Worker + Beat（后台运行，自动记录日志）
+bin/evo start
+```
+
+输出示例：
+```
+ℹ 一键启动所有服务...
+ℹ 启动 API 服务...
+✓ API 服务启动成功 (PID: 12345)
+ℹ 启动 Worker 服务...
+✓ Worker 服务启动成功 (PID: 12346)
+ℹ 启动 Beat 服务...
+✓ Beat 服务启动成功 (PID: 12347)
+
+ℹ 日志文件位置:
+  API:    /path/to/logs/api.log
+  Worker: /path/to/logs/worker.log
+  Beat:   /path/to/logs/beat.log
+
+ℹ 查看日志: evo logs
+ℹ 停止服务: evo stop
+```
+
+### 查看服务状态
+
+```bash
+bin/evo status
+```
+
+### 查看日志
+
+```bash
+# 查看所有日志（合并输出）
+bin/evo logs
+
+# 查看指定服务日志
+bin/evo logs api
+bin/evo logs worker
+bin/evo logs beat
+
+# 日志文件位置
+ls logs/
+# api.log  api.pid  beat.log  beat.pid  worker.log  worker.pid
+```
+
+### 停止所有服务
+
+```bash
+bin/evo stop
+```
+
+### 对比：前台 vs 后台
+
+| 场景 | 命令 | 特点 |
+|------|------|------|
+| 开发调试 | `evo dev` / `evo worker` / `evo beat` | 前台运行，Ctrl+C 停止，实时看输出 |
+| 生产部署 | `evo start` | 后台运行，记录日志，自动管理 PID |
+

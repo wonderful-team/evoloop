@@ -39,9 +39,14 @@ show_help() {
 ║                                                              ║
 ║  【开发环境】                                                 ║
 ║    evo install          安装依赖                             ║
-║    evo dev              启动开发服务器                        ║
-║    evo worker           启动 Celery Worker                   ║
+║    evo start            一键启动所有服务（后台+日志）        ║
 ║    evo stop             停止所有服务                         ║
+║    evo logs             查看服务日志                         ║
+║    evo status           查看服务运行状态                     ║
+║                                                              ║
+║    evo dev              启动开发服务器（前台）               ║
+║    evo worker           启动 Celery Worker（前台）           ║
+║    evo beat             启动 Celery Beat（前台）             ║
 ║                                                              ║
 ║  【代码质量】                                                 ║
 ║    evo lint             运行代码检查                         ║
@@ -165,11 +170,156 @@ case "${1:-help}" in
         uv run python bin/run.py worker
         ;;
 
+    beat)
+        info "启动 Celery Beat（定时任务调度）..."
+        echo " Beat 用于周期性任务调度（如定时清理、检查）"
+        echo " 注意：Beat 只负责调度，任务执行仍需 Worker"
+        uv run celery -A app.celery_app beat -l info
+        ;;
+
+    start)
+        info "一键启动所有服务..."
+
+        # 创建日志目录
+        LOG_DIR="$PROJECT_DIR/logs"
+        mkdir -p "$LOG_DIR"
+
+        # 检查服务是否已在运行
+        if pgrep -f "python bin/run.py api" > /dev/null; then
+            warning "API 服务已在运行"
+        else
+            info "启动 API 服务..."
+            nohup uv run python bin/run.py api > "$LOG_DIR/api.log" 2>&1 &
+            echo $! > "$LOG_DIR/api.pid"
+            sleep 2
+            if pgrep -f "python bin/run.py api" > /dev/null; then
+                success "API 服务启动成功 (PID: $(cat $LOG_DIR/api.pid))"
+            else
+                error "API 服务启动失败，查看日志: $LOG_DIR/api.log"
+            fi
+        fi
+
+        if pgrep -f "python bin/run.py worker" > /dev/null; then
+            warning "Worker 服务已在运行"
+        else
+            info "启动 Worker 服务..."
+            nohup uv run python bin/run.py worker > "$LOG_DIR/worker.log" 2>&1 &
+            echo $! > "$LOG_DIR/worker.pid"
+            sleep 2
+            if pgrep -f "python bin/run.py worker" > /dev/null; then
+                success "Worker 服务启动成功 (PID: $(cat $LOG_DIR/worker.pid))"
+            else
+                error "Worker 服务启动失败，查看日志: $LOG_DIR/worker.log"
+            fi
+        fi
+
+        if pgrep -f "celery.*beat" > /dev/null; then
+            warning "Beat 服务已在运行"
+        else
+            info "启动 Beat 服务..."
+            nohup uv run celery -A app.celery_app beat -l info > "$LOG_DIR/beat.log" 2>&1 &
+            echo $! > "$LOG_DIR/beat.pid"
+            sleep 2
+            if pgrep -f "celery.*beat" > /dev/null; then
+                success "Beat 服务启动成功 (PID: $(cat $LOG_DIR/beat.pid))"
+            else
+                error "Beat 服务启动失败，查看日志: $LOG_DIR/beat.log"
+            fi
+        fi
+
+        echo ""
+        info "日志文件位置:"
+        echo "  API:    $LOG_DIR/api.log"
+        echo "  Worker: $LOG_DIR/worker.log"
+        echo "  Beat:   $LOG_DIR/beat.log"
+        echo ""
+        info "查看日志: evo logs"
+        info "停止服务: evo stop"
+        ;;
+
     stop)
         info "停止所有服务..."
+        LOG_DIR="$PROJECT_DIR/logs"
+
+        # 尝试从 pid 文件停止
+        if [ -f "$LOG_DIR/api.pid" ]; then
+            kill $(cat "$LOG_DIR/api.pid") 2>/dev/null || true
+            rm -f "$LOG_DIR/api.pid"
+        fi
+        if [ -f "$LOG_DIR/worker.pid" ]; then
+            kill $(cat "$LOG_DIR/worker.pid") 2>/dev/null || true
+            rm -f "$LOG_DIR/worker.pid"
+        fi
+        if [ -f "$LOG_DIR/beat.pid" ]; then
+            kill $(cat "$LOG_DIR/beat.pid") 2>/dev/null || true
+            rm -f "$LOG_DIR/beat.pid"
+        fi
+
+        # 兜底：强制终止
         pkill -f "python bin/run.py api" 2>/dev/null || true
         pkill -f "python bin/run.py worker" 2>/dev/null || true
+        pkill -f "celery.*beat" 2>/dev/null || true
         success "服务已停止"
+        ;;
+
+    logs)
+        LOG_DIR="$PROJECT_DIR/logs"
+        if [ ! -d "$LOG_DIR" ]; then
+            error "日志目录不存在，请先运行: evo start"
+            exit 1
+        fi
+
+        case "${2:-}" in
+            api)
+                tail -f "$LOG_DIR/api.log"
+                ;;
+            worker)
+                tail -f "$LOG_DIR/worker.log"
+                ;;
+            beat)
+                tail -f "$LOG_DIR/beat.log"
+                ;;
+            ""|all)
+                info "查看所有日志（按 Ctrl+C 退出）..."
+                tail -f "$LOG_DIR"/*.log 2>/dev/null || error "没有日志文件"
+                ;;
+            *)
+                error "未知日志类型: ${2:-}"
+                echo "可用类型: api, worker, beat, all"
+                exit 1
+                ;;
+        esac
+        ;;
+
+    status)
+        info "服务运行状态:"
+        echo ""
+
+        check_service() {
+            local name="$1"
+            local pattern="$2"
+            local pid_file="$3"
+
+            if pgrep -f "$pattern" > /dev/null; then
+                local pid=$(pgrep -f "$pattern" | head -1)
+                success "$name: 运行中 (PID: $pid)"
+                return 0
+            else
+                error "$name: 未运行"
+                return 1
+            fi
+        }
+
+        check_service "API    " "python bin/run.py api"
+        check_service "Worker " "python bin/run.py worker"
+        check_service "Beat   " "celery.*beat"
+
+        echo ""
+        LOG_DIR="$PROJECT_DIR/logs"
+        if [ -d "$LOG_DIR" ]; then
+            info "日志目录: $LOG_DIR"
+            ls -lh "$LOG_DIR"/*.log 2>/dev/null || echo "  无日志文件"
+        fi
         ;;
 
     # ==================== 代码质量 ====================
