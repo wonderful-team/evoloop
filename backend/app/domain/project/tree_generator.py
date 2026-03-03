@@ -1,4 +1,5 @@
 import fnmatch
+import logging
 import os
 from dataclasses import dataclass, field
 
@@ -6,8 +7,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
+from app.domain.project.ignored_projects_cache import ignored_projects_cache
 from app.infrastructure.database.sql.database import session_scope
 from app.models import CodeChunk, SourceFile
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -78,11 +82,11 @@ class AnnotatedTreeGenerator:
                 self.db_files_map = await self._fetch_source_files_map(session)
 
         # 2. Build Tree Structure
-        root_node = self._build_tree_structure()
+        root_node = await self._build_tree_structure()
 
         # 3. Determine Format
         if style == "auto":
-            style = "tree" if self.with_symbols else "flat"
+            style = "tree"
 
         if style == "flat":
             return self._render_flat(root_node)
@@ -123,18 +127,38 @@ class AnnotatedTreeGenerator:
             return "\n".join(lines[: self.max_lines]) + f"\n... [Truncated at {self.max_lines} lines]"
         return text
 
-    def _build_tree_structure(self) -> TreeNode:
+    async def _build_tree_structure(self) -> TreeNode:
         from app.core.file.service import walk_tree
         from app.domain.codebase.filter import FileFilter
 
         self.file_filter = FileFilter()
+
+        # Get ignored project paths from cache (Redis + DB)
+        ignored_paths = await ignored_projects_cache.get_ignored_paths()
+        logger.debug(f"[TreeGenerator] Ignored paths: {ignored_paths}")
+
+        # Check if root_path itself is inside an ignored project
+        if self._is_path_ignored(self.root_path, ignored_paths):
+            logger.warning(f"[TreeGenerator] Root path is inside ignored project: {self.root_path}")
+            # Return empty tree
+            return TreeNode(os.path.basename(self.root_path), "dir")
 
         root_node = TreeNode(os.path.basename(self.root_path), "dir")
 
         # Map: abs_path -> TreeNode (for efficient retrieval during reconstruction)
         nodes_map = {self.root_path: root_node}
 
-        for full_path in walk_tree(self.root_path, filter_func=self.file_filter.should_include, max_depth=self.max_depth):
+        # Create directory filter that excludes ignored projects
+        def dir_filter(dir_path: str) -> bool:
+            """Filter out directories that are in the ignored list."""
+            return not self._is_path_ignored(dir_path, ignored_paths)
+
+        for full_path in walk_tree(
+            self.root_path,
+            filter_func=self.file_filter.should_include,
+            max_depth=self.max_depth,
+            dir_filter=dir_filter
+        ):
 
             # Pattern Filter (fnmatch)
             filename = os.path.basename(full_path)
@@ -359,6 +383,30 @@ class AnnotatedTreeGenerator:
                     break
 
         return "\n".join(lines)
+
+    def _is_path_ignored(self, path: str, ignored_paths: set) -> bool:
+        """
+        Check if a path should be ignored based on the ignored project paths.
+
+        Args:
+            path: The path to check
+            ignored_paths: Set of ignored project paths
+
+        Returns:
+            True if the path should be ignored
+        """
+        abs_path = os.path.abspath(path)
+
+        for ignored_path in ignored_paths:
+            # Check if path is exactly the ignored path
+            if abs_path == ignored_path:
+                return True
+            # Check if path is inside an ignored project
+            # Use os.sep to ensure we're matching directory boundaries
+            if abs_path.startswith(ignored_path + os.sep):
+                return True
+
+        return False
 
     async def _fetch_source_files_map(self, session) -> dict[str, list[CodeChunk]]:
         # Modified to fetch chunks with identifiers

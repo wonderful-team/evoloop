@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.core.events import system_bus
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.service import IndexingService
+from app.domain.project.ignored_projects_cache import ignored_projects_cache
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.models.codebase import Repository
 from app.utils.time import utcnow
@@ -32,11 +33,16 @@ class ProjectSyncService:
         """
         Handle creation of a new local project directory.
 
-        Creates a Repository record with DETECTED status and publishes
-        NewProjectDetectedEvent for frontend notification.
-        Indexing is NOT started until user confirms import.
+        Smart Cloud-Local Sync Strategy:
+        1. Check if project exists in Cloud (by name or path)
+        2. If Cloud exists + Local exists -> Auto-link, start indexing (SYNCED)
+        3. If Cloud not exists + Local exists -> Create as DETECTED, notify user
+        4. Publish NewProjectDetectedEvent only for case 3
+
+        Indexing is NOT started until user confirms import (case 3).
         """
         repo_name = os.path.basename(path)
+        abs_path = os.path.abspath(path)
         logger.info(f"[ProjectSync] Detected new project at: {path}")
 
         # Check if should auto-ignore (system directories)
@@ -47,42 +53,136 @@ class ProjectSyncService:
         # Check for existing record
         existing = await self._indexing_service.get_repo_by_path(path)
         if existing:
+            # If existing is IGNORED, respect that choice and skip
+            if existing.sync_status == "IGNORED":
+                logger.info(f"[ProjectSync] Project {path} is already marked as IGNORED. Skipping.")
+                # Ensure it's in the cache
+                await ignored_projects_cache.add_ignored_path(abs_path)
+                return
             logger.info(f"[ProjectSync] Project already exists: {path}")
             return
+
+        # Check if there's an ignored project with the same name (recreated project)
+        # This handles the case where user deleted and recreated the project folder
+        if await self._check_if_previously_ignored(repo_name):
+            logger.info(f"[ProjectSync] Project '{repo_name}' was previously ignored. Creating as IGNORED.")
+            await self._create_ignored_project(path)
+            return
+
+        # Step 1: Scan Cloud projects to find potential match
+        cloud_project = await self._find_matching_cloud_project(repo_name, abs_path)
 
         try:
             # Create Repository with DETECTED status (awaiting user confirmation)
             async with AsyncSessionLocal() as session:
-                repo = Repository(
-                    name=repo_name,
-                    url="local",
-                    local_path=path,
-                    sync_status="DETECTED",
-                    detected_at=utcnow(),
-                    project_id=None,
-                )
-                session.add(repo)
-                await session.commit()
-                await session.refresh(repo)
+                if cloud_project:
+                    # Case 2: Cloud exists + Local exists -> Auto-link
+                    cloud_project_id = cloud_project.get("project_id") or cloud_project.get("id")
+                    logger.info(f"[ProjectSync] Auto-linking local project '{repo_name}' to Cloud Project ID: {cloud_project_id}")
 
-            logger.info(f"[ProjectSync] Project '{repo_name}' created with status DETECTED (ID: {repo.id})")
+                    repo = Repository(
+                        name=repo_name,
+                        url="local",
+                        local_path=path,
+                        sync_status="SYNCED",  # Directly synced
+                        indexing_status="pending",  # Will be indexed after auto-link
+                        detected_at=utcnow(),
+                        imported_at=utcnow(),
+                        project_id=cloud_project_id,
+                    )
+                    session.add(repo)
+                    await session.commit()
+                    await session.refresh(repo)
 
-            # Publish NewProjectDetectedEvent for frontend notification
-            # IndexingManager should NOT subscribe to this event
-            try:
-                from app.domain.project.events import NewProjectDetectedEvent
+                    logger.info(f"[ProjectSync] Project '{repo_name}' auto-linked and SYNCED (ID: {repo.id})")
 
-                await system_bus.publish(NewProjectDetectedEvent(
-                    repo_id=repo.id,
-                    path=path,
-                    name=repo_name,
-                    detected_at=repo.detected_at
-                ))
-            except Exception as e:
-                logger.error(f"[ProjectSync] Failed to publish NewProjectDetectedEvent: {e}")
+                    # Auto-trigger indexing (no user confirmation needed)
+                    await self._trigger_auto_indexing(repo, path)
+
+                else:
+                    # Case 3: Cloud not exists + Local exists -> Wait for user import
+                    repo = Repository(
+                        name=repo_name,
+                        url="local",
+                        local_path=path,
+                        sync_status="DETECTED",
+                        indexing_status="not_needed",  # Not indexed until user imports
+                        detected_at=utcnow(),
+                        project_id=None,
+                    )
+                    session.add(repo)
+                    await session.commit()
+                    await session.refresh(repo)
+
+                    logger.info(f"[ProjectSync] Project '{repo_name}' created with status DETECTED (ID: {repo.id})")
+
+                    # Publish NewProjectDetectedEvent for frontend notification
+                    try:
+                        from app.domain.project.events import NewProjectDetectedEvent
+
+                        await system_bus.publish(NewProjectDetectedEvent(
+                            repo_id=repo.id,
+                            path=path,
+                            name=repo_name,
+                            detected_at=repo.detected_at
+                        ))
+                    except Exception as e:
+                        logger.error(f"[ProjectSync] Failed to publish NewProjectDetectedEvent: {e}")
 
         except Exception as e:
             logger.error(f"[ProjectSync] Failed to create repository record: {e}")
+
+    async def _find_matching_cloud_project(self, repo_name: str, local_path: str) -> dict | None:
+        """
+        Find matching cloud project by name or path.
+        Returns cloud project dict if found, None otherwise.
+        """
+        try:
+            cloud_projects = await evocloud_manager.scan_projects()
+            abs_local_path = os.path.abspath(local_path)
+
+            for project in cloud_projects:
+                cloud_path = project.get("path", "")
+                cloud_name = project.get("name", "")
+
+                # Match by exact path
+                if cloud_path and os.path.abspath(cloud_path) == abs_local_path:
+                    logger.debug(f"[ProjectSync] Matched by path: {abs_local_path}")
+                    return project
+
+                # Match by exact name (secondary match)
+                if cloud_name == repo_name:
+                    logger.debug(f"[ProjectSync] Matched by name: {repo_name}")
+                    return project
+
+            return None
+        except Exception as e:
+            logger.warning(f"[ProjectSync] Failed to scan cloud projects: {e}. Treating as new project.")
+            return None
+
+    async def _trigger_auto_indexing(self, repo: Repository, path: str):
+        """
+        Auto-trigger indexing for auto-linked projects.
+        Called when cloud project exists locally.
+        """
+        try:
+            from app.domain.project.events import ProjectCreatedEvent
+
+            # Publish ProjectCreatedEvent to trigger indexing
+            await system_bus.publish(ProjectCreatedEvent(
+                path=path,
+                repo_id=repo.id,
+                project_id=repo.project_id,
+                project_name=repo.name
+            ))
+            logger.info(f"[ProjectSync] Auto-triggered indexing for '{repo.name}' (Repo ID: {repo.id})")
+
+            # Start watching
+            from app.domain.codebase.indexing.manager import indexing_manager
+            await indexing_manager.start_watching(path, repo.id)
+
+        except Exception as e:
+            logger.error(f"[ProjectSync] Failed to auto-trigger indexing for '{repo.name}': {e}")
 
     async def import_project(self, repo_id: int) -> Repository:
         """
@@ -113,6 +213,7 @@ class ProjectSyncService:
 
             # Update status
             repo.sync_status = "PENDING_CREATION"
+            repo.indexing_status = "pending"  # Mark as pending for indexing
             repo.imported_at = utcnow()
             await session.commit()
 
@@ -148,6 +249,7 @@ class ProjectSyncService:
         Ignore a detected project (user chose not to import).
 
         Marks the repository as IGNORED. Can be re-imported later via unignore_project.
+        Also updates the ignored projects cache to exclude from tree views.
         """
         async with AsyncSessionLocal() as session:
             repo = await session.get(Repository, repo_id)
@@ -159,13 +261,19 @@ class ProjectSyncService:
                 return
 
             repo.sync_status = "IGNORED"
+            repo.indexing_status = "not_needed"  # Ignored projects don't need indexing
             await session.commit()
 
             logger.info(f"[ProjectSync] Project '{repo.name}' ignored by user (ID: {repo_id})")
 
+            # Update cache to exclude from tree views
+            if repo.local_path:
+                await ignored_projects_cache.add_ignored_path(repo.local_path)
+
     async def unignore_project(self, repo_id: int) -> Repository:
         """
         Restore an ignored project to detected status (can be imported).
+        Also removes from the ignored projects cache.
         """
         async with AsyncSessionLocal() as session:
             repo = await session.get(Repository, repo_id)
@@ -177,9 +285,15 @@ class ProjectSyncService:
                 return repo
 
             repo.sync_status = "DETECTED"
+            repo.indexing_status = "not_needed"  # Reset to not needed until imported
             await session.commit()
 
             logger.info(f"[ProjectSync] Project '{repo.name}' restored to DETECTED (ID: {repo_id})")
+
+            # Update cache to re-include in tree views
+            if repo.local_path:
+                await ignored_projects_cache.remove_ignored_path(repo.local_path)
+
             return repo
 
     async def get_detected_projects(self) -> list[Repository]:
@@ -363,6 +477,7 @@ class ProjectSyncService:
 
         Modified: Only starts indexing for already-imported projects.
         Newly detected projects are created with DETECTED status.
+        Respects user's ignored project choices.
         """
         if not root_path or not os.path.exists(root_path):
             logger.warning(f"[ProjectSync] Root path {root_path} invalid. Skipping reconciliation.")
@@ -383,12 +498,17 @@ class ProjectSyncService:
 
         # 2. Get Known Projects (Local DB)
         known_projects_map = {}
+        ignored_paths = set()  # Track ignored project paths
         try:
             repos = await self._indexing_service.get_all_repos()
             for r in repos:
                 if r.local_path:
                     abs_p = os.path.abspath(r.local_path)
                     known_projects_map[abs_p] = r
+                    # Track ignored projects to skip them during reconciliation
+                    if r.sync_status == "IGNORED":
+                        ignored_paths.add(abs_p)
+                        logger.debug(f"[ProjectSync] Tracked ignored project: {abs_p}")
         except Exception as e:
             logger.error(f"[ProjectSync] DB Scan failed: {e}")
             return
@@ -399,8 +519,17 @@ class ProjectSyncService:
 
         # A. New Projects (In FS, Not in DB)
         # Create as DETECTED, don't start indexing
+        # But skip if this path was previously ignored
         new_paths = fs_paths - known_paths
         for p in new_paths:
+            # Check if this path matches an ignored project (by name match)
+            # This handles the case where user deleted and re-created a project
+            if self._is_ignored_path(p, ignored_paths):
+                logger.info(f"[ProjectSync] Skipping previously ignored project: {p}")
+                # Create as IGNORED to maintain user choice
+                await self._create_ignored_project(p)
+                continue
+
             logger.info(f"[ProjectSync] Found offline creation: {p}")
             await self.handle_project_created(p)
 
@@ -440,10 +569,12 @@ class ProjectSyncService:
                         logger.error(f"[ProjectSync] Failed to queue retry: {e}")
 
         # C. Restart watching for imported projects (SYNCED or PENDING_CREATION)
+        # Explicitly exclude IGNORED projects
         imported_statuses = {"SYNCED", "PENDING_CREATION"}
         imported_paths = {
             p for p in known_paths
             if known_projects_map[p].sync_status in imported_statuses
+            and known_projects_map[p].sync_status != "IGNORED"
         }
 
         for p in imported_paths & fs_paths:
@@ -455,6 +586,12 @@ class ProjectSyncService:
                 # Check if already watching
                 if p not in indexing_manager._watchers:
                     await indexing_manager.start_watching(p, repo.id)
+
+                # Check if indexing is incomplete and trigger background indexing
+                # This handles cases where previous indexing failed or was interrupted
+                if repo.indexing_status in ("pending", "failed") or not repo.last_indexed_at:
+                    logger.info(f"[ProjectSync] Project {repo.name} indexing status is {repo.indexing_status}, triggering background indexing")
+                    await indexing_manager.run_indexing_background(repo.id)
             except Exception as e:
                 logger.error(f"[ProjectSync] Failed to restart watcher for {p}: {e}")
 
@@ -478,6 +615,91 @@ class ProjectSyncService:
             f"Imported Restarted: {len(imported_paths & fs_paths)}, "
             f"Missing: {len(missing_paths)}"
         )
+
+    def _is_ignored_path(self, path: str, ignored_paths: set) -> bool:
+        """
+        Check if a path matches any previously ignored project.
+        Matches by exact path or by directory name.
+
+        Args:
+            path: The path to check
+            ignored_paths: Set of ignored project paths
+
+        Returns:
+            True if the path should be treated as ignored
+        """
+        abs_path = os.path.abspath(path)
+
+        # Check exact path match
+        if abs_path in ignored_paths:
+            return True
+
+        # Check if the directory name matches any ignored project name
+        # This handles the case where user deleted and recreated the project
+        dir_name = os.path.basename(abs_path)
+        for ignored_path in ignored_paths:
+            ignored_name = os.path.basename(ignored_path)
+            if dir_name == ignored_name:
+                logger.info(f"[ProjectSync] Path {abs_path} matches ignored project name: {ignored_name}")
+                return True
+
+        return False
+
+    async def _check_if_previously_ignored(self, repo_name: str) -> bool:
+        """
+        Check if a project with this name was previously ignored.
+        This handles the case where user deleted and recreated the project.
+
+        Args:
+            repo_name: The name of the repository (directory name)
+
+        Returns:
+            True if a project with this name was previously ignored
+        """
+        try:
+            async with AsyncSessionLocal() as session:
+                from sqlalchemy import select
+                stmt = select(Repository).where(
+                    Repository.name == repo_name,
+                    Repository.sync_status == "IGNORED"
+                )
+                result = await session.execute(stmt)
+                ignored_repo = result.scalar_one_or_none()
+                return ignored_repo is not None
+        except Exception as e:
+            logger.warning(f"[ProjectSync] Error checking previously ignored status: {e}")
+            return False
+
+    async def _create_ignored_project(self, path: str):
+        """
+        Create a repository record with IGNORED status.
+        Used when a previously ignored project is detected again.
+        """
+        repo_name = os.path.basename(path)
+        abs_path = os.path.abspath(path)
+
+        try:
+            async with AsyncSessionLocal() as session:
+                repo = Repository(
+                    name=repo_name,
+                    url="local",
+                    local_path=path,
+                    sync_status="IGNORED",  # Maintain ignored status
+                    indexing_status="not_needed",  # Ignored projects are not indexed
+                    detected_at=utcnow(),
+                    project_id=None,
+                )
+                session.add(repo)
+                await session.commit()
+                await session.refresh(repo)
+
+            logger.info(f"[ProjectSync] Created IGNORED project record for: {path}")
+
+            # Update cache
+            await ignored_projects_cache.add_ignored_path(abs_path)
+
+        except Exception as e:
+            logger.error(f"[ProjectSync] Failed to create ignored project record: {e}")
 
 
 # Global Instance

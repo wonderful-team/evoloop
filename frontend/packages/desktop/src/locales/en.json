@@ -410,7 +410,9 @@
       "agentChanges": "Agent Changes",
       "noProject": "No project selected",
       "searchPlaceholder": "Search conversations...",
-      "copiedPath": "Copied path: {{path}}"
+      "copiedPath": "Copied path: {{path}}",
+      "globalFiles": "Global Mode",
+      "globalNoFiles": "File browsing not available in global mode"
     },
     "resourceRemoved": "Resource removed",
     "context": {
@@ -439,6 +441,8 @@
       "stateTitle": "Agent State",
       "resourcesTitle": "Files & Resources",
       "selectProject": "Select a project to view context",
+      "globalTitle": "Global Mode",
+      "globalDesc": "You are in cross-project conversation. Code context and file operations are not available in this mode.",
       "searchPrompt": "Search to find code snippets.",
       "searchPlaceholder": "Search project files...",
       "noPlan": "No active plan for this session.",
@@ -475,6 +479,7 @@
       "memorize": "Memorize",
       "uploadSuccess": "File uploaded successfully",
       "retryFailed": "Retry failed, please try again",
+      "askGlobal": "Ask anything...",
       "askProject": "Ask {{project}}...",
       "copy": "Copy",
       "thinkingProcess": "Reasoning Process",
@@ -976,7 +981,10 @@
     "never": "Never",
     "analyzing": "Analyzing",
     "description": "Select a project to switch to or manage your projects.",
-    "indexingTooltip": "Indexing..."
+    "indexingTooltip": "Indexing...",
+    "global": "Global",
+    "globalDesc": "Cross-project conversations and general Q&A",
+    "select": "Select Project"
   },
   "pending": {
     "items": {

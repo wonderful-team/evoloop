@@ -4,6 +4,7 @@ EvoLoop 系统清理脚本
 ====================
 
 EvoLoop 后端综合清理工具，可清理以下内容：
+- Keychain 登录凭据（cloud_token, device_key, member_id）
 - Redis 缓存（上下文、意图缓存、动态应用跟踪）
 - Neo4j 图数据库（文件、目录、代码实体、概念、代码块、执行记录、偏好设置、用户节点）
 - PostgreSQL 表（文件索引、向量存储、技能、跟踪记录、消息、任务）
@@ -24,6 +25,9 @@ EvoLoop 后端综合清理工具，可清理以下内容：
 
     # 仅清理过期数据，保留近期数据
     python scripts/cleanup_system.py --expired-only
+
+    # 清理 Keychain 登录凭据
+    python scripts/cleanup_system.py --keychain
 
 作者：EvoLoop System
 """
@@ -214,10 +218,11 @@ class CleanupManager:
                     return True
 
                 if not self.dry_run:
-                    # 按顺序删除节点以处理依赖关系
+                    # 分批删除节点以避免内存溢出
                     for node_type in node_types:
                         try:
-                            await session.run(f"MATCH (n:{node_type}) DETACH DELETE n")
+                            deleted = await self._delete_nodes_in_batches(session, node_type)
+                            logger.info(f"  已删除 {deleted} 个 {node_type} 节点")
                         except Exception as e:
                             logger.warning(f"  删除 {node_type} 失败：{e}")
 
@@ -234,6 +239,28 @@ class CleanupManager:
             logger.error(f"  ❌ Neo4j 索引清理失败：{e}")
             self.stats.errors.append(f"Neo4j 索引: {e}")
             return False
+
+    async def _delete_nodes_in_batches(self, session, node_type: str, batch_size: int = 1000) -> int:
+        """分批删除节点以避免 Neo4j 内存溢出。"""
+        total_deleted = 0
+        while True:
+            # 使用 LIMIT 分批删除
+            result = await session.run(
+                f"MATCH (n:{node_type}) WITH n LIMIT $batch_size DETACH DELETE n RETURN count(n) as deleted",
+                batch_size=batch_size
+            )
+            record = await result.single()
+            deleted = record["deleted"] if record else 0
+            total_deleted += deleted
+
+            if deleted < batch_size:
+                # 删除数量小于批次大小，说明已删除完毕
+                break
+
+            # 每批次后短暂暂停，让 Neo4j 有机会回收内存
+            await asyncio.sleep(0.1)
+
+        return total_deleted
 
     async def cleanup_neo4j_memory(self) -> bool:
         """
@@ -283,10 +310,11 @@ class CleanupManager:
                     return True
 
                 if not self.dry_run:
-                    # 按顺序删除节点以处理依赖关系
+                    # 分批删除节点以避免内存溢出
                     for node_type, _ in node_types:
                         try:
-                            await session.run(f"MATCH (n:{node_type}) DETACH DELETE n")
+                            deleted = await self._delete_nodes_in_batches(session, node_type)
+                            logger.info(f"  已删除 {deleted} 个 {node_type} 节点")
                         except Exception as e:
                             logger.warning(f"  删除 {node_type} 失败：{e}")
 
@@ -834,6 +862,56 @@ class CleanupManager:
             self.stats.errors.append(f"大脑记忆: {e}")
             return False
 
+    def cleanup_keychain(self) -> bool:
+        """
+        清理 macOS Keychain / 系统密钥库中存储的凭据。
+        包括：cloud_token, device_key, member_id
+        """
+        print("\n🔑 KEYCHAIN 凭据清理")
+        print("-" * 40)
+
+        try:
+            import keyring
+
+            service = "EvoLoop"
+            accounts = ["cloud_token", "device_key", "member_id"]
+            deleted = []
+            errors = []
+
+            for account in accounts:
+                try:
+                    # 检查是否存在
+                    existing = keyring.get_password(service, account)
+                    if existing:
+                        if not self.dry_run:
+                            keyring.delete_password(service, account)
+                        deleted.append(account)
+                        logger.info(f"  {account}: {'将删除' if self.dry_run else '已删除'}")
+                    else:
+                        logger.info(f"  {account}: 不存在")
+                except keyring.errors.PasswordDeleteError:
+                    # 已经删除或不存在
+                    pass
+                except Exception as e:
+                    errors.append(f"{account}: {e}")
+                    logger.warning(f"  {account}: 删除失败 - {e}")
+
+            action = "将删除" if self.dry_run else "已删除"
+            print(f"  ✅ {action} {len(deleted)} 个凭据项")
+            if deleted:
+                for item in deleted:
+                    print(f"     - {item}")
+
+            return True
+
+        except ImportError:
+            logger.warning("  ⚠️  keyring 库不可用")
+            return False
+        except Exception as e:
+            logger.error(f"  ❌ Keychain 清理失败：{e}")
+            self.stats.errors.append(f"Keychain: {e}")
+            return False
+
     async def run_all(self, args):
         """根据命令行参数运行清理。"""
         print("=" * 60)
@@ -842,6 +920,9 @@ class CleanupManager:
 
         if self.dry_run:
             print("\n⚠️  试运行模式 - 不会进行实际更改\n")
+
+        if args.all or args.keychain:
+            self.cleanup_keychain()
 
         if args.all or args.redis:
             await self.cleanup_redis()
@@ -906,6 +987,9 @@ async def main():
 
   # 清理知识库文件（概念使用 --memory）
   python cleanup_system.py --knowledge
+
+  # 清理 Keychain 登录凭据（注销登录）
+  python cleanup_system.py --keychain
         """,
     )
 
@@ -946,6 +1030,9 @@ async def main():
     parser.add_argument(
         "--brain", action="store_true", help="清理大脑记忆文件"
     )
+    parser.add_argument(
+        "--keychain", action="store_true", help="清理 Keychain 中存储的登录凭据 (cloud_token, device_key, member_id)"
+    )
 
     # 选项
     parser.add_argument(
@@ -967,7 +1054,7 @@ async def main():
     if not any([
         args.all, args.redis, args.neo4j, args.memory, args.skills, args.index,
         args.messages, args.jobs, args.screenshots, args.recordings,
-        args.knowledge, args.brain
+        args.knowledge, args.brain, args.keychain
     ]):
         parser.print_help()
         return
@@ -976,6 +1063,7 @@ async def main():
     if args.all and not args.dry_run:
         print("⚠️  警告：您即将删除所有 EvoLoop 数据！")
         print("这将包括：")
+        print("  - Keychain 登录凭据 (cloud_token, device_key, member_id)")
         print("  - Redis 缓存")
         print("  - Neo4j 文件索引和记忆（概念、执行记录等）")
         print("  - PostgreSQL 技能、索引、消息、任务")

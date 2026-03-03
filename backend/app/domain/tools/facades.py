@@ -218,8 +218,9 @@ async def consult_architecture(path: str = ""):
     ctx = ContextManager.current()
     project_id = ctx.project_id
 
-    if not project_id:
-        return "Error: No active project context."
+    # Global mode check: project_id can be 0 (global mode) or None (not set)
+    if project_id is None or project_id == 0:
+        return "Error: Architecture consultation requires a specific project. Please switch to a project to use this tool."
 
     info = await memory_manager.graph.get_directory_info(project_id, path)
 

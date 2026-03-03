@@ -58,7 +58,10 @@ evo help
 ║    evo clean            清理运行时缓存                       ║
 ║    evo clean all        完整系统清理                         ║
 ║    evo clean dry        预览清理内容                         ║
-║    evo clean sc         清理截图和录制                       ║
+║    evo clean skills     清理技能数据                         ║
+║    evo clean memory     清理记忆数据                         ║
+║    evo clean expired    清理过期截图和录制                   ║
+║    evo clean help       查看完整清理命令列表                 ║
 ║                                                              ║
 ║  【存储管理】                                                 ║
 ║    evo storage stats    查看存储统计                         ║
@@ -129,6 +132,10 @@ evo test atlas             # Atlas 测试
 evo clean                   # 清理运行时缓存
 evo clean dry              # 预览清理内容
 evo clean all              # 完整清理（⚠️ 危险）
+evo clean skills           # 清理技能数据
+evo clean memory           # 清理记忆数据
+evo clean expired          # 清理过期截图和录制
+evo clean help             # 查看完整清理命令列表
 
 evo storage stats          # 查看存储使用
 evo storage clean          # 清理过期文件
@@ -230,4 +237,71 @@ bin/evo stop
 |------|------|------|
 | 开发调试 | `evo dev` / `evo worker` / `evo beat` | 前台运行，Ctrl+C 停止，实时看输出 |
 | 生产部署 | `evo start` | 后台运行，记录日志，自动管理 PID |
+
+---
+
+## 系统清理命令详解
+
+`evo clean` 命令用于清理 EvoLoop 系统的各种数据。它底层调用 `scripts/cleanup_system.py` 脚本。
+
+### 完整命令列表
+
+| 命令 | 说明 | 对应底层参数 |
+|------|------|-------------|
+| `evo clean all` | 完整系统清理（所有组件） | `--all --confirm` |
+| `evo clean dry` | 预览将被清理的内容 | `--dry-run --all` |
+| `evo clean redis` | 清理 Redis 缓存 | `--redis` |
+| `evo clean neo4j` | 清理 Neo4j 文件索引 | `--neo4j` |
+| `evo clean memory` | 清理记忆数据（概念/历史/偏好） | `--memory` |
+| `evo clean skills` | 清理技能数据（DB + 文件） | `--skills` |
+| `evo clean index` | 清理 PostgreSQL 文件索引 | `--index` |
+| `evo clean messages` | 清理消息历史 | `--messages` |
+| `evo clean jobs` | 清理任务队列 | `--jobs` |
+| `evo clean screenshots` | 清理截图 | `--screenshots` |
+| `evo clean recordings` | 清理屏幕录制 | `--recordings` |
+| `evo clean knowledge` | 清理知识库文件 | `--knowledge` |
+| `evo clean brain` | 清理 Brain Memory | `--brain` |
+| `evo clean expired` | 清理过期截图和录制 | `--expired-only --screenshots --recordings` |
+| `evo clean runtime` | 清理运行时缓存（默认） | - |
+| `evo clean help` | 查看完整清理命令列表 | - |
+
+### 使用示例
+
+```bash
+# 预览将被清理的内容（推荐首次使用）
+evo clean dry
+
+# 清理特定组件
+evo clean skills
+evo clean memory
+evo clean messages
+
+# 清理过期文件（日常维护）
+evo clean expired
+
+# 完整系统清理（⚠️ 危险，会要求确认）
+evo clean all
+```
+
+### 清理组件说明
+
+| 组件 | 存储位置 | 清理内容 |
+|------|----------|----------|
+| **redis** | `redis://localhost:6379/0` | 上下文缓存、意图缓存 |
+| **neo4j** | `bolt://localhost:7687` | File、Directory、CodeEntity、CodeChunk 节点 |
+| **memory** | `bolt://localhost:7687` | Concept、Episode、Preference、User 节点 |
+| **skills** | PostgreSQL + `~/.evoloop/skills/` | 技能表 + 技能文件 |
+| **index** | PostgreSQL | code_chunks、code_relations、source_files 等 |
+| **messages** | PostgreSQL | messages、conversations 表 |
+| **jobs** | PostgreSQL | jobs 表 |
+| **screenshots** | `~/.evoloop/artifacts/screenshots/` | 所有截图 |
+| **recordings** | `~/.evoloop/artifacts/recordings/` | 屏幕录制视频和帧 |
+| **knowledge** | `~/.evoloop/library/` | 知识库 Markdown 文件 |
+| **brain** | `~/.evoloop/memory/` | Brain Memory 文件 |
+
+### 注意事项
+
+- `evo clean all` 和 `evo clean memory` 会要求输入 `yes` 确认
+- `evo clean skills` 会同时清理数据库表和技能文件
+- 清理后重启服务，内置技能会自动从 `app/core/learning/skills/` 复制到 `~/.evoloop/skills/`
 

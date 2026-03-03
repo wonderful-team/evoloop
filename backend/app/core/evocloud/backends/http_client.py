@@ -387,12 +387,19 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         await self.request("POST", "/evolooplink/api/command/updateStatus", data=data)
 
     async def upload_log(self, device_id, thread_id, log_type, content, name=None, command_id=None, project_id=None):
+        content_str = json_utils.dumps(content) if isinstance(content, dict | list) else str(content)
+
+        # MySQL TEXT limit is 65535 bytes. Truncate aggressively to 60,000 bytes.
+        encoded_content = content_str.encode('utf-8')
+        if len(encoded_content) > 60000:
+            content_str = encoded_content[:60000].decode('utf-8', errors='ignore') + "\n...[TRUNCATED BY EVOLOOP DUE TO CLOUD SIZE LIMITS]"
+
         data = {
             "device_id": device_id,
             "thread_id": thread_id,
             "type": log_type,
             "name": name,
-            "content": json_utils.dumps(content) if isinstance(content, dict | list) else str(content),
+            "content": content_str,
             "create_time": int(time.time() * 1000)
         }
         if command_id:

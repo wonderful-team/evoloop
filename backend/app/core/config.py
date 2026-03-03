@@ -193,26 +193,9 @@ class Settings(BaseSettings):
     EVOCLOUD_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
 
     # Project Management
-    # Logic to find default projects root:
-    # 1. ~/项目 (Chinese optimized)
-    # 2. ~/Projects (Standard)
-    # 3. ~/projects (Standard lower)
-    # 4. ~ (Home)
-    def _default_projects_root(self):
-        home = os.path.expanduser("~")
-        candidates = [
-            os.path.join(home, "项目"),
-            os.path.join(home, "Projects"),
-            os.path.join(home, "projects"),
-        ]
-        for c in candidates:
-            if os.path.exists(c):
-                return c
-        return home
+    WORKSPACE_ROOT: str | None = Field(default=None, validation_alias="WORKSPACE_ROOT")
 
-    PROJECTS_ROOT: str = Field(default_factory=_default_projects_root, validation_alias="PROJECTS_ROOT")
-
-    # Artifacts (Relative to ~/.evoloop in home dir for persistence, or subfolder of PROJECTS_ROOT?)
+    # Artifacts (Relative to ~/.evoloop in home dir for persistence, or subfolder of WORKSPACE_ROOT?)
     # Decision: Keep them in user app data dir to avoid cluttering projects root or ephemeral CWD.
     @computed_field
     @property
@@ -332,7 +315,9 @@ class Settings(BaseSettings):
     MAX_MEMORY_ITEMS: int = 1000
 
     # Dynamic Agents
-    DYNAMIC_AGENT_MAX_STEPS: int = 10
+    SUPERVISOR_AGENT_MAX_STEPS: int = 20
+    WORKER_AGENT_MAX_STEPS: int = 100
+    FINISH_AGENT_MAX_STEPS: int = 10
 
     @computed_field  # type: ignore[prop-decorator]
     @property

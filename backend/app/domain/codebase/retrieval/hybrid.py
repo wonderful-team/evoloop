@@ -57,7 +57,8 @@ class HybridSearcher:
                 .join(Repository, SourceFile.repository_id == Repository.id)
             )
 
-            if project_id:
+            # Note: project_id can be 0 (global mode), skip filter in that case
+            if project_id is not None and project_id != 0:
                 stmt = stmt.where(Repository.project_id == project_id)
 
             stmt = stmt.order_by(distance_col).limit(limit)
@@ -99,7 +100,8 @@ class HybridSearcher:
                 .join(Repository, SourceFile.repository_id == Repository.id)
             )
 
-            if project_id:
+            # Note: project_id can be 0 (global mode), skip filter in that case
+            if project_id is not None and project_id != 0:
                 stmt = stmt.where(Repository.project_id == project_id)
 
             # Construct OR condition for terms

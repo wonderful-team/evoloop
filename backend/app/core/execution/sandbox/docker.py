@@ -5,6 +5,7 @@ from docker.errors import NotFound
 
 from app.core.config import settings
 from app.core.execution.sandbox.base import Sandbox
+from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +33,19 @@ class DockerSandbox(Sandbox):
                     self.container.start()
             except NotFound:
                 # Create and start
-                # Mount PROJECTS_ROOT to /workspace
+                # Mount WORKSPACE_ROOT to /workspace
+                # Priority: Database > Settings (consistent with other components)
+                db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+                workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+
+                if not workspace_root:
+                    raise RuntimeError(
+                        "WORKSPACE_ROOT not configured. "
+                        "Please configure it in settings before using Docker sandbox."
+                    )
+
                 mounts = {
-                    settings.PROJECTS_ROOT: {
+                    workspace_root: {
                         "bind": "/workspace",
                         "mode": "rw"
                     }
@@ -111,7 +122,7 @@ class DockerSandbox(Sandbox):
             return "", str(e), 1
 
     def upload_file(self, local_path: str, remote_path: str) -> None:
-        # Since we use bind-mount, if the file is in PROJECTS_ROOT, it's automatic.
+        # Since we use bind-mount, if the file is in WORKSPACE_ROOT, it's automatic.
         # If it's outside, we might need manual copy (put_archive).
         # For this Phase, assume working within workspace.
         pass

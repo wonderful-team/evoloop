@@ -5,6 +5,7 @@ import os
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool as langchain_tool
 
+from app.core.config import settings
 from app.core.context.manager import ContextManager
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,17 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
         if wd:
             return wd
 
-    # Default
+    # 3. Fallback to SystemConfig WORKSPACE_ROOT
+    try:
+        from app.infrastructure.config.service import SystemConfigService
+        db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+        if workspace_root:
+            return workspace_root
+    except Exception as e:
+        logger.warning(f"Failed to fetch WORKSPACE_ROOT for tool fallback: {e}")
+
+    # 4. Final Fallback
     return os.getcwd()
 
 

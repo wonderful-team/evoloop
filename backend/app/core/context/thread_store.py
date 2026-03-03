@@ -35,8 +35,17 @@ class ThreadContextStore:
         self._thread_projects: dict[str, int] = {}
 
         # Default fallback directory (from Settings/DB)
-        db_root = SystemConfigService.get_value("PROJECTS_ROOT")
-        self._default_root = os.path.abspath(db_root if db_root else settings.PROJECTS_ROOT)
+        db_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        fallback_root = db_root if db_root else settings.WORKSPACE_ROOT
+
+        if fallback_root:
+            self._default_root = os.path.abspath(fallback_root)
+        else:
+            # No workspace configured yet, use home dir as placeholder
+            # User will be prompted to configure WORKSPACE_ROOT during setup
+            self._default_root = os.path.expanduser("~")
+            logger.warning("WORKSPACE_ROOT not configured. Using home directory as placeholder.")
+
         logger.info(f"ThreadContextStore initialized. Default root: {self._default_root}")
 
     def set_working_directory(self, thread_id: str, path: str):
@@ -56,7 +65,8 @@ class ThreadContextStore:
 
     def set_active_project(self, thread_id: str, project_id: int):
         """Set the active project ID for a specific thread."""
-        if project_id:
+        # Note: project_id can be 0 (global mode), so use 'is not None' check
+        if project_id is not None:
             self._thread_projects[thread_id] = project_id
 
     def get_working_directory(self, thread_id: str) -> str:

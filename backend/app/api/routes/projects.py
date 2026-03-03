@@ -4,11 +4,16 @@ import os
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from app.api.deps import TokenDep, TokenDepOptional
 from app.core.config import settings
 from app.core.evocloud import evocloud_manager
+from app.infrastructure.config.service import SystemConfigService
 from app.domain.codebase.indexing.manager import indexing_manager
+from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.models import Repository
+from app.utils.time import utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -31,31 +36,305 @@ class UpdateProjectRequest(BaseModel):
     path: str | None = None
 
 
+def _scan_workspace_projects() -> dict[str, str]:
+    """
+    Scan WORKSPACE_ROOT directory to find actual local projects.
+    Returns a map of project_name -> full_path
+    Scans 2 levels deep to handle nested projects like testProjects/software-ecommerce
+    """
+    # Priority: Database > Settings
+    workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT") or settings.WORKSPACE_ROOT
+    if not workspace_root or not os.path.isdir(workspace_root):
+        return {}
+
+    local_projects = {}
+    try:
+        # Level 1: Direct children of WORKSPACE_ROOT
+        for entry in os.scandir(workspace_root):
+            if entry.is_dir() and not entry.name.startswith('.'):
+                local_projects[entry.name] = entry.path
+
+                # Level 2: Scan one level deeper for nested projects
+                try:
+                    for subentry in os.scandir(entry.path):
+                        if subentry.is_dir() and not subentry.name.startswith('.'):
+                            # Store nested project with its name as key
+                            # This handles cases like testProjects/software-ecommerce
+                            local_projects[subentry.name] = subentry.path
+                except PermissionError:
+                    # Skip directories we can't read
+                    pass
+    except Exception as e:
+        logger.warning(f"[ProjectsAPI] Failed to scan workspace: {e}")
+
+    return local_projects
+
+
 @router.get("/")
-async def get_projects(page: int = 1, page_size: int = 100, _token: TokenDepOptional = None):
+async def get_projects(
+    page: int = 1,
+    page_size: int = 100,
+    filter_type: str | None = None,
+    _token: TokenDepOptional = None
+):
     # 1. Fetch from Cloud
     res = await evocloud_manager.api.get_projects(page, page_size)
 
     # Check structure. Usually it returns dict or list.
-    # evocloud_manager.api usually returns { "list": [...], "total": ... } or [...]
-    # We need to handle safely.
     projects = []
     if isinstance(res, dict) and "list" in res:
         projects = res["list"]
+    elif isinstance(res, dict) and "data" in res and isinstance(res["data"], dict) and "list" in res["data"]:
+        projects = res["data"]["list"]
     elif isinstance(res, list):
         projects = res
 
+    # 2. Scan WORKSPACE_ROOT for actual local projects
+    workspace_projects = _scan_workspace_projects()
+    logger.info(f"[ProjectsAPI] Scanned workspace: {len(workspace_projects)} projects found, cloud: {len(projects)} projects, filter: {filter_type}")
+
+    # If no cloud projects, return empty (we need cloud as source of truth for project metadata)
     if not projects:
         return res
 
-    # 2. Enrich with Local System Status (Redis) and Wiki Existence (DB)
+    # 3. Build local_status_map by matching cloud projects with workspace directories
+    local_status_map = {}
+    ignored_project_ids = set()
+
+    # Fallback: If cloud returns empty but we have linked repos in DB, use those
+    fallback_to_db = False
+    if not projects:
+        logger.warning(f"[ProjectsAPI] Cloud returned empty project list, will use DB fallback for linked projects")
+        fallback_to_db = True
+
+    try:
+        async with AsyncSessionLocal() as session:
+            # Get all repositories (including those without project_id for matching)
+            stmt = select(Repository).where(Repository.sync_status != "IGNORED")
+            result = await session.execute(stmt)
+            repos = result.scalars().all()
+
+            # Build repo name -> repo info map for matching
+            repo_by_name = {repo.name: repo for repo in repos if repo.name}
+
+            matched_count = 0
+            for cloud_project in projects:
+                project_id = cloud_project.get("project_id") or cloud_project.get("id")
+                project_name = cloud_project.get("name") or cloud_project.get("project_name", "")
+
+                # Check if this cloud project exists in workspace by name
+                if project_name in workspace_projects:
+                    matched_count += 1
+                    actual_path = workspace_projects[project_name]
+
+                    # Find matching repo record (may or may not have project_id)
+                    repo = repo_by_name.get(project_name)
+
+                    if repo and repo.project_id == project_id:
+                        # Already linked to this cloud project
+                        local_status_map[project_id] = {
+                            "status": "SYNCED" if os.path.exists(actual_path) else "DISCONNECTED",
+                            "exists_locally": os.path.exists(actual_path),
+                            "local_path": actual_path,
+                            "indexing_status": repo.indexing_status,
+                            "last_indexed_at": repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
+                        }
+                    elif repo and repo.project_id is None:
+                        # Local exists but not linked - update it to link
+                        repo.project_id = project_id
+                        repo.sync_status = "SYNCED"
+                        repo.imported_at = utcnow()
+                        await session.commit()
+                        logger.info(f"[ProjectsAPI] Auto-linked project '{project_name}' to cloud ID {project_id}")
+                        local_status_map[project_id] = {
+                            "status": "SYNCED",
+                            "exists_locally": True,
+                            "local_path": actual_path,
+                            "indexing_status": repo.indexing_status,
+                            "last_indexed_at": repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
+                        }
+                    elif repo and repo.project_id != project_id:
+                        # Linked to different cloud project - treat as disconnected
+                        logger.warning(f"[ProjectsAPI] Project '{project_name}' linked to different cloud ID: {repo.project_id} vs {project_id}")
+                        local_status_map[project_id] = {
+                            "status": "DISCONNECTED",
+                            "exists_locally": False,
+                            "local_path": None,
+                            "indexing_status": "not_linked",
+                            "last_indexed_at": None
+                        }
+                    else:
+                        # No local repo record - create one and auto-link
+                        new_repo = Repository(
+                            name=project_name,
+                            url="local",
+                            local_path=actual_path,
+                            sync_status="SYNCED",
+                            indexing_status="pending",
+                            detected_at=utcnow(),
+                            imported_at=utcnow(),
+                            project_id=project_id,
+                        )
+                        session.add(new_repo)
+                        await session.commit()
+                        logger.info(f"[ProjectsAPI] Created and linked new repo for '{project_name}'")
+                        local_status_map[project_id] = {
+                            "status": "SYNCED",
+                            "exists_locally": True,
+                            "local_path": actual_path,
+                            "indexing_status": "pending",
+                            "last_indexed_at": None
+                        }
+
+            logger.info(f"[ProjectsAPI] Matched {matched_count} cloud projects with local workspace")
+
+            # Get explicitly ignored projects
+            ignored_stmt = select(Repository).where(
+                Repository.project_id.isnot(None),
+                Repository.sync_status == "IGNORED"
+            )
+            ignored_result = await session.execute(ignored_stmt)
+            for ignored_repo in ignored_result.scalars().all():
+                ignored_project_ids.add(ignored_repo.project_id)
+
+            # 3.5. Fallback: If cloud is empty, build projects from linked DB repos + workspace scan
+            if fallback_to_db and filter_type == "switchable":
+                logger.info(f"[ProjectsAPI] Cloud unavailable, using DB fallback for switchable projects")
+                # Find all repos that have project_id and exist in workspace
+                for repo in repos:
+                    if repo.project_id and repo.name and repo.name in workspace_projects:
+                        actual_path = workspace_projects[repo.name]
+                        if os.path.exists(actual_path):
+                            projects.append({
+                                "project_id": repo.project_id,
+                                "name": repo.name,
+                                "project_name": repo.name,
+                                "project_desc": repo.description or "",
+                                "description": repo.description or "",
+                                "external_path": actual_path,
+                                "status": 1,
+                                "status_text": "正常",
+                                "local_status": "SYNCED",
+                                "exists_locally": True,
+                                "local_path": actual_path,
+                                "db_indexing_status": repo.indexing_status,
+                                "last_indexed_at": repo.last_indexed_at.isoformat() if repo.last_indexed_at else None,
+                                "has_wiki": False,  # Will be updated below
+                            })
+                            local_status_map[repo.project_id] = {
+                                "status": "SYNCED",
+                                "exists_locally": True,
+                                "local_path": actual_path,
+                                "indexing_status": repo.indexing_status,
+                                "last_indexed_at": repo.last_indexed_at.isoformat() if repo.last_indexed_at else None
+                            }
+                if projects:
+                    logger.info(f"[ProjectsAPI] Built {len(projects)} projects from DB fallback")
+
+    except Exception as e:
+        logger.warning(f"[ProjectsAPI] Failed to fetch local repository status: {e}")
+        logger.exception(e)
+
+    # 3. Enrich projects with local status
+    for p in projects:
+        pid = p.get("project_id") or p.get("id")
+        if pid and pid in local_status_map:
+            local_info = local_status_map[pid]
+            p["local_status"] = local_info["status"]
+            p["exists_locally"] = local_info["exists_locally"]
+            p["local_path"] = local_info.get("local_path", "")
+            # Use DB indexing_status as fallback if Redis doesn't have it
+            p["db_indexing_status"] = local_info.get("indexing_status", "pending")
+            p["last_indexed_at"] = local_info.get("last_indexed_at")
+        else:
+            # Cloud project not linked locally
+            p["local_status"] = None
+            p["exists_locally"] = False
+            p["local_path"] = ""
+            p["db_indexing_status"] = "not_linked"
+            p["last_indexed_at"] = None
+
+    # 3.5. Filter out ignored projects from the cloud list
+    # Projects that were linked but then ignored should not appear
+    original_count = len(projects)
+    projects = [p for p in projects if (p.get("project_id") or p.get("id")) not in ignored_project_ids]
+    filtered_count = original_count - len(projects)
+    if filtered_count > 0:
+        logger.info(f"[ProjectsAPI] Filtered {filtered_count} ignored projects from cloud list")
+
+    # 3.6. Apply filter_type parameter
+    # - "switchable": Projects that exist BOTH in cloud AND locally with valid path
+    #   (Intersection: must be in cloud list AND linked locally with existing path)
+    # - "cloud_only": Only return cloud projects not linked locally
+    # - "disconnected": Only return linked but disconnected projects (path doesn't exist)
+    if filter_type:
+        original_count = len(projects)
+        if filter_type == "switchable":
+            # STRICT: Must exist in BOTH cloud AND locally
+            # - Must be in local_status_map (linked locally)
+            # - Must have exists_locally = True (path exists)
+            # - Must NOT be DISCONNECTED
+            cloud_project_ids = {p.get("project_id") or p.get("id") for p in projects}
+            local_linked_ids = set(local_status_map.keys())
+
+            # Find orphaned local repos (local has but cloud doesn't) - should not happen for switchable
+            orphaned_local = local_linked_ids - cloud_project_ids
+            if orphaned_local:
+                logger.warning(f"[ProjectsAPI] Found orphaned local repos not in cloud: {orphaned_local}")
+
+            # Switchable = intersection of cloud and valid local
+            valid_local_ids = {
+                pid for pid, info in local_status_map.items()
+                if info.get("exists_locally") is True and info.get("status") != "DISCONNECTED"
+            }
+            switchable_ids = cloud_project_ids & valid_local_ids
+
+            projects = [
+                p for p in projects
+                if (p.get("project_id") or p.get("id")) in switchable_ids
+            ]
+            logger.info(f"[ProjectsAPI] Filtered to switchable projects: {len(projects)} of {original_count} "
+                       f"(cloud={len(cloud_project_ids)}, valid_local={len(valid_local_ids)}, intersection={len(switchable_ids)})")
+        elif filter_type == "cloud_only":
+            # STRICT: Cloud only = in cloud list but NOT linked locally
+            cloud_project_ids = {p.get("project_id") or p.get("id") for p in projects}
+            local_linked_ids = set(local_status_map.keys())
+
+            cloud_only_ids = cloud_project_ids - local_linked_ids
+
+            projects = [
+                p for p in projects
+                if (p.get("project_id") or p.get("id")) in cloud_only_ids
+            ]
+            logger.info(f"[ProjectsAPI] Filtered to cloud-only projects: {len(projects)} of {original_count}")
+        elif filter_type == "disconnected":
+            # STRICT: Disconnected = in BOTH cloud AND local, but path doesn't exist
+            cloud_project_ids = {p.get("project_id") or p.get("id") for p in projects}
+
+            disconnected_ids = {
+                pid for pid, info in local_status_map.items()
+                if info.get("status") == "DISCONNECTED"
+            }
+            # Intersection: must be in cloud AND disconnected locally
+            disconnected_ids = cloud_project_ids & disconnected_ids
+
+            projects = [
+                p for p in projects
+                if (p.get("project_id") or p.get("id")) in disconnected_ids
+            ]
+            logger.info(f"[ProjectsAPI] Filtered to disconnected projects: {len(projects)} of {original_count}")
+
+    logger.info(f"[ProjectsAPI] Final response: {len(projects)} projects")
+
+    # 4. Enrich with Local System Status (Redis) and Wiki Existence (DB)
     from app.domain.wiki.service import wiki_service
 
-    # Collect IDs for batch DB query
+    # Collect IDs for batch DB query (only for locally existing projects)
     project_ids = []
     for p in projects:
         pid = p.get("project_id") or p.get("id")
-        if pid:
+        # Only query system status if project exists locally
+        if pid and p.get("exists_locally"):
             project_ids.append(pid)
 
     # Batch check wiki existence
@@ -128,9 +407,11 @@ async def get_current_project(_token: TokenDep):
 @router.post("/")
 async def create_project(req: CreateProjectRequest, _token: TokenDep):
     """Create a new project directory and sync to Member Center."""
-    root_dir = settings.PROJECTS_ROOT
+    db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+    root_dir = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+
     if not root_dir:
-        raise HTTPException(500, "PROJECTS_ROOT not configured")
+        raise HTTPException(500, "WORKSPACE_ROOT not configured")
 
     project_path = os.path.join(root_dir, req.name)
     if os.path.exists(project_path):

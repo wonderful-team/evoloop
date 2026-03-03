@@ -29,6 +29,15 @@ class Repository(Base):
     # - "DISCONNECTED": Local directory deleted
     sync_status: Mapped[str] = mapped_column(String(50), default="DETECTED")
 
+    # Indexing Status:
+    # - "pending": Waiting to be indexed
+    # - "in_progress": Currently being indexed
+    # - "completed": Successfully indexed
+    # - "failed": Indexing failed
+    # - "not_needed": Sync status is DETECTED/IGNORED, no indexing needed
+    indexing_status: Mapped[str] = mapped_column(String(50), default="pending")
+    last_indexed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     # Detection and import timestamps
     detected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), default=utcnow)
     imported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

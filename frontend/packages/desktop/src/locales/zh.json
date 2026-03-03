@@ -410,7 +410,9 @@
       "agentChanges": "Agent 变更",
       "noProject": "未选择项目",
       "searchPlaceholder": "搜索对话...",
-      "copiedPath": "已复制路径: {{path}}"
+      "copiedPath": "已复制路径: {{path}}",
+      "globalFiles": "全局模式",
+      "globalNoFiles": "文件浏览在全局模式下不可用"
     },
     "resourceRemoved": "资源已移除",
     "context": {
@@ -439,6 +441,8 @@
       "stateTitle": "智能体状态",
       "resourcesTitle": "资源面板",
       "selectProject": "请选择一个项目以查看上下文",
+      "globalTitle": "全局模式",
+      "globalDesc": "您正在进行跨项目对话。代码上下文和文件操作在此模式下不可用。",
       "searchPrompt": "搜索以查找代码片段。",
       "searchPlaceholder": "搜索项目文件...",
       "noPlan": "此会话没有活跃计划。",
@@ -475,6 +479,7 @@
       "memorize": "记住",
       "uploadSuccess": "文件上传成功",
       "retryFailed": "重试失败，请重试",
+      "askGlobal": "询问任何问题...",
       "askProject": "询问 {{project}}...",
       "copy": "复制",
       "thinkingProcess": "推理过程",
@@ -976,7 +981,10 @@
     "never": "从未",
     "analyzing": "分析中",
     "description": "选择要切换的项目或管理您的项目。",
-    "indexingTooltip": "索引中..."
+    "indexingTooltip": "索引中...",
+    "global": "全局",
+    "globalDesc": "跨项目对话和一般性问答",
+    "select": "选择项目"
   },
   "pending": {
     "items": {

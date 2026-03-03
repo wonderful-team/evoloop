@@ -3,11 +3,12 @@ import os
 import sys
 from unittest.mock import MagicMock, patch
 
+from app.core.config import settings
+from app.domain.codebase.indexing.service import IndexingService
+
 # Add project root to path
 sys.path.append(os.getcwd())
 
-from app.core.config import settings
-from app.domain.codebase.indexing.service import IndexingService
 
 # --- Mock Embedder ---
 class MockEmbedder:
@@ -23,21 +24,26 @@ class MockEmbedder:
     async def aembed_documents(self, texts):
         return [[0.1] * 1536 for _ in texts]
 
+
 async def seed_data():
     print("=== Seeding Test Data ===")
-    print(f"Projects Root: {settings.PROJECTS_ROOT}")
-    
-    if not os.path.exists(settings.PROJECTS_ROOT):
-        print(f"❌ Error: Projects root {settings.PROJECTS_ROOT} does not exist!")
+    print(f"Workspace Root: {settings.WORKSPACE_ROOT}")
+
+    if not settings.WORKSPACE_ROOT:
+        print(f"❌ Error: WORKSPACE_ROOT not configured!")
+        return
+
+    if not os.path.exists(settings.WORKSPACE_ROOT):
+        print(f"❌ Error: Workspace root {settings.WORKSPACE_ROOT} does not exist!")
         return
 
     # Patch Factory to return MockEmbedder
     with patch("app.domain.codebase.indexing.vectors.factory.EmbedderFactory.get_embedder", return_value=MockEmbedder()):
         service = IndexingService()
-        
+
         # Scan subdirectories
-        for item in os.listdir(settings.PROJECTS_ROOT):
-            path = os.path.join(settings.PROJECTS_ROOT, item)
+        for item in os.listdir(settings.WORKSPACE_ROOT):
+            path = os.path.join(settings.WORKSPACE_ROOT, item)
             if os.path.isdir(path) and not item.startswith("."):
                 print(f"📦 Found Project: {item}")
                 
@@ -62,6 +68,7 @@ async def seed_data():
                     traceback.print_exc()
 
     print("=== Seeding Complete ===")
+
 
 if __name__ == "__main__":
     asyncio.run(seed_data())

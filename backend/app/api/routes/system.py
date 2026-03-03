@@ -23,8 +23,9 @@ def health_check():
 
 
 @router.post("/config", dependencies=[Depends(get_current_user)])
-def update_system_config(config: SystemConfig) -> SystemConfig:
-    return SystemConfigService.set_value(config.key, config.value, config.description)
+async def update_system_config(config: SystemConfig) -> SystemConfig:
+    """Update system configuration and trigger side effects if needed."""
+    return await SystemConfigService.set_value_async(config.key, config.value, config.description)
 
 
 class EmbeddingConfigRequest(BaseModel):

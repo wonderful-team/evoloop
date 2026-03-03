@@ -13,10 +13,10 @@ export function ProjectsStep() {
     const { t } = useTranslation()
     const { data, setData, setCanProceed } = useWizard()
 
-    // Update canProceed based on projects root
+    // Update canProceed based on workspace root
     useEffect(() => {
-        setCanProceed(!!data.projectsRoot && data.projectsRoot.length > 0)
-    }, [data.projectsRoot, setCanProceed])
+        setCanProceed(!!data.workspaceRoot && data.workspaceRoot.length > 0)
+    }, [data.workspaceRoot, setCanProceed])
 
     const handleBrowse = async () => {
         try {
@@ -25,7 +25,7 @@ export function ProjectsStep() {
                 multiple: false,
             })
             if (typeof selected === "string") {
-                setData({ projectsRoot: selected })
+                setData({ workspaceRoot: selected })
             }
         } catch (error) {
             toast.error(t("wizard.projects.browseError"))
@@ -50,8 +50,8 @@ export function ProjectsStep() {
                     <Label>{t("wizard.projects.label")}</Label>
                     <div className="flex gap-2">
                         <Input
-                            value={data.projectsRoot}
-                            onChange={(e) => setData({ projectsRoot: e.target.value })}
+                            value={data.workspaceRoot}
+                            onChange={(e) => setData({ workspaceRoot: e.target.value })}
                             placeholder="/Users/yourname/Projects"
                             className="flex-1"
                         />
@@ -85,7 +85,7 @@ export function ProjectsStep() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => {
-                                        setData({ projectsRoot: path })
+                                        setData({ workspaceRoot: path })
                                     }}
                                     className="text-xs"
                                 >

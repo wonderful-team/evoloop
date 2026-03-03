@@ -1091,6 +1091,12 @@ export type McpDeleteMcpServerData = {
 
 export type McpDeleteMcpServerResponse = (unknown);
 
+export type McpConnectMcpServerData = {
+    name: string;
+};
+
+export type McpConnectMcpServerResponse = (unknown);
+
 export type MemberLoginData = {
     requestBody: LoginRequest;
 };
@@ -1229,6 +1235,7 @@ export type ProjectRequirementsGetAnalysisSyncProgressData = {
 export type ProjectRequirementsGetAnalysisSyncProgressResponse = (unknown);
 
 export type ProjectsGetProjectsData = {
+    filterType?: (string | null);
     page?: number;
     pageSize?: number;
 };

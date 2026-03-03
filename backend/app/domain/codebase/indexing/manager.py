@@ -150,10 +150,13 @@ class IndexingManager:
                             logger.error(f"Semantic Extraction Failed: {e}")
 
                 self._active_jobs[project_id] = "done"
+                # Update all repos for this project to completed
+                await self._update_indexing_status_by_project(project_id, "completed")
 
         except Exception as e:
             logger.error(f"Full Index Failed for Project {project_id}: {e}")
             self._active_jobs[project_id] = "error"
+            await self._update_indexing_status_by_project(project_id, "failed")
 
     def dispatch_full_index(self, project_id: int, rebuild: bool = False):
         """
@@ -163,11 +166,42 @@ class IndexingManager:
             from app.domain.codebase.indexing.tasks import run_full_indexing_task
 
             self._active_jobs[project_id] = "queued"
+            # Update repository indexing_status to "in_progress"
+            asyncio.create_task(self._update_indexing_status_by_project(project_id, "in_progress"))
             run_full_indexing_task.delay(project_id, rebuild)
             logger.info(f"Dispatched full index task for Project {project_id}")
         except Exception as e:
             logger.error(f"Failed to dispatch indexing task: {e}")
             self._active_jobs[project_id] = "error_dispatch"
+            asyncio.create_task(self._update_indexing_status_by_project(project_id, "failed"))
+
+    async def _update_indexing_status(self, repo_id: int, status: str):
+        """Update indexing_status and last_indexed_at for a repository."""
+        async with AsyncSessionLocal() as session:
+            from app.models import Repository
+            repo = await session.get(Repository, repo_id)
+            if repo:
+                repo.indexing_status = status
+                if status in ("completed", "failed"):
+                    from app.utils.time import utcnow
+                    repo.last_indexed_at = utcnow()
+                await session.commit()
+                logger.debug(f"[IndexingManager] Updated repo {repo_id} indexing_status to {status}")
+
+    async def _update_indexing_status_by_project(self, project_id: int, status: str):
+        """Update indexing_status for all repositories of a project."""
+        async with AsyncSessionLocal() as session:
+            from app.models import Repository
+            stmt = select(Repository).where(Repository.project_id == project_id)
+            result = await session.execute(stmt)
+            repos = result.scalars().all()
+            for repo in repos:
+                repo.indexing_status = status
+                if status in ("completed", "failed"):
+                    from app.utils.time import utcnow
+                    repo.last_indexed_at = utcnow()
+            await session.commit()
+            logger.debug(f"[IndexingManager] Updated project {project_id} repos indexing_status to {status}")
 
     async def _run_semantic_extraction(self, repo_path: str, project_id: int):
         """

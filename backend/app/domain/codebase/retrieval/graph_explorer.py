@@ -100,7 +100,8 @@ Do not include any text except the generated Cypher statement.
 The question is:
 {question}
 """
-        if project_id:
+        # Note: project_id can be 0 (global mode), skip constraint in that case
+        if project_id is not None and project_id != 0:
             CYPHER_GENERATION_TEMPLATE += f"\nConstraint: ALWAYS filter by project_id = {project_id} in your query if nodes have that property."
 
         CYPHER_GENERATION_PROMPT = PromptTemplate(

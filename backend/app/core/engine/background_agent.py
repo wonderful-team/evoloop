@@ -42,13 +42,15 @@ def _deserialize_messages(raw_messages: list[Any]) -> list[BaseMessage]:
     return deserialized
 
 
-async def _setup_project_context(thread_id: str, project_id: int, command_id: int | None = None, loaded_ctx: EvoContext | None = None):
+async def _setup_project_context(thread_id: str, project_id: int | None, command_id: int | None = None, loaded_ctx: EvoContext | None = None):
     """Initialize working directory and context vars."""
     # Phase 2 Decoupling: Use API module directly
-    from app.core.evocloud import evocloud_manager
-    project = await evocloud_manager.get_project_by_id(project_id)
-    if project and project.get("path"):
-        thread_context_store.set_working_directory(thread_id, project["path"])
+    # Note: project_id can be 0 (global mode) or None, both should skip project setup
+    if project_id is not None and project_id != 0:
+        from app.core.evocloud import evocloud_manager
+        project = await evocloud_manager.get_project_by_id(project_id)
+        if project and project.get("path"):
+            thread_context_store.set_working_directory(thread_id, project["path"])
 
     working_dir = thread_context_store.get_working_directory(thread_id)
 
@@ -111,7 +113,10 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             inputs["messages"] = _deserialize_messages(inputs["messages"])
 
         inputs["iteration_count"] = inputs.get("iteration_count", 0)
-        project_id = inputs.get("project_id", 1)
+        # Note: project_id can be 0 (global mode), so use get() without default
+        project_id = inputs.get("project_id")
+        if project_id is None:
+            project_id = 1
 
         # 2. Context & DB Preparation (Parallelized)
         evoloop_command_id = inputs.get("command_id")

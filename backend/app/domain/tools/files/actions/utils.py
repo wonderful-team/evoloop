@@ -1,5 +1,7 @@
 from langchain_core.runnables import RunnableConfig
 
+from app.core.config import settings
+from app.core.context import ContextManager
 from app.core.tools import get_working_directory
 from app.i18n.service import i18n
 from app.utils.file import resolve_path
@@ -15,6 +17,23 @@ def resolve_and_validate_path(path: str, config: RunnableConfig | None = None) -
         path = "."
 
     root = get_working_directory(config)
+
+    # Global Mode Check: If working directory is not set (fallback to cwd/workspace_root),
+    # we should warn about potential incorrect file operations
+    # Note: This is a safety check - in global mode, file operations may not work as expected
+    ctx = ContextManager.current()
+    if ctx.project_id == 0 or (ctx.project_id is None and root == "."):
+        # Global mode detected - file operations are restricted
+        from app.infrastructure.config.service import SystemConfigService
+
+        db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+        if root == "." or root == workspace_root:
+            raise ValueError(
+                f"File operations are not available in global mode. "
+                f"Please switch to a specific project to use file tools."
+            )
+
     target_path = resolve_path(path, base_path=root)
 
     if not target_path:  # Could not resolve

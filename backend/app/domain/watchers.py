@@ -283,7 +283,7 @@ class ProjectDiscoveryEventHandler(FileSystemEventHandler):
 
 class ProjectDiscoveryWatcher:
     """
-    Watches the PROJECTS_ROOT using the global observer.
+    Watches the WORKSPACE_ROOT using the global observer.
     """
 
     def __init__(self, root_path: str):

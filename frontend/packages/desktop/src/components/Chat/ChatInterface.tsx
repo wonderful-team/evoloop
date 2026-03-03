@@ -39,7 +39,7 @@ import { RewindConfirmDialog } from "./RewindConfirmDialog"
 export function ChatInterface() {
 
   const { t } = useTranslation()
-  const { currentProject } = useProjectStore()
+  const { currentProject, isGlobalMode } = useProjectStore()
   const projectId = currentProject?.id
   const queryClient = useQueryClient()
 
@@ -83,8 +83,8 @@ export function ChatInterface() {
     const shouldAutoSend = params.get("autoSend") === "true"
     const quoteId = params.get("quoteId")
 
-    // Init Store
-    if (projectId) {
+    // Init Store - allow global mode (projectId can be 0)
+    if (projectId !== undefined) {
       setThread(initId, projectId)
       // Small delay to ensure thread is set before sending
       if (pendingMessage) {
@@ -514,6 +514,7 @@ export function ChatInterface() {
               currentProject={currentProject}
               activeThreadId={activeThreadId || undefined}
               disabled={status === "interrupted"}
+              isGlobalMode={isGlobalMode}
             />
           </div>
         </ResizablePanel>
@@ -533,6 +534,7 @@ export function ChatInterface() {
                   activeThreadId={activeThreadId || ""}
                   autoSwitchToTab={undefined} // Disable auto-switch as we have Live Zone now
                   onClose={() => setShowContextPanel(false)}
+                  isGlobalMode={isGlobalMode}
                 />
               </div>
             </ResizablePanel>

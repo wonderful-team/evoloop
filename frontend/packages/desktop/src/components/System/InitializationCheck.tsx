@@ -36,9 +36,9 @@ export default function InitializationCheck({
         })
 
       // Check if critical configs are missing
-      const missingProjectsRoot = !configMap.PROJECTS_ROOT
+      const missingWorkspaceRoot = !configMap.WORKSPACE_ROOT
 
-      if (missingProjectsRoot) {
+      if (missingWorkspaceRoot) {
         setOpen(true)
       } else {
         setOpen(false)

@@ -18,6 +18,7 @@ interface ChatInputAreaProps {
   currentProject: { id?: number; name: string } | null | undefined
   activeThreadId?: string
   disabled?: boolean
+  isGlobalMode?: boolean
 }
 
 export interface ChatInputAreaHandle {
@@ -36,6 +37,7 @@ export const ChatInputArea = memo(
       currentProject,
       activeThreadId,
       disabled,
+      isGlobalMode,
     }, ref) => {
     const { t } = useTranslation()
     const [inputValue, setInputValue] = useState("")
@@ -210,8 +212,8 @@ export const ChatInputArea = memo(
         data-tour="chat-input"
       >
         <div className="w-full max-w-4xl mx-auto relative">
-          {/* Reference Picker Popover */}
-          {showPicker && currentProject && (
+          {/* Reference Picker Popover - Hidden in global mode */}
+          {showPicker && currentProject && !isGlobalMode && (
             <div className="absolute bottom-full left-0 mb-2 z-50">
               <ReferencePicker
                 projectId={currentProject.id!}
@@ -245,13 +247,15 @@ export const ChatInputArea = memo(
                 placeholder={
                   disabled
                     ? t("chat.interface.inputDisabled", "Please respond to the active request above...")
-                    : currentProject
-                      ? t("chat.interface.askProject", {
-                        project: currentProject.name,
-                      })
-                      : t("chat.interface.selectProject")
+                    : isGlobalMode
+                      ? t("chat.interface.askGlobal", "询问任何问题...")
+                      : currentProject
+                        ? t("chat.interface.askProject", {
+                          project: currentProject.name,
+                        })
+                        : t("chat.interface.selectProject")
                 }
-                disabled={!currentProject || disabled}
+                disabled={(!currentProject && !isGlobalMode) || disabled}
                 className="flex w-full bg-transparent border-none focus:ring-0 text-sm placeholder:text-muted-foreground resize-none focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 min-h-[50px] max-h-[300px]"
                 rows={1}
                 style={{ height: "auto", minHeight: "50px" }}
@@ -273,7 +277,7 @@ export const ChatInputArea = memo(
 
               {/* Left Group: Tools */}
               <div className="flex items-center gap-1">
-                {activeThreadId && (
+                {activeThreadId && !isGlobalMode && (
                   <>
                     <SkillLibraryDialog
                       threadId={activeThreadId}
@@ -301,31 +305,36 @@ export const ChatInputArea = memo(
 
               {/* Right Group: Action */}
               <div className="flex items-center gap-2">
-                <input
-                  type="file"
-                  id="chat-file-upload"
-                  className="hidden"
-                  onChange={handleUpload}
-                  disabled={!currentProject || isUploading}
-                />
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-foreground"
-                  onClick={() =>
-                    document.getElementById("chat-file-upload")?.click()
-                  }
-                  disabled={isUploading || !currentProject}
-                  title={t("chat.interface.uploadFile")}
-                >
-                  {isUploading ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : (
-                    <Paperclip size={16} />
-                  )}
-                </Button>
+                {/* File upload hidden in global mode */}
+                {!isGlobalMode && (
+                  <>
+                    <input
+                      type="file"
+                      id="chat-file-upload"
+                      className="hidden"
+                      onChange={handleUpload}
+                      disabled={!currentProject || isUploading}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                      onClick={() =>
+                        document.getElementById("chat-file-upload")?.click()
+                      }
+                      disabled={isUploading || !currentProject}
+                      title={t("chat.interface.uploadFile")}
+                    >
+                      {isUploading ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Paperclip size={16} />
+                      )}
+                    </Button>
 
-                <div className="w-px h-6 bg-border mx-1" />
+                    <div className="w-px h-6 bg-border mx-1" />
+                  </>
+                )}
 
                 <Button
                   onClick={() => (isAgentWorking ? onStop() : handleSend())}
@@ -334,7 +343,7 @@ export const ChatInputArea = memo(
                       attachments.length === 0 &&
                       !isAgentWorking) ||
                     isSending ||
-                    !currentProject ||
+                    (!currentProject && !isGlobalMode) ||
                     isUploading
                   }
                   size="sm"

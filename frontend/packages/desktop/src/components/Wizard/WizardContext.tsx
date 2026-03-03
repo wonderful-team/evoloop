@@ -16,8 +16,8 @@ export interface WizardData {
     llmModel: string
     llmVisionModel: string
     llmApiKey: string
-    // Projects
-    projectsRoot: string
+    // Workspace
+    workspaceRoot: string
     // Status
     llmTested: boolean
 }
@@ -62,7 +62,7 @@ const defaultData: WizardData = {
     llmModel: "",
     llmVisionModel: "",
     llmApiKey: "",
-    projectsRoot: "",
+    workspaceRoot: "",
     llmTested: false,
 }
 

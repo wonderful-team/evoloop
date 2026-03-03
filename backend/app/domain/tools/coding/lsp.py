@@ -211,7 +211,7 @@ async def consult_lsp(
         log.error(f"Failed to start LSP server: {e}")
         return f"Error: Failed to start LSP server: {e}"
 
-    relative_path = os.path.relpath(file_path, repo_root)
+    relative_path = os.path.relpath(str(file_path_obj), repo_root)
 
     # Ensure file is open in LSP
     # SolidLSP manages ref counts via `open_file` context manager usually.

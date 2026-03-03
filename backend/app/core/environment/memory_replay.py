@@ -29,7 +29,8 @@ async def replay_memory(project_id: int | None = None) -> MemoryContext:
     concepts = []
 
     # 1. Retrieve recent episodes from Long-Term Memory
-    if project_id:
+    # Note: project_id can be 0 (global mode), skip in that case
+    if project_id is not None and project_id != 0:
         try:
             raw_experience = await memory_manager.long_term.retrieve_experience(
                 goal="Recent tasks",

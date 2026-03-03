@@ -13,6 +13,7 @@ interface ProjectImportState {
   ignoredProjects: DetectedProject[]
   isLoading: boolean
   hasNewDetected: boolean
+  dismissedProjectIds: Set<number> // 用户已处理（忽略/稍后）的项目ID
 
   fetchDetected: () => Promise<void>
   fetchIgnored: () => Promise<void>
@@ -20,6 +21,8 @@ interface ProjectImportState {
   ignoreProject: (id: number) => Promise<void>
   unignoreProject: (id: number) => Promise<void>
   clearNewDetectedFlag: () => void
+  dismissProject: (id: number) => void // 标记单个项目为已处理
+  dismissAllProjects: () => void // 标记所有当前项目为已处理
 
   batchImportProjects: (ids: number[]) => Promise<{ success: number; failed: number }>
   batchIgnoreProjects: (ids: number[]) => Promise<{ success: number; failed: number }>
@@ -30,6 +33,7 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
   ignoredProjects: [],
   isLoading: false,
   hasNewDetected: false,
+  dismissedProjectIds: new Set<number>(),
 
   fetchDetected: async () => {
     try {
@@ -41,9 +45,13 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
         detected_at: item.detected_at ? new Date(item.detected_at).getTime() : 0,
       }))
 
+      // 检查是否有新的、未处理过的项目
+      const { dismissedProjectIds } = get()
+      const hasNewUnprocessed = items.some((item: DetectedProject) => !dismissedProjectIds.has(item.id))
+
       set({
         detectedProjects: items,
-        hasNewDetected: items.length > 0,
+        hasNewDetected: hasNewUnprocessed,
       })
     } catch (error) {
       console.error("Failed to fetch detected projects:", error)
@@ -88,6 +96,10 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
       await ProjectsService.ignoreDetectedProject({ repoId: id })
       await get().fetchDetected()
       await get().fetchIgnored()
+
+      // Refresh main project list to remove ignored project
+      // @ts-ignore - accessing other store
+      await window.__PROJECT_STORE__?.fetchProjects?.()
     } catch (error) {
       console.error("Failed to ignore project:", error)
       throw error
@@ -102,6 +114,10 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
       await ProjectsService.unignoreProject({ repoId: id })
       await get().fetchDetected()
       await get().fetchIgnored()
+
+      // Refresh main project list to add restored project
+      // @ts-ignore - accessing other store
+      await window.__PROJECT_STORE__?.fetchProjects?.()
     } catch (error) {
       console.error("Failed to unignore project:", error)
       throw error
@@ -112,6 +128,35 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
 
   clearNewDetectedFlag: () => {
     set({ hasNewDetected: false })
+  },
+
+  dismissProject: (id: number) => {
+    set((state) => {
+      const newDismissed = new Set(state.dismissedProjectIds)
+      newDismissed.add(id)
+
+      // 检查是否还有未处理的项目
+      const hasNewUnprocessed = state.detectedProjects.some(
+        (item) => !newDismissed.has(item.id)
+      )
+
+      return {
+        dismissedProjectIds: newDismissed,
+        hasNewDetected: hasNewUnprocessed,
+      }
+    })
+  },
+
+  dismissAllProjects: () => {
+    set((state) => {
+      const newDismissed = new Set(state.dismissedProjectIds)
+      state.detectedProjects.forEach((item) => newDismissed.add(item.id))
+
+      return {
+        dismissedProjectIds: newDismissed,
+        hasNewDetected: false,
+      }
+    })
   },
 
   batchImportProjects: async (ids: number[]) => {
@@ -147,6 +192,10 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
 
       await get().fetchDetected()
       await get().fetchIgnored()
+
+      // Refresh main project list to remove ignored projects
+      // @ts-ignore - accessing other store
+      await window.__PROJECT_STORE__?.fetchProjects?.()
 
       return {
         success: res.results?.success?.length || 0,

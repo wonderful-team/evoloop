@@ -22,11 +22,13 @@ export function DetectedProjectAlert() {
   const {
     detectedProjects,
     hasNewDetected,
+    dismissedProjectIds,
     isLoading,
     fetchDetected,
     importProject,
     ignoreProject,
-    clearNewDetectedFlag,
+    dismissProject,
+    dismissAllProjects,
   } = useProjectImportStore()
 
   // Poll for new detected projects every 30 seconds
@@ -47,21 +49,27 @@ export function DetectedProjectAlert() {
     }
   }, [hasNewDetected, detectedProjects.length, isOpen])
 
+  // 过滤掉已处理的项目
+  const visibleProjects = detectedProjects.filter((p) => !dismissedProjectIds.has(p.id))
+
   const handleClose = useCallback(() => {
     setIsOpen(false)
-    clearNewDetectedFlag()
-  }, [clearNewDetectedFlag])
+    // 将所有当前项目标记为已处理，这样稍后不会再弹出
+    dismissAllProjects()
+  }, [dismissAllProjects])
 
   const handleImport = async (id: number) => {
     setImportingIds((prev) => new Set(prev).add(id))
     try {
       await importProject(id)
+      // 本地标记为已处理，立即从列表中移除
+      dismissProject(id)
       toast.success(t("projects.import.importSuccess", "Project imported successfully"))
 
-      // Close dialog if no more projects
-      const remaining = detectedProjects.filter((p) => p.id !== id)
+      // Close dialog if no more visible projects
+      const remaining = visibleProjects.filter((p) => p.id !== id)
       if (remaining.length === 0) {
-        handleClose()
+        setIsOpen(false)
       }
     } catch (error) {
       toast.error(t("projects.import.importFailed", "Failed to import project"))
@@ -77,12 +85,14 @@ export function DetectedProjectAlert() {
   const handleIgnore = async (id: number) => {
     try {
       await ignoreProject(id)
+      // 本地标记为已处理，立即从列表中移除
+      dismissProject(id)
       toast.info(t("projects.import.ignored", "Project ignored"))
 
-      // Close dialog if no more projects
-      const remaining = detectedProjects.filter((p) => p.id !== id)
+      // Close dialog if no more visible projects
+      const remaining = visibleProjects.filter((p) => p.id !== id)
       if (remaining.length === 0) {
-        handleClose()
+        setIsOpen(false)
       }
     } catch (error) {
       toast.error(t("projects.import.ignoreFailed", "Failed to ignore project"))
@@ -90,7 +100,7 @@ export function DetectedProjectAlert() {
   }
 
   const handleImportAll = async () => {
-    const ids = detectedProjects.map((p) => p.id)
+    const ids = visibleProjects.map((p) => p.id)
     setImportingIds(new Set(ids))
 
     let successCount = 0
@@ -99,6 +109,7 @@ export function DetectedProjectAlert() {
     for (const id of ids) {
       try {
         await importProject(id)
+        dismissProject(id)
         successCount++
       } catch {
         failCount++
@@ -118,7 +129,8 @@ export function DetectedProjectAlert() {
       )
     }
 
-    handleClose()
+    setIsOpen(false)
+    dismissAllProjects()
   }
 
   // Format relative path for display
@@ -161,13 +173,13 @@ export function DetectedProjectAlert() {
         </DialogHeader>
 
         <div className="py-4 space-y-3">
-          {detectedProjects.length === 0 ? (
+          {visibleProjects.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               <RefreshCw className="h-8 w-8 mx-auto mb-2 animate-spin opacity-50" />
               <p>{t("projects.import.loading", "Loading detected projects...")}</p>
             </div>
           ) : (
-            detectedProjects.map((project) => (
+            visibleProjects.map((project) => (
               <div
                 key={project.id}
                 className={cn(
@@ -185,7 +197,7 @@ export function DetectedProjectAlert() {
                     {formatPath(project.path)}
                   </p>
                   <p className="text-xs text-muted-foreground/70 mt-0.5">
-                    {t("projects.import.detected", "Detected")} {formatTime(project.detected_at)}
+                    {t("projects.import.detected", "Detected")} {formatTime(String(project.detected_at))}
                   </p>
                 </div>
 
@@ -223,7 +235,7 @@ export function DetectedProjectAlert() {
             <X className="h-4 w-4 mr-1" />
             {t("common.later", "Later")}
           </Button>
-          {detectedProjects.length > 1 && (
+          {visibleProjects.length > 1 && (
             <Button
               variant="secondary"
               onClick={handleImportAll}
@@ -232,7 +244,7 @@ export function DetectedProjectAlert() {
             >
               <Check className="h-4 w-4 mr-1" />
               {t("projects.import.importAll", "Import All ({{count}})", {
-                count: detectedProjects.length,
+                count: visibleProjects.length,
               })}
             </Button>
           )}

@@ -8,8 +8,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@evoloop/shared/components/ui/collapsible"
-import { ChevronDown, ChevronRight, Files, History } from "lucide-react"
+import { ChevronDown, ChevronRight, Files, History, Globe } from "lucide-react"
 import { cn } from "@evoloop/shared/lib/utils"
+import { isGlobalProject } from "@/stores/projectStore"
 
 interface SidebarFilesTabProps {
   projectId?: number
@@ -23,6 +24,9 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
   const [isProjectOpen, setIsProjectOpen] = useState(true)
   const [isChangesOpen, setIsChangesOpen] = useState(false)
 
+  // Check for global mode (projectId is 0)
+  const isGlobal = isGlobalProject(projectId ? { id: projectId } as any : null)
+
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-muted/5">
       {/* Project Files Section - Flexible to fill space */}
@@ -34,15 +38,21 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
         <CollapsibleTrigger asChild>
           <div className="flex items-center gap-2 p-2 cursor-pointer hover:bg-muted/50 transition-colors border-b bg-muted/20">
             {isProjectOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-            <Files className="h-3.5 w-3.5 text-primary/70" />
+            {isGlobal ? (
+              <Globe className="h-3.5 w-3.5 text-blue-500" />
+            ) : (
+              <Files className="h-3.5 w-3.5 text-primary/70" />
+            )}
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
-              {t("chat.sidebar.projectFiles", "Project Files")}
+              {isGlobal
+                ? t("chat.sidebar.globalFiles", "Global Mode")
+                : t("chat.sidebar.projectFiles", "Project Files")}
             </span>
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="flex-1 overflow-y-auto">
           <div className="p-2">
-            {projectId ? (
+            {projectId !== undefined && !isGlobal ? (
               <FileTree
                 projectId={projectId}
                 onSelectFile={(file) => {
@@ -51,6 +61,11 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                 }}
                 onQuoteFile={onQuoteFile}
               />
+            ) : isGlobal ? (
+              <div className="p-4 text-center text-xs text-muted-foreground">
+                <Globe className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                <p>{t("chat.sidebar.globalNoFiles", "文件浏览在全局模式下不可用")}</p>
+              </div>
             ) : (
               <div className="p-4 text-center text-xs text-muted-foreground italic">
                 {t("chat.sidebar.noProject", "No project selected")}

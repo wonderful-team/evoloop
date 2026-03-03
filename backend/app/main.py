@@ -21,13 +21,16 @@ from app.core.context import thread_context_store
 from app.core.context.middleware import ContextMiddleware
 from app.core.engine.graph_builder import GraphBuilder
 from app.core.events.bridge import register_event_bridge
+from app.core.evocloud import evocloud_manager
 from app.core.globals import set_graph
 from app.core.persistence import set_checkpointer, set_db_pool
 from app.core.tools.mcp.client import mcp_client_manager
 from app.domain.codebase.indexing.manager import indexing_manager
+from app.domain.project.discovery_manager import discovery_manager
 from app.domain.project.summarizer import project_summarizer
-from app.domain.watchers import ProjectDiscoveryWatcher
+from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database.sql.database import Base, engine
+from app.initial_data import init as init_data, register_config_handlers, init_atlas_config, init_mcp
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +47,15 @@ async def lifespan(_app: FastAPI):
 
     # 1.5 Seed Initial Data (System Config)
     # This runs sychronously, so we offload to thread
-    from app.initial_data import init as init_data
-
     await asyncio.to_thread(init_data)
+
+    # 1.6 Register Config Change Handlers
+    # This must happen after init_data() so SystemConfigService is ready
+    try:
+        register_config_handlers()
+        logger.info("Configuration change handlers registered.")
+    except Exception as e:
+        logger.warning(f"Failed to register config handlers: {e}")
 
     # 2. Graph/Memory Init
     try:
@@ -78,11 +87,19 @@ async def lifespan(_app: FastAPI):
 
         # 2.6 Atlas Configuration Initialization
         try:
-            from app.initial_data import init_atlas_config
             await init_atlas_config()
             logger.info("Atlas configuration initialized.")
         except Exception as e:
             logger.warning(f"Atlas config initialization failed (non-critical): {e}")
+
+        # 2.7 MCP Server Configuration
+        # Must run after SystemConfig is seeded (for WORKSPACE_ROOT)
+        # This adds MCP configs to DB; actual connection happens in connect_all()
+        try:
+            mcp_results = await init_mcp()
+            logger.info(f"MCP servers added to DB: {mcp_results}")
+        except Exception as e:
+            logger.warning(f"MCP configuration failed (non-critical): {e}")
 
     except Exception as e:
         logger.warning(f"Agent Awakening failed (non-critical): {e}")
@@ -122,23 +139,27 @@ async def lifespan(_app: FastAPI):
 
     # 6. Watchers
     logger.info("Initializing File Watchers...")
-    discovery_watcher = None
     try:
         default_path = thread_context_store.get_working_directory("default")
 
-        # Validate default_path: It should NOT be the PROJECTS_ROOT itself.
+        # Validate default_path: It should NOT be the WORKSPACE_ROOT itself.
         # If get_working_directory returns the root dir, it means no specific project is selected.
         # We should skip indexing in that case to avoid indexing ALL projects as one big repo.
-        root_projects_dir = settings.PROJECTS_ROOT
+        db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        root_projects_dir = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
 
-        is_root_dir = False
-        if default_path and root_projects_dir:
-            if os.path.abspath(default_path) == os.path.abspath(root_projects_dir):
-                is_root_dir = True
+        if not root_projects_dir:
+            logger.warning("WORKSPACE_ROOT not configured. Skipping project discovery.")
+        elif not os.path.exists(root_projects_dir):
+            logger.warning(f"WORKSPACE_ROOT '{root_projects_dir}' does not exist. Skipping project discovery.")
+        else:
+            is_root_dir = False
+            if default_path and root_projects_dir:
+                if os.path.abspath(default_path) == os.path.abspath(root_projects_dir):
+                    is_root_dir = True
 
-        if os.path.exists(root_projects_dir):
-            discovery_watcher = ProjectDiscoveryWatcher(root_projects_dir)
-            discovery_watcher.start()
+            # 6.4 Start Project Discovery Manager
+            discovery_manager.start(root_projects_dir)
 
             # 6.5 Startup Reconciliation
             # Catch up on offline changes (creates, deletes)
@@ -163,19 +184,32 @@ async def lifespan(_app: FastAPI):
             repo = await service.get_or_create_repo(default_path, repo_name)
             await indexing_manager.start_watching(default_path, repo.id)
 
-            # Start full indexing for the default/startup project
-            # This ensures we catch up if the server was down.
-            await indexing_manager.run_indexing_background(repo.id)
+            # NOTE: Deep indexing is deferred until after user login
+            # to avoid wasting resources on projects user may not care about.
+            # File watching is active, so changes will be captured.
+            # await indexing_manager.run_indexing_background(repo.id)
 
     except Exception as e:
         logger.error(f"Failed to start startup watcher: {e}")
 
+    # 6.6 Register WORKSPACE_ROOT change handler
+    async def on_workspace_root_changed(old_root: str, new_root: str):
+        """Handle WORKSPACE_ROOT configuration change."""
+        logger.info(f"[ConfigChange] WORKSPACE_ROOT changed from '{old_root}' to '{new_root}'")
+
+        # Update ThreadContextStore default root
+        thread_context_store._default_root = os.path.abspath(new_root)
+        logger.info(f"[ConfigChange] Updated ThreadContextStore default root to: {new_root}")
+
+        # Use discovery_manager to switch root (handles stop/start/reconcile)
+        await discovery_manager.switch_root(new_root)
+
+    # Register the handler
+    SystemConfigService.register_change_handler("WORKSPACE_ROOT", on_workspace_root_changed)
+    logger.info("[ConfigChange] Registered WORKSPACE_ROOT change handler")
+
     # 7. EvoLoop Link Client (Unified)
-    from app.core.evocloud import evocloud_manager
-    from app.core.evocloud.bridge.handlers import (
-        handle_project_switch_event,
-        handle_remote_command,
-    )
+    from app.core.evocloud.bridge.handlers import handle_project_switch_event, handle_remote_command
 
     # Initialize Core Module
     evocloud_manager.initialize()
@@ -211,19 +245,37 @@ async def lifespan(_app: FastAPI):
                     project_data = res.get("data", {})
                     cloud_path = project_data.get("external_path")
                     if cloud_path and os.path.exists(cloud_path):
-                        logger.info(f"[Startup] Synced active project from Cloud: {cloud_path}")
-                        # Update context immediately for default thread
-                        thread_context_store.set_working_directory("default", cloud_path)
+                        # Check if this project was locally ignored
+                        from app.domain.project.ignored_projects_cache import ignored_projects_cache
 
-                        project_id = project_data.get("project_id")
+                        is_ignored = await ignored_projects_cache.is_ignored(cloud_path)
+                        if not is_ignored:
+                            # Also check DB directly as fallback
+                            from app.domain.codebase.indexing.service import IndexingService
 
-                        from app.domain.codebase.indexing.service import IndexingService
+                            service = IndexingService()
+                            existing_repo = await service.get_repo_by_path(cloud_path)
+                            if existing_repo and existing_repo.sync_status == "IGNORED":
+                                is_ignored = True
+                                logger.info(f"[Startup] Project {cloud_path} is marked as IGNORED in DB. Skipping cloud sync.")
 
-                        service = IndexingService()
-                        repo_name = os.path.basename(cloud_path)
-                        repo = await service.get_or_create_repo(cloud_path, repo_name, project_id=project_id)
-                        await indexing_manager.start_watching(cloud_path, repo.id)
-                        await indexing_manager.run_indexing_background(repo.id)
+                        if is_ignored:
+                            logger.info(f"[Startup] Skipping cloud project sync for ignored path: {cloud_path}")
+                        else:
+                            logger.info(f"[Startup] Synced active project from Cloud: {cloud_path}")
+                            # Update context immediately for default thread
+                            thread_context_store.set_working_directory("default", cloud_path)
+
+                            project_id = project_data.get("project_id")
+
+                            from app.domain.codebase.indexing.service import IndexingService
+
+                            service = IndexingService()
+                            repo_name = os.path.basename(cloud_path)
+                            repo = await service.get_or_create_repo(cloud_path, repo_name, project_id=project_id)
+                            await indexing_manager.start_watching(cloud_path, repo.id)
+                            # NOTE: Deep indexing deferred to post-login to save resources
+                            # await indexing_manager.run_indexing_background(repo.id)
 
                     else:
                         logger.info(f"[Startup] Cloud active project path invalid or local missing: {cloud_path}")
@@ -246,8 +298,11 @@ async def lifespan(_app: FastAPI):
 
     # --- Shutdown ---
     logger.info("Shutting down EvoLoop resources...")
-    if discovery_watcher:
-        discovery_watcher.stop()
+    # Stop discovery manager
+    try:
+        discovery_manager.stop()
+    except Exception as e:
+        logger.warning(f"Failed to stop discovery manager: {e}")
     await indexing_manager.stop_all()
     await mcp_client_manager.cleanup()
 
@@ -274,8 +329,6 @@ async def lifespan(_app: FastAPI):
 
     # Stop EvoLoop Link
     try:
-        from app.core.evocloud import evocloud_manager
-
         if evocloud_manager.link:
             await evocloud_manager.link.stop()
     except Exception as e:

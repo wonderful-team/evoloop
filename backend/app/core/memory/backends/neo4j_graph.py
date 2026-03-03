@@ -125,3 +125,29 @@ class Neo4jGraphNavigator(IGraphNavigator):
             info["dependencies"] = [{"target": d["target"], "weight": d["weight"]} for d in deps]
 
         return info
+
+    async def search(self, query: str, limit: int = 5) -> str:
+        """Search the graph for nodes matching the query."""
+        driver = await get_graph_db()
+        
+        # Simple keyword matching across Concept nodes (or other types if needed)
+        # We use a case-insensitive CONTAINS search on name or description
+        cypher_query = """
+        MATCH (n:Concept)
+        WHERE toLower(n.name) CONTAINS toLower($query) OR toLower(n.description) CONTAINS toLower($query)
+        RETURN n.name as name, n.description as description
+        LIMIT $limit
+        """
+        
+        results = []
+        async with driver.session() as session:
+            result = await session.run(cypher_query, query=query, limit=limit)
+            records = await result.data()
+            
+            for record in records:
+                results.append(f"- **{record['name']}**: {record['description']}")
+                
+        if not results:
+            return ""
+            
+        return "\n".join(results)

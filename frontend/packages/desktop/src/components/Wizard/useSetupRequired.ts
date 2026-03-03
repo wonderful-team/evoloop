@@ -11,7 +11,7 @@ interface SetupStatus {
     /** Which items are missing */
     missingItems: {
         llm: boolean
-        projectsRoot: boolean
+        workspaceRoot: boolean
     }
 }
 
@@ -33,7 +33,7 @@ export function useSetupRequired(): SetupStatus {
             return {
                 required: false,
                 loading: true,
-                missingItems: { llm: false, projectsRoot: false },
+                missingItems: { llm: false, workspaceRoot: false },
             }
         }
 
@@ -50,8 +50,8 @@ export function useSetupRequired(): SetupStatus {
             configMap.LLM_MODEL === "" ||
             configMap.LLM_BASE_URL === ""
 
-        const missingProjectsRoot =
-            !configMap.PROJECTS_ROOT || configMap.PROJECTS_ROOT === ""
+        const missingWorkspaceRoot =
+            !configMap.WORKSPACE_ROOT || configMap.WORKSPACE_ROOT === ""
 
         // Also check if setup was explicitly completed
         const setupCompleted =
@@ -59,11 +59,11 @@ export function useSetupRequired(): SetupStatus {
             localStorage.getItem("evoloop_setup_completed") === "true"
 
         return {
-            required: !setupCompleted && (missingLLM || missingProjectsRoot),
+            required: !setupCompleted && (missingLLM || missingWorkspaceRoot),
             loading: false,
             missingItems: {
                 llm: missingLLM,
-                projectsRoot: missingProjectsRoot,
+                workspaceRoot: missingWorkspaceRoot,
             },
         }
     }, [config, isLoading])

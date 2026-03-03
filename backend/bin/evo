@@ -77,7 +77,10 @@ show_help() {
 ║    evo clean            清理运行时缓存                       ║
 ║    evo clean all        完整系统清理                         ║
 ║    evo clean dry        预览清理内容                         ║
-║    evo clean sc         清理截图和录制                       ║
+║    evo clean skills     清理技能数据                         ║
+║    evo clean memory     清理记忆数据                         ║
+║    evo clean expired    清理过期截图和录制                   ║
+║    evo clean help       查看完整清理命令列表                 ║
 ║                                                              ║
 ║  【存储管理】                                                 ║
 ║    evo storage stats    查看存储统计                         ║
@@ -450,17 +453,116 @@ case "${1:-help}" in
                 info "预览清理内容..."
                 uv run python scripts/cleanup_system.py --dry-run --all
                 ;;
-            sc|screenshots)
-                info "清理截图和录制..."
-                uv run python scripts/manage_screenshots.py cleanup
+            redis)
+                info "清理 Redis 缓存..."
+                uv run python scripts/cleanup_system.py --redis
+                ;;
+            neo4j)
+                info "清理 Neo4j 文件索引..."
+                uv run python scripts/cleanup_system.py --neo4j
+                ;;
+            memory)
+                info "清理记忆数据..."
+                warning "这将删除所有概念、执行历史和用户偏好"
+                read -p "确定继续? (yes/no): " confirm
+                if [ "$confirm" = "yes" ]; then
+                    uv run python scripts/cleanup_system.py --memory
+                else
+                    info "已取消"
+                fi
+                ;;
+            keychain)
+                info "清理 Keychain 登录凭据..."
+                warning "这将删除 cloud_token, device_key, member_id"
+                read -p "确定继续? (yes/no): " confirm
+                if [ "$confirm" = "yes" ]; then
+                    uv run python scripts/cleanup_system.py --keychain
+                else
+                    info "已取消"
+                fi
+                ;;
+            skills)
+                info "清理技能数据..."
+                uv run python scripts/cleanup_system.py --skills
+                ;;
+            index)
+                info "清理文件索引..."
+                uv run python scripts/cleanup_system.py --index
+                ;;
+            messages)
+                info "清理消息历史..."
+                uv run python scripts/cleanup_system.py --messages
+                ;;
+            jobs)
+                info "清理任务队列..."
+                uv run python scripts/cleanup_system.py --jobs
+                ;;
+            screenshots|sc)
+                info "清理截图..."
+                uv run python scripts/cleanup_system.py --screenshots
+                ;;
+            recordings|rec)
+                info "清理屏幕录制..."
+                uv run python scripts/cleanup_system.py --recordings
+                ;;
+            knowledge|kb)
+                info "清理知识库文件..."
+                uv run python scripts/cleanup_system.py --knowledge
+                ;;
+            brain)
+                info "清理 Brain Memory..."
+                uv run python scripts/cleanup_system.py --brain
+                ;;
+            expired)
+                info "清理过期截图和录制..."
+                uv run python scripts/cleanup_system.py --expired-only --screenshots --recordings
                 ;;
             runtime|"")
                 info "清理运行时缓存..."
-                uv run python scripts/cleanup_runtime.py
+                uv run python scripts/cleanup_runtime.py 2>/dev/null || uv run python scripts/cleanup_system.py --redis
+                ;;
+            help|-h|--help)
+                echo "╔══════════════════════════════════════════════════════════════╗"
+                echo "║                    EvoLoop 清理命令                          ║"
+                echo "╠══════════════════════════════════════════════════════════════╣"
+                echo "║                                                              ║"
+                echo "║  【完整清理】                                                 ║"
+                echo "║    evo clean all              完整系统清理（所有组件）       ║"
+                echo "║    evo clean dry              预览将被清理的内容             ║"
+                echo "║                                                              ║"
+                echo "║  【数据库】                                                   ║"
+                echo "║    evo clean redis            清理 Redis 缓存                ║"
+                echo "║    evo clean neo4j            清理 Neo4j 文件索引            ║"
+                echo "║    evo clean memory           清理记忆数据(概念/历史/偏好)   ║"
+                echo "║    evo clean keychain         清理 Keychain 登录凭据         ║"
+                echo "║    evo clean skills           清理技能数据                   ║"
+                echo "║    evo clean index            清理文件索引                   ║"
+                echo "║    evo clean messages         清理消息历史                   ║"
+                echo "║    evo clean jobs             清理任务队列                   ║"
+                echo "║                                                              ║"
+                echo "║  【文件系统】                                                 ║"
+                echo "║    evo clean screenshots      清理截图(sc)                   ║"
+                echo "║    evo clean recordings       清理屏幕录制(rec)              ║"
+                echo "║    evo clean knowledge        清理知识库文件(kb)             ║"
+                echo "║    evo clean brain            清理 Brain Memory              ║"
+                echo "║    evo clean expired          清理过期截图和录制             ║"
+                echo "║                                                              ║"
+                echo "║  【运行时】                                                   ║"
+                echo "║    evo clean runtime          清理运行时缓存(默认)           ║"
+                echo "║                                                              ║"
+                echo "╚══════════════════════════════════════════════════════════════╝"
                 ;;
             *)
                 error "未知清理命令: ${2:-}"
-                echo "可用命令: all, dry, sc, runtime"
+                echo ""
+                echo "常用命令:"
+                echo "  evo clean all       完整系统清理"
+                echo "  evo clean dry       预览清理内容"
+                echo "  evo clean skills    清理技能数据"
+                echo "  evo clean memory    清理记忆数据"
+                echo "  evo clean expired   清理过期文件"
+                echo ""
+                echo "查看完整列表: evo clean help"
                 exit 1
                 ;;
         esac

@@ -4,14 +4,41 @@ import logging
 from langchain_anthropic import ChatAnthropic
 
 from app.infrastructure.llm.adaptive import AdaptiveChatOpenAI
+from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 
-from app.utils.async_utils import LoopBoundResource
 
 # Global Shared HTTP Client for Connection Pooling (HTTP/2 enabled), per Event Loop
 async def _close_client(client: httpx.AsyncClient):
     await client.aclose()
+
+
+# --- Monkeypatch to prevent SDKs from creating background aclose tasks during GC ---
+# This prevents "Task exception was never retrieved" and "Event loop is closed" errors
+# when Celery tasks shut down their event loops and GC destroys the LLM clients.
+try:
+    from openai._base_client import AsyncAPIClient as OpenAIAsyncClient
+    _original_openai_del = getattr(OpenAIAsyncClient, "__del__", None)
+    if _original_openai_del:
+        def _safe_openai_del(self):
+            # Do nothing! We manage the httpx client via _HTTP_CLIENT_POOL explicitly
+            # so we don't need the SDK to asynchronously close it during GC.
+            pass
+        OpenAIAsyncClient.__del__ = _safe_openai_del
+except ImportError:
+    pass
+
+try:
+    from anthropic._base_client import AsyncAPIClient as AnthropicAsyncClient
+    _original_anthropic_del = getattr(AnthropicAsyncClient, "__del__", None)
+    if _original_anthropic_del:
+        def _safe_anthropic_del(self):
+            pass
+        AnthropicAsyncClient.__del__ = _safe_anthropic_del
+except ImportError:
+    pass
+# ---------------------------------------------------------------------------------
 
 _HTTP_CLIENT_POOL = LoopBoundResource(
     factory=lambda: httpx.AsyncClient(

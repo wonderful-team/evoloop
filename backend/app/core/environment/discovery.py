@@ -45,10 +45,12 @@ class EnvironmentProbe:
             except Exception as e:
                 logger.warning(f"[EnvironmentProbe] UsageRanker failed (non-fatal): {e}")
 
-            # Autonomous triage for discovered apps
+            # Autonomous triage for discovered apps (run in background to avoid blocking startup)
             try:
                 triage = DynamicAppTriage()
-                await triage.sync_dynamic_apps(macos_apps=apps)
+                # Run in background - don't block startup for LLM classification
+                asyncio.create_task(triage.sync_dynamic_apps(macos_apps=apps))
+                logger.debug("[EnvironmentProbe] macOS dynamic app triage scheduled in background")
             except Exception as triage_e:
                 logger.warning(f"[EnvironmentProbe] macOS dynamic app triage failed: {triage_e}")
 
@@ -105,10 +107,11 @@ class EnvironmentProbe:
                         is_reachable=True,
                     ))
 
-                    # Autonomous triage for discovered packages
+                    # Autonomous triage for discovered packages (run in background)
                     try:
                         triage = DynamicAppTriage()
-                        await triage.sync_dynamic_apps(android_packages=packages)
+                        asyncio.create_task(triage.sync_dynamic_apps(android_packages=packages))
+                        logger.debug(f"[EnvironmentProbe] Android dynamic app triage scheduled for {device_id}")
                     except Exception as triage_e:
                         logger.warning(f"[EnvironmentProbe] Android dynamic app triage failed: {triage_e}")
 

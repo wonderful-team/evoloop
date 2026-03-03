@@ -173,7 +173,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     sendMessage: async (content, attachments: any[] = []) => {
         const { threadId, projectId } = get()
-        if (!threadId || (!content.trim() && attachments.length === 0)) return
+        // Allow projectId to be 0 (global mode), but not null/undefined
+        if (!threadId || projectId === null || projectId === undefined || (!content.trim() && attachments.length === 0)) return
 
         // 1. Optimistic Update
         const tempId = Date.now()
@@ -206,7 +207,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 requestBody: {
                     message: content, // Send raw text (backend handles merging)
                     thread_id: threadId,
-                    project_id: projectId!,
+                    project_id: projectId,
                     attachments: attachments // Pass structured attachments
                 },
             })

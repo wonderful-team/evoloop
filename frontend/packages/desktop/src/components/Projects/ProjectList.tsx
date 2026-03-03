@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router"
-import { BookOpen, FolderOpen, Layers, ListTodo, RefreshCw } from "lucide-react"
+import { BookOpen, CheckCircle2, Clock, FolderOpen, Layers, ListTodo, RefreshCw, XCircle } from "lucide-react"
 import { useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { useProjectStore } from "@/stores/projectStore"
@@ -15,6 +15,52 @@ import {
 } from "@evoloop/shared/components/ui/card"
 import AddProject from "./AddProject"
 import { ProjectActions } from "./ProjectActions"
+import type { Project } from "@/stores/projectStore"
+
+// Helper to get indexing status display info
+function getIndexingStatusDisplay(project: Project, t: (key: string) => string) {
+  // Priority 1: Real-time Redis status (indexing)
+  if (project.indexing_status === "indexing") {
+    return {
+      icon: <RefreshCw className="h-3 w-3 animate-spin" />,
+      text: t("projects.status.indexing", "Indexing"),
+      className: "bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200",
+    }
+  }
+
+  // Priority 2: DB persisted status
+  const dbStatus = project.db_indexing_status
+  switch (dbStatus) {
+    case "in_progress":
+      return {
+        icon: <RefreshCw className="h-3 w-3 animate-spin" />,
+        text: t("projects.status.indexing", "Indexing"),
+        className: "bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200",
+      }
+    case "completed":
+      return {
+        icon: <CheckCircle2 className="h-3 w-3" />,
+        text: t("projects.status.indexed", "Indexed"),
+        className: "bg-green-100 text-green-700 hover:bg-green-200 border-green-200",
+      }
+    case "failed":
+      return {
+        icon: <XCircle className="h-3 w-3" />,
+        text: t("projects.status.indexFailed", "Failed"),
+        className: "bg-red-100 text-red-700 hover:bg-red-200 border-red-200",
+      }
+    case "pending":
+      return {
+        icon: <Clock className="h-3 w-3" />,
+        text: t("projects.status.indexPending", "Pending"),
+        className: "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 border-yellow-200",
+      }
+    case "not_needed":
+    case "not_linked":
+    default:
+      return null
+  }
+}
 
 export function ProjectList() {
   const { t } = useTranslation()
@@ -75,16 +121,21 @@ export function ProjectList() {
               <div className="p-2 bg-secondary rounded-md group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                 <FolderOpen className="h-5 w-5" />
               </div>
-              <div className="flex items-center gap-2">
-                {proj.indexing_status === "indexing" && (
-                  <Badge
-                    variant="secondary"
-                    className="bg-blue-100 text-blue-700 hover:bg-blue-200 border-blue-200 gap-1"
-                  >
-                    <RefreshCw className="h-3 w-3 animate-spin" />{" "}
-                    {t("projects.status.indexing", "Indexing")}
-                  </Badge>
-                )}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Indexing Status */}
+                {(() => {
+                  const idxStatus = getIndexingStatusDisplay(proj, t)
+                  if (!idxStatus) return null
+                  return (
+                    <Badge
+                      variant="secondary"
+                      className={`gap-1 ${idxStatus.className}`}
+                      title={proj.last_indexed_at ? t("projects.status.lastIndexed", { time: proj.last_indexed_at }) : undefined}
+                    >
+                      {idxStatus.icon} {idxStatus.text}
+                    </Badge>
+                  )
+                })()}
                 {(proj.summarization_status === "running" ||
                   proj.summarization_status === "SUMMARIZING") && (
                     <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200 gap-1">

@@ -56,3 +56,17 @@ class IGraphNavigator(IMemoryProvider):
             Dictionary with summary, sub-modules, and dependencies
         """
         pass
+
+    @abstractmethod
+    async def search(self, query: str, limit: int = 5) -> str:
+        """
+        Search the graph for nodes matching the query.
+
+        Args:
+            query: The search string
+            limit: Maximum number of results to return
+
+        Returns:
+            Formatted string containing search results
+        """
+        pass

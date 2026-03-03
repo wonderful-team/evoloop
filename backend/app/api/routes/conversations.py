@@ -99,7 +99,7 @@ async def list_conversations(project_id: int | None = None):
     """
     async with get_db_session() as session:
         stmt = select(Conversation).order_by(Conversation.updated_at.desc())
-        if project_id:
+        if project_id is not None:
             stmt = stmt.where(Conversation.project_id == project_id)
 
         result = await session.execute(stmt)
@@ -254,7 +254,7 @@ async def search_conversations(q: str, project_id: int | None = None):
     async with get_db_session() as session:
         stmt = select(Message).where(Message.content.ilike(f"%{q}%"))
 
-        if project_id:
+        if project_id is not None:
             stmt = stmt.where(Message.project_id == project_id)
 
         stmt = stmt.order_by(Message.created_at.desc()).limit(20)

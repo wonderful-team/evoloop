@@ -2,6 +2,7 @@ import {
   Brain,
   Cpu,
   Database,
+  Globe,
   LayoutDashboard,
   Loader2,
   Map as MapIcon,
@@ -24,6 +25,7 @@ interface ContextPanelProps {
   activeThreadId?: string
   autoSwitchToTab?: string
   onClose?: () => void
+  isGlobalMode?: boolean
 }
 
 /**
@@ -31,7 +33,7 @@ interface ContextPanelProps {
  * Dashboard for Project Context, Plans, and System State.
  */
 export const ContextPanel = memo(
-  ({ projectId, activeThreadId, autoSwitchToTab, onClose }: ContextPanelProps) => {
+  ({ projectId, activeThreadId, autoSwitchToTab, onClose, isGlobalMode }: ContextPanelProps) => {
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState("context")
 
@@ -66,6 +68,44 @@ export const ContextPanel = memo(
         setActiveTab("context") // Primary view
       }
     }, [autoSwitchToTab])
+
+    // Global mode - show simplified context panel
+    if (isGlobalMode) {
+      return (
+        <div className="flex flex-col h-full bg-background border-l">
+          {/* Header */}
+          <div className="flex items-center justify-between p-3 border-b h-14 shrink-0">
+            <span className="font-semibold text-sm flex items-center gap-2">
+              <Globe className="h-4 w-4 text-blue-500" />
+              {t("chat.context.globalTitle", "全局模式")}
+            </span>
+            {onClose && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={onClose}
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+
+          {/* Global Mode Info */}
+          <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center mb-4">
+              <Globe className="h-8 w-8 text-white" />
+            </div>
+            <h3 className="font-semibold text-lg mb-2">
+              {t("chat.context.globalTitle", "全局模式")}
+            </h3>
+            <p className="text-sm text-muted-foreground max-w-[200px]">
+              {t("chat.context.globalDesc", "您正在进行跨项目对话。代码上下文和文件操作在此模式下不可用。")}
+            </p>
+          </div>
+        </div>
+      )
+    }
 
     if (typeof projectId !== "number" || Number.isNaN(projectId)) {
       return (

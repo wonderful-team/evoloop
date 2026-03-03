@@ -120,9 +120,9 @@ export function SetupWizard({ open, onOpenChange }: SetupWizardProps) {
                     },
                 })
 
-                // Save Projects Root
+                // Save Workspace Root
                 await SystemService.updateSystemConfig({
-                    requestBody: { key: "PROJECTS_ROOT", value: data.projectsRoot },
+                    requestBody: { key: "WORKSPACE_ROOT", value: data.workspaceRoot },
                 })
 
                 // Mark setup as completed

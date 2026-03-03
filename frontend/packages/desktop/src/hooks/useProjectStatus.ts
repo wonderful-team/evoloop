@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react"
 import { ProjectsService } from "@/client/sdk.gen"
-import { useProjectStore } from "@/stores/projectStore"
+import { useProjectStore, isGlobalProject } from "@/stores/projectStore"
 
 // Determine which API to use based on auth state, or just use a new dedicated service method.
 // Since `ProjectsService` is auto-generated, we might need a manual fetch or extend it.
@@ -25,6 +25,9 @@ export function useProjectStatus() {
 
   useEffect(() => {
     if (!currentProject) return
+
+    // Skip status polling for global project (no indexing needed)
+    if (isGlobalProject(currentProject)) return
 
     const projectId = currentProject.id
 

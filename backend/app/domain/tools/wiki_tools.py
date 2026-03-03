@@ -25,8 +25,9 @@ async def list_wiki_pages(
     ctx = ContextManager.current()
     project_id = ctx.project_id
 
-    if not project_id:
-        return "Error: No active project context. Please ensure project_id is set."
+    # Global mode check: project_id can be 0 (global mode) or None (not set)
+    if project_id is None or project_id == 0:
+        return "Error: Wiki is not available in global mode. Please switch to a specific project."
 
     pages = wiki_service.get_pages(project_id)
     if not pages:
@@ -50,8 +51,9 @@ async def read_wiki_page(
     ctx = ContextManager.current()
     project_id = ctx.project_id
 
-    if not project_id:
-        return "Error: No active project context."
+    # Global mode check: project_id can be 0 (global mode) or None (not set)
+    if project_id is None or project_id == 0:
+        return "Error: Wiki is not available in global mode. Please switch to a specific project."
 
     with Session(engine) as session:
         stmt = select(WikiPage).where(
@@ -88,8 +90,9 @@ async def write_wiki_page(
     ctx = ContextManager.current()
     project_id = ctx.project_id
 
-    if not project_id:
-        return "Error: No active project context."
+    # Global mode check: project_id can be 0 (global mode) or None (not set)
+    if project_id is None or project_id == 0:
+        return "Error: Wiki is not available in global mode. Please switch to a specific project."
 
     # 1. Generate slug if needed
     if not slug:

@@ -37,7 +37,7 @@ import {
 } from "@evoloop/shared/components/ui/select"
 
 const generalSettingsSchema = z.object({
-  PROJECTS_ROOT: z.string().min(1),
+  WORKSPACE_ROOT: z.string().min(1),
   EVOLOOP_DEVICE_NAME: z.string().min(1),
   INTENT_MIN_CONFIDENCE: z.string().optional(),
   REQUIRE_PLAN_APPROVAL: z.boolean().default(true),
@@ -52,7 +52,7 @@ export default function GeneralSettings() {
   const form = useForm<GeneralSettingsValues>({
     resolver: zodResolver(generalSettingsSchema) as any,
     defaultValues: {
-      PROJECTS_ROOT: "",
+      WORKSPACE_ROOT: "",
       EVOLOOP_DEVICE_NAME: "",
       INTENT_MIN_CONFIDENCE: "0.35",
       REQUIRE_PLAN_APPROVAL: true,
@@ -69,7 +69,7 @@ export default function GeneralSettings() {
           })
 
         form.reset({
-          PROJECTS_ROOT: configMap.PROJECTS_ROOT || "",
+          WORKSPACE_ROOT: configMap.WORKSPACE_ROOT || "",
           EVOLOOP_DEVICE_NAME: configMap.EVOLOOP_DEVICE_NAME || "",
           INTENT_MIN_CONFIDENCE: configMap.INTENT_MIN_CONFIDENCE || "0.35",
           REQUIRE_PLAN_APPROVAL: configMap.REQUIRE_PLAN_APPROVAL !== "false",
@@ -92,7 +92,7 @@ export default function GeneralSettings() {
     setLoading(true)
     try {
       await SystemService.updateSystemConfig({
-        requestBody: { key: "PROJECTS_ROOT", value: data.PROJECTS_ROOT },
+        requestBody: { key: "WORKSPACE_ROOT", value: data.WORKSPACE_ROOT },
       })
       await SystemService.updateSystemConfig({
         requestBody: {
@@ -133,7 +133,7 @@ export default function GeneralSettings() {
         multiple: false,
       })
       if (typeof selected === "string") {
-        form.setValue("PROJECTS_ROOT", selected, { shouldDirty: true })
+        form.setValue("WORKSPACE_ROOT", selected, { shouldDirty: true })
       }
     } catch (_error) {
       toast.error(t("settings.general.browseError"))
@@ -203,13 +203,13 @@ export default function GeneralSettings() {
 
               <FormField
                 control={form.control}
-                name="PROJECTS_ROOT"
+                name="WORKSPACE_ROOT"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t("settings.general.projectsRoot")}</FormLabel>
+                    <FormLabel>{t("settings.general.workspaceRoot")}</FormLabel>
                     <div className="flex gap-2">
                       <FormControl>
-                        <Input placeholder={t("settings.general.projectsRootPlaceholder")} {...field} />
+                        <Input placeholder={t("settings.general.workspaceRootPlaceholder")} {...field} />
                       </FormControl>
                       <Button
                         type="button"
@@ -220,7 +220,7 @@ export default function GeneralSettings() {
                       </Button>
                     </div>
                     <FormDescription>
-                      {t("settings.general.projectsRootDesc")}
+                      {t("settings.general.workspaceRootDesc")}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

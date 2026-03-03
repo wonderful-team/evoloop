@@ -40,9 +40,9 @@ class ReferenceService:
         reference_notes = []
         updated_message = message_text
 
-        # Get project root if project_id is provided
+        # Get project root if project_id is provided (allow 0 for global mode)
         root_path = None
-        if project_id:
+        if project_id is not None:
             project = await evocloud_manager.get_project_by_id(project_id)
             if project:
                 root_path = project.get("path")
