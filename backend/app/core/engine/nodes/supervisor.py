@@ -11,6 +11,7 @@ from typing import Any
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.core.config import settings
 from app.core.engine import AgentEngine
 from app.core.engine.message_utils import get_message_text
 from app.core.engine.state import AgentState
@@ -96,7 +97,7 @@ class SupervisorNode:
             config=config,
             system_prompt=dynamic_prompt,
             tools=tools,
-            max_steps=100,  # Increased since routing is now part of the loop
+            max_steps=settings.SUPERVISOR_AGENT_MAX_STEPS,  # Increased since routing is now part of the loop
             name="Supervisor",
         )
 

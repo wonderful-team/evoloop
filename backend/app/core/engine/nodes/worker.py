@@ -106,7 +106,7 @@ class WorkerNode:
                 system_prompt=system_prompt,
                 tools=tools,
                 name=f"Worker-{role_name}",
-                max_steps=settings.DYNAMIC_AGENT_MAX_STEPS,
+                max_steps=settings.WORKER_AGENT_MAX_STEPS,
             )
 
             # 5. Post-Processing (Absorbed from Operator)

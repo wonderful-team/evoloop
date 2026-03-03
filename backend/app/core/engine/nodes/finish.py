@@ -126,7 +126,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
         system_prompt=system_prompt,
         tools=tools,
         name="Session Reviewer",
-        max_steps=20,
+        max_steps=settings.FINISH_AGENT_MAX_STEPS,
     )
 
     # 6. Always END — trigger recording unconditionally
