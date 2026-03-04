@@ -1,10 +1,8 @@
 import asyncio
 
 from app.core.context.manager import ContextManager
-from app.core.context.thread_store import thread_context_store
-from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.ui_actions import require_project_for_tool
 from app.core.tools import evoloop_tool
-from app.core.ui_actions import HumanRequestType
 from app.domain.codebase.retrieval.graph_explorer import graph_explorer
 from app.domain.codebase.retrieval.service import RetrievalService
 
@@ -31,26 +29,16 @@ async def search_codebase(query: str, project_id: int | None = None) -> str:
     # Resolve project ID - allow temp project request in global mode
     pid = ContextManager.resolve_project_id(project_id, allow_global=False, request_temp=True)
 
-    # If in global mode (pid=0), check for temporary project (Scheme C)
+    # If in global mode (pid=0), request project via HITL
     if pid == 0:
-        ctx = ContextManager.current()
-        if ctx.thread_id:
-            temp_project = thread_context_store.get_temp_project(ctx.thread_id)
-            if temp_project:
-                pid = temp_project
-                # Clear temp project after use (one-time)
-                thread_context_store.set_temp_project(ctx.thread_id, None)
-            elif project_id is None:
-                # No temp project and no explicit project_id - request one
-                await activity_monitor.request_human_interaction(
-                    thread_id=ctx.thread_id,
-                    request_type=HumanRequestType.PROJECT_SWITCH,
-                    prompt="Please select a project to search code:",
-                    payload={"allow_global": False, "show_project_list": True, "temporary": True},
-                    allow_cancel=True
-                )
-                # User cancelled or error - return message
-                return "🔍 **Global Mode**: Code search requires a project. Please provide a project_id or switch to a project."
+        result = await require_project_for_tool(
+            tool_name="search_codebase",
+            tool_category="code_search",
+            prompt="Please select a project to search code:"
+        )
+        if isinstance(result, str):
+            return result  # User cancelled
+        pid = result
 
     # Use provided project_id if available (explicit override)
     if project_id is not None:

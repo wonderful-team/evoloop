@@ -195,7 +195,7 @@ class ActivityMonitor:
             payload: Additional data for the interaction (type-specific)
             allow_cancel: Whether user can cancel this request
         """
-        from app.core.ui_actions import HumanRequestType
+        from app.core.monitoring.ui_actions import HumanRequestType
 
         # Validate request type
         valid_types = [t.value for t in HumanRequestType]

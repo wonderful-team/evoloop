@@ -6,11 +6,9 @@ from langchain_core.tools import InjectedToolArg
 from sqlmodel import Session, select
 
 from app.core.context.manager import ContextManager
-from app.core.context.thread_store import thread_context_store
 from app.core.db import engine
-from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.ui_actions import get_global_mode_message, require_project_for_tool
 from app.core.tools import evoloop_tool
-from app.core.ui_actions import HumanRequestType
 from app.domain.wiki.service import wiki_service
 from app.models.wiki import WikiPage
 
@@ -22,21 +20,15 @@ async def _resolve_wiki_project_id() -> int | None:
     pid = ContextManager.resolve_project_id(allow_global=False, request_temp=True)
 
     if pid == 0:
-        ctx = ContextManager.current()
-        if ctx.thread_id:
-            temp_project = thread_context_store.get_temp_project(ctx.thread_id)
-            if temp_project:
-                pid = temp_project
-                thread_context_store.set_temp_project(ctx.thread_id, None)
-            else:
-                await activity_monitor.request_human_interaction(
-                    thread_id=ctx.thread_id,
-                    request_type=HumanRequestType.PROJECT_SWITCH,
-                    prompt="Please select a project to use Wiki:",
-                    payload={"allow_global": False, "show_project_list": True, "temporary": True},
-                    allow_cancel=True
-                )
-                return None
+        result = await require_project_for_tool(
+            tool_name="wiki",
+            tool_category="wiki",
+            prompt="Please select a project to use Wiki:"
+        )
+        if isinstance(result, str):
+            return None  # User cancelled
+        pid = result
+
     return pid
 
 
@@ -50,7 +42,7 @@ async def list_wiki_pages(
     """
     project_id = await _resolve_wiki_project_id()
     if project_id is None:
-        return "📚 **Global Mode**: Wiki requires a project."
+        return get_global_mode_message("wiki")
 
     pages = wiki_service.get_pages(project_id)
     if not pages:
@@ -73,7 +65,7 @@ async def read_wiki_page(
     """
     project_id = await _resolve_wiki_project_id()
     if project_id is None:
-        return "📚 **Global Mode**: Wiki requires a project."
+        return get_global_mode_message("wiki")
 
     with Session(engine) as session:
         stmt = select(WikiPage).where(

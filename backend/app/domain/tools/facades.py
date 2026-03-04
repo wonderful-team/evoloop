@@ -6,11 +6,9 @@ from langchain_core.tools import InjectedToolArg
 
 from app.constants import ALLOWED_DOC_EXTENSIONS
 from app.core.context.manager import ContextManager
-from app.core.context.thread_store import thread_context_store
 from app.core.memory import memory_manager
-from app.core.monitoring.activity import activity_monitor
+from app.core.monitoring.ui_actions import require_project_for_tool
 from app.core.tools import evoloop_tool, get_working_directory
-from app.core.ui_actions import HumanRequestType
 from app.domain.codebase.analysis.tools import find_definition
 from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.tools.files import edit_file, grep_files
@@ -222,25 +220,16 @@ async def consult_architecture(path: str = ""):
     # Resolve project ID - allow temp project request in global mode
     pid = ContextManager.resolve_project_id(allow_global=False, request_temp=True)
 
-    # If in global mode (pid=0), check for temporary project (Scheme C)
+    # If in global mode (pid=0), request project via HITL
     if pid == 0:
-        ctx = ContextManager.current()
-        if ctx.thread_id:
-            temp_project = thread_context_store.get_temp_project(ctx.thread_id)
-            if temp_project:
-                pid = temp_project
-                # Clear temp project after use (one-time)
-                thread_context_store.set_temp_project(ctx.thread_id, None)
-            else:
-                # No temp project - request one
-                await activity_monitor.request_human_interaction(
-                    thread_id=ctx.thread_id,
-                    request_type=HumanRequestType.PROJECT_SWITCH,
-                    prompt="Please select a project to consult architecture:",
-                    payload={"allow_global": False, "show_project_list": True, "temporary": True},
-                    allow_cancel=True
-                )
-                return "🏗️ **Global Mode**: Architecture consultation requires a project."
+        result = await require_project_for_tool(
+            tool_name="consult_architecture",
+            tool_category="architecture",
+            prompt="Please select a project to consult architecture:"
+        )
+        if isinstance(result, str):
+            return result  # User cancelled
+        pid = result
 
     info = await memory_manager.graph.get_directory_info(pid, path)
 
