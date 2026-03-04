@@ -26,7 +26,7 @@ class ToolManager:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def get_node_tools(self, role: str, state: AgentState | None = None) -> list[BaseTool]:
+    def get_node_tools(self, node_name: str, state: AgentState | None = None) -> list[BaseTool]:
         """
         Get tools for a specific agent role, handling Progressive Disclosure automatically.
         Nodes no longer need to manually parse execution_tickets or talk to MCP.
@@ -36,9 +36,9 @@ class ToolManager:
 
         # 1. Fetch statically configured tools for this role (Native + specifically requested MCP if defined in yaml)
         try:
-            tools = _legacy_get_node_tools(role)
+            tools = _legacy_get_node_tools(node_name)
         except Exception as e:
-            logger.error(f"[ToolManager] Failed to fetch static tools for {role}: {e}")
+            logger.error(f"[ToolManager] Failed to fetch static tools for {node_name}: {e}")
             tools = []
 
         combined_map = {t.name: t for t in tools if t.name}

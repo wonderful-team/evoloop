@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import time
@@ -285,7 +286,19 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
     # Prepare input - if user provided input, add as message
     inputs = None
     if req.user_input:
-        inputs = {"messages": [HumanMessage(content=req.user_input)]}
+        # Check if user_input contains temporary project context (Scheme C)
+        try:
+            parsed = json.loads(req.user_input)
+            if isinstance(parsed, dict) and parsed.get("type") == "temp_project":
+                temp_project_id = parsed.get("project_id")
+                # Store temporary project for this thread
+                thread_context_store.set_temp_project(req.thread_id, temp_project_id)
+                # Use empty input for actual resume (the project is now in context)
+                inputs = {"messages": [HumanMessage(content=f"Selected project: {parsed.get('project_name', temp_project_id)}")]}
+            else:
+                inputs = {"messages": [HumanMessage(content=req.user_input)]}
+        except json.JSONDecodeError:
+            inputs = {"messages": [HumanMessage(content=req.user_input)]}
 
         # PERSISTENCE FIX: Save user confirmation to history
         try:

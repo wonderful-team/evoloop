@@ -1,6 +1,36 @@
 import { create } from "zustand"
 import { ProjectsService } from "@/client"
 
+// localStorage key for persisting user's project selection
+const LAST_PROJECT_ID_KEY = "evoloop_last_project_id"
+
+// Helper to get last selected project ID from localStorage
+const getLastSelectedProjectId = (): number | null => {
+  try {
+    const stored = localStorage.getItem(LAST_PROJECT_ID_KEY)
+    if (stored) {
+      const id = parseInt(stored, 10)
+      return isNaN(id) ? null : id
+    }
+  } catch {
+    // localStorage might not be available
+  }
+  return null
+}
+
+// Helper to save selected project ID to localStorage
+const saveLastSelectedProjectId = (id: number | null) => {
+  try {
+    if (id !== null) {
+      localStorage.setItem(LAST_PROJECT_ID_KEY, String(id))
+    } else {
+      localStorage.removeItem(LAST_PROJECT_ID_KEY)
+    }
+  } catch {
+    // localStorage might not be available
+  }
+}
+
 export interface TaskStats {
   total: number
   pending: number
@@ -179,7 +209,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
       set({ projects: list, isLoading: false })
 
-      // Auto-select logic
+      // Auto-select logic with persistence
       // Filter out disconnected projects (cloud only, no local)
       const localProjects = list.filter((p) => p.exists_locally !== false)
       const current = get().currentProject
@@ -188,30 +218,58 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       // Check if current project is still valid and not ignored
       const currentInList = current ? list.find((p) => p.id === current.id) : null
 
-      // Preserve global mode - don't auto-switch away from it
+      // Get last selected project ID from localStorage
+      const lastSelectedId = getLastSelectedProjectId()
+      const lastSelectedInList = lastSelectedId !== null
+        ? list.find((p) => p.id === lastSelectedId)
+        : null
+
+      // Priority 1: Preserve current selection if still valid (session continuity)
       if (isGlobal && current?.id === 0) {
         // Keep global mode, no changes needed
       } else if (current && currentInList) {
         // Current project exists in new list, update it
         set({ currentProject: currentInList })
-      } else if (current && !currentInList) {
-        // Current project was removed (e.g., ignored) - need to reselect
+      }
+      // Priority 2: Restore last selected project from localStorage (cross-session)
+      else if (lastSelectedInList) {
+        console.log(`[ProjectStore] Restoring last selected project: ${lastSelectedInList.id}`)
+        set({
+          currentProject: lastSelectedInList,
+          isGlobalMode: isGlobalProject(lastSelectedInList)
+        })
+      }
+      // Priority 3: Current project was removed (e.g., ignored) - need to reselect
+      else if (current && !currentInList) {
         console.log(`[ProjectStore] Current project ${current.id} no longer available, reselecting...`)
         if (localProjects.length > 0) {
-          set({ currentProject: localProjects[0], isGlobalMode: false })
+          const firstLocal = localProjects[0]
+          saveLastSelectedProjectId(firstLocal.id)
+          set({ currentProject: firstLocal, isGlobalMode: false })
         } else if (list.length > 0) {
-          set({ currentProject: list[0], isGlobalMode: false })
+          const first = list[0]
+          saveLastSelectedProjectId(first.id)
+          set({ currentProject: first, isGlobalMode: false })
         } else {
-          set({ currentProject: null, isGlobalMode: false })
+          saveLastSelectedProjectId(0) // Save global mode
+          set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
         }
-      } else if (localProjects.length > 0) {
-        // No current project - prefer locally existing projects
-        set({ currentProject: localProjects[0] })
+      }
+      // Priority 4: First time - default to Global Mode (as requested)
+      else if (localProjects.length > 0) {
+        // No previous selection found, default to GLOBAL mode
+        console.log('[ProjectStore] No previous selection, defaulting to Global Mode')
+        saveLastSelectedProjectId(0) // Save global mode
+        set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
       } else if (list.length > 0) {
-        // Fallback: select first even if disconnected
-        set({ currentProject: list[0] })
+        // No local projects but have cloud projects - select first
+        const first = list[0]
+        saveLastSelectedProjectId(first.id)
+        set({ currentProject: first, isGlobalMode: false })
       } else {
-        set({ currentProject: null })
+        // No projects at all - global mode
+        saveLastSelectedProjectId(0)
+        set({ currentProject: GLOBAL_PROJECT, isGlobalMode: true })
       }
     } catch (error) {
       console.error("Failed to fetch projects", error)
@@ -220,6 +278,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   setProject: (project) => {
+    // Persist selection to localStorage
+    saveLastSelectedProjectId(project?.id ?? null)
+
     set({
       currentProject: project,
       isGlobalMode: isGlobalProject(project)
@@ -228,6 +289,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   setGlobalMode: (enabled) => {
     if (enabled) {
+      saveLastSelectedProjectId(0) // Save global mode (id=0)
       set({
         currentProject: GLOBAL_PROJECT,
         isGlobalMode: true
@@ -237,11 +299,14 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const { projects } = get()
       const localProjects = projects.filter((p) => p.exists_locally !== false)
       if (localProjects.length > 0) {
+        const firstLocal = localProjects[0]
+        saveLastSelectedProjectId(firstLocal.id)
         set({
-          currentProject: localProjects[0],
+          currentProject: firstLocal,
           isGlobalMode: false
         })
       } else {
+        saveLastSelectedProjectId(null)
         set({
           currentProject: null,
           isGlobalMode: false

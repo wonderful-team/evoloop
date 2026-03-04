@@ -33,6 +33,8 @@ class ThreadContextStore:
         self._thread_contexts: dict[str, str] = {}
         # Mapping: thread_id -> project_id
         self._thread_projects: dict[str, int] = {}
+        # Mapping: thread_id -> temporary project_id (for Scheme C)
+        self._thread_temp_projects: dict[str, int] = {}
 
         # Default fallback directory (from Settings/DB)
         db_root = SystemConfigService.get_value("WORKSPACE_ROOT")
@@ -78,7 +80,24 @@ class ThreadContextStore:
 
     def get_active_project(self, thread_id: str) -> int | None:
         """Get the active project ID for a specific thread."""
+        # First check for temporary project (Scheme C)
+        temp_project = self._thread_temp_projects.get(thread_id)
+        if temp_project is not None:
+            return temp_project
         return self._thread_projects.get(thread_id)
+
+    def set_temp_project(self, thread_id: str, project_id: int | None):
+        """Set or clear the temporary project ID for a specific thread (Scheme C)."""
+        if project_id is not None:
+            self._thread_temp_projects[thread_id] = project_id
+            logger.info(f"Set temporary project {project_id} for thread {thread_id}")
+        else:
+            self._thread_temp_projects.pop(thread_id, None)
+            logger.info(f"Cleared temporary project for thread {thread_id}")
+
+    def get_temp_project(self, thread_id: str) -> int | None:
+        """Get the temporary project ID for a specific thread."""
+        return self._thread_temp_projects.get(thread_id)
 
     def clear_context(self, thread_id: str):
         """Remove context for a thread."""

@@ -283,7 +283,11 @@
       "recording": "移动录制",
       "mcpServers": "MCP 服务器"
     },
-    "quickStart": "操作录制"
+    "quickStart": "操作录制",
+    "screenRecordingPermissionTitle": "需要屏幕录制权限",
+    "permissionRequired": "全局录制需要系统辅助功能权限",
+    "globalMode": "系统监控已激活 (全局)",
+    "domMode": "仅应用内 (DOM)"
   },
   "todos": {
     "create": {
@@ -526,12 +530,6 @@
     },
     "stateContext": "上下文",
     "toolsDynamic": "动态加载",
-    "interrupted": {
-      "cancel": "取消",
-      "resume": "继续",
-      "addInput": "添加指令",
-      "title": "Agent 已暂停"
-    },
     "status": {
       "working": "工作中..."
     },
@@ -558,6 +556,23 @@
     "toolsTitle": "运行时工具",
     "hitl": {
       "waiting": "Agent 正在等待您的输入..."
+    },
+    "interrupted": {
+      "title": "Agent 已暂停",
+      "projectSwitchTitle": "需要切换项目",
+      "confirmTitle": "需要确认",
+      "description": "Agent 正在等待您的输入或确认以继续。",
+      "inputPlaceholder": "输入额外指令（可选）...",
+      "addInput": "添加指令",
+      "resume": "继续",
+      "resumeWithProject": "使用选中项目继续",
+      "confirm": "确认",
+      "cancel": "取消",
+      "selectProject": "选择项目...",
+      "chooseProject": "选择要切换的项目：",
+      "noProjects": "没有可用的项目",
+      "projectSelected": "已选择项目。点击继续以执行。",
+      "confirmQuestion": "是否确认继续？"
     },
     "stateScratchpad": "草稿纸 (Scratchpad)",
     "addLinkTitle": "添加外部链接",
@@ -984,7 +999,12 @@
     "indexingTooltip": "索引中...",
     "global": "全局",
     "globalDesc": "跨项目对话和一般性问答",
-    "select": "选择项目"
+    "select": "选择项目",
+    "manage": "管理",
+    "indexed": "已索引",
+    "indexFailed": "索引失败",
+    "indexPending": "待索引",
+    "lastIndexed": "上次索引: {{time}}"
   },
   "pending": {
     "items": {

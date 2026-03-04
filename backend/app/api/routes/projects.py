@@ -36,6 +36,21 @@ class UpdateProjectRequest(BaseModel):
     path: str | None = None
 
 
+def _extract_projects(response: dict | list) -> tuple[list, dict | None]:
+    """
+    Extract projects list from API response.
+    Returns: (projects_list, container_dict_to_update or None)
+    """
+    if isinstance(response, dict):
+        if "list" in response:
+            return response["list"], response
+        if "data" in response and isinstance(response["data"], dict) and "list" in response["data"]:
+            return response["data"]["list"], response["data"]
+    elif isinstance(response, list):
+        return response, None  # Direct list, update by returning new list
+    return [], None
+
+
 def _scan_workspace_projects() -> dict[str, str]:
     """
     Scan WORKSPACE_ROOT directory to find actual local projects.
@@ -77,17 +92,9 @@ async def get_projects(
     filter_type: str | None = None,
     _token: TokenDepOptional = None
 ):
-    # 1. Fetch from Cloud
+    # 1. Fetch from Cloud and extract projects
     res = await evocloud_manager.api.get_projects(page, page_size)
-
-    # Check structure. Usually it returns dict or list.
-    projects = []
-    if isinstance(res, dict) and "list" in res:
-        projects = res["list"]
-    elif isinstance(res, dict) and "data" in res and isinstance(res["data"], dict) and "list" in res["data"]:
-        projects = res["data"]["list"]
-    elif isinstance(res, list):
-        projects = res
+    projects, container = _extract_projects(res)
 
     # 2. Scan WORKSPACE_ROOT for actual local projects
     workspace_projects = _scan_workspace_projects()
@@ -389,7 +396,13 @@ async def get_projects(
             # Wiki Existence (from DB)
             p["has_wiki"] = pid in projects_with_wiki
 
-    return res
+    # Update the response with filtered projects
+    # Write back to the original container, or return new list if no container
+    if container is not None:
+        container["list"] = projects
+        container["total"] = len(projects)
+        return res
+    return projects
 
 
 @router.get("/current")

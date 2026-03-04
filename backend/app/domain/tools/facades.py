@@ -6,8 +6,11 @@ from langchain_core.tools import InjectedToolArg
 
 from app.constants import ALLOWED_DOC_EXTENSIONS
 from app.core.context.manager import ContextManager
+from app.core.context.thread_store import thread_context_store
 from app.core.memory import memory_manager
+from app.core.monitoring.activity import activity_monitor
 from app.core.tools import evoloop_tool, get_working_directory
+from app.core.ui_actions import HumanRequestType
 from app.domain.codebase.analysis.tools import find_definition
 from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.tools.files import edit_file, grep_files
@@ -190,7 +193,8 @@ async def manage_memory(
         if not key:
             return "Error: key (concept_name) required."
         ctx = ContextManager.current()
-        project_id = ctx.project_id or 1
+        # Use project_id if available (including 0 for global), otherwise default to 1
+        project_id = ctx.project_id if ctx.project_id is not None else 1
         episodes = await memory_manager.long_term.find_episodes_by_concept(key, project_id)
         if not episodes:
             return f"No historical episodes found related to '{key}'."
@@ -215,14 +219,30 @@ async def consult_architecture(path: str = ""):
     Args:
         path: The relative path of the directory to inspect (e.g., "backend/app/core"). Defaults to root ("").
     """
-    ctx = ContextManager.current()
-    project_id = ctx.project_id
+    # Resolve project ID - allow temp project request in global mode
+    pid = ContextManager.resolve_project_id(allow_global=False, request_temp=True)
 
-    # Global mode check: project_id can be 0 (global mode) or None (not set)
-    if project_id is None or project_id == 0:
-        return "Error: Architecture consultation requires a specific project. Please switch to a project to use this tool."
+    # If in global mode (pid=0), check for temporary project (Scheme C)
+    if pid == 0:
+        ctx = ContextManager.current()
+        if ctx.thread_id:
+            temp_project = thread_context_store.get_temp_project(ctx.thread_id)
+            if temp_project:
+                pid = temp_project
+                # Clear temp project after use (one-time)
+                thread_context_store.set_temp_project(ctx.thread_id, None)
+            else:
+                # No temp project - request one
+                await activity_monitor.request_human_interaction(
+                    thread_id=ctx.thread_id,
+                    request_type=HumanRequestType.PROJECT_SWITCH,
+                    prompt="Please select a project to consult architecture:",
+                    payload={"allow_global": False, "show_project_list": True, "temporary": True},
+                    allow_cancel=True
+                )
+                return "🏗️ **Global Mode**: Architecture consultation requires a project."
 
-    info = await memory_manager.graph.get_directory_info(project_id, path)
+    info = await memory_manager.graph.get_directory_info(pid, path)
 
     output = [f"# Architecture Report: {info['path'] or 'Root'}"]
     output.append(f"**Summary**: {info['summary']}\n")

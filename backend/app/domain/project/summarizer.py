@@ -8,12 +8,14 @@ from langchain_core.prompts import ChatPromptTemplate
 from app.celery_app import celery_app
 from app.core.evocloud import evocloud_manager
 from app.core.memory import memory_manager
+from app.core.monitoring.activity import activity_monitor
 from app.domain.codebase.filter import FileFilter
 from app.domain.project.service import project_context_manager
 from app.infrastructure.database.graph.driver import get_graph_db
 from app.infrastructure.llm.factory import LLMFactory
 from app.utils import file as file_utils
 from app.utils import json as json_utils
+from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +26,6 @@ async def _summarize_project_logic(name: str, path: str):
     Core logic to summarize a project using LLM.
     Functionally equivalent to the old _summarize_project method.
     """
-    # Import Monitor
-    from app.core.monitoring.activity import activity_monitor
-
     logger.info(f"[ProjectSummarizer] Analyzing {name}...")
 
     # 0. Resolve Project ID Early (Used for Graph Lookup)
@@ -204,7 +203,14 @@ def summarize_project_task(name: str, path: str):
     """
     Celery task wrapper for project summarization.
     """
-    asyncio.run(_summarize_project_logic(name, path))
+
+    async def _run_with_flush():
+        try:
+            await _summarize_project_logic(name, path)
+        finally:
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())
 
 
 # --- Main Service Class ---

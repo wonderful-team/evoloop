@@ -6,12 +6,38 @@ from langchain_core.tools import InjectedToolArg
 from sqlmodel import Session, select
 
 from app.core.context.manager import ContextManager
+from app.core.context.thread_store import thread_context_store
 from app.core.db import engine
+from app.core.monitoring.activity import activity_monitor
 from app.core.tools import evoloop_tool
+from app.core.ui_actions import HumanRequestType
 from app.domain.wiki.service import wiki_service
 from app.models.wiki import WikiPage
 
 logger = logging.getLogger(__name__)
+
+
+async def _resolve_wiki_project_id() -> int | None:
+    """Helper to resolve project ID with temp project support (Scheme C)."""
+    pid = ContextManager.resolve_project_id(allow_global=False, request_temp=True)
+
+    if pid == 0:
+        ctx = ContextManager.current()
+        if ctx.thread_id:
+            temp_project = thread_context_store.get_temp_project(ctx.thread_id)
+            if temp_project:
+                pid = temp_project
+                thread_context_store.set_temp_project(ctx.thread_id, None)
+            else:
+                await activity_monitor.request_human_interaction(
+                    thread_id=ctx.thread_id,
+                    request_type=HumanRequestType.PROJECT_SWITCH,
+                    prompt="Please select a project to use Wiki:",
+                    payload={"allow_global": False, "show_project_list": True, "temporary": True},
+                    allow_cancel=True
+                )
+                return None
+    return pid
 
 
 @evoloop_tool(is_pollable=True)
@@ -22,12 +48,9 @@ async def list_wiki_pages(
     List all available Wiki pages for the current project.
     Returns a list of page titles and slugs.
     """
-    ctx = ContextManager.current()
-    project_id = ctx.project_id
-
-    # Global mode check: project_id can be 0 (global mode) or None (not set)
-    if project_id is None or project_id == 0:
-        return "Error: Wiki is not available in global mode. Please switch to a specific project."
+    project_id = await _resolve_wiki_project_id()
+    if project_id is None:
+        return "📚 **Global Mode**: Wiki requires a project."
 
     pages = wiki_service.get_pages(project_id)
     if not pages:
@@ -48,12 +71,9 @@ async def read_wiki_page(
     """
     Read the content of a specific Wiki page by its slug.
     """
-    ctx = ContextManager.current()
-    project_id = ctx.project_id
-
-    # Global mode check: project_id can be 0 (global mode) or None (not set)
-    if project_id is None or project_id == 0:
-        return "Error: Wiki is not available in global mode. Please switch to a specific project."
+    project_id = await _resolve_wiki_project_id()
+    if project_id is None:
+        return "📚 **Global Mode**: Wiki requires a project."
 
     with Session(engine) as session:
         stmt = select(WikiPage).where(
@@ -79,7 +99,7 @@ async def write_wiki_page(
 ) -> str:
     """
     Create or update a Wiki page in the current project.
-    
+
     Args:
         title: The display title of the page.
         content: The Markdown content of the page.
@@ -87,12 +107,9 @@ async def write_wiki_page(
         parent_slug: Optional slug of the parent page for hierarchy.
         order: Sorting order among siblings.
     """
-    ctx = ContextManager.current()
-    project_id = ctx.project_id
-
-    # Global mode check: project_id can be 0 (global mode) or None (not set)
-    if project_id is None or project_id == 0:
-        return "Error: Wiki is not available in global mode. Please switch to a specific project."
+    project_id = await _resolve_wiki_project_id()
+    if project_id is None:
+        return "📚 **Global Mode**: Wiki requires a project."
 
     # 1. Generate slug if needed
     if not slug:

@@ -17,7 +17,15 @@ async def create_project_task(project_id: int | None = None, task_data: str = ""
         project_id (int): The ID of the project to add the task to. Optional.
         task_data (str): JSON string representation of the task data (title, desc, priority, etc.).
     """
-    pid = project_id or ContextManager.current().project_id or 1
+    # Resolve project_id: explicit > context > default
+    # Note: project_id can be 0 (global mode), so check for None explicitly
+    ctx_pid = ContextManager.current().project_id
+    if project_id is not None:
+        pid = project_id
+    elif ctx_pid is not None:
+        pid = ctx_pid
+    else:
+        pid = 1  # Default fallback
 
     try:
         # Parse task data if it's a string

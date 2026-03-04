@@ -283,7 +283,11 @@
       "recording": "Active Recording",
       "mcpServers": "MCP Servers"
     },
-    "quickStart": "Quick Record"
+    "quickStart": "Quick Record",
+    "screenRecordingPermissionTitle": "Screen Recording Permission Required",
+    "permissionRequired": "Accessibility permission required for global recording",
+    "globalMode": "System Monitoring Active (Global)",
+    "domMode": "App Only (DOM)"
   },
   "todos": {
     "create": {
@@ -526,12 +530,6 @@
     },
     "stateContext": "Context",
     "toolsDynamic": "dynamic",
-    "interrupted": {
-      "cancel": "Cancel",
-      "resume": "Resume",
-      "addInput": "Add Instructions",
-      "title": "Agent Paused"
-    },
     "status": {
       "working": "Working..."
     },
@@ -558,6 +556,23 @@
     "toolsTitle": "Runtime Tools",
     "hitl": {
       "waiting": "Agent is waiting for your input..."
+    },
+    "interrupted": {
+      "title": "Agent Paused",
+      "projectSwitchTitle": "Project Switch Required",
+      "confirmTitle": "Confirmation Required",
+      "description": "The agent is waiting for your input or confirmation to continue.",
+      "inputPlaceholder": "Enter additional instructions (optional)...",
+      "addInput": "Add Instructions",
+      "resume": "Resume",
+      "resumeWithProject": "Resume with Selected Project",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "selectProject": "Select a Project...",
+      "chooseProject": "Choose a project to continue:",
+      "noProjects": "No available projects",
+      "projectSelected": "Project selected. Click Resume to continue.",
+      "confirmQuestion": "Do you want to continue?"
     },
     "stateScratchpad": "Scratchpad",
     "addLinkTitle": "Add External Link",
@@ -984,7 +999,12 @@
     "indexingTooltip": "Indexing...",
     "global": "Global",
     "globalDesc": "Cross-project conversations and general Q&A",
-    "select": "Select Project"
+    "select": "Select Project",
+    "manage": "Manage",
+    "indexed": "Indexed",
+    "indexFailed": "Index Failed",
+    "indexPending": "Pending",
+    "lastIndexed": "Last indexed: {{time}}"
   },
   "pending": {
     "items": {

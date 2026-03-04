@@ -4,6 +4,7 @@ from datetime import datetime
 from app.celery_app import celery_app
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.service import IndexingService
+from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
 
@@ -62,8 +63,14 @@ def sync_project_to_cloud_task(_self, repo_id: int):
                 logger.error(f"[SyncTask] Sync Failed: {e}")
                 raise e  # Trigger Retry
 
+    async def _run_with_flush():
+        try:
+            await _sync()
+        finally:
+            await flush_loop_bound_resources()
+
     # Run the async loop
-    asyncio.run(_sync())
+    asyncio.run(_run_with_flush())
 
 
 @celery_app.task(
@@ -140,9 +147,14 @@ def sync_tasks_to_evocloud_task(_self, analysis_id: str, task_ids: list[str]):
                     logger.exception(f"[ReqSync] Task {task.id} exception: {e}")
 
             await session.commit()
-            logger.info(f"[ReqSync] Sync complete. Success: {synced_count}, Failed: {failed_count}")
 
-    asyncio.run(_sync())
+    async def _run_with_flush():
+        try:
+            await _sync()
+        finally:
+            await flush_loop_bound_resources()
+
+    asyncio.run(_run_with_flush())
 
 
 def _map_priority(priority: str) -> int:

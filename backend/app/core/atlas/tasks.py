@@ -8,6 +8,7 @@ from app.core.atlas.models import AtlasApp
 from app.core.environment.events import UiTreeObservedEvent, event_bus
 from app.infrastructure.drivers.adb import adb_driver
 from app.infrastructure.drivers.macos import macos_driver
+from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
 
@@ -151,4 +152,10 @@ def map_observed_ui_task(
         except Exception as e:
             logger.error(f"[AtlasTask] Background mapping failed: {e}", exc_info=True)
 
-    return run_async(_execute())
+    async def _run_with_flush():
+        try:
+            await _execute()
+        finally:
+            await flush_loop_bound_resources()
+
+    return run_async(_run_with_flush())

@@ -26,7 +26,7 @@ interface ChatState {
     streamedContent: string // The currently streaming token buffer (for the specific AI task)
     activeMemories: Array<{ id: string; name: string }> // Phase 7: Active memory highlights
     artifacts: Array<{ id: number; name: string; type: string; status: string; path?: string }> // Phase 8: Artifacts
-    humanRequest: any | null // HITL Request
+    humanRequest: any | null // HITL Request (now includes project_switch, confirm, etc.)
     agentState: { mode: string; task_name: string; task_status: string; details?: any } | null // Phase 9
     thoughts: any[] // Phase 6: Transient Thoughts history
 
@@ -287,8 +287,19 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({ humanRequest: req, status: "interrupted" })
 
         if (req) {
+            // Determine interaction type and show appropriate notification
+            const interactionType = req.type || "text_input"
+            const titleMap: Record<string, string> = {
+                text_input: "Human Input Required",
+                project_switch: "Project Switch Required",
+                confirm: "Confirmation Required",
+                file_select: "File Selection Required",
+            }
+
+            const title = titleMap[interactionType] || "Action Required"
+
             // 1. In-app Toast (Persistent)
-            toast.error("Human Input Required", {
+            toast.error(title, {
                 description: req.prompt,
                 duration: Infinity, // Keep until handled
             })
@@ -296,14 +307,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // 2. Desktop Notification (For background awareness)
             if ("Notification" in window) {
                 if (Notification.permission === "granted") {
-                    new Notification("EvoLoop: Action Required", {
+                    new Notification(`EvoLoop: ${title}`, {
                         body: req.prompt,
                         requireInteraction: true,
                     })
                 } else if (Notification.permission !== "denied") {
                     Notification.requestPermission().then((permission) => {
                         if (permission === "granted") {
-                            new Notification("EvoLoop: Action Required", {
+                            new Notification(`EvoLoop: ${title}`, {
                                 body: req.prompt,
                             })
                         }

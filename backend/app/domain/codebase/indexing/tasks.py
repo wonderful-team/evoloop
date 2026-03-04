@@ -3,6 +3,7 @@ import logging
 
 from app.celery_app import celery_app
 from app.domain.codebase.indexing.manager import indexing_manager
+from app.utils.async_utils import flush_loop_bound_resources
 
 logger = logging.getLogger(__name__)
 
@@ -33,4 +34,10 @@ def run_full_indexing_task(project_id: int, rebuild: bool = False):
             logger.error(f"[Celery] Indexing Task Failed: {e}")
             await activity_monitor.end_run(sys_tid, "failed")
 
-    asyncio.run(_monitored_execution())
+    async def _run_with_flush():
+        try:
+            await _monitored_execution()
+        finally:
+            await flush_loop_bound_resources()
+
+    asyncio.run(_run_with_flush())

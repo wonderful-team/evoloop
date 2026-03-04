@@ -50,11 +50,18 @@ class MessageEvent(EventBase):
     data: dict[str, Any]  # Serialized Message model
 
 
-# --- Human Request Events ---
+# --- Human Request Events (HITL + UI Actions) ---
 class HumanRequestEvent(EventBase):
     type: Literal["human_request"] = "human_request"
     action: Literal["create", "update", "clear"] = "create"
     data: dict[str, Any]
+    # data 结构:
+    # {
+    #   "type": "text_input" | "project_switch" | "confirm" | "file_select",
+    #   "prompt": str,
+    #   "allow_cancel": bool,
+    #   "payload": {...}  # type-specific data
+    # }
 
 
 # Union type for easy parsing if needed

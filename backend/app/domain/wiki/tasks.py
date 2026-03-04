@@ -5,6 +5,7 @@ from celery import shared_task
 
 from app.domain.wiki.service import wiki_service
 from app.infrastructure.llm.factory import get_default_llm
+from app.utils.async_utils import flush_loop_bound_resources
 
 
 @shared_task(name="wiki_generate")
@@ -41,7 +42,13 @@ def generate_wiki_task(project_id: int, topic: str, force_regenerate: bool = Fal
             logger.error(f"[Celery] Wiki Task Failed: {e}")
             await activity_monitor.end_run(sys_tid, "failed")
 
+    async def _run_with_flush():
+        try:
+            await _monitored_execution()
+        finally:
+            await flush_loop_bound_resources()
+
     # Run async function
-    asyncio.run(_monitored_execution())
+    asyncio.run(_run_with_flush())
 
     return f"Wiki generated for Project {project_id}"

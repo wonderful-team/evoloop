@@ -5,6 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 from app.infrastructure.database.redis import redis_client
+from app.core.exceptions import GlobalModeError
 
 
 # ==========================================
@@ -134,6 +135,70 @@ class ContextManager:
         if hasattr(ctx, key):
             return getattr(ctx, key) or default
         return ctx.metadata.get(key, default)
+
+    @staticmethod
+    def resolve_project_id(explicit_id: int | None = None, allow_global: bool = False, request_temp: bool = False) -> int:
+        """
+        Resolve project ID from explicit parameter or current context.
+
+        This method handles the logic of determining which project ID to use,
+        with proper handling of global mode (project_id=0).
+
+        Args:
+            explicit_id: Explicitly provided project_id from tool arguments
+            allow_global: If False (default), raises GlobalModeError when in global mode
+                         If True, allows returning 0 for global mode operations
+            request_temp: If True and in global mode, allows returning 0 as a signal
+                         to request a temporary project from user (for this call only)
+
+        Returns:
+            int: The resolved project ID to use (0 means global mode or temp project needed)
+
+        Raises:
+            GlobalModeError: If the resolved project_id is 0 or None and allow_global is False
+                              and request_temp is False
+
+        Resolution order:
+        1. explicit_id if provided and not 0
+        2. context.project_id if set and not 0
+        3. If allow_global=True and any above is 0, return 0
+        4. If request_temp=True and in global mode, return 0 (caller should handle temp project)
+        5. If allow_global=False and any above is 0/None, raise GlobalModeError
+        """
+        # Priority 1: Use explicit ID if provided (including 0 for global mode override)
+        if explicit_id is not None:
+            if explicit_id == 0:
+                if allow_global:
+                    return 0
+                raise GlobalModeError(
+                    "Explicit project_id=0 (global mode) provided, but this operation requires a specific project."
+                )
+            return explicit_id
+
+        # Priority 2: Check context
+        ctx = ContextManager.current()
+        ctx_pid = ctx.project_id
+
+        if ctx_pid is not None:
+            if ctx_pid == 0:
+                if allow_global:
+                    return 0
+                raise GlobalModeError(
+                    "Currently in global mode. Please switch to a specific project to use this feature."
+                )
+            return ctx_pid
+
+        # Priority 3: No project ID found
+        if allow_global:
+            return 0
+
+        # Priority 4: Allow returning 0 to signal temp project request
+        if request_temp:
+            return 0
+
+        raise GlobalModeError(
+            "No project context available. Please specify a project_id or switch to a project."
+        )
 
     @staticmethod
     async def save_to_redis(thread_id: str) -> None:

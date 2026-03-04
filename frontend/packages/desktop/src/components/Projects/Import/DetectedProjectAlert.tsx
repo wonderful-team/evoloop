@@ -12,6 +12,7 @@ import {
 } from "@evoloop/shared/components/ui/dialog"
 import { toast } from "sonner"
 import { useProjectImportStore } from "@/stores/projectImportStore"
+import { isLoggedIn } from "@/hooks/useAuth"
 import { cn } from "@evoloop/shared/lib/utils"
 
 export function DetectedProjectAlert() {
@@ -31,15 +32,28 @@ export function DetectedProjectAlert() {
     dismissAllProjects,
   } = useProjectImportStore()
 
-  // Poll for new detected projects every 30 seconds
+  // Poll for new detected projects every 30 seconds (only when logged in)
   useEffect(() => {
+    // Only check for detected projects if user is logged in
+    if (!isLoggedIn()) {
+      return
+    }
+
     fetchDetected()
-    const interval = setInterval(fetchDetected, 30000)
+    const interval = setInterval(() => {
+      if (isLoggedIn()) {
+        fetchDetected()
+      }
+    }, 30000)
     return () => clearInterval(interval)
   }, [fetchDetected])
 
-  // Show dialog when new projects detected
+  // Show dialog when new projects detected (only when logged in)
   useEffect(() => {
+    // Only show dialog if user is logged in
+    if (!isLoggedIn()) {
+      return
+    }
     if (hasNewDetected && detectedProjects.length > 0 && !isOpen) {
       // Small delay to not interrupt user immediately
       const timer = setTimeout(() => {
@@ -143,8 +157,15 @@ export function DetectedProjectAlert() {
   }
 
   // Format detected time
-  const formatTime = (isoString: string) => {
-    const date = new Date(isoString)
+  const formatTime = (timestamp: number | string) => {
+    // Handle both number (timestamp) and string (ISO date) inputs
+    const date = typeof timestamp === 'number' ? new Date(timestamp) : new Date(timestamp)
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      return t("common.time.unknown", "Unknown")
+    }
+
     const now = new Date()
     const diff = now.getTime() - date.getTime()
     const minutes = Math.floor(diff / 60000)
@@ -197,7 +218,7 @@ export function DetectedProjectAlert() {
                     {formatPath(project.path)}
                   </p>
                   <p className="text-xs text-muted-foreground/70 mt-0.5">
-                    {t("projects.import.detected", "Detected")} {formatTime(String(project.detected_at))}
+                    {t("projects.import.detected", "Detected")} {formatTime(project.detected_at)}
                   </p>
                 </div>
 

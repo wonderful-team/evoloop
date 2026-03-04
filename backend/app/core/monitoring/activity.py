@@ -174,6 +174,62 @@ class ActivityMonitor:
                 HumanRequestEvent(action="clear", data={}).json(),
             )
 
+    async def request_human_interaction(
+        self,
+        thread_id: str,
+        request_type: str,
+        prompt: str,
+        payload: dict[str, Any] | None = None,
+        allow_cancel: bool = True
+    ) -> None:
+        """
+        Request interaction from human user and PAUSE agent execution.
+
+        This unifies HITL and UI actions into a single interface.
+        The agent will be in 'interrupted' state until user responds.
+
+        Args:
+            thread_id: The thread ID
+            request_type: Type of interaction (e.g., "text_input", "project_switch", "confirm")
+            prompt: Message shown to user explaining what's needed
+            payload: Additional data for the interaction (type-specific)
+            allow_cancel: Whether user can cancel this request
+        """
+        from app.core.ui_actions import HumanRequestType
+
+        # Validate request type
+        valid_types = [t.value for t in HumanRequestType]
+        if request_type not in valid_types:
+            logger.warning(f"[ActivityMonitor] Unknown request type: {request_type}")
+
+        # Store the request
+        key = f"activity:{thread_id}"
+        if await redis_client.exists(key):
+            request_data = {
+                "type": request_type,
+                "prompt": prompt,
+                "allow_cancel": allow_cancel,
+                "payload": payload or {},
+            }
+
+            await redis_client.hset(
+                key,
+                mapping={
+                    "status": "interrupted",
+                    "human_request": json.dumps(request_data),
+                    "interrupt_reason": prompt,
+                    "updated_at": time.time(),
+                },
+            )
+
+            # Publish Event
+            await redis_client.publish(
+                f"chat:{thread_id}:events",
+                HumanRequestEvent(action="create", data=request_data).json(),
+            )
+
+            logger.info(f"[ActivityMonitor] Requested '{request_type}' interaction for thread {thread_id}")
+
     async def set_active_memory(self, thread_id: str, memory_id: str, memory_name: str):
         """Phase 7: Track which memory is currently being accessed by the Agent."""
         key = f"activity:{thread_id}"

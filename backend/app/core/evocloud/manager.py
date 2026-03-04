@@ -115,12 +115,12 @@ class EvoCloudManager:
             # To be safe and compatible with existing flow, we primarily return result.
             # But we can also ensure token is updated in memory if needed.
             if res.get("token"):
-                self._api.set_token(res.get("token"))
-                await self.link.start() # Auto start link on login
+                self.api.set_token(res.get("token"))
+                await self.link.start()  # Auto start link on login
         return res
 
     def get_token(self) -> str | None:
-        return self._api.get_token() if self._api else None
+        return self.api.get_token() if self._api_pool else None
 
     # --- Properties ---
 
