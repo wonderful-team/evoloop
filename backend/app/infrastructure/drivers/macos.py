@@ -8,9 +8,6 @@ import logging
 import os
 import subprocess
 import time
-from datetime import datetime
-
-from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -40,20 +37,14 @@ class MacOSDriver:
         Returns:
             Path to the saved screenshot PNG file.
         """
-        # Use hierarchical storage if available
-        try:
-            from app.core.vision.storage import screenshot_storage
-            filepath = screenshot_storage.get_path(
-                purpose=purpose,
-                platform="macos",
-                bundle_id=bundle_id,
-                suffix=suffix
-            )
-        except Exception as e:
-            logger.warning(f"[MacOSDriver] Failed to use hierarchical storage: {e}, using legacy")
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"screenshot_{timestamp}.png"
-            filepath = os.path.join(settings.SCREENSHOTS_DIR, filename)
+        # Use hierarchical storage for proper lifecycle management
+        from app.core.vision.storage import screenshot_storage
+        filepath = screenshot_storage.get_path(
+            purpose=purpose,
+            platform="macos",
+            bundle_id=bundle_id,
+            suffix=suffix
+        )
 
         cmd = ["screencapture", "-x"]  # -x = silent (no sound)
 
