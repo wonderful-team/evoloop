@@ -65,6 +65,7 @@ class WorkerNode:
                 from app.models.learning import LearnedSkill
                 from sqlalchemy import select
                 async with session_scope() as session:
+                    # Fetch specific skill
                     stmt = select(LearnedSkill).where(LearnedSkill.id == original_skill_id)
                     result = await session.execute(stmt)
                     skill = result.scalar_one_or_none()
@@ -73,6 +74,15 @@ class WorkerNode:
                         if not any(hasattr(s, 'id') and getattr(s, 'id') == original_skill_id for s in relevant_sops):
                             relevant_sops.insert(0, skill)
                             logger.info(f"[Worker] 📜 Force-injected Expert Guide for Skill ID {skill.id} (Fallback Recovery)")
+                            
+                    # Fetch Generic Macro Healer (Fallback Baseline)
+                    healer_stmt = select(LearnedSkill).where(LearnedSkill.name == "Macro Recovery Specialist")
+                    healer_result = await session.execute(healer_stmt)
+                    generic_healer = healer_result.scalar_one_or_none()
+                    if generic_healer:
+                        if not any(getattr(s, 'id', None) == generic_healer.id for s in relevant_sops):
+                            relevant_sops.append(generic_healer)
+                            logger.info("[Worker] 📜 Force-attached Generic Macro Healer SOP (Fallback Baseline)")
             except Exception as e:
                 logger.error(f"[Worker] Failed to fetch fallback skill instructions: {e}")
 
