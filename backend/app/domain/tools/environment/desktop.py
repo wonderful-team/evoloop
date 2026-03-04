@@ -68,10 +68,11 @@ async def _trigger_atlas_harvest_macos(bundle_id: str):
 
 @evoloop_tool(is_pollable=True)
 async def desktop_control(
-    action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app"],
+    action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app", "scroll", "drag_drop", "dump_ui"],
     x: int | None = None,
     y: int | None = None,
     element_name: str | None = None,
+    target: str | None = None,  # Alias for element_name (cross-tool consistency)
     element_role: str | None = None,
     text: str | None = None,
     key: str | None = None,
@@ -83,6 +84,19 @@ async def desktop_control(
     actions: list[dict] | None = None,
     continue_on_error: bool = True,
     delay_ms: int = 300,
+    # Scroll params
+    direction: Literal["up", "down", "left", "right"] | None = None,
+    amount: int = 300,
+    # Drag drop params
+    x2: int | None = None,
+    y2: int | None = None,
+    source_element: str | None = None,
+    target_element: str | None = None,
+    duration_ms: int = 500,
+    # Dump UI params
+    role_filter: str | None = None,
+    name_filter: str | None = None,
+    max_depth: int = 10,
 ) -> str:
     """
     Control the MacOS desktop - screenshot, click, type, and more.
@@ -102,9 +116,13 @@ async def desktop_control(
             - "get_info": Get system hardware and OS environment info.
             - "list_apps": List installed applications in /Applications.
             - "get_active_app": Get the currently focused application's name, title, and window bounds.
+            - "scroll": Scroll in the given direction by amount pixels.
+            - "drag_drop": Drag from source to target (by element name or coordinates).
+            - "dump_ui": Dump the Accessibility Tree as JSON array of UI elements.
         x: X coordinate for click action.
         y: Y coordinate for click action.
         element_name: Semantic name/label of the UI element to click (e.g., "Login", "Close").
+        target: Alias for element_name (for cross-tool consistency).
         element_role: Optional role filter for the element (e.g., "AXButton", "AXTextField").
         text: Text to type for type_text action.
         key: Key name or combination for key_press action (e.g., "enter", "tab", "a", "command+a", "shift+tab").
@@ -116,8 +134,21 @@ async def desktop_control(
         actions: List of action dicts for batch mode. Each dict has "action" and matching params.
         continue_on_error: For batch mode, whether to continue on error (default True).
         delay_ms: For batch mode, delay between actions in ms (default 100).
+        direction: Scroll direction (up/down/left/right) for scroll action.
+        amount: Scroll amount in pixels (default 300).
+        x2, y2: Target coordinates for drag_drop action.
+        source_element: Source element name for drag_drop (alternative to x, y).
+        target_element: Target element name for drag_drop (alternative to x2, y2).
+        duration_ms: Duration of drag operation in milliseconds (default 500).
+        role_filter: For dump_ui, filter elements by role (e.g., 'AXButton').
+        name_filter: For dump_ui, filter elements by name (partial match).
+        max_depth: For dump_ui, maximum depth to traverse (default 10).
     """
     try:
+        # Parameter alias: target -> element_name (cross-tool consistency)
+        if target and not element_name:
+            element_name = target
+
         # Helper to resolve coordinates or AX path from the Tri-Engine
         async def resolve_element(name: str, role: str | None = None) -> dict | str:
             # 1. Try Live Accessibility Tree (Fastest and Native)
@@ -290,7 +321,15 @@ async def desktop_control(
             return f"Error: Could not find element with name '{name}' in live AX tree, Atlas memory, or via local OCR."
 
         if action == "screenshot":
-            filepath = macos_driver.screenshot(region=region)
+            # Get current app info for proper storage organization
+            app_info = await asyncio.to_thread(macos_driver.get_current_app)
+            bundle_id = app_info.get("bundle_id")
+            filepath = await asyncio.to_thread(
+                macos_driver.screenshot,
+                region=region,
+                purpose="temp",
+                bundle_id=bundle_id
+            )
             result_msg = f"Screenshot saved to: {filepath}"
 
             if ocr:
@@ -536,6 +575,226 @@ async def desktop_control(
                     lines.append(f"      Error: {r['result'][:100]}")
 
             return "\n".join(lines)
+
+        elif action == "scroll":
+            if not direction:
+                return "Error: 'direction' (up/down/left/right) is required for scroll."
+
+            try:
+                # Try Quartz CGEvent first (smooth scrolling)
+                from Quartz import (
+                    CGEventCreateScrollWheelEvent,
+                    CGEventPost,
+                    kCGHIDEventTap,
+                )
+
+                # Map direction to scroll wheel deltas
+                # macOS scroll wheel: positive = up/left, negative = down/right
+                if direction == "up":
+                    delta_y = amount
+                    delta_x = 0
+                elif direction == "down":
+                    delta_y = -amount
+                    delta_x = 0
+                elif direction == "left":
+                    delta_x = -amount
+                    delta_y = 0
+                else:  # right
+                    delta_x = amount
+                    delta_y = 0
+
+                # Create and post scroll event
+                event = CGEventCreateScrollWheelEvent(None, 0, 2, delta_y, delta_x)
+                CGEventPost(kCGHIDEventTap, event)
+
+                logger.info(f"[Desktop] Scrolled {direction} by {amount}px via Quartz")
+                return f"✅ Scrolled {direction} by {amount}px"
+
+            except ImportError:
+                logger.debug("Quartz not available, falling back to key_press")
+
+                # Fallback: use key_press for page scroll
+                key_map = {
+                    "up": "pageup",
+                    "down": "pagedown",
+                    "left": "left",
+                    "right": "right"
+                }
+
+                key = key_map.get(direction)
+                if key:
+                    # For page scrolls, approximate how many key presses
+                    presses = max(1, amount // 300)  # ~300px per page
+                    for _ in range(presses):
+                        macos_driver.key_press(key)
+                        await asyncio.sleep(0.1)
+                    return f"✅ Scrolled {direction} (~{amount}px) via key_press"
+
+                return f"Error: Unable to scroll {direction}"
+
+        elif action == "drag_drop":
+            # Resolve source and target coordinates
+            source_x, source_y = x, y
+            target_x, target_y = x2, y2
+
+            # If element names provided, resolve them
+            if source_element:
+                resolved = await resolve_element(source_element)
+                if isinstance(resolved, str):
+                    return resolved  # Error message
+                if "x" in resolved:
+                    source_x, source_y = resolved["x"], resolved["y"]
+                else:
+                    return f"Error: Could not resolve source element '{source_element}' to coordinates"
+
+            if target_element:
+                resolved = await resolve_element(target_element)
+                if isinstance(resolved, str):
+                    return resolved  # Error message
+                if "x" in resolved:
+                    target_x, target_y = resolved["x"], resolved["y"]
+                else:
+                    return f"Error: Could not resolve target element '{target_element}' to coordinates"
+
+            if source_x is None or source_y is None or target_x is None or target_y is None:
+                return "Error: Drag-drop requires source and target coordinates, or element names."
+
+            try:
+                # Try Quartz CGEvent for smooth drag
+                from Quartz import (
+                    CGEventCreateMouseEvent,
+                    CGEventPost,
+                    CGPointMake,
+                    kCGEventLeftMouseDown,
+                    kCGEventLeftMouseUp,
+                    kCGEventLeftMouseDragged,
+                    kCGHIDEventTap,
+                )
+
+                source_point = CGPointMake(source_x, source_y)
+                target_point = CGPointMake(target_x, target_y)
+
+                # Mouse down at source
+                event_down = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, source_point, 0)
+                CGEventPost(kCGHIDEventTap, event_down)
+                await asyncio.sleep(0.05)
+
+                # Drag with interpolation for smooth movement
+                steps = max(5, duration_ms // 50)  # At least 5 steps, or based on duration
+                for i in range(steps):
+                    interp_x = source_x + (target_x - source_x) * (i + 1) / steps
+                    interp_y = source_y + (target_y - source_y) * (i + 1) / steps
+                    point = CGPointMake(interp_x, interp_y)
+                    event_drag = CGEventCreateMouseEvent(None, kCGEventLeftMouseDragged, point, 0)
+                    CGEventPost(kCGHIDEventTap, event_drag)
+                    await asyncio.sleep(duration_ms / 1000 / steps)
+
+                # Mouse up at target
+                event_up = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, target_point, 0)
+                CGEventPost(kCGHIDEventTap, event_up)
+
+                logger.info(f"[Desktop] Dragged from ({source_x}, {source_y}) to ({target_x}, {target_y})")
+                return f"✅ Dragged from ({source_x}, {source_y}) to ({target_x}, {target_y}) in {duration_ms}ms"
+
+            except ImportError:
+                # Fallback: use cliclick if available
+                cliclick_paths = [
+                    "/opt/homebrew/bin/cliclick",
+                    "/usr/local/bin/cliclick",
+                ]
+
+                for cliclick_path in cliclick_paths:
+                    if os.path.exists(cliclick_path):
+                        import subprocess
+                        # cliclick dd:x,y,destX,destY,duration
+                        result = subprocess.run(
+                            [cliclick_path, f"dd:{source_x},{source_y},{target_x},{target_y},{duration_ms}"],
+                            capture_output=True,
+                            text=True,
+                            timeout=10
+                        )
+                        if result.returncode == 0:
+                            return f"✅ Dragged from ({source_x}, {source_y}) to ({target_x}, {target_y}) via cliclick"
+
+                return "Error: Drag-drop requires pyobjc-framework-Quartz or cliclick"
+
+        elif action == "dump_ui":
+            """Dump the Accessibility Tree as JSON array of UI elements."""
+            try:
+                raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
+                if not raw_tree or "Error" in raw_tree:
+                    return f"Error: Failed to dump Accessibility Tree: {raw_tree}"
+
+                # Parse the AX Tree
+                try:
+                    elements = ast.literal_eval(raw_tree.replace("missing value", "None"))
+                except Exception as e:
+                    return f"Error: Failed to parse AX Tree: {e}"
+
+                if not isinstance(elements, list):
+                    return "Error: AX Tree format unexpected"
+
+                # Apply filters if specified
+                filtered_elements = elements
+
+                if role_filter:
+                    filtered_elements = [
+                        el for el in filtered_elements
+                        if role_filter.lower() in str(el.get("role", "")).lower()
+                    ]
+
+                if name_filter:
+                    filtered_elements = [
+                        el for el in filtered_elements
+                        if name_filter.lower() in str(el.get("name", "")).lower()
+                    ]
+
+                # Build summary
+                total = len(elements)
+                filtered = len(filtered_elements)
+
+                # Format output (truncate if too large, similar to mobile dump_ui)
+                max_output = 5000  # Limit output size
+                output_lines = [f"UI Hierarchy ({filtered}/{total} elements):", ""]
+
+                for i, el in enumerate(filtered_elements[:100]):  # Limit to first 100 elements
+                    name = el.get("name", "") or "(unnamed)"
+                    role = el.get("role", "Unknown")
+                    bounds = el.get("bounds", [])
+                    path = el.get("path", "")
+
+                    # Format bounds
+                    bounds_str = f"[{bounds[0]},{bounds[1]},{bounds[2]},{bounds[3]}]" if len(bounds) == 4 else "[]"
+
+                    line = f"[{i}] {role}: '{name}' {bounds_str} path={path}"
+                    output_lines.append(line)
+
+                    # Check size limit
+                    current_output = "\n".join(output_lines)
+                    if len(current_output) > max_output:
+                        output_lines.append(f"\n... ({len(filtered_elements) - i - 1} more elements)")
+                        break
+
+                if len(filtered_elements) > 100:
+                    output_lines.append(f"\n... ({len(filtered_elements) - 100} more elements)")
+
+                result = "\n".join(output_lines)
+
+                # Add filter info
+                filter_info = []
+                if role_filter:
+                    filter_info.append(f"role='{role_filter}'")
+                if name_filter:
+                    filter_info.append(f"name='{name_filter}'")
+
+                if filter_info:
+                    result += f"\n\nFilters applied: {', '.join(filter_info)}"
+
+                return result
+
+            except Exception as e:
+                logger.error(f"[Desktop] dump_ui failed: {e}")
+                return f"Error: dump_ui failed: {e}"
 
         else:
             return f"Error: Unknown action '{action}'."

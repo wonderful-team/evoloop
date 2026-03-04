@@ -21,12 +21,13 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(is_pollable=True)
 async def mobile_control(
-    action: Literal["screenshot", "tap", "click", "long_press", "swipe", "input_text", "press_key", "dump_ui", "list_devices", "get_info", "list_apps", "open_app", "push", "pull", "intent_flow", "read_sms"],
+    action: Literal["screenshot", "tap", "click", "long_press", "swipe", "scroll", "input_text", "press_key", "dump_ui", "list_devices", "get_info", "list_apps", "open_app", "push", "pull", "intent_flow", "read_sms"],
     x: int | None = None,
     y: int | None = None,
     x2: int | None = None,
     y2: int | None = None,
     element_name: str | None = None,
+    target: str | None = None,  # Alias for element_name (cross-tool consistency)
     element_role: str | None = None,
     text: str | None = None,
     keycode: int | str | None = None,
@@ -38,6 +39,9 @@ async def mobile_control(
     ocr: bool = False,
     timeout: float = 8.0,
     intents: list[dict] | None = None,
+    # Scroll params
+    direction: Literal["up", "down", "left", "right"] | None = None,
+    scroll_amount: Literal["small", "medium", "large", "full"] = "medium",
 ) -> str:
 
     """
@@ -53,6 +57,7 @@ async def mobile_control(
             - "click": Semantic click. Polls locally if element_name is used (Reactor).
             - "long_press": Long-press at (x, y) OR element_name.
             - "swipe": Swipe from (x, y) to (x2, y2).
+            - "scroll": Semantic scroll in direction with amount (small/medium/large/full).
             - "input_text": Type text. If element_name given, taps it first.
             - "press_key": Press a key (home, back, enter, etc.).
             - "dump_ui": Get UI hierarchy as XML.
@@ -62,10 +67,12 @@ async def mobile_control(
             - "push": Push a local file/directory to the device.
             - "pull": Pull a remote file/directory from the device.
             - "read_sms": Poll device SMS inbox. 'text' = regex pattern. 'timeout' = max wait seconds. Starts polling immediately.
-        intents: List of intent dicts for "intent_flow" action. 
-                 E.g. [{"action": "click", "target": "Search"}, {"action": "input", "text": "iPhone"}]
+        intents: List of intent dicts for "intent_flow" action.
+                 E.g. [{"action": "click", "target": "Search"}, {"action": "input", "target": "SearchBox", "text": "iPhone"}]
+                 For "input" action, if "target" or "element_name" is provided, will click the element first to focus.
         x, y, x2, y2: Coordinates (can be absolute or relative 0.0-1.0).
         element_name: Semantic name/label of the UI element.
+        target: Alias for element_name (for cross-tool consistency).
         element_role: Optional role/class filter.
         text: Text to input OR package name.
         keycode: Key name or code for press_key.
@@ -73,8 +80,13 @@ async def mobile_control(
         remote_path: Full path on the Android device (required for push/pull).
         device_id: Optional device serial.
         ocr: Perform OCR on screenshot.
+        scroll_amount: Amount to scroll - small (~30%), medium (~50%), large (~70%), full (~90%) of screen.
     """
     try:
+        # Parameter alias: target -> element_name (cross-tool consistency)
+        if target and not element_name:
+            element_name = target
+
         import unicodedata
         def normalize_text(t: str) -> str:
             if not t:
@@ -360,12 +372,16 @@ async def mobile_control(
             filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
             msg = f"Screenshot: {filepath}"
             if ocr:
-                ocr_res = await vision_engine.process(VisionTask.OCR, filepath, on_android=True, device_id=device_id)
-                if ocr_res.success and ocr_res.elements:
-                    msg += "\n\n### OCR Results (Detected Text & Coordinates):\n"
-                    msg += "\n".join([el.to_prompt_line() for el in ocr_res.elements])
-                else:
-                    msg += "\n\n(OCR requested but no text detected)"
+                try:
+                    ocr_res = await vision_engine.process(VisionTask.OCR, filepath, on_android=True, device_id=device_id)
+                    if ocr_res.success and ocr_res.elements:
+                        msg += "\n\n### OCR Results (Detected Text & Coordinates):\n"
+                        msg += "\n".join([el.to_prompt_line() for el in ocr_res.elements])
+                    else:
+                        msg += "\n\n(OCR requested but no text detected)"
+                except Exception as e:
+                    logger.error(f"[Mobile] Integrated OCR failed: {e}")
+                    msg += f"\n\n(OCR Error: {e})"
 
             return await finish_action(msg)
 
@@ -452,6 +468,89 @@ async def mobile_control(
             base_pkg = curr_app.get("package")
             asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
             return await finish_action(f"Swiped from ({rx}, {ry}) to ({rx2}, {ry2})")
+
+        elif action == "scroll":
+            if not direction:
+                return "Error: 'direction' (up/down/left/right) is required for scroll."
+
+            # Get screen size for calculating scroll distance
+            sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
+
+            # Map scroll_amount to screen percentage
+            amount_map = {
+                "small": 0.3,   # 30% of screen
+                "medium": 0.5,  # 50% of screen
+                "large": 0.7,   # 70% of screen
+                "full": 0.9,    # 90% of screen
+            }
+            scroll_ratio = amount_map.get(scroll_amount, 0.5)
+
+            # Calculate scroll distance based on direction
+            if direction in ("up", "down"):
+                scroll_distance = int(sh * scroll_ratio)
+            else:
+                scroll_distance = int(sw * scroll_ratio)
+
+            # Determine start and end coordinates
+            # For scroll, we swipe in the opposite direction of the content movement
+            # Content moves UP -> Swipe from bottom to top
+            # Content moves DOWN -> Swipe from top to bottom
+            center_x = int(sw * 0.5)  # Center of screen horizontally
+
+            if element_name:
+                # If element specified, try to scroll within that element's area
+                resolved = await resolve_element(element_name, element_role, device_id=device_id, timeout=timeout)
+                if isinstance(resolved, str):
+                    return resolved
+                if "x" in resolved:
+                    center_x = resolved["x"]
+                    # Use element's center y as base
+                    center_y = resolved["y"]
+                else:
+                    center_x = int(sw * 0.5)
+                    center_y = int(sh * 0.5)
+            else:
+                center_y = int(sh * 0.5)  # Center of screen vertically
+
+            # Calculate swipe coordinates based on direction
+            # The finger moves in the OPPOSITE direction of content scrolling
+            if direction == "up":
+                # Content goes UP (finger goes DOWN to UP)
+                start_y = center_y + scroll_distance // 2
+                end_y = center_y - scroll_distance // 2
+                start_x = end_x = center_x
+            elif direction == "down":
+                # Content goes DOWN (finger goes UP to DOWN)
+                start_y = center_y - scroll_distance // 2
+                end_y = center_y + scroll_distance // 2
+                start_x = end_x = center_x
+            elif direction == "left":
+                # Content goes LEFT (finger goes RIGHT to LEFT)
+                start_x = center_x + scroll_distance // 2
+                end_x = center_x - scroll_distance // 2
+                start_y = end_y = center_y
+            else:  # right
+                # Content goes RIGHT (finger goes LEFT to RIGHT)
+                start_x = center_x - scroll_distance // 2
+                end_x = center_x + scroll_distance // 2
+                start_y = end_y = center_y
+
+            # Clamp coordinates to screen bounds
+            start_x = max(0, min(sw, start_x))
+            start_y = max(0, min(sh, start_y))
+            end_x = max(0, min(sw, end_x))
+            end_y = max(0, min(sh, end_y))
+
+            # Perform the swipe
+            await asyncio.to_thread(adb_driver.swipe, start_x, start_y, end_x, end_y, duration_ms=duration_ms, device_id=device_id)
+
+            # Trigger atlas harvest
+            curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
+            base_pkg = curr_app.get("package")
+            asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
+
+            element_info = f" (in '{element_name}')" if element_name else ""
+            return await finish_action(f"Scrolled {direction} by {scroll_amount}{element_info}")
 
         elif action == "input_text":
             if not text:
@@ -573,7 +672,17 @@ async def mobile_control(
                     if not await validate_outcome(base_pkg):
                         await check_sentinel(base_pkg)  # Force recovery if drifted
                 elif act == "input" and it.get("text"):
-                    await asyncio.to_thread(adb_driver.input_text, it["text"], device_id=device_id)
+                    text_to_input = it["text"]
+
+                    # If target element specified, click it first to focus
+                    if target:
+                        resolved = await resolve_element(target, expected_pkg=base_pkg, timeout=timeout)
+                        if isinstance(resolved, str):
+                            return resolved
+                        await asyncio.to_thread(adb_driver.tap, resolved["x"], resolved["y"], device_id=device_id)
+                        await asyncio.sleep(0.3)  # Wait for focus/keyboard
+
+                    await asyncio.to_thread(adb_driver.input_text, text_to_input, device_id=device_id)
 
                 steps_done += 1
                 await asyncio.sleep(0.5)  # Minimum transition wait
