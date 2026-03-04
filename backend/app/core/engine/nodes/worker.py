@@ -53,6 +53,28 @@ class WorkerNode:
         skills_task = SkillHydrator.get_node_skills(state, "worker")
 
         tools, relevant_sops = await asyncio.gather(tools_task, skills_task)
+        
+        # 2a. Fallback Recovery Skill Injection
+        # During macro fallback, we explicitly inject the failed skill's instructions 
+        # as the highest priority SOP for the Worker to reference.
+        metadata = config.get("metadata", {})
+        original_skill_id = metadata.get("original_skill_id")
+        if original_skill_id:
+            try:
+                from app.infrastructure.database.sql.database import session_scope
+                from app.models.learning import LearnedSkill
+                from sqlalchemy import select
+                async with session_scope() as session:
+                    stmt = select(LearnedSkill).where(LearnedSkill.id == original_skill_id)
+                    result = await session.execute(stmt)
+                    skill = result.scalar_one_or_none()
+                    if skill and skill.instructions:
+                        # Append to Sops map, avoiding duplicates if already retrieved semantically
+                        if not any(hasattr(s, 'id') and getattr(s, 'id') == original_skill_id for s in relevant_sops):
+                            relevant_sops.insert(0, skill)
+                            logger.info(f"[Worker] 📜 Force-injected Expert Guide for Skill ID {skill.id} (Fallback Recovery)")
+            except Exception as e:
+                logger.error(f"[Worker] Failed to fetch fallback skill instructions: {e}")
 
         # 2b. Generic Context Enrichment from Awakening System
         ctx = ContextManager.current()
