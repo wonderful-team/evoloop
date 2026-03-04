@@ -143,6 +143,10 @@ class LearnedSkill(Base):
     skill_level: Mapped[str | None] = mapped_column(String(10), nullable=True, default="L2")  # "L1", "L2", "L3"
     skill_source: Mapped[str | None] = mapped_column(String(20), nullable=True, default="record")  # "record", "manual"
 
+    # Execution Mode (Phase 6: Deterministic Playback)
+    execution_mode: Mapped[str] = mapped_column(String(20), default="agentic")  # "agentic" or "deterministic"
+    macro_script: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # JSON array of compiled deterministic steps
+
 
 class RouterTrainingData(Base):
     """

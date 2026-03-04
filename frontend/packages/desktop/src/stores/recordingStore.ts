@@ -22,7 +22,7 @@ interface RecordingState {
 
 export const useRecordingStore = create<RecordingState>((set) => ({
     isRecording: false,
-    isGlobalMode: false,
+    isGlobalMode: true,
     activeThreadId: null,
     eventCount: 0,
     sessionId: null,

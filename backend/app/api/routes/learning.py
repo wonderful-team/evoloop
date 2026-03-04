@@ -796,6 +796,8 @@ async def list_skills(
                     "failure_count": s.failure_count,
                     "is_active": s.is_active,
                     "status": s.status,
+                    "execution_mode": s.execution_mode,
+                    "macro_script": s.macro_script,
                     "validation_report": s.validation_report,
                     "instructions": s.instructions,
                     "created_at": s.created_at,
@@ -838,6 +840,8 @@ async def get_skill(skill_id: int):
             "failure_count": skill.failure_count,
             "is_active": skill.is_active,
             "status": skill.status,
+            "execution_mode": skill.execution_mode,
+            "macro_script": skill.macro_script,
             "validation_report": skill.validation_report,
             "instructions": skill.instructions,
             "resource_path": skill.resource_path,
@@ -864,6 +868,8 @@ class UpdateSkillRequest(BaseModel):
     parameters: list[dict[str, Any]] | None = None
     instructions: str | None = None
     preconditions: list[dict[str, Any]] | None = None
+    execution_mode: str | None = None
+    macro_script: list[dict] | None = None
 
 
 @router.put("/skills/{skill_id}")
@@ -909,6 +915,12 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
         if body.preconditions is not None:
             skill.preconditions = json.dumps(body.preconditions)
 
+        if body.execution_mode is not None:
+            skill.execution_mode = body.execution_mode
+            
+        if body.macro_script is not None:
+            skill.macro_script = body.macro_script
+
         # 3. Commit (Automatic via session_scope exit, but we want to return updated data)
         await db.flush()
 
@@ -923,6 +935,47 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
                 "parameters": json.loads(skill.parameters),
             },
         }
+
+
+async def execute_macro_with_fallback(thread_id: str, project_id: int, skill_id: int, skill_name: str, macro_payload: list, params: dict):
+    from app.core.execution.macro_engine import MacroEngine
+    result = await MacroEngine.execute(thread_id, macro_payload, params)
+    
+    if result.get("status") == "fallback_required":
+        logger.warning(f"[{thread_id}] Macro failed, triggering Agentic Fallback...")
+        fallback_ctx = result.get("fallback_context", {})
+        
+        fallback_msg = (
+            f"SYSTEM COMMAND: The deterministic macro for '{skill_name}' failed.\n"
+            f"You MUST now take over and complete the task using your intelligent tools.\n\n"
+            f"Failure Context:\n{json.dumps(fallback_ctx, indent=2, ensure_ascii=False)}\n\n"
+            f"Step 1: Analyze the current screen state.\n"
+            f"Step 2: Correct the failed action and proceed with the remaining goal."
+        )
+        
+        # Persist as 'human' to force Agent supervisor to treat it as a task
+        async with session_scope() as db:
+            msg = Message(
+                thread_id=thread_id,
+                project_id=project_id,
+                role="human",
+                content=fallback_msg,
+                sequence_number=999999,
+            )
+            db.add(msg)
+            await db.commit()
+            
+        inputs = {
+            "messages": [{"type": "human", "content": fallback_msg}],
+            "project_id": project_id,
+            "metadata": {
+                "original_skill_id": skill_id,
+                "is_fallback_recovery": True
+            }
+        }
+        
+        # Hand over execution to the main Agent Loop
+        await run_agent_background(thread_id, inputs)
 
 
 @router.post("/skills/{skill_id}/execute")
@@ -972,16 +1025,25 @@ async def execute_skill(
             sequence_number=999999,  # Temporary lazy sequence, effectively "next"
         )
         db.add(user_msg)
-        await db.flush()
+        await db.commit()
 
-    # 4. Trigger Agent Loop
-    inputs = {
-        "messages": [{"type": "human", "content": directive}],
-        "project_id": body.project_id,
-    }
-    bg_tasks.add_task(run_agent_background, body.thread_id, inputs)
-
-    return {"success": True, "message": f"Skill execution queued for '{skill_name}'"}
+    # 4. Trigger the desired execution mode
+    if skill.execution_mode == "deterministic" and skill.macro_script:
+        import copy
+        
+        # Deepcopy to avoid mutating the skill model in cache
+        macro_payload = copy.deepcopy(skill.macro_script)
+        bg_tasks.add_task(execute_macro_with_fallback, body.thread_id, body.project_id, skill.id, skill_name, macro_payload, body.params)
+        return {"success": True, "message": f"Deterministic Macro execution queued for '{skill_name}'"}
+    else:
+        # Fallback to Agentic mode
+        inputs = {
+            "messages": [{"type": "human", "content": directive}],
+            "project_id": body.project_id,
+        }
+        bg_tasks.add_task(run_agent_background, body.thread_id, inputs)
+    
+        return {"success": True, "message": f"Agentic execution queued for '{skill_name}'"}
 
 
 # ============ Mirror Control API (Phase 4) ============

@@ -47,6 +47,10 @@ class LearnedSkill:
     parameters: list[SkillParameter] = field(default_factory=list)
     preconditions: list[str] = field(default_factory=list)
     instructions: str | None = None  # Markdown instructions (心法)
+    
+    # Phase 6: Deterministic Execution
+    execution_mode: str = "agentic" # "agentic" or "deterministic"
+    macro_script: list[dict] = field(default_factory=list) # JSON payload for MacroEngine
 
     # Metadata
     source_thread_id: str | None = None
@@ -183,10 +187,20 @@ class WorkflowSynthesizer:
         # Pass first_user_msg to help align triggers
         yaml_output = await self._generate_skill_yaml(narrative, summary, first_user_msg)
 
-        # Step 4: Parse YAML to LearnedSkill
-        skill = self._parse_skill_yaml(yaml_output, sequence)
+        # Step 4.2: Compile raw trace into deterministic macro JSON
+        macro_script = self._compile_macro_script(sequence)
 
-        # [NEW] Step 4.5: Physical File Export (Phase 5)
+        # Step 4.5: Parse YAML to LearnedSkill and inject macro
+        skill = self._parse_skill_yaml(yaml_output, sequence)
+        skill.macro_script = macro_script
+        
+        # Heuristic: If we compiled a valid macro, default to deterministic mode if there are no LLM decisions
+        valid_macros = [s for s in macro_script if s["event_type"] not in ["node_start", "llm_output"]]
+        if len(valid_macros) > 0 and len(valid_macros) == len(macro_script):
+           skill.execution_mode = "deterministic"
+           logger.info(f"[{self.thread_id}] Selected 'deterministic' mode automatically for {skill.name}")
+
+        # [NEW] Step 5: Physical File Export (Phase 5)
         self._export_physical_skill(skill)
 
         return skill
@@ -231,6 +245,78 @@ class WorkflowSynthesizer:
             content = content.split("```")[1].split("```")[0].strip()
 
         return content
+
+    def _compile_macro_script(self, sequence: TraceSequence) -> list[dict]:
+        """Compile raw TraceSteps into a clean deterministic macro JSON format."""
+        macro = []
+        has_extract = False
+        
+        for step in sequence.steps:
+            # We skip heavy semantic LLM steps for the fast macro mode
+            if step.action_type in ("node_start", "llm_output"):
+                continue
+
+            # Identify if this was a global (OS/Android) or DOM action
+            source_type = "global" if step.node_name in ("global_observation", "mobile_interaction") else "dom"
+            
+            # Also catch tool calls that might be high-level (like 'navigate' acting as 'goto')
+            event_type = step.action_type
+            payload = dict(step.action_args)
+            action_name = payload.get("action")
+            
+            if event_type == "tool_call" and step.action_name == "browser_control" and action_name == "navigate":
+                event_type = "goto"
+            
+            target_selector = step.ui_context.element_selector if step.ui_context else None
+            
+            # Phase 6: Automatic Extractor Nodes mapping
+            is_extract = False
+            if event_type == "tool_call" and step.action_name == "browser_control" and action_name in ("get_text", "get_html", "get_attribute"):
+                macro_step = {
+                    "step_number": step.step_number,
+                    "type": "extract",
+                    "extract_type": action_name,
+                    "key": f"data_{step.step_number}",
+                    "source": "dom",
+                    "target_selector": payload.get("selector") or target_selector,
+                    "payload": payload
+                }
+                is_extract = True
+            elif event_type == "tool_call" and step.action_name == "mobile_control" and action_name == "dump_ui":
+                macro_step = {
+                    "step_number": step.step_number,
+                    "type": "extract",
+                    "extract_type": "dump_ui",
+                    "key": f"data_{step.step_number}",
+                    "source": "global",
+                    "target_selector": target_selector,
+                    "payload": payload
+                }
+                is_extract = True
+            else:
+                macro_step = {
+                    "step_number": step.step_number,
+                    "type": "action",
+                    "event_type": event_type,
+                    "source": source_type,
+                    "target_selector": target_selector,
+                    "payload": payload
+                }
+            
+            if is_extract:
+                has_extract = True
+                
+            macro.append(macro_step)
+            
+        # Append Dump Data Sink if any extraction occurred
+        if has_extract:
+            macro.append({
+                "step_number": len(macro) + 1,
+                "type": "dump",
+                "payload": {}
+            })
+            
+        return macro
 
     def _parse_skill_yaml(self, yaml_str: str, sequence: TraceSequence) -> LearnedSkill:
         """Parse YAML string into LearnedSkill object."""

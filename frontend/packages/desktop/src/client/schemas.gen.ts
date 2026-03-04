@@ -2616,6 +2616,32 @@ export const UpdateSkillRequestSchema = {
                 }
             ],
             title: 'Preconditions'
+        },
+        execution_mode: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Execution Mode'
+        },
+        macro_script: {
+            anyOf: [
+                {
+                    items: {
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Macro Script'
         }
     },
     type: 'object',

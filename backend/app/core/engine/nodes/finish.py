@@ -34,7 +34,7 @@ def _extract_final_summary(messages: list) -> str:
     return "Session concluded."
 
 
-def _trigger_session_recording(ctx, config: RunnableConfig, summary: str):
+def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, original_skill_id: int | None = None):
     """
     Unconditionally trigger async side-effects when session ends.
     Always runs regardless of success/failure outcome.
@@ -51,7 +51,7 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str):
         from app.core.brain.filesystem.manager import BrainFileSystem
         from app.core.brain.filesystem.protocol import MemoryZone, MemoryFile
         from app.core.brain.tasks import consolidate_memory
-        from app.core.engine.tasks import record_episode_task
+        from app.core.engine.tasks import record_episode_task, reconcile_skill_macro_task
 
         # Bridge: Sync to Brain Working Memory (for Consolidation Cycle)
         try:
@@ -71,6 +71,15 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str):
             concept_names=[],
             source_message_id=message_id,
         )
+        
+        # Phase 8: Learning Loop - Update original skill macro if this was a recovery session
+        if original_skill_id:
+            logger.info(f"Finish: 🔄 Triggering macro reconciliation for Skill {original_skill_id}")
+            reconcile_skill_macro_task.delay(
+                skill_id=original_skill_id,
+                thread_id=thread_id
+            )
+            
         consolidate_memory.delay(source_message_id=message_id)
         logger.info(f"Finish: ✅ Session recording triggered for thread {thread_id}")
 
@@ -132,7 +141,11 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     # 6. Always END — trigger recording unconditionally
     last_msgs = result.get("messages", [])
     summary = _extract_final_summary(last_msgs)
-    _trigger_session_recording(ctx, config, summary)
+    
+    metadata = config.get("metadata", {})
+    original_skill_id = metadata.get("original_skill_id")
+    
+    _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id)
 
     logger.info("Finish: ✅ Session concluded. Recording triggered. Routing to END.")
     return {**result, "next_node": "END"}

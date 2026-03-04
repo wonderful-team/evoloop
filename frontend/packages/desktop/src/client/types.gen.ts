@@ -569,6 +569,10 @@ export type UpdateSkillRequest = {
     preconditions?: (Array<{
     [key: string]: unknown;
 }> | null);
+    execution_mode?: (string | null);
+    macro_script?: (Array<{
+    [key: string]: unknown;
+}> | null);
 };
 
 export type UploadScreenshotResponse = {

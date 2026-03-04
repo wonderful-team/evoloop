@@ -4,6 +4,7 @@ import {
     Settings2,
     Sparkles,
     Play,
+    Zap
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -46,6 +47,8 @@ export function SkillEditorDialog({
     const [newTrigger, setNewTrigger] = useState("")
     const [params, setParams] = useState<ParamDef[]>([])
     const [instructions, setInstructions] = useState("")
+    const [executionMode, setExecutionMode] = useState<"agentic" | "deterministic">("agentic")
+    const [macroScript, setMacroScript] = useState("[]")
 
     useEffect(() => {
         if (open && skill) {
@@ -67,6 +70,8 @@ export function SkillEditorDialog({
             setTriggers(safeParse(skill.trigger_patterns, []))
             setParams(safeParse(skill.parameters, []))
             setInstructions(skill.instructions || "")
+            setExecutionMode((skill as any).execution_mode === "deterministic" ? "deterministic" : "agentic")
+            setMacroScript((skill as any).macro_script ? JSON.stringify((skill as any).macro_script, null, 2) : "[]")
         }
     }, [open, skill])
 
@@ -133,6 +138,14 @@ export function SkillEditorDialog({
 
         setLoading(true)
         try {
+            let parsedMacro = [];
+            try {
+                parsedMacro = JSON.parse(macroScript || "[]");
+            } catch (e) {
+                toast.error("Macro script must be valid JSON");
+                return;
+            }
+
             await LearningService.updateSkill({
                 skillId: skill.id,
                 requestBody: {
@@ -141,6 +154,8 @@ export function SkillEditorDialog({
                     trigger_patterns: triggers,
                     parameters: params as any[],
                     instructions: instructions,
+                    execution_mode: executionMode,
+                    macro_script: parsedMacro,
                 } as any,
             })
 
@@ -233,16 +248,43 @@ export function SkillEditorDialog({
                             />
 
                             <div className="flex-1 p-6 flex flex-col bg-muted/10 h-full">
-                                <div className="flex items-center gap-2 mb-4 text-sm font-bold text-amber-600">
-                                    <Sparkles className="h-4 w-4" />
-                                    {t("learning.expertGuide", "Expert Guide (Markdown SOP)")}
+                                <div className="flex flex-row items-center justify-between mb-4">
+                                    <div className="flex items-center gap-2 text-sm font-bold text-amber-600">
+                                        {executionMode === "agentic" ? <Sparkles className="h-4 w-4" /> : <Zap className="h-4 w-4 text-emerald-500" />}
+                                        <span className={executionMode === "deterministic" ? "text-emerald-600" : ""}>
+                                            {executionMode === "agentic" ? t("learning.expertGuide", "Expert Guide (Markdown SOP)") : "Macro Sequence (JSON)"}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs bg-background p-1 rounded-md border shadow-sm">
+                                        <button
+                                            onClick={() => setExecutionMode("agentic")}
+                                            className={`px-3 py-1.5 rounded-sm transition-colors ${executionMode === "agentic" ? "bg-amber-100 text-amber-800 font-bold" : "hover:bg-muted text-muted-foreground"}`}
+                                        >
+                                            🧠 Agentic
+                                        </button>
+                                        <button
+                                            onClick={() => setExecutionMode("deterministic")}
+                                            className={`px-3 py-1.5 rounded-sm transition-colors ${executionMode === "deterministic" ? "bg-emerald-100 text-emerald-800 font-bold" : "hover:bg-muted text-muted-foreground"}`}
+                                        >
+                                            ⚡ Deterministic
+                                        </button>
+                                    </div>
                                 </div>
-                                <Textarea
-                                    className="flex-1 font-mono text-sm resize-none bg-background rounded-xl p-4 border shadow-sm leading-relaxed"
-                                    value={instructions}
-                                    onChange={(e) => setInstructions(e.target.value)}
-                                    placeholder={t("learning.editor.expertGuidePlaceholder", "Write markdown instructions for the agent... e.g. \\n1. Go to github.com\\n2. Click the 'New Repository' button")}
-                                />
+                                {executionMode === "agentic" ? (
+                                    <Textarea
+                                        className="flex-1 font-mono text-sm resize-none bg-background rounded-xl p-4 border shadow-sm leading-relaxed"
+                                        value={instructions}
+                                        onChange={(e) => setInstructions(e.target.value)}
+                                        placeholder={t("learning.editor.expertGuidePlaceholder", "Write markdown instructions for the agent... e.g. \\n1. Go to github.com\\n2. Click the 'New Repository' button")}
+                                    />
+                                ) : (
+                                    <Textarea
+                                        className="flex-1 font-mono text-sm resize-none bg-slate-950 text-emerald-400 rounded-xl p-4 border shadow-sm leading-relaxed"
+                                        value={macroScript}
+                                        onChange={(e) => setMacroScript(e.target.value)}
+                                        placeholder="[{ 'event_type': 'click', 'target_selector': '.btn' }]"
+                                    />
+                                )}
                             </div>
                         </div>
 

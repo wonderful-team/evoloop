@@ -8,12 +8,10 @@ Allows for dynamic context injection and potential LLM-specific adaptations.
 import json
 import logging
 import os
-import platform
 
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
-from app.core.tools.manager import tool_manager
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)

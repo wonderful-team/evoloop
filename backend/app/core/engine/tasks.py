@@ -500,3 +500,54 @@ def git_harvest_task(cwd: str, project_id: int):
             await flush_loop_bound_resources()
             
     asyncio.run(_run_with_flush())
+
+
+@shared_task(name="engine_reconcile_skill_macro")
+def reconcile_skill_macro_task(skill_id: int, thread_id: str):
+    """
+    Background task to reconcile a broken skill macro with a successful agentic recovery trace.
+    This effectively "heals" the macro in the database for future deterministic runs.
+    """
+    async def _run():
+        from app.core.learning.skill_synthesizer import WorkflowSynthesizer
+        from app.models.learning import LearnedSkill
+        import json
+
+        try:
+            logger.info(f"[Celery] Reconciling Skill {skill_id} from thread {thread_id}...")
+            
+            # 1. Synthesize the correction from the successful thread
+            synthesizer = WorkflowSynthesizer(thread_id)
+            repaired_skill = await synthesizer.synthesize()
+            
+            if not repaired_skill.macro_script:
+                logger.warning(f"[Celery] No valid macro synthesized from recovery thread {thread_id}. Aborting patch.")
+                return
+
+            # 2. Patch the original skill in the database
+            async with session_scope() as session:
+                stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
+                result = await session.execute(stmt)
+                original_skill = result.scalar_one_or_none()
+                
+                if original_skill:
+                    # Update macro and instructions (心法)
+                    original_skill.macro_script = repaired_skill.macro_script
+                    if repaired_skill.instructions:
+                        original_skill.instructions = repaired_skill.instructions
+                    
+                    logger.info(f"[Celery] ✅ Skill {skill_id} ('{original_skill.name}') has been self-healed and updated in DB.")
+                else:
+                    logger.error(f"[Celery] Target Skill {skill_id} not found for reconciliation.")
+                    
+        except Exception as e:
+            logger.error(f"[Celery] Macro reconciliation failed: {e}")
+
+    async def _run_with_flush():
+        try:
+            await _run()
+        finally:
+            from app.utils.async_utils import flush_loop_bound_resources
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())

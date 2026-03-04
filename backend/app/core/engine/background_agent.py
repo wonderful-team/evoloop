@@ -150,7 +150,8 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
                 "working_directory": working_dir
             },
             "metadata": {
-                "project_id": project_id
+                "project_id": project_id,
+                **(inputs.get("metadata", {}))
             }
         }
         if inputs.get("checkpoint_id"):

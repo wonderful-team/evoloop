@@ -12,6 +12,7 @@ from langchain_core.messages import BaseMessage
 from app.core.context.manager import ContextManager
 from app.core.context.plugins import plugin_registry
 from app.core.tools.manager import tool_manager
+from app.infrastructure.drivers.browser import browser_manager
 
 logger = logging.getLogger(__name__)
 
@@ -194,13 +195,12 @@ def detect_platform_relevance(messages: list) -> str:
         return "macos"
     if has_android and has_macos:
         return "both"
-    return "auto" # Balanced summary
+    return "auto"  # Balanced summary
 
 
 def _get_browser_status() -> dict | None:
     """Helper to safely retrieve browser status for prompt injection."""
     try:
-        from app.domain.tools.environment.browser import browser_manager
         return browser_manager.get_status()
     except ImportError:
         return None
