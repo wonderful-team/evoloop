@@ -19,7 +19,6 @@ import { toast } from "sonner"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { LearningService } from "@/client/sdk.gen"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Separator } from "@evoloop/shared/components/ui/separator"
 import { EditorSidebar } from "./EditorSidebar"
@@ -27,6 +26,7 @@ import { useChatStore } from "@/stores/chatStore"
 import type { LearnedSkill } from "@/types/skill"
 import type { ParamDef } from "./EditorSidebar"
 import { MacroEditor, MacroJsonEditor, type MacroStep } from "./SmartReplay/MacroEditor"
+import { MarkdownEditor } from "@/components/Common/MarkdownEditor"
 
 interface SkillEditorPageProps {
     skillId: number
@@ -352,7 +352,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                             <span className={executionMode === "deterministic" ? "text-emerald-600" : ""}>
                                 {executionMode === "agentic"
                                     ? t("learning.expertGuide", "Expert Guide (Markdown SOP)")
-                                    : "Macro Sequence (Visual Editor)"}
+                                    : t("learning.macroSequence", "Macro Sequence (Visual Editor)")}
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -363,7 +363,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                                 >
                                     <Button variant="outline" size="sm" className="gap-1.5">
                                         <FileJson className="h-3.5 w-3.5" />
-                                        Edit JSON
+                                        {t("learning.editJson", "Edit JSON")}
                                     </Button>
                                 </MacroJsonEditor>
                             )}
@@ -376,7 +376,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                                             : "hover:bg-muted text-muted-foreground"
                                     }`}
                                 >
-                                    🧠 Agentic
+                                    🧠 {t("learning.agentic", "Agentic")}
                                 </button>
                                 <button
                                     onClick={() => setExecutionMode("deterministic")}
@@ -386,16 +386,15 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                                             : "hover:bg-muted text-muted-foreground"
                                     }`}
                                 >
-                                    ⚡ Deterministic
+                                    ⚡ {t("learning.deterministic", "Deterministic")}
                                 </button>
                             </div>
                         </div>
                     </div>
                     {executionMode === "agentic" ? (
-                        <Textarea
-                            className="flex-1 font-mono text-sm resize-none bg-background rounded-xl p-4 border shadow-sm leading-relaxed"
+                        <MarkdownEditor
                             value={instructions}
-                            onChange={(e) => setInstructions(e.target.value)}
+                            onChange={setInstructions}
                             placeholder={t(
                                 "learning.editor.expertGuidePlaceholder",
                                 "Write markdown instructions for the agent... e.g. \\n1. Go to github.com\\n2. Click the 'New Repository' button"

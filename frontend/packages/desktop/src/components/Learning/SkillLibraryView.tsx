@@ -243,7 +243,10 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                                         size="sm"
                                         variant="secondary"
                                         className="h-8 gap-1.5 text-xs font-medium px-3"
-                                        onClick={() => handleRunClick(skill)}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleRunClick(skill)
+                                        }}
                                     >
                                         <Play className="h-3 w-3 fill-current" />
                                         {t("common.run", "Run")}

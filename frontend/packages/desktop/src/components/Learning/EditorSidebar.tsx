@@ -109,8 +109,8 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                         <Textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            rows={3}
-                            className="bg-background border-muted focus-visible:ring-primary/30"
+                            rows={6}
+                            className="bg-background border-muted focus-visible:ring-primary/30 min-h-[120px]"
                         />
                     </section>
 

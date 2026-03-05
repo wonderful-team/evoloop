@@ -2,6 +2,7 @@
  * SynthesisProgress - Display synthesis progress with animated indicators
  */
 
+import { useTranslation } from "react-i18next"
 import { Loader2, CheckCircle2, Circle, AlertCircle } from "lucide-react"
 import { cn } from "@evoloop/shared/lib/utils"
 
@@ -11,19 +12,20 @@ interface SynthesisProgressProps {
     phase: string
 }
 
-const phases = [
-    { id: "loading_data", label: "Loading data..." },
-    { id: "extracting_keyframes", label: "Extracting keyframes..." },
-    { id: "analyzing_frames", label: "Analyzing frames with AI..." },
-    { id: "understanding_phases", label: "Understanding task flow..." },
-    { id: "identifying_steps", label: "Identifying critical steps..." },
-    { id: "generating_macro", label: "Generating macro script..." },
-    { id: "generating_metadata", label: "Generating skill documentation..." },
-    { id: "completed", label: "Completed!" },
+const phaseIds = [
+    "loadingData",
+    "extractingKeyframes",
+    "analyzingFrames",
+    "understandingPhases",
+    "identifyingSteps",
+    "generatingMacro",
+    "generatingMetadata",
+    "completed",
 ]
 
 export function SynthesisProgress({ status, progress, phase }: SynthesisProgressProps) {
-    const currentPhaseIndex = phases.findIndex((p) => phase.includes(p.id) || p.id === phase)
+    const { t } = useTranslation()
+    const currentPhaseIndex = phaseIds.findIndex((id) => phase.includes(id.toLowerCase()) || id.toLowerCase() === phase)
 
     return (
         <div className="w-full max-w-md space-y-4">
@@ -46,14 +48,14 @@ export function SynthesisProgress({ status, progress, phase }: SynthesisProgress
 
             {/* Phase indicators */}
             <div className="space-y-1">
-                {phases.map((p, idx) => {
+                {phaseIds.map((id, idx) => {
                     const isCompleted = idx < currentPhaseIndex
                     const isCurrent = idx === currentPhaseIndex
                     const isPending = idx > currentPhaseIndex
 
                     return (
                         <div
-                            key={p.id}
+                            key={id}
                             className={cn(
                                 "flex items-center gap-2 text-sm transition-opacity",
                                 isPending && "opacity-30"
@@ -66,7 +68,7 @@ export function SynthesisProgress({ status, progress, phase }: SynthesisProgress
                             ) : (
                                 <Circle className="h-4 w-4 text-muted-foreground" />
                             )}
-                            <span className={cn(isCurrent && "font-medium")}>{p.label}</span>
+                            <span className={cn(isCurrent && "font-medium")}>{t(`synthesisProgress.${id}`)}</span>
                         </div>
                     )
                 })}
@@ -75,7 +77,7 @@ export function SynthesisProgress({ status, progress, phase }: SynthesisProgress
             {status === "failed" && (
                 <div className="flex items-center gap-2 text-destructive">
                     <AlertCircle className="h-4 w-4" />
-                    <span className="text-sm">Synthesis failed. Please try again.</span>
+                    <span className="text-sm">{t("synthesisProgress.failed")}</span>
                 </div>
             )}
         </div>

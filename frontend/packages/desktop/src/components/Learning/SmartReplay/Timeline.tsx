@@ -2,6 +2,7 @@
  * Timeline - Visual timeline of video with annotations
  */
 
+import { useTranslation } from "react-i18next"
 import { cn } from "@evoloop/shared/lib/utils"
 
 interface Annotation {
@@ -17,6 +18,7 @@ interface TimelineProps {
 }
 
 export function Timeline({ duration, currentTime, annotations, onSeek }: TimelineProps) {
+    const { t } = useTranslation()
     if (duration === 0) return null
 
     const progress = (currentTime / duration) * 100
@@ -60,7 +62,7 @@ export function Timeline({ duration, currentTime, annotations, onSeek }: Timelin
                                 : "bg-yellow-500"
                         )}
                         style={{ left: `${position}%` }}
-                        title={`Annotation ${idx + 1} at ${formatTime(ann.video_timestamp_ms)}`}
+                        title={t("annotationList.markerTitle", { number: idx + 1, time: formatTime(ann.video_timestamp_ms) })}
                     />
                 )
             })}

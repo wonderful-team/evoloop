@@ -3,6 +3,7 @@
  */
 
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { CheckCircle2, Edit2, Save, FileJson } from "lucide-react"
 
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -37,6 +38,7 @@ export function SkillReviewPanel({
     onCancel,
     videoPath,
 }: SkillReviewPanelProps) {
+    const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState("overview")
     const [macroScript, setMacroScript] = useState<MacroStep[]>(initialMacroScript)
 
@@ -47,9 +49,9 @@ export function SkillReviewPanel({
                 <div className="flex items-center gap-2">
                     <CheckCircle2 className="h-6 w-6 text-green-500" />
                     <div>
-                        <h2 className="text-lg font-semibold">Skill Generated!</h2>
+                        <h2 className="text-lg font-semibold">{t("skillReview.title")}</h2>
                         <p className="text-sm text-muted-foreground">
-                            Review and confirm the generated automation skill
+                            {t("skillReview.subtitle")}
                         </p>
                     </div>
                 </div>
@@ -57,16 +59,16 @@ export function SkillReviewPanel({
                     <MacroJsonEditor steps={macroScript} onChange={setMacroScript}>
                         <Button variant="outline" size="sm">
                             <FileJson className="mr-2 h-4 w-4" />
-                            Edit JSON
+                            {t("skillReview.editJson")}
                         </Button>
                     </MacroJsonEditor>
                     <Button variant="outline" onClick={onEdit}>
                         <Edit2 className="mr-2 h-4 w-4" />
-                        Back
+                        {t("skillReview.back")}
                     </Button>
                     <Button onClick={() => onComplete?.({ skill, macroScript })}>
                         <Save className="mr-2 h-4 w-4" />
-                        Save Skill
+                        {t("skillReview.saveSkill")}
                     </Button>
                 </div>
             </div>
@@ -74,9 +76,9 @@ export function SkillReviewPanel({
             {/* Content tabs */}
             <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
                 <TabsList>
-                    <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="instructions">Instructions (心法)</TabsTrigger>
-                    <TabsTrigger value="macro">Macro Script ({macroScript.length} steps)</TabsTrigger>
+                    <TabsTrigger value="overview">{t("skillReview.overview")}</TabsTrigger>
+                    <TabsTrigger value="instructions">{t("skillReview.instructions")}</TabsTrigger>
+                    <TabsTrigger value="macro">{t("skillReview.macroScript", { count: macroScript.length })}</TabsTrigger>
                 </TabsList>
 
                 <div className="flex-1 mt-4 min-h-0">
@@ -85,25 +87,25 @@ export function SkillReviewPanel({
                             <div className="space-y-6 p-4">
                                 {/* Name */}
                                 <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Skill Name</label>
+                                    <label className="text-sm font-medium text-muted-foreground">{t("skillReview.skillName")}</label>
                                     <h3 className="text-xl font-semibold">{skill.name}</h3>
                                 </div>
 
                                 {/* Description */}
                                 <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Description</label>
+                                    <label className="text-sm font-medium text-muted-foreground">{t("skillReview.description")}</label>
                                     <p className="text-base">{skill.description}</p>
                                 </div>
 
                                 {/* Namespace */}
                                 <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Namespace</label>
+                                    <label className="text-sm font-medium text-muted-foreground">{t("skillReview.namespace")}</label>
                                     <p className="text-sm font-mono bg-muted p-2 rounded">{skill.namespace}</p>
                                 </div>
 
                                 {/* Trigger Patterns */}
                                 <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Trigger Patterns</label>
+                                    <label className="text-sm font-medium text-muted-foreground">{t("skillReview.triggerPatterns")}</label>
                                     <div className="flex flex-wrap gap-2 mt-1">
                                         {skill.trigger_patterns.map((pattern, i) => (
                                             <Badge key={i} variant="secondary">{pattern}</Badge>
@@ -113,15 +115,15 @@ export function SkillReviewPanel({
 
                                 {/* Execution Mode */}
                                 <div>
-                                    <label className="text-sm font-medium text-muted-foreground">Execution Mode</label>
+                                    <label className="text-sm font-medium text-muted-foreground">{t("skillReview.executionMode")}</label>
                                     <div className="flex items-center gap-2 mt-1">
                                         <Badge variant={skill.execution_mode === "deterministic" ? "default" : "outline"}>
                                             {skill.execution_mode}
                                         </Badge>
                                         <span className="text-sm text-muted-foreground">
                                             {skill.execution_mode === "deterministic"
-                                                ? "Fast, predictable execution without LLM calls"
-                                                : "Flexible execution with LLM decision-making"}
+                                                ? t("skillReview.deterministicDesc")
+                                                : t("skillReview.agenticDesc")}
                                         </span>
                                     </div>
                                 </div>
@@ -130,19 +132,19 @@ export function SkillReviewPanel({
                                 <div className="grid grid-cols-3 gap-4 pt-4 border-t">
                                     <div className="text-center p-4 bg-muted rounded-lg">
                                         <div className="text-2xl font-bold">{macroScript.length}</div>
-                                        <div className="text-xs text-muted-foreground">Total Steps</div>
+                                        <div className="text-xs text-muted-foreground">{t("skillReview.totalSteps")}</div>
                                     </div>
                                     <div className="text-center p-4 bg-muted rounded-lg">
                                         <div className="text-2xl font-bold">
                                             {macroScript.filter(s => s.type === "extract").length}
                                         </div>
-                                        <div className="text-xs text-muted-foreground">Extract Steps</div>
+                                        <div className="text-xs text-muted-foreground">{t("skillReview.extractSteps")}</div>
                                     </div>
                                     <div className="text-center p-4 bg-muted rounded-lg">
                                         <div className="text-2xl font-bold">
                                             {macroScript.filter(s => s.type === "action").length}
                                         </div>
-                                        <div className="text-xs text-muted-foreground">Action Steps</div>
+                                        <div className="text-xs text-muted-foreground">{t("skillReview.actionSteps")}</div>
                                     </div>
                                 </div>
                             </div>
@@ -155,7 +157,7 @@ export function SkillReviewPanel({
                                 {skill.instructions ? (
                                     <div dangerouslySetInnerHTML={{ __html: renderMarkdown(skill.instructions) }} />
                                 ) : (
-                                    <p className="text-muted-foreground">No instructions generated.</p>
+                                    <p className="text-muted-foreground">{t("skillReview.noInstructions")}</p>
                                 )}
                             </div>
                         </ScrollArea>

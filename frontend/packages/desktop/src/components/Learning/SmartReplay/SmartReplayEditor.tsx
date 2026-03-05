@@ -221,7 +221,7 @@ export function SmartReplayEditor({
             setAnnotations(updated)
         } catch (error) {
             console.error("Failed to save annotation:", error)
-            toast.error("Failed to save annotation")
+            toast.error(t("smartReplay.toast.saveAnnotationFailed"))
         }
     }, [sessionId, threadId, annotations])
 
@@ -256,7 +256,7 @@ export function SmartReplayEditor({
     // Start synthesis
     const startSynthesis = useCallback(async () => {
         if (!taskGoal.trim()) {
-            toast.error("Please describe your task goal")
+            toast.error(t("smartReplay.toast.describeGoalRequired"))
             return
         }
 
@@ -279,7 +279,7 @@ export function SmartReplayEditor({
             pollSynthesisStatus(response.job_id)
         } catch (error) {
             console.error("Failed to start synthesis:", error)
-            toast.error("Failed to start synthesis")
+            toast.error(t("smartReplay.toast.startSynthesisFailed"))
             setPhase("describing")
         }
     }, [sessionId, threadId, taskGoal, annotations])
@@ -329,16 +329,16 @@ export function SmartReplayEditor({
             <div className="flex flex-col h-full gap-4">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h2 className="text-lg font-semibold">Mark Data Regions</h2>
+                        <h2 className="text-lg font-semibold">{t("smartReplay.markRegions")}</h2>
                         <p className="text-sm text-muted-foreground">
-                            Watch the recording and mark areas containing data you want to extract
+                            {t("smartReplay.markRegionsDesc")}
                         </p>
                     </div>
                     <Button
                         onClick={() => setPhase("describing")}
                         disabled={annotations.length === 0}
                     >
-                        Next: Describe Goal
+                        {t("smartReplay.nextDescribeGoal")}
                         <ChevronRight className="ml-2 h-4 w-4" />
                     </Button>
                 </div>
@@ -438,7 +438,7 @@ export function SmartReplayEditor({
                                 onClick={() => setIsDrawing(!isDrawing)}
                             >
                                 <MousePointer2 className="mr-2 h-4 w-4" />
-                                {isDrawing ? "Drawing..." : "Draw Region"}
+                                {isDrawing ? t("smartReplay.drawing") : t("smartReplay.drawRegion")}
                             </Button>
 
                             <div className="flex-1" />
@@ -457,7 +457,7 @@ export function SmartReplayEditor({
                     </div>
 
                     <div className="w-80 flex flex-col gap-2">
-                        <h3 className="font-medium">Annotations ({annotations.length})</h3>
+                        <h3 className="font-medium">{t("smartReplay.annotationsCount", { count: annotations.length })}</h3>
                         <ScrollArea className="flex-1">
                             <AnnotationList
                                 annotations={annotations}
@@ -480,20 +480,20 @@ export function SmartReplayEditor({
         return (
             <div className="flex flex-col h-full max-w-2xl mx-auto gap-6 py-8">
                 <div className="text-center space-y-2">
-                    <h2 className="text-2xl font-semibold">Describe Your Task Goal</h2>
+                    <h2 className="text-2xl font-semibold">{t("smartReplay.describeGoal")}</h2>
                     <p className="text-muted-foreground">
-                        Tell us what you want to achieve with this automation
+                        {t("smartReplay.describeGoalDesc")}
                     </p>
                 </div>
 
                 <div className="bg-muted/50 p-4 rounded-lg space-y-2">
-                    <h3 className="font-medium">You've marked {annotations.length} regions:</h3>
+                    <h3 className="font-medium">{t("smartReplay.regionsMarked", { count: annotations.length })}</h3>
                     <ul className="space-y-1">
                         {annotations.map((ann, i) => (
                             <li key={i} className="text-sm flex items-center gap-2">
                                 <Badge variant="outline">{i + 1}</Badge>
                                 <span className="text-muted-foreground">
-                                    {ann.user_note || "No description"}
+                                    {ann.user_note || t("smartReplay.noDescription")}
                                 </span>
                                 <span className="text-xs text-muted-foreground ml-auto">
                                     at {formatTime(ann.video_timestamp_ms)}
@@ -504,22 +504,22 @@ export function SmartReplayEditor({
                 </div>
 
                 <div className="space-y-2">
-                    <label className="font-medium">What do you want to accomplish?</label>
+                    <label className="font-medium">{t("smartReplay.whatAccomplish")}</label>
                     <Textarea
                         value={taskGoal}
                         onChange={(e) => setTaskGoal(e.target.value)}
-                        placeholder="e.g., I want to extract product prices and seller information from this website and save them to an Excel file"
+                        placeholder={t("smartReplay.taskGoalPlaceholder")}
                         rows={5}
                         className="resize-none"
                     />
                     <p className="text-sm text-muted-foreground">
-                        Be specific about: what data you need, where it comes from, and how you want it output
+                        {t("smartReplay.taskGoalHint")}
                     </p>
                 </div>
 
                 <div className="flex gap-2 justify-center">
                     <Button variant="outline" onClick={() => setPhase("annotating")}>
-                        Back to Annotations
+                        {t("smartReplay.backToAnnotations")}
                     </Button>
                     <Button
                         onClick={startSynthesis}
@@ -527,7 +527,7 @@ export function SmartReplayEditor({
                         className="gap-2"
                     >
                         <Sparkles className="h-4 w-4" />
-                        Start AI Analysis
+                        {t("smartReplay.startAiAnalysis")}
                     </Button>
                 </div>
             </div>
@@ -544,16 +544,15 @@ export function SmartReplayEditor({
                 />
 
                 <div className="text-center space-y-2">
-                    <h2 className="text-xl font-semibold">AI is analyzing your recording...</h2>
+                    <h2 className="text-xl font-semibold">{t("smartReplay.aiAnalyzing")}</h2>
                     <p className="text-muted-foreground max-w-md">
-                        This may take 1-2 minutes. The AI is reviewing your marked regions,
-                        understanding your task flow, and generating an optimized skill.
+                        {t("smartReplay.aiAnalyzingDesc")}
                     </p>
                 </div>
 
                 {synthesisStatus?.phase && (
                     <Badge variant="secondary" className="text-sm">
-                        Current: {synthesisStatus.phase.replace(/_/g, " ")}
+                        {t("smartReplay.currentPhase", { phase: synthesisStatus.phase.replace(/_/g, " ") })}
                     </Badge>
                 )}
             </div>

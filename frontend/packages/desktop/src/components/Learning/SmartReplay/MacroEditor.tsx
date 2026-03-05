@@ -56,6 +56,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@evoloop/shared/components/ui/tooltip"
+import { useTranslation, type TFunction } from "react-i18next"
 import { cn } from "@evoloop/shared/lib/utils"
 
 // Macro step types
@@ -81,29 +82,29 @@ interface MacroEditorProps {
     readOnly?: boolean
 }
 
-// Event type options grouped by source
-const EVENT_TYPES: Record<string, { value: string; label: string; icon: React.ReactNode }[]> = {
+// Event type options grouped by source - labels will be translated at render time
+const EVENT_TYPES: Record<string, { value: string; icon: React.ReactNode }[]> = {
     dom: [
-        { value: "navigate", label: "Navigate", icon: <ArrowRight className="h-4 w-4" /> },
-        { value: "click", label: "Click", icon: <MousePointerClick className="h-4 w-4" /> },
-        { value: "input", label: "Input", icon: <Keyboard className="h-4 w-4" /> },
-        { value: "scroll", label: "Scroll", icon: <RefreshCw className="h-4 w-4" /> },
-        { value: "wait", label: "Wait", icon: <Clock className="h-4 w-4" /> },
-        { value: "extract", label: "Extract Data", icon: <Download className="h-4 w-4" /> },
-        { value: "screenshot", label: "Screenshot", icon: <Eye className="h-4 w-4" /> },
+        { value: "navigate", icon: <ArrowRight className="h-4 w-4" /> },
+        { value: "click", icon: <MousePointerClick className="h-4 w-4" /> },
+        { value: "input", icon: <Keyboard className="h-4 w-4" /> },
+        { value: "scroll", icon: <RefreshCw className="h-4 w-4" /> },
+        { value: "wait", icon: <Clock className="h-4 w-4" /> },
+        { value: "extract", icon: <Download className="h-4 w-4" /> },
+        { value: "screenshot", icon: <Eye className="h-4 w-4" /> },
     ],
     mobile: [
-        { value: "tap", label: "Tap", icon: <MousePointerClick className="h-4 w-4" /> },
-        { value: "swipe", label: "Swipe", icon: <RefreshCw className="h-4 w-4" /> },
-        { value: "input", label: "Input", icon: <Keyboard className="h-4 w-4" /> },
-        { value: "dump_ui", label: "Dump UI", icon: <Eye className="h-4 w-4" /> },
-        { value: "wait", label: "Wait", icon: <Clock className="h-4 w-4" /> },
+        { value: "tap", icon: <MousePointerClick className="h-4 w-4" /> },
+        { value: "swipe", icon: <RefreshCw className="h-4 w-4" /> },
+        { value: "input", icon: <Keyboard className="h-4 w-4" /> },
+        { value: "dump_ui", icon: <Eye className="h-4 w-4" /> },
+        { value: "wait", icon: <Clock className="h-4 w-4" /> },
     ],
     desktop: [
-        { value: "applescript", label: "AppleScript", icon: <Type className="h-4 w-4" /> },
-        { value: "keypress", label: "Key Press", icon: <Keyboard className="h-4 w-4" /> },
-        { value: "click", label: "Click", icon: <MousePointerClick className="h-4 w-4" /> },
-        { value: "wait", label: "Wait", icon: <Clock className="h-4 w-4" /> },
+        { value: "applescript", icon: <Type className="h-4 w-4" /> },
+        { value: "keypress", icon: <Keyboard className="h-4 w-4" /> },
+        { value: "click", icon: <MousePointerClick className="h-4 w-4" /> },
+        { value: "wait", icon: <Clock className="h-4 w-4" /> },
     ],
 }
 
@@ -114,6 +115,7 @@ export function MacroEditor({
     onStepPreview,
     readOnly = false,
 }: MacroEditorProps) {
+    const { t } = useTranslation()
     const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set([0]))
     const [editingStep, setEditingStep] = useState<number | null>(null)
     const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
@@ -159,7 +161,7 @@ export function MacroEditor({
             event_type: "click",
             selector: "",
             selector_type: "css",
-            description: "New step",
+            description: t("macroEditor.newStep"),
         }
 
         let updated: MacroStep[]
@@ -257,17 +259,17 @@ export function MacroEditor({
                     <div className="flex items-center justify-between p-2 border-b bg-muted/30">
                         <div className="flex items-center gap-2">
                             <span className="text-sm text-muted-foreground">
-                                {steps.length} steps
+                                {t("macroEditor.steps", { count: steps.length })}
                             </span>
                             <div className="w-px h-4 bg-border mx-2" />
                             <Badge variant="outline" className="text-xs">
-                                {steps.filter((s) => s.type === "action").length} actions
+                                {t("macroEditor.actions", { count: steps.filter((s) => s.type === "action").length })}
                             </Badge>
                             <Badge variant="outline" className="text-xs bg-blue-500/10">
-                                {steps.filter((s) => s.type === "extract").length} extracts
+                                {t("macroEditor.extracts", { count: steps.filter((s) => s.type === "extract").length })}
                             </Badge>
                             <Badge variant="outline" className="text-xs bg-amber-500/10">
-                                {steps.filter((s) => s.type === "wait").length} waits
+                                {t("macroEditor.waits", { count: steps.filter((s) => s.type === "wait").length })}
                             </Badge>
                         </div>
                         <div className="flex items-center gap-1">
@@ -279,10 +281,10 @@ export function MacroEditor({
                                         onClick={handleReset}
                                     >
                                         <Undo2 className="h-4 w-4 mr-1" />
-                                        Reset
+                                        {t("macroEditor.reset")}
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Reset to original</TooltipContent>
+                                <TooltipContent>{t("macroEditor.resetTooltip")}</TooltipContent>
                             </Tooltip>
                             <Tooltip>
                                 <TooltipTrigger asChild>
@@ -292,10 +294,10 @@ export function MacroEditor({
                                         onClick={() => addStep()}
                                     >
                                         <Plus className="h-4 w-4 mr-1" />
-                                        Add Step
+                                        {t("macroEditor.addStep")}
                                     </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Add new step at the end</TooltipContent>
+                                <TooltipContent>{t("macroEditor.addStepTooltip")}</TooltipContent>
                             </Tooltip>
                         </div>
                     </div>
@@ -319,7 +321,7 @@ export function MacroEditor({
                             {/* Step header */}
                             <div
                                 className={cn(
-                                    "flex items-center gap-2 p-3 cursor-pointer hover:bg-muted/50 transition-colors",
+                                    "flex items-center gap-2 p-3 cursor-pointer hover:bg-muted/50 transition-colors group",
                                     getStepColor(step)
                                 )}
                                 onClick={() => toggleStep(index)}
@@ -345,15 +347,17 @@ export function MacroEditor({
                                 </div>
 
                                 <Badge variant="secondary" className="text-xs capitalize">
-                                    {step.event_type || step.type}
+                                    {step.event_type
+                                        ? t(`macroEditor.eventTypes.${step.event_type}`)
+                                        : t(`macroEditor.stepTypes.${step.type}`)}
                                 </Badge>
 
                                 <span className="flex-1 truncate text-sm">
-                                    {step.description || step.selector || "No description"}
+                                    {step.description || step.selector || t("macroEditor.noDescription")}
                                 </span>
 
                                 <Badge variant="outline" className="text-xs">
-                                    {step.source}
+                                    {t(`macroEditor.sources.${step.source}`)}
                                 </Badge>
 
                                 {!readOnly && (
@@ -372,7 +376,7 @@ export function MacroEditor({
                                                     <Copy className="h-3.5 w-3.5" />
                                                 </Button>
                                             </TooltipTrigger>
-                                            <TooltipContent>Duplicate</TooltipContent>
+                                            <TooltipContent>{t("macroEditor.duplicate")}</TooltipContent>
                                         </Tooltip>
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -388,7 +392,7 @@ export function MacroEditor({
                                                     <Trash2 className="h-3.5 w-3.5" />
                                                 </Button>
                                             </TooltipTrigger>
-                                            <TooltipContent>Delete</TooltipContent>
+                                            <TooltipContent>{t("macroEditor.delete")}</TooltipContent>
                                         </Tooltip>
                                     </div>
                                 )}
@@ -397,10 +401,10 @@ export function MacroEditor({
                             {/* Expanded step editor */}
                             {expandedSteps.has(index) && (
                                 <div className="p-4 border-t bg-background">
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-4 gap-3">
                                         {/* Step type */}
                                         <div className="space-y-2">
-                                            <Label className="text-xs">Type</Label>
+                                            <Label className="text-xs">{t("macroEditor.type")}</Label>
                                             <Select
                                                 value={step.type}
                                                 onValueChange={(value: any) =>
@@ -412,17 +416,17 @@ export function MacroEditor({
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="action">Action</SelectItem>
-                                                    <SelectItem value="extract">Extract</SelectItem>
-                                                    <SelectItem value="wait">Wait</SelectItem>
-                                                    <SelectItem value="dump">Dump UI</SelectItem>
+                                                    <SelectItem value="action">{t("macroEditor.stepTypes.action")}</SelectItem>
+                                                    <SelectItem value="extract">{t("macroEditor.stepTypes.extract")}</SelectItem>
+                                                    <SelectItem value="wait">{t("macroEditor.stepTypes.wait")}</SelectItem>
+                                                    <SelectItem value="dump">{t("macroEditor.stepTypes.dump")}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
 
                                         {/* Source */}
                                         <div className="space-y-2">
-                                            <Label className="text-xs">Source</Label>
+                                            <Label className="text-xs">{t("macroEditor.source")}</Label>
                                             <Select
                                                 value={step.source}
                                                 onValueChange={(value: any) =>
@@ -434,17 +438,17 @@ export function MacroEditor({
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="dom">Web (DOM)</SelectItem>
-                                                    <SelectItem value="mobile">Mobile</SelectItem>
-                                                    <SelectItem value="desktop">Desktop</SelectItem>
-                                                    <SelectItem value="hybrid">Hybrid</SelectItem>
+                                                    <SelectItem value="dom">{t("macroEditor.sources.dom")}</SelectItem>
+                                                    <SelectItem value="mobile">{t("macroEditor.sources.mobile")}</SelectItem>
+                                                    <SelectItem value="desktop">{t("macroEditor.sources.desktop")}</SelectItem>
+                                                    <SelectItem value="hybrid">{t("macroEditor.sources.hybrid")}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
 
                                         {/* Event type */}
                                         <div className="space-y-2">
-                                            <Label className="text-xs">Event Type</Label>
+                                            <Label className="text-xs">{t("macroEditor.eventType")}</Label>
                                             <Select
                                                 value={step.event_type}
                                                 onValueChange={(value) =>
@@ -461,7 +465,7 @@ export function MacroEditor({
                                                             <SelectItem key={event.value} value={event.value}>
                                                                 <div className="flex items-center gap-2">
                                                                     {event.icon}
-                                                                    {event.label}
+                                                                    {t(`macroEditor.eventTypes.${event.value}`)}
                                                                 </div>
                                                             </SelectItem>
                                                         )
@@ -472,7 +476,7 @@ export function MacroEditor({
 
                                         {/* Selector type */}
                                         <div className="space-y-2">
-                                            <Label className="text-xs">Selector Type</Label>
+                                            <Label className="text-xs">{t("macroEditor.selectorType")}</Label>
                                             <Select
                                                 value={step.selector_type || "css"}
                                                 onValueChange={(value: any) =>
@@ -484,17 +488,17 @@ export function MacroEditor({
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="css">CSS Selector</SelectItem>
-                                                    <SelectItem value="xpath">XPath</SelectItem>
-                                                    <SelectItem value="text">Text Content</SelectItem>
-                                                    <SelectItem value="id">ID</SelectItem>
+                                                    <SelectItem value="css">{t("macroEditor.selectorTypes.css")}</SelectItem>
+                                                    <SelectItem value="xpath">{t("macroEditor.selectorTypes.xpath")}</SelectItem>
+                                                    <SelectItem value="text">{t("macroEditor.selectorTypes.text")}</SelectItem>
+                                                    <SelectItem value="id">{t("macroEditor.selectorTypes.id")}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
 
                                         {/* Selector */}
-                                        <div className="col-span-2 space-y-2">
-                                            <Label className="text-xs">Selector</Label>
+                                        <div className="col-span-4 space-y-2">
+                                            <Label className="text-xs">{t("macroEditor.selector")}</Label>
                                             <div className="flex gap-2">
                                                 <Input
                                                     value={step.selector || ""}
@@ -503,10 +507,10 @@ export function MacroEditor({
                                                     }
                                                     placeholder={
                                                         step.selector_type === "css"
-                                                            ? "e.g., .product-price or #submit-btn"
+                                                            ? t("macroEditor.placeholders.cssSelector")
                                                             : step.selector_type === "xpath"
-                                                                ? "e.g., //button[contains(text(), 'Submit')]"
-                                                                : "Enter selector..."
+                                                                ? t("macroEditor.placeholders.xpath")
+                                                                : t("macroEditor.placeholders.selector")
                                                     }
                                                     disabled={readOnly}
                                                     className="font-mono text-sm"
@@ -522,28 +526,28 @@ export function MacroEditor({
                                                                 <Play className="h-4 w-4" />
                                                             </Button>
                                                         </TooltipTrigger>
-                                                        <TooltipContent>Preview this step</TooltipContent>
+                                                        <TooltipContent>{t("macroEditor.previewStep")}</TooltipContent>
                                                     </Tooltip>
                                                 )}
                                             </div>
                                         </div>
 
                                         {/* Description */}
-                                        <div className="col-span-2 space-y-2">
-                                            <Label className="text-xs">Description</Label>
+                                        <div className="col-span-4 space-y-2">
+                                            <Label className="text-xs">{t("macroEditor.description")}</Label>
                                             <Input
                                                 value={step.description || ""}
                                                 onChange={(e) =>
                                                     updateStep(index, { description: e.target.value })
                                                 }
-                                                placeholder="Describe what this step does..."
+                                                placeholder={t("macroEditor.placeholders.description")}
                                                 disabled={readOnly}
                                             />
                                         </div>
 
                                         {/* Payload (collapsible) */}
-                                        <div className="col-span-2 space-y-2">
-                                            <Label className="text-xs">Payload (JSON)</Label>
+                                        <div className="col-span-4 space-y-2">
+                                            <Label className="text-xs">{t("macroEditor.payload")}</Label>
                                             <Textarea
                                                 value={
                                                     step.payload
@@ -560,7 +564,7 @@ export function MacroEditor({
                                                         // Allow invalid JSON while typing
                                                     }
                                                 }}
-                                                placeholder='{"key": "value"}'
+                                                placeholder={t("macroEditor.placeholders.payload")}
                                                 disabled={readOnly}
                                                 className="font-mono text-xs min-h-[80px]"
                                             />
@@ -568,14 +572,14 @@ export function MacroEditor({
 
                                         {/* URL (for navigate) */}
                                         {step.event_type === "navigate" && (
-                                            <div className="col-span-2 space-y-2">
-                                                <Label className="text-xs">URL</Label>
+                                            <div className="col-span-4 space-y-2">
+                                                <Label className="text-xs">{t("macroEditor.url")}</Label>
                                                 <Input
                                                     value={step.url || ""}
                                                     onChange={(e) =>
                                                         updateStep(index, { url: e.target.value })
                                                     }
-                                                    placeholder="https://example.com"
+                                                    placeholder={t("macroEditor.placeholders.url")}
                                                     disabled={readOnly}
                                                 />
                                             </div>
@@ -583,7 +587,7 @@ export function MacroEditor({
 
                                         {/* Timeout */}
                                         <div className="space-y-2">
-                                            <Label className="text-xs">Timeout (ms)</Label>
+                                            <Label className="text-xs">{t("macroEditor.timeout")}</Label>
                                             <Input
                                                 type="number"
                                                 value={step.timeout_ms || ""}
@@ -594,7 +598,7 @@ export function MacroEditor({
                                                             : undefined,
                                                     })
                                                 }
-                                                placeholder="5000"
+                                                placeholder={t("macroEditor.placeholders.timeout")}
                                                 disabled={readOnly}
                                             />
                                         </div>
@@ -610,7 +614,7 @@ export function MacroEditor({
                                                 className="w-full"
                                             >
                                                 <Plus className="h-4 w-4 mr-2" />
-                                                Add Step After
+                                                {t("macroEditor.addStepAfter")}
                                             </Button>
                                         </div>
                                     )}
@@ -622,7 +626,7 @@ export function MacroEditor({
                     {steps.length === 0 && (
                         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                             <MousePointerClick className="h-12 w-12 mb-4 opacity-30" />
-                            <p>No macro steps yet</p>
+                            <p>{t("macroEditor.noMacroSteps")}</p>
                             {!readOnly && (
                                 <Button
                                     variant="outline"
@@ -631,7 +635,7 @@ export function MacroEditor({
                                     className="mt-4"
                                 >
                                     <Plus className="h-4 w-4 mr-2" />
-                                    Add First Step
+                                    {t("macroEditor.addFirstStep")}
                                 </Button>
                             )}
                         </div>
@@ -652,6 +656,7 @@ export function MacroJsonEditor({
     onChange: (steps: MacroStep[]) => void
     children: React.ReactNode
 }) {
+    const { t } = useTranslation()
     const [jsonValue, setJsonValue] = useState(JSON.stringify(steps, null, 2))
     const [error, setError] = useState<string | null>(null)
     const [open, setOpen] = useState(false)
@@ -660,14 +665,14 @@ export function MacroJsonEditor({
         try {
             const parsed = JSON.parse(jsonValue)
             if (!Array.isArray(parsed)) {
-                setError("Must be an array of steps")
+                setError(t("macroEditor.jsonErrorArray"))
                 return
             }
             onChange(parsed)
             setError(null)
             setOpen(false)
         } catch (e) {
-            setError("Invalid JSON: " + (e as Error).message)
+            setError(t("macroEditor.jsonErrorInvalid") + (e as Error).message)
         }
     }
 
@@ -676,7 +681,7 @@ export function MacroJsonEditor({
             <DialogTrigger asChild>{children}</DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[80vh]">
                 <DialogHeader>
-                    <DialogTitle>Edit Macro JSON</DialogTitle>
+                    <DialogTitle>{t("macroEditor.editMacroJson")}</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                     <Textarea
@@ -691,9 +696,9 @@ export function MacroJsonEditor({
                     )}
                     <div className="flex justify-end gap-2">
                         <Button variant="outline" onClick={() => setOpen(false)}>
-                            Cancel
+                            {t("macroEditor.cancel")}
                         </Button>
-                        <Button onClick={handleSave}>Save Changes</Button>
+                        <Button onClick={handleSave}>{t("macroEditor.saveChanges")}</Button>
                     </div>
                 </div>
             </DialogContent>

@@ -3,6 +3,7 @@
  */
 
 import { useState } from "react"
+import { useTranslation } from "react-i18next"
 import { Trash2, Edit2, Check, MapPin } from "lucide-react"
 
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -36,6 +37,7 @@ export function AnnotationList({
     onUpdateNote,
     onDelete,
 }: AnnotationListProps) {
+    const { t } = useTranslation()
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
     const [editValue, setEditValue] = useState("")
 
@@ -53,8 +55,8 @@ export function AnnotationList({
         return (
             <div className="text-center py-8 text-muted-foreground">
                 <MapPin className="mx-auto h-8 w-8 mb-2 opacity-50" />
-                <p className="text-sm">No annotations yet</p>
-                <p className="text-xs">Click "Draw Region" and drag on the video to mark data areas</p>
+                <p className="text-sm">{t("annotationList.noAnnotations")}</p>
+                <p className="text-xs">{t("annotationList.clickDrawRegion")}</p>
             </div>
         )
     }
@@ -83,7 +85,7 @@ export function AnnotationList({
                                     <Input
                                         value={editValue}
                                         onChange={(e) => setEditValue(e.target.value)}
-                                        placeholder="Describe this region..."
+                                        placeholder={t("annotationList.describeRegion")}
                                         className="h-7 text-sm"
                                         autoFocus
                                         onKeyDown={(e) => {
@@ -111,7 +113,7 @@ export function AnnotationList({
                                             !ann.user_note && "text-muted-foreground italic"
                                         )}
                                     >
-                                        {ann.user_note || "Click to add description..."}
+                                        {ann.user_note || t("annotationList.clickToAddDescription")}
                                     </p>
                                     <Button
                                         size="icon"

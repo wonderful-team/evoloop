@@ -1,5 +1,9 @@
 import { Info, Terminal, Layout, Clock, TrendingUp, Play, Edit, Trash2, Sparkles, Zap } from "lucide-react"
 import { useTranslation } from "react-i18next"
+import ReactMarkdown from "react-markdown"
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
+import remarkGfm from "remark-gfm"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
@@ -87,7 +91,7 @@ export function SkillDetailsPanel({
                                             : "bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px]"
                                         }
                                     >
-                                        {executionMode === "deterministic" ? "⚡ DETERMINISTIC" : "🧠 AGENTIC"}
+                                        {executionMode === "deterministic" ? `⚡ ${t("learning.deterministic", "DETERMINISTIC")}` : `🧠 ${t("learning.agentic", "AGENTIC")}`}
                                     </Badge>
                                 </div>
                             </div>
@@ -154,8 +158,57 @@ export function SkillDetailsPanel({
                                     {t("learning.expertGuide", "Expert Strategic Guide")}
                                 </div>
                                 <div className="bg-amber-50/30 dark:bg-amber-950/10 p-5 rounded-2xl border border-amber-500/20 shadow-[0_4px_20px_rgba(245,158,11,0.05)]">
-                                    <div className="text-[13px] leading-relaxed whitespace-pre-wrap prose prose-sm dark:prose-invert max-w-none text-foreground/90 font-medium">
-                                        {skill.instructions}
+                                    <div className="text-[13px] leading-relaxed prose prose-sm dark:prose-invert max-w-none text-foreground/90">
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkGfm]}
+                                            components={{
+                                                code({ node, inline, className, children, ...props }: any) {
+                                                    const match = /language-(\w+)/.exec(className || "")
+                                                    const codeString = String(children).replace(/\n$/, "")
+
+                                                    if (!inline && match) {
+                                                        return (
+                                                            <div className="my-2 rounded-md overflow-hidden bg-[#1e1e1e]">
+                                                                <div className="flex items-center justify-between px-3 py-1 bg-[#252526] text-[10px] text-gray-400 border-b border-[#3e3e3e]">
+                                                                    <span>{match[1]}</span>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => navigator.clipboard.writeText(codeString)}
+                                                                        className="hover:text-white transition-colors"
+                                                                    >
+                                                                        {t("chat.messageList.copy", "Copy")}
+                                                                    </button>
+                                                                </div>
+                                                                <SyntaxHighlighter
+                                                                    style={vscDarkPlus as any}
+                                                                    language={match[1]}
+                                                                    PreTag="div"
+                                                                    customStyle={{
+                                                                        margin: 0,
+                                                                        borderRadius: 0,
+                                                                        fontSize: "12px",
+                                                                    }}
+                                                                    {...props}
+                                                                >
+                                                                    {codeString}
+                                                                </SyntaxHighlighter>
+                                                            </div>
+                                                        )
+                                                    }
+
+                                                    return (
+                                                        <code
+                                                            className="bg-muted px-1.5 py-0.5 rounded text-[85%] font-mono"
+                                                            {...props}
+                                                        >
+                                                            {children}
+                                                        </code>
+                                                    )
+                                                },
+                                            }}
+                                        >
+                                            {skill.instructions}
+                                        </ReactMarkdown>
                                     </div>
                                     <div className="mt-4 flex items-center gap-2">
                                         <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px] font-bold">
@@ -178,31 +231,49 @@ export function SkillDetailsPanel({
                                 <section className="space-y-4">
                                     <div className="flex items-center gap-2 text-sm font-bold text-emerald-600">
                                         <Zap className="h-4 w-4" />
-                                        {t("learning.macroScript", "Macro Script")}
+                                        {t("learning.macroScript")}
                                         <Badge variant="outline" className="text-[9px] ml-2 bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                                            ⚡ DETERMINISTIC
+                                            ⚡ {t("learning.deterministic", "DETERMINISTIC")}
                                         </Badge>
                                     </div>
                                     <div className="bg-emerald-50/30 dark:bg-emerald-950/10 p-4 rounded-2xl border border-emerald-500/20">
-                                        <div className="space-y-2">
-                                            {macroScript.slice(0, 5).map((step: any, i: number) => (
-                                                <div key={i} className="flex items-center gap-3 text-xs bg-background/50 p-2 rounded-lg">
-                                                    <span className="font-mono text-emerald-600 font-bold w-6">{step.step_number || i + 1}</span>
-                                                    <Badge variant="outline" className="text-[9px] capitalize">{step.type}</Badge>
-                                                    <span className="text-muted-foreground truncate flex-1">
-                                                        {step.event_type || step.description || JSON.stringify(step).slice(0, 50)}
-                                                    </span>
-                                                </div>
-                                            ))}
-                                            {macroScript.length > 5 && (
-                                                <div className="text-xs text-muted-foreground text-center py-2">
-                                                    +{macroScript.length - 5} more steps
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="mt-3 flex items-center gap-2">
+                                        <table className="w-full text-xs">
+                                            <thead>
+                                                <tr className="border-b border-emerald-500/20 text-emerald-700 dark:text-emerald-400">
+                                                    <th className="text-left py-2 px-2 w-10 font-bold">#</th>
+                                                    <th className="text-left py-2 px-2 w-16 font-bold">{t("macroEditor.type", "Type")}</th>
+                                                    <th className="text-left py-2 px-2 w-20 font-bold">{t("macroEditor.eventType", "Action")}</th>
+                                                    <th className="text-left py-2 px-2 font-bold">{t("macroEditor.selector", "Target")}</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {macroScript.map((step: any, i: number) => (
+                                                    <tr key={i} className="border-b border-emerald-500/10 last:border-0 hover:bg-emerald-500/5">
+                                                        <td className="py-2 px-2 font-mono text-emerald-600 font-bold">
+                                                            {step.step_number || i + 1}
+                                                        </td>
+                                                        <td className="py-2 px-2">
+                                                            <Badge variant="outline" className="text-[9px] capitalize bg-background">
+                                                                {step.type ? t(`macroEditor.stepTypes.${step.type}`, step.type) : "-"}
+                                                            </Badge>
+                                                        </td>
+                                                        <td className="py-2 px-2">
+                                                            <span className="capitalize">
+                                                                {step.event_type ? t(`macroEditor.eventTypes.${step.event_type}`, step.event_type) : "-"}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-2 px-2">
+                                                            <code className="text-[10px] font-mono text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded">
+                                                                {step.selector || step.target_selector || "-"}
+                                                            </code>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                        <div className="mt-3 flex items-center gap-2 pt-3 border-t border-emerald-500/20">
                                             <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] font-bold">
-                                                {macroScript.length} STEPS
+                                                {t("learning.steps", { count: macroScript.length, defaultValue: "{{count}} STEPS" })}
                                             </Badge>
                                         </div>
                                     </div>
