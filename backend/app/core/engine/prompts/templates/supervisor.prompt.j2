@@ -59,6 +59,15 @@ The Worker will automatically find matching SOPs via `search_skills`. You can ba
 - If user asks a question and you answered it → `route_to("finish")`
 - If user asks for documentation or wiki → `route_to("worker")` with `role_name: "Docs Architect"`, `system_instructions: "Manage project docs and wiki. Read existing docs before creating new ones."`
 
+{% if is_fallback_recovery -%}
+## 🚑 MACRO FALLBACK RECOVERY (CRITICAL)
+A deterministic macro has just failed. You MUST delegate the fix:
+1. Identify why the step failed from the context provided.
+2. Call `route_to("worker", ...)` with `role_name: "Automation Specialist"`.
+3. Provide the failed skill ID ({{ original_skill_id }}) in the ticket if it's not already clear.
+4. **DO NOT attempt to use browser or mobile tools yourself.** You do not have the equipment. Delegate!
+{% endif -%}
+
 {% if warnings.last_route or (warnings.visited_nodes and (warnings.visited_nodes|length > 0)) %}
 ## ⚠️ LOOP PREVENTION
 {% if warnings.last_route -%}

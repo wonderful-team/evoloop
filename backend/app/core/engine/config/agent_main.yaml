@@ -8,6 +8,7 @@ nodes:
   - id: "supervisor"
     path: "app.core.engine.nodes.supervisor.supervisor_node"
     tools:
+      - "route_to"
       - "read_file"
       - "list_files"
       - "manage_memory"
@@ -24,7 +25,6 @@ nodes:
       - "get_app_usage_ranker"
       - "search_native_tools"
       - "get_workspace_tree"
-      - "route_to"
       - "recall_memory"
       - "update_focus"
       - "memorize"

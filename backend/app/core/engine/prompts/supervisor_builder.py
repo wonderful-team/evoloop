@@ -88,6 +88,8 @@ class SupervisorPromptBuilder:
             },
             "has_android": ctx.metadata.get("has_android", False),
             "has_macos": ctx.metadata.get("has_macos", False),
+            "is_fallback_recovery": config.get("metadata", {}).get("is_fallback_recovery", False),
+            "original_skill_id": config.get("metadata", {}).get("original_skill_id"),
         }
 
         # 5. Render Template

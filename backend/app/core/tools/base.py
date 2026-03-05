@@ -44,7 +44,7 @@ def get_working_directory(config: RunnableConfig | None = None) -> str:
     return os.getcwd()
 
 
-def evoloop_tool(*args, is_pollable: bool = False, is_state_mutating: bool = False, **kwargs):
+def evoloop_tool(*args, is_pollable: bool = False, is_state_mutating: bool = False, affected_path_keys: list[str] | None = None, **kwargs):
     """
     Decorator that applies standard EvoLoop tool behaviors.
     Can be used as @evoloop_tool or @evoloop_tool(name="...", is_pollable=True, ...).
@@ -87,6 +87,7 @@ def evoloop_tool(*args, is_pollable: bool = False, is_state_mutating: bool = Fal
             tool_instance.metadata = {}
         tool_instance.metadata["is_pollable"] = is_pollable
         tool_instance.metadata["is_state_mutating"] = is_state_mutating
+        tool_instance.metadata["affected_path_keys"] = affected_path_keys or []
 
         # Enable error handling to return validation errors as text to the Agent
         tool_instance.handle_tool_error = True

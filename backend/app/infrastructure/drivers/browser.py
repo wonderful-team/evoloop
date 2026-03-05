@@ -88,15 +88,27 @@ class BrowserManager:
             chrome_cmd = [settings.CHROME_EXECUTABLE]
 
             # Performance optimization: force native ARM64 on Apple Silicon Macs
-            if platform.system() == "Darwin" and platform.machine() == "arm64":
+            # Even if Python is running under Rosetta (x86_64), we want Chrome to run natively.
+            is_apple_silicon = False
+            if platform.system() == "Darwin":
+                try:
+                    # Check if the hardware supports arm64
+                    is_apple_silicon = subprocess.check_output(["sysctl", "-n", "hw.optional.arm64"]).decode().strip() == "1"
+                except Exception:
+                    # Fallback to platform check
+                    is_apple_silicon = platform.machine() == "arm64"
+
+            if is_apple_silicon:
                 chrome_cmd = ["arch", "-arm64"] + chrome_cmd
 
             chrome_cmd.extend([
                 f"--remote-debugging-port=9222",
                 f"--user-data-dir={automation_dir}",
                 "--disable-infobars",
-                "--enable-extensions",
+                "--disable-extensions",
                 "--no-first-run",
+                # "--disable-blink-features=AutomationControlled",
+                "--disable-background-timer-throttling",
             ])
             try:
                 self._chrome_proc = subprocess.Popen(

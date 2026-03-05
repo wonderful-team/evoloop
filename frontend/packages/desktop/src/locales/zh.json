@@ -224,7 +224,16 @@
       "configSidebar": "技能配置",
       "aiRefinedDesc": "AI 基于执行逻辑优化了描述。",
       "automatedPrefix": "自动生成的 ",
-      "optimizedSuffix": " (已优化)"
+      "optimizedSuffix": " (已优化)",
+      "currentPath": "当前路径",
+      "debugPanel": "调试控制台",
+      "noActiveStep": "没有活动步骤",
+      "noVariables": "上下文中没有变量",
+      "previousResult": "上次输出",
+      "variables": "变量",
+      "expertGuidePlaceholder": "为智能体编写 Markdown 指令... 例如：\n1. 访问 github.com\n2. 点击 'New Repository' 按钮",
+      "macroPlaceholder": "[{ 'event_type': 'click', 'target_selector': '.btn' }]",
+      "invalidMacroJson": "宏脚本必须是有效的 JSON"
     },
     "mirror": {
       "title": "Android 镜像控制台",
@@ -287,7 +296,33 @@
     "screenRecordingPermissionTitle": "需要屏幕录制权限",
     "permissionRequired": "全局录制需要系统辅助功能权限",
     "globalMode": "系统监控已激活 (全局)",
-    "domMode": "仅应用内 (DOM)"
+    "domMode": "仅应用内 (DOM)",
+    "executionStarted": "技能执行已开始",
+    "skillLibrary": "技能库",
+    "statusBadge": {
+      "active": "已激活",
+      "inactive": "已停用"
+    },
+    "createSkillMultimodal": "从录制创建技能",
+    "createSkillMultimodalDesc": "AI 将分析您的屏幕录制和操作来创建可重用的技能。",
+    "eventsProcessed": "已处理事件",
+    "framesAnalyzed": "已分析帧数",
+    "processingTime": "处理时间",
+    "taskDescription": "您在此录制中做了什么？",
+    "taskDescriptionRequired": "请描述您在录制中做了什么",
+    "taskDescriptionPlaceholder": "例如：在微信中给张三发消息，然后从桌面附加一个文件",
+    "taskDescriptionHelp": "清晰描述任务。AI 将分析视频和您的操作以理解工作流程。",
+    "videoReady": "视频录制已准备好分析",
+    "videoMissing": "未找到屏幕录制",
+    "noVideo": "没有可用视频",
+    "noVideoPath": "未找到视频录制",
+    "skillYaml": "技能配置",
+    "recordingAutoStopped": "录制已自动停止。",
+    "recordingAutoStoppedSize": "录制已自动停止：文件大小限制（500MB）已达到。",
+    "recordingAutoStoppedTimeout": "录制已自动停止：已达到 10 分钟限制。",
+    "noExpertGuide": "此技能是没有专家指南的原始录制。",
+    "openFullEditor": "打开完整编辑器",
+    "executionFailed": "执行技能失败"
   },
   "todos": {
     "create": {

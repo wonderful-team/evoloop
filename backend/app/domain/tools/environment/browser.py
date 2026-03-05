@@ -691,5 +691,10 @@ async def browser_control(
             return f"Error: Unknown action '{action}'."
 
     except Exception as e:
-        logger.error(f"[Browser] action='{action}' failed: {e}", exc_info=True)
+        error_msg = f"[Browser] action='{action}' failed: {e}"
+        if continue_on_error:
+            logger.warning(f"Optional {error_msg}. Continuing.")
+            return f"Warning: {e}"
+
+        logger.error(error_msg, exc_info=True)
         return f"Error: {e}"

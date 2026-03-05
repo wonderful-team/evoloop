@@ -142,7 +142,7 @@ export function SkillEditorDialog({
             try {
                 parsedMacro = JSON.parse(macroScript || "[]");
             } catch (e) {
-                toast.error("Macro script must be valid JSON");
+                toast.error(t("learning.editor.invalidMacroJson", "Macro script must be valid JSON"));
                 return;
             }
 

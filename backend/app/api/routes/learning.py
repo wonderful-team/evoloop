@@ -112,6 +112,8 @@ class SkillDTO(BaseModel):
     failure_count: int
     is_active: bool
     status: str
+    execution_mode: str = "agentic"
+    macro_script: list[dict] | None = None
     validation_report: dict[str, Any] | None = None
     instructions: str | None = None
     created_at: datetime
@@ -946,11 +948,12 @@ async def execute_macro_with_fallback(thread_id: str, project_id: int, skill_id:
         fallback_ctx = result.get("fallback_context", {})
         
         fallback_msg = (
-            f"SYSTEM COMMAND: The deterministic macro for '{skill_name}' failed.\n"
-            f"You MUST now take over and complete the task using your intelligent tools.\n\n"
+            f"SYSTEM ALERT: The deterministic macro for '{skill_name}' failed.\n"
+            f"As Supervisor, you must now ANALYZE the failure context and DELEGATE a fix to a specialized Worker.\n\n"
             f"Failure Context:\n{json.dumps(fallback_ctx, indent=2, ensure_ascii=False)}\n\n"
-            f"Step 1: Analyze the current screen state.\n"
-            f"Step 2: Correct the failed action and proceed with the remaining goal."
+            f"Your Goal:\n"
+            f"1. Check the failed step and reason.\n"
+            f"2. Call `route_to('worker', ...)` with an appropriate role (e.g., 'Automation Specialist') to heal the process and complete the user's original request."
         )
         
         # Persist as 'human' to force Agent supervisor to treat it as a task

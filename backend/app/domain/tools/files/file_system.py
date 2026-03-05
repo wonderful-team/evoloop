@@ -8,7 +8,7 @@ from app.core.tools import evoloop_tool
 from .actions.filesystem import handle_filesystem
 
 
-@evoloop_tool
+@evoloop_tool(is_state_mutating=True, affected_path_keys=["path", "destination"])
 async def file_system(
     action: Literal["mkdir", "delete", "move"],
     path: str,

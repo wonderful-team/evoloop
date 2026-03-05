@@ -106,12 +106,17 @@ class ToolManager:
 
     def get_all_capabilities(self) -> list[BaseTool]:
         """
-        Global dictionary of all tools. 
+        Global dictionary of all tools (NATIVE + CONNECTED MCP). 
         WARNING: Do NOT use this to build Prompts (Prompt Explosion).
         Used purely for `search_native_tools` tool-lookup.
         """
+        from app.core.tools.mcp.client import mcp_client_manager
         from app.core.tools.registry import get_all_tools as _legacy_get_all_tools
-        return _legacy_get_all_tools()
+
+        native_tools = _legacy_get_all_tools()
+        mcp_tools = mcp_client_manager.get_tools()
+
+        return list(native_tools) + list(mcp_tools)
 
     def get_mcp_inventory(self) -> str:
         """

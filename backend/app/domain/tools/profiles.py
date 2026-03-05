@@ -31,7 +31,7 @@ PROFILES: dict[str, dict[str, any]] = {
             "bash",
             "manage_git",
         ],  # Base tools
-        "retrieval_query": "kubernetes docker helm aws cloud operations",  # Will pull in kubectl, docker CLI wrappers etc via Vector Search
+        "retrieval_query": "kubernetes docker helm aws cloud operations",
     },
     "RESEARCH": {
         "description": "Deep analysis, reading docs, exploring broad concepts.",

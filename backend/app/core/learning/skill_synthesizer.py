@@ -14,12 +14,26 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from sqlalchemy import select
 
 from app.core.learning.trace_parser import TraceParser, TraceSequence
+from app.core.learning.macro_optimizer import MacroOptimizer
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
 from app.models import LearnedSkill, Message
 
 logger = logging.getLogger(__name__)
+
+# [Phase 13] Strict Allowlist for Deterministic Execution
+ALLOWED_UI_ACTIONS = {
+    # Browser / DOM
+    "goto", "navigate", "click", "type_text", "input", "key_press", "scroll",
+    "wait", "wait_for", "extract", "get_text", "get_html", "get_attribute", "run_js", "evaluate",
+    # Mobile / Android
+    "tap", "long_press", "swipe", "input_text", "open_app", "back", "home",
+    # Desktop
+    "applescript", "drag_drop",
+    # Global
+    "screenshot", "dump", "dump_ui"
+}
 
 
 @dataclass
@@ -195,7 +209,7 @@ class WorkflowSynthesizer:
         skill.macro_script = macro_script
         
         # Heuristic: If we compiled a valid macro, default to deterministic mode if there are no LLM decisions
-        valid_macros = [s for s in macro_script if s["event_type"] not in ["node_start", "llm_output"]]
+        valid_macros = [s for s in macro_script if s.get("event_type") not in ["node_start", "llm_output"]]
         if len(valid_macros) > 0 and len(valid_macros) == len(macro_script):
            skill.execution_mode = "deterministic"
            logger.info(f"[{self.thread_id}] Selected 'deterministic' mode automatically for {skill.name}")
@@ -252,26 +266,72 @@ class WorkflowSynthesizer:
         has_extract = False
         
         for step in sequence.steps:
-            # We skip heavy semantic LLM steps for the fast macro mode
-            if step.action_type in ("node_start", "llm_output"):
+            # [Phase 13] Explicitly skip agentic bridge events early
+            if step.action_type in ("node_start", "llm_output", "tool_result", "macro_thought"):
                 continue
 
             # Identify if this was a global (OS/Android) or DOM action
-            source_type = "global" if step.node_name in ("global_observation", "mobile_interaction") else "dom"
+            source_type = "dom"
+            if step.action_name == "mobile_control":
+                source_type = "mobile"
+            elif step.action_name == "desktop_control":
+                source_type = "desktop"
+            elif step.node_name in ("global_observation", "mobile_interaction"):
+                # Fallback for old traces
+                source_type = "mobile"
             
-            # Also catch tool calls that might be high-level (like 'navigate' acting as 'goto')
             event_type = step.action_type
             payload = dict(step.action_args)
+            
+            # Agent LangChain tool inputs often serialize with single quotes as python dicts
+            # trace_recorder.py captures them in 'raw' if json.loads fails.
+            if "raw" in payload and isinstance(payload["raw"], str):
+                import ast
+                try:
+                    parsed = ast.literal_eval(payload["raw"])
+                    if isinstance(parsed, dict):
+                        payload = parsed
+                except Exception:
+                    pass
+
             action_name = payload.get("action")
             
-            if event_type == "tool_call" and step.action_name == "browser_control" and action_name == "navigate":
-                event_type = "goto"
-            
+            # Map generic tool_call from Agents back to explicit macro events
+            if event_type == "tool_call":
+                if action_name:
+                    event_type = action_name  # e.g. "click", "wait_for", "type_text"
+                    if event_type == "navigate":
+                        event_type = "goto"
+                    elif event_type == "type_text":
+                        event_type = "input"
+                else:
+                    # Fallback if no specific action name exists in payload
+                    tool_invoked = step.action_name
+                    if tool_invoked == "wait_for":
+                        event_type = "wait"
+                        # Extract seconds from args literal map
+                        payload["duration_ms"] = float(payload.get("seconds", 1)) * 1000
+                    elif tool_invoked == "memorize_concepts":
+                        # We skip memory tools during macro playback as they are semantic
+                        continue
+                    elif tool_invoked in ("request_human_input", "research", "manage_todo", "document_reader"):
+                        # Skip other non-UI tools
+                        continue
+                    else:
+                        continue
+
+            # [Phase 13] Strict Allowlist Filter
+            # If the resolved event_type is not in the UI allowlist, discard it.
+            # This prevents internal research, memory, and todo tools from bloating the macro.
+            if event_type not in ALLOWED_UI_ACTIONS:
+                logger.debug(f"[{self.thread_id}] Skipping non-UI action during synthesis: {event_type}")
+                continue
+
             target_selector = step.ui_context.element_selector if step.ui_context else None
             
             # Phase 6: Automatic Extractor Nodes mapping
             is_extract = False
-            if event_type == "tool_call" and step.action_name == "browser_control" and action_name in ("get_text", "get_html", "get_attribute"):
+            if event_type in ("get_text", "get_html", "get_attribute"):
                 macro_step = {
                     "step_number": step.step_number,
                     "type": "extract",
@@ -315,8 +375,15 @@ class WorkflowSynthesizer:
                 "type": "dump",
                 "payload": {}
             })
-            
-        return macro
+
+        # [Phase 6.5] 宏脚本优化：去除冗余步骤
+        optimizer = MacroOptimizer()
+        optimized_macro, opt_stats = optimizer.optimize(macro)
+
+        if opt_stats.reduction_ratio > 0:
+            logger.info(f"[{self.thread_id}] Macro optimized: {opt_stats}")
+
+        return optimized_macro
 
     def _parse_skill_yaml(self, yaml_str: str, sequence: TraceSequence) -> LearnedSkill:
         """Parse YAML string into LearnedSkill object."""

@@ -1,13 +1,17 @@
-from app.core.tools import evoloop_tool
+from typing import Annotated
+from langchain_core.tools import InjectedToolArg
+from langchain_core.runnables import RunnableConfig
 
+from app.core.tools import evoloop_tool
 from .actions.write import handle_write
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(is_state_mutating=True, affected_path_keys=["path"])
 async def write_file(
     path: str | None = None,
     content: str | None = None,
     overwrite: bool = False,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
     Create a new file or overwrite an existing file.
@@ -36,5 +40,5 @@ async def write_file(
         action="overwrite" if overwrite else "create",
         path=path,
         content=content,
-        config=None,
+        config=config,
     )

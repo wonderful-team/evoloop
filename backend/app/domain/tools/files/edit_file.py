@@ -1,14 +1,18 @@
-from app.core.tools import evoloop_tool
+from typing import Annotated
+from langchain_core.runnables import RunnableConfig
+from langchain_core.tools import InjectedToolArg
 
+from app.core.tools import evoloop_tool
 from .actions.edit import handle_edit
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(is_state_mutating=True, affected_path_keys=["path"])
 async def edit_file(
     path: str | None = None,
     target: str | None = None,
     replacement: str | None = None,
     allow_multiple: bool = False,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
     Edit a file by replacing a specific block of text.
@@ -31,4 +35,4 @@ async def edit_file(
             "ACTION: Retry the tool call immediately with correct arguments."
         )
 
-    return await handle_edit(path, target, replacement, allow_multiple, config=None)
+    return await handle_edit(path, target, replacement, allow_multiple, config=config)

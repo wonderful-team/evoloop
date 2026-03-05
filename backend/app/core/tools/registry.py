@@ -96,6 +96,7 @@ class AutoDiscoveryRegistry:
 
     def get_all_tools(self) -> list[BaseTool]:
         """Return all registered tools."""
+        _ensure_scanned()
         return list(self._tools)
 
 
@@ -103,11 +104,20 @@ class AutoDiscoveryRegistry:
 
 REGISTRY = AutoDiscoveryRegistry()
 
-# Scan all domain-specific application logic for @evoloop_tool
-REGISTRY.scan("app.domain")
 
-# Scan Brain Tools (Memory, Retrieval) in core
-REGISTRY.scan("app.core.brain.tools")
+_registry_scanned = False
+
+
+def _ensure_scanned():
+    """Ensure the registry has scanned all packages."""
+    global _registry_scanned
+    if not _registry_scanned:
+        _registry_scanned = True
+        # Scan all domain-specific application logic for @evoloop_tool
+        REGISTRY.scan("app.domain")
+
+        # Scan Brain Tools (Memory, Retrieval) in core
+        REGISTRY.scan("app.core.brain.tools")
 
 
 # --- Core Registry Accessors ---
@@ -128,6 +138,7 @@ def get_tool_map() -> dict[str, BaseTool]:
     """Return a cached mapping of tool names to objects."""
     global _cached_tool_map
     if _cached_tool_map is None:
+        _ensure_scanned()
         all_available = REGISTRY.get_all_tools() + get_runtime_tools()
         _cached_tool_map = {t.name: t for t in all_available if t.name}
     return _cached_tool_map
@@ -243,6 +254,21 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
     return hydrated
 
 
+def get_tool_to_nodes_mapping(config_path: str | None = None) -> dict[str, list[str]]:
+    """Return a mapping of tool name to the list of node IDs that can execute it."""
+    _ensure_scanned()
+    config = _load_yaml_config(config_path)
+    mapping = {}
+    for node in config.get("nodes", []):
+        node_id = node.get("id")
+        tools = node.get("tools", [])
+        for t in tools:
+            if t not in mapping:
+                mapping[t] = []
+            mapping[t].append(node_id)
+    return mapping
+
+
 # --- Convenience Accessors ---
 
 
@@ -278,22 +304,35 @@ def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
     if not isinstance(tool_args, dict):
         return snapshot_paths
 
-    if tool_name in ["write_file", "edit_file", "write_document", "edit_document"]:
-        arg_path = tool_args.get("path")
-        if arg_path:
-            snapshot_paths.append(arg_path)
-    elif tool_name == "manage_file":
-        arg_path = tool_args.get("absolute_path") or tool_args.get("path")
-        action = tool_args.get("action")
-        if arg_path and action in ["create", "update_block", "write", "overwrite", "delete"]:
-            snapshot_paths.append(arg_path)
-    elif tool_name == "file_system":
-        arg_path = tool_args.get("path")
-        dest_path = tool_args.get("destination")
-        action = tool_args.get("action")
-        if arg_path:
-            snapshot_paths.append(arg_path)
-        if action == "move" and dest_path:
-            snapshot_paths.append(dest_path)
+    tool_map = get_tool_map()
+    if tool_name in tool_map:
+        tool = tool_map[tool_name]
+        metadata = getattr(tool, "metadata", {})
+        path_keys = metadata.get("affected_path_keys", [])
+        
+        for key in path_keys:
+            val = tool_args.get(key)
+            if val and isinstance(val, str):
+                snapshot_paths.append(val)
+                
+    # Fallback/Legacy support for tools not yet updated with metadata
+    if not snapshot_paths:
+        if tool_name in ["write_file", "edit_file", "write_document", "edit_document"]:
+            arg_path = tool_args.get("path")
+            if arg_path:
+                snapshot_paths.append(arg_path)
+        elif tool_name == "manage_file":
+            arg_path = tool_args.get("absolute_path") or tool_args.get("path")
+            action = tool_args.get("action")
+            if arg_path and action in ["create", "update_block", "write", "overwrite", "delete"]:
+                snapshot_paths.append(arg_path)
+        elif tool_name == "file_system":
+            arg_path = tool_args.get("path")
+            dest_path = tool_args.get("destination")
+            action = tool_args.get("action")
+            if arg_path:
+                snapshot_paths.append(arg_path)
+            if action == "move" and dest_path:
+                snapshot_paths.append(dest_path)
 
     return snapshot_paths

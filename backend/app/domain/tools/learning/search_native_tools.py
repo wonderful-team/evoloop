@@ -20,7 +20,13 @@ async def search_native_tools(query: str = "") -> dict[str, Any]:
     Returns a list of matching tools with their descriptions and arguments.
     """
     from app.core.tools.manager import tool_manager
+    from app.core.tools.registry import get_tool_to_nodes_mapping, clear_registry_cache
+
+    # Ensure registry cache is clear to see all discovered tools
+    clear_registry_cache()
+
     all_tools = tool_manager.get_all_capabilities()
+    tool_to_nodes = get_tool_to_nodes_mapping()
 
     results = []
 
@@ -47,16 +53,24 @@ async def search_native_tools(query: str = "") -> dict[str, Any]:
             except Exception:
                 pass
 
+        # Determine route_to
+        # If it's a native tool, we use the YAML mapping.
+        # If it's an MCP tool, it's virtually always handled by the 'worker' node in our current architecture.
+        route_to = tool_to_nodes.get(name, [])
+        if not route_to and name.startswith("mcp__"):
+            route_to = ["worker"]
+
         results.append({
             "name": name,
             "description": desc,
+            "route_to": route_to,
             "arguments": args_schema
         })
 
     if not results:
         return {
             "result_type": "no_match",
-            "instruction": f"No native tools found matching '{query}'. Try a broader query or empty string to see all tools."
+            "instruction": f"No native or MCP tools found matching '{query}'. Try a broader query or empty string to see all tools."
         }
 
     return {

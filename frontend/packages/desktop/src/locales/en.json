@@ -224,7 +224,16 @@
       "configSidebar": "Skill Configuration",
       "aiRefinedDesc": "AI refined description based on execution logic.",
       "automatedPrefix": "automated ",
-      "optimizedSuffix": " (Optimized)"
+      "optimizedSuffix": " (Optimized)",
+      "currentPath": "Current Path",
+      "debugPanel": "Debug Console",
+      "noActiveStep": "No active step",
+      "noVariables": "No variables in context",
+      "previousResult": "Last Output",
+      "variables": "Variables",
+      "expertGuidePlaceholder": "Write markdown instructions for the agent... e.g. \\n1. Go to github.com\\n2. Click the 'New Repository' button",
+      "macroPlaceholder": "[{ 'event_type': 'click', 'target_selector': '.btn' }]",
+      "invalidMacroJson": "Macro script must be valid JSON"
     },
     "mirror": {
       "title": "Android Mirror Console",
@@ -287,7 +296,33 @@
     "screenRecordingPermissionTitle": "Screen Recording Permission Required",
     "permissionRequired": "Accessibility permission required for global recording",
     "globalMode": "System Monitoring Active (Global)",
-    "domMode": "App Only (DOM)"
+    "domMode": "App Only (DOM)",
+    "executionStarted": "Skill execution started",
+    "skillLibrary": "Skill Library",
+    "statusBadge": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "createSkillMultimodal": "Create Skill from Recording",
+    "createSkillMultimodalDesc": "AI will analyze your screen recording and actions to create a reusable skill.",
+    "eventsProcessed": "Events Processed",
+    "framesAnalyzed": "Frames Analyzed",
+    "processingTime": "Processing Time",
+    "taskDescription": "What did you do in this recording?",
+    "taskDescriptionRequired": "Please describe what you did in the recording",
+    "taskDescriptionPlaceholder": "e.g., Send a message to Zhang San in WeChat, then attach a file from Desktop",
+    "taskDescriptionHelp": "Describe the task clearly. AI will analyze the video and your actions to understand the workflow.",
+    "videoReady": "Video recording ready for analysis",
+    "videoMissing": "Screen recording not found",
+    "noVideo": "No video available",
+    "noVideoPath": "No video recording found",
+    "skillYaml": "Skill Configuration",
+    "recordingAutoStopped": "Recording was stopped automatically.",
+    "recordingAutoStoppedSize": "Recording stopped automatically: file size limit (500MB) reached.",
+    "recordingAutoStoppedTimeout": "Recording stopped automatically: 10-minute limit reached.",
+    "noExpertGuide": "This skill is a raw recording without an expert guide.",
+    "openFullEditor": "Open Full Editor",
+    "executionFailed": "Failed to execute skill"
   },
   "todos": {
     "create": {

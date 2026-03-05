@@ -4,6 +4,7 @@ from typing import Any
 
 from app.domain.tools.environment.browser import browser_control
 from app.domain.tools.environment.mobile import mobile_control
+from app.domain.tools.environment.desktop import desktop_control
 from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,9 @@ class MacroEngine:
             for k, v in payload.items():
                 if isinstance(v, str):
                     payload[k] = cls._inject_params(v, params)
+                    
+            # Fallback for LLM-generated tool traces where selector is buried in the payload kwargs
+            target_selector = target_selector or payload.get("selector")
 
             if action_type == "if":
                 condition = step.get("condition", {})
@@ -218,7 +222,10 @@ class MacroEngine:
             else:
                 event_type = step.get("event_type")
                 source = step.get("source", "dom")
-                
+
+                # if event_type in ["tool_call", "tool_result", "macro_thought"]:
+                #     continue
+
                 desc = f"Execute Macro Step {step_num}: {event_type} "
                 if target_selector:
                     desc += f"on {target_selector}"
@@ -233,8 +240,10 @@ class MacroEngine:
                 try:
                     if source == "dom":
                         await cls._execute_browser_step(event_type, target_selector, payload)
-                    elif source == "global":
+                    elif source == "mobile":
                         await cls._execute_mobile_step(event_type, target_selector, payload)
+                    elif source == "desktop":
+                        await cls._execute_desktop_step(event_type, target_selector, payload)
                     else:
                         logger.warning(f"Unknown macro source: {source}")
                 except Exception as e:
@@ -259,11 +268,30 @@ class MacroEngine:
         """Map generic trace events to browser_control tool actions"""
         # browser_control is an evoloop_tool, which wraps 'ainvoke'
         
+        # When an Agent generates the step (tool_call), the selector is inside the payload
+        selector = selector or payload.get("selector")
+        
+        # Extract global modifiers
+        continue_on_error = payload.get("continue_on_error", False)
+        timeout_ms = payload.get("timeout_ms", 15000)
+        
+        def handle_res(res):
+            if res and isinstance(res, str):
+                if res.startswith("Warning:"):
+                    logger.warning(f"MacroEngine Optional Step Warning: {res}")
+                elif "Execution failed:" in res or "Error:" in res:
+                    if continue_on_error:
+                        logger.warning(f"Optional step failed (continue_on_error=True): {res}")
+                    else:
+                        raise ValueError(res)
+                    
+        # Apply global modifiers to browser params
+        base_params = {"timeout_ms": timeout_ms}
+        
         if event_type in ["goto", "navigate"]:
             url = payload.get("url")
-            res = await browser_control.ainvoke({"action": "navigate", "url": url})
-            if res and isinstance(res, str) and ("Execution failed:" in res or "Error:" in res):
-                raise ValueError(res)
+            res = await browser_control.ainvoke({"action": "navigate", "url": url, **base_params})
+            handle_res(res)
             # Wait for dynamic SPAs to settle
             await asyncio.sleep(2)
             
@@ -272,56 +300,145 @@ class MacroEngine:
             # and may need to inject force=True logic. Our domain tool handles basic clicks natively.
             res = await browser_control.ainvoke({
                 "action": "click", 
-                "selector": selector
+                "selector": selector,
+                **base_params
             })
-            if res and isinstance(res, str) and ("Execution failed:" in res or "Error:" in res):
-                raise ValueError(res)
+            handle_res(res)
             
         elif event_type in ["input", "fill"]:
-            text = payload.get("text", "")
+            text = payload.get("text") or payload.get("value", "")
             res = await browser_control.ainvoke({
                 "action": "type_text",
                 "selector": selector,
                 "value": text,
-                "clear_first": True
+                "clear_first": True,
+                **base_params
             })
-            if res and isinstance(res, str) and ("Execution failed:" in res or "Error:" in res):
-                raise ValueError(res)
-            
+            handle_res(res)
+
         elif event_type == "key_press":
             key = payload.get("key")
             if key:
                 res = await browser_control.ainvoke({
                     "action": "key_press",
-                    "key": key
+                    "key": key,
+                    **base_params
                 })
-                if res and isinstance(res, str) and ("Execution failed:" in res or "Error:" in res):
-                    raise ValueError(res)
+                handle_res(res)
+
         elif event_type == "wait":
-            duration = payload.get("duration_ms", 1000) / 1000.0
+            if "seconds" in payload:
+                duration = float(payload.get("seconds"))
+            else:
+                duration = payload.get("duration_ms", 1000) / 1000.0
             await asyncio.sleep(duration)
+
         elif event_type == "wait_for":
             selector = payload.get("selector")
             state = payload.get("state", "visible")
-            timeout_ms = payload.get("timeout_ms", 15000)
             res = await browser_control.ainvoke({
                 "action": "wait_for",
                 "selector": selector,
                 "state": state,
-                "timeout_ms": timeout_ms
+                **base_params
             })
-            if res and isinstance(res, str) and ("Execution failed:" in res or "Error:" in res):
-                raise ValueError(res)
+            handle_res(res)
+
         elif event_type == "scroll":
             res = await browser_control.ainvoke({
                 "action": "scroll",
                 "direction": payload.get("direction", "down"),
                 "amount": payload.get("amount", 300)
             })
-            if res and isinstance(res, str) and ("Execution failed:" in res or "Error:" in res):
-                raise ValueError(res)
+            handle_res(res)
+            
+        elif event_type == "run_js":
+            script = payload.get("script")
+            if script:
+                res = await browser_control.ainvoke({"action": "run_js", "script": script})
+                handle_res(res)
+                
+        elif event_type == "screenshot":
+            res = await browser_control.ainvoke({"action": "screenshot", "ocr": payload.get("ocr", False)})
+            handle_res(res)
+            
+        elif event_type == "get_url":
+            res = await browser_control.ainvoke({"action": "get_url"})
+            handle_res(res)
+            
+        elif event_type in ["tool_call", "tool_result", "macro_thought"]:
+            # Silently skip agentic noise that might leak into the script
+            return
+            
         else:
             logger.warning(f"MacroEngine: Unsupported browser event type: {event_type}")
+
+    @classmethod
+    async def _execute_desktop_step(cls, event_type: str, selector: str | None, payload: dict):
+        """Map generic events to desktop_control actions (MacOS)"""
+        
+        # Consistent target resolution
+        selector = selector or payload.get("element_name") or payload.get("target")
+
+        if event_type in ["click", "double_click"]:
+            res = await desktop_control.ainvoke({
+                "action": event_type,
+                "element_name": selector,
+                "x": payload.get("x"),
+                "y": payload.get("y")
+            })
+            if res and isinstance(res, str) and "Error:" in res:
+                raise ValueError(res)
+
+        elif event_type in ["input", "type_text"]:
+            text = payload.get("text") or payload.get("value", "")
+            res = await desktop_control.ainvoke({
+                "action": "type_text",
+                "text": text
+            })
+            if res and isinstance(res, str) and "Error:" in res:
+                raise ValueError(res)
+
+        elif event_type == "key_press":
+            key = payload.get("key")
+            if key:
+                res = await desktop_control.ainvoke({"action": "key_press", "key": key})
+                if res and isinstance(res, str) and "Error:" in res:
+                    raise ValueError(res)
+
+        elif event_type == "open_app":
+            app_name = payload.get("app_name") or payload.get("text")
+            if app_name:
+                res = await desktop_control.ainvoke({"action": "open_app", "app_name": app_name})
+                if res and isinstance(res, str) and "Error:" in res:
+                    raise ValueError(res)
+
+        elif event_type == "applescript":
+            script = payload.get("script")
+            if script:
+                res = await desktop_control.ainvoke({"action": "applescript", "script": script})
+                if res and isinstance(res, str) and "Error:" in res:
+                    raise ValueError(res)
+
+        elif event_type == "scroll":
+            res = await desktop_control.ainvoke({
+                "action": "scroll",
+                "direction": payload.get("direction", "down"),
+                "amount": payload.get("amount", 300)
+            })
+            if res and isinstance(res, str) and "Error:" in res:
+                raise ValueError(res)
+
+        elif event_type == "wait":
+            duration = payload.get("duration_ms", 1000) / 1000.0
+            await asyncio.sleep(duration)
+
+        elif event_type == "screenshot":
+            res = await desktop_control.ainvoke({"action": "screenshot", "ocr": payload.get("ocr", False)})
+            if res and isinstance(res, str) and "Error:" in res:
+                raise ValueError(res)
+        else:
+            logger.warning(f"MacroEngine: Unsupported desktop event type: {event_type}")
 
     @classmethod
     async def _execute_mobile_step(cls, event_type: str, selector: str | None, payload: dict):
@@ -350,9 +467,18 @@ class MacroEngine:
                 "y2": payload.get("y2"),
                 "duration_ms": payload.get("duration_ms", 500)
             })
-            if res and res.startswith("Error:"):
-                raise ValueError(res)
-            
+        elif event_type == "open_app":
+            app_name = payload.get("app_name") or payload.get("text")
+            if app_name:
+                await mobile_control.ainvoke({"action": "open_app", "text": app_name})
+        elif event_type == "long_press":
+            await mobile_control.ainvoke({
+                "action": "long_press",
+                "x": payload.get("x"),
+                "y": payload.get("y"),
+                "element_name": selector or payload.get("element_name"),
+                "duration_ms": payload.get("duration_ms", 1000)
+            })
         elif event_type == "screenshot":
             res = await mobile_control.ainvoke({"action": "screenshot"})
             return res
