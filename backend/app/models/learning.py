@@ -166,3 +166,80 @@ class RouterTrainingData(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     source: Mapped[str] = mapped_column(String(50), default="user_feedback")  # 'manual', 'user_feedback', 'system'
+
+
+class RecordingAnnotation(Base):
+    """
+    Smart Replay Synthesis: User annotations on recorded video.
+    Stores region selections and notes for LLM analysis.
+    """
+
+    __tablename__ = "recording_annotations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(255), index=True)
+    thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+
+    # Annotation type
+    annotation_type: Mapped[str] = mapped_column(String(50), default="extract_region")  # extract_region, click_point, task_boundary
+
+    # Temporal position
+    video_timestamp_ms: Mapped[int] = mapped_column(Integer)  # Position in video (milliseconds)
+    frame_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # Spatial region (video coordinate space)
+    region_x: Mapped[float | None] = mapped_column(Float, nullable=True)
+    region_y: Mapped[float | None] = mapped_column(Float, nullable=True)
+    region_width: Mapped[float | None] = mapped_column(Float, nullable=True)
+    region_height: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    # Associated event (if any)
+    related_event_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # User note (optional short description)
+    user_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Metadata
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)  # user identifier
+
+
+class SynthesisJob(Base):
+    """
+    Smart Replay Synthesis: LLM synthesis job tracking.
+    Stores progress and results of skill generation from annotated recordings.
+    """
+
+    __tablename__ = "synthesis_jobs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(255), index=True)
+    thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+
+    # User input
+    task_goal: Mapped[str] = mapped_column(Text)  # User's stated goal
+    annotation_ids: Mapped[list] = mapped_column(JSON, default=list)  # List of annotation IDs used
+
+    # Job status
+    status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, processing, analyzing_frames, understanding_phases, generating_macro, generating_metadata, completed, failed
+    progress_percent: Mapped[int] = mapped_column(Integer, default=0)  # 0-100
+    current_phase: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Human-readable current phase
+
+    # Intermediate results (stored for debugging and transparency)
+    phase_analysis: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Phase understanding results
+    keyframes: Mapped[list | None] = mapped_column(JSON, nullable=True)  # Extracted keyframe info
+    frame_analyses: Mapped[list | None] = mapped_column(JSON, nullable=True)  # Vision LLM analysis per frame
+    extracted_insights: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Key insights extracted
+
+    # Error information
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    error_traceback: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Final result (populated when status = completed)
+    generated_skill: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # Complete skill object
+    skill_id: Mapped[int | None] = mapped_column(Integer, nullable=True)  # If saved to LearnedSkill
+
+    # Metadata
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

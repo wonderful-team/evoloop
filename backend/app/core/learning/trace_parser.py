@@ -296,7 +296,6 @@ class TraceParser:
 
             # Build UI context if available
             ui_context = None
-            ui_context = None
             if (
                 event.ui_element_info
                 or event.screenshot_path

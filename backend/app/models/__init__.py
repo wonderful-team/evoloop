@@ -12,6 +12,8 @@ from .conversation import Message as Message
 from .conversation import MessageReference as MessageReference
 from .file_operation import FileOperation as FileOperation
 from .learning import LearnedSkill as LearnedSkill
+from .learning import RecordingAnnotation as RecordingAnnotation
+from .learning import SynthesisJob as SynthesisJob
 from .learning import TraceEvent as TraceEvent
 from .memory import MemoryConcept as MemoryConcept
 from .persistence import Checkpoint as Checkpoint
@@ -41,6 +43,8 @@ __all__ = [
     "MessageReference",
     "FileOperation",
     "LearnedSkill",
+    "RecordingAnnotation",
+    "SynthesisJob",
     "TraceEvent",
     "MemoryConcept",
     "Checkpoint",

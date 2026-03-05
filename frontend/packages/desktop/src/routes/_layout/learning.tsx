@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { createFileRoute } from "@tanstack/react-router"
+import { createFileRoute, useNavigate, Outlet, useRouterState } from "@tanstack/react-router"
 import { AndroidMirrorConsole } from "@/components/Learning/AndroidMirrorConsole"
 import { SkillLibraryView } from "@/components/Learning/SkillLibraryView"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
@@ -9,7 +9,7 @@ import { useState } from "react"
 import { McpView } from "@/components/Learning/McpView"
 import { RecordingButton } from "@/components/Chat/RecordingButton"
 import { useRecordingStore } from "@/stores/recordingStore"
-import { MultimodalSynthesizeDialog } from "@/components/Learning/MultimodalSynthesizeDialog"
+import { SmartReplayEditor } from "@/components/Learning/SmartReplay"
 
 export const Route = createFileRoute("/_layout/learning")({
     component: LearningPage,
@@ -17,22 +17,33 @@ export const Route = createFileRoute("/_layout/learning")({
 
 function LearningPage() {
     const { t } = useTranslation()
+    const router = useRouterState()
     const [activeTab, setActiveTab] = useState("library")
     const [highlightSkillId, setHighlightSkillId] = useState<number | null>(null)
-    const [synthesizeOpen, setSynthesizeOpen] = useState(false)
 
     const { sessionId, videoPath, postRecordingAction, setPostRecordingAction } = useRecordingStore()
+    const [smartReplayOpen, setSmartReplayOpen] = useState(false)
+
+    // Check if we're on a child route (e.g., /learning/skills/:id/edit)
+    const isChildRoute = router.location.pathname.startsWith("/learning/") && router.location.pathname !== "/learning"
 
     // Automatic trigger for synthesis dialog
     useEffect(() => {
         if (postRecordingAction === 'synthesize' && sessionId) {
-            setSynthesizeOpen(true)
+            setSmartReplayOpen(true)
         }
     }, [postRecordingAction, sessionId])
 
-    const handleOpenEditor = (skillId: number) => {
-        setHighlightSkillId(skillId);
-        setActiveTab("library");
+    const handleSmartReplayComplete = (skillName: string) => {
+        setSmartReplayOpen(false)
+        setPostRecordingAction(null)
+        // Navigate to skill library to see the new skill
+        setActiveTab("library")
+    }
+
+    // If on child route, render the child component (Outlet)
+    if (isChildRoute) {
+        return <Outlet />
     }
 
     return (
@@ -95,17 +106,20 @@ function LearningPage() {
                 </TabsContent>
             </Tabs>
 
-            <MultimodalSynthesizeDialog
-                open={synthesizeOpen}
-                onOpenChange={(open) => {
-                    setSynthesizeOpen(open)
-                    if (!open) setPostRecordingAction(null)
-                }}
-                sessionId={sessionId || ""}
-                threadId="global"
-                videoPath={videoPath}
-                onOpenEditor={handleOpenEditor}
-            />
+            {smartReplayOpen && sessionId && videoPath && (
+                <div className="fixed inset-0 z-50 bg-background p-6 overflow-auto">
+                    <SmartReplayEditor
+                        sessionId={sessionId}
+                        threadId="global"
+                        videoPath={videoPath}
+                        onComplete={handleSmartReplayComplete}
+                        onCancel={() => {
+                            setSmartReplayOpen(false)
+                            setPostRecordingAction(null)
+                        }}
+                    />
+                </div>
+            )}
         </div>
     )
 }

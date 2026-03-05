@@ -81,13 +81,19 @@ class MacroEngine:
                 
                 is_true = False
                 if cond_type == "element_exists":
-                    if step.get("source", "dom") == "dom":
+                    source = step.get("source", "dom")
+                    if source == "dom":
                         res = await browser_control.ainvoke({"action": "check_element", "selector": selector})
                         if "visible=True" in str(res):
                             is_true = True
-                    elif step.get("source") == "global":
+                    elif source in ("mobile", "global"):
                         res = await mobile_control.ainvoke({"action": "dump_ui"})
                         if selector in str(res):
+                            is_true = True
+                    elif source == "desktop":
+                        # Desktop: 使用 applescript 检查元素存在性
+                        res = await desktop_control.ainvoke({"action": "applescript", "script": f'tell application "System Events" to exists (first UI element whose name contains "{selector}")'})
+                        if "true" in str(res).lower():
                             is_true = True
                 
                 branch = step.get("then", []) if is_true else step.get("else", [])
@@ -111,15 +117,20 @@ class MacroEngine:
                 while iterations < max_iterations:
                     is_true = False
                     if cond_type == "element_exists":
-                        if step.get("source", "dom") == "dom":
+                        source = step.get("source", "dom")
+                        if source == "dom":
                             res = await browser_control.ainvoke({"action": "check_element", "selector": selector})
                             if "visible=True" in str(res):
                                 is_true = True
-                        elif step.get("source") == "global":
+                        elif source in ("mobile", "global"):
                             res = await mobile_control.ainvoke({"action": "dump_ui"})
                             if selector in str(res):
                                 is_true = True
-                    
+                        elif source == "desktop":
+                            res = await desktop_control.ainvoke({"action": "applescript", "script": f'tell application "System Events" to exists (first UI element whose name contains "{selector}")'})
+                            if "true" in str(res).lower():
+                                is_true = True
+
                     if not is_true:
                         break
                         
@@ -163,7 +174,7 @@ class MacroEngine:
                         extracted_data[key] = match.group(1) if match else res
                     else:
                         extracted_data[key] = res
-                elif source == "global":
+                elif source in ("mobile", "global"):
                     if extract_type == "dump_ui":
                         res = await mobile_control.ainvoke({"action": "dump_ui"})
                         extracted_data[key] = res

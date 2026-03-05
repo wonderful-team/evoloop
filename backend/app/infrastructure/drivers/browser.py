@@ -116,8 +116,7 @@ class BrowserManager:
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
-                logger.info(
-                    f"[Browser] Chrome launched (pid={self._chrome_proc.pid}). Waiting {settings.CHROME_STARTUP_TIMEOUT}s...")
+                logger.info(f"[Browser] Chrome launched (pid={self._chrome_proc.pid}). Waiting {settings.CHROME_STARTUP_TIMEOUT}s...")
                 await asyncio.sleep(settings.CHROME_STARTUP_TIMEOUT)
 
                 self._browser = await self._playwright.chromium.connect_over_cdp(

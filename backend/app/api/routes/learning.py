@@ -9,6 +9,7 @@ import math
 import os
 import shutil
 import subprocess
+import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -42,6 +43,8 @@ from app.models import (
     Conversation,
     LearnedSkill,
     Message,
+    RecordingAnnotation,
+    SynthesisJob,
     TraceEvent,
 )
 
@@ -725,6 +728,8 @@ async def synthesize_skill(body: SynthesizeRequest):
                 source_session_id=skill.source_session_id,
                 is_active=True,
                 instructions=skill.instructions,
+                execution_mode=skill.execution_mode,
+                macro_script=skill.macro_script,
             )
             db.add(db_skill)
             await db.flush()  # Get ID
@@ -1249,6 +1254,8 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
                 skill_source="multimodal_record",
                 status="draft",
                 is_active=True,
+                execution_mode=skill_data.get("execution_mode", "agentic"),
+                macro_script=skill_data.get("macro_script"),
             )
             db.add(db_skill)
             await db.flush()
@@ -1354,3 +1361,394 @@ async def preview_recording_data(
     except Exception as e:
         logger.exception(f"Preview failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============ Smart Replay Synthesis ============
+
+class AnnotationCreate(BaseModel):
+    """创建标注请求"""
+    session_id: str
+    thread_id: str | None = None
+    annotation_type: str = "extract_region"  # extract_region, click_point, task_boundary
+    video_timestamp_ms: int
+    frame_number: int | None = None
+    region_x: float | None = None
+    region_y: float | None = None
+    region_width: float | None = None
+    region_height: float | None = None
+    related_event_id: int | None = None
+    user_note: str | None = None
+
+
+class AnnotationResponse(BaseModel):
+    """标注响应"""
+    id: int
+    session_id: str
+    annotation_type: str
+    video_timestamp_ms: int
+    region: dict | None
+    user_note: str | None
+    created_at: datetime
+
+
+class SmartSynthesisRequest(BaseModel):
+    """智能合成请求"""
+    session_id: str
+    thread_id: str | None = None
+    task_goal: str
+    annotation_ids: list[int] | None = None  # 指定使用哪些标注，null表示使用全部
+
+
+class SmartSynthesisResponse(BaseModel):
+    """智能合成响应"""
+    job_id: int
+    status: str
+    message: str
+
+
+class SynthesisJobResponse(BaseModel):
+    """合成任务状态响应"""
+    id: int
+    session_id: str
+    status: str
+    progress_percent: int
+    current_phase: str | None
+    task_goal: str
+    created_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+    result: dict | None  # 完成后包含 generated_skill
+    error: dict | None  # 失败时包含错误信息
+
+
+@router.post("/recordings/annotations", response_model=AnnotationResponse)
+async def create_annotation(body: AnnotationCreate):
+    """
+    创建录制标注
+
+    用户在回放视频时框选的数据区域。
+    """
+
+    async with session_scope() as db:
+        annotation = RecordingAnnotation(
+            session_id=body.session_id,
+            thread_id=body.thread_id,
+            annotation_type=body.annotation_type,
+            video_timestamp_ms=body.video_timestamp_ms,
+            frame_number=body.frame_number,
+            region_x=body.region_x,
+            region_y=body.region_y,
+            region_width=body.region_width,
+            region_height=body.region_height,
+            related_event_id=body.related_event_id,
+            user_note=body.user_note,
+        )
+        db.add(annotation)
+        await db.flush()
+        await db.refresh(annotation)
+
+        return AnnotationResponse(
+            id=annotation.id,
+            session_id=annotation.session_id,
+            annotation_type=annotation.annotation_type,
+            video_timestamp_ms=annotation.video_timestamp_ms,
+            region={
+                "x": annotation.region_x,
+                "y": annotation.region_y,
+                "width": annotation.region_width,
+                "height": annotation.region_height,
+            } if annotation.region_x is not None else None,
+            user_note=annotation.user_note,
+            created_at=annotation.created_at,
+        )
+
+
+@router.get("/recordings/{session_id}/annotations", response_model=list[AnnotationResponse])
+async def list_annotations(session_id: str):
+    """
+    获取录制的所有标注
+    """
+    from sqlalchemy import select
+
+    async with session_scope() as db:
+        stmt = select(RecordingAnnotation).where(
+            RecordingAnnotation.session_id == session_id
+        ).order_by(RecordingAnnotation.video_timestamp_ms)
+
+        result = await db.execute(stmt)
+        annotations = result.scalars().all()
+
+        return [
+            AnnotationResponse(
+                id=a.id,
+                session_id=a.session_id,
+                annotation_type=a.annotation_type,
+                video_timestamp_ms=a.video_timestamp_ms,
+                region={
+                    "x": a.region_x,
+                    "y": a.region_y,
+                    "width": a.region_width,
+                    "height": a.region_height,
+                } if a.region_x is not None else None,
+                user_note=a.user_note,
+                created_at=a.created_at,
+            )
+            for a in annotations
+        ]
+
+
+@router.delete("/recordings/annotations/{annotation_id}")
+async def delete_annotation(annotation_id: int):
+    """
+    删除标注
+    """
+    from sqlalchemy import select
+
+    async with session_scope() as db:
+        stmt = select(RecordingAnnotation).where(RecordingAnnotation.id == annotation_id)
+        result = await db.execute(stmt)
+        annotation = result.scalar_one_or_none()
+
+        if not annotation:
+            raise HTTPException(status_code=404, detail="Annotation not found")
+
+        await db.delete(annotation)
+
+    return {"success": True, "message": "Annotation deleted"}
+
+
+@router.post("/recordings/{session_id}/smart-synthesis", response_model=SmartSynthesisResponse)
+async def start_smart_synthesis(
+    session_id: str,
+    body: SmartSynthesisRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    启动智能合成任务
+
+    基于用户标注和任务目标，异步进行 LLM 推理生成技能。
+    """
+    from app.core.learning.smart_synthesizer import SmartSynthesizer
+    from sqlalchemy import select
+
+    # 验证 session 存在
+    async with session_scope() as db:
+        # 获取使用的标注
+        if body.annotation_ids:
+            stmt = select(RecordingAnnotation).where(
+                RecordingAnnotation.id.in_(body.annotation_ids)
+            )
+        else:
+            stmt = select(RecordingAnnotation).where(
+                RecordingAnnotation.session_id == session_id
+            )
+
+        result = await db.execute(stmt)
+        annotations = result.scalars().all()
+
+        if not annotations:
+            raise HTTPException(
+                status_code=400,
+                detail="No annotations found for synthesis"
+            )
+
+        # 创建合成任务
+        job = SynthesisJob(
+            session_id=session_id,
+            thread_id=body.thread_id,
+            task_goal=body.task_goal,
+            annotation_ids=[a.id for a in annotations],
+            status="pending",
+            progress_percent=0,
+        )
+        db.add(job)
+        await db.flush()
+        await db.refresh(job)
+
+        # 启动后台任务
+        background_tasks.add_task(
+            run_smart_synthesis,
+            job_id=job.id,
+            session_id=session_id,
+            thread_id=body.thread_id,
+            task_goal=body.task_goal,
+            annotation_ids=[a.id for a in annotations],
+        )
+
+        return SmartSynthesisResponse(
+            job_id=job.id,
+            status="pending",
+            message=f"Synthesis job started with {len(annotations)} annotations",
+        )
+
+
+async def run_smart_synthesis(
+    job_id: int,
+    session_id: str,
+    thread_id: str | None,
+    task_goal: str,
+    annotation_ids: list[int],
+):
+    """
+    后台运行智能合成
+    """
+    from app.core.learning.smart_synthesizer import SmartSynthesizer
+    from sqlalchemy import select
+
+    async with session_scope() as db:
+        # 更新任务状态为 processing
+        stmt = select(SynthesisJob).where(SynthesisJob.id == job_id)
+        result = await db.execute(stmt)
+        job = result.scalar_one()
+        job.status = "processing"
+        job.started_at = datetime.now()
+        await db.commit()
+
+    try:
+        # 获取标注详情
+        async with session_scope() as db:
+            stmt = select(RecordingAnnotation).where(
+                RecordingAnnotation.id.in_(annotation_ids)
+            )
+            result = await db.execute(stmt)
+            annotations = result.scalars().all()
+
+        # 运行合成器
+        synthesizer = SmartSynthesizer(
+            job_id=job_id,
+            session_id=session_id,
+            thread_id=thread_id,
+            task_goal=task_goal,
+            annotations=list(annotations),
+        )
+
+        skill = await synthesizer.synthesize()
+
+        # 保存结果
+        async with session_scope() as db:
+            stmt = select(SynthesisJob).where(SynthesisJob.id == job_id)
+            result = await db.execute(stmt)
+            job = result.scalar_one()
+
+            job.status = "completed"
+            job.progress_percent = 100
+            job.completed_at = datetime.now()
+            skill_dict = skill.to_dict() if hasattr(skill, 'to_dict') else {
+                "name": skill.name,
+                "description": skill.description,
+                "namespace": skill.namespace,
+                "trigger_patterns": skill.trigger_patterns,
+                "instructions": skill.instructions,
+                "execution_mode": skill.execution_mode,
+                "macro_script": skill.macro_script,
+            }
+            job.generated_skill = skill_dict
+
+            # 保存到 LearnedSkill 表
+            try:
+                import json
+                new_skill = LearnedSkill(
+                    name=skill.name,
+                    description=skill.description,
+                    namespace=skill.namespace or "misc",
+                    trigger_patterns=json.dumps(skill.trigger_patterns) if skill.trigger_patterns else "[]",
+                    parameters="[]",  # 默认空参数列表
+                    instructions=skill.instructions,
+                    execution_mode=skill.execution_mode,
+                    macro_script=skill.macro_script,
+                    is_active=True,
+                    status="draft",  # 新生成的技能为草稿状态，需要审核
+                    skill_source="smart_replay",  # 标识来源为智能回放合成
+                )
+                db.add(new_skill)
+                await db.flush()  # 获取 ID
+                job.skill_id = new_skill.id
+                logger.info(f"[Job {job_id}] Saved skill to LearnedSkill: {new_skill.id} - {skill.name}")
+            except Exception as e:
+                logger.warning(f"[Job {job_id}] Failed to save skill to LearnedSkill: {e}")
+                # 不影响主流程，继续提交
+
+            await db.commit()
+
+    except Exception as e:
+        logger.exception(f"Smart synthesis failed for job {job_id}: {e}")
+
+        async with session_scope() as db:
+            stmt = select(SynthesisJob).where(SynthesisJob.id == job_id)
+            result = await db.execute(stmt)
+            job = result.scalar_one()
+
+            job.status = "failed"
+            job.error_message = str(e)
+            job.error_traceback = traceback.format_exc()
+            job.completed_at = datetime.now()
+            await db.commit()
+
+
+@router.get("/synthesis-jobs/{job_id}", response_model=SynthesisJobResponse)
+async def get_synthesis_job(job_id: int):
+    """
+    获取合成任务状态和结果
+    """
+    from sqlalchemy import select
+
+    async with session_scope() as db:
+        stmt = select(SynthesisJob).where(SynthesisJob.id == job_id)
+        result = await db.execute(stmt)
+        job = result.scalar_one_or_none()
+
+        if not job:
+            raise HTTPException(status_code=404, detail="Synthesis job not found")
+
+        return SynthesisJobResponse(
+            id=job.id,
+            session_id=job.session_id,
+            status=job.status,
+            progress_percent=job.progress_percent,
+            current_phase=job.current_phase,
+            task_goal=job.task_goal,
+            created_at=job.created_at,
+            started_at=job.started_at,
+            completed_at=job.completed_at,
+            result={
+                "skill": job.generated_skill,
+                "insights": job.extracted_insights,
+            } if job.generated_skill else None,
+            error={
+                "message": job.error_message,
+                "traceback": job.error_traceback,
+            } if job.error_message else None,
+        )
+
+
+@router.get("/recordings/{session_id}/synthesis-jobs", response_model=list[SynthesisJobResponse])
+async def list_session_synthesis_jobs(session_id: str):
+    """
+    获取录制的所有合成任务
+    """
+    from sqlalchemy import select
+
+    async with session_scope() as db:
+        stmt = select(SynthesisJob).where(
+            SynthesisJob.session_id == session_id
+        ).order_by(SynthesisJob.created_at.desc())
+
+        result = await db.execute(stmt)
+        jobs = result.scalars().all()
+
+        return [
+            SynthesisJobResponse(
+                id=j.id,
+                session_id=j.session_id,
+                status=j.status,
+                progress_percent=j.progress_percent,
+                current_phase=j.current_phase,
+                task_goal=j.task_goal,
+                created_at=j.created_at,
+                started_at=j.started_at,
+                completed_at=j.completed_at,
+                result={"skill": j.generated_skill} if j.generated_skill else None,
+                error={"message": j.error_message} if j.error_message else None,
+            )
+            for j in jobs
+        ]

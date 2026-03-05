@@ -15,3 +15,8 @@ export {
 export { useProjectStatus } from "./useProjectStatus"
 export { useScreenRecordingPermission } from "./useScreenRecordingPermission"
 export { useServicer } from "./useServicer"
+export {
+    useSmartSynthesis,
+    type Annotation,
+    type SynthesisStatus,
+} from "./useSmartSynthesis"

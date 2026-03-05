@@ -18,7 +18,7 @@ from app.core.learning.macro_optimizer import MacroOptimizer
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
-from app.models import LearnedSkill, Message
+from app.models import Message
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,7 @@ class SkillParameter:
 
 
 @dataclass
-class LearnedSkill:
+class SynthesizedSkill:
     """
     A complete learned skill configuration.
     This is the output of the synthesis process.
@@ -160,7 +160,7 @@ instructions: |
 
 class WorkflowSynthesizer:
     """
-    Synthesizer that uses TraceParser and produces LearnedSkill.
+    Synthesizer that uses TraceParser and produces SynthesizedSkill.
     """
 
     def __init__(self, thread_id: str, session_id: str | None = None):
@@ -168,9 +168,9 @@ class WorkflowSynthesizer:
         self.session_id = session_id
         self.parser = TraceParser(thread_id, session_id)
 
-    async def synthesize(self, auto_optimize: bool = True) -> LearnedSkill:
+    async def synthesize(self, auto_optimize: bool = True) -> SynthesizedSkill:
         """
-        Main entry point: Parse trace -> Analyze with LLM -> Return LearnedSkill.
+        Main entry point: Parse trace -> Analyze with LLM -> Return SynthesizedSkill.
         """
         # Step 1: Parse trace into structured sequence
         sequence = await self.parser.parse()
@@ -204,7 +204,7 @@ class WorkflowSynthesizer:
         # Step 4.2: Compile raw trace into deterministic macro JSON
         macro_script = self._compile_macro_script(sequence)
 
-        # Step 4.5: Parse YAML to LearnedSkill and inject macro
+        # Step 4.5: Parse YAML to SynthesizedSkill and inject macro
         skill = self._parse_skill_yaml(yaml_output, sequence)
         skill.macro_script = macro_script
         
@@ -385,13 +385,13 @@ class WorkflowSynthesizer:
 
         return optimized_macro
 
-    def _parse_skill_yaml(self, yaml_str: str, sequence: TraceSequence) -> LearnedSkill:
-        """Parse YAML string into LearnedSkill object."""
+    def _parse_skill_yaml(self, yaml_str: str, sequence: TraceSequence) -> SynthesizedSkill:
+        """Parse YAML string into SynthesizedSkill object."""
         try:
             data = yaml.safe_load(yaml_str)
         except yaml.YAMLError as e:
             logger.error(f"Failed to parse skill YAML: {e}")
-            return LearnedSkill(
+            return SynthesizedSkill(
                 name="unparsed_skill",
                 description="Failed to parse generated skill",
                 source_thread_id=self.thread_id,
@@ -411,7 +411,7 @@ class WorkflowSynthesizer:
                     )
                 )
 
-        return LearnedSkill(
+        return SynthesizedSkill(
             name=data.get("name", "unnamed_skill"),
             description=data.get("description", ""),
             namespace=data.get("namespace", "misc"),
@@ -424,7 +424,7 @@ class WorkflowSynthesizer:
             tools_used=list(set(sequence.tools_used)),
         )
 
-    def _export_physical_skill(self, skill: LearnedSkill) -> None:
+    def _export_physical_skill(self, skill: SynthesizedSkill) -> None:
         """
         Phase 5: Export the synthesized instructions into a physical workspace 
         folder structure based on its namespace.

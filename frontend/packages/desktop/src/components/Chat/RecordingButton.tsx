@@ -57,14 +57,14 @@ export function RecordingButton({
     console.log("[RecordingButton] handleStart clicked", { isGlobalMode, hasAxPermission, hasVideoPermission, threadId })
 
     // 1. Check Video Permission (Always needed)
-    if (hasVideoPermission === false) {
+    if (hasVideoPermission !== true) {
       toast.error(t("learning.screenRecordingPermissionTitle", "Screen Recording Permission Required"))
       requestVideoPermission()
       return
     }
 
     // 2. Check AX Permission (Only if global)
-    if (isGlobalMode && hasAxPermission === false) {
+    if (isGlobalMode && hasAxPermission !== true) {
       console.log("[RecordingButton] Requesting AX permission...")
       toast.error(t("learning.permissionRequired", "Permission required. Check system settings."))
       requestAxPermission()

@@ -30,6 +30,7 @@ import { Route as LayoutProjectsProjectIdRequirementsRouteImport } from './route
 import { Route as LayoutProjectsProjectIdReportsRouteImport } from './routes/_layout/projects.$projectId.reports'
 import { Route as LayoutProjectsProjectIdGanttRouteImport } from './routes/_layout/projects.$projectId.gantt'
 import { Route as LayoutProjectsProjectIdFilesRouteImport } from './routes/_layout/projects.$projectId.files'
+import { Route as LayoutLearningSkillsSkillIdEditRouteImport } from './routes/_layout/learning.skills.$skillId.edit'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -143,6 +144,12 @@ const LayoutProjectsProjectIdFilesRoute =
     path: '/files',
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
+const LayoutLearningSkillsSkillIdEditRoute =
+  LayoutLearningSkillsSkillIdEditRouteImport.update({
+    id: '/skills/$skillId/edit',
+    path: '/skills/$skillId/edit',
+    getParentRoute: () => LayoutLearningRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute
@@ -151,7 +158,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/chat': typeof LayoutChatRoute
-  '/learning': typeof LayoutLearningRoute
+  '/learning': typeof LayoutLearningRouteWithChildren
   '/library': typeof LayoutLibraryRoute
   '/settings': typeof LayoutSettingsRoute
   '/todos': typeof LayoutTodosRoute
@@ -165,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
+  '/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -172,7 +180,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/chat': typeof LayoutChatRoute
-  '/learning': typeof LayoutLearningRoute
+  '/learning': typeof LayoutLearningRouteWithChildren
   '/library': typeof LayoutLibraryRoute
   '/settings': typeof LayoutSettingsRoute
   '/todos': typeof LayoutTodosRoute
@@ -186,6 +194,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/projects/$projectId': typeof LayoutProjectsProjectIdIndexRoute
+  '/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -195,7 +204,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
   '/_layout/chat': typeof LayoutChatRoute
-  '/_layout/learning': typeof LayoutLearningRoute
+  '/_layout/learning': typeof LayoutLearningRouteWithChildren
   '/_layout/library': typeof LayoutLibraryRoute
   '/_layout/settings': typeof LayoutSettingsRoute
   '/_layout/todos': typeof LayoutTodosRoute
@@ -210,6 +219,7 @@ export interface FileRoutesById {
   '/_layout/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
   '/_layout/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
   '/_layout/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
+  '/_layout/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -234,6 +244,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/timesheet'
     | '/projects/$projectId/wiki'
     | '/projects/$projectId/'
+    | '/learning/skills/$skillId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -255,6 +266,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/timesheet'
     | '/projects/$projectId/wiki'
     | '/projects/$projectId'
+    | '/learning/skills/$skillId/edit'
   id:
     | '__root__'
     | '/_layout'
@@ -278,6 +290,7 @@ export interface FileRouteTypes {
     | '/_layout/projects/$projectId/timesheet'
     | '/_layout/projects/$projectId/wiki'
     | '/_layout/projects/$projectId/'
+    | '/_layout/learning/skills/$skillId/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -437,8 +450,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutProjectsProjectIdFilesRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
+    '/_layout/learning/skills/$skillId/edit': {
+      id: '/_layout/learning/skills/$skillId/edit'
+      path: '/skills/$skillId/edit'
+      fullPath: '/learning/skills/$skillId/edit'
+      preLoaderRoute: typeof LayoutLearningSkillsSkillIdEditRouteImport
+      parentRoute: typeof LayoutLearningRoute
+    }
   }
 }
+
+interface LayoutLearningRouteChildren {
+  LayoutLearningSkillsSkillIdEditRoute: typeof LayoutLearningSkillsSkillIdEditRoute
+}
+
+const LayoutLearningRouteChildren: LayoutLearningRouteChildren = {
+  LayoutLearningSkillsSkillIdEditRoute: LayoutLearningSkillsSkillIdEditRoute,
+}
+
+const LayoutLearningRouteWithChildren = LayoutLearningRoute._addFileChildren(
+  LayoutLearningRouteChildren,
+)
 
 interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
@@ -472,7 +504,7 @@ const LayoutProjectsProjectIdRouteWithChildren =
 
 interface LayoutRouteChildren {
   LayoutChatRoute: typeof LayoutChatRoute
-  LayoutLearningRoute: typeof LayoutLearningRoute
+  LayoutLearningRoute: typeof LayoutLearningRouteWithChildren
   LayoutLibraryRoute: typeof LayoutLibraryRoute
   LayoutSettingsRoute: typeof LayoutSettingsRoute
   LayoutTodosRoute: typeof LayoutTodosRoute
@@ -483,7 +515,7 @@ interface LayoutRouteChildren {
 
 const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutChatRoute: LayoutChatRoute,
-  LayoutLearningRoute: LayoutLearningRoute,
+  LayoutLearningRoute: LayoutLearningRouteWithChildren,
   LayoutLibraryRoute: LayoutLibraryRoute,
   LayoutSettingsRoute: LayoutSettingsRoute,
   LayoutTodosRoute: LayoutTodosRoute,

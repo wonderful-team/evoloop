@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "@tanstack/react-router"
 import { LearningService } from "@/client/sdk.gen"
 import type { PaginatedSkillsResponse } from "@/client/types.gen"
 import { Badge } from "@evoloop/shared/components/ui/badge"
@@ -18,7 +19,6 @@ import {
 } from "@evoloop/shared/components/ui/dropdown-menu"
 import type { LearnedSkill } from "@/types/skill"
 import { SkillExecutionDialog } from "./SkillExecutionDialog"
-import { SkillEditorDialog } from "./SkillEditorDialog"
 import { SkillDetailsPanel } from "./SkillDetailsPanel"
 import { ImportSkillsDialog } from "./ImportSkillsDialog"
 
@@ -32,12 +32,11 @@ interface SkillLibraryViewProps {
 export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClearHighlight }: SkillLibraryViewProps) {
     const { t } = useTranslation()
     const queryClient = useQueryClient()
+    const navigate = useNavigate()
     const [searchQuery, setSearchQuery] = useState("")
     const [skillToExecute, setSkillToExecute] = useState<LearnedSkill | null>(null)
     const [selectedSkill, setSelectedSkill] = useState<LearnedSkill | null>(null)
-    const [skillToEdit, setSkillToEdit] = useState<LearnedSkill | null>(null)
     const [executionOpen, setExecutionOpen] = useState(false)
-    const [editingOpen, setEditingOpen] = useState(false)
 
     const [detailsOpen, setDetailsOpen] = useState(false)
     const [importOpen, setImportOpen] = useState(false)
@@ -76,17 +75,16 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
     const totalSkills = data?.total || 0;
     const totalPages = data?.total_pages || 0;
 
-    // Handle auto-open editor if highlightSkillId is provided
+    // Handle auto-navigate to editor if highlightSkillId is provided
     useEffect(() => {
         if (highlightSkillId && (skills as LearnedSkill[]).length > 0) {
             const skill = (skills as LearnedSkill[]).find((s: LearnedSkill) => s.id === highlightSkillId);
             if (skill) {
-                setSkillToEdit(skill);
-                setEditingOpen(true);
+                navigate({ to: "/learning/skills/$skillId/edit", params: { skillId: skill.id.toString() } });
                 onClearHighlight?.();
             }
         }
-    }, [highlightSkillId, skills, onClearHighlight]);
+    }, [highlightSkillId, skills, onClearHighlight, navigate]);
 
     const deleteMutation = useMutation({
         mutationFn: (skillId: number) => LearningService.deactivateSkill({ skillId }),
@@ -196,7 +194,10 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                                                 </Button>
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
-                                                <DropdownMenuItem onClick={() => { setSkillToEdit(skill); setEditingOpen(true); }}>
+                                                <DropdownMenuItem onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    navigate({ to: "/learning/skills/$skillId/edit", params: { skillId: skill.id.toString() } });
+                                                }}>
                                                     <Edit className="mr-2 h-4 w-4" /> {t("common.edit")}
                                                 </DropdownMenuItem>
                                                 <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(skill.id)}>
@@ -289,15 +290,6 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                 />
             )}
 
-            {skillToEdit && (
-                <SkillEditorDialog
-                    open={editingOpen}
-                    onOpenChange={setEditingOpen}
-                    skill={skillToEdit}
-                    onSuccess={() => queryClient.invalidateQueries({ queryKey: ["learnedSkills"] })}
-                />
-            )}
-
             <ImportSkillsDialog
                 isOpen={importOpen}
                 onClose={() => setImportOpen(false)}
@@ -309,7 +301,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                 open={detailsOpen}
                 onOpenChange={setDetailsOpen}
                 onRun={handleRunClick}
-                onEdit={(s) => { setSkillToEdit(s); setEditingOpen(true); }}
+                onEdit={(s) => navigate({ to: "/learning/skills/$skillId/edit", params: { skillId: s.id.toString() } })}
                 onDelete={handleDelete}
             />
 

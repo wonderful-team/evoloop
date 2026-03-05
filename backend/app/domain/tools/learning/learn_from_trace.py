@@ -45,6 +45,8 @@ async def learn_skill_from_trace(thread_id: str, session_id: str | None = None) 
                 tools_used=json.dumps(skill_data.tools_used),
                 source_thread_id=skill_data.source_thread_id,
                 source_session_id=skill_data.source_session_id,
+                execution_mode=skill_data.execution_mode,
+                macro_script=skill_data.macro_script,
             )
             db.add(new_skill)
             # Commit happens automatically on exit of session_scope

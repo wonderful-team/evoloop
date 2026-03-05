@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "@tanstack/react-router"
 import { LearningService } from "@/client/sdk.gen"
 import type { PaginatedSkillsResponse } from "@/client/types.gen"
 import { Badge } from "@evoloop/shared/components/ui/badge"
@@ -19,7 +20,6 @@ import {
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 import type { LearnedSkill } from "@/types/skill"
 import { SkillExecutionDialog } from "./SkillExecutionDialog"
-import { SkillEditorDialog } from "./SkillEditorDialog"
 import { Separator } from "@evoloop/shared/components/ui/separator"
 
 
@@ -41,11 +41,10 @@ export function SkillLibraryDialog({
 }: SkillLibraryDialogProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [selectedSkill, setSelectedSkill] = useState<LearnedSkill | null>(null)
   const [executionOpen, setExecutionOpen] = useState(false)
-  const [editingOpen, setEditingOpen] = useState(false)
   const [skillToExecute, setSkillToExecute] = useState<LearnedSkill | null>(null)
-  const [skillToEdit, setSkillToEdit] = useState<LearnedSkill | null>(null)
 
   // Pagination
   const [page, setPage] = useState(1)
@@ -308,8 +307,8 @@ export function SkillLibraryDialog({
                       variant="outline"
                       className="h-9 px-3"
                       onClick={() => {
-                        setSkillToEdit(selectedSkill)
-                        setEditingOpen(true)
+                        onOpenChange?.(false)
+                        navigate({ to: "/learning/skills/$skillId/edit", params: { skillId: selectedSkill.id.toString() } })
                       }}
                     >
                       <Edit className="h-4 w-4 mr-2" />
@@ -347,20 +346,6 @@ export function SkillLibraryDialog({
           projectId={projectId}
         />
       )}
-
-      {skillToEdit && (
-        <SkillEditorDialog
-          open={editingOpen}
-          onOpenChange={setEditingOpen}
-          skill={skillToEdit}
-          onSuccess={() => {
-            queryClient.invalidateQueries({ queryKey: ["learnedSkills"] })
-            setSelectedSkill(prev => prev ? { ...prev, ...skillToEdit } : null)
-          }}
-        />
-      )}
-
-
     </>
   )
 }

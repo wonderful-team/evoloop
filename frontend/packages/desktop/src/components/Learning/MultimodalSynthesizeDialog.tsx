@@ -1,4 +1,4 @@
-import { Loader2, Sparkles, Info, Terminal, Settings2, Video, FileVideo } from "lucide-react"
+import { Loader2, Sparkles, Info, Settings2, FileVideo } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"

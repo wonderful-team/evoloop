@@ -301,13 +301,15 @@ class MacroOptimizer:
         """
         判断是否是重复操作
 
-        检查操作类型和关键参数是否相同。
+        检查操作类型、目标选择器和关键参数是否都相同。
+        只有所有关键字段都相同时，才认为是重复操作。
         """
         if not previous_steps:
             return False
 
         current_type = step.get('event_type')
         current_payload = step.get('payload', {})
+        current_selector = step.get('target_selector')
 
         for prev in previous_steps:
             if prev.get('type') != 'action':
@@ -315,26 +317,63 @@ class MacroOptimizer:
 
             prev_type = prev.get('event_type')
             prev_payload = prev.get('payload', {})
+            prev_selector = prev.get('target_selector')
 
             # 检查操作类型是否相同
             if current_type != prev_type:
                 continue
 
+            # 检查目标选择器是否相同（如果存在）
+            if current_selector != prev_selector:
+                continue
+
             # 检查坐标是否相同（对于 tap/click/swipe）
             if current_type in ('tap', 'click'):
-                if (abs(current_payload.get('x', 0) - prev_payload.get('x', 0)) < 0.01 and
-                    abs(current_payload.get('y', 0) - prev_payload.get('y', 0)) < 0.01):
-                    return True
+                coord_match = (abs(current_payload.get('x', 0) - prev_payload.get('x', 0)) < 0.01 and
+                              abs(current_payload.get('y', 0) - prev_payload.get('y', 0)) < 0.01)
+                if not coord_match:
+                    continue
+                # 如果坐标相同但 button/modifiers 不同，不是重复
+                if current_payload.get('button') != prev_payload.get('button'):
+                    continue
+                if current_payload.get('modifiers') != prev_payload.get('modifiers'):
+                    continue
+                return True
 
-            # 检查其他关键参数
+            # 检查输入操作（必须文本和其他关键参数都相同）
             if current_type in ('input', 'type_text'):
-                if current_payload.get('text') == prev_payload.get('text'):
-                    return True
+                if current_payload.get('text') != prev_payload.get('text'):
+                    continue
+                # 检查其他关键参数
+                if current_payload.get('clear_first') != prev_payload.get('clear_first'):
+                    continue
+                if current_payload.get('delay_ms') != prev_payload.get('delay_ms'):
+                    continue
+                return True
 
             # 检查 open_app 是否重复
             if current_type == 'open_app':
-                if current_payload.get('package') == prev_payload.get('package'):
+                pkg_match = (current_payload.get('package') == prev_payload.get('package') or
+                           current_payload.get('app_name') == prev_payload.get('app_name') or
+                           current_payload.get('text') == prev_payload.get('text'))
+                if pkg_match:
                     return True
+                continue
+
+            # 检查 navigate/goto（URL 必须相同）
+            if current_type in ('navigate', 'goto'):
+                if current_payload.get('url') == prev_payload.get('url'):
+                    return True
+                continue
+
+            # 对于其他类型：比较完整的 payload（排除 timestamp 等非关键字段）
+            def _normalize_payload(payload: Dict) -> Dict:
+                """归一化 payload，排除非关键字段"""
+                exclude_keys = {'timestamp', 'step_number', 'random_id', 'request_id'}
+                return {k: v for k, v in payload.items() if k not in exclude_keys}
+
+            if _normalize_payload(current_payload) == _normalize_payload(prev_payload):
+                return True
 
         return False
 

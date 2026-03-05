@@ -28,7 +28,8 @@ function Layout() {
     pathname.includes("/chat") ||
     pathname.includes("/files") ||
     pathname.includes("/projects") ||
-    pathname.includes("/todos")
+    pathname.includes("/todos") ||
+    pathname.startsWith("/learning/skills")
 
   // Show wizard when setup is required
   useEffect(() => {

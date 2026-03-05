@@ -1,4 +1,4 @@
-import { Info, Terminal, Layout, Clock, TrendingUp, Play, Edit, Trash2, Sparkles } from "lucide-react"
+import { Info, Terminal, Layout, Clock, TrendingUp, Play, Edit, Trash2, Sparkles, Zap } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -50,6 +50,11 @@ export function SkillDetailsPanel({
 
     const triggerPatterns = safeParse(skill.trigger_patterns, []);
     const parameters = safeParse(skill.parameters, []);
+    const macroScript = safeParse((skill as any).macro_script, []);
+    const executionMode = (skill as any).execution_mode || "agentic";
+
+    // Check if skill has macro script
+    const hasMacroScript = Array.isArray(macroScript) && macroScript.length > 0;
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -71,9 +76,18 @@ export function SkillDetailsPanel({
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-muted/30 p-4 rounded-xl border flex flex-col gap-1">
                                 <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.status", "Status")}</span>
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-2 flex-wrap">
                                     <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
                                         {t(`learning.statusBadge.${skill.status || "draft"}`, skill.status || "draft")}
+                                    </Badge>
+                                    <Badge
+                                        variant="outline"
+                                        className={executionMode === "deterministic"
+                                            ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px]"
+                                            : "bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px]"
+                                        }
+                                    >
+                                        {executionMode === "deterministic" ? "⚡ DETERMINISTIC" : "🧠 AGENTIC"}
                                     </Badge>
                                 </div>
                             </div>
@@ -157,8 +171,46 @@ export function SkillDetailsPanel({
                             </div>
                         )}
 
-                        <Separator className="opacity-50" />
+                        {/* Macro Script - Only show if exists */}
+                        {hasMacroScript && (
+                            <>
+                                <Separator className="opacity-50" />
+                                <section className="space-y-4">
+                                    <div className="flex items-center gap-2 text-sm font-bold text-emerald-600">
+                                        <Zap className="h-4 w-4" />
+                                        {t("learning.macroScript", "Macro Script")}
+                                        <Badge variant="outline" className="text-[9px] ml-2 bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                                            ⚡ DETERMINISTIC
+                                        </Badge>
+                                    </div>
+                                    <div className="bg-emerald-50/30 dark:bg-emerald-950/10 p-4 rounded-2xl border border-emerald-500/20">
+                                        <div className="space-y-2">
+                                            {macroScript.slice(0, 5).map((step: any, i: number) => (
+                                                <div key={i} className="flex items-center gap-3 text-xs bg-background/50 p-2 rounded-lg">
+                                                    <span className="font-mono text-emerald-600 font-bold w-6">{step.step_number || i + 1}</span>
+                                                    <Badge variant="outline" className="text-[9px] capitalize">{step.type}</Badge>
+                                                    <span className="text-muted-foreground truncate flex-1">
+                                                        {step.event_type || step.description || JSON.stringify(step).slice(0, 50)}
+                                                    </span>
+                                                </div>
+                                            ))}
+                                            {macroScript.length > 5 && (
+                                                <div className="text-xs text-muted-foreground text-center py-2">
+                                                    +{macroScript.length - 5} more steps
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="mt-3 flex items-center gap-2">
+                                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] font-bold">
+                                                {macroScript.length} STEPS
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                </section>
+                            </>
+                        )}
 
+                        <Separator className="opacity-50" />
 
                         {/* Metadata & Inputs */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
