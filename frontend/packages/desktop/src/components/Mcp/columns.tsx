@@ -34,7 +34,7 @@ function DeleteServer({ name }: { name: string }) {
   const deleteMutation = useMutation({
     mutationFn: (name: string) => McpService.deleteMcpServer({ name }),
     onSuccess: () => {
-      showSuccessToast(t("mcp.deleteSuccess") || "MCP Server removed successfully")
+      showSuccessToast(t("mcp.deleteSuccess"))
       queryClient.invalidateQueries({ queryKey: ["mcpServers"] })
     },
     onError: handleError.bind(showErrorToast),
@@ -80,7 +80,7 @@ export const getColumns = ({
               : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400"
             }`}
         >
-          {row.original.status || t("mcp.table.unknown")}
+          {row.original.status ? t(`mcp.status.${row.original.status}`, row.original.status) : t("mcp.table.unknown")}
         </span>
       ),
     },

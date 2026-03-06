@@ -41,6 +41,10 @@
       "title": "General Settings",
       "selectLanguage": "Select language",
       "projectsRoot": "Projects Root Directory",
+      "projectsRootDesc": "The implementation requires read/write access to this directory.",
+      "workspaceRoot": "Workspace Root Directory",
+      "workspaceRootPlaceholder": "/path/to/workspace",
+      "workspaceRootDesc": "The workspace directory for project operations.",
       "deviceName": "Device Name"
     },
     "appearance": {
@@ -67,7 +71,12 @@
       "command": "Command",
       "loading": "Loading servers...",
       "name": "Name",
-      "unknown": "unknown"
+      "unknown": "unknown",
+      "status": {
+        "connected": "Connected",
+        "error": "Error",
+        "disconnected": "Disconnected"
+      }
     },
     "danger": {
       "kb_reset_title": "Reset Knowledge Base & Index",
@@ -308,7 +317,9 @@
     "skillLibrary": "Skill Library",
     "statusBadge": {
       "active": "Active",
-      "inactive": "Inactive"
+      "inactive": "Inactive",
+      "draft": "Draft",
+      "verified": "Verified"
     },
     "createSkillMultimodal": "Create Skill from Recording",
     "createSkillMultimodalDesc": "AI will analyze your screen recording and actions to create a reusable skill.",
@@ -995,7 +1006,19 @@
     "commandLabel": "Command",
     "deleteSuccess": "MCP server deleted successfully",
     "argsLabel": "Args (Space separated)",
-    "nameRequired": "Name is required"
+    "nameRequired": "Name is required",
+    "successEdit": "MCP server updated successfully",
+    "successAdd": "MCP server added successfully",
+    "editTitle": "Edit MCP Server",
+    "editDesc": "Update the MCP server configuration.",
+    "addTitle": "Add MCP Server",
+    "addDesc": "Add a new MCP server for external tool integration.",
+    "save": "Save",
+    "status": {
+      "connected": "Connected",
+      "error": "Error",
+      "disconnected": "Disconnected"
+    }
   },
   "sidebar": {
     "mcpServers": "MCP Servers",

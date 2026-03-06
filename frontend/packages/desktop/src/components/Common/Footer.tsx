@@ -4,13 +4,13 @@ import { FaXTwitter } from "react-icons/fa6"
 const socialLinks = [
   {
     icon: FaGithub,
-    href: "https://github.com/fastapi/fastapi",
+    href: "https://github.com/evoloop",
     label: "GitHub",
   },
-  { icon: FaXTwitter, href: "https://x.com/fastapi", label: "X" },
+  { icon: FaXTwitter, href: "https://x.com/evoloop", label: "X" },
   {
     icon: FaLinkedinIn,
-    href: "https://linkedin.com/company/fastapi",
+    href: "https://linkedin.com/company/evoloop",
     label: "LinkedIn",
   },
 ]
@@ -28,7 +28,7 @@ export function Footer() {
           {t("footer.copyright")}
         </p>
         <div className="flex items-center gap-4">
-          {socialLinks.map(({ icon: Icon, href, label }) => (
+          {/*socialLinks.map(({ icon: Icon, href, label }) => (
             <a
               key={label}
               href={href}
@@ -39,7 +39,7 @@ export function Footer() {
             >
               <Icon className="h-5 w-5" />
             </a>
-          ))}
+          ))*/}
         </div>
       </div>
     </footer>

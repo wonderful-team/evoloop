@@ -277,7 +277,7 @@ export const ChatInputArea = memo(
 
               {/* Left Group: Tools */}
               <div className="flex items-center gap-1">
-                {activeThreadId && !isGlobalMode && (
+                {activeThreadId && (
                   <>
                     <SkillLibraryDialog
                       threadId={activeThreadId}
@@ -296,7 +296,7 @@ export const ChatInputArea = memo(
                     <div className="h-8 flex items-center justify-center">
                       <RecordingButton
                         threadId={activeThreadId}
-                        enabled={!!currentProject}
+                        enabled={true}
                       />
                     </div>
                   </>

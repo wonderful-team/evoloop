@@ -41,6 +41,10 @@
       "title": "常规设置",
       "selectLanguage": "选择语言",
       "projectsRoot": "项目根目录",
+      "projectsRootDesc": "实现需要对此目录的读写权限。",
+      "workspaceRoot": "工作区根目录",
+      "workspaceRootPlaceholder": "/path/to/workspace",
+      "workspaceRootDesc": "项目操作的工作区目录。",
       "deviceName": "设备名称"
     },
     "appearance": {
@@ -67,7 +71,12 @@
       "command": "命令",
       "loading": "加载服务器...",
       "name": "名称",
-      "unknown": "未知"
+      "unknown": "未知",
+      "status": {
+        "connected": "已连接",
+        "error": "错误",
+        "disconnected": "已断开"
+      }
     },
     "danger": {
       "kb_reset_title": "重置知识库 & 索引",
@@ -308,7 +317,9 @@
     "skillLibrary": "技能库",
     "statusBadge": {
       "active": "已激活",
-      "inactive": "已停用"
+      "inactive": "已停用",
+      "draft": "草稿",
+      "verified": "已验证"
     },
     "createSkillMultimodal": "从录制创建技能",
     "createSkillMultimodalDesc": "AI 将分析您的屏幕录制和操作来创建可重用的技能。",
@@ -995,7 +1006,19 @@
     "commandLabel": "命令",
     "deleteSuccess": "MCP 服务器删除成功",
     "argsLabel": "参数 (空格分隔)",
-    "nameRequired": "名称为必填项"
+    "nameRequired": "名称为必填项",
+    "successEdit": "MCP 服务器更新成功",
+    "successAdd": "MCP 服务器添加成功",
+    "editTitle": "编辑 MCP 服务器",
+    "editDesc": "更新 MCP 服务器配置。",
+    "addTitle": "添加 MCP 服务器",
+    "addDesc": "添加新的 MCP 服务器以集成外部工具。",
+    "save": "保存",
+    "status": {
+      "connected": "已连接",
+      "error": "错误",
+      "disconnected": "已断开"
+    }
   },
   "sidebar": {
     "mcpServers": "MCP 服务器",

@@ -159,7 +159,7 @@ export function McpManager() {
                             : "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400"
                         }`}
                       >
-                        {server.status || t("settings.mcp.unknown")}
+                        {server.status ? t(`settings.mcp.status.${server.status}`, server.status) : t("settings.mcp.unknown")}
                       </span>
                     </TableCell>
                     <TableCell>
