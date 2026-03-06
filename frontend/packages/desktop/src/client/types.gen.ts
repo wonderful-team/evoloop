@@ -1612,6 +1612,45 @@ export type UtilsGetEvoloopStatusResponse = (unknown);
 
 export type UtilsGetAiConfigResponse = (unknown);
 
+export type WechatAuthGetWechatConfigResponse = (unknown);
+
+export type WechatAuthGenerateQrCodeResponse = (unknown);
+
+export type WechatAuthCheckLoginStatusData = {
+    /**
+     * The unique key from QR code generation
+     */
+    key: string;
+};
+
+export type WechatAuthCheckLoginStatusResponse = (unknown);
+
+export type WechatAuthWechatDirectLoginData = {
+    /**
+     * The unique key from QR code generation
+     */
+    key: string;
+};
+
+export type WechatAuthWechatDirectLoginResponse = (Token);
+
+export type WechatAuthWechatCallbackGetData = {
+    echostr?: (string | null);
+    nonce: string;
+    signature: string;
+    timestamp: string;
+};
+
+export type WechatAuthWechatCallbackGetResponse = (unknown);
+
+export type WechatAuthWechatCallbackPostData = {
+    nonce: string;
+    signature: string;
+    timestamp: string;
+};
+
+export type WechatAuthWechatCallbackPostResponse = (unknown);
+
 export type WikiGetWikiPagesData = {
     projectId: number;
 };

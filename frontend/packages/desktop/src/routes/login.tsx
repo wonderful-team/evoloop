@@ -3,6 +3,7 @@ import {
   createFileRoute,
   Link as RouterLink,
   redirect,
+  useNavigate,
 } from "@tanstack/react-router"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
@@ -11,6 +12,7 @@ import { z } from "zod"
 
 import type { Body_login_login_access_token as AccessToken } from "@/client"
 import { AuthLayout } from "@/components/Common/AuthLayout"
+import { WechatLoginButton } from "@/components/Auth/WechatLogin"
 import {
   Form,
   FormControl,
@@ -62,6 +64,7 @@ export const Route = createFileRoute("/login")({
 
 function Login() {
   const { t } = useTranslation()
+  const navigate = useNavigate()
 
   // Update page title dynamically
   useEffect(() => {
@@ -83,6 +86,12 @@ function Login() {
   const onSubmit = (data: FormData) => {
     if (loginMutation.isPending) return
     loginMutation.mutate(data)
+  }
+
+  const handleWechatLogin = (token: string) => {
+    localStorage.setItem("access_token", token)
+    localStorage.setItem("evoloop_token", token)
+    navigate({ to: "/" })
   }
 
   return (
@@ -144,6 +153,21 @@ function Login() {
             <LoadingButton type="submit" loading={loginMutation.isPending}>
               {t("auth.login.submit")}
             </LoadingButton>
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  {t("auth.login.orContinueWith", "或使用其他方式")}
+                </span>
+              </div>
+            </div>
+
+            {/* WeChat Login */}
+            <WechatLoginButton onSuccess={handleWechatLogin} />
           </div>
 
           <div className="text-center text-sm">

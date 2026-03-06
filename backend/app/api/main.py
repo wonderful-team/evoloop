@@ -26,6 +26,7 @@ from app.api.routes import (
     tools,
     users,
     utils,
+    wechat_auth,
     wiki,
 )
 
@@ -35,6 +36,7 @@ api_router.include_router(login.router)
 api_router.include_router(users.router)
 api_router.include_router(utils.router)
 api_router.include_router(auth_proxy.router, prefix="/auth", tags=["auth"])
+api_router.include_router(wechat_auth.router, tags=["wechat-auth"])
 
 
 api_router.include_router(agent.router, tags=["agent"])  # agent.py defines /chat, /webhook
