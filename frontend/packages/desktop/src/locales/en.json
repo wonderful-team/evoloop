@@ -14,7 +14,6 @@
         "description": "Lower = Faster (More matching). Higher = Smarter (More LLM fallback). Default: 0.35",
         "label": "Intent Threshold (0.0 - 1.0)"
       },
-      "projectsRootDesc": "The implementation requires read/write access to this directory.",
       "planApproval": {
         "description": "If unchecked, the agent will auto-execute generated plans without waiting for your confirmation.",
         "label": "Require Plan Approval"

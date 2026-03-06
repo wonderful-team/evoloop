@@ -8,7 +8,8 @@
  * - Add/remove step functionality
  */
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect, useMemo } from "react"
+import * as LucideIcons from "lucide-react"
 import {
     GripVertical,
     Trash2,
@@ -18,24 +19,7 @@ import {
     Play,
     Copy,
     MousePointerClick,
-    Keyboard,
-    Eye,
-    Clock,
-    ArrowRight,
-    ArrowLeft,
-    RotateCcw,
-    MousePointer,
-    Move,
-    List,
-    Upload,
-    ExternalLink,
-    Code,
-    Home,
-    Power,
-    Type,
-    Download,
     Undo2,
-    RefreshCw,
     Split,
     Repeat,
     Settings2,
@@ -102,64 +86,15 @@ interface MacroEditorProps {
     readOnly?: boolean
 }
 
-// Event type options grouped by source - labels will be translated at render time
-const EVENT_TYPES: Record<string, { value: string; icon: React.ReactNode }[]> = {
-    dom: [
-        { value: "navigate", icon: <ArrowRight className="h-4 w-4" /> },
-        { value: "back", icon: <ArrowLeft className="h-4 w-4" /> },
-        { value: "forward", icon: <ArrowRight className="h-4 w-4" /> },
-        { value: "reload", icon: <RotateCcw className="h-4 w-4" /> },
-        { value: "click", icon: <MousePointerClick className="h-4 w-4" /> },
-        { value: "double_click", icon: <MousePointerClick className="h-4 w-4" /> },
-        { value: "hover", icon: <MousePointer className="h-4 w-4" /> },
-        { value: "input", icon: <Keyboard className="h-4 w-4" /> },
-        { value: "key_press", icon: <Keyboard className="h-4 w-4" /> },
-        { value: "select_option", icon: <List className="h-4 w-4" /> },
-        { value: "scroll", icon: <RefreshCw className="h-4 w-4" /> },
-        { value: "drag_drop", icon: <Move className="h-4 w-4" /> },
-        { value: "upload", icon: <Upload className="h-4 w-4" /> },
-        { value: "wait", icon: <Clock className="h-4 w-4" /> },
-        { value: "wait_for", icon: <Clock className="h-4 w-4" /> },
-        { value: "new_tab", icon: <ExternalLink className="h-4 w-4" /> },
-        { value: "switch_tab", icon: <ExternalLink className="h-4 w-4" /> },
-        { value: "dialog_handle", icon: <Settings2 className="h-4 w-4" /> },
-        { value: "run_js", icon: <Code className="h-4 w-4" /> },
-        { value: "get_text", icon: <Download className="h-4 w-4" /> },
-        { value: "get_attribute", icon: <Download className="h-4 w-4" /> },
-        { value: "get_html", icon: <Download className="h-4 w-4" /> },
-        { value: "get_links", icon: <Download className="h-4 w-4" /> },
-        { value: "screenshot", icon: <Eye className="h-4 w-4" /> },
-    ],
-    mobile: [
-        { value: "tap", icon: <MousePointerClick className="h-4 w-4" /> },
-        { value: "long_press", icon: <MousePointerClick className="h-4 w-4" /> },
-        { value: "swipe", icon: <RefreshCw className="h-4 w-4" /> },
-        { value: "scroll", icon: <RefreshCw className="h-4 w-4" /> },
-        { value: "input", icon: <Keyboard className="h-4 w-4" /> },
-        { value: "key_press", icon: <Keyboard className="h-4 w-4" /> },
-        { value: "back_key", icon: <ArrowLeft className="h-4 w-4" /> },
-        { value: "home", icon: <Home className="h-4 w-4" /> },
-        { value: "open_app", icon: <ExternalLink className="h-4 w-4" /> },
-        { value: "close_app", icon: <Power className="h-4 w-4" /> },
-        { value: "dump_ui", icon: <Eye className="h-4 w-4" /> },
-        { value: "screenshot", icon: <Eye className="h-4 w-4" /> },
-        { value: "wait", icon: <Clock className="h-4 w-4" /> },
-    ],
-    desktop: [
-        { value: "open_app", icon: <ExternalLink className="h-4 w-4" /> },
-        { value: "close_app", icon: <Power className="h-4 w-4" /> },
-        { value: "click", icon: <MousePointerClick className="h-4 w-4" /> },
-        { value: "double_click", icon: <MousePointerClick className="h-4 w-4" /> },
-        { value: "key_press", icon: <Keyboard className="h-4 w-4" /> },
-        { value: "scroll", icon: <RefreshCw className="h-4 w-4" /> },
-        { value: "drag_drop", icon: <Move className="h-4 w-4" /> },
-        { value: "applescript", icon: <Type className="h-4 w-4" /> },
-        { value: "get_active_app", icon: <ExternalLink className="h-4 w-4" /> },
-        { value: "get_info", icon: <Download className="h-4 w-4" /> },
-        { value: "dump_ui", icon: <Eye className="h-4 w-4" /> },
-        { value: "screenshot", icon: <Eye className="h-4 w-4" /> },
-        { value: "wait", icon: <Clock className="h-4 w-4" /> },
-    ],
+// Interface for Registry Actions from Backend
+export interface ActionDef {
+    id: string
+    platforms: string[]
+    icon: string
+    description: string
+    zh: string
+    en: string
+    params: Record<string, string>
 }
 
 export function MacroEditor({
@@ -169,10 +104,47 @@ export function MacroEditor({
     onStepPreview,
     readOnly = false,
 }: MacroEditorProps) {
-    const { t } = useTranslation()
+    const { t, i18n } = useTranslation()
+    const [actionRegistry, setActionRegistry] = useState<ActionDef[]>([])
     const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set([0]))
     const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
     const [originalSteps] = useState<MacroStep[]>(JSON.parse(JSON.stringify(steps)))
+
+    // Fetch Action Registry from Backend
+    useEffect(() => {
+        fetch("/api/v1/learning/capabilities/actions")
+            .then(res => res.json())
+            .then(data => setActionRegistry(data))
+            .catch(err => console.error("Failed to fetch Action Registry:", err))
+    }, [])
+
+    // Dynamically compute eventTypes from Registry
+    const eventTypes = useMemo(() => {
+        const groups: Record<string, { value: string; icon: React.ReactNode; label: string }[]> = {
+            dom: [],
+            mobile: [],
+            desktop: [],
+            global: []
+        }
+
+        actionRegistry.forEach(action => {
+            // Map Lucide icon string to Component
+            const IconComponent = (LucideIcons as any)[action.icon] || MousePointerClick
+            const icon = <IconComponent className="h-4 w-4" />
+
+            // Dynamic label based on locale
+            const label = i18n.language === "zh" ? action.zh : action.en
+
+            action.platforms.forEach(p => {
+                if (groups[p]) {
+                    groups[p].push({ value: action.id, icon, label })
+                }
+            })
+        })
+
+        // Add "global" actions (Wait, etc) to all lists if registry doesn't specify
+        return groups
+    }, [actionRegistry, i18n.language])
 
     // Toggle step expansion
     const toggleStep = useCallback((index: number) => {
@@ -286,10 +258,10 @@ export function MacroEditor({
         if (step.type === "while") return <Repeat className="h-4 w-4" />
         if (step.type === "control") return <Settings2 className="h-4 w-4" />
 
-        const sourceEvents = EVENT_TYPES[step.source] || EVENT_TYPES.dom
-        const eventType = sourceEvents.find((e) => e.value === step.event_type)
-        return eventType?.icon || <MousePointerClick className="h-4 w-4" />
-    }, [])
+        const sourceEvents = (eventTypes as any)[step.source] || eventTypes.dom
+        const foundEvent = sourceEvents.find((e: any) => e.value === step.event_type)
+        return foundEvent?.icon || <MousePointerClick className="h-4 w-4" />
+    }, [eventTypes])
 
     // Get step color
     const getStepColor = useCallback((step: MacroStep) => {
@@ -522,8 +494,8 @@ export function MacroEditor({
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    {(EVENT_TYPES[step.source] || EVENT_TYPES.dom).map(
-                                                        (event) => (
+                                                    {(eventTypes[step.source] || eventTypes.dom).map(
+                                                        (event: any) => (
                                                             <SelectItem key={event.value} value={event.value}>
                                                                 <div className="flex items-center gap-2">
                                                                     {event.icon}

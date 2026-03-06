@@ -1,10 +1,10 @@
 import logging
 from typing import Any, Dict, List, Optional, Union
 
-from app.core.execution.macro.schema import MacroEngine
-from app.core.execution.macro.schema import MacroOptimizer
-from app.core.monitoring.activity import activity_monitor
+from app.core.execution.macro.engine import MacroEngine
+from app.core.execution.macro.optimizer import MacroOptimizer
 from app.core.execution.macro.schema import MacroScript
+from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger(__name__)
 

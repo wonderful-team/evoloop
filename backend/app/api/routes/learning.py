@@ -26,7 +26,7 @@ from app.core.learning.multimodal_synthesizer import (
     MultimodalSkillSynthesizer,
     RecordingSession,
 )
-from app.domain.tools.environment.mirror_session import mirror_manager
+from app.core.environment.controllers.mirror_session import mirror_manager
 from app.domain.tools.human_input import (
     cancel_request,
     cleanup_old_requests,
@@ -45,6 +45,7 @@ from app.models import (
     SynthesisJob,
     TraceEvent,
 )
+from app.core.environment.capabilities.registry import ActionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,12 @@ class PaginatedSkillsResponse(BaseModel):
 
 
 # ============ Endpoints ============
+
+
+@router.get("/capabilities/actions")
+async def get_action_registry():
+    """Export the centralized action registry for frontend sync."""
+    return [a.dict() for a in ActionRegistry.list_actions()]
 
 
 @router.get("/human-requests", response_model=list[HumanInputRequestOut])

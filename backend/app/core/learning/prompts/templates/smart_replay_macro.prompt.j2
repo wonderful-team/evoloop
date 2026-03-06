@@ -35,15 +35,24 @@ Each step MUST have:
 - type: "action" | "extract" | "dump" | "if" | "while"
 - description: Brief explanation of the step
 
-Action Types:
-- General: "navigate", "back", "forward", "reload", "click", "double_click", "hover", "input", "scroll", "wait", "wait_for", "screenshot", "key_press"
-- Mobile/Desktop: "open_app", "close_app", "swipe", "home", "back_key", "applescript"
+Action Types (By Platform):
+{% if action_docs %}
+#### Web/DOM:
+{% for doc in action_docs.dom %}{{ doc }}
+{% endfor %}
+#### Mobile/Android:
+{% for doc in action_docs.mobile %}{{ doc }}
+{% endfor %}
+#### Desktop/MacOS:
+{% for doc in action_docs.desktop %}{{ doc }}
+{% endfor %}
+{% else %}
+- navigate, click, input, scroll, wait, screenshot, get_text, get_attribute, key_press
+{% endif %}
 
 Control Flow:
 - "if": Use for conditional execution. Requires "condition" (element_exists, element_visible, text_contains).
 - "while": Use for loops. Requires "condition" and "max_iterations".
-
-Extract Types: "get_text", "get_attribute", "get_inner_html", "dump_ui"
 
 ## Logic Requirements
 1. **Navigation**: Usually start with "navigate" to the target URL.

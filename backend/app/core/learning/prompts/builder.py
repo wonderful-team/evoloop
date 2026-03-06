@@ -2,8 +2,10 @@ import os
 import logging
 from typing import Any, Dict, List
 from jinja2 import Environment, FileSystemLoader
+from app.core.environment.capabilities.registry import ActionRegistry
 
 logger = logging.getLogger(__name__)
+
 
 class LearningPromptBuilder:
     """
@@ -13,6 +15,19 @@ class LearningPromptBuilder:
         # Look for templates in the sibling directory
         template_dir = os.path.join(os.path.dirname(__file__), "templates")
         self.env = Environment(loader=FileSystemLoader(template_dir))
+        
+    def _get_action_docs(self) -> Dict[str, List[str]]:
+        """Organizes registry actions by platform for prompt optimization."""
+        docs = {"dom": [], "mobile": [], "desktop": []}
+        for action in ActionRegistry.list_actions():
+            doc_str = f'- "{action.id}": {action.description}'
+            if action.params:
+                doc_str += f' Params: {", ".join(action.params.keys())}'
+            
+            for p in action.platforms:
+                if p in docs:
+                    docs[p].append(doc_str)
+        return docs
 
     def build_synthesis_prompt(self, vars: Dict[str, Any]) -> str:
         """Renders the skill synthesis prompt."""
@@ -26,6 +41,8 @@ class LearningPromptBuilder:
     def build_macro_prompt(self, vars: Dict[str, Any]) -> str:
         """Renders the smart replay macro generation prompt."""
         try:
+            # Inject dynamic action documentation from the registry
+            vars["action_docs"] = self._get_action_docs()
             template = self.env.get_template("smart_replay_macro.prompt.j2")
             return template.render(**vars)
         except Exception as e:

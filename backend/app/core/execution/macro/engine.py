@@ -3,13 +3,15 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.domain.tools.environment.browser import browser_control
-from app.domain.tools.environment.mobile import mobile_control
-from app.domain.tools.environment.desktop import desktop_control
+from app.core.environment.controllers.browser_controller import BrowserController
+from app.core.environment.controllers.mobile_controller import MobileController
+from app.core.environment.controllers.desktop_controller import DesktopController
 from app.core.monitoring.activity import activity_monitor
 from app.core.execution.macro.schema import MacroStep, MacroStepType, MacroSource
+from app.core.environment.capabilities.registry import ActionRegistry
 
 logger = logging.getLogger(__name__)
+
 
 class MacroEngine:
     """
@@ -151,75 +153,70 @@ class MacroEngine:
     async def _evaluate_condition(cls, cond_type: str, selector: str, source: str) -> bool:
         if cond_type == "element_exists":
             if source == MacroSource.DOM:
-                res = await browser_control.ainvoke({"action": "check_element", "selector": selector})
-                # check_element returns string like "Found 1 elements (visible=True...)"
+                res = await BrowserController.execute(action="check_element", selector=selector)
                 return "Found" in str(res)
             elif source in (MacroSource.MOBILE, MacroSource.GLOBAL):
-                res = await mobile_control.ainvoke({"action": "dump_ui"})
+                res = await MobileController.execute(action="dump_ui")
                 return selector in str(res)
             elif source == MacroSource.DESKTOP:
-                res = await desktop_control.ainvoke({"action": "applescript", "script": f'tell application "System Events" to exists (first UI element whose name contains "{selector}")'})
+                res = await DesktopController.execute(action="applescript", script=f'tell application "System Events" to exists (first UI element whose name contains "{selector}")')
                 return "true" in str(res).lower()
-        
+
         elif cond_type == "element_visible":
             if source == MacroSource.DOM:
-                res = await browser_control.ainvoke({"action": "check_element", "selector": selector})
+                res = await BrowserController.execute(action="check_element", selector=selector)
                 return "visible=True" in str(res)
             elif source in (MacroSource.MOBILE, MacroSource.GLOBAL):
-                # Mobile dump_ui only returns visible elements by default in many modes
-                res = await mobile_control.ainvoke({"action": "dump_ui"})
+                res = await MobileController.execute(action="dump_ui")
                 return selector in str(res)
             elif source == MacroSource.DESKTOP:
-                res = await desktop_control.ainvoke({"action": "applescript", "script": f'tell application "System Events" to get visible of (first UI element whose name contains "{selector}")'})
+                res = await DesktopController.execute(action="applescript", script=f'tell application "System Events" to get visible of (first UI element whose name contains "{selector}")')
                 return "true" in str(res).lower()
 
         elif cond_type == "text_contains":
             if source == MacroSource.DOM:
-                res = await browser_control.ainvoke({"action": "get_text"})
+                res = await BrowserController.execute(action="get_text")
                 return selector in str(res) if res else False
             elif source in (MacroSource.MOBILE, MacroSource.GLOBAL):
-                res = await mobile_control.ainvoke({"action": "dump_ui"})
+                res = await MobileController.execute(action="dump_ui")
                 return selector in str(res)
             elif source == MacroSource.DESKTOP:
-                res = await desktop_control.ainvoke({"action": "applescript", "script": f'tell application "System Events" to get name of every UI element whose name contains "{selector}"'})
-                return len(str(res)) > 5 # Simple check if list is non-empty
-        
+                res = await DesktopController.execute(action="applescript", script=f'tell application "System Events" to get name of every UI element whose name contains "{selector}"')
+                return len(str(res)) > 5
+
         return False
 
     @classmethod
     async def _handle_extraction(cls, thread_id: str, step: MacroStep, selector: str, payload: dict, params: dict, extracted_data: dict):
         key = cls._inject_params(step.key, params) or "data"
         extract_type = step.extract_type or step.event_type
-        
+
         desc = f"Extract '{key}' from {selector}"
         await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
-        
+
         if step.source == MacroSource.DOM:
-            call_params = {"action": extract_type, "selector": selector}
-            # Handle specific extraction sub-params
+            call_kwargs = {"action": extract_type, "selector": selector}
             if extract_type == "get_attribute" and "attribute" in payload:
-                call_params["attribute"] = payload["attribute"]
+                call_kwargs["attribute"] = payload["attribute"]
             elif extract_type in ("run_js", "evaluate") and ("script" in payload or "expression" in payload):
-                call_params["action"] = "run_js"
-                call_params["script"] = payload.get("script") or payload.get("expression")
-                
-            res = await browser_control.ainvoke(call_params)
+                call_kwargs["action"] = "run_js"
+                call_kwargs["script"] = payload.get("script") or payload.get("expression")
+
+            res = await BrowserController.execute(**call_kwargs)
             if extract_type == "screenshot":
                 match = re.search(r"(/.*\.png)", str(res))
                 extracted_data[key] = match.group(1) if match else res
             else:
                 extracted_data[key] = res
-                
+
         elif step.source in (MacroSource.MOBILE, MacroSource.GLOBAL):
             if extract_type == "dump_ui":
-                res = await mobile_control.ainvoke({"action": "dump_ui"})
+                res = await MobileController.execute(action="dump_ui")
                 extracted_data[key] = res
             elif extract_type == "screenshot":
-                res = await mobile_control.ainvoke({"action": "screenshot"})
+                res = await MobileController.execute(action="screenshot")
                 match = re.search(r"(/.*\.png)", str(res))
                 filepath = match.group(1) if match else str(res)
-                
-                # Pillow cropping logic (lossless port)
                 if selector and filepath.endswith(".png"):
                     filepath = await cls._crop_mobile_screenshot(filepath, selector)
                 extracted_data[key] = filepath
@@ -262,163 +259,123 @@ class MacroEngine:
             logger.warning(f"Failed to dump data: {e}")
 
     # --- Tool Invocation Wrappers (Browser/Mobile/Desktop) ---
-    # Ported from legacy MacroEngine with minimal changes to ensure reliability
-    
+
     @classmethod
     async def _execute_browser_step(cls, event_type: str, selector: str, payload: dict):
+        """Execute a browser step directly via BrowserController (no @evoloop_tool overhead)."""
         continue_on_error = payload.get("continue_on_error", False)
-        base_params = {"timeout_ms": payload.get("timeout_ms", 15000)}
-        
+        timeout_ms = payload.get("timeout_ms", 15000)
+
         def handle_res(res):
             if res and isinstance(res, str):
-                if res.startswith("Warning:"): return
+                if res.startswith("Warning:"):
+                    return
                 if "Execution failed:" in res or "Error:" in res:
-                    if not continue_on_error: raise ValueError(res)
+                    if not continue_on_error:
+                        raise ValueError(res)
+
+        tool_action = ActionRegistry.get_tool_action(event_type, "dom")
 
         if event_type in ("goto", "navigate"):
-            res = await browser_control.ainvoke({"action": "navigate", "url": payload.get("url"), **base_params})
+            res = await BrowserController.execute(action=tool_action, url=payload.get("url"), timeout_ms=timeout_ms)
             handle_res(res)
             await asyncio.sleep(2)
         elif event_type == "back":
-            res = await browser_control.ainvoke({"action": "back", **base_params})
-            handle_res(res)
+            handle_res(await BrowserController.execute(action=tool_action, timeout_ms=timeout_ms))
         elif event_type == "forward":
-            res = await browser_control.ainvoke({"action": "forward", **base_params})
-            handle_res(res)
+            handle_res(await BrowserController.execute(action=tool_action, timeout_ms=timeout_ms))
         elif event_type == "reload":
-            res = await browser_control.ainvoke({"action": "reload", **base_params})
-            handle_res(res)
-        elif event_type in ("click", "tap"):
-            res = await browser_control.ainvoke({"action": "click", "selector": selector, "x": payload.get("x"), "y": payload.get("y"), **base_params})
-            handle_res(res)
-        elif event_type == "double_click":
-            res = await browser_control.ainvoke({"action": "double_click", "selector": selector, "x": payload.get("x"), "y": payload.get("y"), **base_params})
-            handle_res(res)
-        elif event_type == "hover":
-            res = await browser_control.ainvoke({"action": "hover", "selector": selector, **base_params})
-            handle_res(res)
+            handle_res(await BrowserController.execute(action=tool_action, timeout_ms=timeout_ms))
+        elif event_type in ("click", "tap", "double_click", "hover"):
+            handle_res(await BrowserController.execute(action=tool_action, selector=selector, x=payload.get("x"), y=payload.get("y"), timeout_ms=timeout_ms))
         elif event_type in ("input", "type_text"):
-            res = await browser_control.ainvoke({
-                "action": "type_text", "selector": selector, "value": payload.get("text") or payload.get("value", ""),
-                "clear_first": payload.get("clear_first", True), **base_params
-            })
-            handle_res(res)
+            handle_res(await BrowserController.execute(action="type_text", selector=selector, value=payload.get("text") or payload.get("value", ""), clear_first=payload.get("clear_first", True), timeout_ms=timeout_ms))
         elif event_type == "select_option":
-            res = await browser_control.ainvoke({"action": "select_option", "selector": selector, "value": payload.get("value"), **base_params})
-            handle_res(res)
+            handle_res(await BrowserController.execute(action=tool_action, selector=selector, value=payload.get("value"), timeout_ms=timeout_ms))
         elif event_type == "key_press":
-            res = await browser_control.ainvoke({"action": "key_press", "key": payload.get("key"), **base_params})
-            handle_res(res)
+            handle_res(await BrowserController.execute(action=tool_action, key=payload.get("key"), timeout_ms=timeout_ms))
         elif event_type == "drag_drop":
-            res = await browser_control.ainvoke({
-                "action": "drag_drop", "source_selector": payload.get("source_selector") or selector,
-                "target_selector": payload.get("target_selector"), **base_params
-            })
-            handle_res(res)
+            handle_res(await BrowserController.execute(action=tool_action, source_selector=payload.get("source_selector") or selector, target_selector=payload.get("target_selector"), timeout_ms=timeout_ms))
         elif event_type == "upload":
-            res = await browser_control.ainvoke({"action": "upload", "selector": selector, "file_path": payload.get("file_path"), **base_params})
-            handle_res(res)
+            handle_res(await BrowserController.execute(action=tool_action, selector=selector, file_path=payload.get("file_path"), timeout_ms=timeout_ms))
         elif event_type == "wait":
             duration = payload.get("seconds") or (payload.get("duration_ms", 1000) / 1000.0)
             await asyncio.sleep(float(duration))
         elif event_type == "wait_for":
-            res = await browser_control.ainvoke({
-                "action": "wait_for", "selector": payload.get("selector") or selector, 
-                "state": payload.get("state", "visible"), "url_pattern": payload.get("url_pattern"), **base_params
-            })
-            handle_res(res)
+            handle_res(await BrowserController.execute(action=tool_action, selector=payload.get("selector") or selector, state=payload.get("state", "visible"), url_pattern=payload.get("url_pattern"), timeout_ms=timeout_ms))
         elif event_type == "scroll":
-            await browser_control.ainvoke({"action": "scroll", "selector": selector, "direction": payload.get("direction", "down"), "amount": payload.get("amount", 300)})
+            await BrowserController.execute(action=tool_action, selector=selector, direction=payload.get("direction", "down"), amount=payload.get("amount", 300))
         elif event_type == "screenshot":
-            await browser_control.ainvoke({"action": "screenshot", "selector": selector, "full_page": payload.get("full_page", False)})
+            await BrowserController.execute(action=tool_action, selector=selector, full_page=payload.get("full_page", False))
         elif event_type == "new_tab":
-            await browser_control.ainvoke({"action": "new_tab", "url": payload.get("url")})
+            await BrowserController.execute(action=tool_action, url=payload.get("url"))
         elif event_type == "switch_tab":
-            await browser_control.ainvoke({"action": "switch_tab", "tab_index": payload.get("tab_index")})
+            await BrowserController.execute(action=tool_action, tab_index=payload.get("tab_index"))
         elif event_type == "dialog_handle":
-            await browser_control.ainvoke({"action": "dialog_handle", "dialog_action": payload.get("dialog_action"), "dialog_text": payload.get("dialog_text")})
+            await BrowserController.execute(action=tool_action, dialog_action=payload.get("dialog_action"), dialog_text=payload.get("dialog_text"))
         elif event_type in ("run_js", "evaluate"):
-            await browser_control.ainvoke({"action": "run_js", "script": payload.get("script") or payload.get("expression")})
+            await BrowserController.execute(action="run_js", script=payload.get("script") or payload.get("expression"))
 
     @classmethod
     async def _execute_desktop_step(cls, event_type: str, selector: str, payload: dict):
-        # Lossless port of MacOS desktop control logic
+        """Execute a desktop step directly via DesktopController (no @evoloop_tool overhead)."""
         selector = selector or payload.get("element_name") or payload.get("target")
-        if event_type in ("click", "tap"):
-            res = await desktop_control.ainvoke({"action": "click", "element_name": selector, "x": payload.get("x"), "y": payload.get("y")})
-            if res and "Error:" in str(res): raise ValueError(res)
-        elif event_type == "double_click":
-            res = await desktop_control.ainvoke({"action": "double_click", "element_name": selector, "x": payload.get("x"), "y": payload.get("y")})
-            if res and "Error:" in str(res): raise ValueError(res)
+        tool_action = ActionRegistry.get_tool_action(event_type, "desktop")
+
+        def handle_res(res):
+            if res and "Error:" in str(res):
+                raise ValueError(res)
+
+        if event_type in ("click", "tap", "double_click"):
+            handle_res(await DesktopController.execute(action=tool_action, element_name=selector, x=payload.get("x"), y=payload.get("y")))
         elif event_type in ("input", "type_text"):
-            res = await desktop_control.ainvoke({"action": "type_text", "text": payload.get("text") or payload.get("value", ""), "force_keystroke": payload.get("force_keystroke", False)})
-            if res and "Error:" in str(res): raise ValueError(res)
+            handle_res(await DesktopController.execute(action="type_text", text=payload.get("text") or payload.get("value", ""), force_keystroke=payload.get("force_keystroke", False)))
         elif event_type == "key_press":
-            res = await desktop_control.ainvoke({"action": "key_press", "key": payload.get("key")})
-            if res and "Error:" in str(res): raise ValueError(res)
+            handle_res(await DesktopController.execute(action=tool_action, key=payload.get("key")))
         elif event_type == "scroll":
-            res = await desktop_control.ainvoke({"action": "scroll", "direction": payload.get("direction", "down"), "amount": payload.get("amount", 300)})
-            if res and "Error:" in str(res): raise ValueError(res)
+            handle_res(await DesktopController.execute(action=tool_action, direction=payload.get("direction", "down"), amount=payload.get("amount", 300)))
         elif event_type == "drag_drop":
-            res = await desktop_control.ainvoke({
-                "action": "drag_drop", "x": payload.get("x"), "y": payload.get("y"),
-                "x2": payload.get("x2"), "y2": payload.get("y2"),
-                "source_element": payload.get("source_element") or selector,
-                "target_element": payload.get("target_element")
-            })
-            if res and "Error:" in str(res): raise ValueError(res)
+            handle_res(await DesktopController.execute(action=tool_action, x=payload.get("x"), y=payload.get("y"), x2=payload.get("x2"), y2=payload.get("y2"), source_element=payload.get("source_element") or selector, target_element=payload.get("target_element")))
         elif event_type == "open_app":
-            res = await desktop_control.ainvoke({"action": "open_app", "app_name": payload.get("app_name") or payload.get("text")})
-            if res and "Error:" in str(res): raise ValueError(res)
+            handle_res(await DesktopController.execute(action=tool_action, app_name=payload.get("app_name") or payload.get("text")))
         elif event_type == "applescript":
-            res = await desktop_control.ainvoke({"action": "applescript", "script": payload.get("script")})
-            if res and "Error:" in str(res): raise ValueError(res)
+            handle_res(await DesktopController.execute(action=tool_action, script=payload.get("script")))
         elif event_type == "screenshot":
-            res = await desktop_control.ainvoke({"action": "screenshot", "region": payload.get("region")})
-            if res and "Error:" in str(res): raise ValueError(res)
+            handle_res(await DesktopController.execute(action=tool_action, region=payload.get("region")))
+        elif event_type == "get_active_app":
+            handle_res(await DesktopController.execute(action=tool_action))
+        elif event_type == "get_info":
+            handle_res(await DesktopController.execute(action=tool_action, app_name=payload.get("app_name")))
+        elif event_type == "dump_ui":
+            handle_res(await DesktopController.execute(action=tool_action))
 
     @classmethod
     async def _execute_mobile_step(cls, event_type: str, selector: str, payload: dict):
-        # Lossless port of Android mobile control logic
+        """Execute a mobile step directly via MobileController (no @evoloop_tool overhead)."""
+        tool_action = ActionRegistry.get_tool_action(event_type, "mobile")
+
         if event_type in ("click", "tap"):
-            await mobile_control.ainvoke({
-                "action": "tap", "x": payload.get("x"), "y": payload.get("y"),
-                "element_name": selector or payload.get("element_name") or payload.get("target"),
-                "timeout": payload.get("timeout", 8.0)
-            })
+            await MobileController.execute(action=tool_action, x=payload.get("x"), y=payload.get("y"), element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0))
         elif event_type == "long_press":
-            await mobile_control.ainvoke({
-                "action": "long_press", "x": payload.get("x"), "y": payload.get("y"),
-                "element_name": selector or payload.get("element_name"),
-                "duration_ms": payload.get("duration_ms", 800)
-            })
+            await MobileController.execute(action=tool_action, x=payload.get("x"), y=payload.get("y"), element_name=selector or payload.get("element_name"), duration_ms=payload.get("duration_ms", 800))
         elif event_type in ("input", "type_text"):
-            await mobile_control.ainvoke({
-                "action": "input_text", "text": payload.get("text") or payload.get("value", ""),
-                "element_name": selector or payload.get("element_name")
-            })
+            await MobileController.execute(action="input_text", text=payload.get("text") or payload.get("value", ""), element_name=selector or payload.get("element_name"))
         elif event_type in ("swipe", "scroll"):
-            action = "scroll" if event_type == "scroll" else "swipe"
-            await mobile_control.ainvoke({
-                "action": action, "x": payload.get("x"), "y": payload.get("y"), 
-                "x2": payload.get("x2"), "y2": payload.get("y2"), 
-                "direction": payload.get("direction"),
-                "duration_ms": payload.get("duration_ms", 500)
-            })
+            await MobileController.execute(action=tool_action, x=payload.get("x"), y=payload.get("y"), x2=payload.get("x2"), y2=payload.get("y2"), direction=payload.get("direction"), duration_ms=payload.get("duration_ms", 500))
         elif event_type == "back":
-            await mobile_control.ainvoke({"action": "press_key", "keycode": "back"})
+            await MobileController.execute(action="press_key", keycode="back")
         elif event_type == "back_key":
-            await mobile_control.ainvoke({"action": "press_key", "keycode": payload.get("keycode", "back")})
+            await MobileController.execute(action="press_key", keycode=payload.get("keycode", "back"))
         elif event_type == "home":
-            await mobile_control.ainvoke({"action": "press_key", "keycode": "home"})
+            await MobileController.execute(action="press_key", keycode="home")
         elif event_type == "key_press":
-            await mobile_control.ainvoke({"action": "press_key", "keycode": payload.get("key") or payload.get("keycode")})
+            await MobileController.execute(action=tool_action, keycode=payload.get("key") or payload.get("keycode"))
         elif event_type == "open_app":
-            await mobile_control.ainvoke({"action": "open_app", "text": payload.get("package") or payload.get("text") or payload.get("app_name")})
+            await MobileController.execute(action=tool_action, text=payload.get("package") or payload.get("text") or payload.get("app_name"))
         elif event_type == "screenshot":
-            await mobile_control.ainvoke({"action": "screenshot"})
+            await MobileController.execute(action=tool_action)
         elif event_type == "dump_ui":
-            await mobile_control.ainvoke({"action": "dump_ui"})
+            await MobileController.execute(action=tool_action)
 
     # --- Utils ---
     @classmethod

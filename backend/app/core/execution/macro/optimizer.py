@@ -7,12 +7,14 @@ from app.core.execution.macro.schema import MacroScript, MacroStep, MacroStepTyp
 
 logger = logging.getLogger(__name__)
 
+
 class OptimizationStrategy(Enum):
     MERGE_WAITS = "merge_waits"
     REMOVE_DUPLICATES = "remove_duplicates"
     TIME_INTERVAL = "time_interval"
     FILTER_REDUNDANT = "filter_redundant"
     COALESCE_EXTRACTS = "coalesce_extracts"
+
 
 @dataclass
 class OptimizationResult:
@@ -27,6 +29,7 @@ class OptimizationResult:
     def reduction_ratio(self) -> float:
         if self.original_steps == 0: return 0.0
         return (self.original_steps - self.optimized_steps) / self.original_steps
+
 
 class MacroOptimizer:
     """
@@ -66,7 +69,8 @@ class MacroOptimizer:
         if self.strategies_enabled[OptimizationStrategy.FILTER_REDUNDANT]:
             current_steps = self._filter_redundant(current_steps)
             stats['removed'] += original_count - len(current_steps)
-            if len(current_steps) < original_count: stats['strategies'].append('filter_redundant')
+            if len(current_steps) < original_count:
+                stats['strategies'].append('filter_redundant')
 
         # Round 2: Merge waits
         if self.strategies_enabled[OptimizationStrategy.MERGE_WAITS]:
@@ -74,25 +78,29 @@ class MacroOptimizer:
             current_steps, merge_count, time_saved = self._merge_waits(current_steps)
             stats['merged'] += merge_count
             stats['time_saved'] += time_saved
-            if merge_count > 0: stats['strategies'].append('merge_waits')
+            if merge_count > 0:
+                stats['strategies'].append('merge_waits')
 
         # Round 3: Remove duplicates
         if self.strategies_enabled[OptimizationStrategy.REMOVE_DUPLICATES]:
             prev_len = len(current_steps)
             current_steps, dup_count = self._remove_duplicates(current_steps)
             stats['removed'] += dup_count
-            if dup_count > 0: stats['strategies'].append('remove_duplicates')
+            if dup_count > 0:
+                stats['strategies'].append('remove_duplicates')
 
         # Round 4: Time interval optimization (Auto-wait insertion)
         if self.strategies_enabled[OptimizationStrategy.TIME_INTERVAL]:
             current_steps, time_saved = self._optimize_intervals(current_steps)
             stats['time_saved'] += time_saved
-            if time_saved > 0: stats['strategies'].append('time_interval')
+            if time_saved > 0:
+                stats['strategies'].append('time_interval')
 
         # Round 5: Batch Extract Coalescing (Simplified Model Port)
         if self.strategies_enabled[OptimizationStrategy.COALESCE_EXTRACTS]:
             current_steps, coalesce_count = self._coalesce_extracts(current_steps)
-            if coalesce_count > 0: stats['strategies'].append('coalesce_extracts')
+            if coalesce_count > 0:
+                stats['strategies'].append('coalesce_extracts')
 
         # Renumber and return
         for i, step in enumerate(current_steps, 1):
@@ -172,8 +180,10 @@ class MacroOptimizer:
                         if {k:v for k,v in step.payload.items() if k!='timestamp'} == {k:v for k,v in prev.payload.items() if k!='timestamp'}:
                             is_dup = True; break
             
-            if is_dup: removed += 1
-            else: deduped.append(step)
+            if is_dup:
+                removed += 1
+            else:
+                deduped.append(step)
         return deduped, removed
 
     def _optimize_intervals(self, steps: List[MacroStep]) -> Tuple[List[MacroStep], int]:
@@ -206,12 +216,15 @@ class MacroOptimizer:
         i = 0
         while i < len(steps):
             if steps[i].type != MacroStepType.EXTRACT:
-                coalesced.append(steps[i]); i += 1; continue
+                coalesced.append(steps[i])
+                i += 1
+                continue
             
             extracts = [steps[i]]
             j = i + 1
             while j < len(steps) and steps[j].type == MacroStepType.EXTRACT:
-                extracts.append(steps[j]); j += 1
+                extracts.append(steps[j])
+                j += 1
             
             if len(extracts) == 1:
                 coalesced.append(steps[i])

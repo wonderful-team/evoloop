@@ -21,21 +21,19 @@ class MacroStepType(str, Enum):
 
 
 class MacroActionType(str, Enum):
-    # Navigation (Cross-platform)
-    GOTO = "goto"
+    # Navigation
     NAVIGATE = "navigate"
     BACK = "back"
     FORWARD = "forward"
     RELOAD = "reload"
-    GET_URL = "get_url"
     
-    # Common Interaction
+    # Interaction
     CLICK = "click"
     DOUBLE_CLICK = "double_click"
-    TAP = "tap"
+    TAP = "tap" # Alias for click on mobile
     LONG_PRESS = "long_press"
     INPUT = "input"
-    TYPE_TEXT = "type_text"
+    TYPE_TEXT = "type_text" # Legacy alias
     KEY_PRESS = "key_press"
     SCROLL = "scroll"
     SWIPE = "swipe"
@@ -44,29 +42,32 @@ class MacroActionType(str, Enum):
     WAIT = "wait"
     WAIT_FOR = "wait_for"
     
-    # Browser / Web Specific
+    # Browser / Web
     SELECT_OPTION = "select_option"
     NEW_TAB = "new_tab"
     SWITCH_TAB = "switch_tab"
     UPLOAD = "upload"
     RUN_JS = "run_js"
-    EVALUATE = "evaluate"
-    GET_COOKIES = "get_cookies"
-    SET_COOKIES = "set_cookies"
-    LOCAL_STORAGE = "local_storage"
-    NETWORK_WAIT = "network_wait"
     DIALOG_HANDLE = "dialog_handle"
     
-    # OS / App Level (Mobile & Desktop)
-    OPEN_APP = "open_app"
-    CLOSE_APP = "close_app"
-    BACK_KEY = "back_key" # Mobile physical back
-    HOME = "home"
-    APPLESCRIPT = "applescript"
+    # Extraction / Perception
+    GET_TEXT = "get_text"
+    GET_ATTRIBUTE = "get_attribute"
+    GET_HTML = "get_html"
+    GET_LINKS = "get_links"
     SCREENSHOT = "screenshot"
     DUMP_UI = "dump_ui"
     
-    # Advanced
+    # OS / App
+    OPEN_APP = "open_app"
+    CLOSE_APP = "close_app"
+    HOME = "home"
+    BACK_KEY = "back_key"
+    APPLESCRIPT = "applescript"
+    GET_ACTIVE_APP = "get_active_app"
+    GET_INFO = "get_info"
+    
+    # Advanced / Generic
     BATCH = "batch"
 
 
