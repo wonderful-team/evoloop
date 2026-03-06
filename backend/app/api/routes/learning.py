@@ -19,7 +19,6 @@ from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, Uplo
 from pydantic import BaseModel
 from sqlalchemy import or_, func, select, update
 
-from app.core.config import settings
 from app.core.engine.background_agent import run_agent_background
 from app.core.learning.skill_importer import SkillImporter
 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
