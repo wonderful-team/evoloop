@@ -13,8 +13,8 @@ import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
 from sqlalchemy import select
 
+from app.core.learning.prompts import prompt_builder
 from app.core.learning.trace_parser import TraceParser, TraceSequence
-from app.core.learning.macro_optimizer import MacroOptimizer
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
@@ -79,83 +79,6 @@ class SynthesizedSkill:
         """Convert to dictionary."""
         return asdict(self)
 
-
-SKILL_SYNTHESIS_PROMPT = """
-You are the "Meta-Architect" for EvoLoop's Imitation Learning System.
-
-## Your Task
-Analyze the following task trace and synthesize a **reusable skill** that can automate this specific workflow.
-
-## Input Trace
-{trace_narrative}
-
-## Trace Summary
-- Total Steps: {total_steps} | Human Steps: {human_steps} | Agent Steps: {agent_steps}
-- Tools Used: {tools_used}
-
-## Output Requirements
-Generate a skill configuration in YAML format.
-
-**CRITICAL: The `instructions` field must be a structured "Expert Skill Guide" mapped to a logical `namespace` with the following sections:**
-
-### 0. Tool Requirements (Crucial)
-If any specific Model Context Protocol (MCP) servers or non-standard tools were used in the trace (see Tools Used), you MUST start the guide by explicitly telling the agent to load them.
-Example: "Before proceeding, check if you have access to the `github` MCP server tools. If not, you MUST immediately call `use_mcp_server('github')` and wait for the reload."
-
-### 1. Conceptual Mental Model
-Explain the **high-level strategy** and business logic. Why are we doing this? What's the goal?
-
-### 2. Contextual Anchors
-Define the expected environment:
-- **App/OS Context**: e.g., "Obsidian must be open in a valid vault."
-- **Visual Evidence**: What specific window titles or UI labels confirm we are in the right state?
-
-### 3. Step-by-Step Strategic Guidance
-For each major phase, provide "Rule of Thumb" advice:
-- **Visual Cues**: "Look for the [Label] icon near the [Position]."
-- **Hidden Logic**: "Wait 1 second for the sync icon to disappear before clicking save."
-- **Common Pitfalls**: "Do not use the Cmd+N shortcut here as it sometimes fails in this app version; use the UI button instead."
-
-### 4. Error Recovery Skill
-If a visual anchor is missing, what's the fallback? (e.g., "Refresh the page" or "Check if the side panel is collapsed").
-
-```yaml
-name: create_obsidian_note
-description: >
-  Create a new note in Obsidian and tag it with a category. 
-  Involves: [Obsidian]
-namespace: os/macos/obsidian
-trigger_patterns:
-  - "Create a note named {{title}} in Obsidian"
-parameters:
-  - name: title
-    type: string
-    description: Title of the note
-preconditions:
-  - "Obsidian app is open"
-instructions: |
-  # Expert Skill Guide: Creating Categorized Notes
-  
-  ## 1. Mental Model
-  This skill focuses on prompt note creation while bypassing complex navigation.
-  
-  ## 2. Contextual Anchors
-  - **Environment**: Obsidian Desktop (macOS/Windows).
-  - **Visual Evidence**: Look for the 'Purple Obsidian Logo' in the title bar.
-  
-  ## 3. Strategic Guidance
-  - **Phase 1 (Creation)**: Use the 'New Note' button. **Visual Cue**: It's the leftmost icon in the top toolbar.
-  - **Phase 2 (Naming)**: The focus shifts to the title field automatically. **Pitfall**: Don't click the title bar again, it may cause a rename conflict.
-  
-  ## 4. Recovery
-  - If 'New Note' button is hidden, check if the Left Sidebar is collapsed (Look for the '>' icon).
-```
-
-## Anti-Hallucination & Platform Rules
-1. **STAY GROUNDED**: Do NOT invent "generic numeric keyboards" if they are not in the trace. 
-2. **CONTEXT IS KING**: The `description` MUST mention the specific applications found in the trace.
-3. **OCR Usage**: If `UI Element` text is provided in a trace step, **YOU MUST USE IT** for the `element_text` argument.
-"""
 
 
 class WorkflowSynthesizer:
@@ -224,21 +147,21 @@ class WorkflowSynthesizer:
         # Config is handled internally by LLMFactory
         llm = LLMFactory.create_llm()
 
-        prompt = SKILL_SYNTHESIS_PROMPT.format(
-            trace_narrative=narrative,
-            total_steps=summary["total_steps"],
-            human_steps=summary["human_steps"],
-            agent_steps=summary["agent_steps"],
-            tools_used=", ".join(summary["tools_used"]) if summary["tools_used"] else "None",
-        )
-
-        if user_intent_hint:
-            prompt += f"\n\n## User Intent Hint (Use this for trigger_patterns):\n\"{user_intent_hint}\""
-
         from app.infrastructure.config.service import SystemConfigService
-
         user_lang = SystemConfigService.get_language_preference()
-        prompt += i18n.get("prompts.learning.synthesis_lang_constraint", lang=user_lang)
+        language_constraint = i18n.get("prompts.learning.synthesis_lang_constraint", lang=user_lang)
+
+        prompt_vars = {
+            "trace_narrative": narrative,
+            "total_steps": summary["total_steps"],
+            "human_steps": summary["human_steps"],
+            "agent_steps": summary["agent_steps"],
+            "tools_used": ", ".join(summary["tools_used"]) if summary["tools_used"] else "None",
+            "user_intent_hint": user_intent_hint,
+            "language_constraint": language_constraint
+        }
+
+        prompt = prompt_builder.build_synthesis_prompt(prompt_vars)
 
         logger.info(f"--- [Skill Synthesis Prompt Start] ---\n{prompt}\n--- [Skill Synthesis Prompt End] ---")
 
@@ -376,14 +299,8 @@ class WorkflowSynthesizer:
                 "payload": {}
             })
 
-        # [Phase 6.5] 宏脚本优化：去除冗余步骤
-        optimizer = MacroOptimizer()
-        optimized_macro, opt_stats = optimizer.optimize(macro)
-
-        if opt_stats.reduction_ratio > 0:
-            logger.info(f"[{self.thread_id}] Macro optimized: {opt_stats}")
-
-        return optimized_macro
+        # Macro optimization is now handled via MacroService in the main synthesize flow
+        return macro
 
     def _parse_skill_yaml(self, yaml_str: str, sequence: TraceSequence) -> SynthesizedSkill:
         """Parse YAML string into SynthesizedSkill object."""

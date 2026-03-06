@@ -22,6 +22,7 @@ from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.core.vision.engine import vision_engine
 from app.core.vision.types import VisionTask, UIElement
 from app.infrastructure.database.sql.database import session_scope
+from app.core.learning.prompts import prompt_builder
 from app.infrastructure.llm.factory import LLMFactory
 from app.models import RecordingAnnotation, SynthesisJob, TraceEvent
 
@@ -583,35 +584,10 @@ class SmartSynthesizer:
         narrative = "\n".join(narrative_parts)
 
         # Call LLM to understand phases
-        prompt = f"""
-Analyze the following task recording and identify distinct phases.
-
-{narrative}
-
-Based on the goal "{self.task_goal}" and the sequence above:
-1. What are the distinct phases of this task?
-2. Which steps are essential vs. redundant?
-3. Are there any repeatable patterns (like iterating through a list)?
-4. What data needs to be extracted and when?
-
-Respond in JSON format:
-{{
-    "phases": [
-        {{
-            "name": "Phase name (e.g., 'Login', 'Search', 'Extract Data')",
-            "start_time_ms": 0,
-            "end_time_ms": 5000,
-            "description": "What happens in this phase",
-            "key_actions": ["action1", "action2"],
-            "data_extracted": ["field1", "field2"],
-            "is_repeatable": false
-        }}
-    ],
-    "overall_pattern": "Description of the overall workflow",
-    "redundant_steps": ["steps that could be removed"],
-    "suggested_improvements": ["improvements for robustness"]
-}}
-"""
+        prompt = prompt_builder.build_phases_prompt({
+            "task_goal": self.task_goal,
+            "narrative": narrative
+        })
 
         llm = LLMFactory.create_llm()
         messages = [
@@ -794,47 +770,12 @@ Respond in JSON format:
                 "repeatable": phase.is_repeatable,
             })
 
-        prompt = f"""Generate a macro script for the following automation task.
-
-Task Goal: {self.task_goal}
-
-Target URL: {url or "Not specified in goal"}
-
-User Annotations (marked regions of interest on video):
-```json
-{json.dumps(annotation_context, ensure_ascii=False, indent=2)}
-```
-
-Task Phases:
-```json
-{json.dumps(phase_context, ensure_ascii=False, indent=2)}
-```
-
-Generate a JSON array of macro steps. Each step should have:
-- step_number: integer sequence
-- type: "action" | "extract" | "dump"
-- For actions: event_type, source, target_selector, payload, description
-- For extract: extract_type, key, source, target_selector OR target_region, payload
-
-Action types: "navigate", "click", "input", "scroll", "wait", "screenshot"
-Extract types: "get_text", "get_attribute", "get_inner_html"
-
-Think step by step:
-1. What is the first step? (usually navigate to URL if provided)
-2. What waits are needed for page loads?
-3. What scrolling is needed for infinite scroll pages?
-4. What data should be extracted based on annotations?
-5. What is the final step? (usually dump to save data)
-
-Respond with ONLY a JSON array:
-```json
-[
-  {{"step_number": 1, "type": "action", "event_type": "navigate", "source": "dom", "target_selector": null, "payload": {{"url": "..."}}, "description": "Navigate to target website"}},
-  {{"step_number": 2, "type": "action", "event_type": "wait", "source": "dom", "target_selector": null, "payload": {{"duration": 3}}, "description": "Wait for page to load"}},
-  ...
-]
-```
-"""
+        prompt = prompt_builder.build_macro_prompt({
+            "task_goal": self.task_goal,
+            "url": url,
+            "annotation_context_json": json.dumps(annotation_context, ensure_ascii=False, indent=2),
+            "phase_context_json": json.dumps(phase_context, ensure_ascii=False, indent=2)
+        })
 
         try:
             llm = LLMFactory.create_llm()
@@ -973,53 +914,12 @@ Respond with ONLY a JSON array:
         action_count = len([m for m in macro_script if m.get("type") == "action"])
         extract_count = len([m for m in macro_script if m.get("type") == "extract"])
 
-        prompt = f"""
-Generate a skill configuration based on the following task analysis.
-
-Task Goal: {self.task_goal}
-
-Phases:
-{phase_summary}
-
-Macro Script Summary:
-- {action_count} action steps
-- {extract_count} data extraction steps
-
-Generate:
-1. A concise skill name (3-5 words, snake_case)
-2. A clear one-sentence description
-3. An appropriate namespace (e.g., "web/site-name/task-type")
-4. 2-3 trigger patterns (what the user might say to invoke this)
-5. A detailed expert skill guide (心法) in Markdown format
-
-The guide should include:
-- Mental Model: What's the high-level strategy?
-- Contextual Anchors: How to verify we're in the right state?
-- Strategic Guidance: Step-by-step with visual cues
-- Error Recovery: What to do when things go wrong
-
-Respond in YAML format:
-```yaml
-name: skill_name_here
-description: One sentence describing what this skill does
-namespace: web/example/data-extraction
-trigger_patterns:
-  - "Extract data from example.com"
-  - "Get prices from example"
-instructions: |
-  ## 1. Mental Model
-  ...
-
-  ## 2. Contextual Anchors
-  ...
-
-  ## 3. Strategic Guidance
-  ...
-
-  ## 4. Error Recovery
-  ...
-```
-"""
+        prompt = prompt_builder.build_metadata_prompt({
+            "task_goal": self.task_goal,
+            "phase_summary": phase_summary,
+            "action_count": action_count,
+            "extract_count": extract_count
+        })
 
         llm = LLMFactory.create_llm()
         messages = [

@@ -1,0 +1,32 @@
+Analyze the following task recording and identify distinct phases.
+
+{% if task_goal %}
+Task Goal: {{ task_goal }}
+{% endif %}
+
+Frame-by-frame analysis:
+{{ narrative }}
+
+Based on the goal "{{ task_goal }}" and the sequence above:
+1. What are the distinct phases of this task?
+2. Which steps are essential vs. redundant?
+3. Are there any repeatable patterns (like iterating through a list)?
+4. What data needs to be extracted and when?
+
+Respond in JSON format:
+{
+    "phases": [
+        {
+            "name": "Phase name (e.g., 'Login', 'Search', 'Extract Data')",
+            "start_time_ms": 0,
+            "end_time_ms": 5000,
+            "description": "What happens in this phase",
+            "key_actions": ["action1", "action2"],
+            "data_extracted": ["field1", "field2"],
+            "is_repeatable": false
+        }
+    ],
+    "overall_pattern": "Description of the overall workflow",
+    "redundant_steps": ["steps that could be removed"],
+    "suggested_improvements": ["improvements for robustness"]
+}

@@ -7,7 +7,6 @@ import json
 import logging
 import math
 import os
-import shutil
 import subprocess
 import traceback
 from datetime import datetime
@@ -944,8 +943,8 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
 
 
 async def execute_macro_with_fallback(thread_id: str, project_id: int, skill_id: int, skill_name: str, macro_payload: list, params: dict):
-    from app.core.execution.macro_engine import MacroEngine
-    result = await MacroEngine.execute(thread_id, macro_payload, params)
+    from app.core.execution.macro.schema import MacroService
+    result = await MacroService.run(thread_id, macro_payload, params)
     
     if result.get("status") == "fallback_required":
         logger.warning(f"[{thread_id}] Macro failed, triggering Agentic Fallback...")
@@ -1527,7 +1526,6 @@ async def start_smart_synthesis(
 
     基于用户标注和任务目标，异步进行 LLM 推理生成技能。
     """
-    from app.core.learning.smart_synthesizer import SmartSynthesizer
     from sqlalchemy import select
 
     # 验证 session 存在
