@@ -16,19 +16,29 @@ import {
     ChevronDown,
     ChevronRight,
     Play,
-    Pause,
     Copy,
-    Check,
     MousePointerClick,
     Keyboard,
     Eye,
     Clock,
     ArrowRight,
+    ArrowLeft,
+    RotateCcw,
+    MousePointer,
+    Move,
+    List,
+    Upload,
+    ExternalLink,
+    Code,
+    Home,
+    Power,
     Type,
     Download,
-    Upload,
     Undo2,
     RefreshCw,
+    Split,
+    Repeat,
+    Settings2,
 } from "lucide-react"
 
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -56,14 +66,14 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@evoloop/shared/components/ui/tooltip"
-import { useTranslation, type TFunction } from "react-i18next"
+import { useTranslation } from "react-i18next"
 import { cn } from "@evoloop/shared/lib/utils"
 
 // Macro step types
 export interface MacroStep {
     step_number: number
-    type: "action" | "extract" | "dump" | "wait"
-    source: "dom" | "mobile" | "desktop" | "hybrid"
+    type: "action" | "extract" | "dump" | "wait" | "if" | "while" | "control"
+    source: "dom" | "mobile" | "desktop" | "hybrid" | "global"
     event_type?: string
     selector?: string
     selector_type?: "css" | "xpath" | "text" | "id"
@@ -72,6 +82,16 @@ export interface MacroStep {
     wait_condition?: string
     timeout_ms?: number
     description?: string
+    // Control flow
+    condition?: {
+        type: string
+        target_selector?: string
+        params?: Record<string, any>
+    }
+    then?: MacroStep[]
+    else?: MacroStep[]
+    do?: MacroStep[]
+    max_iterations?: number
 }
 
 interface MacroEditorProps {
@@ -86,24 +106,58 @@ interface MacroEditorProps {
 const EVENT_TYPES: Record<string, { value: string; icon: React.ReactNode }[]> = {
     dom: [
         { value: "navigate", icon: <ArrowRight className="h-4 w-4" /> },
+        { value: "back", icon: <ArrowLeft className="h-4 w-4" /> },
+        { value: "forward", icon: <ArrowRight className="h-4 w-4" /> },
+        { value: "reload", icon: <RotateCcw className="h-4 w-4" /> },
         { value: "click", icon: <MousePointerClick className="h-4 w-4" /> },
+        { value: "double_click", icon: <MousePointerClick className="h-4 w-4" /> },
+        { value: "hover", icon: <MousePointer className="h-4 w-4" /> },
         { value: "input", icon: <Keyboard className="h-4 w-4" /> },
+        { value: "key_press", icon: <Keyboard className="h-4 w-4" /> },
+        { value: "select_option", icon: <List className="h-4 w-4" /> },
         { value: "scroll", icon: <RefreshCw className="h-4 w-4" /> },
+        { value: "drag_drop", icon: <Move className="h-4 w-4" /> },
+        { value: "upload", icon: <Upload className="h-4 w-4" /> },
         { value: "wait", icon: <Clock className="h-4 w-4" /> },
-        { value: "extract", icon: <Download className="h-4 w-4" /> },
+        { value: "wait_for", icon: <Clock className="h-4 w-4" /> },
+        { value: "new_tab", icon: <ExternalLink className="h-4 w-4" /> },
+        { value: "switch_tab", icon: <ExternalLink className="h-4 w-4" /> },
+        { value: "dialog_handle", icon: <Settings2 className="h-4 w-4" /> },
+        { value: "run_js", icon: <Code className="h-4 w-4" /> },
+        { value: "get_text", icon: <Download className="h-4 w-4" /> },
+        { value: "get_attribute", icon: <Download className="h-4 w-4" /> },
+        { value: "get_html", icon: <Download className="h-4 w-4" /> },
+        { value: "get_links", icon: <Download className="h-4 w-4" /> },
         { value: "screenshot", icon: <Eye className="h-4 w-4" /> },
     ],
     mobile: [
         { value: "tap", icon: <MousePointerClick className="h-4 w-4" /> },
+        { value: "long_press", icon: <MousePointerClick className="h-4 w-4" /> },
         { value: "swipe", icon: <RefreshCw className="h-4 w-4" /> },
+        { value: "scroll", icon: <RefreshCw className="h-4 w-4" /> },
         { value: "input", icon: <Keyboard className="h-4 w-4" /> },
+        { value: "key_press", icon: <Keyboard className="h-4 w-4" /> },
+        { value: "back_key", icon: <ArrowLeft className="h-4 w-4" /> },
+        { value: "home", icon: <Home className="h-4 w-4" /> },
+        { value: "open_app", icon: <ExternalLink className="h-4 w-4" /> },
+        { value: "close_app", icon: <Power className="h-4 w-4" /> },
         { value: "dump_ui", icon: <Eye className="h-4 w-4" /> },
+        { value: "screenshot", icon: <Eye className="h-4 w-4" /> },
         { value: "wait", icon: <Clock className="h-4 w-4" /> },
     ],
     desktop: [
-        { value: "applescript", icon: <Type className="h-4 w-4" /> },
-        { value: "keypress", icon: <Keyboard className="h-4 w-4" /> },
+        { value: "open_app", icon: <ExternalLink className="h-4 w-4" /> },
+        { value: "close_app", icon: <Power className="h-4 w-4" /> },
         { value: "click", icon: <MousePointerClick className="h-4 w-4" /> },
+        { value: "double_click", icon: <MousePointerClick className="h-4 w-4" /> },
+        { value: "key_press", icon: <Keyboard className="h-4 w-4" /> },
+        { value: "scroll", icon: <RefreshCw className="h-4 w-4" /> },
+        { value: "drag_drop", icon: <Move className="h-4 w-4" /> },
+        { value: "applescript", icon: <Type className="h-4 w-4" /> },
+        { value: "get_active_app", icon: <ExternalLink className="h-4 w-4" /> },
+        { value: "get_info", icon: <Download className="h-4 w-4" /> },
+        { value: "dump_ui", icon: <Eye className="h-4 w-4" /> },
+        { value: "screenshot", icon: <Eye className="h-4 w-4" /> },
         { value: "wait", icon: <Clock className="h-4 w-4" /> },
     ],
 }
@@ -117,9 +171,7 @@ export function MacroEditor({
 }: MacroEditorProps) {
     const { t } = useTranslation()
     const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set([0]))
-    const [editingStep, setEditingStep] = useState<number | null>(null)
     const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
-    const [copiedStep, setCopiedStep] = useState<MacroStep | null>(null)
     const [originalSteps] = useState<MacroStep[]>(JSON.parse(JSON.stringify(steps)))
 
     // Toggle step expansion
@@ -230,6 +282,10 @@ export function MacroEditor({
 
     // Get step icon
     const getStepIcon = useCallback((step: MacroStep) => {
+        if (step.type === "if") return <Split className="h-4 w-4" />
+        if (step.type === "while") return <Repeat className="h-4 w-4" />
+        if (step.type === "control") return <Settings2 className="h-4 w-4" />
+
         const sourceEvents = EVENT_TYPES[step.source] || EVENT_TYPES.dom
         const eventType = sourceEvents.find((e) => e.value === step.event_type)
         return eventType?.icon || <MousePointerClick className="h-4 w-4" />
@@ -246,6 +302,10 @@ export function MacroEditor({
                     : "bg-green-500/10 border-green-500/30 text-green-600"
             case "wait":
                 return "bg-amber-500/10 border-amber-500/30 text-amber-600"
+            case "if":
+                return "bg-cyan-500/10 border-cyan-500/30 text-cyan-600"
+            case "while":
+                return "bg-rose-500/10 border-rose-500/30 text-rose-600"
             default:
                 return "bg-gray-500/10 border-gray-500/30 text-gray-600"
         }
@@ -420,6 +480,8 @@ export function MacroEditor({
                                                     <SelectItem value="extract">{t("macroEditor.stepTypes.extract")}</SelectItem>
                                                     <SelectItem value="wait">{t("macroEditor.stepTypes.wait")}</SelectItem>
                                                     <SelectItem value="dump">{t("macroEditor.stepTypes.dump")}</SelectItem>
+                                                    <SelectItem value="if">{t("macroEditor.stepTypes.if")}</SelectItem>
+                                                    <SelectItem value="while">{t("macroEditor.stepTypes.while")}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -496,41 +558,161 @@ export function MacroEditor({
                                             </Select>
                                         </div>
 
-                                        {/* Selector */}
-                                        <div className="col-span-4 space-y-2">
-                                            <Label className="text-xs">{t("macroEditor.selector")}</Label>
-                                            <div className="flex gap-2">
-                                                <Input
-                                                    value={step.selector || ""}
-                                                    onChange={(e) =>
-                                                        updateStep(index, { selector: e.target.value })
-                                                    }
-                                                    placeholder={
-                                                        step.selector_type === "css"
-                                                            ? t("macroEditor.placeholders.cssSelector")
-                                                            : step.selector_type === "xpath"
-                                                                ? t("macroEditor.placeholders.xpath")
-                                                                : t("macroEditor.placeholders.selector")
-                                                    }
-                                                    disabled={readOnly}
-                                                    className="font-mono text-sm"
-                                                />
-                                                {videoPath && onStepPreview && (
-                                                    <Tooltip>
-                                                        <TooltipTrigger asChild>
-                                                            <Button
-                                                                variant="outline"
-                                                                size="icon"
-                                                                onClick={() => onStepPreview(step)}
-                                                            >
-                                                                <Play className="h-4 w-4" />
-                                                            </Button>
-                                                        </TooltipTrigger>
-                                                        <TooltipContent>{t("macroEditor.previewStep")}</TooltipContent>
-                                                    </Tooltip>
-                                                )}
+                                        {/* Condition Configurator for If/While */}
+                                        {(step.type === "if" || step.type === "while") && (
+                                            <div className="col-span-4 p-3 border rounded-md bg-muted/20 space-y-3">
+                                                <div className="flex items-center gap-2 text-sm font-medium">
+                                                    <Settings2 className="h-4 w-4" />
+                                                    {t("macroEditor.conditionConfig")}
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs">{t("macroEditor.conditionType")}</Label>
+                                                        <Select
+                                                            value={step.condition?.type || "element_exists"}
+                                                            onValueChange={(value) =>
+                                                                updateStep(index, {
+                                                                    condition: { type: value, target_selector: step.condition?.target_selector }
+                                                                })
+                                                            }
+                                                            disabled={readOnly}
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="element_exists">{t("macroEditor.conditions.elementExists")}</SelectItem>
+                                                                <SelectItem value="element_visible">{t("macroEditor.conditions.elementVisible")}</SelectItem>
+                                                                <SelectItem value="text_contains">{t("macroEditor.conditions.textContains")}</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label className="text-xs">{t("macroEditor.targetSelector")}</Label>
+                                                        <Input
+                                                            value={step.condition?.target_selector || ""}
+                                                            onChange={(e) =>
+                                                                updateStep(index, {
+                                                                    condition: {
+                                                                        type: step.condition?.type || "element_exists",
+                                                                        target_selector: e.target.value
+                                                                    }
+                                                                })
+                                                            }
+                                                            placeholder={t("macroEditor.placeholders.selector")}
+                                                            disabled={readOnly}
+                                                        />
+                                                    </div>
+                                                    {step.type === "while" && (
+                                                        <div className="space-y-2">
+                                                            <Label className="text-xs">{t("macroEditor.maxIterations")}</Label>
+                                                            <Input
+                                                                type="number"
+                                                                value={step.max_iterations || 10}
+                                                                onChange={(e) =>
+                                                                    updateStep(index, {
+                                                                        max_iterations: parseInt(e.target.value) || 10
+                                                                    })
+                                                                }
+                                                                disabled={readOnly}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
+
+                                        {/* Recursive Nested Steps for If (Then/Else) */}
+                                        {step.type === "if" && (
+                                            <div className="col-span-4 space-y-4 pt-2 border-t mt-2">
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-semibold text-cyan-600 flex items-center gap-1">
+                                                        <ChevronRight className="h-4 w-4" /> {t("macroEditor.thenBranch")}
+                                                    </Label>
+                                                    <div className="pl-4 border-l-2 border-cyan-500/30 ml-2">
+                                                        <MacroEditor
+                                                            steps={step.then || []}
+                                                            onChange={(newSteps) => updateStep(index, { then: newSteps })}
+                                                            readOnly={readOnly}
+                                                            onStepPreview={onStepPreview}
+                                                            videoPath={videoPath}
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-semibold text-amber-600 flex items-center gap-1">
+                                                        <ChevronRight className="h-4 w-4" /> {t("macroEditor.elseBranch")}
+                                                    </Label>
+                                                    <div className="pl-4 border-l-2 border-amber-500/30 ml-2">
+                                                        <MacroEditor
+                                                            steps={step.else || []}
+                                                            onChange={(newSteps) => updateStep(index, { else: newSteps })}
+                                                            readOnly={readOnly}
+                                                            onStepPreview={onStepPreview}
+                                                            videoPath={videoPath}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Recursive Nested Steps for While (Do) */}
+                                        {step.type === "while" && (
+                                            <div className="col-span-4 space-y-4 pt-2 border-t mt-2">
+                                                <div className="space-y-2">
+                                                    <Label className="text-sm font-semibold text-rose-600 flex items-center gap-1">
+                                                        <ChevronRight className="h-4 w-4" /> {t("macroEditor.doBranch")}
+                                                    </Label>
+                                                    <div className="pl-4 border-l-2 border-rose-500/30 ml-2">
+                                                        <MacroEditor
+                                                            steps={step.do || []}
+                                                            onChange={(newSteps) => updateStep(index, { do: newSteps })}
+                                                            readOnly={readOnly}
+                                                            onStepPreview={onStepPreview}
+                                                            videoPath={videoPath}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Selector */}
+                                        {step.type !== "if" && step.type !== "while" && (
+                                            <div className="col-span-4 space-y-2">
+                                                <Label className="text-xs">{t("macroEditor.selector")}</Label>
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        value={step.selector || ""}
+                                                        onChange={(e) =>
+                                                            updateStep(index, { selector: e.target.value })
+                                                        }
+                                                        placeholder={
+                                                            step.selector_type === "css"
+                                                                ? t("macroEditor.placeholders.cssSelector")
+                                                                : step.selector_type === "xpath"
+                                                                    ? t("macroEditor.placeholders.xpath")
+                                                                    : t("macroEditor.placeholders.selector")
+                                                        }
+                                                        disabled={readOnly}
+                                                        className="font-mono text-sm"
+                                                    />
+                                                    {videoPath && onStepPreview && (
+                                                        <Tooltip>
+                                                            <TooltipTrigger asChild>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="icon"
+                                                                    onClick={() => onStepPreview(step)}
+                                                                >
+                                                                    <Play className="h-4 w-4" />
+                                                                </Button>
+                                                            </TooltipTrigger>
+                                                            <TooltipContent>{t("macroEditor.previewStep")}</TooltipContent>
+                                                        </Tooltip>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {/* Description */}
                                         <div className="col-span-4 space-y-2">
