@@ -62,6 +62,7 @@ nodes:
       # Knowledge & Memory
       - "manage_memory"
       - "search_skills"
+      - "run_macro"
       - "query_app_atlas"
       - "list_app_atlas"
       - "search_native_tools"

@@ -289,7 +289,7 @@ async def lifespan(_app: FastAPI):
 
     # 8. Android Device Watcher
     try:
-        from app.domain.tools.environment.device_watcher import device_watcher
+        from app.core.environment.controllers.device_watcher import device_watcher
         device_watcher.start()
     except Exception as e:
         logger.warning(f"Failed to start Device Watcher: {e}")
@@ -308,7 +308,7 @@ async def lifespan(_app: FastAPI):
 
     # Stop Mirror Sessions
     try:
-        from app.domain.tools.environment.mirror_session import mirror_manager
+        from app.core.environment.controllers.mirror_session import mirror_manager
         mirror_manager.cleanup()
     except Exception as e:
         logger.warning(f"Failed to cleanup mirror sessions: {e}")
@@ -322,7 +322,7 @@ async def lifespan(_app: FastAPI):
 
     # Stop Device Watcher
     try:
-        from app.domain.tools.environment.device_watcher import device_watcher
+        from app.core.environment.controllers.device_watcher import device_watcher
         device_watcher.stop()
     except Exception as e:
         logger.warning(f"Failed to stop Device Watcher: {e}")
