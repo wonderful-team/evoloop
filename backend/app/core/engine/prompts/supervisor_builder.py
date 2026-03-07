@@ -28,7 +28,7 @@ class SupervisorPromptBuilder:
         self.iteration_count = iteration_count
         self.context = context or {}
 
-    def build(self, config: RunnableConfig) -> str:
+    async def build(self, config: RunnableConfig) -> str:
         """Constructs the full system prompt using Jinja2 templating."""
         from jinja2 import Environment, FileSystemLoader
         from app.core.context import ContextManager
@@ -58,6 +58,27 @@ class SupervisorPromptBuilder:
         else:
             project_structure_stub = "CWD: None (No Local Workspace Attached)\n(You are operating in a universal context. Do NOT assume local files exist unless specified by the user.)"
 
+        # 3.1 Fetch Lightweight Skill Index (Phase 6 Metadata-driven planning)
+        skill_index = []
+        try:
+            from app.core.learning.discovery import skill_discovery
+            # We fetch skills based on the entity focus (e.g. android, browser)
+            # This is a lightweight catalog (ID, Name, Description)
+            ecosystems = ctx.metadata.get("ecosystems", [])
+            for eco in ecosystems:
+                index = await skill_discovery.get_namespace_index(eco)
+                if index:
+                    skill_index.extend(index)
+            
+            # If no clear ecosystem, fetch the top-level catalog or common skills
+            if not skill_index:
+                # Fallback to general automation or recently used? 
+                # For now, just generic discovery
+                skill_index = await skill_discovery.get_namespace_index("")
+                
+        except Exception as e:
+            logger.warning(f"[SupervisorPrompt] Failed to fetch skill index: {e}")
+
         # 4. Prepare Template Variables
         template_vars = {
             "project_id": self.project_id,
@@ -85,6 +106,7 @@ class SupervisorPromptBuilder:
             "sys_info": {
                 "project_structure": project_structure_stub,
                 "project_concepts": project_concepts,
+                "skill_catalog": skill_index[:20], # Limit to 20 items to prevent bloat
             },
             "has_android": ctx.metadata.get("has_android", False),
             "has_macos": ctx.metadata.get("has_macos", False),

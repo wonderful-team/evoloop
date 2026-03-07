@@ -90,7 +90,7 @@ class SupervisorNode:
             iteration_count=context["iteration_count"],
             context=context,
         )
-        dynamic_prompt = prompt_builder.build(config)
+        dynamic_prompt = await prompt_builder.build(config)
 
         engine_result = await AgentEngine.run_node(
             state=state,
@@ -206,8 +206,33 @@ class SupervisorNode:
                 except Exception as e:
                     logger.error(f"[Supervisor] Tool Authorization Error: {e}")
 
+            elif routing_target in ("mobile_sop", "browser_sop", "desktop_sop"):
+                # SOP Subgraph Targets — build a default ExecutionTicket so that
+                # the scanner (WorkerNode) inside the subgraph can start without aborting.
+                sop_defaults = {
+                    "mobile_sop":  ("Mobile Exploration Agent",
+                                    "Operate the Android device to complete the task. "
+                                    "Use mobile_control to take screenshots, tap elements, and scroll. "
+                                    "Repeat: observe → decide → act until the task is done."),
+                    "browser_sop": ("Browser Navigation Agent",
+                                    "Control the browser to complete the task. "
+                                    "Use browser_control to navigate URLs, click elements, and extract content."),
+                    "desktop_sop": ("Desktop Automation Agent",
+                                    "Operate macOS desktop applications using desktop_control. "
+                                    "Use query_app_atlas to locate UI elements before acting."),
+                }
+                role_name, instructions = sop_defaults[routing_target]
+                agent_config = {
+                    "role_name": role_name,
+                    "system_instructions": instructions,
+                    "namespace_context": inferred_namespace,
+                    # Tool allowlist is not restricted here — SOP YAML already constrains
+                    # available tools via its node definitions.
+                }
+                logger.info(f"[Supervisor] 🔀 Built default ExecutionTicket for SOP subgraph '{routing_target}' (role: {role_name})")
+
             else:
-                # finish, documenter, chat — these are fixed nodes, no agent_config
+                # finish, chat — fixed terminal nodes, no agent_config needed
                 agent_config = None
 
             execution_ticket = {

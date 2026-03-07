@@ -100,6 +100,18 @@ nodes:
   - id: "flash_brain"
     path: "app.core.brain.node.flash_brain_node"
 
+  - id: "mobile_sop"
+    type: "subgraph"
+    subgraph_config: "sops/mobile_exploration.yaml"
+
+  - id: "browser_sop"
+    type: "subgraph"
+    subgraph_config: "sops/browser_navigation.yaml"
+
+  - id: "desktop_sop"
+    type: "subgraph"
+    subgraph_config: "sops/desktop_automation.yaml"
+
 edges:
   # 1. Supervisor (Router)
   - from: "supervisor"
@@ -111,6 +123,9 @@ edges:
       finish: "finish"
       flash_brain: "flash_brain"
       worker: "worker"
+      mobile_sop: "mobile_sop"
+      browser_sop: "browser_sop"
+      desktop_sop: "desktop_sop"
 
   # 2. Worker -> Supervisor
   - from: "worker"

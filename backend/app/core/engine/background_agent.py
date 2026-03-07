@@ -244,6 +244,23 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
 
             await activity_monitor.end_run(thread_id, "done")
 
+            # Phase 6: Publish AgentRunCompletedEvent for automated learning
+            try:
+                from app.core.events import system_bus
+                from app.core.events.agent import AgentRunCompletedEvent
+                
+                # We use the thread_id as the primary key for the learning trigger
+                # goal can be reconstructed from the first message in the thread
+                await system_bus.publish(AgentRunCompletedEvent(
+                    thread_id=thread_id,
+                    project_id=project_id,
+                    goal="Autonomous Task Execution", # Simplified goal for event
+                    status="done"
+                ))
+                logger.info(f"[BackgroundAgent] 📡 Published AgentRunCompletedEvent for thread {thread_id}")
+            except Exception as e:
+                logger.warning(f"[BackgroundAgent] Failed to publish run completion event: {e}")
+
             # Upload Log
             await _upload_final_log(graph_instance, config, thread_id, evoloop_command_id, project_id)
 

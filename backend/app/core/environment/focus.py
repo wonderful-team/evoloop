@@ -94,6 +94,31 @@ def classify_ecosystems(focus: List[str]) -> set[str]:
     # Universal Heuristics for Web apps
     web_keywords = {"chrome", "safari", "browser", "firefox", "edge", "网页", "浏览器"}
 
+    # Mobile intent keywords — generic terms that imply mobile/Android operation.
+    # These apply ONLY when there are real Android devices connected, so we don't
+    # incorrectly force android mode on a pure-desktop environment.
+    mobile_intent_keywords = {
+        "phone", "手机", "app", "应用", "android", "mobile",
+        # Common Chinese mobile apps that live exclusively on Android/iOS:
+        "闲鱼", "淘宝", "微信", "抖音", "支付宝", "京东", "拼多多",
+        "xianyu", "taobao", "wechat", "douyin", "alipay",
+    }
+
+    # Fast-path: if any focus item matches a mobile intent keyword AND
+    # there are Android devices online, declare android ecosystem immediately.
+    if state and state.android_devices:
+        for item in focus:
+            item_lower = item.lower()
+            if item_lower in mobile_intent_keywords or any(
+                kw in item_lower for kw in mobile_intent_keywords
+            ):
+                logger.debug(
+                    f"[EcosystemClassifier] Mobile intent keyword '{item}' matched "
+                    f"with {len(state.android_devices)} device(s) online → android"
+                )
+                ecosystems.add("android")
+                break
+
     for item in focus:
         item_lower = item.lower()
         

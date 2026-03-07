@@ -7,7 +7,7 @@ from typing import Any
 
 from celery import shared_task
 from langchain_core.messages import SystemMessage
-from sqlalchemy import text, select, desc
+from sqlalchemy import text, select, desc, func
 
 from app.core.config import settings
 from app.core.learning.trace_recorder import sync_thread_to_graph
@@ -278,11 +278,13 @@ def record_episode_task(
     result_summary: str | None = None,
     concept_names: list[str] | None = None,
     source_message_id: str | None = None,
+    auto_synthesize: bool = False,
 ):
     """
     Background task to sync thread trace to Neo4j Episode graph.
+    If auto_synthesize is True, it also triggers the WorkflowSynthesizer.
     """
-    logger.info(f"[Celery] Recording episode for thread {thread_id} (Source: {source_message_id})...")
+    logger.info(f"[Celery] Recording episode for thread {thread_id} (Source: {source_message_id}, AutoSynth: {auto_synthesize})...")
 
     async def _run():
         try:
@@ -295,8 +297,30 @@ def record_episode_task(
                 source_message_id=source_message_id,
             )
             logger.info(f"[Celery] Episode recorded for thread {thread_id}")
+
+            if auto_synthesize:
+                from app.core.learning.skill_synthesizer import WorkflowSynthesizer
+                from app.models.learning import TraceEvent
+                
+                # Check if there are meaningful events to synthesize
+                async with session_scope() as db:
+                    stmt = select(func.count(TraceEvent.id)).where(TraceEvent.thread_id == thread_id)
+                    count_res = await db.execute(stmt)
+                    event_count = count_res.scalar()
+                
+                if event_count and event_count >= 3: # Minimum threshold for a synthesis-worthy skill
+                    logger.info(f"[Celery] 🧬 Auto-triggering skill synthesis for thread {thread_id} ({event_count} events)")
+                    synthesizer = WorkflowSynthesizer(thread_id=thread_id)
+                    result = await synthesizer.synthesize()
+                    if result:
+                        logger.info(f"[Celery] ✅ Skill synthesis complete: {result.name}")
+                    else:
+                        logger.info(f"[Celery] ⏩ Skill synthesis skipped (no unique pattern found)")
+                else:
+                    logger.info(f"[Celery] ⏩ Skill synthesis skipped (insufficient events: {event_count})")
+
         except Exception as e:
-            logger.error(f"[Celery] Failed to record episode: {e}")
+            logger.error(f"[Celery] Failed to record episode/synthesize: {e}", exc_info=True)
 
     async def _run_with_flush():
         try:
@@ -542,6 +566,109 @@ def reconcile_skill_macro_task(skill_id: int, thread_id: str):
                     
         except Exception as e:
             logger.error(f"[Celery] Macro reconciliation failed: {e}")
+
+    async def _run_with_flush():
+        try:
+            await _run()
+        finally:
+            from app.utils.async_utils import flush_loop_bound_resources
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())
+
+
+@shared_task(name="engine_scheduler_tick")
+def engine_scheduler_tick():
+    """
+    Background task to poll for due autonomous tasks.
+    Triggered by Celery Beat.
+    """
+    async def _run():
+        try:
+            from app.infrastructure.scheduler.service import SchedulerService
+            await SchedulerService.tick()
+        except Exception as e:
+            logger.error(f"[Celery] Scheduler tick failed: {e}")
+
+    async def _run_with_flush():
+        try:
+            await _run()
+        finally:
+            from app.utils.async_utils import flush_loop_bound_resources
+            await flush_loop_bound_resources()
+            
+    asyncio.run(_run_with_flush())
+
+
+@shared_task(name="run_autonomous_task_execution")
+def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
+    """
+    Background task to execute an autonomous task.
+    Constructs an agent session from the task's intent and skill.
+    Now supports multi-device reservation.
+    """
+    async def _run():
+        from app.models.scheduler import AutonomousTask
+        from app.models.learning import LearnedSkill
+        from app.core.engine.background_agent import run_agent_background
+        from app.core.environment.devices import DevicePool
+        
+        device_id = None
+        try:
+            # 1. Reserve a device
+            device_id = await DevicePool.reserve_device(task_id=f"task-{task_id}")
+            if not device_id:
+                logger.warning(f"[Celery] No devices available for task {task_id}. Re-queuing...")
+                # Optional: retry with delay or just fail
+                raise ValueError("No available Android devices.")
+
+            async with session_scope() as session:
+                task = await session.get(AutonomousTask, task_id)
+                if not task:
+                    logger.error(f"[Celery] Autonomous task {task_id} not found.")
+                    return
+                
+                skill = await session.get(LearnedSkill, task.skill_id)
+                if not skill:
+                    logger.error(f"[Celery] Skill {task.skill_id} for task {task_id} not found.")
+                    return
+
+                # Construct execution context
+                thread_id = f"auton-{task_id}-{int(time.time())}"
+                
+                # Instruction to the Agent
+                prompt = (
+                    f"### Autonomous Task Execution\n"
+                    f"**Goal**: {task.intent_description}\n"
+                    f"**Method**: Use skill '{skill.name}' (ID: {skill.id})\n"
+                    f"**Device**: Assigned to {device_id}\n\n"
+                    f"Execute this task now. If the deterministic path fails, use your reasoning "
+                    f"to complete the goal or analyze the failure."
+                )
+                
+                inputs = {
+                    "messages": [{"type": "human", "content": prompt}],
+                    "project_id": project_id or 1,
+                    "task_title": f"Autonomous: {task.intent_description[:30]}...",
+                    "metadata": {
+                        "autonomous_task_id": task_id,
+                        "source_skill_id": skill.id,
+                        "device_id": device_id  # Inject device_id for tools to pick up
+                    }
+                }
+                
+                logger.info(f"[Celery] Starting autonomous agent for task {task_id} on {device_id} (Thread: {thread_id})")
+                
+                # Update task status: successful start
+                task.consecutive_failures = 0 
+                
+                await run_agent_background(thread_id, inputs)
+                
+        except Exception as e:
+            logger.error(f"[Celery] Autonomous task execution failed for {task_id}: {e}")
+        finally:
+            if device_id:
+                await DevicePool.release_device(device_id, task_id=f"task-{task_id}")
 
     async def _run_with_flush():
         try:

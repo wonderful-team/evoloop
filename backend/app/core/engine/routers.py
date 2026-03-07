@@ -42,6 +42,24 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             },
         }) for topic in tasks]
 
+    # Phase 4: Dynamic SOP Dispatcher
+    intent_category = state.get("intent_category")
+    
+    # 1. Mobile
+    if next_node == "mobile_exploration" or intent_category == "mobile_exploration":
+        logger.info(f"[Router] Routing to Mobile Exploration SOP (Subgraph)")
+        return "mobile_sop"
+        
+    # 2. Browser
+    if next_node == "browser_navigation" or intent_category == "browser_navigation" or intent_category == "web_research":
+        logger.info(f"[Router] Routing to Browser Navigation SOP (Subgraph)")
+        return "browser_sop"
+        
+    # 3. Desktop
+    if next_node == "desktop_automation" or intent_category == "desktop_automation":
+        logger.info(f"[Router] Routing to Desktop Automation SOP (Subgraph)")
+        return "desktop_sop"
+
     if next_node == "finish":
         return "finish"
 
