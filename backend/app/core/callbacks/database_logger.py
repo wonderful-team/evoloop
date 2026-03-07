@@ -8,13 +8,10 @@ from uuid import UUID
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
-from sqlalchemy import desc, select
 
-from app.celery_app import celery_app
+from app.infrastructure.queue.celery import celery_app
 from app.core.evocloud import evocloud_manager
 from app.i18n.service import i18n
-from app.infrastructure.database.sql.database import session_scope
-from app.models import Message
 from app.models.schemas.events import MessageEvent
 
 

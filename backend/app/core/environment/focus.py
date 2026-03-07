@@ -3,6 +3,7 @@ import re
 from typing import List, Optional
 
 from app.core.context import ContextManager
+from app.core.environment.state import get_awakened_state
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,6 @@ def resolve_focus(text: str, current_focus: Optional[List[str]] = None) -> List[
     focus_hints = []
 
     # 1. Dynamic App Matching (from Environment Awareness)
-    from app.core.environment import get_awakened_state
     state = get_awakened_state()
     if state:
         known_app_names = set()
@@ -89,9 +89,8 @@ def classify_ecosystems(focus: List[str]) -> set[str]:
         return set()
 
     ecosystems = set()
-    from app.core.environment import get_awakened_state
     state = get_awakened_state()
-    
+
     # Universal Heuristics for Web apps
     web_keywords = {"chrome", "safari", "browser", "firefox", "edge", "网页", "浏览器"}
 

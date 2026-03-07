@@ -28,6 +28,9 @@ nodes:
       - "recall_memory"
       - "update_focus"
       - "memorize"
+      - "delegate_periodic_intent"
+      - "inspect_task_health"
+      - "list_autonomous_tasks"
 
   - id: "worker"
     path: "app.core.engine.nodes.worker.worker_node"
@@ -79,6 +82,9 @@ nodes:
       - "request_approval"
       - "use_mcp_server"
       - "wait_for"
+      - "delegate_periodic_intent"
+      - "inspect_task_health"
+      - "list_autonomous_tasks"
 
   - id: "finish"
     path: "app.core.engine.nodes.finish.finish_node"

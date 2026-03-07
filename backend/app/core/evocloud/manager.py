@@ -3,17 +3,16 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from app.celery_app import celery_app
+from app.infrastructure.queue.celery import celery_app
 from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.evocloud.backends.websocket_link import EvoCloudWebSocketLink
 from app.core.evocloud.schemas import EvoCloudConfig
+from app.utils.async_utils import LoopBoundResource
 
 logger = logging.getLogger(__name__)
 
-
-from app.utils.async_utils import LoopBoundResource
 
 class EvoCloudManager:
     """
