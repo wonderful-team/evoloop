@@ -472,6 +472,7 @@
       "globalNoFiles": "File browsing not available in global mode"
     },
     "resourceRemoved": "Resource removed",
+    "agentStopped": "Chat stopped",
     "context": {
       "starter": {
         "analyzeDesc": "Explore architecture & files",

@@ -70,9 +70,7 @@ async def lifespan(_app: FastAPI):
     try:
         from app.core.environment import awaken, environment_watcher
         from app.core.environment.handlers import register_default_handlers
-        from app.domain.codebase.indexing.event_handlers import (
-            register_indexing_handlers,
-        )
+        from app.domain.codebase.indexing.event_handlers import register_indexing_handlers
         from app.core.learning.orchestrator import register_learning_handlers
 
         # Register event handlers before awakening

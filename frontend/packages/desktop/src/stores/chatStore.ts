@@ -1,5 +1,6 @@
 import { toast } from "sonner"
 import { create } from "zustand"
+import i18n from "@evoloop/shared/i18n"
 import { AgentService, ConversationsService } from "@/client"
 import { ChatConnection } from "@/lib/ChatConnection"
 import type { Message } from "@/components/Chat/ChatMessageItem"
@@ -231,7 +232,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             await AgentService.stopChat({
                 requestBody: { thread_id: threadId, message: "" },
             })
-            toast.info("Agent stopped")
+            toast.info(i18n.t("chat.agentStopped"))
             set({ status: "stopped", humanRequest: null })
         } catch (_e) {
             toast.error("Failed to stop agent")

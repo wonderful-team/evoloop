@@ -204,7 +204,7 @@ DEPENDENCY_FILES = [
 
 # Special Python files
 SPECIAL_PYTHON_FILES = [
-    "__init__.py",
+    ".DS_Store",
 ]
 
 # All blacklisted files

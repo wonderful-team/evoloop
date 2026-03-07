@@ -974,6 +974,8 @@ export type FilesSearchFilesByNameResponse = (Array<{
     [key: string]: unknown;
 }>);
 
+export type LearningGetActionRegistryResponse = (unknown);
+
 export type LearningListPendingRequestsData = {
     threadId?: (string | null);
 };

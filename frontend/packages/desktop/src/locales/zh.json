@@ -472,6 +472,7 @@
       "globalNoFiles": "文件浏览在全局模式下不可用"
     },
     "resourceRemoved": "资源已移除",
+    "agentStopped": "对话已停止",
     "context": {
       "starter": {
         "analyzeDesc": "探索架构与文件",

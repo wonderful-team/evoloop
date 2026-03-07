@@ -51,7 +51,7 @@ class ToolManager:
             requested_tools = execution_ticket.get("tools_used", [])
 
             # Agent Config for Dynamic Specialist
-            agent_config = execution_ticket.get("agent_config", {})
+            agent_config = execution_ticket.get("agent_config") or {}
             dynamic_tools = agent_config.get("tools", [])
 
             # Merge dynamically requested individual tools

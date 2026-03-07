@@ -99,7 +99,7 @@ async def explore_codebase(
         args = {"pattern": query, "is_regex": True}
         if scope_path:
             args["path"] = scope_path
-        return grep_files.invoke(args, config=config)
+        return await grep_files.ainvoke(args, config=config)
 
     elif action == "semantic_code_search":
         return await search_codebase.ainvoke({"query": query}, config=config)
@@ -111,7 +111,7 @@ async def explore_codebase(
 
 
 @evoloop_tool(is_state_mutating=True)
-def manage_git(
+async def manage_git(
     action: Literal["status", "diff", "commit", "log", "create_branch"],
     argument: str | None = None,  # message for commit, branch name, etc.
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
@@ -124,19 +124,19 @@ def manage_git(
         argument: Contextual argument (commit message, branch name).
     """
     if action == "status":
-        return git_status.invoke({}, config=config)
+        return await git_status.ainvoke({}, config=config)
     elif action == "diff":
-        return git_diff.invoke({}, config=config)
+        return await git_diff.ainvoke({}, config=config)
     elif action == "commit":
         if not argument:
             return "Error: 'argument' (message) required for commit."
-        return git_commit.invoke({"message": argument}, config=config)
+        return await git_commit.ainvoke({"message": argument}, config=config)
     elif action == "log":
-        return git_history.invoke({}, config=config)
+        return await git_history.ainvoke({}, config=config)
     elif action == "create_branch":
         if not argument:
             return "Error: 'argument' (branch_name) required."
-        return git_create_branch.invoke({"branch_name": argument}, config=config)
+        return await git_create_branch.ainvoke({"branch_name": argument}, config=config)
 
     return f"Error: Unknown action '{action}'"
 

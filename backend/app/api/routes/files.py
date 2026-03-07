@@ -26,25 +26,27 @@ class FileNode(BaseModel):
 async def list_files(project_id: int, path: str | None = None):
     """
     Get file tree for a project.
+    If project_id is 0, returns workspace root files (Global Mode).
     If path is None, returns root.
-    Use path to traverse deeper (though UI might just want full tree?).
-    Let's implement a recursive full tree for now (depth limited) or single level.
-    Given "IDE-like" request, single level with lazy load is safer for huge repos,
-    but full tree is nicer for UX.
-    Let's do full tree with .gitignore respect and max depth.
     """
-    project = await evocloud_manager.get_project_by_id(project_id)
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    root_path = project.get("path")
+    # Global mode: project_id = 0 means workspace root
+    if project_id == 0:
+        from app.infrastructure.config.service import SystemConfigService
+        root_path = SystemConfigService.get_value("WORKSPACE_ROOT")
+        if not root_path:
+            raise HTTPException(status_code=404, detail="WORKSPACE_ROOT not configured")
+    else:
+        project = await evocloud_manager.get_project_by_id(project_id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        root_path = project.get("path")
     if not root_path or not os.path.exists(root_path):
         raise HTTPException(
             status_code=404, detail=f"Project path not found locally: {root_path}"
         )
 
     # Simple recursive walker ignoring heavy dirs
-    from app.constants import DEFAULT_EXCLUDED_DIRS
+    from app.constants import DEFAULT_EXCLUDED_DIRS, DEFAULT_EXCLUDED_FILES
 
     # Combine with local ignores if needed, or just use global
     # IGNORE_DIRS is now effectively DEFAULT_EXCLUDED_DIRS from constant
@@ -57,6 +59,8 @@ async def list_files(project_id: int, path: str | None = None):
                 for entry in entries:
                     # Use central exclude list
                     if entry.name in DEFAULT_EXCLUDED_DIRS:
+                        continue
+                    if entry.name in DEFAULT_EXCLUDED_FILES:
                         continue
                     if entry.name.startswith("."):  # Skip hidden files heavily? Maybe make optional.
                         pass

@@ -450,22 +450,26 @@ class CleanupManager:
         清理文件索引和向量存储 PostgreSQL 表。
 
         表：
-        - code_chunks - 向量化代码块
-        - code_relations - 实体间关系
-        - code_entities - 代码符号/实体
-        - source_files - 已索引的源文件
+        - project_resources - 项目资源（固定文件、外部链接）
+        - wikipage - 项目 Wiki 页面
         - repositories - Git 仓库元数据
+        - source_files - 已索引的源文件
+        - code_chunks - 向量化代码块
+        - code_entities - 代码符号/实体
+        - code_relations - 实体间关系
         - tools - 工具嵌入向量
         """
         print("\n🔵 POSTGRESQL 索引清理")
         print("-" * 40)
 
         tables = [
-            "code_chunks",
-            "code_relations",
-            "code_entities",
-            "source_files",
+            "project_resources",
+            "wikipage",
             "repositories",
+            "source_files",
+            "code_chunks",
+            "code_entities",
+            "code_relations",
             "tools",
         ]
 
@@ -912,6 +916,296 @@ class CleanupManager:
             self.stats.errors.append(f"Keychain: {e}")
             return False
 
+    async def cleanup_conversations(self, days: int | None = None) -> bool:
+        """
+        清理对话及相关数据。
+
+        涉及表（共10张，按依赖顺序清理）：
+        1. checkpoint_writes - Checkpoint 写入记录（依赖 checkpoints）
+        2. checkpoint_blobs - Checkpoint 二进制数据
+        3. checkpoints - Checkpoint 主表（依赖 conversations）
+        4. message_references - 消息引用（依赖 messages）
+        5. messages - 消息记录（依赖 conversations）
+        6. human_requests - 人工请求（依赖 conversations）
+        7. file_operations - 文件操作记录（依赖 conversations）
+        8. plan_steps - 计划步骤（依赖 plans）
+        9. plans - 任务计划（依赖 conversations，外键+级联）
+        10. conversations - 对话主表
+
+        注意：trace_events 在技能清理中处理，todos 需单独清理，checkpoint_migrations 保留
+
+        Args:
+            days: 只清理 N 天前的对话，None 表示清理所有
+        """
+        print("\n💬 对话清理")
+        print("-" * 40)
+
+        try:
+            from sqlalchemy import text
+            from app.infrastructure.database.sql.database import AsyncSessionLocal
+
+            async with AsyncSessionLocal() as session:
+                # 统计各表数据（注意：trace_events 在技能清理中，todos 需单独清理，checkpoint_migrations 保留）
+                tables_info = [
+                    ("conversations", "id IS NOT NULL"),
+                    ("checkpoints", "1=1"),
+                    ("checkpoint_writes", "1=1"),
+                    ("checkpoint_blobs", "1=1"),
+                    ("messages", "1=1"),
+                    ("message_references", "1=1"),
+                    ("human_requests", "1=1"),
+                    ("file_operations", "1=1"),
+                    ("plans", "1=1"),
+                    ("plan_steps", "1=1"),
+                ]
+
+                stats_before = {}
+                for table, condition in tables_info:
+                    try:
+                        result = await session.execute(text(f"SELECT COUNT(*) FROM {table} WHERE {condition}"))
+                        stats_before[table] = result.scalar() or 0
+                    except Exception:
+                        stats_before[table] = 0
+
+                total_related = sum(stats_before.values()) - stats_before.get("conversations", 0)
+                conv_count = stats_before.get("conversations", 0)
+
+                if conv_count == 0:
+                    print("  ℹ️  没有对话数据需要清理")
+                    return True
+
+                print(f"  发现 {conv_count} 个对话，关联 {total_related} 条记录")
+                for table, count in stats_before.items():
+                    if count > 0:
+                        print(f"    - {table}: {count}")
+
+                if self.dry_run:
+                    print(f"  🔍 试运行：将清理 {conv_count} 个对话及其关联数据")
+                    return True
+
+                if not self._confirm(f"删除 {conv_count} 个对话及所有关联数据?"):
+                    print("  ⏭️  已跳过")
+                    return False
+
+                # 构建时间条件
+                time_condition = ""
+                if days is not None:
+                    time_condition = f"AND created_at < NOW() - INTERVAL '{days} days'"
+                    print(f"  📅 只清理 {days} 天前的对话")
+
+                deleted_rows = 0
+
+                # 1. 清理 checkpoint 相关表（按依赖顺序：writes -> blobs -> checkpoints）
+                # 1a. 清理 checkpoint_writes
+                try:
+                    result = await session.execute(text(f"""
+                        DELETE FROM checkpoint_writes
+                        WHERE thread_id IN (
+                            SELECT id FROM conversations WHERE 1=1 {time_condition}
+                        )
+                    """))
+                    count = result.rowcount or 0
+                    deleted_rows += count
+                    if count > 0:
+                        print(f"  ✅ 已删除 {count} 条 checkpoint 写入记录")
+                except Exception as e:
+                    logger.warning(f"  清理 checkpoint_writes 失败：{e}")
+
+                # 1b. 清理 checkpoint_blobs
+                try:
+                    result = await session.execute(text(f"""
+                        DELETE FROM checkpoint_blobs
+                        WHERE thread_id IN (
+                            SELECT id FROM conversations WHERE 1=1 {time_condition}
+                        )
+                    """))
+                    count = result.rowcount or 0
+                    deleted_rows += count
+                    if count > 0:
+                        print(f"  ✅ 已删除 {count} 条 checkpoint 二进制数据")
+                except Exception as e:
+                    logger.warning(f"  清理 checkpoint_blobs 失败：{e}")
+
+                # 1c. 清理 checkpoints 主表
+                try:
+                    result = await session.execute(text(f"""
+                        DELETE FROM checkpoints
+                        WHERE thread_id IN (
+                            SELECT id FROM conversations WHERE 1=1 {time_condition}
+                        )
+                    """))
+                    count = result.rowcount or 0
+                    deleted_rows += count
+                    if count > 0:
+                        print(f"  ✅ 已删除 {count} 个 checkpoint")
+                except Exception as e:
+                    logger.warning(f"  清理 checkpoints 失败：{e}")
+
+                # 2. 清理 message_references（通过 message_id 关联）
+                try:
+                    result = await session.execute(text(f"""
+                        DELETE FROM message_references
+                        WHERE message_id IN (
+                            SELECT id FROM messages
+                            WHERE thread_id IN (
+                                SELECT id FROM conversations WHERE 1=1 {time_condition}
+                            )
+                        )
+                    """))
+                    deleted_rows += result.rowcount or 0
+                except Exception as e:
+                    logger.warning(f"  清理 message_references 失败：{e}")
+
+                # 2. 清理 messages
+                try:
+                    result = await session.execute(text(f"""
+                        DELETE FROM messages
+                        WHERE thread_id IN (
+                            SELECT id FROM conversations WHERE 1=1 {time_condition}
+                        )
+                    """))
+                    count = result.rowcount or 0
+                    deleted_rows += count
+                    print(f"  ✅ 已删除 {count} 条消息")
+                except Exception as e:
+                    logger.warning(f"  清理 messages 失败：{e}")
+
+                # 3. 清理 human_requests
+                try:
+                    result = await session.execute(text(f"""
+                        DELETE FROM human_requests
+                        WHERE thread_id IN (
+                            SELECT id FROM conversations WHERE 1=1 {time_condition}
+                        )
+                    """))
+                    count = result.rowcount or 0
+                    deleted_rows += count
+                    if count > 0:
+                        print(f"  ✅ 已删除 {count} 条人工请求")
+                except Exception as e:
+                    logger.warning(f"  清理 human_requests 失败：{e}")
+
+                # 4. 清理 file_operations
+                try:
+                    result = await session.execute(text(f"""
+                        DELETE FROM file_operations
+                        WHERE thread_id IN (
+                            SELECT id FROM conversations WHERE 1=1 {time_condition}
+                        )
+                    """))
+                    count = result.rowcount or 0
+                    deleted_rows += count
+                    if count > 0:
+                        print(f"  ✅ 已删除 {count} 条文件操作记录")
+                except Exception as e:
+                    logger.warning(f"  清理 file_operations 失败：{e}")
+
+                # 5. 清理 plan_steps（plans 有级联删除，但先手动清理更可控）
+                try:
+                    result = await session.execute(text(f"""
+                        DELETE FROM plan_steps
+                        WHERE plan_id IN (
+                            SELECT id FROM plans WHERE thread_id IN (
+                                SELECT id FROM conversations WHERE 1=1 {time_condition}
+                            )
+                        )
+                    """))
+                    count = result.rowcount or 0
+                    deleted_rows += count
+                    if count > 0:
+                        print(f"  ✅ 已删除 {count} 条计划步骤")
+                except Exception as e:
+                    logger.warning(f"  清理 plan_steps 失败：{e}")
+
+                # 6. 清理 plans
+                try:
+                    result = await session.execute(text(f"""
+                        DELETE FROM plans
+                        WHERE thread_id IN (
+                            SELECT id FROM conversations WHERE 1=1 {time_condition}
+                        )
+                    """))
+                    count = result.rowcount or 0
+                    deleted_rows += count
+                    if count > 0:
+                        print(f"  ✅ 已删除 {count} 个计划")
+                except Exception as e:
+                    logger.warning(f"  清理 plans 失败：{e}")
+
+                # 7. 最后清理 conversations 主表
+                try:
+                    result = await session.execute(text(f"""
+                        DELETE FROM conversations
+                        WHERE 1=1 {time_condition}
+                    """))
+                    conv_deleted = result.rowcount or 0
+                    deleted_rows += conv_deleted
+                    print(f"  ✅ 已删除 {conv_deleted} 个对话")
+                except Exception as e:
+                    logger.error(f"  清理 conversations 失败：{e}")
+                    self.stats.errors.append(f"conversations: {e}")
+
+                await session.commit()
+
+                self.stats.postgres_rows_deleted += deleted_rows
+                action = "将删除" if self.dry_run else "已删除"
+                print(f"  ✅ {action} {deleted_rows} 条对话相关记录")
+                return True
+
+        except ImportError as e:
+            logger.warning(f"  ⚠️  PostgreSQL 不可用：{e}")
+            return False
+        except Exception as e:
+            logger.error(f"  ❌ 对话清理失败：{e}")
+            self.stats.errors.append(f"对话: {e}")
+            return False
+
+    async def cleanup_todos(self) -> bool:
+        """
+        清理待办事项表。
+
+        表：
+        - todos - 待办事项
+        """
+        print("\n📋 待办事项清理")
+        print("-" * 40)
+
+        try:
+            from sqlalchemy import text
+            from app.infrastructure.database.sql.database import AsyncSessionLocal
+
+            async with AsyncSessionLocal() as session:
+                # 统计待办事项
+                result = await session.execute(text("SELECT COUNT(*) FROM todos"))
+                count = result.scalar() or 0
+
+                if self.dry_run:
+                    print(f"  🔍 发现 {count} 条待办事项")
+                    return True
+
+                if count == 0:
+                    print("  ℹ️  没有待办事项需要清理")
+                    return True
+
+                if not self._confirm(f"删除 {count} 条待办事项?"):
+                    print("  ⏭️  已跳过")
+                    return False
+
+                result = await session.execute(text("TRUNCATE TABLE todos CASCADE"))
+                await session.commit()
+
+                self.stats.postgres_rows_deleted += count
+                print(f"  ✅ 已删除 {count} 条待办事项")
+                return True
+
+        except ImportError as e:
+            logger.warning(f"  ⚠️  PostgreSQL 不可用：{e}")
+            return False
+        except Exception as e:
+            logger.error(f"  ❌ 待办事项清理失败：{e}")
+            self.stats.errors.append(f"待办事项: {e}")
+            return False
+
     async def run_all(self, args):
         """根据命令行参数运行清理。"""
         print("=" * 60)
@@ -956,6 +1250,12 @@ class CleanupManager:
 
         if args.all or args.brain:
             self.cleanup_brain_memory()
+
+        if args.all or args.todos:
+            await self.cleanup_todos()
+
+        if args.all or args.conversations:
+            await self.cleanup_conversations(days=args.conversation_days)
 
         # 打印摘要
         self.stats.print_summary()
@@ -1033,6 +1333,15 @@ async def main():
     parser.add_argument(
         "--keychain", action="store_true", help="清理 Keychain 中存储的登录凭据 (cloud_token, device_key, member_id)"
     )
+    parser.add_argument(
+        "--todos", action="store_true", help="清理待办事项表"
+    )
+    parser.add_argument(
+        "--conversations", action="store_true", help="清理对话及关联数据（消息、计划、文件操作等7张表）"
+    )
+    parser.add_argument(
+        "--conversation-days", type=int, default=None, help="只清理 N 天前的对话（与 --conversations 配合使用）"
+    )
 
     # 选项
     parser.add_argument(
@@ -1054,7 +1363,7 @@ async def main():
     if not any([
         args.all, args.redis, args.neo4j, args.memory, args.skills, args.index,
         args.messages, args.jobs, args.screenshots, args.recordings,
-        args.knowledge, args.brain, args.keychain
+        args.knowledge, args.brain, args.keychain, args.todos, args.conversations
     ]):
         parser.print_help()
         return

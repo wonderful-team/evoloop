@@ -298,6 +298,14 @@ def is_pollable_tool(tool_name: str) -> bool:
     return getattr(tool_map[tool_name], "metadata", {}).get("is_pollable", False)
 
 
+def get_tool_metadata(tool_name: str) -> dict | None:
+    """Return the metadata for a tool by name."""
+    tool_map = get_tool_map()
+    if tool_name not in tool_map:
+        return None
+    return getattr(tool_map[tool_name], "metadata", {}) or {}
+
+
 def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
     """Given a tool execution, return a list of file paths it might mutate."""
     snapshot_paths = []
