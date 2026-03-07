@@ -6,6 +6,7 @@ from typing import Any
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
+from app.core.tools.registry import is_state_mutating_tool, get_tool_affected_paths
 from app.models.schemas.events import TokenEvent
 
 # Use standard logger instead of rich Console
@@ -28,6 +29,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         self.current_task_id = None
         self.active_llm_run_id = None
         self._current_stream_buffer = ""
+        self._active_nodes = {}
 
     async def on_llm_start(self, serialized: dict[str, Any], prompts: list[str], **kwargs: Any) -> None:
         """Run when LLM starts running."""
@@ -149,49 +151,27 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             task_id = await self.monitor.add_step(self.thread_id, tool_name, "tool", parent_id=parent_id)
             self.current_task_id = task_id
 
-        # Try to extract file path for read operations
-        # Phase 18: Support new atomic file tools
-        if tool_name in [
-            "read_file",
-            "view_file",
-            "read_file_content",
-            "manage_file",
-            "list_files",
-        ]:
-            data = None
+        # Phase 18: Dynamic Path Extraction via Metadata
+        data = None
+        try:
+            # Agent inputs are often JSON strings
+            if input_str.strip().startswith("{"):
+                data = json.loads(input_str)
+        except Exception:
+            pass
+
+        # Fallback: LangChain sometimes logs inputs as Python dict string (single quotes)
+        if data is None:
             try:
-                # Agent inputs are often JSON strings
                 if input_str.strip().startswith("{"):
-                    data = json.loads(input_str)
+                    data = ast.literal_eval(input_str)
             except Exception:
                 pass
 
-            # Fallback: LangChain sometimes logs inputs as Python dict string (single quotes)
-            if data is None:
-                try:
-                    if input_str.strip().startswith("{"):
-                        data = ast.literal_eval(input_str)
-                except Exception:
-                    pass
-
-            if data and isinstance(data, dict):
-                path = None
-
-                if tool_name == "manage_file":
-                    if data.get("action") == "read":
-                        path = data.get("path")
-                elif tool_name in ["read_file", "list_files"]:
-                    path = data.get("path")
-                else:
-                    path = (
-                        data.get("AbsolutePath")
-                        or data.get("file_path")
-                        or data.get("path")
-                        or data.get("TargetFile")
-                    )
-
-                if path:
-                    self.current_tool_path = path
+        if data and isinstance(data, dict):
+            affected_paths = get_tool_affected_paths(tool_name, data)
+            if affected_paths:
+                self.current_tool_path = affected_paths[0]
 
         # Standard Log Output
         logger.info(f"[Tool Start] {tool_name} Input: {input_str[:500]}...")
@@ -209,24 +189,15 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 except Exception:
                     pass
 
-            # 2. Handle Artifacts
-            if tool_name in [
-                "write_to_file",
-                "write_file",
-                "create_file",
-                "replace_file_content",
-                "multi_replace_file_content",
-            ]:
+            # 2. Handle Artifacts (Dynamic via Metadata)
+            if is_state_mutating_tool(tool_name):
                 try:
                     if input_str.strip().startswith("{"):
                         data = json.loads(input_str)
-                        fname = (
-                            data.get("TargetFile")
-                            or data.get("target_file")
-                            or data.get("filename")
-                            or data.get("file_path")
-                        )
-                        if fname:
+                        # We still need a path for the artifact UI
+                        affected_paths = get_tool_affected_paths(tool_name, data)
+                        if affected_paths:
+                            fname = affected_paths[0]
                             await self.monitor.add_artifact(
                                 self.thread_id,
                                 fname.split("/")[-1],
@@ -322,25 +293,37 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             # We re-enable this but map node names to friendly "Phase" names.
             # This creates "Phase" tasks that can act as headers in the UI.
 
-            # Map internal node names to friendly phases
-            friendly_map = {
-                "coder": "Coding Phase",
-                "planner": "Planning Phase",
-                "reviewer": "Review Phase",
-                "researcher": "Research Phase",
-                "executor": "Execution Phase",
-                "verifier": "Verification Phase",
+            # --- 🏅 Unified Node Visualization (v5.0) ---
+            # Instead of a hardcoded map of legacy nodes, we use a structural map 
+            # for standard nodes and dynamic roles for the Universal Worker.
+
+            standard_node_names = {
+                "supervisor": "Supervisor Phase",
+                "finish": "Completion Phase",
+                "chat": "Interaction Phase",
+                "flash_brain": "Cognitive Awakening",
             }
 
-            phase_name = friendly_map.get(node_name, f"Phase: {node_name}")
+            # 1. Try structural names
+            phase_name = standard_node_names.get(node_name)
+            
+            # 2. Try dynamic worker roles
+            if node_name == "worker" or not phase_name:
+                execution_ticket = inputs.get("execution_ticket") or {}
+                agent_config = execution_ticket.get("agent_config") or {}
+                role_name = agent_config.get("role_name")
+                
+                if role_name:
+                    phase_name = f"{role_name} Phase"
+                else:
+                    # Fallback: Capitalize node ID (e.g. 'worker' -> 'Worker Phase')
+                    phase_name = f"{node_name.replace('_', ' ').title()} Phase"
+
             friendly_name = f"► {phase_name}"
 
-            # Store node_run_id -> task_id map
-            if not hasattr(self, "_active_nodes"):
-                self._active_nodes = {}
-
-            # Only log if it's a known significant node (avoid internal LangGraph nodes)
-            should_log = node_name in friendly_map
+            # Log all significant structural/working nodes
+            ignorable_nodes = ("__start__", "__end__", "language_router")
+            should_log = node_name not in ignorable_nodes
 
             if should_log:
                 run_id = kwargs.get("run_id")

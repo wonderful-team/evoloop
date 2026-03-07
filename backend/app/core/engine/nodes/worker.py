@@ -14,6 +14,7 @@ from app.core.engine.prompts import WorkerPromptBuilder
 from app.core.engine.state import AgentState
 from app.core.environment import get_awakened_state
 from app.core.tools.manager import tool_manager
+from app.core.tools.registry import get_tool_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -95,18 +96,11 @@ class WorkerNode:
             if isinstance(ctx.spatial_awareness, dict):
                 insights = ctx.spatial_awareness.setdefault("insights", [])
                 for concept in awakened_env.relevant_concepts:
-                    # Platform-aware filtering for Android-specific concepts
-                    android_prefixes = ("android_layout:", "android:", "adb:", "mobile:", "apk:")
-                    if concept.name.lower().startswith(android_prefixes) and not has_android:
-                        continue
                     insights.append(f"💡 {concept.name}: {concept.description}")
             else:
-                # Fallback for unexpected types
                 for concept in awakened_env.relevant_concepts:
-                    if concept.name.startswith("android_layout:") and not has_android:
-                        continue
                     ctx.spatial_awareness.append(f"💡 {concept.name}: {concept.description}")
-            logger.info(f"[Worker] 🧠 Enriched context with relevant concepts from Brain (Android Filter: {'ON' if not has_android else 'OFF'}).")
+            logger.info(f"[Worker] 🧠 Enriched context with {len(awakened_env.relevant_concepts)} relevant concepts from Brain.")
 
         # 3. Construct Prompts (Using Builder)
         scratchpad = state.get("scratchpad", {})
@@ -178,14 +172,18 @@ class WorkerNode:
             "next_node": routing_target or "supervisor",
         }
 
-        # 5a. Cache Invalidation (from Operator)
-        write_tools = {"write_file", "edit_file", "manage_file", "write_document", "edit_document"}
-        has_changes = any(
-            any(wt in t_sig for wt in write_tools)
-            for t_sig in tool_history
-        )
+        # 5a. Cache Invalidation (Universal via Metadata)
+        # Instead of a hardcoded list, we use the tool registry's metadata.
+        has_changes = False
+        for t_sig in tool_history:
+            tool_name = t_sig.split(":")[0] if ":" in t_sig else t_sig
+            meta = get_tool_metadata(tool_name)
+            if meta and meta.get("is_state_mutating"):
+                has_changes = True
+                logger.info(f"[Worker][{role_name}] ♻️ State mutation detected via tool '{tool_name}' - Invalidating caches")
+                break
+
         if has_changes:
-            logger.info(f"[Worker][{role_name}] ♻️ File changes detected - Invalidating caches")
             return_state["workspace_context"] = {"structure": None, "structure_updated_at": 0.0}
 
         # 5b. Verification Signal Capture (from Operator)

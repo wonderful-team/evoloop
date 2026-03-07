@@ -116,7 +116,6 @@ class AgentState(TypedDict):
     research_loop_count: Annotated[int | None, lambda a, b: b]  # deprecated
     research_logs: Annotated[list[str] | None, operator.add]  # deprecated
     research_topic: str | None  # deprecated → use ExecutionTicket.topic
-    parallel_research_tasks: list[str] | None  # deprecated
     max_research_iterations: int | None  # deprecated → use AgentEngine.max_steps
 
     # Memory

@@ -22,13 +22,7 @@ class EnvironmentContextPlugin(ContextPlugin):
                 has_android = True
 
             # 1. Hydrate Active Boundaries
-            boundaries = boundary_manager.get_all_boundaries()
-            if not has_android:
-                # Remove Android-specific boundaries if no device connected
-                android_keywords = ("adb", "android", "phone", "mobile", "apk")
-                ctx.active_boundaries = [b for b in boundaries if not any(k in b.lower() for k in android_keywords)]
-            else:
-                ctx.active_boundaries = list(boundaries)
+            ctx.active_boundaries = list(boundary_manager.get_all_boundaries())
 
             # 2. Hydrate Environment Summaries
             ctx.environment_summaries = build_environment_summaries(relevance="auto")
@@ -100,8 +94,6 @@ class EnvironmentContextPlugin(ContextPlugin):
                         name = c.name
                         android_prefixes = ("android_layout:", "android:", "adb:", "mobile:", "apk:")
                         if name.lower().startswith(android_prefixes):
-                            if not has_android:
-                                continue
                             # Extract package: android_layout:com.pkg -> com.pkg
                             parts = name.split(":", 1)
                             if len(parts) > 1:
@@ -124,34 +116,10 @@ class EnvironmentContextPlugin(ContextPlugin):
                                 unique_names.append(name)
                                 seen_others.add(name)
 
-                    # Re-assemble layouts only if android is available
-                    formatted_layouts = []
+                    # Always include layouts if discovered
+                    formatted_layouts = [f"android_layout({val})" for val in list(layout_map.values())[:5]]
 
-                    if has_android:
-                        # Phase 4 Intent-Aware Filtering: Prioritize focused apps
-                        focused_layouts = []
-                        other_layouts = []
-                        
-                        focus_keywords = getattr(ctx, "entity_focus", [])
-                        
-                        for val in layout_map.values():
-                            val_lower = val.lower()
-                            # Check if layout label or package matches any focus keyword
-                            if any(k in val_lower for k in focus_keywords):
-                                focused_layouts.append(f"android_layout({val})  <-- [Focus Active]")
-                            else:
-                                other_layouts.append(f"android_layout({val})")
-                                
-                        # Combine: prioritize focused, append others up to a limit
-                        max_layouts = 3 if focus_keywords else 5
-                        formatted_layouts = focused_layouts + other_layouts[:max_layouts - len(focused_layouts)]
-
-                    # Prioritize focus in unique names too
-                    focus_concepts = [n for n in unique_names if any(k in n.lower() for k in getattr(ctx, "entity_focus", []))]
-                    other_concepts = [n for n in unique_names if n not in focus_concepts]
-                    filtered_unique_names = focus_concepts + other_concepts[:5 - len(focus_concepts)]
-
-                    ctx.memory_replay["concepts"] = (formatted_layouts + filtered_unique_names)[:5]
+                    ctx.memory_replay["concepts"] = (formatted_layouts + unique_names[:5])[:5]
 
                 if getattr(state, "journal_highlights", None):
                     ctx.memory_replay["highlights"] = state.journal_highlights

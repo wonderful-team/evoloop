@@ -43,13 +43,13 @@ def get_last_human_message(messages: list) -> str | None:
 
 class SupervisorNode:
     """
-    Supervisor Node - Decision-making hub for the EvoLoop Agent.
+    Supervisor Node - Decision-making hub for the EvoLoop Agent (LLM-First Architecture).
 
     Responsibilities:
-    1. Fast-path routing via IntentClassifier and SkillMatcher
-    2. Context building (tools, memory, project structure)
-    3. LLM-based planning and exploration
-    4. Routing decisions to specialized nodes
+    1. Sense environment via tools (telemetry, search_native_tools, search_skills)
+    2. LLM-driven routing decisions via ReAct loop
+    3. Tool authorization via authorized_tools
+    4. Context building (tools, memory, project structure)
     """
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> dict[str, Any]:
@@ -119,9 +119,10 @@ class SupervisorNode:
             if routing_target not in visited_nodes:
                 visited_nodes = visited_nodes + [routing_target]  # Immutable append
 
-            # Extract Context Handoff
+            # Extract Context Handoff & Authorization
             routing_reason = engine_result.get("_routing_reason", "")
             routing_context = engine_result.get("_routing_context", {})
+            authorized_tools = engine_result.get("_authorized_tools")
 
             # Defensive check: ensure routing_context is a dict
             if isinstance(routing_context, str):
@@ -139,100 +140,26 @@ class SupervisorNode:
             # Intent-driven Namespace (from LLM)
             inferred_namespace = routing_context.get("namespace_context")
 
-            if routing_target == "worker":
+            # --- 🏅 Cognitive Evolution Path: LLM-Driven Authorization ---
+            # Terminal nodes do not need an agent_config (stateless response)
+            terminal_nodes = ("chat", "finish", "flash_brain")
+            
+            if routing_target not in terminal_nodes:
                 agent_config = routing_context.get("agent_config") or {}
                 if "namespace_context" not in agent_config:
                     agent_config["namespace_context"] = inferred_namespace
+                
+                # Default role name if LLM missed it or used legacy target name
                 if not agent_config.get("role_name"):
-                    logger.warning(
-                        "[Supervisor] route_to('worker') called without full agent_config! "
-                        "LLM must supply role_name and system_instructions in context."
-                    )
-
-                # --- 🏅 Plan B: Supervisor-Driven Directed Tool Routing ---
-                topic = routing_context.get("topic") or routing_context.get("query") or routing_reason
-
-                try:
-                    # 1. Discover SOP dependencies preemptively
-                    from app.core.learning.discovery import skill_discovery
-                    _, relevant_skills, _ = await skill_discovery.exact_search(
-                        query=topic, 
-                        namespace_context=inferred_namespace
-                    )
-
-                    required_tools = set()
-                    for skill in relevant_skills:
-                        if skill.tools_used:
-                            try:
-                                tools = json.loads(skill.tools_used)
-                                if isinstance(tools, list):
-                                    required_tools.update(tools)
-                            except Exception:
-                                pass
-
-                    # 2. Fetch baseline capabilities and apply ecosystem masking
-                    from app.core.tools.manager import tool_manager
-                    from app.core.environment.focus import classify_ecosystems
-
-                    baseline_tools = tool_manager.get_node_tools("worker", state=None)
-                    ecosystems = classify_ecosystems(context.get("entity_focus", []))
-                    
-                    is_mobile_focused = "android" in ecosystems
-                    is_web_focused = "web" in ecosystems
-
-                    allowed_tools = set()
-                    if is_mobile_focused and is_web_focused:
-                        allowed_tools.update(t.name for t in baseline_tools if hasattr(t, "name"))
-                    else:
-                        for t in baseline_tools:
-                            name = getattr(t, "name", "")
-                            if not name: continue
-                            if is_mobile_focused and name == "browser_control":
-                                logger.info(f"[Supervisor] 🎭 Masking '{name}' (Mobile Focus Active)")
-                                continue
-                            if is_web_focused and name == "mobile_control":
-                                logger.info(f"[Supervisor] 🎭 Masking '{name}' (Web Focus Active)")
-                                continue
-                            allowed_tools.add(name)
-
-                    # 3. Hybrid Authorization: Merge SOP explicit dependencies
-                    for rt in required_tools:
-                        if rt not in allowed_tools:
-                            logger.info(f"[Supervisor] 🔓 SOP Dependency Override: Granting '{rt}' for '{topic}'")
-                    
-                    allowed_tools.update(required_tools)
-                    agent_config["tools"] = list(allowed_tools)
-
-                except Exception as e:
-                    logger.error(f"[Supervisor] Tool Authorization Error: {e}")
-
-            elif routing_target in ("mobile_sop", "browser_sop", "desktop_sop"):
-                # SOP Subgraph Targets — build a default ExecutionTicket so that
-                # the scanner (WorkerNode) inside the subgraph can start without aborting.
-                sop_defaults = {
-                    "mobile_sop":  ("Mobile Exploration Agent",
-                                    "Operate the Android device to complete the task. "
-                                    "Use mobile_control to take screenshots, tap elements, and scroll. "
-                                    "Repeat: observe → decide → act until the task is done."),
-                    "browser_sop": ("Browser Navigation Agent",
-                                    "Control the browser to complete the task. "
-                                    "Use browser_control to navigate URLs, click elements, and extract content."),
-                    "desktop_sop": ("Desktop Automation Agent",
-                                    "Operate macOS desktop applications using desktop_control. "
-                                    "Use query_app_atlas to locate UI elements before acting."),
-                }
-                role_name, instructions = sop_defaults[routing_target]
-                agent_config = {
-                    "role_name": role_name,
-                    "system_instructions": instructions,
-                    "namespace_context": inferred_namespace,
-                    # Tool allowlist is not restricted here — SOP YAML already constrains
-                    # available tools via its node definitions.
-                }
-                logger.info(f"[Supervisor] 🔀 Built default ExecutionTicket for SOP subgraph '{routing_target}' (role: {role_name})")
-
+                    agent_config["role_name"] = str(routing_target).replace("_", " ").title()
+                
+                # Honor explicit LLM tool grants if provided
+                if authorized_tools is not None:
+                    logger.info(f"[Supervisor] 🛡️ LLM Explicitly Authorized {len(authorized_tools)} tools")
+                    agent_config["tools"] = authorized_tools
+                else:
+                    logger.debug("[Supervisor] No explicit tool authorization; using node defaults.")
             else:
-                # finish, chat — fixed terminal nodes, no agent_config needed
                 agent_config = None
 
             execution_ticket = {
@@ -385,16 +312,10 @@ class SupervisorNode:
         ctx.metadata["cwd"] = cwd
         ctx.metadata["project_concepts"] = project_concepts
         
-        # --- Phase 4: Entity Focus Extraction ---
-        # Decoupled semantic focus resolution. Logic moved to app.core.environment.
-        if last_msg:
-            from app.core import environment
-            ctx.entity_focus = environment.resolve_focus(last_msg, current_focus=ctx.entity_focus)
-
         # User language preference will be fetched by prompt builder directly
         plugin_registry.hydrate_context(ctx)
 
-        logger.info(f"[Supervisor] 📂 Context Hydrated: Concepts {len(project_concepts)} chars. Focus: {ctx.entity_focus}")
+        logger.info(f"[Supervisor] 📂 Context Hydrated: Concepts {len(project_concepts)} chars.")
 
         return {
             "tools": tools,

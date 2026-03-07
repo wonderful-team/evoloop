@@ -1,4 +1,7 @@
 import re
+from typing import Annotated
+from langchain_core.tools import InjectedToolArg
+from langchain_core.runnables import RunnableConfig
 
 from app.core.tools import evoloop_tool
 
@@ -10,6 +13,7 @@ async def read_file(
     path: str | None = None,
     start_line: str | int | None = None,
     end_line: str | int | None = None,
+    config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
     Read the contents of a file.
@@ -41,4 +45,4 @@ async def read_file(
     s = safe_int(start_line)
     e = safe_int(end_line)
 
-    return await handle_read(path, s, e, config=None)
+    return await handle_read(path, s, e, config=config)

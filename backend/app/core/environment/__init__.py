@@ -14,12 +14,12 @@ import logging
 from datetime import datetime
 from typing import Optional
 
+from app.core.environment.boundaries import boundary_manager
 from app.core.environment.context_plugin import EnvironmentContextPlugin
 from app.core.environment.discovery import EnvironmentProbe
 from app.core.environment.memory_replay import replay_memory
 from app.core.environment.models import AwakenedState
 from app.core.environment.preference_priming import prime_preferences
-from app.core.environment.focus import resolve_focus, classify_ecosystems
 from app.core.environment.state import set_awakened_state, get_awakened_state
 from app.core.environment.watcher import environment_watcher
 
@@ -70,6 +70,7 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
 
     # 4. Compute capability boundaries
     boundaries = _compute_capability_boundaries(macos, android_devices, network)
+    boundary_manager.set_static_boundaries(boundaries)
 
     # 5. Compute available platforms
     platforms = []
@@ -119,6 +120,7 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
 
     # Compute boundaries
     boundaries = _compute_capability_boundaries(macos, android_devices, network)
+    boundary_manager.set_static_boundaries(boundaries)
 
     # Compute platforms
     platforms = []
@@ -177,6 +179,4 @@ __all__ = [
     "AwakenedState",
     "environment_watcher",
     "EnvironmentContextPlugin",
-    "resolve_focus",
-    "classify_ecosystems",
 ]

@@ -19,52 +19,23 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     """
     next_node = state.get("next_node")
 
-    # [Compatibility] Remap legacy targets if LLM hallucinates old node names
-    if next_node in ["coder", "tester", "planner", "operator", "deep_researcher", "documenter"]:
-        logger.info(f"[Router] Remapping legacy routing '{next_node}' -> 'worker'")
+    # --- 🏅 Unified Cognitive Routing (v5.0) ---
+    # The Supervisor now decides the "expertise" dynamically via agent_config.
+    # The Graph is flattened: Specialized subgraphs are replaced by Universal Workers.
+    
+    # 1. Known Terminal/Structural Nodes
+    terminal_nodes = ("chat", "finish", "flash_brain", "supervisor")
+    if next_node in terminal_nodes:
+        return next_node
+
+    # 2. Universal Remapping
+    # Any other target (legacy SOPs, hallucinated roles) is handled by the Worker hub.
+    # SupervisorNode ensures agent_config is hydrated for these targets.
+    if next_node:
+        logger.info(f"[Router] Remapping intelligent target '{next_node}' -> 'worker'")
         return "worker"
 
-    # Parallel Research (v5: each branch runs as a Worker with researcher persona)
-    if next_node == "map_research":
-        tasks = state.get("parallel_research_tasks", [])
-        project_id = state.get("project_id", 1)
-        return [Send("worker", {
-            "research_topic": topic,
-            "project_id": project_id,
-            "execution_ticket": {
-                "ticket_type": "web_research",
-                "topic": topic,
-                "agent_config": {
-                    "role_name": "Deep Researcher",
-                    "system_instructions": "You are an expert analyst. Conduct thorough research on the assigned topic.",
-                    "tools": [],
-                },
-            },
-        }) for topic in tasks]
-
-    # Phase 4: Dynamic SOP Dispatcher
-    intent_category = state.get("intent_category")
-    
-    # 1. Mobile
-    if next_node == "mobile_exploration" or intent_category == "mobile_exploration":
-        logger.info(f"[Router] Routing to Mobile Exploration SOP (Subgraph)")
-        return "mobile_sop"
-        
-    # 2. Browser
-    if next_node == "browser_navigation" or intent_category == "browser_navigation" or intent_category == "web_research":
-        logger.info(f"[Router] Routing to Browser Navigation SOP (Subgraph)")
-        return "browser_sop"
-        
-    # 3. Desktop
-    if next_node == "desktop_automation" or intent_category == "desktop_automation":
-        logger.info(f"[Router] Routing to Desktop Automation SOP (Subgraph)")
-        return "desktop_sop"
-
-    if next_node == "finish":
-        return "finish"
-
-    # Valid v5 nodes: worker, chat, flash_brain, finish (remapped via YAML edges)
-    return next_node or "finish"
+    return "finish"
 
 
 def route_by_next_node_field(state: AgentState):

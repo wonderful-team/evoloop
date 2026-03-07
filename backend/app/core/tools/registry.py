@@ -254,21 +254,6 @@ def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseT
     return hydrated
 
 
-def get_tool_to_nodes_mapping(config_path: str | None = None) -> dict[str, list[str]]:
-    """Return a mapping of tool name to the list of node IDs that can execute it."""
-    _ensure_scanned()
-    config = _load_yaml_config(config_path)
-    mapping = {}
-    for node in config.get("nodes", []):
-        node_id = node.get("id")
-        tools = node.get("tools", [])
-        for t in tools:
-            if t not in mapping:
-                mapping[t] = []
-            mapping[t].append(node_id)
-    return mapping
-
-
 # --- Convenience Accessors ---
 
 

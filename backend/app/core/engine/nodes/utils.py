@@ -50,10 +50,9 @@ class SkillHydrator:
         # Track 8: Dynamic Namespace Mounting
         namespace_context = execution_ticket.get("namespace_context")
 
-        # Default behavior: Operator is Lazy, Specialist is Eager
-        if node_name.lower() == "operator":
-            skills = await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode="lazy")
-            return skills
-        else:
-            skills = await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode="eager")
-            return skills
+        # In Unified Graph (v5), we default to 'eager' hydration for standard Workers.
+        # Future optimization: allow Supervisor to specify 'lazy' via Ticket parameters.
+        is_lazy = execution_ticket.get("parameters", {}).get("lazy_hydration", False)
+        mode = "lazy" if is_lazy else "eager"
+
+        return await SkillHydrator.hydrate(state, topic, namespace_context=namespace_context, mode=mode)

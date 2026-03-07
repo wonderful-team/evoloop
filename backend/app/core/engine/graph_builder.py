@@ -19,7 +19,7 @@ class GraphBuilder:
     def _import_obj(self, path: str) -> Any:
         """
         Dynamically imports an object (class, function, variable) from a string path.
-        e.g. "app.core.engine.nodes.coder.coder_node"
+        e.g. "app.core.engine.nodes.worker.worker_node"
         """
         try:
             module_name, obj_name = path.rsplit(".", 1)

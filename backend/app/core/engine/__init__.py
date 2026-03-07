@@ -189,6 +189,7 @@ class AgentEngine:
                     target = tc["args"].get("target", "finish")
                     reason = tc["args"].get("reason", "")
                     context = tc["args"].get("context", {})
+                    authorized_tools = tc["args"].get("authorized_tools")
 
                     # Robustly handle JSON strings if passed by LLM instead of object
                     # Also handle potential double-encoding
@@ -200,14 +201,15 @@ class AgentEngine:
                             context = {}
                             break
 
-                    logger.info(f"[{name}] 🚀 Routing Signal: → {target} ({reason}) | Ctx: {len(context) if isinstance(context, dict) else 0} keys")
+                    logger.info(f"[{name}] 🚀 Routing Signal: → {target} ({reason}) | Auth: {len(authorized_tools) if isinstance(authorized_tools, list) else 'None'}")
 
                     # Return immediately with routing information
                     return {
                         "messages": new_messages,
                         "_routing_target": target,
                         "_routing_reason": reason,
-                        "_routing_context": context,  # <--- NEW
+                        "_routing_context": context,
+                        "_authorized_tools": authorized_tools,
                     }
 
             # Execute Tools
@@ -285,7 +287,7 @@ class AgentEngine:
             tool_results = await asyncio.gather(*[_process_single_tool(tc) for tc in response.tool_calls])
 
             for tool_msg in tool_results:
-                logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)}")
+                logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)[:100]}...")
                 loop_messages.append(tool_msg)
                 new_messages.append(tool_msg)
 

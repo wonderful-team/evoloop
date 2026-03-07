@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 class NodeConfig(BaseModel):
     id: str
-    xpath: str | None = Field(alias="path", default=None)  # e.g. "app.core.engine.nodes.coder.coder_node"
+    xpath: str | None = Field(alias="path", default=None)  # e.g. "app.core.engine.nodes.worker.worker_node"
     # Subgraph Support
     type: str = "function"  # "function" | "generic" | "subgraph"
     # Note: We rely on 'path' being present for function/generic, or 'subgraph_config' for subgraph.

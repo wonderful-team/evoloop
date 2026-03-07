@@ -16,9 +16,22 @@ def update_scratchpad(key: str, value: Any, _config: RunnableConfig) -> str:
         value: The value to assign (can be string, number, boolean, etc.).
     """
     # NOTE: Special Handling in GenericLLMNode
-    # This tool is recognized by the `generic_node` execution loop.
-    # When `generic_node` sees a call to `update_scratchpad`, it extracts the key/value
-    # and includes them in the returned state dictionary under "scratchpad".
-    # This enables the tool to mutate the global graph state.
-
     return f"State updated: {key}={value}"
+
+
+@evoloop_tool(is_state_mutating=True)
+def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> str:
+    """
+    Updates session-level metadata to guide the agent's behavior and context resolution.
+    
+    Common keys:
+    - 'current_ecosystem': Set to 'android', 'macos', or 'web' based on telemetry.
+    - 'user_persona': Describe the user style or specific domain expertise needed.
+    - 'priority': 'low', 'normal', 'high', 'emergency'.
+    
+    Args:
+        key: The metadata key to set.
+        value: The value to assign.
+    """
+    # Managed similarly to scratchpad in the global context
+    return f"Session metadata set: {key}={value}"

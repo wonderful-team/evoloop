@@ -167,37 +167,6 @@ def get_capability_boundaries() -> list[str]:
             return []
 
 
-def detect_platform_relevance(messages: list) -> str:
-    """
-    Analyze message history to determine if the task is platform-specific.
-    Returns: "android", "macos", "both", or "auto"
-    """
-    history_text = ""
-    # Look at last 5 messages for context
-    # messages can be langchain BaseMessage list
-
-    for msg in messages[-5:]:
-        content = ""
-        if isinstance(msg, BaseMessage):
-            content = msg.content
-        elif isinstance(msg, dict):
-            content = msg.get("content", "")
-
-        if isinstance(content, str):
-            history_text += f" {content.lower()}"
-
-    has_android = any(k in history_text for k in ["android", "adb", "mobile", "phone", "mirror", "scrcpy", "tap", "swipe"])
-    has_macos = any(k in history_text for k in ["mac", "desktop", "macos", "apple", "click", "type", "screenshot", "terminal"])
-
-    if has_android and not has_macos:
-        return "android"
-    if has_macos and not has_android:
-        return "macos"
-    if has_android and has_macos:
-        return "both"
-    return "auto"  # Balanced summary
-
-
 def _get_browser_status() -> dict | None:
     """Helper to safely retrieve browser status for prompt injection."""
     try:

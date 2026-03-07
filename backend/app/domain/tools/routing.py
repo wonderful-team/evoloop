@@ -13,7 +13,12 @@ from app.core.tools import evoloop_tool
 
 
 @evoloop_tool(is_state_mutating=True)
-def route_to(target: RoutingTarget, reason: str, context: dict[str, Any] | None = None) -> str:
+def route_to(
+    target: RoutingTarget,
+    reason: str,
+    context: dict[str, Any] | None = None,
+    authorized_tools: list[str] | None = None,
+) -> str:
     """
     Route the current task to a specialist node.
 
@@ -33,9 +38,13 @@ def route_to(target: RoutingTarget, reason: str, context: dict[str, Any] | None 
         target: The specialist node to route to.
         reason: Brief explanation of why.
         context: Structured context to pass to the specialist (Attention Guidance).
+        authorized_tools: A strict allowlist of tool names granted to the specialist.
+                         If empty, the specialist will have NO tools. 
+                         If None (default), the specialist receives standard default tools.
     """
     # This return value is primarily for logging purposes
     # The actual routing logic is in AgentEngine
     context_str = json.dumps(context, ensure_ascii=False) if context else "{}"
     target_val = target.value if isinstance(target, RoutingTarget) else target
-    return f"[ROUTE_SIGNAL] → {target_val}: {reason} | Context: {context_str}"
+    auth_str = f" | Auth: {authorized_tools}" if authorized_tools is not None else ""
+    return f"[ROUTE_SIGNAL] → {target_val}: {reason} | Context: {context_str}{auth_str}"
