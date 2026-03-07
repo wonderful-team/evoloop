@@ -59,7 +59,28 @@ class AgentEngine:
 
         # 2. Config & Context
         config = AgentEngine._setup_callbacks(config)
-        # final_system_prompt = AgentEngine._inject_system_context(system_prompt)
+
+        # 2.1 Hydrate ContextManager
+        from app.core.context import ContextManager, EvoContext
+        ctx = ContextManager.current()
+
+        # Only hydrate if the context is the global fallback (meaning ContextVar is lost)
+        # We must respect project_id=0 (Global Mode) if it is explicitly in state/config
+        if ctx.request_id == "global-fallback":
+            project_id = state.get("project_id")
+            if project_id is None:
+                project_id = config.get("configurable", {}).get("project_id", 1)
+
+            working_directory = state.get("scratchpad", {}).get("working_directory") or config.get("configurable", {}).get("working_directory")
+
+            new_ctx = EvoContext(
+                project_id=project_id,
+                working_directory=working_directory,
+                thread_id=config.get("configurable", {}).get("thread_id"),
+                request_id=f"run-{gen_uuid()[:8]}"
+            )
+            ContextManager.set(new_ctx)
+            logger.info(f"[{name}] 🧪 Context Hydrated: project_id={project_id}, wd={working_directory}")
 
         # 3. Message Handling & Repair
         raw_messages = list(state.get("messages", []))
