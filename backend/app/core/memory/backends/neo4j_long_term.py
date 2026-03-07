@@ -259,6 +259,10 @@ class Neo4jLongTermMemory(ILongTermMemory):
         pid_val = episode.project_id if episode.project_id else 0
 
         # Embed the Goal
+        if not episode.goal:
+            logger.warning(f"Episode goal is empty or None, skipping episode recording")
+            return None
+
         embedder = EmbedderFactory.get_embedder()
         try:
             embedding = await embedder.embed_query(episode.goal)
