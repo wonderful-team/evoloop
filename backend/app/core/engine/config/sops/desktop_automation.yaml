@@ -1,0 +1,45 @@
+name: "desktop_automation"
+version: "1.0"
+state_schema: "app.core.engine.state.AgentState"
+
+nodes:
+  - id: "app_launcher"
+    path: "app.core.engine.nodes.worker.worker_node"
+    config:
+      intent: "Open the target application and ensure it is focused."
+    tools:
+      - "desktop_control"
+
+  - id: "ui_scanner"
+    path: "app.core.engine.nodes.worker.worker_node"
+    config:
+      intent: "Scan the desktop UI using AX Tree or Vision to find target elements."
+    tools:
+      - "desktop_control"
+      - "analyze_image"
+      - "verify_ui_state"
+
+  - id: "action_executor"
+    path: "app.core.engine.nodes.worker.worker_node"
+    config:
+      intent: "Execute native desktop actions like clicks, hotkeys, or AppleScript."
+    tools:
+      - "desktop_control"
+      - "manage_git"
+      - "run_macro"
+
+edges:
+  - from: "app_launcher"
+    to: "ui_scanner"
+    type: "simple"
+
+  - from: "ui_scanner"
+    to: "action_executor"
+    type: "simple"
+
+  - from: "action_executor"
+    type: "conditional"
+    conditions:
+      - expr: "state.get('app_closed') == True"
+        to: "END"
+    default: "ui_scanner"

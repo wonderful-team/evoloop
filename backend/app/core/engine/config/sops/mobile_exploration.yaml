@@ -1,0 +1,38 @@
+name: "mobile_exploration_sop"
+version: "1.0"
+state_schema: "app.core.engine.state.AgentState"
+
+nodes:
+  - id: "scanner"
+    path: "app.core.engine.nodes.worker.worker_node"
+    tools:
+      - "mobile_control"
+      - "analyze_image"
+      - "verify_ui_state"
+      - "list_app_atlas"
+      - "query_app_atlas"
+      - "memorize_concepts"
+      - "update_step_status"
+      - "write_file"
+      - "file_system"
+      - "search_skills"
+
+  - id: "analyzer"
+    path: "app.core.engine.nodes.supervisor.supervisor_node"
+    tools:
+      - "analyze_feasibility"
+      - "update_focus"
+
+edges:
+  - from: "scanner"
+    to: "analyzer"
+    type: "simple"
+
+  - from: "analyzer"
+    type: "conditional"
+    conditions:
+      - expr: "state.get('next_node') == 'scanner'"
+        to: "scanner"
+      - expr: "state.get('next_node') == 'finish'"
+        to: "END"
+    default: "scanner"

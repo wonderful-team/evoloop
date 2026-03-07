@@ -1,0 +1,45 @@
+name: "browser_navigation"
+version: "1.0"
+state_schema: "app.core.engine.state.AgentState"
+
+nodes:
+  - id: "url_navigator"
+    path: "app.core.engine.nodes.worker.worker_node"
+    config:
+      intent: "Navigate to the specified URL and wait for page stabilization."
+    tools:
+      - "browser_control"
+
+  - id: "dom_analyzer"
+    path: "app.core.engine.nodes.worker.worker_node"
+    config:
+      intent: "Analyze the DOM structure or take a screenshot to understand the page layout."
+    tools:
+      - "browser_control"
+      - "analyze_image"
+
+  - id: "interaction_loop"
+    path: "app.core.engine.nodes.worker.worker_node"
+    config:
+      intent: "Perform clicks, typing, or data extraction based on page content."
+    tools:
+      - "browser_control"
+      - "manage_todo"
+
+edges:
+  - from: "url_navigator"
+    to: "dom_analyzer"
+    type: "simple"
+
+  - from: "dom_analyzer"
+    to: "interaction_loop"
+    type: "simple"
+
+  - from: "interaction_loop"
+    type: "conditional"
+    conditions:
+      - expr: "state.get('task_completed') == True"
+        to: "END"
+      - expr: "state.get('needs_new_url') == True"
+        to: "url_navigator"
+    default: "interaction_loop"
