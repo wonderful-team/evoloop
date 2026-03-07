@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from app.celery_app import celery_app
+from app.infrastructure.queue.celery import celery_app
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.utils.async_utils import flush_loop_bound_resources
 

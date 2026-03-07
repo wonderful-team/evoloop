@@ -177,7 +177,7 @@ case "${1:-help}" in
         info "启动 Celery Beat（定时任务调度）..."
         echo " Beat 用于周期性任务调度（如定时清理、检查）"
         echo " 注意：Beat 只负责调度，任务执行仍需 Worker"
-        uv run celery -A app.celery_app beat -l info
+        uv run celery -A app.infrastructure.queue.celery beat -l info
         ;;
 
     start)
@@ -220,7 +220,7 @@ case "${1:-help}" in
             warning "Beat 服务已在运行"
         else
             info "启动 Beat 服务..."
-            nohup uv run celery -A app.celery_app beat -l info > "$LOG_DIR/beat.log" 2>&1 &
+            nohup uv run celery -A app.infrastructure.queue.celery beat -l info > "$LOG_DIR/beat.log" 2>&1 &
             echo $! > "$LOG_DIR/beat.pid"
             sleep 2
             if pgrep -f "celery.*beat" > /dev/null; then

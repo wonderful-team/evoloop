@@ -141,7 +141,7 @@ class Neo4jGraphNavigator(IGraphNavigator):
         
         results = []
         async with driver.session() as session:
-            result = await session.run(cypher_query, query=query, limit=limit)
+            result = await session.run(cypher_query, {"query": query, "limit": limit})
             records = await result.data()
             
             for record in records:

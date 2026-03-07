@@ -18,6 +18,7 @@ class MacroStepType(str, Enum):
     # Legacy support
     IF = "if"
     WHILE = "while"
+    BATCH_LOOP = "batch_loop"
 
 
 class MacroActionType(str, Enum):

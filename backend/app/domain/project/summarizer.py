@@ -5,7 +5,7 @@ import os
 from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 
-from app.celery_app import celery_app
+from app.infrastructure.queue.celery import celery_app
 from app.core.evocloud import evocloud_manager
 from app.core.memory import memory_manager
 from app.core.monitoring.activity import activity_monitor

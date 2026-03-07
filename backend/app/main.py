@@ -73,11 +73,13 @@ async def lifespan(_app: FastAPI):
         from app.domain.codebase.indexing.event_handlers import (
             register_indexing_handlers,
         )
+        from app.core.learning.orchestrator import register_learning_handlers
 
         # Register event handlers before awakening
         register_default_handlers()
         register_indexing_handlers()
         register_event_bridge()
+        register_learning_handlers()
 
         await awaken()
         logger.info("Agent Awakening complete.")
@@ -122,7 +124,7 @@ async def lifespan(_app: FastAPI):
         # Path to the primary config
         config_path = os.path.join(os.path.dirname(__file__), "core/engine/config/agent_main.yaml")
         graph = builder.build(config_path, checkpointer=checkpointer)
-        set_graph(graph)
+        set_graph(graph, config_path=config_path, checkpointer=checkpointer)
         logger.info(f"Agent Graph built successfully from {config_path}")
     except Exception as e:
         logger.critical(f"Failed to build Agent Graph: {e}")

@@ -13,6 +13,8 @@ import re
 import time
 from typing import Any, Literal
 
+from app.core.context import ContextManager
+from app.core.learning.trace_recorder import get_recorder
 from app.core.vision import vision_engine, VisionTask
 from app.infrastructure.drivers.browser import browser_manager
 
@@ -128,15 +130,35 @@ class BrowserController:
             # ── All other actions need a live page ────────────────────────────
             page = await browser_manager.get_page()
 
+            # Phase 5: Imitation Learning - Trace Recording
+            thread_id = ContextManager.get_var("thread_id") or "default"
+            recorder = get_recorder(thread_id)
+            
+            async def _record(action_type: str, params: dict):
+                if recorder.is_recording:
+                    # Optional: capture screenshot if it's a mutation
+                    shot = None
+                    if action_type in ("click", "type_text", "navigate", "submit"):
+                        shot = await page.screenshot(animations="disabled")
+                    await recorder.record_action(
+                        action_type=action_type,
+                        platform="web",
+                        parameters=params,
+                        context={"url": page.url, "title": await page.title()},
+                        screenshot_data=shot
+                    )
+
             # ── Navigation ────────────────────────────────────────────────────
             if action == "navigate":
                 if not url:
                     return "Error: 'url' is required for navigate."
                 await page.goto(url, wait_until="load", timeout=60_000)
+                await _record("navigate", {"url": url})
                 return f"✅ Navigated to: {page.url}\nTitle: {await page.title()}"
 
             elif action == "back":
                 await page.go_back(wait_until="load", timeout=15_000)
+                await _record("back", {})
                 return f"✅ Navigated back. URL: {page.url}"
 
             elif action == "forward":
@@ -160,6 +182,7 @@ class BrowserController:
                     else:
                         await target.dblclick(timeout=timeout_ms)
                     verb = "Clicked" if action == "click" else "Double-clicked"
+                    await _record(action, {"selector": loc, "x": x, "y": y})
                     return f"✅ {verb}: {loc}"
                 elif x is not None and y is not None:
                     if action == "click":
@@ -167,6 +190,7 @@ class BrowserController:
                     else:
                         await page.mouse.dblclick(x, y)
                     verb = "Clicked" if action == "click" else "Double-clicked"
+                    await _record(action, {"x": x, "y": y})
                     return f"✅ {verb} at ({x}, {y})."
                 else:
                     return "Error: Provide 'selector', 'text', or (x, y) for click/double_click."
@@ -188,6 +212,7 @@ class BrowserController:
                 if clear_first:
                     await target.clear(timeout=timeout_ms)
                 await target.type(value, delay=30)
+                await _record("type_text", {"selector": loc, "value": value})
                 preview = value[:60] + ("…" if len(value) > 60 else "")
                 return f"✅ Typed into {loc}: '{preview}'"
 
@@ -207,6 +232,7 @@ class BrowserController:
                 if not key:
                     return "Error: 'key' is required for key_press."
                 await page.keyboard.press(key)
+                await _record("key_press", {"key": key})
                 return f"✅ Key pressed: {key}"
 
             elif action == "scroll":
@@ -220,6 +246,7 @@ class BrowserController:
                     await elem.evaluate(f"el => el.scrollBy({delta_x}, {delta_y})")
                 else:
                     await page.mouse.wheel(delta_x, delta_y)
+                await _record("scroll", {"direction": direction, "amount": amount, "selector": selector})
                 return f"✅ Scrolled {direction} by {amount}px."
 
             elif action == "drag_drop":

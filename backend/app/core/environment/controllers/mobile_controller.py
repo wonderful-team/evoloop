@@ -14,9 +14,11 @@ import time
 from app.constants import INTERCEPT_TARGETS, RISK_KEYWORDS
 from app.core.atlas import atlas_engine
 from app.core.atlas.models import AtlasApp
+from app.core.context import ContextManager
 from app.core.vision import vision_engine, VisionTask
 from app.core.vision.providers.native.android_a11y import android_a11y_provider
 from app.infrastructure.drivers.adb import ADBError, adb_driver
+from app.core.learning.trace_recorder import get_recorder
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +57,33 @@ class MobileController:
         scroll_amount: str = "medium",
     ) -> str:
         """Execute a mobile action. All business logic lives here."""
+        # Resolve device_id from context if not provided
+        if not device_id:
+            device_id = ContextManager.get_var("device_id")
+            if device_id:
+                logger.debug(f"[Mobile] Using context-bound device: {device_id}")
+
+        session_id = ContextManager.get_var("thread_id")
+        recorder = get_recorder(session_id) if session_id else None
+
+        async def _record(action_type: str, params: dict):
+            if recorder and recorder.is_recording:
+                # Capture screenshot for mutations
+                shot = None
+                if action_type in ("click", "long_press", "swipe", "scroll", "input_text", "open_app"):
+                    try:
+                        shot = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
+                    except Exception: pass
+                
+                curr = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
+                await recorder.record_action(
+                    action_type=action_type,
+                    platform="android",
+                    parameters=params,
+                    context={"package": curr.get("package"), "activity": curr.get("activity")},
+                    screenshot_data=shot
+                )
+
         try:
             # Parameter alias
             if target and not element_name:
@@ -306,6 +335,7 @@ class MobileController:
                 if tx is None or ty is None:
                     return "Error: Coordinates or element_name required."
                 await asyncio.to_thread(adb_driver.tap, tx, ty, device_id=device_id)
+                await _record("click", {"x": tx, "y": ty, "element_name": element_name})
                 asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
                 return await finish_action(f"Tapped at ({tx}, {ty})" + (f" (resolved from '{element_name}')" if element_name else ""))
 
@@ -330,6 +360,7 @@ class MobileController:
                     return "Error: Coordinates or element_name required."
                 press_duration = duration_ms if duration_ms > 300 else 800
                 await asyncio.to_thread(adb_driver.long_press, tx, ty, duration_ms=press_duration, device_id=device_id)
+                await _record("long_press", {"x": tx, "y": ty, "element_name": element_name, "duration": press_duration})
                 asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
                 return await finish_action(f"Long-pressed at ({tx}, {ty}) for {press_duration}ms" + (f" (resolved from '{element_name}')" if element_name else ""))
 
@@ -345,6 +376,7 @@ class MobileController:
                 rx2 = int(x2 * sw) if isinstance(x2, float) else x2
                 ry2 = int(y2 * sh) if isinstance(y2, float) else y2
                 await asyncio.to_thread(adb_driver.swipe, rx, ry, rx2, ry2, duration_ms=duration_ms, device_id=device_id)
+                await _record("swipe", {"x1": rx, "y1": ry, "x2": rx2, "y2": ry2, "duration": duration_ms})
                 curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
                 asyncio.create_task(trigger_atlas_harvest(bundle_id=curr_app.get("package")))
                 return await finish_action(f"Swiped from ({rx}, {ry}) to ({rx2}, {ry2})")
@@ -384,6 +416,7 @@ class MobileController:
                 end_x = max(0, min(sw, end_x))
                 end_y = max(0, min(sh, end_y))
                 await asyncio.to_thread(adb_driver.swipe, start_x, start_y, end_x, end_y, duration_ms=duration_ms, device_id=device_id)
+                await _record("scroll", {"direction": direction, "amount": scroll_amount, "element_name": element_name})
                 curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
                 asyncio.create_task(trigger_atlas_harvest(bundle_id=curr_app.get("package")))
                 return await finish_action(f"Scrolled {direction} by {scroll_amount}" + (f" (in '{element_name}')" if element_name else ""))
@@ -403,6 +436,7 @@ class MobileController:
                     await asyncio.to_thread(adb_driver.tap, resolved["x"], resolved["y"], device_id=device_id)
                     await asyncio.sleep(0.5)
                 await asyncio.to_thread(adb_driver.input_text, text, device_id=device_id)
+                await _record("input_text", {"text": text, "element_name": element_name})
                 asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
                 return await finish_action(f"Input text: {text[:50]}..." + (f" (focused on '{element_name}')" if element_name else ""))
 
@@ -433,6 +467,7 @@ class MobileController:
                         logger.info(f"[Mobile] Preloaded strategy for {text}")
                 else:
                     asyncio.create_task(trigger_atlas_harvest(bundle_id=text))
+                await _record("open_app", {"package": text, "type": app_type_str})
                 return await finish_action(f"{icon} Opened: {text} [{app_type_str}]")
 
             elif action == "push":

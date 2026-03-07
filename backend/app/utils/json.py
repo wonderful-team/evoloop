@@ -10,6 +10,7 @@ def _json_serial(obj):
         return obj.isoformat()
     raise TypeError(f"Type {type(obj)} not serializable")
 
+
 def dumps(obj: Any, ensure_ascii: bool = False, default: Callable | None = None, **kwargs) -> str:
     """
     Serialize object to JSON string.

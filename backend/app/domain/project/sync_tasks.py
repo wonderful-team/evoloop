@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 
-from app.celery_app import celery_app
+from app.infrastructure.queue.celery import celery_app
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.service import IndexingService
 from app.utils.async_utils import flush_loop_bound_resources

@@ -251,7 +251,7 @@ class AgentEngine:
                                         logger.info(f"📝 Diff Detected ({operation}) on {path} (Persisting in Background)")
                                         # Offload DB Write to Celery
                                         try:
-                                            from app.celery_app import celery_app
+                                            from app.infrastructure.queue.celery import celery_app
                                             msg_id = config.get("configurable", {}).get("run_id") or tool_id
                                             celery_app.send_task(
                                                 "engine_persist_file_operation",

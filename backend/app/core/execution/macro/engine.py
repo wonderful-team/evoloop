@@ -45,7 +45,7 @@ class MacroEngine:
             target_selector = target_selector or payload.get("selector")
 
             # 2. Handle Control Flow
-            if step.type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.WHILE):
+            if step.type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.WHILE, MacroStepType.BATCH_LOOP):
                 success, msg, fallback = await cls._handle_control_flow(
                     thread_id, step, params, extracted_data
                 )
@@ -116,6 +116,9 @@ class MacroEngine:
             if branch:
                 return await cls.execute_steps(thread_id, branch, params, extracted_data)
         
+        elif step.type == MacroStepType.BATCH_LOOP:
+            return await cls._handle_batch_loop(thread_id, step, params, extracted_data)
+
         elif step.type == MacroStepType.WHILE:
             iterations = 0
             while iterations < step.max_iterations:
@@ -147,6 +150,108 @@ class MacroEngine:
             if iterations >= step.max_iterations:
                 logger.warning(f"[{thread_id}] While loop reached max iterations ({step.max_iterations})")
                 
+        return True, "", None
+
+    @classmethod
+    async def _handle_batch_loop(cls, thread_id: str, step: MacroStep, params: dict, extracted_data: dict):
+        """
+        Handle a batch loop by iterating over a list of items and executing nested steps.
+        Includes exponential backoff for network errors and DLQ support.
+        Phase 3: Integrates DynamicAppTriage for autonomous scrolling.
+        """
+        items_key = step.payload.get("items_key", "items")
+        items = extracted_data.get(items_key) or params.get(items_key)
+        
+        if not items or not isinstance(items, list):
+            logger.warning(f"[{thread_id}] Batch loop skipped: No items found for key '{items_key}'")
+            return True, "", None
+
+        # Phase 3: Dynamic App Awareness
+        is_dynamic = False
+        bundle_id = None
+        if step.source == MacroSource.MOBILE:
+            try:
+                from app.infrastructure.drivers.adb import adb_driver
+                from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
+                from app.core.context.manager import ContextManager
+                
+                device_id = ContextManager.get_var("device_id")
+                curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
+                bundle_id = curr_app.get("package")
+                if bundle_id:
+                    dynamic_apps = await DynamicAppTriage.get_dynamic_apps(platform="android")
+                    is_dynamic = bundle_id in dynamic_apps
+                    if is_dynamic:
+                        logger.info(f"[{thread_id}] BATCH_LOOP running on DYNAMIC app: {bundle_id}. Enabling autonomous scrolling.")
+            except Exception as e:
+                logger.warning(f"Failed to detect dynamic status: {e}")
+
+        max_retries = step.payload.get("max_retries", 3)
+        backoff_base = step.payload.get("backoff_base", 2)
+        
+        dlq = []
+        
+        for index, item in enumerate(items):
+            retry_count = 0
+            success = False
+            last_error = ""
+            
+            # For dynamic apps, we allow one 'scroll and retry' if the first attempt fails
+            scroll_attempts = 1 if is_dynamic else 0
+            current_scroll_attempt = 0
+
+            while retry_count <= max_retries:
+                try:
+                    # 1. Prepare iteration context
+                    iter_params = dict(params or {})
+                    iter_params["item"] = item
+                    iter_params["batch_index"] = index
+                    
+                    # 2. Execute nested steps
+                    success, msg, fallback = await cls.execute_steps(thread_id, step.do_steps, iter_params, extracted_data)
+                    
+                    if success:
+                        break
+                    
+                    last_error = msg
+                    # Determine if it's a network error
+                    is_network_error = any(kw in msg.lower() for kw in ["network", "timeout", "connection", "http", "status 50", "429"])
+                    
+                    if is_network_error:
+                        sleep_time = backoff_base ** retry_count
+                        logger.warning(f"[{thread_id}] Network error in batch iteration {index}. Retrying in {sleep_time}s... Error: {msg}")
+                        await asyncio.sleep(sleep_time)
+                        retry_count += 1
+                    elif "ERR_ELEMENT_NOT_FOUND" in msg and current_scroll_attempt < scroll_attempts:
+                        # Phase 3: Autonomous Scrolling for Dynamic Apps
+                        logger.info(f"[{thread_id}] Element not found in dynamic app. Attempting autonomous scroll...")
+                        await MobileController.execute(action="swipe", direction="up", duration_ms=800)
+                        await asyncio.sleep(1) # Wait for UI to settle
+                        current_scroll_attempt += 1
+                        # We don't increment retry_count here, just retry the same iteration after scroll
+                        continue
+                    else:
+                        # Non-network and non-scrollable error (e.g. fatal UI change)
+                        logger.error(f"[{thread_id}] Functional error in batch iteration {index}: {msg}")
+                        return False, msg, fallback
+                        
+                except Exception as e:
+                    last_error = str(e)
+                    logger.error(f"[{thread_id}] Unexpected error in batch iteration {index}: {e}")
+                    retry_count += 1
+                    await asyncio.sleep(backoff_base ** retry_count)
+
+            if not success:
+                logger.error(f"[{thread_id}] Batch item {index} failed after {max_retries} retries. Moving to DLQ.")
+                dlq.append({"item": item, "error": last_error, "index": index})
+
+        if dlq:
+            # Persistent DLQ logging (to be expanded to a DB table if needed)
+            logger.error(f"[{thread_id}] Batch completed with {len(dlq)} errors in DLQ: {dlq}")
+            # For now, we return success so the whole batch isn't considered a fatal failure,
+            # but we could also return partial success status.
+            return True, f"Completed with {len(dlq)} items in DLQ", {"dlq": dlq}
+
         return True, "", None
 
     @classmethod

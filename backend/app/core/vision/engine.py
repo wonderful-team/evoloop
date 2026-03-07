@@ -103,7 +103,7 @@ class VisionEngine:
         if task != VisionTask.DETECT and result.success:
             # Dispatch to Celery background worker to offload OCR/Neo4j processing
             try:
-                from app.celery_app import celery_app
+                from app.infrastructure.queue.celery import celery_app
                 celery_app.send_task(
                     "app.core.atlas.tasks.map_observed_ui",
                     args=(

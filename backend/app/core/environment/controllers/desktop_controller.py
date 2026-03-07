@@ -18,6 +18,8 @@ from app.constants import MAX_OUTPUT_LENGTH
 from app.core.atlas import atlas_engine, get_bundle_id
 from app.core.vision import vision_engine, VisionTask
 from app.infrastructure.drivers.macos import macos_driver
+from app.core.learning.trace_recorder import get_recorder
+from app.core.context.manager import ContextManager
 
 logger = logging.getLogger(__name__)
 
@@ -223,6 +225,30 @@ class DesktopController:
             if target and not element_name:
                 element_name = target
 
+            # Phase 5: Imitation Learning - Trace Recording
+            recorder = None
+            session_id = ContextManager.get_var("thread_id")
+            if session_id:
+                recorder = get_recorder(session_id)
+
+            async def _record(action_type: str, params: dict):
+                if recorder and recorder.is_recording:
+                    # Capture screenshot for mutations
+                    shot = None
+                    if action_type in ("click", "double_click", "type_text", "key_press", "open_app", "drag_drop"):
+                        try:
+                            shot = await asyncio.to_thread(macos_driver.screenshot)
+                        except Exception: pass
+                    
+                    app_info = macos_driver.get_current_app()
+                    await recorder.record_action(
+                        action_type=action_type,
+                        platform="macos",
+                        parameters=params,
+                        context={"app": app_info.get("name"), "bundle_id": app_info.get("bundle_id")},
+                        screenshot_data=shot
+                    )
+
             if action == "screenshot":
                 app_info = await asyncio.to_thread(macos_driver.get_current_app)
                 bundle_id = app_info.get("bundle_id")
@@ -283,15 +309,18 @@ class DesktopController:
 
                 if action == "click":
                     macos_driver.click(target_x, target_y)
+                    await _record("click", {"x": target_x, "y": target_y, "element_name": element_name})
                     return f"Visually clicked at ({target_x}, {target_y})" + (f" (resolved from '{element_name}')" if element_name else ".")
                 else:
                     macos_driver.double_click(target_x, target_y)
+                    await _record("double_click", {"x": target_x, "y": target_y, "element_name": element_name})
                     return f"Visually double-clicked at ({target_x}, {target_y})" + (f" (resolved from '{element_name}')" if element_name else ".")
 
             elif action == "type_text":
                 if not text:
                     return "Error: 'text' is required for type_text action."
                 macos_driver.type_text(text, force_keystroke=force_keystroke)
+                await _record("type_text", {"text": text, "force_keystroke": force_keystroke})
                 return f"Typed: {text[:50]}{'...' if len(text) > 50 else ''} (via {'keystroke' if force_keystroke else 'clipboard'})"
 
             elif action == "get_info":
@@ -310,6 +339,7 @@ class DesktopController:
                 if not key:
                     return "Error: 'key' is required for key_press action."
                 macos_driver.key_press(key)
+                await _record("key_press", {"key": key})
                 return f"Pressed key: {key}"
 
             elif action == "open_app":
@@ -326,6 +356,7 @@ class DesktopController:
                         logger.info(f"[Desktop] Preloaded strategy for {bundle_id}")
                 else:
                     asyncio.create_task(_trigger_atlas_harvest_macos(bundle_id))
+                await _record("open_app", {"app_name": app_name, "bundle_id": bundle_id})
                 if "Error" not in result:
                     return f"{icon} {result} [{app_type_str}]"
                 return result
@@ -396,6 +427,7 @@ class DesktopController:
                         delta_x, delta_y = amount, 0
                     event = CGEventCreateScrollWheelEvent(None, 0, 2, delta_y, delta_x)
                     CGEventPost(kCGHIDEventTap, event)
+                    await _record("scroll", {"direction": direction, "amount": amount})
                     return f"✅ Scrolled {direction} by {amount}px"
                 except ImportError:
                     key_map = {"up": "pageup", "down": "pagedown", "left": "left", "right": "right"}
@@ -405,6 +437,7 @@ class DesktopController:
                         for _ in range(presses):
                             macos_driver.key_press(k)
                             await asyncio.sleep(0.1)
+                        await _record("scroll", {"direction": direction, "amount": amount, "method": "key"})
                         return f"✅ Scrolled {direction} (~{amount}px) via key_press"
                     return f"Error: Unable to scroll {direction}"
 

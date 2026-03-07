@@ -45,7 +45,7 @@ def run_api():
 
 def run_worker():
     """启动 Celery Worker。"""
-    from app.celery_app import celery_app
+    from app.infrastructure.queue.celery import celery_app
 
     print("Starting Celery Worker...")
     argv = [

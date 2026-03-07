@@ -48,6 +48,11 @@ class AndroidDevice(BaseModel):
     # usage statistics keyed by app (populated by UsageRanker)
     app_usage_stats: list[AppUsageRecord] = Field(default_factory=list)
 
+    @property
+    def serial(self) -> str:
+        """Alias for device_id (compatibility with ADB terminology)."""
+        return self.device_id
+
 
 class NetworkStatus(BaseModel):
     """Network connectivity status."""

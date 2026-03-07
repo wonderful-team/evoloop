@@ -9,7 +9,7 @@ The awakening process integrates:
 2. Memory Replay - Recent episodes and knowledge concepts
 3. Preference Priming - User preferences and system rules
 """
-
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -19,13 +19,14 @@ from app.core.environment.discovery import EnvironmentProbe
 from app.core.environment.memory_replay import replay_memory
 from app.core.environment.models import AwakenedState
 from app.core.environment.preference_priming import prime_preferences
-from app.core.environment.watcher import environment_watcher
 from app.core.environment.focus import resolve_focus, classify_ecosystems
+from app.core.environment.state import set_awakened_state, get_awakened_state
+from app.core.environment.watcher import environment_watcher
 
 logger = logging.getLogger(__name__)
 
 # Global awakened state (singleton)
-_awakened_state: AwakenedState | None = None
+# _awakened_state is now managed in .state module
 
 
 async def awaken(project_id: int | None = None) -> AwakenedState:
@@ -41,14 +42,12 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
     Returns:
         AwakenedState containing full environment context.
     """
-    global _awakened_state, _discovery_task
+    global _discovery_task
 
     logger.info("🌅 Agent awakening...")
 
     # 1, 2, 3. Parallel Hydration of Awareness components
     logger.info("  👁️ Awakening cognitive subsystems (Parallel)...")
-    
-    import asyncio
     
     # Bundle tasks
     probe_macos_task = EnvironmentProbe.probe_macos()
@@ -80,7 +79,7 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         platforms.append("android")
 
     # 6. Assemble final state
-    _awakened_state = AwakenedState(
+    state = AwakenedState(
         timestamp=datetime.now(),
         macos=macos,
         android_devices=android_devices,
@@ -92,6 +91,7 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         available_platforms=platforms,
         capability_boundaries=boundaries,
     )
+    set_awakened_state(state)
 
     logger.info(f"🧠 Agent awakened. Platforms: {platforms}")
 
@@ -102,26 +102,13 @@ async def awaken(project_id: int | None = None) -> AwakenedState:
         data={"platforms": platforms, "project_id": project_id}
     ))
 
-    return _awakened_state
+    return state
 
 
-def get_awakened_state() -> AwakenedState | None:
-    """
-    Get the current awakened state.
-    
-    Returns None if the Agent has not been awakened yet.
-    """
-    return _awakened_state
+# get_awakened_state is now imported from .state
 
 
 async def _refresh_state(project_id: int | None = None) -> AwakenedState:
-    """
-    Refresh the awakened state without full re-awakening.
-    
-    Used by the background watcher to update state when changes are detected.
-    This is lighter than a full awaken() call as it skips memory replay.
-    """
-    global _awakened_state
 
     logger.debug("Refreshing environment state...")
 
@@ -141,9 +128,9 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
         platforms.append("android")
 
     # Preserve memory/preference context from previous state
-    prev_state = _awakened_state
+    prev_state = get_awakened_state()
 
-    _awakened_state = AwakenedState(
+    state = AwakenedState(
         timestamp=datetime.now(),
         macos=macos,
         android_devices=android_devices,
@@ -155,9 +142,8 @@ async def _refresh_state(project_id: int | None = None) -> AwakenedState:
         available_platforms=platforms,
         capability_boundaries=boundaries,
     )
-
-    logger.debug(f"Environment refreshed. Platforms: {platforms}")
-    return _awakened_state
+    set_awakened_state(state)
+    return state
 
 
 def _compute_capability_boundaries(

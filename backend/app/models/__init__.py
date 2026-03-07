@@ -22,6 +22,7 @@ from .persistence import CheckpointMigration as CheckpointMigration
 from .persistence import CheckpointWrite as CheckpointWrite
 from .planning import Plan as Plan
 from .planning import PlanStep as PlanStep
+from .scheduler import AutonomousTask as AutonomousTask
 from .system import Job as Job
 from .system import McpServer as McpServer
 from .system import ProjectResource as ProjectResource
@@ -34,6 +35,7 @@ from .wiki import WikiPage as WikiPage
 __all__ = [
     "CodeChunk",
     "CodeEntity",
+    "AutonomousTask",
     "CodeRelation",
     "Repository",
     "SourceFile",
