@@ -156,7 +156,7 @@ export function ChatInterface() {
     queryKey: ["projectConversations", projectId],
     queryFn: async () =>
       ConversationsService.listConversations({ projectId: projectId! }),
-    enabled: !!projectId,
+    enabled: projectId !== undefined,
   })
 
   const threads: Thread[] = (Array.isArray(threadsData) ? threadsData : []).map(
@@ -172,7 +172,7 @@ export function ChatInterface() {
 
   const handleNewChat = () => {
     const newId = crypto.randomUUID()
-    if (projectId) setThread(newId, projectId)
+    if (projectId !== undefined) setThread(newId, projectId)
   }
 
   const handleDeleteThread = async (id: string) => {
@@ -388,7 +388,7 @@ export function ChatInterface() {
               status: t.thread_id === activeThreadId ? status : t.status
             }))}
             activeThreadId={activeThreadId || ""}
-            setActiveThreadId={(id) => projectId && setThread(id, projectId)}
+            setActiveThreadId={(id) => projectId !== undefined && setThread(id, projectId)}
             projectId={projectId}
             onDeleteThread={handleDeleteThread}
             onStopThread={handleStopThread}

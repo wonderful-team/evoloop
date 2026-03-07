@@ -45,14 +45,14 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
             )}
             <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex-1">
               {isGlobal
-                ? t("chat.sidebar.globalFiles", "Global Mode")
+                ? t("chat.sidebar.workspaceFiles", "Workspace Files")
                 : t("chat.sidebar.projectFiles", "Project Files")}
             </span>
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent className="flex-1 overflow-y-auto">
           <div className="p-2">
-            {projectId !== undefined && !isGlobal ? (
+            {projectId !== undefined ? (
               <FileTree
                 projectId={projectId}
                 onSelectFile={(file) => {
@@ -61,11 +61,6 @@ export function SidebarFilesTab({ projectId, activeThreadId, onSelectDiff, onQuo
                 }}
                 onQuoteFile={onQuoteFile}
               />
-            ) : isGlobal ? (
-              <div className="p-4 text-center text-xs text-muted-foreground">
-                <Globe className="h-8 w-8 mx-auto mb-2 opacity-20" />
-                <p>{t("chat.sidebar.globalNoFiles", "文件浏览在全局模式下不可用")}</p>
-              </div>
             ) : (
               <div className="p-4 text-center text-xs text-muted-foreground italic">
                 {t("chat.sidebar.noProject", "No project selected")}
