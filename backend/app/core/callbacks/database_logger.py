@@ -91,7 +91,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                     # Case A: Routing Decision
                     if "next_node" in data:
                         node = data.get("next_node")
-                        parallel = data.get("parallel_research_tasks")
                         if node == "finish":
                             # INTERCEPT: Update Cloud Status instead of logging message
                             # thread_id format: task-{task_id}-{timestamp}
@@ -106,8 +105,6 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                         # Case B: Other JSON
                         # Convert to nicely formatted text
                         content = i18n.get("prompts.database_logger.decision", node=node)
-                        if parallel:
-                            content += i18n.get("prompts.database_logger.analysis", analysis=parallel)
                 except Exception:
                     pass
 
