@@ -84,10 +84,10 @@ export function SkillDetailsPanel({
         steps.forEach(step => {
             result.push({ ...step, depth });
             if (step.type === "if") {
-                if (step.then) result = [...result, ...flattenMacroScript(step.then, depth + 1)];
-                if (step.else) result = [...result, ...flattenMacroScript(step.else, depth + 1)];
-            } else if ((step.type === "while" || step.type === "batch_loop") && step.do) {
-                result = [...result, ...flattenMacroScript(step.do, depth + 1)];
+                if (step.then_steps) result = [...result, ...flattenMacroScript(step.then_steps, depth + 1)];
+                if (step.else_steps) result = [...result, ...flattenMacroScript(step.else_steps, depth + 1)];
+            } else if (step.type === "loop") {
+                if (step.steps) result = [...result, ...flattenMacroScript(step.steps, depth + 1)];
             }
         });
         return result;
@@ -288,22 +288,22 @@ export function SkillDetailsPanel({
                                                             <div className="flex items-center">
                                                                 {step.depth > 0 && (
                                                                     <div className="flex mr-1.5 h-4 items-center">
-                                                                        {[...Array(step.depth)].map((_, idx) => (
+                                                                        {[...Array(Number(step.depth) || 0)].map((_, idx) => (
                                                                             <div key={idx} className="w-2.5 h-full border-l-2 border-emerald-500/20 ml-1" />
                                                                         ))}
                                                                     </div>
                                                                 )}
-                                                                {step.step_number || i + 1}
+                                                                {String(step.step_number || i + 1)}
                                                             </div>
                                                         </td>
                                                         <td className="py-2 px-2">
                                                             <Badge variant="outline" className="text-[9px] capitalize bg-background">
-                                                                {step.type ? t(`macroEditor.stepTypes.${step.type}`, step.type) : "-"}
+                                                                {step.type ? String(t(`macroEditor.stepTypes.${step.type}`, step.type)) : "-"}
                                                             </Badge>
                                                         </td>
                                                         <td className="py-2 px-2">
                                                             <span className="capitalize">
-                                                                {step.event_type ? t(`macroEditor.eventTypes.${step.event_type}`, step.event_type) : "-"}
+                                                                {step.event_type ? String(t(`macroEditor.eventTypes.${step.event_type}`, step.event_type)) : "-"}
                                                             </span>
                                                         </td>
                                                         <td className="py-2 px-2">

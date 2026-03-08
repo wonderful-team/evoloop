@@ -1258,16 +1258,16 @@
       "wait": "等待",
       "dump": "转储 UI",
       "if": "条件判断 (If)",
-      "while": "循环 (While)",
-      "batch_loop": "批量循环"
+      "loop": "循环",
+      "control": "控制流 (Control)"
     },
     "conditionConfig": "条件配置",
     "conditionType": "条件类型",
     "targetSelector": "目标检测选择器",
     "maxIterations": "最大循环次数",
-    "thenBranch": "满足条件执行 (Then)",
-    "elseBranch": "不满足执行 (Else)",
-    "doBranch": "循环体执行 (Do)",
+    "thenBranch": "满足条件执行步骤 (Then Steps)",
+    "elseBranch": "不满足执行步骤 (Else Steps)",
+    "loopSteps": "循环执行步骤 (Loop Steps)",
     "conditions": {
       "elementExists": "元素存在",
       "elementVisible": "元素可见",

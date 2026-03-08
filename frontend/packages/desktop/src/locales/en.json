@@ -1258,16 +1258,16 @@
       "wait": "Wait",
       "dump": "Dump UI",
       "if": "Condition (If)",
-      "while": "Loop (While)",
-      "batch_loop": "Batch Loop"
+      "loop": "Loop",
+      "control": "Control"
     },
     "conditionConfig": "Condition Config",
     "conditionType": "Condition Type",
     "targetSelector": "Target Detector Selector",
     "maxIterations": "Max Iterations",
-    "thenBranch": "Then Branch",
-    "elseBranch": "Else Branch",
-    "doBranch": "Do Branch",
+    "thenBranch": "Then Steps",
+    "elseBranch": "Else Steps",
+    "loopSteps": "Loop Steps",
     "conditions": {
       "elementExists": "Element Exists",
       "elementVisible": "Element Visible",

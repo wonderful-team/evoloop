@@ -56,7 +56,7 @@ import { cn } from "@evoloop/shared/lib/utils"
 // Macro step types
 export interface MacroStep {
     step_number: number
-    type: "action" | "extract" | "dump" | "wait" | "if" | "while" | "batch_loop" | "control"
+    type: "action" | "extract" | "dump" | "wait" | "if" | "loop" | "control"
     source: "dom" | "mobile" | "desktop" | "hybrid" | "global"
     event_type?: string
     selector?: string
@@ -72,9 +72,9 @@ export interface MacroStep {
         target_selector?: string
         params?: Record<string, any>
     }
-    then?: MacroStep[]
-    else?: MacroStep[]
-    do?: MacroStep[]
+    then_steps?: MacroStep[]
+    else_steps?: MacroStep[]
+    steps?: MacroStep[]
     max_iterations?: number
 }
 
@@ -142,7 +142,15 @@ export function MacroEditor({
             })
         })
 
-        // Add "global" actions (Wait, etc) to all lists if registry doesn't specify
+        // Merge "global" actions into all lists
+        groups.global.forEach(action => {
+            Object.keys(groups).forEach(p => {
+                if (p !== "global") {
+                    groups[p].push(action)
+                }
+            })
+        })
+
         return groups
     }, [actionRegistry, i18n.language])
 
@@ -255,12 +263,31 @@ export function MacroEditor({
     // Get step icon
     const getStepIcon = useCallback((step: MacroStep) => {
         if (step.type === "if") return <Split className="h-4 w-4" />
-        if (step.type === "while") return <Repeat className="h-4 w-4" />
-        if (step.type === "batch_loop") return <Repeat className="h-4 w-4" />
+        if (step.type === "loop") return <Repeat className="h-4 w-4" />
         if (step.type === "control") return <Settings2 className="h-4 w-4" />
 
+        // Explicit icon mappings for common actions
+        const actionIconMap: Record<string, React.ReactNode> = {
+            click: <MousePointerClick className="h-4 w-4" />,
+            navigate: <LucideIcons.Globe className="h-4 w-4" />,
+            input: <LucideIcons.Type className="h-4 w-4" />,
+            key_press: <LucideIcons.Keyboard className="h-4 w-4" />,
+            wait: (LucideIcons.Timer ? <LucideIcons.Timer className="h-4 w-4" /> : <LucideIcons.Clock className="h-4 w-4" />)
+        }
+
+        const eventTypeForIcon = step.event_type || (step.type === "wait" ? "wait" : "");
+        if (actionIconMap[eventTypeForIcon]) {
+            return actionIconMap[eventTypeForIcon];
+        }
+
         const sourceEvents = (eventTypes as any)[step.source] || eventTypes.dom
-        const foundEvent = sourceEvents.find((e: any) => e.value === step.event_type)
+        let foundEvent = sourceEvents.find((e: any) => e.value === step.event_type)
+
+        // Fallback to global list if not found in current source
+        if (!foundEvent && eventTypes.global) {
+            foundEvent = eventTypes.global.find((e: any) => e.value === step.event_type)
+        }
+
         return foundEvent?.icon || <MousePointerClick className="h-4 w-4" />
     }, [eventTypes])
 
@@ -277,10 +304,12 @@ export function MacroEditor({
                 return "bg-amber-500/10 border-amber-500/30 text-amber-600"
             case "if":
                 return "bg-cyan-500/10 border-cyan-500/30 text-cyan-600"
-            case "while":
-                return "bg-rose-500/10 border-rose-500/30 text-rose-600"
-            case "batch_loop":
-                return "bg-orange-500/10 border-orange-500/30 text-orange-600"
+            case "loop":
+                return !step.payload?.items_key
+                    ? "bg-rose-500/10 border-rose-500/30 text-rose-600"
+                    : "bg-orange-500/10 border-orange-500/30 text-orange-600"
+            case "control":
+                return "bg-slate-500/10 border-slate-500/30 text-slate-600"
             default:
                 return "bg-gray-500/10 border-gray-500/30 text-gray-600"
         }
@@ -382,9 +411,15 @@ export function MacroEditor({
                                 </div>
 
                                 <Badge variant="secondary" className="text-xs capitalize">
-                                    {step.event_type
-                                        ? t(`macroEditor.eventTypes.${step.event_type}`)
-                                        : t(`macroEditor.stepTypes.${step.type}`)}
+                                    {(() => {
+                                        const commonActions = ["click", "navigate", "input", "key_press", "wait"];
+                                        if (step.type === "action" && commonActions.includes(step.event_type || "")) {
+                                            return t(`macroEditor.eventTypes.${step.event_type}`);
+                                        }
+                                        return step.event_type
+                                            ? t(`macroEditor.eventTypes.${step.event_type}`)
+                                            : t(`macroEditor.stepTypes.${step.type}`);
+                                    })()}
                                 </Badge>
 
                                 <span className="flex-1 truncate text-sm">
@@ -441,10 +476,21 @@ export function MacroEditor({
                                         <div className="space-y-2">
                                             <Label className="text-xs">{t("macroEditor.type")}</Label>
                                             <Select
-                                                value={step.type}
-                                                onValueChange={(value: any) =>
-                                                    updateStep(index, { type: value })
-                                                }
+                                                value={(() => {
+                                                    const commonActions = ["click", "navigate", "input", "key_press", "wait"];
+                                                    if (step.type === "action" && commonActions.includes(step.event_type || "")) {
+                                                        return step.event_type;
+                                                    }
+                                                    return step.type;
+                                                })()}
+                                                onValueChange={(value: any) => {
+                                                    const commonActions = ["click", "navigate", "input", "key_press", "wait"];
+                                                    if (commonActions.includes(value)) {
+                                                        updateStep(index, { type: "action", event_type: value });
+                                                    } else {
+                                                        updateStep(index, { type: value });
+                                                    }
+                                                }}
                                                 disabled={readOnly}
                                             >
                                                 <SelectTrigger>
@@ -452,12 +498,18 @@ export function MacroEditor({
                                                 </SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem value="action">{t("macroEditor.stepTypes.action")}</SelectItem>
+                                                    <div className="h-px bg-muted my-1" />
+                                                    <SelectItem value="click">{t("macroEditor.eventTypes.click")}</SelectItem>
+                                                    <SelectItem value="navigate">{t("macroEditor.eventTypes.navigate")}</SelectItem>
+                                                    <SelectItem value="input">{t("macroEditor.eventTypes.input")}</SelectItem>
+                                                    <SelectItem value="key_press">{t("macroEditor.eventTypes.key_press")}</SelectItem>
+                                                    <SelectItem value="wait">{t("macroEditor.eventTypes.wait")}</SelectItem>
+                                                    <div className="h-px bg-muted my-1" />
                                                     <SelectItem value="extract">{t("macroEditor.stepTypes.extract")}</SelectItem>
-                                                    <SelectItem value="wait">{t("macroEditor.stepTypes.wait")}</SelectItem>
-                                                    <SelectItem value="dump">{t("macroEditor.stepTypes.dump")}</SelectItem>
                                                     <SelectItem value="if">{t("macroEditor.stepTypes.if")}</SelectItem>
-                                                    <SelectItem value="while">{t("macroEditor.stepTypes.while")}</SelectItem>
-                                                    <SelectItem value="batch_loop">{t("macroEditor.stepTypes.batch_loop")}</SelectItem>
+                                                    <SelectItem value="loop">{t("macroEditor.stepTypes.loop")}</SelectItem>
+                                                    <SelectItem value="control">{t("macroEditor.stepTypes.control", "Control")}</SelectItem>
+                                                    <SelectItem value="dump">{t("macroEditor.stepTypes.dump")}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -484,35 +536,43 @@ export function MacroEditor({
                                             </Select>
                                         </div>
 
-                                        {/* Event type */}
-                                        {step.type !== "if" && step.type !== "while" && step.type !== "batch_loop" && step.type !== "dump" && (
-                                            <div className="space-y-2">
-                                                <Label className="text-xs">{t("macroEditor.eventType")}</Label>
-                                                <Select
-                                                    value={step.event_type}
-                                                    onValueChange={(value) =>
-                                                        updateStep(index, { event_type: value })
-                                                    }
-                                                    disabled={readOnly}
-                                                >
-                                                    <SelectTrigger>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        {(eventTypes[step.source] || eventTypes.dom).map(
-                                                            (event: any) => (
-                                                                <SelectItem key={event.value} value={event.value}>
-                                                                    <div className="flex items-center gap-2">
-                                                                        {event.icon}
-                                                                        {t(`macroEditor.eventTypes.${event.value}`)}
-                                                                    </div>
-                                                                </SelectItem>
-                                                            )
-                                                        )}
-                                                    </SelectContent>
-                                                </Select>
-                                            </div>
-                                        )}
+                                        {/* Event type - Only show for generic "action" that isn't virtualized */}
+                                        {(() => {
+                                            const commonActions = ["click", "navigate", "input", "key_press", "wait"];
+                                            const isVirtualType = commonActions.includes(step.event_type || "");
+                                            const isGenericAction = step.type === "action" && !isVirtualType;
+
+                                            if (!isGenericAction) return null;
+
+                                            return (
+                                                <div className="space-y-2">
+                                                    <Label className="text-xs">{t("macroEditor.eventType")}</Label>
+                                                    <Select
+                                                        value={step.event_type}
+                                                        onValueChange={(value) =>
+                                                            updateStep(index, { event_type: value })
+                                                        }
+                                                        disabled={readOnly}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {(eventTypes[step.source] || eventTypes.dom).map(
+                                                                (event: any) => (
+                                                                    <SelectItem key={event.value} value={event.value}>
+                                                                        <div className="flex items-center gap-2">
+                                                                            {event.icon}
+                                                                            {t(`macroEditor.eventTypes.${event.value}`)}
+                                                                        </div>
+                                                                    </SelectItem>
+                                                                )
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            );
+                                        })()}
 
                                         {/* Selector type */}
                                         <div className="space-y-2">
@@ -536,15 +596,15 @@ export function MacroEditor({
                                             </Select>
                                         </div>
 
-                                        {/* Condition Configurator for If/While/BatchLoop */}
-                                        {(step.type === "if" || step.type === "while" || step.type === "batch_loop") && (
+                                        {/* Condition Configurator for If/Loop */}
+                                        {(step.type === "if" || step.type === "loop") && (
                                             <div className="col-span-4 p-3 border rounded-md bg-muted/20 space-y-3">
                                                 <div className="flex items-center gap-2 text-sm font-medium">
                                                     <Settings2 className="h-4 w-4" />
                                                     {t("macroEditor.conditionConfig")}
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    {step.type !== "batch_loop" ? (
+                                                    {(step.type === "if" || (step.type === "loop" && !step.payload?.items_key)) ? (
                                                         <>
                                                             <div className="space-y-2">
                                                                 <Label className="text-xs">{t("macroEditor.conditionType")}</Label>
@@ -599,7 +659,7 @@ export function MacroEditor({
                                                             />
                                                         </div>
                                                     )}
-                                                    {(step.type === "while" || step.type === "batch_loop") && (
+                                                    {step.type === "loop" && (
                                                         <div className="space-y-2">
                                                             <Label className="text-xs">{t("macroEditor.maxIterations")}</Label>
                                                             <Input
@@ -627,8 +687,8 @@ export function MacroEditor({
                                                     </Label>
                                                     <div className="pl-4 border-l-2 border-cyan-500/30 ml-2">
                                                         <MacroEditor
-                                                            steps={step.then || []}
-                                                            onChange={(newSteps) => updateStep(index, { then: newSteps })}
+                                                            steps={step.then_steps || []}
+                                                            onChange={(newSteps) => updateStep(index, { then_steps: newSteps })}
                                                             readOnly={readOnly}
                                                             onStepPreview={onStepPreview}
                                                             videoPath={videoPath}
@@ -641,8 +701,8 @@ export function MacroEditor({
                                                     </Label>
                                                     <div className="pl-4 border-l-2 border-amber-500/30 ml-2">
                                                         <MacroEditor
-                                                            steps={step.else || []}
-                                                            onChange={(newSteps) => updateStep(index, { else: newSteps })}
+                                                            steps={step.else_steps || []}
+                                                            onChange={(newSteps) => updateStep(index, { else_steps: newSteps })}
                                                             readOnly={readOnly}
                                                             onStepPreview={onStepPreview}
                                                             videoPath={videoPath}
@@ -652,23 +712,23 @@ export function MacroEditor({
                                             </div>
                                         )}
 
-                                        {/* Recursive Nested Steps for While/BatchLoop (Do) */}
-                                        {(step.type === "while" || step.type === "batch_loop") && (
+                                        {/* Recursive Nested Steps for Loop (Steps) */}
+                                        {step.type === "loop" && (
                                             <div className="col-span-4 space-y-4 pt-2 border-t mt-2">
                                                 <div className="space-y-2">
                                                     <Label className={cn(
                                                         "text-sm font-semibold flex items-center gap-1",
-                                                        step.type === "while" ? "text-rose-600" : "text-orange-600"
+                                                        !step.payload?.items_key ? "text-rose-600" : "text-orange-600"
                                                     )}>
-                                                        <ChevronRight className="h-4 w-4" /> {t("macroEditor.doBranch")}
+                                                        <ChevronRight className="h-4 w-4" /> {t("macroEditor.loopSteps")}
                                                     </Label>
                                                     <div className={cn(
                                                         "pl-4 border-l-2 ml-2",
-                                                        step.type === "while" ? "border-rose-500/30" : "border-orange-500/30"
+                                                        !step.payload?.items_key ? "border-rose-500/30" : "border-orange-500/30"
                                                     )}>
                                                         <MacroEditor
-                                                            steps={step.do || []}
-                                                            onChange={(newSteps) => updateStep(index, { do: newSteps })}
+                                                            steps={step.steps || []}
+                                                            onChange={(newSteps) => updateStep(index, { steps: newSteps })}
                                                             readOnly={readOnly}
                                                             onStepPreview={onStepPreview}
                                                             videoPath={videoPath}
@@ -679,7 +739,7 @@ export function MacroEditor({
                                         )}
 
                                         {/* Selector */}
-                                        {step.type !== "if" && step.type !== "while" && step.type !== "batch_loop" && (
+                                        {step.type !== "if" && step.type !== "loop" && (
                                             <div className="col-span-4 space-y-2">
                                                 <Label className="text-xs">{t("macroEditor.selector")}</Label>
                                                 <div className="flex gap-2">
