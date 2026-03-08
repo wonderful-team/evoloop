@@ -217,18 +217,26 @@ class MultimodalSkillSynthesizer:
                 if "timeout" in step and "seconds" not in payload:
                     payload["seconds"] = float(step["timeout"]) / 1000.0
                 step["payload"] = payload
-            elif s_type == "loop":
-                # type: loop -> type: while 或 batch_loop
-                if "items_key" in step.get("payload", {}):
-                    step["type"] = "batch_loop"
-                else:
-                    step["type"] = "while"
-                # 处理 steps -> do
-                if "steps" in step and "do" not in step:
-                    step["do"] = self._cleanup_macro(step["steps"])
+            elif s_type in ("while", "batch_loop", "loop"):
+                # 统一为 loop
+                step["type"] = "loop"
+
+            # 3. 规范化嵌套字段名
+            # then -> then_steps
+            if "then" in step and "then_steps" not in step:
+                step["then_steps"] = step.pop("then")
+                
+            # else -> else_steps
+            if "else" in step and "else_steps" not in step:
+                step["else_steps"] = step.pop("else")
+                
+            # do/do_steps -> steps
+            legacy_substeps = step.pop("do", None) or step.pop("do_steps", None)
+            if legacy_substeps and "steps" not in step:
+                step["steps"] = legacy_substeps
             
-            # 3. 递归处理嵌套步骤
-            for branch in ["then", "else", "do"]:
+            # 4. 递归处理嵌套步骤
+            for branch in ["then_steps", "else_steps", "steps"]:
                 if branch in step and isinstance(step[branch], list):
                     step[branch] = self._cleanup_macro(step[branch])
                     

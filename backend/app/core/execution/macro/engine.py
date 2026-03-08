@@ -45,7 +45,7 @@ class MacroEngine:
             target_selector = target_selector or payload.get("selector")
 
             # 2. Handle Control Flow
-            if step.type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.WHILE, MacroStepType.BATCH_LOOP):
+            if step.type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.LOOP):
                 success, msg, fallback = await cls._handle_control_flow(
                     thread_id, step, params, extracted_data
                 )
@@ -116,11 +116,16 @@ class MacroEngine:
             if branch:
                 return await cls.execute_steps(thread_id, branch, params, extracted_data)
         
-        elif step.type == MacroStepType.BATCH_LOOP:
-            return await cls._handle_batch_loop(thread_id, step, params, extracted_data)
+        elif step.type == MacroStepType.LOOP:
+            # 1. Batch Loop Mode (if payload contains items_key)
+            if step.payload.get("items_key"):
+                return await cls._handle_loop(thread_id, step, params, extracted_data)
 
-        elif step.type == MacroStepType.WHILE:
+            # 2. Conditional Loop Mode (Standard While)
             iterations = 0
+            if not step.steps:
+                return True, "", None
+
             while iterations < step.max_iterations:
                 is_true = await cls._evaluate_condition(cond_type, selector, step.source)
                 if not is_true:
@@ -130,7 +135,7 @@ class MacroEngine:
                 loop_params["loop_index"] = iterations
                 
                 # Execute nested steps
-                success, msg, fallback = await cls.execute_steps(thread_id, step.do_steps, loop_params, extracted_data)
+                success, msg, fallback = await cls.execute_steps(thread_id, step.steps, loop_params, extracted_data)
                 
                 if not success:
                     # Enrich fallback with loop progress
@@ -153,7 +158,7 @@ class MacroEngine:
         return True, "", None
 
     @classmethod
-    async def _handle_batch_loop(cls, thread_id: str, step: MacroStep, params: dict, extracted_data: dict):
+    async def _handle_loop(cls, thread_id: str, step: MacroStep, params: dict, extracted_data: dict):
         """
         Handle a batch loop by iterating over a list of items and executing nested steps.
         Includes exponential backoff for network errors and DLQ support.
@@ -182,7 +187,7 @@ class MacroEngine:
                     dynamic_apps = await DynamicAppTriage.get_dynamic_apps(platform="android")
                     is_dynamic = bundle_id in dynamic_apps
                     if is_dynamic:
-                        logger.info(f"[{thread_id}] BATCH_LOOP running on DYNAMIC app: {bundle_id}. Enabling autonomous scrolling.")
+                        logger.info(f"[{thread_id}] LOOP running on DYNAMIC app: {bundle_id}. Enabling autonomous scrolling.")
             except Exception as e:
                 logger.warning(f"Failed to detect dynamic status: {e}")
 
@@ -207,8 +212,8 @@ class MacroEngine:
                     iter_params["item"] = item
                     iter_params["batch_index"] = index
                     
-                    # 2. Execute nested steps
-                    success, msg, fallback = await cls.execute_steps(thread_id, step.do_steps, iter_params, extracted_data)
+                    # 2. Execute nested steps (unified)
+                    success, msg, fallback = await cls.execute_steps(thread_id, step.steps, iter_params, extracted_data)
                     
                     if success:
                         break

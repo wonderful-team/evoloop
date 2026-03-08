@@ -64,10 +64,10 @@ macro_script: |
     },
     {
       "step_number": 4,
-      "type": "batch_loop",
+      "type": "loop",
       "source": "dom",
       "payload": {"items_key": "products"},
-      "do": [
+      "steps": [
          {
            "step_number": 5,
            "type": "action",
@@ -85,7 +85,7 @@ The `macro_script` field MUST be a JSON array of steps following these rules:
 
 ### 1. Root Step Fields:
 - `step_number`: (int) Sequential 1-based index.
-- `type`: Must be one of: "action", "extract", "batch_loop", "if", "while", "dump".
+- `type`: Must be one of: "action", "extract", "loop", "if", "dump".
 - `source`: Must be one of: "dom" (web), "desktop" (macOS), "mobile" (Android).
 - `event_type`: (Required for type="action") e.g., "click", "input", "navigate", "scroll", "wait", "key_press", "open_app".
 - `target_selector`: (Optional) CSS selector for "dom", element name for "desktop", or null.
@@ -97,8 +97,8 @@ The `macro_script` field MUST be a JSON array of steps following these rules:
 - **Desktop/Mobile**: "click", "tap", "type_text", "key_press", "scroll", "swipe", "open_app", "screenshot", "dump_ui".
 
 ### 3. Loop & Logic:
-- **batch_loop**: Use `"type": "batch_loop"` and put loop steps in a `"do"` array.
 - **if**: Use `"type": "if"`, `"condition": {"type": "element_exists", "target_selector": "..."}`, and `"then"`/`"else"` arrays.
+- **loop**: Use `"type": "loop"`. Put loop steps in a `"steps"` array. If it's a batch loop, include `"items_key"` in payload. If it's a conditional loop, include `"condition"`.
 - **wait**: Use `"event_type": "wait"` with `"payload": {"seconds": 2}`. DO NOT use `type: "wait"`.
 
 # 🧠 Expert Skill Guide

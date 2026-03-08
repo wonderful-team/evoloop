@@ -58,16 +58,16 @@ Use when an action should only happen if an element is present/visible.
   else: [] # Optional
 ```
 
-### 2. Loop Logic (`while`)
+### 2. Loop Logic (`loop`)
 Use for repetitive tasks like scraping multiple pages or waiting for a status change.
 ```yaml
 - step_number: 10
-  type: while
+  type: loop
   description: "Keep clicking next until no more pages"
   condition:
     type: "element_exists"
     target_selector: ".pagination-next:not(.disabled)"
-  do:
+  steps:
     - step_number: 11
       type: action
       event_type: "click"

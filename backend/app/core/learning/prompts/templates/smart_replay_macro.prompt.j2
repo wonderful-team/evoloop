@@ -23,16 +23,17 @@ Use when an action should only happen if an element state is met.
 - **then**: [ MacroStep ]
 - **else**: [ MacroStep ] (Optional)
 
-### 2. Loop Logic (`while`)
-Use for repetitive tasks (e.g., clicking 'Next' button until it disappears).
-- **condition**: Same as above.
-- **do**: [ MacroStep ]
+### 2. Loop Logic (`loop`)
+Use for repetitive tasks (e.g., clicking 'Next' button until it disappears, or iterating over a list).
+- **condition**: { type: "element_exists" | "element_visible" | "text_contains", target_selector: "..." } (Optional for batch loops)
+- **payload**: { "items_key": "..." } (Required for batch loops)
+- **steps**: [ MacroStep ]
 - **max_iterations**: Limit the loop (default 20).
 
 ## Step Properties
 Each step MUST have:
 - step_number: integer sequence
-- type: "action" | "extract" | "dump" | "if" | "while"
+- type: "action" | "extract" | "dump" | "if" | "loop"
 - description: Brief explanation of the step
 
 Action Types (By Platform):
@@ -52,14 +53,14 @@ Action Types (By Platform):
 
 Control Flow:
 - "if": Use for conditional execution. Requires "condition" (element_exists, element_visible, text_contains).
-- "while": Use for loops. Requires "condition" and "max_iterations".
+- "loop": Use for loops. Requires "steps" and optionally "condition" or "payload.items_key".
 
 ## Logic Requirements
 1. **Navigation**: Usually start with "navigate" to the target URL.
 2. **Page Load**: Add "wait" steps after navigation or clicks that trigger new pages.
 3. **Complex Interaction**: Use "hover" before clicking elements that require a mouse-over to be interactable.
 4. **Resilience**: Use `if` blocks for optional elements like "Close Ad", "Accept Cookies", or "Newsletter Popup".
-5. **Loop Identification**: If the task involves "multiple results", "all items", or "pagination", use a `while` loop.
+5. **Loop Identification**: If the task involves "multiple results", "all items", or "pagination", use a `loop`.
 
 Respond with ONLY a JSON array:
 ```json

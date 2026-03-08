@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, root_validator
 
 
 class MacroSource(str, Enum):
@@ -15,10 +15,8 @@ class MacroStepType(str, Enum):
     EXTRACT = "extract"
     CONTROL = "control"
     DUMP = "dump"
-    # Legacy support
     IF = "if"
-    WHILE = "while"
-    BATCH_LOOP = "batch_loop"
+    LOOP = "loop"
 
 
 class MacroActionType(str, Enum):
@@ -91,12 +89,37 @@ class MacroStep(BaseModel):
     target_selector: Optional[str] = None
     payload: Dict[str, Any] = Field(default_factory=dict)
     
-    # Control Flow (if/while)
+    # Control Flow (if/loop)
     condition: Optional[MacroCondition] = None
-    then_steps: List["MacroStep"] = Field(default_factory=list, alias="then")
-    else_steps: List["MacroStep"] = Field(default_factory=list, alias="else")
-    do_steps: List["MacroStep"] = Field(default_factory=list, alias="do")
+    then_steps: List["MacroStep"] = Field(default_factory=list)
+    else_steps: List["MacroStep"] = Field(default_factory=list)
+    steps: List["MacroStep"] = Field(default_factory=list)
     max_iterations: int = 100
+
+    @root_validator(pre=True)
+    def migrate_legacy_fields(cls, values):
+        # 1. Migrate Type
+        step_type = values.get("type")
+        if step_type in ("while", "batch_loop"):
+            values["type"] = "loop"
+        
+        # 2. Migrate Steps (then/else/do/do_steps -> standardized field names)
+        # Handle 'then' -> 'then_steps'
+        if values.get("then") and not values.get("then_steps"):
+            values["then_steps"] = values.pop("then")
+            
+        # Handle 'else' -> 'else_steps'
+        if values.get("else") and not values.get("else_steps"):
+            values["else_steps"] = values.pop("else")
+
+        # Handle 'do' / 'do_steps' -> 'steps'
+        legacy_steps = values.get("do") or values.get("do_steps")
+        if legacy_steps and not values.get("steps"):
+            values["steps"] = legacy_steps
+            # Cleanup legacy keys from the dict to avoid pollution if needed, 
+            # but usually pydantic ignores extra fields anyway.
+            
+        return values
     
     # Extraction
     extract_type: Optional[str] = None
