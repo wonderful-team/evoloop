@@ -17,7 +17,7 @@ from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.context.thread_store import thread_context_store
 from app.core.evocloud import evocloud_manager
-from app.core.exceptions import AgentCancelledException
+from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
 
 # Graph
 from app.core.globals import get_graph
@@ -242,6 +242,9 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             if steps_snapshot:
                 await db_callback.snapshot_steps_to_last_message(steps_snapshot)
 
+            # Phase 6: Give Celery tasks a moment to commit before frontend re-fetches history
+            # This prevents a race condition where the 'finish' message is missing during re-fetch.
+            await asyncio.sleep(1.0)
             await activity_monitor.end_run(thread_id, "done")
 
             # Phase 6: Publish AgentRunCompletedEvent for automated learning
@@ -267,6 +270,12 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         except AgentCancelledException:
             logger.info(f"Task {thread_id} cancelled by user.")
             await activity_monitor.end_run(thread_id, "cancelled")
+
+        except AgentHumanInterruptException:
+            # HITL interrupt is expected - the tool already created the request
+            # and set the run status to 'interrupted'. We just let the run end gracefully.
+            logger.info(f"[BackgroundAgent] Task {thread_id} interrupted for human input. Run status: interrupted")
+            # No need to call end_run - the tool already set status via activity_monitor.set_human_request
 
     except Exception as e:
         await _handle_task_exception(thread_id, project_id, e)

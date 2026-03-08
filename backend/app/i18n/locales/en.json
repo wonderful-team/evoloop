@@ -1,254 +1,258 @@
 {
-    "prompts": {
-        "tasks": {
-            "execution_instruction": "\n**Objective**: Implement the following task.\n**Title**: {title}\n**Description**: {desc}\n\n**Context & Constraints**:\n- **Key Modules**: {key_modules}\n- **Technical Challenges**: {tech_challenges}\n- **Deliverables**: {deliverables}\n- **Implementation Complexity**: {complexity}\n\nPlease analyze the requirements, plan the changes, and execute the implementation.\nRemember to follow the project structure and coding standards.\n"
+    "tasks": {
+        "execution_instruction": "\n**Objective**: Implement the following task.\n**Title**: {title}\n**Description**: {desc}\n\n**Context & Constraints**:\n- **Key Modules**: {key_modules}\n- **Technical Challenges**: {tech_challenges}\n- **Deliverables**: {deliverables}\n- **Implementation Complexity**: {complexity}\n\nPlease analyze the requirements, plan the changes, and execute the implementation.\nRemember to follow the project structure and coding standards.\n"
+    },
+    "documenter": {
+        "page_generation": "Write a comprehensive documentation page about: {topic}. This is for the file {filename}.\n\nIMPORTANT: Write the documentation content in English.",
+        "approval_request": "I have designed the following Wiki structure based on your project:\n\n{plan_summary}\n\nDo you want me to proceed with generating these files?",
+        "success": "Wiki Generation Complete.\nPages created:\n{pages}",
+        "error": "Error planning documentation: {error}",
+        "error_loading_plan": "Error loading pending plan. Please try again.",
+        "plan_cancelled": "Documentation plan cancelled by user.",
+        "hitl_action_description": "Create Wiki Documentation based on Project Structure",
+        "hitl_details_label": "**Proposed File Structure:**\n\n{plan_md}",
+        "hitl_consequences": "This will create {count} new files in `docs/wiki/`. Existing files with same names will be overwritten."
+    },
+    "finish": {
+        "brain_update": "\n\n🧠 **Brain Update**: Saved {count} concept(s) to memory: {concepts}",
+        "proactive_reminder": "\n\n📝 **Proactive Reminder**: I've added a todo: '{title}'"
+    },
+    "chat": {
+        "lang_instruction": "\nUser Language Preference: {language}\nCommunicate in this language."
+    },
+    "wiki": {
+        "doc_generation": "\nYou are a technical documentation expert. Write a comprehensive documentation section for the following code entity.\n\nEntity: {entity_name} ({entity_type})\nFile: {file_path}\n\nCode:\n```{lang}\n{code_snippet}\n```\n\nFormat:\n- **Overview**: What does this do?\n- **Usage**: How to use it?\n- **Details**: Key logic or algorithms.\n- Markdown format.\n",
+        "fallback": {
+            "overview": "Project Overview",
+            "architecture": "Architecture",
+            "setup": "Setup & Installation"
         },
-        "documenter": {
-            "page_generation": "Write a comprehensive documentation page about: {topic}. This is for the file {filename}.\n\nIMPORTANT: Write the documentation content in English.",
-            "approval_request": "I have designed the following Wiki structure based on your project:\n\n{plan_summary}\n\nDo you want me to proceed with generating these files?",
-            "success": "Wiki Generation Complete.\nPages created:\n{pages}",
-            "error": "Error planning documentation: {error}",
-            "error_loading_plan": "Error loading pending plan. Please try again.",
-            "plan_cancelled": "Documentation plan cancelled by user.",
-            "hitl_action_description": "Create Wiki Documentation based on Project Structure",
-            "hitl_details_label": "**Proposed File Structure:**\n\n{plan_md}",
-            "hitl_consequences": "This will create {count} new files in `docs/wiki/`. Existing files with same names will be overwritten."
+        "generated_content": {
+            "relevant_files": "Relevant source files",
+            "files_used": "The following files were used as context for generating this wiki page:"
         },
-        "finish": {
-            "brain_update": "\n\n🧠 **Brain Update**: Saved {count} concept(s) to memory: {concepts}",
-            "proactive_reminder": "\n\n📝 **Proactive Reminder**: I've added a todo: '{title}'"
+        "error_generating_content": "Error generating content: {error}",
+        "generation_queued": "Wiki generation queued (Celery)"
+    },
+    "deep_research": {
+        "protocol": "\n<language_protocol>\nUser Language: {user_lang}\nYou MUST write your plans, updates, and conclusions in {user_lang}.\n</language_protocol>\n",
+        "error_no_topic": "Error: No research topic provided.",
+        "error_failed": "Error during deep research: {error}"
+    },
+    "supervisor": {
+        "status_analyzing": "Analyzing context...",
+        "no_active_plan": "No active plan found. Please create one if the task is complex."
+    },
+    "tester": {
+        "report_header": "TEST REPORT PARSED:\nFailed: {failures}\nDetails:\n{details}",
+        "report_pass": "TEST REPORT: ALL PASSED.",
+        "handoff_header": "### SUPERVISOR HANDOFF CONTEXT (ATTENTION GUIDANCE)",
+        "handoff_msg": "The Supervisor has identified {count} focus files for you. I have pre-read them:",
+        "file_missing": "- [MISSING] {path} (Supervisor pointed to non-existent file)",
+        "file_skipped": "- [SKIPPED] {path} (Too large {size}b - Read manually if needed)"
+    },
+    "common": {
+        "tool_not_found": "Error: Tool {name} not found.",
+        "tool_execution_error": "Error executing tool {name}: {error}",
+        "pronouns": [
+            "it",
+            "that",
+            "this",
+            "them"
+        ],
+        "risk_levels": {
+            "low": "Low",
+            "medium": "Medium",
+            "high": "High",
+            "critical": "Critical"
+        }
+    },
+    "optimizer": {
+        "task_name": "Prompt Optimization",
+        "status_correction": "Applied Self-Correction"
+    },
+    "skill_executor": {
+        "task_matching": "Skill Matching",
+        "status_identified": "Identified Skill: {name}",
+        "task_executing": "Executing Skill: {name}",
+        "skill_not_found": "Skill {id} not found",
+        "parse_failed": "Failed to parse skill steps",
+        "step_success": "Step {i} ({action}): Success\nOutput: {output}",
+        "step_failed": "Step {i} ({action}): Failed - {error}",
+        "step_skipped": "Step {i} ({action}): Skipped - tool not found"
+    },
+    "learning": {
+        "synthesis_lang_constraint": "\n\nCRITICAL: The user's language is {lang}. Ensure the 'description' fields and any generated natural language text is written in {lang}."
+    },
+    "memory": {
+        "pruned_output": "[Pruned Tool Output: Old tool execution result removed to save context]",
+        "summarizer_error": "Unable to generate summary, please try again later."
+    },
+    "adaptive_llm": {
+        "summarize_prompt": "Please summarize the following content concisely:\n{input}"
+    },
+    "core_utils": {
+        "orphaned_tool": "Executing tool...",
+        "conversation_continuation": "...continuing conversation context..."
+    },
+    "orchestration": {
+        "skill_not_found": "Skill '{name}' not found. Available skills: {available}",
+        "delegation_failed": "Delegation to {name} failed: {error}",
+        "available_skills": "Available Agent Skills: {skills}"
+    },
+    "trace_parser": {
+        "task_trace": "Task Trace: {name}",
+        "thread_id": "Thread ID",
+        "total_steps": "Total Steps",
+        "human_intervention": "Human Intervention",
+        "steps_header": "Steps",
+        "step_title": "Step {number} {icon} [{category}]",
+        "action": "Action",
+        "args": "Args",
+        "ui_element": "UI Element",
+        "screenshot": "Screenshot",
+        "user_feedback": "User Feedback",
+        "yes": "Yes",
+        "no": "No",
+        "header_template": "# Task Trace: {name}\n\n**Thread ID**: {thread_id}\n**Total Steps**: {total_steps}\n**Human Intervention**: {has_human}\n\n## Steps\n",
+        "step_template": "### Step {number} {icon} [{category}]\n- **Action**: `{action_name}`\n{args_section}{ui_section}{feedback_section}\n"
+    },
+    "evoloop_logger": {
+        "thinking": "Thinking...",
+        "unknown_tool": "Unknown Tool",
+        "running_tool": "Running {tool}...\nInput: {input}",
+        "file_output": "File: {path} (Lines: {count})",
+        "truncated_output": "{preview}\n...\n[Truncated {lines} lines / {chars} chars]",
+        "read_summary": "Read {path} ({count} lines)",
+        "list_summary": "Listed {path} ({count} items)"
+    },
+    "database_logger": {
+        "decision": "**Decision:** Route to `{node}`",
+        "analysis": "\n**Analysis:** {analysis}",
+        "tool_summary": {
+            "read_file": "Reading '{path}'",
+            "read_file_result": "Read {lines} lines.",
+            "write_file": "Writing to '{path}'",
+            "file_op_result": "File operation successful.",
+            "plan_created": "Plan created with {count} steps.",
+            "edit_file": "Editing '{path}'",
+            "list_files": "Listing '{path}'",
+            "operate_file": "{action} '{path}'",
+            "search_code": "Searching code for '{query}'",
+            "ask_user": "Asking user: {prompt}",
+            "bash": "Running command '{command}'",
+            "task_boundary": "Task status update: {TaskName}",
+            "run_macro": "Executing macro: {skill_name}",
+            "manage_git": "Git Operation: {action}",
+            "manage_memory": "Memory Management: {action}",
+            "consult_architecture": "Consulting architecture: {path}",
+            "use_mcp": "Enabling MCP server: {server_name}",
+            "default": "Running {tool}"
         },
-        "chat": {
-            "lang_instruction": "\nUser Language Preference: {language}\nCommunicate in this language."
+        "ref_search": "Search: {query}",
+        "ref_memory": "Memory Item"
+    },
+    "domain_tools": {
+        "learning": {
+            "success": "Successfully learned skill '{name}' from thread {thread}.\nDescription: {desc}\nTriggers: {triggers}",
+            "failed": "Failed to learn skill: {error}",
+            "synthesis": {
+                "instruction": "Analyze this trace and generate the Agent YAML:\n\n{trace_text}"
+            },
+            "skill_synthesis": {
+                "instruction": "Please analyze the trace and generate the skill YAML."
+            }
+        },
+        "learner": {
+            "no_git": "No Git repository found. Skipping code-based knowledge harvesting.",
+            "no_changes": "No uncommitted changes found to harvest.",
+            "git_timeout": "Git diff timed out.",
+            "git_error": "Failed to read git diff: {error}",
+            "extract_error": "Error extracting concepts: {error}",
+            "harvested_header": "Harvested Concepts:",
+            "no_concepts": "No new concepts identified."
+        },
+        "human_input": {
+            "header_input": "## ⏸️ Human Input Requested",
+            "header_approval": "## 🔐 Approval Required",
+            "req_id": "**Request ID**: `{id}`",
+            "type": "**Type**: {type}",
+            "prompt": "**Prompt**: {prompt}",
+            "context": "**Context**: {context}",
+            "options": "**Options**: {options}",
+            "default": "**Default**: {default}",
+            "paused_input": "⚠️ **Workflow paused**. Waiting for user response.\nThe frontend will display this request and collect user input.",
+            "paused_approval": "⚠️ **Workflow paused**. Awaiting user approval.\nPlease respond with APPROVE or REJECT.",
+            "risk_level": " **Risk Level**: {level}",
+            "action": "**Action**: {action}",
+            "details": "**Details**:\n{details}",
+            "consequences": "**Potential Consequences**:\n{conseq}",
+            "error_options": "Error: 'options' must be provided when input_type is 'choice'",
+            "request_template": "\n## ⏸️ Human Input Requested\n\n**Request ID**: `{id}`\n**Type**: {type}\n**Prompt**: {prompt}{context_section}{options_section}{default_section}\n\n---\n⚠️ **Workflow paused**. Waiting for user response.\nThe frontend will display this request and collect user input.\n",
+            "approval_template": "\n## 🔐 Approval Required\n\n**Request ID**: `{id}`\n{approval_context}\n---\n⚠️ **Workflow paused**. Awaiting user approval.\nPlease respond with APPROVE or REJECT.\n"
+        },
+        "manage_todo": {
+            "error_title": "Error: 'title' is required for adding a todo.",
+            "error_due_date": "Error: Could not parse due_date '{date}'. Please use ISO format, relative time (e.g., '1 hour', '30 mins'), or 'TBD'.",
+            "success_add": "Todo created: [{priority}] {title} (ID: {id})",
+            "no_todos": "No todos found.",
+            "error_id": "Error: 'todo_id' is required for {action}.",
+            "error_not_found": "Error: Todo {id} not found.",
+            "success_update": "Todo {id} updated.",
+            "success_delete": "Todo {id} deleted.",
+            "error_action": "Error: Unknown action."
+        },
+        "terminal": {
+            "cd_success": "Changed directory to {path}",
+            "cd_error": "Directory not found: {path} (resolved to {resolved})",
+            "export_success": "Exported {key}",
+            "export_error": "Invalid export syntax",
+            "timeout": "Command timed out."
+        },
+        "research_report": {
+            "title": "🧠 Deep Research Report",
+            "topic": "**Topic**: {topic}",
+            "date": "**Date**: {date}",
+            "summary_header": "## 📝 Executive Summary provided by AI",
+            "log_header": "## 🔬 Research Process Log",
+            "log_details": "<summary>Click to verify research steps</summary>",
+            "footer": "*Generated by EvoLoop Deep Research Engine*",
+            "template": "# 🧠 Deep Research Report\n**Topic**: {topic}\n**Date**: {date}\n{meta_info}\n\n---\n\n## 📝 Executive Summary provided by AI\n{conclusion}\n\n---\n\n## 🔬 Research Process Log\n<details>\n<summary>Click to verify research steps</summary>\n\n{logs_text}\n\n</details>\n\n---\n*Generated by EvoLoop Deep Research Engine*\n"
         },
         "wiki": {
-            "doc_generation": "\nYou are a technical documentation expert. Write a comprehensive documentation section for the following code entity.\n\nEntity: {entity_name} ({entity_type})\nFile: {file_path}\n\nCode:\n```{lang}\n{code_snippet}\n```\n\nFormat:\n- **Overview**: What does this do?\n- **Usage**: How to use it?\n- **Details**: Key logic or algorithms.\n- Markdown format.\n",
-            "fallback": {
-                "overview": "Project Overview",
-                "architecture": "Architecture",
-                "setup": "Setup & Installation"
-            },
-            "generated_content": {
-                "relevant_files": "Relevant source files",
-                "files_used": "The following files were used as context for generating this wiki page:"
-            },
-            "error_generating_content": "Error generating content: {error}",
-            "generation_queued": "Wiki generation queued (Celery)"
+            "source_unavailable": "(Source code not available)",
+            "system_prompt": "You generate clear, concise technical documentation."
         },
-        "deep_research": {
-            "protocol": "\n<language_protocol>\nUser Language: {user_lang}\nYou MUST write your plans, updates, and conclusions in {user_lang}.\n</language_protocol>\n",
-            "error_no_topic": "Error: No research topic provided.",
-            "error_failed": "Error during deep research: {error}"
-        },
-        "supervisor": {
-            "status_analyzing": "Analyzing context...",
-            "no_active_plan": "No active plan found. Please create one if the task is complex."
-        },
-        "tester": {
-            "report_header": "TEST REPORT PARSED:\nFailed: {failures}\nDetails:\n{details}",
-            "report_pass": "TEST REPORT: ALL PASSED.",
-            "handoff_header": "### SUPERVISOR HANDOFF CONTEXT (ATTENTION GUIDANCE)",
-            "handoff_msg": "The Supervisor has identified {count} focus files for you. I have pre-read them:",
-            "file_missing": "- [MISSING] {path} (Supervisor pointed to non-existent file)",
-            "file_skipped": "- [SKIPPED] {path} (Too large {size}b - Read manually if needed)"
-        },
-        "common": {
-            "tool_not_found": "Error: Tool {name} not found.",
-            "tool_execution_error": "Error executing tool {name}: {error}",
-            "pronouns": [
-                "it",
-                "that",
-                "this",
-                "them"
-            ],
-            "risk_levels": {
-                "low": "Low",
-                "medium": "Medium",
-                "high": "High",
-                "critical": "Critical"
-            }
-        },
-        "optimizer": {
-            "task_name": "Prompt Optimization",
-            "status_correction": "Applied Self-Correction"
-        },
-        "skill_executor": {
-            "task_matching": "Skill Matching",
-            "status_identified": "Identified Skill: {name}",
-            "task_executing": "Executing Skill: {name}",
-            "skill_not_found": "Skill {id} not found",
-            "parse_failed": "Failed to parse skill steps",
-            "step_success": "Step {i} ({action}): Success\nOutput: {output}",
-            "step_failed": "Step {i} ({action}): Failed - {error}",
-            "step_skipped": "Step {i} ({action}): Skipped - tool not found"
-        },
-        "learning": {
-            "synthesis_lang_constraint": "\n\nCRITICAL: The user's language is {lang}. Ensure the 'description' fields and any generated natural language text is written in {lang}."
-        },
-        "memory": {
-            "pruned_output": "[Pruned Tool Output: Old tool execution result removed to save context]",
-            "summarizer_error": "Unable to generate summary, please try again later."
-        },
-        "adaptive_llm": {
-            "summarize_prompt": "Please summarize the following content concisely:\n{input}"
-        },
-        "core_utils": {
-            "orphaned_tool": "Executing tool...",
-            "conversation_continuation": "...continuing conversation context..."
-        },
-        "orchestration": {
-            "skill_not_found": "Skill '{name}' not found. Available skills: {available}",
-            "delegation_failed": "Delegation to {name} failed: {error}",
-            "available_skills": "Available Agent Skills: {skills}"
-        },
-        "trace_parser": {
-            "task_trace": "Task Trace: {name}",
-            "thread_id": "Thread ID",
-            "total_steps": "Total Steps",
-            "human_intervention": "Human Intervention",
-            "steps_header": "Steps",
-            "step_title": "Step {number} {icon} [{category}]",
-            "action": "Action",
-            "args": "Args",
-            "ui_element": "UI Element",
-            "screenshot": "Screenshot",
-            "user_feedback": "User Feedback",
-            "yes": "Yes",
-            "no": "No",
-            "header_template": "# Task Trace: {name}\n\n**Thread ID**: {thread_id}\n**Total Steps**: {total_steps}\n**Human Intervention**: {has_human}\n\n## Steps\n",
-            "step_template": "### Step {number} {icon} [{category}]\n- **Action**: `{action_name}`\n{args_section}{ui_section}{feedback_section}\n"
-        },
-        "evoloop_logger": {
-            "thinking": "Thinking...",
-            "unknown_tool": "Unknown Tool",
-            "running_tool": "Running {tool}...\nInput: {input}",
-            "file_output": "File: {path} (Lines: {count})",
-            "truncated_output": "{preview}\n...\n[Truncated {lines} lines / {chars} chars]",
-            "read_summary": "Read {path} ({count} lines)",
-            "list_summary": "Listed {path} ({count} items)"
-        },
-        "database_logger": {
-            "decision": "**Decision:** Route to `{node}`",
-            "analysis": "\n**Analysis:** {analysis}",
-            "tool_summary": {
-                "read_file": "Reading '{path}'",
-                "read_file_result": "Read {lines} lines.",
-                "write_file": "Writing to '{path}'",
-                "file_op_result": "File operation successful.",
-                "plan_created": "Plan created with {count} steps.",
-                "edit_file": "Editing '{path}'",
-                "list_files": "Listing '{path}'",
-                "operate_file": "{action} '{path}'",
-                "manage_file": "{action} '{path}'",
-                "search_code": "Searching code for '{query}'",
-                "ask_user": "Asking user: {prompt}",
-                "default": "Running {tool}"
-            },
-            "ref_search": "Search: {query}",
-            "ref_memory": "Memory Item"
-        },
-        "domain_tools": {
-            "learning": {
-                "success": "Successfully learned skill '{name}' from thread {thread}.\nDescription: {desc}\nTriggers: {triggers}",
-                "failed": "Failed to learn skill: {error}",
-                "synthesis": {
-                    "instruction": "Analyze this trace and generate the Agent YAML:\n\n{trace_text}"
-                },
-                "skill_synthesis": {
-                    "instruction": "Please analyze the trace and generate the skill YAML."
-                }
-            },
-            "learner": {
-                "no_git": "No Git repository found. Skipping code-based knowledge harvesting.",
-                "no_changes": "No uncommitted changes found to harvest.",
-                "git_timeout": "Git diff timed out.",
-                "git_error": "Failed to read git diff: {error}",
-                "extract_error": "Error extracting concepts: {error}",
-                "harvested_header": "Harvested Concepts:",
-                "no_concepts": "No new concepts identified."
-            },
-            "human_input": {
-                "header_input": "## ⏸️ Human Input Requested",
-                "header_approval": "## 🔐 Approval Required",
-                "req_id": "**Request ID**: `{id}`",
-                "type": "**Type**: {type}",
-                "prompt": "**Prompt**: {prompt}",
-                "context": "**Context**: {context}",
-                "options": "**Options**: {options}",
-                "default": "**Default**: {default}",
-                "paused_input": "⚠️ **Workflow paused**. Waiting for user response.\nThe frontend will display this request and collect user input.",
-                "paused_approval": "⚠️ **Workflow paused**. Awaiting user approval.\nPlease respond with APPROVE or REJECT.",
-                "risk_level": " **Risk Level**: {level}",
-                "action": "**Action**: {action}",
-                "details": "**Details**:\n{details}",
-                "consequences": "**Potential Consequences**:\n{conseq}",
-                "error_options": "Error: 'options' must be provided when input_type is 'choice'",
-                "request_template": "\n## ⏸️ Human Input Requested\n\n**Request ID**: `{id}`\n**Type**: {type}\n**Prompt**: {prompt}{context_section}{options_section}{default_section}\n\n---\n⚠️ **Workflow paused**. Waiting for user response.\nThe frontend will display this request and collect user input.\n",
-                "approval_template": "\n## 🔐 Approval Required\n\n**Request ID**: `{id}`\n{approval_context}\n---\n⚠️ **Workflow paused**. Awaiting user approval.\nPlease respond with APPROVE or REJECT.\n"
-            },
-            "manage_todo": {
-                "error_title": "Error: 'title' is required for adding a todo.",
-                "error_due_date": "Error: Could not parse due_date '{date}'. Please use ISO format, relative time (e.g., '1 hour', '30 mins'), or 'TBD'.",
-                "success_add": "Todo created: [{priority}] {title} (ID: {id})",
-                "no_todos": "No todos found.",
-                "error_id": "Error: 'todo_id' is required for {action}.",
-                "error_not_found": "Error: Todo {id} not found.",
-                "success_update": "Todo {id} updated.",
-                "success_delete": "Todo {id} deleted.",
-                "error_action": "Error: Unknown action."
-            },
-            "terminal": {
-                "cd_success": "Changed directory to {path}",
-                "cd_error": "Directory not found: {path} (resolved to {resolved})",
-                "export_success": "Exported {key}",
-                "export_error": "Invalid export syntax",
-                "timeout": "Command timed out."
-            },
-            "research_report": {
-                "title": "🧠 Deep Research Report",
-                "topic": "**Topic**: {topic}",
-                "date": "**Date**: {date}",
-                "summary_header": "## 📝 Executive Summary provided by AI",
-                "log_header": "## 🔬 Research Process Log",
-                "log_details": "<summary>Click to verify research steps</summary>",
-                "footer": "*Generated by EvoLoop Deep Research Engine*",
-                "template": "# 🧠 Deep Research Report\n**Topic**: {topic}\n**Date**: {date}\n{meta_info}\n\n---\n\n## 📝 Executive Summary provided by AI\n{conclusion}\n\n---\n\n## 🔬 Research Process Log\n<details>\n<summary>Click to verify research steps</summary>\n\n{logs_text}\n\n</details>\n\n---\n*Generated by EvoLoop Deep Research Engine*\n"
-            },
-            "wiki": {
-                "source_unavailable": "(Source code not available)",
-                "system_prompt": "You generate clear, concise technical documentation."
-            },
-            "files": {
-                "resolve_error": "Error: Could not resolve path: {path}",
-                "security_violation": "Error: Security Violation. Path '{path}' is outside the working directory '{root}'. Please use relative paths.",
-                "read_not_found_suggest": "Error: File '{path}' not found. Did you mean one of these in the same directory? [{siblings}]",
-                "read_not_found": "Error: File not found: {path}",
-                "read_error": "Error reading file: {error}",
-                "write_content_required": "Error: 'content' required for {action} action.",
-                "write_success": "Successfully wrote to {path}",
-                "write_error": "Error writing file: {error}",
-                "edit_args_required": "Error: 'target' and 'content' (replacement) required for update_block.",
-                "edit_target_short": "Error: Target block is too short (must be > 2 chars). Please provide surrounding context if replacing a very short string.",
-                "edit_not_found": "Error: File not found: {path}",
-                "edit_multiple_found": "Error: Target snippet found {count} times. Please include more context to make it unique.",
-                "edit_success": "Successfully updated {path}",
-                "edit_success_log": "Successfully updated {path}\n(Note: {log})",
-                "edit_fallback_failed": "Error: Target snippet not found (Strict). Robust Fallback Failed: {log}",
-                "edit_error": "Error during update: {error}",
-                "fs_create_dir_success": "Successfully created directory: {path}",
-                "fs_create_dir_error": "Error creating directory: {error}",
-                "fs_not_found": "Error: Path not found: {path}",
-                "fs_delete_dir_success": "Successfully deleted directory: {path}",
-                "fs_delete_file_success": "Successfully deleted file: {path}",
-                "fs_delete_error": "Error deleting path: {error}",
-                "fs_move_content_required": "Error: 'content' (destination path) required for move action.",
-                "fs_move_resolve_error": "Error: Could not resolve destination: {path}",
-                "fs_move_security_error": "Error: Security Violation. Destination '{path}' is outside working directory.",
-                "fs_move_src_not_found": "Error: Source path not found: {path}",
-                "fs_move_success": "Successfully moved '{src}' to '{dest}'",
-                "fs_move_error": "Error moving path: {error}",
-                "fs_unknown_action": "Error: Unknown filesystem action {action}"
-            }
+        "files": {
+            "resolve_error": "Error: Could not resolve path: {path}",
+            "security_violation": "Error: Security Violation. Path '{path}' is outside the working directory '{root}'. Please use relative paths.",
+            "read_not_found_suggest": "Error: File '{path}' not found. Did you mean one of these in the same directory? [{siblings}]",
+            "read_not_found": "Error: File not found: {path}",
+            "read_error": "Error reading file: {error}",
+            "write_content_required": "Error: 'content' required for {action} action.",
+            "write_success": "Successfully wrote to {path}",
+            "write_error": "Error writing file: {error}",
+            "edit_args_required": "Error: 'target' and 'content' (replacement) required for update_block.",
+            "edit_target_short": "Error: Target block is too short (must be > 2 chars). Please provide surrounding context if replacing a very short string.",
+            "edit_not_found": "Error: File not found: {path}",
+            "edit_multiple_found": "Error: Target snippet found {count} times. Please include more context to make it unique.",
+            "edit_success": "Successfully updated {path}",
+            "edit_success_log": "Successfully updated {path}\n(Note: {log})",
+            "edit_fallback_failed": "Error: Target snippet not found (Strict). Robust Fallback Failed: {log}",
+            "edit_error": "Error during update: {error}",
+            "fs_create_dir_success": "Successfully created directory: {path}",
+            "fs_create_dir_error": "Error creating directory: {error}",
+            "fs_not_found": "Error: Path not found: {path}",
+            "fs_delete_dir_success": "Successfully deleted directory: {path}",
+            "fs_delete_file_success": "Successfully deleted file: {path}",
+            "fs_delete_error": "Error deleting path: {error}",
+            "fs_move_content_required": "Error: 'content' (destination path) required for move action.",
+            "fs_move_resolve_error": "Error: Could not resolve destination: {path}",
+            "fs_move_security_error": "Error: Security Violation. Destination '{path}' is outside working directory.",
+            "fs_move_src_not_found": "Error: Source path not found: {path}",
+            "fs_move_success": "Successfully moved '{src}' to '{dest}'",
+            "fs_move_error": "Error moving path: {error}",
+            "fs_unknown_action": "Error: Unknown filesystem action {action}"
         }
     }
 }

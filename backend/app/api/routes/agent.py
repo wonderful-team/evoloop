@@ -18,6 +18,7 @@ from app.core.context.manager import ContextManager, EvoContext
 # --- Background Worker ---
 from app.core.engine.background_agent import run_agent_background
 from app.core.evocloud import evocloud_manager
+from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.codebase.indexing.service import IndexingService
@@ -225,7 +226,9 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
     try:
         rewind_result = await history_service.perform_rewind(
             thread_id=req.thread_id,
-            revert_files=req.revert_files
+            target_message_id=str(last_human_msg.id),
+            revert_files=req.revert_files,
+            include_target=False  # Keep the human message in DB and Graph
         )
         files_reverted = rewind_result.get("files_reverted", 0)
     except Exception as e:
@@ -240,11 +243,11 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
     )
 
     # 4. Dispatch
-    # Ensure inputs match normal chat flow
+    # We do NOT include the message in inputs to avoid re-inserting it into DB.
+    # The message is already in the LangGraph state (checkpoint) because we didn't remove it.
     inputs = {
-        "messages": [{"type": "human", "content": retry_message_content}],
         "project_id": req.project_id,
-        "is_retry": True,  # Flag for engine if needed (optional)
+        "is_retry": True,
     }
 
     bg_tasks.add_task(run_agent_background, req.thread_id, inputs)
@@ -398,6 +401,11 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
 
         except AgentCancelledException:
             await activity_monitor.end_run(req.thread_id, "cancelled")
+        except AgentHumanInterruptException:
+            # INTERRUPT: Task interrupted for human input.
+            # Tool has already updated Redis state, so we just end cleanly.
+            # DO NOT mark as 'failed' in activity_monitor.
+            logger.info(f"Resume interrupted for human input: {req.thread_id}")
         except Exception as e:
             logger.error(f"Resume error for {req.thread_id}: {e}")
             await activity_monitor.end_run(req.thread_id, "failed")

@@ -52,7 +52,7 @@ async def learn_skill_from_trace(thread_id: str, session_id: str | None = None) 
             # Commit happens automatically on exit of session_scope
 
         return i18n.get(
-            "prompts.domain_tools.learning.success",
+            "domain_tools.learning.success",
             name=skill_data.name,
             thread=thread_id,
             desc=skill_data.description,
@@ -60,4 +60,4 @@ async def learn_skill_from_trace(thread_id: str, session_id: str | None = None) 
         )
 
     except Exception as e:
-        return i18n.get("prompts.domain_tools.learning.failed", error=str(e))
+        return i18n.get("domain_tools.learning.failed", error=str(e))

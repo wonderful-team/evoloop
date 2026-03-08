@@ -11,7 +11,12 @@ from app.utils.process import run_command
 from .actions.utils import resolve_and_validate_path
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    affected_path_keys=["path"],
+    summary_template="database_logger.tool_summary.search_code",
+    result_summary_template="database_logger.tool_summary.file_op_result"
+)
 async def grep_files(
     pattern: str,
     path: str = ".",

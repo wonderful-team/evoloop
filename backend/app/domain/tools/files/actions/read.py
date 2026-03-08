@@ -42,16 +42,16 @@ async def handle_read(
                         siblings_info.append(s)
                 siblings_str = ", ".join(siblings_info)
                 return i18n.get(
-                    "prompts.domain_tools.files.read_not_found_suggest",
+                    "domain_tools.files.read_not_found_suggest",
                     path=path,
                     siblings=siblings_str,
                 )
             except Exception:
                 pass
-        return i18n.get("prompts.domain_tools.files.read_not_found", path=path)
+        return i18n.get("domain_tools.files.read_not_found", path=path)
 
     try:
         file_content, _ = utils_read_file(target_path, start_line, end_line)
         return file_content
     except Exception as e:
-        return i18n.get("prompts.domain_tools.files.read_error", error=str(e))
+        return i18n.get("domain_tools.files.read_error", error=str(e))

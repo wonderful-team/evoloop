@@ -1,72 +1,70 @@
 {
-    "prompts": {
-        "tasks": {
-            "execution_instruction": "\n**目标**：实现以下任务。\n**标题**：{title}\n**描述**：{desc}\n\n**上下文与约束**：\n- **关键模块**：{key_modules}\n- **技术挑战**：{tech_challenges}\n- **交付成果**：{deliverables}\n- **实现复杂度**：{complexity}\n\n请分析需求，制定变更计划并执行实现。\n请务必遵循项目结构和代码规范。\n"
+    "tasks": {
+        "execution_instruction": "\n**目标**：实现以下任务。\n**标题**：{title}\n**描述**：{desc}\n\n**上下文与约束**：\n- **关键模块**：{key_modules}\n- **技术挑战**：{tech_challenges}\n- **交付成果**：{deliverables}\n- **实现复杂度**：{complexity}\n\n请分析需求，制定变更计划并执行实现。\n请务必遵循项目结构和代码规范。\n"
+    },
+    "documenter": {
+        "page_generation": "请撰写一份关于 {topic} 的详细技术文档。目标文件名为 {filename}。\n\n重要：请使用中文编写文档内容，确保专业、清晰。",
+        "approval_request": "根据您的项目结构，我设计了以下 Wiki 结构：\n\n{plan_summary}\n\n您希望我开始生成这些文件吗？",
+        "success": "Wiki 生成完成。\n已创建页面：\n{pages}",
+        "error": "文档规划出错：{error}",
+        "error_loading_plan": "加载待定计划出错。请重试。",
+        "plan_cancelled": "用户取消了文档规划。",
+        "hitl_action_description": "根据项目结构创建 Wiki 文档",
+        "hitl_details_label": "**建议的文件结构：**\n\n{plan_md}",
+        "hitl_consequences": "这将在 `docs/wiki/` 中创建 {count} 个新文件。同名现有文件将被覆盖。"
+    },
+    "finish": {
+        "brain_update": "\n\n🧠 **大脑更新**: 已保存 {count} 个新概念到记忆库: {concepts}",
+        "proactive_reminder": "\n\n📝 **主动提醒**: 已添加待办事项: '{title}'"
+    },
+    "chat": {
+        "lang_instruction": "\n用户语言偏好: {language}\n请使用该语言进行交流。"
+    },
+    "wiki": {
+        "doc_generation": "\n你是一位技术文档专家。请为以下代码实体编写详细的文档章节。\n\n实体: {entity_name} ({entity_type})\n文件: {file_path}\n\n代码:\n```{lang}\n{code_snippet}\n```\n\n格式要求:\n- **概述**: 这个实体的功能是什么？\n- **用法**: 如何使用它？\n- **细节**: 关键逻辑或算法说明。\n- 请使用 Markdown 格式。\n",
+        "fallback": {
+            "overview": "项目概览",
+            "architecture": "架构说明",
+            "setup": "安装与配置"
         },
-        "documenter": {
-            "page_generation": "请撰写一份关于 {topic} 的详细技术文档。目标文件名为 {filename}。\n\n重要：请使用中文编写文档内容，确保专业、清晰。",
-            "approval_request": "根据您的项目结构，我设计了以下 Wiki 结构：\n\n{plan_summary}\n\n您希望我开始生成这些文件吗？",
-            "success": "Wiki 生成完成。\n已创建页面：\n{pages}",
-            "error": "文档规划出错：{error}",
-            "error_loading_plan": "加载待定计划出错。请重试。",
-            "plan_cancelled": "用户取消了文档规划。",
-            "hitl_action_description": "根据项目结构创建 Wiki 文档",
-            "hitl_details_label": "**建议的文件结构：**\n\n{plan_md}",
-            "hitl_consequences": "这将在 `docs/wiki/` 中创建 {count} 个新文件。同名现有文件将被覆盖。"
+        "generated_content": {
+            "relevant_files": "相关源文件",
+            "files_used": "生成此页面使用了以下文件作为上下文："
         },
-        "finish": {
-            "brain_update": "\n\n🧠 **大脑更新**: 已保存 {count} 个新概念到记忆库: {concepts}",
-            "proactive_reminder": "\n\n📝 **主动提醒**: 已添加待办事项: '{title}'"
-        },
-        "chat": {
-            "lang_instruction": "\n用户语言偏好: {language}\n请使用该语言进行交流。"
-        },
-        "wiki": {
-            "doc_generation": "\n你是一位技术文档专家。请为以下代码实体编写详细的文档章节。\n\n实体: {entity_name} ({entity_type})\n文件: {file_path}\n\n代码:\n```{lang}\n{code_snippet}\n```\n\n格式要求:\n- **概述**: 这个实体的功能是什么？\n- **用法**: 如何使用它？\n- **细节**: 关键逻辑或算法说明。\n- 请使用 Markdown 格式。\n",
-            "fallback": {
-                "overview": "项目概览",
-                "architecture": "架构说明",
-                "setup": "安装与配置"
-            },
-            "generated_content": {
-                "relevant_files": "相关源文件",
-                "files_used": "生成此页面使用了以下文件作为上下文："
-            },
-            "error_generating_content": "生成内容错误：{error}",
-            "generation_queued": "Wiki 生成已排队 (Celery)"
-        },
-        "deep_research": {
-            "protocol": "\n<language_protocol>\nUser Language: {user_lang}\n请务必使用中文（{user_lang}）编写你的计划、更新和结论。\n</language_protocol>\n",
-            "error_no_topic": "错误：未提供研究主题。",
-            "error_failed": "深度研究过程中出错：{error}"
-        },
-        "supervisor": {
-            "status_analyzing": "正在分析上下文...",
-            "no_active_plan": "未找到活动计划。如果任务复杂，请创建一个计划。"
-        },
-        "tester": {
-            "report_header": "测试报告解析结果：\n失败：{failures}\n详情：\n{details}",
-            "report_pass": "测试报告：全部通过。",
-            "handoff_header": "### SUPERVISOR 交接上下文（注意力引导）",
-            "handoff_msg": "Supervisor 为您标识了 {count} 个重点文件。我已预读它们：",
-            "file_missing": "- [缺失] {path} (Supervisor 指向了不存在的文件)",
-            "file_skipped": "- [跳过] {path} (文件过大 {size}b - 如有需要请手动读取)"
-        },
-        "common": {
-            "tool_not_found": "错误：找不到工具 {name}。",
-            "tool_execution_error": "执行工具 {name} 时出错：{error}",
-            "pronouns": [
-                "它",
-                "这个",
-                "那个",
-                "它们"
-            ],
-            "risk_levels": {
-                "low": "低",
-                "medium": "中",
-                "high": "高",
-                "critical": "严重"
-            }
+        "error_generating_content": "生成内容错误：{error}",
+        "generation_queued": "Wiki 生成已排队 (Celery)"
+    },
+    "deep_research": {
+        "protocol": "\n<language_protocol>\nUser Language: {user_lang}\n请务必使用中文（{user_lang}）编写你的计划、更新和结论。\n</language_protocol>\n",
+        "error_no_topic": "错误：未提供研究主题。",
+        "error_failed": "深度研究过程中出错：{error}"
+    },
+    "supervisor": {
+        "status_analyzing": "正在分析上下文...",
+        "no_active_plan": "未找到活动计划。如果任务复杂，请创建一个计划。"
+    },
+    "tester": {
+        "report_header": "测试报告解析结果：\n失败：{failures}\n详情：\n{details}",
+        "report_pass": "测试报告：全部通过。",
+        "handoff_header": "### SUPERVISOR 交接上下文（注意力引导）",
+        "handoff_msg": "Supervisor 为您标识了 {count} 个重点文件。我已预读它们：",
+        "file_missing": "- [缺失] {path} (Supervisor 指向了不存在的文件)",
+        "file_skipped": "- [跳过] {path} (文件过大 {size}b - 如有需要请手动读取)"
+    },
+    "common": {
+        "tool_not_found": "错误：找不到工具 {name}。",
+        "tool_execution_error": "执行工具 {name} 时出错：{error}",
+        "pronouns": [
+            "它",
+            "这个",
+            "那个",
+            "它们"
+        ],
+        "risk_levels": {
+            "low": "低",
+            "medium": "中",
+            "high": "高",
+            "critical": "严重"
         }
     },
     "optimizer": {
@@ -140,9 +138,15 @@
             "edit_file": "正在编辑 '{path}'",
             "list_files": "正在列出 '{path}'",
             "operate_file": "{action} '{path}'",
-            "manage_file": "{action} '{path}'",
             "search_code": "正在搜索代码 '{query}'",
             "ask_user": "询问用户：{prompt}",
+            "bash": "正在运行命令 '{command}'",
+            "task_boundary": "任务状态更新：{TaskName}",
+            "run_macro": "正在执行宏：{skill_name}",
+            "manage_git": "Git 操作：{action}",
+            "manage_memory": "记忆管理：{action}",
+            "consult_architecture": "查看架构：{path}",
+            "use_mcp": "启用 MCP 服务：{server_name}",
             "default": "正在运行 {tool}"
         },
         "ref_search": "搜索：{query}",

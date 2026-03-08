@@ -1,5 +1,4 @@
-import asyncio
-import json
+import logging
 import re
 import time
 from typing import Any
@@ -13,6 +12,10 @@ from app.infrastructure.queue.celery import celery_app
 from app.core.evocloud import evocloud_manager
 from app.i18n.service import i18n
 from app.models.schemas.events import MessageEvent
+from app.core.tools.registry import get_tool_metadata
+
+logger = logging.getLogger(__name__)
+
 
 
 class DatabaseCallbackHandler(AsyncCallbackHandler):
@@ -84,6 +87,12 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 thinking = think_match.group(1).strip()
                 content = content.replace(think_match.group(0), "").strip()
 
+            # 1.5 Filter out technical 'SESSION COMPLETE' messages from chat history.
+            # These are critical for 'Phase 5: Imitation Learning' but should not be shown to users.
+            if content and (content.strip().startswith("✅ SESSION COMPLETE") or content.strip().startswith("❌ SESSION COMPLETE")):
+                logger.info(f"[DatabaseCallbackHandler] Filtering technical session review from chat: {self.thread_id}")
+                return
+
             # 2. Detect and Format JSON (Supervisor/Router Outputs)
             if content and content.strip().startswith("{") and content.strip().endswith("}"):
                 try:
@@ -104,7 +113,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
                         # Case B: Other JSON
                         # Convert to nicely formatted text
-                        content = i18n.get("prompts.database_logger.decision", node=node)
+                        content = i18n.get("database_logger.decision", node=node)
                 except Exception:
                     pass
 
@@ -125,81 +134,37 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         """Generate a user-friendly summary of what a tool is doing."""
         tool_name = tool_call.get("name", "tool")
         tool_input = tool_call.get("args", {})
+        metadata = get_tool_metadata(tool_name) or {}
 
-        # Phase 18: Support new atomic file tools
-        if tool_name == "read_file":
-            path = tool_input.get("path", "file")
-            return i18n.get("prompts.database_logger.tool_summary.read_file", path=path)
-        elif tool_name == "write_file":
-            path = tool_input.get("path", "file")
-            return i18n.get("prompts.database_logger.tool_summary.write_file", path=path)
-        elif tool_name == "edit_file":
-            path = tool_input.get("path", "file")
-            return i18n.get("prompts.database_logger.tool_summary.edit_file", path=path)
-        elif tool_name == "list_files":
-            path = tool_input.get("path", "directory")
-            return i18n.get("prompts.database_logger.tool_summary.list_files", path=path)
-        elif tool_name == "file_system":
-            action = tool_input.get("action", "operate")
-            path = tool_input.get("path", "path")
-            return i18n.get("prompts.database_logger.tool_summary.operate_file", action=action.capitalize(), path=path)
-        elif tool_name == "manage_file":
-            action = tool_input.get("action", "access")
-            path = tool_input.get("path", "file")
-            return i18n.get(
-                "prompts.database_logger.tool_summary.manage_file",
-                action=action.replace("_", " ").capitalize(),
-                path=path,
-            )
-        elif tool_name == "search_codebase":
-            query = tool_input.get("query", "")
-            return i18n.get("prompts.database_logger.tool_summary.search_code", query=query)
-        elif tool_name == "request_human_input":
-            return i18n.get("prompts.database_logger.tool_summary.ask_user", prompt=tool_input.get("prompt", ""))
+        # 1. Use Metadata-driven summary template if available
+        summary_template = metadata.get("summary_template")
+        if summary_template:
+            try:
+                # Merge tool_input into i18n keys if they use formatting, or pass as kwargs
+                return i18n.get(summary_template, **tool_input)
+            except Exception:
+                # Fallback if i18n interpolation fails due to missing keys in tool_input
+                pass
 
-        return i18n.get("prompts.database_logger.tool_summary.default", tool=tool_name)
+        # Fallback to default running tool summary
+        return i18n.get("database_logger.tool_summary.default", tool=tool_name)
 
     def _extract_reference(self, tool_call: dict) -> dict | None:
         """Extract structure reference data from tool call"""
         t_name = tool_call.get("name", "tool")
         t_args = tool_call.get("args", {})
+        metadata = get_tool_metadata(t_name) or {}
 
         try:
-            # Phase 18: Support new atomic file tools
-            if t_name in [
-                "read_document",
-                "read_file",
-                "view_file",
-                "manage_file",
-                "list_files",
-                "write_file",
-                "edit_file",
-            ]:
-                path = (
-                    t_args.get("file_path")
-                    or t_args.get("AbsolutePath")
-                    or t_args.get("url")
-                    or t_args.get("path")
-                    or "unknown"
-                )
-                name = path.split("/")[-1]
-                return {"type": "file", "target_id": path, "target_name": name}
-
-            elif t_name in ["search_codebase", "grep_search", "find_by_name"]:
-                query = t_args.get("query") or t_args.get("Pattern") or "unknown"
-                return {
-                    "type": "knowledge",
-                    "target_id": query,
-                    "target_name": i18n.get("prompts.database_logger.ref_search", query=query),
-                }
-
-            elif t_name == "read_memory_item":  # Hypothetical tool for memory
-                mem_id = t_args.get("id", "unknown")
-                return {
-                    "type": "memory",
-                    "target_id": mem_id,
-                    "target_name": i18n.get("prompts.database_logger.ref_memory"),
-                }
+            # 1. Metadata-driven path extraction (Affected Paths)
+            affected_keys = metadata.get("affected_path_keys", [])
+            if affected_keys:
+                # Find the first available path
+                for key in affected_keys:
+                    path = t_args.get(key)
+                    if path and isinstance(path, str):
+                        name = path.split("/")[-1]
+                        return {"type": "file", "target_id": path, "target_name": name}
 
             return None
         except Exception:

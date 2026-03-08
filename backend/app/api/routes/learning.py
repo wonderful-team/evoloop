@@ -14,11 +14,13 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import or_, func, select, update
 
 from app.core.engine.background_agent import run_agent_background
+from app.core.execution.macro.service import MacroService
+from app.core.learning.discovery import skill_discovery
 from app.core.learning.skill_importer import SkillImporter
 from app.core.learning.skill_synthesizer import WorkflowSynthesizer
 from app.core.learning.skill_validator import SkillValidator
@@ -338,9 +340,16 @@ class StopRecordingResponse(BaseModel):
 _active_sessions: dict[str, dict] = {}
 
 
+class Modifiers(BaseModel):
+    alt: bool = False
+    ctrl: bool = False
+    meta: bool = False
+    shift: bool = False
+
+
 class GlobalRecordedEvent(BaseModel):
     timestamp: float
-    event_type: str  # "key_press", "mouse_click", "window_change"
+    event_type: str  # "key_press", "mouse_click", "mouse_click_extract", "window_change"
     key: str | None = None
     mouse_button: str | None = None
     position: tuple[float, float] | None = None
@@ -348,6 +357,7 @@ class GlobalRecordedEvent(BaseModel):
     app_name: str | None = None
     process_id: int | None = None
     window_bounds: tuple[float, float, float, float] | None = None
+    modifiers: Modifiers | None = None  # NEW: Alt/Ctrl/Meta/Shift states
 
 
 class UploadScreenshotResponse(BaseModel):
@@ -383,6 +393,13 @@ async def record_global_events(body: RecordGlobalEventsRequest):
                 # Or better, fetch last step number. But for high throughput, maybe just auto-increment via DB or loose idx
                 # Using 0-indexed relative to batch for now
 
+                # Build action_payload with modifiers and extract intent
+                payload = {
+                    "window_bounds": event.window_bounds,
+                    "is_extract_intent": event.event_type == "mouse_click_extract",
+                    "modifiers": event.modifiers.dict() if event.modifiers else {},
+                }
+
                 trace_event = TraceEvent(
                     thread_id=body.thread_id,
                     step_number=idx, # Logic to be refined for continuity
@@ -398,7 +415,7 @@ async def record_global_events(body: RecordGlobalEventsRequest):
                     key_name=event.key,
                     mouse_button=event.mouse_button,
                     state_snapshot=json.dumps({"context": "global_recording"}),
-                    action_payload=json.dumps({"window_bounds": event.window_bounds}) if event.window_bounds else json.dumps({}),
+                    action_payload=json.dumps(payload),
                     recording_session_id=body.session_id,
                     # Compatibility fields
                     session_id=body.session_id,
@@ -776,6 +793,12 @@ async def list_skills(
     """
     List all learned skills with pagination.
     """
+    # Trigger sync to ensure we show the latest skills from disk
+    try:
+        await skill_discovery._sync_system_skills()
+    except Exception as e:
+        logger.warning(f"Background skill sync failed during list: {e}")
+
     async with session_scope() as db:
         # 1. Base Query
         stmt = select(LearnedSkill)
@@ -950,7 +973,6 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
 
 
 async def execute_macro_with_fallback(thread_id: str, project_id: int, skill_id: int, skill_name: str, macro_payload: list, params: dict):
-    from app.core.execution.macro.schema import MacroService
     result = await MacroService.run(thread_id, macro_payload, params)
     
     if result.get("status") == "fallback_required":
@@ -1098,11 +1120,50 @@ async def start_mirror_session(body: StartMirrorRequest):
 @router.post("/mirror/stop")
 async def stop_mirror_session(body: StopMirrorRequest):
     """Stop an active mirroring session."""
-    success = mirror_manager.stop_session(body.session_id)
-    if not success:
+    result = mirror_manager.stop_session(body.session_id)
+    if result is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    return {"success": True, "message": "Mirroring session stopped"}
+    # Events are stored locally in the session (delayed persistence)
+    # They will be persisted when user clicks "Synthesize"
+    return {
+        "success": True,
+        "message": "Mirroring session stopped",
+        "video_path": result.get("video_path"),
+        "session_id": result.get("session_id"),
+        "event_count": len(result.get("events", []))
+    }
+
+
+@router.post("/mirror/events")
+async def persist_mirror_events(session_id: str):
+    """
+    Persist Android mirror events to backend (delayed persistence).
+    Called when user confirms skill synthesis.
+    """
+    # Get events from session
+    events = mirror_manager.get_session_events(session_id)
+    if not events:
+        return {"success": True, "message": "No events to persist", "count": 0}
+
+    try:
+        async with session_scope() as db:
+            for event_data in events:
+                trace_event = TraceEvent(
+                    session_id=session_id,
+                    thread_id="global",
+                    timestamp=event_data["timestamp"],
+                    event_type=event_data["event_type"],
+                    target_selector=event_data.get("target_selector"),
+                    target_text=event_data.get("target_text"),
+                    payload=json.dumps(event_data.get("payload", {}))
+                )
+                db.add(trace_event)
+
+        return {"success": True, "message": "Events persisted", "count": len(events)}
+    except Exception as e:
+        logger.exception(f"Failed to persist mirror events: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to persist events: {str(e)}")
 
 
 @router.post("/assets/upload-screenshot", response_model=UploadScreenshotResponse)
@@ -1756,3 +1817,66 @@ async def list_session_synthesis_jobs(session_id: str):
             )
             for j in jobs
         ]
+
+
+@router.delete("/recordings/{session_id}")
+async def cleanup_recording_session(
+    session_id: str,
+    video_path: str | None = None
+):
+    """
+    清理录制会话的所有关联数据。
+
+    包括：
+    1. 删除 TraceEvent 中的事件记录
+    2. 删除 RecordingAnnotation 中的标注
+    3. 删除 SynthesisJob 记录
+    4. 删除视频文件（如果提供路径）
+    """
+    from sqlalchemy import select, delete
+    import os
+
+    deleted_counts = {
+        "events": 0,
+        "annotations": 0,
+        "jobs": 0,
+        "video_file": False
+    }
+
+    try:
+        async with session_scope() as db:
+            # 1. 删除 TraceEvent
+            stmt = delete(TraceEvent).where(TraceEvent.recording_session_id == session_id)
+            result = await db.execute(stmt)
+            deleted_counts["events"] = result.rowcount
+
+            # 2. 删除 RecordingAnnotation
+            stmt = delete(RecordingAnnotation).where(RecordingAnnotation.session_id == session_id)
+            result = await db.execute(stmt)
+            deleted_counts["annotations"] = result.rowcount
+
+            # 3. 删除 SynthesisJob
+            stmt = delete(SynthesisJob).where(SynthesisJob.session_id == session_id)
+            result = await db.execute(stmt)
+            deleted_counts["jobs"] = result.rowcount
+
+        # 4. 删除视频文件
+        if video_path and os.path.exists(video_path):
+            try:
+                os.remove(video_path)
+                deleted_counts["video_file"] = True
+                logger.info(f"[Cleanup] Deleted video file: {video_path}")
+            except Exception as e:
+                logger.error(f"[Cleanup] Failed to delete video file {video_path}: {e}")
+
+        logger.info(f"[Cleanup] Session {session_id} cleaned up: {deleted_counts}")
+
+        return {
+            "success": True,
+            "message": f"Recording session {session_id} cleaned up",
+            "deleted": deleted_counts
+        }
+
+    except Exception as e:
+        logger.exception(f"[Cleanup] Failed to cleanup session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")

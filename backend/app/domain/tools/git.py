@@ -51,7 +51,7 @@ async def auto_harvest_from_git():
     # 0. Check if Git repo exists (Fast check)
     git_dir = os.path.join(cwd, ".git")
     if not os.path.exists(git_dir):
-        return i18n.get("prompts.domain_tools.learner.no_git")
+        return i18n.get("domain_tools.learner.no_git")
 
     # Dispatch to Celery
     git_harvest_task.delay(cwd, project_id)

@@ -31,6 +31,6 @@ async def generate_wiki(req: WikiGenerationRequest, _token: TokenDep):
             force_regenerate=req.force_regenerate
         )
 
-        return {"status": "accepted", "message": i18n.get("prompts.wiki.generation_queued"), "task_id": str(task.id)}
+        return {"status": "accepted", "message": i18n.get("wiki.generation_queued"), "task_id": str(task.id)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

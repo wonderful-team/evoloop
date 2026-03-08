@@ -11,7 +11,6 @@ from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database.sql.database import session_scope
 from app.models import McpServer
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 

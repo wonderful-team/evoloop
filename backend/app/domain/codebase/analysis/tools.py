@@ -6,7 +6,9 @@ from app.domain.codebase.retrieval.graph_service import graph_retrieval_service
 from app.utils.process import run_command
 
 
-@evoloop_tool
+@evoloop_tool(
+    summary_template="database_logger.tool_summary.search_code"
+)
 async def find_definition(symbol_name: str, file_pattern: str | None = None, config: RunnableConfig | None = None) -> str:
     """
     Find the definition (class/function) of a symbol in the codebase using Knowledge Graph.
@@ -53,7 +55,9 @@ async def find_definition(symbol_name: str, file_pattern: str | None = None, con
     return f"No definition found for symbol '{symbol_name}'."
 
 
-@evoloop_tool
+@evoloop_tool(
+    summary_template="database_logger.tool_summary.search_code"
+)
 async def analyze_impact(symbol_name: str, config: RunnableConfig | None = None) -> str:
     """
     Analyze the impact of changing a symbol (Dependants/Usages).

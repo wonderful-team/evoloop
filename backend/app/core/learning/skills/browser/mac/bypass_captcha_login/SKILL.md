@@ -29,10 +29,19 @@ This SOP dictates how to handle anti-bot friction (captchas) encountered during 
 3.  **Execute Clicks**: Use `browser_control(action="click", x=..., y=...)` for each coordinate.
 4.  **Submit**: Click "Verify" using selector or coordinate.
 
-### Type 2: Slider/Puzzle (Drag to Fit)
-1.  **Take Snapshot**: Use `browser_control(action="screenshot")` of the slider widget.
-2.  **Identify Targets**: Find start thumb and target hole coordinates.
-3.  **Execute Drag**: Use `browser_control(action="drag_drop", source_x=..., source_y=..., target_x=..., target_y=...)`.
+### Type 2: Slider/Puzzle (Drag to Fit) - **PRIORITY: OS-Level Control**
+⚠️ **CRITICAL**: Complex slider captchas (yidun, geetest, etc.) often have iframe protection and anti-bot detection that `browser_control` cannot bypass.
+
+**Recommended Approach - Desktop Control**:
+1.  **Take Snapshot**: Use `desktop_control(action="screenshot")` to capture the entire screen including the captcha widget.
+2.  **Visual Analysis**: Use `analyze_image` with question: "What are the exact coordinates (x, y) of the slider thumb and the target gap/hole?"
+3.  **Execute Drag at OS Level**: Use `desktop_control(action="drag_drop", x=<thumb_x>, y=<thumb_y>, x2=<target_x>, y2=<thumb_y>)`
+    - **Why OS Level**: `desktop_control` bypasses all browser/iframe restrictions and anti-bot detection
+    - The drag is performed by the OS mouse driver, indistinguishable from human operation
+
+**Fallback - Browser Level** (only for simple sliders without protection):
+- Use `browser_control(action="drag_drop", source_selector="...", target_selector="...")`
+- If this fails or enters infinite loop, immediately switch to Desktop Control approach above.
 
 ### Type 3: Simple Checkbox (I am not a robot)
 1.  **Execute Click**: Identify the checkbox via `browser_control(action="find_element", selector=".recaptcha-checkbox")` and click it.

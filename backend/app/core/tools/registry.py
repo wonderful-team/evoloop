@@ -24,6 +24,35 @@ logger = logging.getLogger(__name__)
 _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "engine" / "config" / "agent_main.yaml"
 
 
+# --- Fallback Metadata for System/External Tools ---
+# Used for tools that are not decorated with @evoloop_tool or are external (MCP/Built-in)
+SYSTEM_TOOL_METADATA = {
+    "bash": {
+        "summary_template": "database_logger.tool_summary.bash",
+        "is_state_mutating": True,
+    },
+    "task_boundary": {
+        "summary_template": "database_logger.tool_summary.task_boundary",
+        "is_pollable": True,
+    },
+    "write_to_file": {
+        "summary_template": "database_logger.tool_summary.write_file",
+        "affected_path_keys": ["TargetFile"],
+        "is_state_mutating": True,
+    },
+    "replace_file_content": {
+        "summary_template": "database_logger.tool_summary.edit_file",
+        "affected_path_keys": ["TargetFile"],
+        "is_state_mutating": True,
+    },
+    "multi_replace_file_content": {
+        "summary_template": "database_logger.tool_summary.edit_file",
+        "affected_path_keys": ["TargetFile"],
+        "is_state_mutating": True,
+    },
+}
+
+
 class AutoDiscoveryRegistry:
     """
     Registry that automatically scans packages for tools marked with @evoloop_tool.
@@ -118,6 +147,9 @@ def _ensure_scanned():
 
         # Scan Brain Tools (Memory, Retrieval) in core
         REGISTRY.scan("app.core.brain.tools")
+
+        # Scan Engine Tools (Dynamic Planning)
+        REGISTRY.scan("app.core.engine.tools")
 
 
 # --- Core Registry Accessors ---
@@ -283,12 +315,22 @@ def is_pollable_tool(tool_name: str) -> bool:
     return getattr(tool_map[tool_name], "metadata", {}).get("is_pollable", False)
 
 
-def get_tool_metadata(tool_name: str) -> dict | None:
-    """Return the metadata for a tool by name."""
+def get_tool_metadata(tool_name: str) -> dict:
+    """Return the metadata for a tool by name, merging with system fallbacks."""
     tool_map = get_tool_map()
-    if tool_name not in tool_map:
-        return None
-    return getattr(tool_map[tool_name], "metadata", {}) or {}
+    metadata = {}
+    
+    if tool_name in tool_map:
+        metadata = getattr(tool_map[tool_name], "metadata", {}) or {}
+    
+    # Merge with system fallback if missing key metadata
+    if tool_name in SYSTEM_TOOL_METADATA:
+        fallback = SYSTEM_TOOL_METADATA[tool_name]
+        for k, v in fallback.items():
+            if k not in metadata or not metadata[k]:
+                metadata[k] = v
+                
+    return metadata
 
 
 def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
@@ -308,24 +350,6 @@ def get_tool_affected_paths(tool_name: str, tool_args: dict) -> list[str]:
             if val and isinstance(val, str):
                 snapshot_paths.append(val)
                 
-    # Fallback/Legacy support for tools not yet updated with metadata
-    if not snapshot_paths:
-        if tool_name in ["write_file", "edit_file", "write_document", "edit_document"]:
-            arg_path = tool_args.get("path")
-            if arg_path:
-                snapshot_paths.append(arg_path)
-        elif tool_name == "manage_file":
-            arg_path = tool_args.get("absolute_path") or tool_args.get("path")
-            action = tool_args.get("action")
-            if arg_path and action in ["create", "update_block", "write", "overwrite", "delete"]:
-                snapshot_paths.append(arg_path)
-        elif tool_name == "file_system":
-            arg_path = tool_args.get("path")
-            dest_path = tool_args.get("destination")
-            action = tool_args.get("action")
-            if arg_path:
-                snapshot_paths.append(arg_path)
-            if action == "move" and dest_path:
-                snapshot_paths.append(dest_path)
-
+    # Legacy fallback removed. 
+    # All mutation-sensitive tools MUST use @evoloop_tool(affected_path_keys=[...])
     return snapshot_paths

@@ -13,11 +13,11 @@ async def handle_write(
     config: RunnableConfig | None = None,
 ) -> str:
     if content is None:
-        return i18n.get("prompts.domain_tools.files.write_content_required", action=action)
+        return i18n.get("domain_tools.files.write_content_required", action=action)
 
     try:
         target_path = resolve_and_validate_path(path, config)
         utils_write_file(content, target_path)
-        return i18n.get("prompts.domain_tools.files.write_success", path=path)
+        return i18n.get("domain_tools.files.write_success", path=path)
     except Exception as e:
-        return i18n.get("prompts.domain_tools.files.write_error", error=str(e))
+        return i18n.get("domain_tools.files.write_error", error=str(e))

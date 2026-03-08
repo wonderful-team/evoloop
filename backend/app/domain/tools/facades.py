@@ -33,7 +33,11 @@ from app.domain.tools.memory import (
 from app.utils.file import write_file_contents as utils_write_file
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    summary_template="database_logger.tool_summary.write_file",
+    affected_path_keys=["path"]
+)
 async def write_document(path: str, content: str, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
     """
     [DOCS-ONLY] Write documentation files (.md, .txt, .json, .yaml, .csv) ONLY.
@@ -48,7 +52,11 @@ async def write_document(path: str, content: str, config: Annotated[RunnableConf
     return f"Successfully wrote documentation to {path}"
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    summary_template="database_logger.tool_summary.edit_file",
+    affected_path_keys=["path"]
+)
 async def edit_document(
     path: str,
     target: str,
@@ -67,7 +75,10 @@ async def edit_document(
     )
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    summary_template="database_logger.tool_summary.search_code"
+)
 async def explore_codebase(
     action: Literal["search_symbol", "search_text", "semantic_code_search", "analyze_impact"],
     query: str,
@@ -110,7 +121,10 @@ async def explore_codebase(
     return f"Error: Unknown action '{action}'"
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    summary_template="database_logger.tool_summary.manage_git"
+)
 async def manage_git(
     action: Literal["status", "diff", "commit", "log", "create_branch"],
     argument: str | None = None,  # message for commit, branch name, etc.
@@ -141,7 +155,11 @@ async def manage_git(
     return f"Error: Unknown action '{action}'"
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    is_memory_tool=True,
+    summary_template="database_logger.tool_summary.manage_memory"
+)
 async def manage_memory(
     action: Literal[
         "save_preference",
@@ -207,7 +225,10 @@ async def manage_memory(
     return f"Error: Unknown action '{action}'"
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    summary_template="database_logger.tool_summary.consult_architecture"
+)
 async def consult_architecture(path: str = ""):
     """
     [ARCHITECT MODE] Consult the system's architectural documentation for a specific directory/module.

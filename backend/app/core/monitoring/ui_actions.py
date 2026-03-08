@@ -24,6 +24,10 @@ class HumanRequestType(str, Enum):
     CONFIRM = "confirm"
     """Request yes/no confirmation from user."""
 
+    # Approval
+    APPROVAL = "approval"
+    """Request explicit approval for impactful actions."""
+
     # File selection
     FILE_SELECT = "file_select"
     """Request user to select one or more files."""

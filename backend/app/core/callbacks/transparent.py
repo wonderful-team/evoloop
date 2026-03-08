@@ -6,7 +6,7 @@ from typing import Any
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
-from app.core.tools.registry import is_state_mutating_tool, get_tool_affected_paths
+from app.core.tools.registry import is_state_mutating_tool, get_tool_affected_paths, get_tool_metadata
 from app.models.schemas.events import TokenEvent
 
 # Use standard logger instead of rich Console
@@ -26,7 +26,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         from app.core.monitoring.activity import activity_monitor
 
         self.monitor = activity_monitor
-        self.current_task_id = None
+        self.llm_task_id = None
+        self.tool_task_id = None
         self.active_llm_run_id = None
         self._current_stream_buffer = ""
         self._active_nodes = {}
@@ -48,7 +49,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             # Only start a "Thinking..." task if no LLM is currently active for this handler
             if self.active_llm_run_id is None:
                 self.active_llm_run_id = kwargs.get("run_id")
-                self.current_task_id = await self.monitor.add_step(self.thread_id, "Thinking...", "ai")
+                self.llm_task_id = await self.monitor.add_step(self.thread_id, "Thinking...", "ai")
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
         # Avoid logging every token to file!
@@ -61,7 +62,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         # Update monitor task details with streamed content
         # Ensure we only update for the active run
         run_id = kwargs.get("run_id")
-        if self.thread_id and self.current_task_id and self.monitor:
+        if self.thread_id and self.llm_task_id and self.monitor:
             if run_id == self.active_llm_run_id:
                 self._current_stream_buffer += token
                 # 1. Update Monitor (Still needed for full history/re-rendering - optimized?)
@@ -86,10 +87,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                             )
                         self._publish_buffer = ""
 
-                        # Also update the task detail in Redis only on these intervals
                         await self.monitor.update_step(
                             self.thread_id,
-                            self.current_task_id,
+                            self.llm_task_id,
                             "running",
                             details=self._current_stream_buffer,
                         )
@@ -113,11 +113,11 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             self._publish_buffer = ""
 
         run_id = kwargs.get("run_id")
-        if self.thread_id and self.current_task_id and self.monitor:
+        if self.thread_id and self.llm_task_id and self.monitor:
             # Only close if the ending run is the one that started the task
             if run_id == self.active_llm_run_id:
-                await self.monitor.update_step(self.thread_id, self.current_task_id, "done")
-                self.current_task_id = None
+                await self.monitor.update_step(self.thread_id, self.llm_task_id, "done")
+                self.llm_task_id = None
                 self.active_llm_run_id = None
                 self._current_stream_buffer = ""
 
@@ -126,10 +126,16 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         logger.error(f"LLM Error in thread {self.thread_id}: {error}", exc_info=True)
 
         run_id = kwargs.get("run_id")
-        if self.thread_id and self.current_task_id and self.monitor:
+        if self.thread_id and self.llm_task_id and self.monitor:
             if run_id == self.active_llm_run_id:
-                await self.monitor.update_step(self.thread_id, self.current_task_id, "failed", details=str(error))
-                self.current_task_id = None
+                # [HITL FIX] If interrupted, don't mark as failed
+                exc_name = type(error).__name__
+                if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
+                    await self.monitor.update_step(self.thread_id, self.llm_task_id, "done")
+                else:
+                    await self.monitor.update_step(self.thread_id, self.llm_task_id, "failed", details=str(error))
+                
+                self.llm_task_id = None
                 self.active_llm_run_id = None
                 self._current_stream_buffer = ""
 
@@ -144,12 +150,25 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         self.current_tool_name = tool_name
         self.current_tool_path = None
 
+        # Friendly name for the task
+        metadata = get_tool_metadata(tool_name) or {}
+        summary_template = metadata.get("summary_template")
+        
+        friendly_name = f"Using {tool_name}"
+        if summary_template:
+            try:
+                # Basic template rendering for friendly name (extracting path if exists)
+                args = json.loads(input_str) if input_str.strip().startswith("{") else {}
+                friendly_name = i18n.get(summary_template, **args)
+            except Exception:
+                pass
+        
+        # Legacy/Special Handlers removed in favor of metadata-driven friendly_name
+
         if self.thread_id and self.monitor:
             # Phase 18: Link to Parent Phase
             parent_id = getattr(self, "_current_phase_task_id", None)
-
-            task_id = await self.monitor.add_step(self.thread_id, tool_name, "tool", parent_id=parent_id)
-            self.current_task_id = task_id
+            self.tool_task_id = await self.monitor.add_step(self.thread_id, friendly_name, "tool", parent_id=parent_id)
 
         # Phase 18: Dynamic Path Extraction via Metadata
         data = None
@@ -208,73 +227,64 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 except Exception:
                     pass
 
-            # 3. Create Task (Friendly Name)
-            friendly_name = f"Using {tool_name}"
-            if tool_name == "task_boundary":
-                friendly_name = "Updating Task Status"
-            elif tool_name == "write_to_file":
-                friendly_name = "Writing File"
-            elif tool_name == "replace_file_content":
-                friendly_name = "Modifying File"
-            elif tool_name == "bash":
-                try:
-                    data = json.loads(input_str)
-                    cmd = data.get("CommandLine")
-                    if cmd:
-                        friendly_name = f"Running: {cmd[:30]}..."
-                except Exception:
-                    friendly_name = "Running Command"
-
-            # Phase 7: Detect Memory Tool Access
-            if tool_name in [
-                "manage_memory",
-                "search_concepts",
-                "add_concept",
-                "get_user_preferences",
-            ]:
+            # Phase 7: Detect Memory Tool Access via Metadata
+            if metadata.get("is_memory_tool"):
                 try:
                     data = json.loads(input_str) if input_str.strip().startswith("{") else {}
                     # Extract identifier (action or query)
                     action = data.get("action", "")
-                    key = data.get("key") or data.get("query") or "Unknown"
+                    key = data.get("key") or data.get("query") or data.get("name") or "Unknown"
                     memory_name = f"{action or tool_name}: {key[:30]}"
                     await self.monitor.set_active_memory(self.thread_id, f"tool-{tool_name}", memory_name)
                 except Exception:
                     pass
 
-            self.current_task_id = await self.monitor.add_step(self.thread_id, friendly_name, "tool")
-
     async def on_tool_end(self, output: str, **kwargs: Any) -> None:
         """Run when tool ends running."""
-        if self.thread_id and self.current_task_id:
-            await self.monitor.update_step(self.thread_id, self.current_task_id, "done")
-            self.current_task_id = None
+        if self.thread_id and self.tool_task_id:
+            await self.monitor.update_step(self.thread_id, self.tool_task_id, "done")
+            self.tool_task_id = None
 
         # Standard Log Output
         # Strict sanitation for file reads (including manage_file read)
-        log_output = output
+        # 2. Extract result summary using metadata
+        metadata = get_tool_metadata(self.current_tool_name) or {}
+        summary_template = metadata.get("result_summary_template")
+        affected_keys = metadata.get("affected_path_keys", [])
 
-        is_read_tool = self.current_tool_name in [
-            "read_file",
-            "view_file",
-            "read_file_content",
-            "list_files",
-        ]
-        is_manage_read = (self.current_tool_name == "manage_file" and self.current_tool_path)
+        log_output = output # Initialize log_output with the full output as a fallback
 
-        if (is_read_tool or is_manage_read) and self.current_tool_path:
-            lines = output.split("\n")
-            count = len(lines)
-            if not output:
-                count = 0
-            log_output = f"File: {self.current_tool_path} (Lines: {count})"
-
+        if summary_template and self.current_tool_path:
+            try:
+                lines = output.split("\n")
+                count = len(lines)
+                if not output:
+                    count = 0
+                log_output = i18n.get(summary_template, path=self.current_tool_path, count=count, lines=count, items=count)
+            except Exception:
+                pass
+        
+        # Fallback for large content or general tools
         elif len(output) > 500:
             lines = output.split("\n")
             if len(lines) > 20:
                 log_output = f"{output[:300]}\n...\n[Truncated {len(lines)} lines / {len(output)} chars]"
 
         logger.info(f"[Tool End] Output: {log_output}")
+
+    async def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
+        """Run when tool errors."""
+        logger.error(f"Tool Error in thread {self.thread_id}: {error}")
+        
+        if self.thread_id and self.tool_task_id and self.monitor:
+            # [HITL FIX] If interrupted, don't mark as failed
+            exc_name = type(error).__name__
+            if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
+                await self.monitor.update_step(self.thread_id, self.tool_task_id, "done")
+            else:
+                await self.monitor.update_step(self.thread_id, self.tool_task_id, "failed", details=str(error))
+            
+            self.tool_task_id = None
 
     async def on_chain_start(self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any) -> None:
         """Run when chain starts running."""
@@ -355,8 +365,14 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if hasattr(self, "_active_nodes") and run_id in self._active_nodes:
             task_id, node_name = self._active_nodes[run_id]
             if self.thread_id and self.monitor:
-                # 1. Update the original node task to 'failed'
-                await self.monitor.update_step(self.thread_id, task_id, "failed", details=str(error))
+                # [HITL FIX] If interrupted (e.g. tool call raised AgentHumanInterruptException), 
+                # do not mark node as 'failed'.
+                exc_name = type(error).__name__
+                if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
+                    await self.monitor.update_step(self.thread_id, task_id, "done")
+                else:
+                    # 1. Update the original node task to 'failed'
+                    await self.monitor.update_step(self.thread_id, task_id, "failed", details=str(error))
 
             del self._active_nodes[run_id]
 

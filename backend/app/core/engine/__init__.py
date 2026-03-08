@@ -18,7 +18,6 @@ from app.core.engine.message_utils import (
     truncate_message_content,
 )
 from app.core.engine.state import AgentState
-from app.core.tools.executor import ToolExecutor
 from app.core.tools.registry import is_state_mutating_tool, is_pollable_tool, get_tool_affected_paths
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.llm.factory import LLMFactory
@@ -233,6 +232,31 @@ class AgentEngine:
                         "_authorized_tools": authorized_tools,
                     }
 
+            # ★ Phase 1: Dynamic Subtask Spawning: Check for decompose_task tool call
+            from app.core.tools.executor import ToolExecutor as _ToolExecutor
+
+            for tc in response.tool_calls:
+                if tc["name"] == "decompose_task":
+                    # Execute the tool to get the plan
+                    tool = tool_map.get("decompose_task")
+                    if tool:
+                        executor = _ToolExecutor()
+                        result = await executor.execute(tool, tc["args"], config=config)
+
+                        # Check if decomposition was successful and returned a spawn plan
+                        if isinstance(result, dict) and result.get("_spawn_plan"):
+                            spawn_plan = result["_spawn_plan"]
+                            logger.info(f"[{name}] 🚀 Spawn Signal: {len(spawn_plan.get('subtasks', []))} subtasks")
+
+                            return {
+                                "messages": new_messages + [{
+                                    "role": "tool",
+                                    "content": f"Task decomposed into {len(spawn_plan.get('subtasks', []))} subtasks. Executing in parallel..."
+                                }],
+                                "_routing_target": "spawn_subtasks",
+                                "_spawn_plan": spawn_plan,
+                            }
+
             # Execute Tools
             # Execute Tools in Parallel (asyncio.gather)
             async def _process_single_tool(tc):
@@ -251,7 +275,7 @@ class AgentEngine:
                 else:
                     local_tool_history.append(tool_sig)
                     tool = tool_map.get(tool_name)
-                    executor = ToolExecutor()
+                    executor = _ToolExecutor()
 
                     if tool:
                         try:
@@ -311,6 +335,45 @@ class AgentEngine:
                 logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)[:100]}...")
                 loop_messages.append(tool_msg)
                 new_messages.append(tool_msg)
+
+                # --- 🏅 Cognitive Evolution Path: Signal Handling ---
+                
+                # 1. Session Metadata Signal
+                if "Session metadata set:" in str(tool_msg.content):
+                    try:
+                        metadata_json = str(tool_msg.content).split("Session metadata set:")[1].strip()
+                        updates = json.loads(metadata_json)
+                        # We update the scratchpad which correctly propagates to the graph state
+                        scratchpad = state.get("scratchpad", {})
+                        if "metadata" not in scratchpad:
+                            scratchpad["metadata"] = {}
+                        scratchpad["metadata"].update(updates)
+                        logger.info(f"[{name}] 🧬 Session Metadata Updated: {updates}")
+                    except Exception as e:
+                        logger.warning(f"[{name}] Failed to parse session metadata signal: {e}")
+
+                # 2. History Compression Signal
+                if "[HISTORY_COMPRESSION_SIGNAL]" in str(tool_msg.content):
+                    try:
+                        from langchain_core.messages import RemoveMessage
+                        # To keep context light, we remove everything except the last 3 messages 
+                        # and the very first human message (intent).
+                        # Note: We emit RemoveMessage objects which 'add_messages' in AgentState will process.
+                        to_remove = []
+                        # messages in state
+                        all_messages = state.get("messages", [])
+                        if len(all_messages) > 10:
+                            # Keep first message (User Intent)
+                            # Remove others up to the last 5
+                            for m in all_messages[1:-5]:
+                                if hasattr(m, "id") and m.id:
+                                    to_remove.append(RemoveMessage(id=m.id))
+                            
+                            if to_remove:
+                                logger.info(f"[{name}] 🧹 History Compression Triggered: Removing {len(to_remove)} messages")
+                                new_messages.extend(to_remove)
+                    except Exception as e:
+                        logger.warning(f"[{name}] Failed to execute history compression: {e}")
 
             # Phase 4 Autonomy: Checkpoint & Resume Warning
             # Give the LLM one final turn to summarize its findings before the hard cap

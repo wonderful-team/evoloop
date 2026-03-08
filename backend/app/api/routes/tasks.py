@@ -187,7 +187,7 @@ async def execute_task(task_id: int, bg_tasks: BackgroundTasks, authorization: s
     from app.i18n.service import i18n
 
     prompt = i18n.get(
-        "prompts.tasks.execution_instruction",
+        "tasks.execution_instruction",
         title=task.get("task_title"),
         desc=task.get("task_desc"),
         key_modules=task.get("key_modules_list", []),

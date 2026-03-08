@@ -69,12 +69,47 @@ class SupervisorNode:
             cleanup_state["execution_ticket"] = None
 
         # Emit initial status
-        await self._emit_status(config, i18n.get("prompts.supervisor.status_analyzing"))
+        await self._emit_status(config, i18n.get("supervisor.status_analyzing"))
 
-        # Phase 0: Context Trimming (Determinstic sliding window)
-        trim_result = await self._try_trimming(state)
-        if trim_result:
-            return trim_result
+        # Phase 0.5: Subtask Aggregation Check (Phase 1)
+        # If we have pending subtask results that are complete, aggregate them
+        scratchpad = state.get("scratchpad", {})
+        subtask_results = scratchpad.get("subtask_results", [])
+        pending_agg = scratchpad.get("_pending_aggregation", {})
+
+        if subtask_results and pending_agg:
+            expected_count = pending_agg.get("expected_count", 0)
+            if len(subtask_results) >= expected_count:
+                logger.info(f"[Supervisor] 🔄 Auto-aggregating {len(subtask_results)} subtask results")
+                try:
+                    from app.core.engine.tools.planning import aggregate_results
+
+                    agg_result = await aggregate_results(
+                        aggregation_strategy=pending_agg.get("strategy", "merge"),
+                        results=subtask_results,
+                        original_task=pending_agg.get("parent_task", "")
+                    )
+
+                    # Clear aggregation state
+                    new_scratchpad = {
+                        **scratchpad,
+                        "subtask_results": [],
+                        "_pending_aggregation": None,
+                        "_last_aggregation": {
+                            "strategy": pending_agg.get("strategy"),
+                            "subtask_count": len(subtask_results),
+                            "result": agg_result.get("aggregated", "")
+                        }
+                    }
+
+                    return {
+                        "messages": [AIMessage(content=f"📊 **Task Aggregation Complete**\n\n{agg_result.get('aggregated', '')}")],
+                        "scratchpad": new_scratchpad,
+                        "next_node": "supervisor",
+                        **cleanup_state
+                    }
+                except Exception as e:
+                    logger.error(f"[Supervisor] Auto-aggregation failed: {e}")
 
         # Phase 2: Build Context
         context = await self._build_context(state, config, messages, project_id)
@@ -104,6 +139,29 @@ class SupervisorNode:
         # Phase 4: Handle routing result
         routing_target = engine_result.get("_routing_target")
         logger.info(f"[Supervisor] Engine result routing target: {routing_target}")
+
+        # Phase 4.5: Handle Dynamic Subtask Spawning (Phase 1)
+        if routing_target == "spawn_subtasks":
+            spawn_plan = engine_result.get("_spawn_plan")
+            if spawn_plan:
+                logger.info(f"[Supervisor] 🚀 Spawning {len(spawn_plan.get('subtasks', []))} parallel subtasks")
+
+                # Store spawn plan in scratchpad for router to pick up
+                existing_scratchpad = state.get("scratchpad", {})
+                return {
+                    **cleanup_state,
+                    "messages": engine_result.get("messages", []),
+                    "next_node": "spawn_subtasks",  # Signal for router
+                    "scratchpad": {
+                        **existing_scratchpad,
+                        "_spawn_plan": spawn_plan,
+                        "_pending_aggregation": {
+                            "strategy": spawn_plan.get("aggregation_strategy", "merge"),
+                            "expected_count": len(spawn_plan.get("subtasks", [])),
+                            "parent_task": spawn_plan.get("parent_task", "")
+                        } if spawn_plan.get("_requires_aggregation") else None
+                    }
+                }
 
         new_messages = engine_result.get("messages", [])
         if new_messages:
@@ -231,45 +289,6 @@ class SupervisorNode:
         except Exception:
             pass
 
-    async def _try_trimming(self, state: AgentState) -> dict[str, Any] | None:
-        """
-        Deterministic Sliding Window Trimming.
-        Removes oldest messages when window exceeds threshold.
-        Replaces legacy AI summarization (CompressorNode).
-        """
-        try:
-            current_msgs = state.get("messages", [])
-            max_msgs = 35  # Threshold to trigger trimming
-            keep_last = 15  # Messages to keep at the end
-
-            if len(current_msgs) <= max_msgs:
-                return None
-
-            logger.info(f"[Supervisor] ✂️ Trimming history: {len(current_msgs)} -> {keep_last} + 1")
-
-            from langchain_core.messages import RemoveMessage, SystemMessage
-
-            # 1. Identify System Prompt (always keep at index 0)
-            has_sys = isinstance(current_msgs[0], SystemMessage)
-            start_index = 1 if has_sys else 0
-            end_index = len(current_msgs) - keep_last
-
-            to_remove = current_msgs[start_index:end_index]
-
-            delta = []
-            for msg in to_remove:
-                if msg.id:
-                    delta.append(RemoveMessage(id=msg.id))
-
-            if delta:
-                # Return immediately to allow graph to process removals before next LLM call
-                return {"messages": delta, "next_node": "supervisor"}
-
-        except Exception as e:
-            logger.error(f"[Supervisor] Trimming failed: {e}")
-
-        return None
-
     async def _build_context(
         self, state: AgentState, config: RunnableConfig, messages: list, project_id: int
     ) -> dict[str, Any]:
@@ -292,6 +311,7 @@ class SupervisorNode:
 
         # 2. Get Project Concepts
         project_concepts = ""
+        found = ""
         try:
             if last_msg:
                 results = await memory_manager.long_term.search_concepts(last_msg, project_id)

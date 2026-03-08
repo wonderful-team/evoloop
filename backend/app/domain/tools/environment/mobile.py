@@ -37,6 +37,8 @@ async def mobile_control(
     # Scroll params
     direction: Literal["up", "down", "left", "right"] | None = None,
     scroll_amount: Literal["small", "medium", "large", "full"] = "medium",
+    # SMS specific params
+    after_timestamp: int | None = None,
 ) -> str:
     """
     Control an Android device via ADB with Local Reactive Loop (Reactor) support.
@@ -60,7 +62,7 @@ async def mobile_control(
             - "open_app": Open app by package name (passed in 'text').
             - "push": Push a local file/directory to the device.
             - "pull": Pull a remote file/directory from the device.
-            - "read_sms": Poll device SMS inbox. 'text' = regex pattern. 'timeout' = max wait seconds. Starts polling immediately.
+            - "read_sms": Poll device SMS inbox with smart delays. 'text' = regex pattern. 'timeout' = max wait seconds (default 30). 'after_timestamp' = Unix timestamp (ms) to filter only new messages. Note: Waits 3s before first query, then polls every 2-5s.
         intents: List of intent dicts for "intent_flow" action.
                  E.g. [{"action": "click", "target": "Search"}, {"action": "input", "target": "SearchBox", "text": "iPhone"}]
                  For "input" action, if "target" or "element_name" is provided, will click the element first to focus.
@@ -75,6 +77,7 @@ async def mobile_control(
         device_id: Optional device serial.
         ocr: Perform OCR on screenshot.
         scroll_amount: Amount to scroll - small (~30%), medium (~50%), large (~70%), full (~90%) of screen.
+        after_timestamp: For "read_sms" action only. Unix timestamp in milliseconds. Only return SMS messages with date > this value. Use to filter out old messages and listen only for new ones sent after a specific point in time.
     """
     return await MobileController.execute(
         action=action, x=x, y=y, x2=x2, y2=y2,
@@ -84,4 +87,5 @@ async def mobile_control(
         duration_ms=duration_ms, wait_after_ms=wait_after_ms,
         ocr=ocr, timeout=timeout, intents=intents,
         direction=direction, scroll_amount=scroll_amount,
+        after_timestamp=after_timestamp,
     )

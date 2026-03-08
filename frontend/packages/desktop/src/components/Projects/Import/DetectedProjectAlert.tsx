@@ -186,10 +186,7 @@ export function DetectedProjectAlert() {
             {t("projects.import.newProjectsDetected", "New Projects Detected")}
           </DialogTitle>
           <DialogDescription>
-            {t(
-              "projects.import.detectedDescription",
-              "The following folders were detected in your projects directory. Choose which ones to import."
-            )}
+            {t("projects.import.detectedDescription")}
           </DialogDescription>
         </DialogHeader>
 

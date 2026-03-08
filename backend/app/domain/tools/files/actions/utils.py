@@ -37,10 +37,10 @@ def resolve_and_validate_path(path: str, config: RunnableConfig | None = None) -
     target_path = resolve_path(path, base_path=root)
 
     if not target_path:  # Could not resolve
-        raise ValueError(i18n.get("prompts.domain_tools.files.resolve_error", path=path))
+        raise ValueError(i18n.get("domain_tools.files.resolve_error", path=path))
 
     # Security Check: Prevent breaking out of working directory
     if not str(target_path).startswith(str(root)):
-        raise ValueError(i18n.get("prompts.domain_tools.files.security_violation", path=path, root=root))
+        raise ValueError(i18n.get("domain_tools.files.security_violation", path=path, root=root))
 
     return target_path

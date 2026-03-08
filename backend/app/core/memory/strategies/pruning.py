@@ -92,7 +92,7 @@ class SmartPruningStrategy:
 
                 # Prune it!
                 pruned_msg = ToolMessage(
-                    content=i18n.get("prompts.memory.pruned_output"),
+                    content=i18n.get("memory.pruned_output"),
                     tool_call_id=msg.tool_call_id,
                     name=msg.name,
                     additional_kwargs={"original_length": len(str(msg.content))},

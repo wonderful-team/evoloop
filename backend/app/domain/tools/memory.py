@@ -3,7 +3,11 @@ from app.core.memory import memory_manager
 from app.core.tools import evoloop_tool
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    is_memory_tool=True,
+    summary_template="database_logger.tool_summary.manage_memory"
+)
 async def save_preference(
     key: str,
     value: str,
@@ -30,7 +34,11 @@ async def save_preference(
     return f"Preference saved ({scope_str}): {key}={value}"
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    is_memory_tool=True,
+    summary_template="database_logger.tool_summary.manage_memory"
+)
 async def get_user_preferences(project_id: int = None):
     """
     Retrieve all current user preferences, merging global defaults with project-specific overrides.
@@ -44,7 +52,11 @@ async def get_user_preferences(project_id: int = None):
     return f"Current Preferences (Project {pid}):\n{prefs}"
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    is_memory_tool=True,
+    summary_template="database_logger.tool_summary.manage_memory"
+)
 async def search_concepts(query: str, project_id: int = None):
     """
     Search the project's Concept Graph.
@@ -69,7 +81,11 @@ async def search_concepts(query: str, project_id: int = None):
     return "\n".join(lines)
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    is_memory_tool=True,
+    summary_template="database_logger.tool_summary.manage_memory"
+)
 async def add_concept(name: str, description: str, project_id: int = None):
     """
     Add a new concept or term to the Project's Knowledge Graph.

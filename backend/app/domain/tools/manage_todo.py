@@ -55,7 +55,7 @@ async def manage_todo(
     async with session_scope() as session:
         if action == "add":
             if not title:
-                return i18n.get("prompts.domain_tools.manage_todo.error_title")
+                return i18n.get("domain_tools.manage_todo.error_title")
 
             # Parse relative time logic
             parsed_due_date = None
@@ -95,7 +95,7 @@ async def manage_todo(
                             parsed_due_date = now + timedelta(days=1)
 
                         if not parsed_due_date:
-                            return i18n.get("prompts.domain_tools.manage_todo.error_due_date", date=due_date)
+                            return i18n.get("domain_tools.manage_todo.error_due_date", date=due_date)
 
             todo = TodoItem(
                 title=title,
@@ -112,7 +112,7 @@ async def manage_todo(
             session.add(todo)
             await session.commit()
             return i18n.get(
-                "prompts.domain_tools.manage_todo.success_add",
+                "domain_tools.manage_todo.success_add",
                 priority=todo.priority.value.upper(),
                 title=todo.title,
                 id=todo.id,
@@ -129,18 +129,18 @@ async def manage_todo(
             todos = result.scalars().all()
 
             if not todos:
-                return i18n.get("prompts.domain_tools.manage_todo.no_todos")
+                return i18n.get("domain_tools.manage_todo.no_todos")
 
             return "\n".join([f"- [{t.status.value}] {t.title} (ID: {t.id}, Due: {t.due_date})" for t in todos])
 
         elif action == "update":
             if not todo_id:
-                return i18n.get("prompts.domain_tools.manage_todo.error_id", action="update")
+                return i18n.get("domain_tools.manage_todo.error_id", action="update")
 
             result = await session.execute(select(TodoItem).where(TodoItem.id == todo_id))
             todo = result.scalar_one_or_none()
             if not todo:
-                return i18n.get("prompts.domain_tools.manage_todo.error_not_found", id=todo_id)
+                return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
 
             if status:
                 todo.status = TodoStatus(status)
@@ -158,18 +158,18 @@ async def manage_todo(
                     pass
 
             await session.commit()
-            return i18n.get("prompts.domain_tools.manage_todo.success_update", id=todo_id)
+            return i18n.get("domain_tools.manage_todo.success_update", id=todo_id)
 
         elif action == "delete":
             if not todo_id:
-                return i18n.get("prompts.domain_tools.manage_todo.error_id", action="delete")
+                return i18n.get("domain_tools.manage_todo.error_id", action="delete")
             result = await session.execute(select(TodoItem).where(TodoItem.id == todo_id))
             todo = result.scalar_one_or_none()
             if not todo:
-                return i18n.get("prompts.domain_tools.manage_todo.error_not_found", id=todo_id)
+                return i18n.get("domain_tools.manage_todo.error_not_found", id=todo_id)
 
             await session.delete(todo)
             await session.commit()
-            return i18n.get("prompts.domain_tools.manage_todo.success_delete", id=todo_id)
+            return i18n.get("domain_tools.manage_todo.success_delete", id=todo_id)
 
-    return i18n.get("prompts.domain_tools.manage_todo.error_action")
+    return i18n.get("domain_tools.manage_todo.error_action")

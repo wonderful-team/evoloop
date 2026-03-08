@@ -16,13 +16,72 @@ logger = logging.getLogger(__name__)
 def route_supervisor(state: AgentState) -> str | list[Send]:
     """
     Decides the next node after Supervisor.
+
+    Supports:
+    - Standard single-node routing
+    - Dynamic parallel subtask spawning (Phase 1)
     """
     next_node = state.get("next_node")
+
+    # --- 🏅 Phase 1: Dynamic Subtask Spawning ---
+    # Check if Supervisor generated a spawn plan (from decompose_task tool)
+    spawn_plan = state.get("scratchpad", {}).get("_spawn_plan")
+    if spawn_plan and spawn_plan.get("subtasks"):
+        subtasks = spawn_plan["subtasks"]
+        project_id = state.get("project_id", 1)
+        parent_thread_id = state.get("thread_id", "unknown")
+
+        logger.info(f"[Router] Spawning {len(subtasks)} parallel subtasks")
+
+        # Create Send commands for parallel execution
+        # Each subtask becomes a Worker execution with its own ticket
+        sends = []
+        for i, subtask in enumerate(subtasks):
+            # Build system instructions with skill hint if available
+            skill_hint = subtask.get("skill_hint") or spawn_plan.get("suggested_skill")
+            system_instructions = f"Execute subtask: {subtask['intent']}"
+            if skill_hint:
+                system_instructions += f"\n\n💡 HINT: This subtask may be accomplished using the learned skill '{skill_hint}'. Try `search_skills` first, and if found with execution_mode='deterministic', use `run_macro` for optimal performance."
+
+            ticket = {
+                "ticket_type": "subtask",
+                "topic": subtask["intent"],
+                "parent_task_id": parent_thread_id,
+                "subtask_id": subtask.get("id", f"subtask_{i}"),
+                "agent_config": {
+                    "role_name": f"Subtask-{subtask.get('id', i)}",
+                    "system_instructions": system_instructions,
+                    "tools": subtask.get("tools", []),
+                    "is_subtask": True,
+                    "subtask_context": subtask.get("context", {}),
+                    "skill_hint": skill_hint,  # May be used by Worker
+                },
+                "parameters": {
+                    "estimated_complexity": subtask.get("estimated_complexity", "medium"),
+                    "depends_on": subtask.get("depends_on", []),
+                }
+            }
+
+            sends.append(Send("worker", {
+                "project_id": project_id,
+                "execution_ticket": ticket,
+                "is_subtask": True,
+            }))
+
+        # Store aggregation requirements for later
+        if spawn_plan.get("_requires_aggregation"):
+            state["scratchpad"]["_pending_aggregation"] = {
+                "strategy": spawn_plan.get("aggregation_strategy", "merge"),
+                "expected_count": len(subtasks),
+                "parent_task": spawn_plan.get("parent_task", ""),
+            }
+
+        return sends
 
     # --- 🏅 Unified Cognitive Routing (v5.0) ---
     # The Supervisor now decides the "expertise" dynamically via agent_config.
     # The Graph is flattened: Specialized subgraphs are replaced by Universal Workers.
-    
+
     # 1. Known Terminal/Structural Nodes
     terminal_nodes = ("chat", "finish", "flash_brain", "supervisor")
     if next_node in terminal_nodes:

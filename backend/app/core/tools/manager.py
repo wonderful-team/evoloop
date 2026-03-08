@@ -97,7 +97,8 @@ class ToolManager:
                     logger.error(f"[ToolManager] Failed to progressively load MCP tools: {e}")
 
             # 3. Strict Supervisor Allowlist Enforcement
-            if dynamic_tools:
+            # Only apply this to specialists (workers), NEVER to the supervisor itself.
+            if dynamic_tools and node_name != "supervisor":
                 # If Supervisor provided a strict tool allowlist, we prune any tool not in the list.
                 allowed = set(dynamic_tools)
                 combined_map = {k: v for k, v in combined_map.items() if k in allowed}

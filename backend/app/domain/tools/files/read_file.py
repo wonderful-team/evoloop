@@ -8,7 +8,12 @@ from app.core.tools import evoloop_tool
 from .actions.read import handle_read
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    summary_template="database_logger.tool_summary.read_file",
+    affected_path_keys=["path"],
+    result_summary_template="database_logger.tool_summary.read_file_result"
+)
 async def read_file(
     path: str | None = None,
     start_line: str | int | None = None,

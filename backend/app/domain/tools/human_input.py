@@ -150,7 +150,12 @@ def cancel_request(request_id: str) -> bool:
 # ============ Tools ============
 
 
-@evoloop_tool("request_human_input", args_schema=RequestHumanInputArgs, is_pollable=True)
+@evoloop_tool(
+    "request_human_input",
+    args_schema=RequestHumanInputArgs,
+    is_pollable=True,
+    summary_template="database_logger.tool_summary.ask_user"
+)
 async def request_human_input(
     prompt: str,
     input_type: Literal["text", "choice", "confirmation"] = "text",
@@ -172,6 +177,7 @@ async def request_human_input(
     Returns the user's response as a string.
     """
     from app.core.context.manager import ContextManager
+    from app.core.monitoring.ui_actions import HumanRequestType
 
     try:
         ctx = ContextManager.current()
@@ -183,9 +189,17 @@ async def request_human_input(
         project_id = None
         command_id = None
 
+    # Map internal type to standardized HumanRequestType
+    type_map = {
+        "text": HumanRequestType.TEXT_INPUT,
+        "choice": HumanRequestType.TEXT_INPUT,  # Frontend handles choice via options in text_input/custom
+        "confirmation": HumanRequestType.CONFIRM,
+    }
+    request_type = type_map.get(input_type, HumanRequestType.TEXT_INPUT)
+
     # Validate choice options
     if input_type == "choice" and not options:
-        return i18n.get("prompts.domain_tools.human_input.error_options")
+        return i18n.get("domain_tools.human_input.error_options")
 
     # Create the request
     request = create_request(
@@ -212,7 +226,7 @@ async def request_human_input(
         default_section = f"\n{i18n.get('prompts.domain_tools.human_input.default', default=default_value)}"
 
     response_text = i18n.get(
-        "prompts.domain_tools.human_input.request_template",
+        "domain_tools.human_input.request_template",
         id=request.id,
         type=input_type,
         prompt=prompt,
@@ -228,7 +242,7 @@ async def request_human_input(
         thread_id=thread_id,
         request_data={
             "id": request.id,
-            "type": input_type,
+            "type": request_type,
             "prompt": prompt,
             "options": options,
             "context": context,
@@ -261,7 +275,12 @@ async def request_human_input(
     raise AgentHumanInterruptException(request.id, response_text)
 
 
-@evoloop_tool("request_approval", args_schema=RequestApprovalArgs, is_pollable=True)
+@evoloop_tool(
+    "request_approval",
+    args_schema=RequestApprovalArgs,
+    is_pollable=True,
+    summary_template="database_logger.tool_summary.ask_user"
+)
 async def request_approval(
     action_description: str,
     risk_level: Literal["low", "medium", "high", "critical"] = "medium",
@@ -301,12 +320,12 @@ async def request_approval(
         "critical": "🔴"
     }
 
-    localized_risk = i18n.get(f"prompts.common.risk_levels.{risk_level}", default=risk_level.upper())
+    localized_risk = i18n.get(f"common.risk_levels.{risk_level}", default=risk_level.upper())
 
     approval_context = f"""
-{risk_emoji.get(risk_level, '⚪')} {i18n.get("prompts.domain_tools.human_input.risk_level", level=localized_risk)}
+{risk_emoji.get(risk_level, '⚪')} {i18n.get("domain_tools.human_input.risk_level", level=localized_risk)}
 
-{i18n.get("prompts.domain_tools.human_input.action", action=action_description)}
+{i18n.get("domain_tools.human_input.action", action=action_description)}
 """
 
     if details:
@@ -325,19 +344,21 @@ async def request_approval(
     )
 
     response_text = i18n.get(
-        "prompts.domain_tools.human_input.approval_template",
+        "domain_tools.human_input.approval_template",
         id=request.id,
         approval_context=approval_context,
     )
 
     logger.info(f"Approval requested for: {action_description[:50]}... (Risk: {risk_level})")
 
+    from app.core.monitoring.ui_actions import HumanRequestType
+
     # Notify Activity Monitor with Structured Data
     await activity_monitor.set_human_request(
         thread_id=thread_id,
         request_data={
             "id": request.id,
-            "type": "approval",
+            "type": HumanRequestType.APPROVAL,
             "prompt": action_description,
             "context": approval_context,
             "default_value": "REJECTED",

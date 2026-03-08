@@ -28,10 +28,21 @@ async def analyze_image(
 
     if include_ax_tree:
         try:
-            ax_tree = macos_driver.dump_ax_tree()
+            from app.core.context import ContextManager
+            ctx = ContextManager.current()
+            current_ecosystem = ctx.metadata.get("current_ecosystem")
+
+            if current_ecosystem == "android":
+                from app.infrastructure.drivers.adb import adb_driver
+                ax_tree = adb_driver.dump_ui()
+                tree_label = "Android UI Hierarchy"
+            else:
+                ax_tree = macos_driver.dump_ax_tree()
+                tree_label = "macOS Accessibility (AX) Tree"
+
             if ax_tree and "Error" not in ax_tree:
-                final_prompt += f"\n\n### macOS Accessibility (AX) Tree Context:\n{ax_tree}\n\nUse the element names and bounds above to provide precise coordinates if asked to click or interact."
-                logger.info("[Vision] Injected AX Tree into prompt for grounding.")
+                final_prompt += f"\n\n### {tree_label} Context:\n{ax_tree}\n\nUse the element names and bounds above for better grounding."
+                logger.info(f"[Vision] Injected {tree_label} into prompt for grounding.")
         except Exception as e:
             logger.warning(f"[Vision] Failed to inject AX Tree: {e}")
 

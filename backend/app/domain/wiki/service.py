@@ -301,9 +301,9 @@ class WikiService:
             logger.error(f"Failed to determine wiki structure: {e}. Falling back to default.")
             # Fallback structure
             pages_to_generate = [
-                {"title": i18n.get("prompts.wiki.fallback.overview"), "id": "overview", "relevant_files": []},
-                {"title": i18n.get("prompts.wiki.fallback.architecture"), "id": "architecture", "relevant_files": []},
-                {"title": i18n.get("prompts.wiki.fallback.setup"), "id": "setup", "relevant_files": []}
+                {"title": i18n.get("wiki.fallback.overview"), "id": "overview", "relevant_files": []},
+                {"title": i18n.get("wiki.fallback.architecture"), "id": "architecture", "relevant_files": []},
+                {"title": i18n.get("wiki.fallback.setup"), "id": "setup", "relevant_files": []}
             ]
             structure_data = {"pages": pages_to_generate}
 
@@ -407,7 +407,7 @@ class WikiService:
                 page_content = content_response.content
             except Exception as e:
                 logger.error(f"Error generating page content: {e}")
-                error_msg = i18n.get("prompts.wiki.error_generating_content", error=str(e))
+                error_msg = i18n.get("wiki.error_generating_content", error=str(e))
                 page_content = f"# {page_title}\n\n{error_msg}"
 
             # Save to DB

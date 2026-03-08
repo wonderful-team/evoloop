@@ -7,6 +7,7 @@ from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
 from app.i18n.service import i18n
+from app.core.tools.registry import get_tool_metadata, get_tool_affected_paths
 
 
 class EvoLoopCallbackHandler(AsyncCallbackHandler):
@@ -53,7 +54,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
     async def on_llm_start(self, serialized: dict[str, Any], prompts: list[str], **kwargs: Any) -> Any:
         # Notify start of thinking
         self.token_buffer = ""
-        content = i18n.get("prompts.evoloop_logger.thinking")
+        content = i18n.get("evoloop_logger.thinking")
 
         # Simple Dedup for "Thinking..." start
         now = time.time()
@@ -88,41 +89,24 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
         self.current_tool_name = tool_name
         self.current_tool_path = None
 
-        if tool_name in [
-            "read_file",
-            "view_file",
-            "read_file_content",
-            "manage_file",
-            "list_files",
-            "search_code",
-            "find_by_name",
-            "grep_search",
-        ]:
-            data = None
+        data = None
+        try:
+            if input_str.strip().startswith("{"):
+                data = json.loads(input_str)
+        except Exception:
+            pass
+
+        if data is None:
             try:
                 if input_str.strip().startswith("{"):
-                    data = json.loads(input_str)
+                    data = ast.literal_eval(input_str)
             except Exception:
                 pass
 
-            if data is None:
-                try:
-                    if input_str.strip().startswith("{"):
-                        data = ast.literal_eval(input_str)
-                except Exception:
-                    pass
-
-            if data and isinstance(data, dict):
-                path = None
-                if tool_name == "manage_file":
-                    if data.get("action") == "read":
-                        path = data.get("path")
-                elif tool_name in ["read_file", "list_files"]:
-                    path = data.get("path")
-                else:
-                    path = data.get("AbsolutePath") or data.get("file_path") or data.get("path") or data.get("TargetFile")
-                if path:
-                    self.current_tool_path = path
+        if data and isinstance(data, dict):
+            affected_paths = get_tool_affected_paths(tool_name, data)
+            if affected_paths:
+                self.current_tool_path = affected_paths[0]
 
         # Normalization & Deduplication
         normalized_input = self._normalize_content(input_str)
@@ -133,7 +117,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
             "name": tool_name,
             "arguments": normalized_input,
             "display": i18n.get(
-                "prompts.evoloop_logger.running_tool",
+                "evoloop_logger.running_tool",
                 tool=tool_name,
                 input=display_input,
             )
@@ -165,32 +149,21 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
         tool_name = tool_info.get("name", "Tool")
         arguments = tool_info.get("arguments", "")
         tool_path = tool_info.get("path")
+        metadata = get_tool_metadata(tool_name) or {}
 
-        is_read_tool = tool_name in [
-            "read_file",
-            "view_file",
-            "read_file_content",
-            "list_files",
-            "search_code",
-            "find_by_name",
-            "grep_search",
-        ]
-        is_manage_read = (tool_name == "manage_file" and tool_path)
+        # 1. Check if tool is classified as a "Read" tool in metadata
+        affected_keys = metadata.get("affected_path_keys", [])
+        is_file_content = len(affected_keys) > 0  # Heuristic: if it affects paths, it might produce file content
 
-        # Optimization: Summarize heavy tool outputs as requested by user
+        # 2. Optimization: Summarize heavy tool outputs using Metadata template
         final_output = output
-        if tool_name in ["read_file", "view_file", "read_file_content"] and output:
+        summary_template = metadata.get("result_summary_template")
+        if summary_template and output:
             try:
                 line_count = len(output.splitlines())
+                item_count = line_count # Alias for directories
                 file_info = tool_path or "file"
-                final_output = i18n.get("prompts.evoloop_logger.read_summary", path=file_info, count=line_count)
-            except Exception:
-                pass
-        elif tool_name == "list_files" and output:
-            try:
-                item_count = len(output.splitlines())
-                dir_info = tool_path or "directory"
-                final_output = i18n.get("prompts.evoloop_logger.list_summary", path=dir_info, count=item_count)
+                final_output = i18n.get(summary_template, path=file_info, count=line_count, lines=line_count, items=item_count)
             except Exception:
                 pass
 
@@ -199,7 +172,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
             "arguments": arguments,
             "output": final_output,
             "status": "success",
-            "is_file_content": is_read_tool or is_manage_read
+            "is_file_content": is_file_content
         })
 
         await self.client.upload_log(

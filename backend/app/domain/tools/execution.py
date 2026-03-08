@@ -10,7 +10,10 @@ from app.core.tools import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    summary_template="database_logger.tool_summary.bash"
+)
 async def bash(command: str) -> str:
     """
     Run a shell command (e.g., 'pytest', 'npm install', 'ls -la').
@@ -50,7 +53,11 @@ async def bash(command: str) -> str:
         return f"Execution Error: {str(e)}"
 
 
-@evoloop_tool(is_pollable=True, is_state_mutating=True)
+@evoloop_tool(
+    is_pollable=True,
+    is_state_mutating=True,
+    summary_template="database_logger.tool_summary.run_macro"
+)
 async def run_macro(
     skill_name: str | None = None,
     skill_id: int | None = None,

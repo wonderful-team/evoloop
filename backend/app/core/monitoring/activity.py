@@ -153,6 +153,12 @@ class ActivityMonitor:
                 HumanRequestEvent(action="create", data=request_data).json(),
             )
 
+            # [HITL FIX] Also publish StatusEvent so UI knows we are interrupted
+            from app.models.schemas.events import StatusEvent
+            await redis_client.publish(
+                f"chat:{thread_id}:events", StatusEvent(status="interrupted").json()
+            )
+
     async def clear_human_request(self, thread_id: str):
         """Clear human request upon resumption."""
         key = f"activity:{thread_id}"
@@ -226,6 +232,12 @@ class ActivityMonitor:
             await redis_client.publish(
                 f"chat:{thread_id}:events",
                 HumanRequestEvent(action="create", data=request_data).json(),
+            )
+
+            # [HITL FIX] Also publish StatusEvent
+            from app.models.schemas.events import StatusEvent
+            await redis_client.publish(
+                f"chat:{thread_id}:events", StatusEvent(status="interrupted").json()
             )
 
             logger.info(f"[ActivityMonitor] Requested '{request_type}' interaction for thread {thread_id}")

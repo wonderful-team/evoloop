@@ -6,7 +6,12 @@ from app.core.tools import evoloop_tool
 from .actions.edit import handle_edit
 
 
-@evoloop_tool(is_state_mutating=True, affected_path_keys=["path"])
+@evoloop_tool(
+    is_state_mutating=True,
+    affected_path_keys=["path"],
+    summary_template="database_logger.tool_summary.edit_file",
+    result_summary_template="database_logger.tool_summary.file_op_result"
+)
 async def edit_file(
     path: str | None = None,
     target: str | None = None,

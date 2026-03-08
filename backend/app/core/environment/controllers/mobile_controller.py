@@ -55,6 +55,7 @@ class MobileController:
         intents: list[dict] | None = None,
         direction: str | None = None,
         scroll_amount: str = "medium",
+        after_timestamp: int | None = None,
     ) -> str:
         """Execute a mobile action. All business logic lives here."""
         # Resolve device_id from context if not provided
@@ -526,8 +527,9 @@ class MobileController:
             elif action == "read_sms":
                 pattern = text if text else r'\d{4,6}'
                 wait_time = int(timeout) if timeout else 30
-                logger.info(f"Polling SMS inbox for pattern '{pattern}' up to {wait_time}s...")
-                messages = await asyncio.to_thread(adb_driver.read_sms, regex_pattern=pattern, timeout=wait_time, device_id=device_id)
+                # after_timestamp allows filtering SMS received after a specific time (milliseconds)
+                logger.info(f"Polling SMS inbox for pattern '{pattern}' up to {wait_time}s..." + (f" (after timestamp: {after_timestamp})" if after_timestamp else ""))
+                messages = await asyncio.to_thread(adb_driver.read_sms, regex_pattern=pattern, timeout=wait_time, device_id=device_id, after_timestamp=after_timestamp)
                 if not messages:
                     return await finish_action(f"No SMS matching pattern '{pattern}' received within {wait_time} seconds.")
                 latest = messages[0]

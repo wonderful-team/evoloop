@@ -8,7 +8,12 @@ from app.core.tools import evoloop_tool
 from .actions.list import handle_list
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    summary_template="database_logger.tool_summary.list_files",
+    affected_path_keys=["path"],
+    result_summary_template="evoloop_logger.list_summary"
+)
 async def list_files(
     path: str,
     depth: int = 3,

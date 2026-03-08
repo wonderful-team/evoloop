@@ -21,11 +21,12 @@ class HistoryService:
     async def perform_rewind(
         thread_id: str,
         target_message_id: str | None = None,
-        revert_files: bool = True
+        revert_files: bool = True,
+        include_target: bool = True
     ) -> dict:
         """
         Rewinds history to a specific point.
-        If target_message_id is provided, deletes that message and everything after it.
+        If target_message_id is provided, deletes that message and everything after it (unless include_target=False).
         If not provided, deletes everything after the last user message (Standard Rewind).
         """
         graph = get_graph()
@@ -74,7 +75,11 @@ class HistoryService:
                 return {"status": "nothing_to_delete", "removed_count": 0, "files_reverted": 0}
 
             # Collect all messages to be deleted based on min_id_to_delete
-            stmt = select(Message).where(Message.thread_id == thread_id).where(Message.id >= min_id_to_delete)
+            if include_target:
+                stmt = select(Message).where(Message.thread_id == thread_id).where(Message.id >= min_id_to_delete)
+            else:
+                stmt = select(Message).where(Message.thread_id == thread_id).where(Message.id > min_id_to_delete)
+            
             result = await session.execute(stmt)
             msgs_to_delete = result.scalars().all()
 

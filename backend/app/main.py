@@ -28,6 +28,7 @@ from app.core.tools.mcp.client import mcp_client_manager
 from app.domain.codebase.indexing.manager import indexing_manager
 from app.domain.project.discovery_manager import discovery_manager
 from app.domain.project.summarizer import project_summarizer
+from app.core.learning.discovery import skill_discovery
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database.sql.database import Base, engine
 from app.initial_data import init as init_data, register_config_handlers, init_atlas_config, init_mcp
@@ -100,6 +101,13 @@ async def lifespan(_app: FastAPI):
             logger.info(f"MCP servers added to DB: {mcp_results}")
         except Exception as e:
             logger.warning(f"MCP configuration failed (non-critical): {e}")
+
+        # 2.8 Skill Discovery Sync (Custom Skills in ~/.evoloop/skills)
+        try:
+            await skill_discovery._sync_system_skills()
+            logger.info("Skill synchronization complete.")
+        except Exception as e:
+            logger.warning(f"Skill synchronization failed (non-critical): {e}")
 
     except Exception as e:
         logger.warning(f"Agent Awakening failed (non-critical): {e}")

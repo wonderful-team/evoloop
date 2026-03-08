@@ -3,15 +3,23 @@ import { invoke } from "@tauri-apps/api/core"
 import { listen, UnlistenFn } from "@tauri-apps/api/event"
 import { LearningService } from "@/client/sdk.gen"
 
+interface Modifiers {
+    alt: boolean
+    ctrl: boolean
+    meta: boolean
+    shift: boolean
+}
+
 interface GlobalEvent {
     timestamp: number
-    event_type: string
+    event_type: string  // "mouse_click" | "mouse_click_extract" | "key_press"
     key?: string
     mouse_button?: string
     position?: [number, number]
     window_title?: string
     app_name?: string
     process_id?: number
+    modifiers?: Modifiers
 }
 
 interface UseGlobalRecorderOptions {

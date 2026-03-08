@@ -8,289 +8,289 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as SignupRouteImport } from './routes/signup'
-import { Route as ResetPasswordRouteImport } from './routes/reset-password'
-import { Route as RecoverPasswordRouteImport } from './routes/recover-password'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as LayoutRouteImport } from './routes/_layout'
-import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
-import { Route as LayoutTodosRouteImport } from './routes/_layout/todos'
-import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
-import { Route as LayoutLibraryRouteImport } from './routes/_layout/library'
-import { Route as LayoutLearningRouteImport } from './routes/_layout/learning'
-import { Route as LayoutChatRouteImport } from './routes/_layout/chat'
-import { Route as LayoutProjectsIndexRouteImport } from './routes/_layout/projects.index'
-import { Route as LayoutProjectsProjectIdRouteImport } from './routes/_layout/projects.$projectId'
-import { Route as LayoutProjectsProjectIdIndexRouteImport } from './routes/_layout/projects.$projectId.index'
-import { Route as LayoutProjectsProjectIdWikiRouteImport } from './routes/_layout/projects.$projectId.wiki'
-import { Route as LayoutProjectsProjectIdTimesheetRouteImport } from './routes/_layout/projects.$projectId.timesheet'
-import { Route as LayoutProjectsProjectIdTasksRouteImport } from './routes/_layout/projects.$projectId.tasks'
-import { Route as LayoutProjectsProjectIdRequirementsRouteImport } from './routes/_layout/projects.$projectId.requirements'
-import { Route as LayoutProjectsProjectIdReportsRouteImport } from './routes/_layout/projects.$projectId.reports'
-import { Route as LayoutProjectsProjectIdGanttRouteImport } from './routes/_layout/projects.$projectId.gantt'
-import { Route as LayoutProjectsProjectIdFilesRouteImport } from './routes/_layout/projects.$projectId.files'
-import { Route as LayoutLearningSkillsSkillIdEditRouteImport } from './routes/_layout/learning.skills.$skillId.edit'
+import { Route as rootRouteImport } from "./routes/__root"
+import { Route as SignupRouteImport } from "./routes/signup"
+import { Route as ResetPasswordRouteImport } from "./routes/reset-password"
+import { Route as RecoverPasswordRouteImport } from "./routes/recover-password"
+import { Route as LoginRouteImport } from "./routes/login"
+import { Route as LayoutRouteImport } from "./routes/_layout"
+import { Route as LayoutIndexRouteImport } from "./routes/_layout/index"
+import { Route as LayoutTodosRouteImport } from "./routes/_layout/todos"
+import { Route as LayoutSettingsRouteImport } from "./routes/_layout/settings"
+import { Route as LayoutLibraryRouteImport } from "./routes/_layout/library"
+import { Route as LayoutLearningRouteImport } from "./routes/_layout/learning"
+import { Route as LayoutChatRouteImport } from "./routes/_layout/chat"
+import { Route as LayoutProjectsIndexRouteImport } from "./routes/_layout/projects.index"
+import { Route as LayoutProjectsProjectIdRouteImport } from "./routes/_layout/projects.$projectId"
+import { Route as LayoutProjectsProjectIdIndexRouteImport } from "./routes/_layout/projects.$projectId.index"
+import { Route as LayoutProjectsProjectIdWikiRouteImport } from "./routes/_layout/projects.$projectId.wiki"
+import { Route as LayoutProjectsProjectIdTimesheetRouteImport } from "./routes/_layout/projects.$projectId.timesheet"
+import { Route as LayoutProjectsProjectIdTasksRouteImport } from "./routes/_layout/projects.$projectId.tasks"
+import { Route as LayoutProjectsProjectIdRequirementsRouteImport } from "./routes/_layout/projects.$projectId.requirements"
+import { Route as LayoutProjectsProjectIdReportsRouteImport } from "./routes/_layout/projects.$projectId.reports"
+import { Route as LayoutProjectsProjectIdGanttRouteImport } from "./routes/_layout/projects.$projectId.gantt"
+import { Route as LayoutProjectsProjectIdFilesRouteImport } from "./routes/_layout/projects.$projectId.files"
+import { Route as LayoutLearningSkillsSkillIdEditRouteImport } from "./routes/_layout/learning.skills.$skillId.edit"
 
 const SignupRoute = SignupRouteImport.update({
-  id: '/signup',
-  path: '/signup',
+  id: "/signup",
+  path: "/signup",
   getParentRoute: () => rootRouteImport,
 } as any)
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
-  id: '/reset-password',
-  path: '/reset-password',
+  id: "/reset-password",
+  path: "/reset-password",
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecoverPasswordRoute = RecoverPasswordRouteImport.update({
-  id: '/recover-password',
-  path: '/recover-password',
+  id: "/recover-password",
+  path: "/recover-password",
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+  id: "/login",
+  path: "/login",
   getParentRoute: () => rootRouteImport,
 } as any)
 const LayoutRoute = LayoutRouteImport.update({
-  id: '/_layout',
+  id: "/_layout",
   getParentRoute: () => rootRouteImport,
 } as any)
 const LayoutIndexRoute = LayoutIndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutTodosRoute = LayoutTodosRouteImport.update({
-  id: '/todos',
-  path: '/todos',
+  id: "/todos",
+  path: "/todos",
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+  id: "/settings",
+  path: "/settings",
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutLibraryRoute = LayoutLibraryRouteImport.update({
-  id: '/library',
-  path: '/library',
+  id: "/library",
+  path: "/library",
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutLearningRoute = LayoutLearningRouteImport.update({
-  id: '/learning',
-  path: '/learning',
+  id: "/learning",
+  path: "/learning",
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutChatRoute = LayoutChatRouteImport.update({
-  id: '/chat',
-  path: '/chat',
+  id: "/chat",
+  path: "/chat",
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutProjectsIndexRoute = LayoutProjectsIndexRouteImport.update({
-  id: '/projects/',
-  path: '/projects/',
+  id: "/projects/",
+  path: "/projects/",
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutProjectsProjectIdRoute = LayoutProjectsProjectIdRouteImport.update({
-  id: '/projects/$projectId',
-  path: '/projects/$projectId',
+  id: "/projects/$projectId",
+  path: "/projects/$projectId",
   getParentRoute: () => LayoutRoute,
 } as any)
 const LayoutProjectsProjectIdIndexRoute =
   LayoutProjectsProjectIdIndexRouteImport.update({
-    id: '/',
-    path: '/',
+    id: "/",
+    path: "/",
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutProjectsProjectIdWikiRoute =
   LayoutProjectsProjectIdWikiRouteImport.update({
-    id: '/wiki',
-    path: '/wiki',
+    id: "/wiki",
+    path: "/wiki",
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutProjectsProjectIdTimesheetRoute =
   LayoutProjectsProjectIdTimesheetRouteImport.update({
-    id: '/timesheet',
-    path: '/timesheet',
+    id: "/timesheet",
+    path: "/timesheet",
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutProjectsProjectIdTasksRoute =
   LayoutProjectsProjectIdTasksRouteImport.update({
-    id: '/tasks',
-    path: '/tasks',
+    id: "/tasks",
+    path: "/tasks",
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutProjectsProjectIdRequirementsRoute =
   LayoutProjectsProjectIdRequirementsRouteImport.update({
-    id: '/requirements',
-    path: '/requirements',
+    id: "/requirements",
+    path: "/requirements",
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutProjectsProjectIdReportsRoute =
   LayoutProjectsProjectIdReportsRouteImport.update({
-    id: '/reports',
-    path: '/reports',
+    id: "/reports",
+    path: "/reports",
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutProjectsProjectIdGanttRoute =
   LayoutProjectsProjectIdGanttRouteImport.update({
-    id: '/gantt',
-    path: '/gantt',
+    id: "/gantt",
+    path: "/gantt",
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutProjectsProjectIdFilesRoute =
   LayoutProjectsProjectIdFilesRouteImport.update({
-    id: '/files',
-    path: '/files',
+    id: "/files",
+    path: "/files",
     getParentRoute: () => LayoutProjectsProjectIdRoute,
   } as any)
 const LayoutLearningSkillsSkillIdEditRoute =
   LayoutLearningSkillsSkillIdEditRouteImport.update({
-    id: '/skills/$skillId/edit',
-    path: '/skills/$skillId/edit',
+    id: "/skills/$skillId/edit",
+    path: "/skills/$skillId/edit",
     getParentRoute: () => LayoutLearningRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof LayoutIndexRoute
-  '/login': typeof LoginRoute
-  '/recover-password': typeof RecoverPasswordRoute
-  '/reset-password': typeof ResetPasswordRoute
-  '/signup': typeof SignupRoute
-  '/chat': typeof LayoutChatRoute
-  '/learning': typeof LayoutLearningRouteWithChildren
-  '/library': typeof LayoutLibraryRoute
-  '/settings': typeof LayoutSettingsRoute
-  '/todos': typeof LayoutTodosRoute
-  '/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
-  '/projects/': typeof LayoutProjectsIndexRoute
-  '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
-  '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
-  '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
-  '/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
-  '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
-  '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
-  '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
-  '/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
-  '/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
+  "/": typeof LayoutIndexRoute
+  "/login": typeof LoginRoute
+  "/recover-password": typeof RecoverPasswordRoute
+  "/reset-password": typeof ResetPasswordRoute
+  "/signup": typeof SignupRoute
+  "/chat": typeof LayoutChatRoute
+  "/learning": typeof LayoutLearningRouteWithChildren
+  "/library": typeof LayoutLibraryRoute
+  "/settings": typeof LayoutSettingsRoute
+  "/todos": typeof LayoutTodosRoute
+  "/projects/$projectId": typeof LayoutProjectsProjectIdRouteWithChildren
+  "/projects/": typeof LayoutProjectsIndexRoute
+  "/projects/$projectId/files": typeof LayoutProjectsProjectIdFilesRoute
+  "/projects/$projectId/gantt": typeof LayoutProjectsProjectIdGanttRoute
+  "/projects/$projectId/reports": typeof LayoutProjectsProjectIdReportsRoute
+  "/projects/$projectId/requirements": typeof LayoutProjectsProjectIdRequirementsRoute
+  "/projects/$projectId/tasks": typeof LayoutProjectsProjectIdTasksRoute
+  "/projects/$projectId/timesheet": typeof LayoutProjectsProjectIdTimesheetRoute
+  "/projects/$projectId/wiki": typeof LayoutProjectsProjectIdWikiRoute
+  "/projects/$projectId/": typeof LayoutProjectsProjectIdIndexRoute
+  "/learning/skills/$skillId/edit": typeof LayoutLearningSkillsSkillIdEditRoute
 }
 export interface FileRoutesByTo {
-  '/login': typeof LoginRoute
-  '/recover-password': typeof RecoverPasswordRoute
-  '/reset-password': typeof ResetPasswordRoute
-  '/signup': typeof SignupRoute
-  '/chat': typeof LayoutChatRoute
-  '/learning': typeof LayoutLearningRouteWithChildren
-  '/library': typeof LayoutLibraryRoute
-  '/settings': typeof LayoutSettingsRoute
-  '/todos': typeof LayoutTodosRoute
-  '/': typeof LayoutIndexRoute
-  '/projects': typeof LayoutProjectsIndexRoute
-  '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
-  '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
-  '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
-  '/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
-  '/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
-  '/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
-  '/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
-  '/projects/$projectId': typeof LayoutProjectsProjectIdIndexRoute
-  '/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
+  "/login": typeof LoginRoute
+  "/recover-password": typeof RecoverPasswordRoute
+  "/reset-password": typeof ResetPasswordRoute
+  "/signup": typeof SignupRoute
+  "/chat": typeof LayoutChatRoute
+  "/learning": typeof LayoutLearningRouteWithChildren
+  "/library": typeof LayoutLibraryRoute
+  "/settings": typeof LayoutSettingsRoute
+  "/todos": typeof LayoutTodosRoute
+  "/": typeof LayoutIndexRoute
+  "/projects": typeof LayoutProjectsIndexRoute
+  "/projects/$projectId/files": typeof LayoutProjectsProjectIdFilesRoute
+  "/projects/$projectId/gantt": typeof LayoutProjectsProjectIdGanttRoute
+  "/projects/$projectId/reports": typeof LayoutProjectsProjectIdReportsRoute
+  "/projects/$projectId/requirements": typeof LayoutProjectsProjectIdRequirementsRoute
+  "/projects/$projectId/tasks": typeof LayoutProjectsProjectIdTasksRoute
+  "/projects/$projectId/timesheet": typeof LayoutProjectsProjectIdTimesheetRoute
+  "/projects/$projectId/wiki": typeof LayoutProjectsProjectIdWikiRoute
+  "/projects/$projectId": typeof LayoutProjectsProjectIdIndexRoute
+  "/learning/skills/$skillId/edit": typeof LayoutLearningSkillsSkillIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/_layout': typeof LayoutRouteWithChildren
-  '/login': typeof LoginRoute
-  '/recover-password': typeof RecoverPasswordRoute
-  '/reset-password': typeof ResetPasswordRoute
-  '/signup': typeof SignupRoute
-  '/_layout/chat': typeof LayoutChatRoute
-  '/_layout/learning': typeof LayoutLearningRouteWithChildren
-  '/_layout/library': typeof LayoutLibraryRoute
-  '/_layout/settings': typeof LayoutSettingsRoute
-  '/_layout/todos': typeof LayoutTodosRoute
-  '/_layout/': typeof LayoutIndexRoute
-  '/_layout/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
-  '/_layout/projects/': typeof LayoutProjectsIndexRoute
-  '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
-  '/_layout/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
-  '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
-  '/_layout/projects/$projectId/requirements': typeof LayoutProjectsProjectIdRequirementsRoute
-  '/_layout/projects/$projectId/tasks': typeof LayoutProjectsProjectIdTasksRoute
-  '/_layout/projects/$projectId/timesheet': typeof LayoutProjectsProjectIdTimesheetRoute
-  '/_layout/projects/$projectId/wiki': typeof LayoutProjectsProjectIdWikiRoute
-  '/_layout/projects/$projectId/': typeof LayoutProjectsProjectIdIndexRoute
-  '/_layout/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
+  "/_layout": typeof LayoutRouteWithChildren
+  "/login": typeof LoginRoute
+  "/recover-password": typeof RecoverPasswordRoute
+  "/reset-password": typeof ResetPasswordRoute
+  "/signup": typeof SignupRoute
+  "/_layout/chat": typeof LayoutChatRoute
+  "/_layout/learning": typeof LayoutLearningRouteWithChildren
+  "/_layout/library": typeof LayoutLibraryRoute
+  "/_layout/settings": typeof LayoutSettingsRoute
+  "/_layout/todos": typeof LayoutTodosRoute
+  "/_layout/": typeof LayoutIndexRoute
+  "/_layout/projects/$projectId": typeof LayoutProjectsProjectIdRouteWithChildren
+  "/_layout/projects/": typeof LayoutProjectsIndexRoute
+  "/_layout/projects/$projectId/files": typeof LayoutProjectsProjectIdFilesRoute
+  "/_layout/projects/$projectId/gantt": typeof LayoutProjectsProjectIdGanttRoute
+  "/_layout/projects/$projectId/reports": typeof LayoutProjectsProjectIdReportsRoute
+  "/_layout/projects/$projectId/requirements": typeof LayoutProjectsProjectIdRequirementsRoute
+  "/_layout/projects/$projectId/tasks": typeof LayoutProjectsProjectIdTasksRoute
+  "/_layout/projects/$projectId/timesheet": typeof LayoutProjectsProjectIdTimesheetRoute
+  "/_layout/projects/$projectId/wiki": typeof LayoutProjectsProjectIdWikiRoute
+  "/_layout/projects/$projectId/": typeof LayoutProjectsProjectIdIndexRoute
+  "/_layout/learning/skills/$skillId/edit": typeof LayoutLearningSkillsSkillIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
-    | '/login'
-    | '/recover-password'
-    | '/reset-password'
-    | '/signup'
-    | '/chat'
-    | '/learning'
-    | '/library'
-    | '/settings'
-    | '/todos'
-    | '/projects/$projectId'
-    | '/projects/'
-    | '/projects/$projectId/files'
-    | '/projects/$projectId/gantt'
-    | '/projects/$projectId/reports'
-    | '/projects/$projectId/requirements'
-    | '/projects/$projectId/tasks'
-    | '/projects/$projectId/timesheet'
-    | '/projects/$projectId/wiki'
-    | '/projects/$projectId/'
-    | '/learning/skills/$skillId/edit'
+    | "/"
+    | "/login"
+    | "/recover-password"
+    | "/reset-password"
+    | "/signup"
+    | "/chat"
+    | "/learning"
+    | "/library"
+    | "/settings"
+    | "/todos"
+    | "/projects/$projectId"
+    | "/projects/"
+    | "/projects/$projectId/files"
+    | "/projects/$projectId/gantt"
+    | "/projects/$projectId/reports"
+    | "/projects/$projectId/requirements"
+    | "/projects/$projectId/tasks"
+    | "/projects/$projectId/timesheet"
+    | "/projects/$projectId/wiki"
+    | "/projects/$projectId/"
+    | "/learning/skills/$skillId/edit"
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/login'
-    | '/recover-password'
-    | '/reset-password'
-    | '/signup'
-    | '/chat'
-    | '/learning'
-    | '/library'
-    | '/settings'
-    | '/todos'
-    | '/'
-    | '/projects'
-    | '/projects/$projectId/files'
-    | '/projects/$projectId/gantt'
-    | '/projects/$projectId/reports'
-    | '/projects/$projectId/requirements'
-    | '/projects/$projectId/tasks'
-    | '/projects/$projectId/timesheet'
-    | '/projects/$projectId/wiki'
-    | '/projects/$projectId'
-    | '/learning/skills/$skillId/edit'
+    | "/login"
+    | "/recover-password"
+    | "/reset-password"
+    | "/signup"
+    | "/chat"
+    | "/learning"
+    | "/library"
+    | "/settings"
+    | "/todos"
+    | "/"
+    | "/projects"
+    | "/projects/$projectId/files"
+    | "/projects/$projectId/gantt"
+    | "/projects/$projectId/reports"
+    | "/projects/$projectId/requirements"
+    | "/projects/$projectId/tasks"
+    | "/projects/$projectId/timesheet"
+    | "/projects/$projectId/wiki"
+    | "/projects/$projectId"
+    | "/learning/skills/$skillId/edit"
   id:
-    | '__root__'
-    | '/_layout'
-    | '/login'
-    | '/recover-password'
-    | '/reset-password'
-    | '/signup'
-    | '/_layout/chat'
-    | '/_layout/learning'
-    | '/_layout/library'
-    | '/_layout/settings'
-    | '/_layout/todos'
-    | '/_layout/'
-    | '/_layout/projects/$projectId'
-    | '/_layout/projects/'
-    | '/_layout/projects/$projectId/files'
-    | '/_layout/projects/$projectId/gantt'
-    | '/_layout/projects/$projectId/reports'
-    | '/_layout/projects/$projectId/requirements'
-    | '/_layout/projects/$projectId/tasks'
-    | '/_layout/projects/$projectId/timesheet'
-    | '/_layout/projects/$projectId/wiki'
-    | '/_layout/projects/$projectId/'
-    | '/_layout/learning/skills/$skillId/edit'
+    | "__root__"
+    | "/_layout"
+    | "/login"
+    | "/recover-password"
+    | "/reset-password"
+    | "/signup"
+    | "/_layout/chat"
+    | "/_layout/learning"
+    | "/_layout/library"
+    | "/_layout/settings"
+    | "/_layout/todos"
+    | "/_layout/"
+    | "/_layout/projects/$projectId"
+    | "/_layout/projects/"
+    | "/_layout/projects/$projectId/files"
+    | "/_layout/projects/$projectId/gantt"
+    | "/_layout/projects/$projectId/reports"
+    | "/_layout/projects/$projectId/requirements"
+    | "/_layout/projects/$projectId/tasks"
+    | "/_layout/projects/$projectId/timesheet"
+    | "/_layout/projects/$projectId/wiki"
+    | "/_layout/projects/$projectId/"
+    | "/_layout/learning/skills/$skillId/edit"
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -301,159 +301,159 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/signup': {
-      id: '/signup'
-      path: '/signup'
-      fullPath: '/signup'
+    "/signup": {
+      id: "/signup"
+      path: "/signup"
+      fullPath: "/signup"
       preLoaderRoute: typeof SignupRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/reset-password': {
-      id: '/reset-password'
-      path: '/reset-password'
-      fullPath: '/reset-password'
+    "/reset-password": {
+      id: "/reset-password"
+      path: "/reset-password"
+      fullPath: "/reset-password"
       preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/recover-password': {
-      id: '/recover-password'
-      path: '/recover-password'
-      fullPath: '/recover-password'
+    "/recover-password": {
+      id: "/recover-password"
+      path: "/recover-password"
+      fullPath: "/recover-password"
       preLoaderRoute: typeof RecoverPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
+    "/login": {
+      id: "/login"
+      path: "/login"
+      fullPath: "/login"
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_layout': {
-      id: '/_layout'
-      path: ''
-      fullPath: '/'
+    "/_layout": {
+      id: "/_layout"
+      path: ""
+      fullPath: "/"
       preLoaderRoute: typeof LayoutRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_layout/': {
-      id: '/_layout/'
-      path: '/'
-      fullPath: '/'
+    "/_layout/": {
+      id: "/_layout/"
+      path: "/"
+      fullPath: "/"
       preLoaderRoute: typeof LayoutIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/todos': {
-      id: '/_layout/todos'
-      path: '/todos'
-      fullPath: '/todos'
+    "/_layout/todos": {
+      id: "/_layout/todos"
+      path: "/todos"
+      fullPath: "/todos"
       preLoaderRoute: typeof LayoutTodosRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/settings': {
-      id: '/_layout/settings'
-      path: '/settings'
-      fullPath: '/settings'
+    "/_layout/settings": {
+      id: "/_layout/settings"
+      path: "/settings"
+      fullPath: "/settings"
       preLoaderRoute: typeof LayoutSettingsRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/library': {
-      id: '/_layout/library'
-      path: '/library'
-      fullPath: '/library'
+    "/_layout/library": {
+      id: "/_layout/library"
+      path: "/library"
+      fullPath: "/library"
       preLoaderRoute: typeof LayoutLibraryRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/learning': {
-      id: '/_layout/learning'
-      path: '/learning'
-      fullPath: '/learning'
+    "/_layout/learning": {
+      id: "/_layout/learning"
+      path: "/learning"
+      fullPath: "/learning"
       preLoaderRoute: typeof LayoutLearningRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/chat': {
-      id: '/_layout/chat'
-      path: '/chat'
-      fullPath: '/chat'
+    "/_layout/chat": {
+      id: "/_layout/chat"
+      path: "/chat"
+      fullPath: "/chat"
       preLoaderRoute: typeof LayoutChatRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/projects/': {
-      id: '/_layout/projects/'
-      path: '/projects'
-      fullPath: '/projects/'
+    "/_layout/projects/": {
+      id: "/_layout/projects/"
+      path: "/projects"
+      fullPath: "/projects/"
       preLoaderRoute: typeof LayoutProjectsIndexRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/projects/$projectId': {
-      id: '/_layout/projects/$projectId'
-      path: '/projects/$projectId'
-      fullPath: '/projects/$projectId'
+    "/_layout/projects/$projectId": {
+      id: "/_layout/projects/$projectId"
+      path: "/projects/$projectId"
+      fullPath: "/projects/$projectId"
       preLoaderRoute: typeof LayoutProjectsProjectIdRouteImport
       parentRoute: typeof LayoutRoute
     }
-    '/_layout/projects/$projectId/': {
-      id: '/_layout/projects/$projectId/'
-      path: '/'
-      fullPath: '/projects/$projectId/'
+    "/_layout/projects/$projectId/": {
+      id: "/_layout/projects/$projectId/"
+      path: "/"
+      fullPath: "/projects/$projectId/"
       preLoaderRoute: typeof LayoutProjectsProjectIdIndexRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
-    '/_layout/projects/$projectId/wiki': {
-      id: '/_layout/projects/$projectId/wiki'
-      path: '/wiki'
-      fullPath: '/projects/$projectId/wiki'
+    "/_layout/projects/$projectId/wiki": {
+      id: "/_layout/projects/$projectId/wiki"
+      path: "/wiki"
+      fullPath: "/projects/$projectId/wiki"
       preLoaderRoute: typeof LayoutProjectsProjectIdWikiRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
-    '/_layout/projects/$projectId/timesheet': {
-      id: '/_layout/projects/$projectId/timesheet'
-      path: '/timesheet'
-      fullPath: '/projects/$projectId/timesheet'
+    "/_layout/projects/$projectId/timesheet": {
+      id: "/_layout/projects/$projectId/timesheet"
+      path: "/timesheet"
+      fullPath: "/projects/$projectId/timesheet"
       preLoaderRoute: typeof LayoutProjectsProjectIdTimesheetRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
-    '/_layout/projects/$projectId/tasks': {
-      id: '/_layout/projects/$projectId/tasks'
-      path: '/tasks'
-      fullPath: '/projects/$projectId/tasks'
+    "/_layout/projects/$projectId/tasks": {
+      id: "/_layout/projects/$projectId/tasks"
+      path: "/tasks"
+      fullPath: "/projects/$projectId/tasks"
       preLoaderRoute: typeof LayoutProjectsProjectIdTasksRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
-    '/_layout/projects/$projectId/requirements': {
-      id: '/_layout/projects/$projectId/requirements'
-      path: '/requirements'
-      fullPath: '/projects/$projectId/requirements'
+    "/_layout/projects/$projectId/requirements": {
+      id: "/_layout/projects/$projectId/requirements"
+      path: "/requirements"
+      fullPath: "/projects/$projectId/requirements"
       preLoaderRoute: typeof LayoutProjectsProjectIdRequirementsRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
-    '/_layout/projects/$projectId/reports': {
-      id: '/_layout/projects/$projectId/reports'
-      path: '/reports'
-      fullPath: '/projects/$projectId/reports'
+    "/_layout/projects/$projectId/reports": {
+      id: "/_layout/projects/$projectId/reports"
+      path: "/reports"
+      fullPath: "/projects/$projectId/reports"
       preLoaderRoute: typeof LayoutProjectsProjectIdReportsRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
-    '/_layout/projects/$projectId/gantt': {
-      id: '/_layout/projects/$projectId/gantt'
-      path: '/gantt'
-      fullPath: '/projects/$projectId/gantt'
+    "/_layout/projects/$projectId/gantt": {
+      id: "/_layout/projects/$projectId/gantt"
+      path: "/gantt"
+      fullPath: "/projects/$projectId/gantt"
       preLoaderRoute: typeof LayoutProjectsProjectIdGanttRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
-    '/_layout/projects/$projectId/files': {
-      id: '/_layout/projects/$projectId/files'
-      path: '/files'
-      fullPath: '/projects/$projectId/files'
+    "/_layout/projects/$projectId/files": {
+      id: "/_layout/projects/$projectId/files"
+      path: "/files"
+      fullPath: "/projects/$projectId/files"
       preLoaderRoute: typeof LayoutProjectsProjectIdFilesRouteImport
       parentRoute: typeof LayoutProjectsProjectIdRoute
     }
-    '/_layout/learning/skills/$skillId/edit': {
-      id: '/_layout/learning/skills/$skillId/edit'
-      path: '/skills/$skillId/edit'
-      fullPath: '/learning/skills/$skillId/edit'
+    "/_layout/learning/skills/$skillId/edit": {
+      id: "/_layout/learning/skills/$skillId/edit"
+      path: "/skills/$skillId/edit"
+      fullPath: "/learning/skills/$skillId/edit"
       preLoaderRoute: typeof LayoutLearningSkillsSkillIdEditRouteImport
       parentRoute: typeof LayoutLearningRoute
     }

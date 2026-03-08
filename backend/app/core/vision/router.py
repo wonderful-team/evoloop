@@ -48,16 +48,21 @@ class VisionRouter:
 
         # Default Routing
         if settings.ENABLE_VISION_OCR and task == VisionTask.OCR:
+            from app.core.context import ContextManager
+            ctx = ContextManager.current()
+            current_ecosystem = ctx.metadata.get("current_ecosystem")
+
             # 1. Android Specific OCR
-            if kwargs.get("on_android") or "android" in str(kwargs.get("image_source", "")).lower():
+            if kwargs.get("on_android") or current_ecosystem == "android":
                 for p in self.providers:
                     if isinstance(p, AndroidVisionOCRProvider) and await p.is_available():
                         return p
 
             # 2. MacOS Native Vision (Retina Aware)
-            for p in self.providers:
-                if isinstance(p, MacOSVisionOCRProvider) and not isinstance(p, AndroidVisionOCRProvider) and await p.is_available():
-                    return p
+            else:
+                for p in self.providers:
+                    if isinstance(p, MacOSVisionOCRProvider) and not isinstance(p, AndroidVisionOCRProvider) and await p.is_available():
+                        return p
 
         if task in [VisionTask.ANALYZE, VisionTask.CAPTION, VisionTask.COMPARE]:
             # Prefer Multimodal VLM

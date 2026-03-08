@@ -101,13 +101,10 @@ export function DocumentList({ projectId, onViewDetail }: DocumentListProps) {
         <CardContent className="py-12 text-center">
           <FileText className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
           <h3 className="text-sm font-medium text-muted-foreground mb-1">
-            {t("requirements.list.empty", "暂无需求文档")}
+            {t("requirements.list.empty")}
           </h3>
           <p className="text-xs text-muted-foreground/70">
-            {t(
-              "requirements.list.emptyDesc",
-              "上传需求文档，AI 将自动分析并拆解任务"
-            )}
+            {t("requirements.list.emptyDesc")}
           </p>
         </CardContent>
       </Card>
@@ -159,11 +156,7 @@ export function DocumentList({ projectId, onViewDetail }: DocumentListProps) {
                         <>
                           <span>•</span>
                           <span>
-                            {t(
-                              "requirements.list.analysisCount",
-                              "{{count}} 个分析版本",
-                              { count: doc.analysis_count }
-                            )}
+                            {t("requirements.list.analysisCount", { count: doc.analysis_count })}
                           </span>
                         </>
                       )}
@@ -191,25 +184,21 @@ export function DocumentList({ projectId, onViewDetail }: DocumentListProps) {
                       <AlertDialogHeader>
                         <AlertDialogTitle className="flex items-center gap-2">
                           <AlertCircle className="h-5 w-5 text-destructive" />
-                          {t("requirements.list.deleteTitle", "删除文档")}
+                          {t("requirements.list.deleteTitle")}
                         </AlertDialogTitle>
                         <AlertDialogDescription>
-                          {t(
-                            "requirements.list.deleteConfirm",
-                            "确定要删除 "{{file}}" 吗？此操作将同时删除所有相关的分析结果和任务。",
-                            { file: doc.file_name }
-                          )}
+                          {t("requirements.list.deleteConfirm", { file: doc.file_name })}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>
-                          {t("common.cancel", "取消")}
+                          {t("common.cancel")}
                         </AlertDialogCancel>
                         <AlertDialogAction
                           onClick={() => handleDelete(doc.id)}
                           className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                          {t("common.delete", "删除")}
+                          {t("common.delete")}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

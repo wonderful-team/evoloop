@@ -135,7 +135,6 @@ class TraceParser:
         "edit_file": ActionCategory.EDIT,
         "list_files": ActionCategory.QUERY,
         "file_system": ActionCategory.EDIT,
-        "manage_file": ActionCategory.EDIT,  # Legacy
         "search_codebase": ActionCategory.QUERY,
         "search_web": ActionCategory.QUERY,
         "bash": ActionCategory.COMMAND,

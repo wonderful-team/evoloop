@@ -16,12 +16,12 @@ async def handle_edit(
     config: RunnableConfig | None = None,
 ) -> str:
     if not target and not content:
-        return i18n.get("prompts.domain_tools.files.edit_args_required")
+        return i18n.get("domain_tools.files.edit_args_required")
 
     # Safety Check: Target Uniqueness
     # Relaxed for single-line edits
     if len(target.strip()) < 3:
-        return i18n.get("prompts.domain_tools.files.edit_target_short")
+        return i18n.get("domain_tools.files.edit_target_short")
 
     try:
         target_path = resolve_and_validate_path(path, config)
@@ -29,7 +29,7 @@ async def handle_edit(
         return str(e)
 
     if not os.path.exists(target_path):
-        return i18n.get("prompts.domain_tools.files.edit_not_found", path=path)
+        return i18n.get("domain_tools.files.edit_not_found", path=path)
 
     try:
         with open(target_path, encoding="utf-8") as f:
@@ -40,7 +40,7 @@ async def handle_edit(
             # Fall through to Fuzzy
             pass
         elif count > 1 and not allow_multiple:
-            return i18n.get("prompts.domain_tools.files.edit_multiple_found", count=count)
+            return i18n.get("domain_tools.files.edit_multiple_found", count=count)
         else:
             # Strict Success
             if allow_multiple:
@@ -49,7 +49,7 @@ async def handle_edit(
                 new_content = file_content.replace(target, content, 1)
 
             utils_write_file(new_content, target_path)
-            return i18n.get("prompts.domain_tools.files.edit_success", path=path)
+            return i18n.get("domain_tools.files.edit_success", path=path)
 
         # 2. Try Fuzzy Fallback (Robust Edit Engine)
         from app.domain.tools.utils.editing.engine import EditEngine
@@ -59,9 +59,9 @@ async def handle_edit(
         )
         if success:
             utils_write_file(new_content, target_path)
-            return i18n.get("prompts.domain_tools.files.edit_success_log", path=path, log=log)
+            return i18n.get("domain_tools.files.edit_success_log", path=path, log=log)
 
-        return i18n.get("prompts.domain_tools.files.edit_fallback_failed", log=log)
+        return i18n.get("domain_tools.files.edit_fallback_failed", log=log)
 
     except Exception as e:
-        return i18n.get("prompts.domain_tools.files.edit_error", error=str(e))
+        return i18n.get("domain_tools.files.edit_error", error=str(e))

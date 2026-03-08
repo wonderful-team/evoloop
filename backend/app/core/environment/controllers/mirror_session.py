@@ -4,10 +4,23 @@ Mirror Session Manager — Handles scrcpy processes for Android mirroring.
 
 import asyncio
 import logging
+import os
 import subprocess
 import threading
+from pathlib import Path
+from typing import Any
+
+from .android_event_recorder import AndroidEventRecorder
 
 logger = logging.getLogger(__name__)
+
+# Recording directory (same as screen recording)
+RECORDINGS_DIR = Path.home() / ".evoloop" / "recordings"
+RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
+
+# Android recordings subdirectory
+ANDROID_RECORDINGS_DIR = RECORDINGS_DIR / "android"
+ANDROID_RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class MirrorSession:
@@ -22,12 +35,13 @@ class MirrorSession:
         self.port: int | None = None
         self.error: str | None = None
         self.should_be_active = False  # Persists through disconnects
+        self.video_path: str | None = None  # Path to recorded video file
+        self.event_recorder: AndroidEventRecorder | None = None  # Android event recorder
+        self.captured_events: list[dict] = []  # Captured events (local storage before persistence)
 
     async def start(self, bitrate: str = "2M", max_fps: int = 30) -> bool:
         """
-        Start scrcpy for this session.
-        By default, it opens a local window.
-        In future iterations, we can use --no-display and stream to a socket.
+        Start scrcpy for this session with video recording.
         """
         try:
             # Check if scrcpy is installed
@@ -36,13 +50,20 @@ class MirrorSession:
                 self.error = "scrcpy not found. Please install it with 'brew install scrcpy'."
                 return False
 
+            # Set up video recording path (organized by device)
+            device_dir = ANDROID_RECORDINGS_DIR / self.device_id.replace(":", "_")
+            device_dir.mkdir(parents=True, exist_ok=True)
+            self.video_path = str(device_dir / f"{self.session_id}.mp4")
+
             cmd = [
                 "scrcpy",
                 "-s", self.device_id,
                 "--window-title", f"EvoLoop Mirror - {self.device_id}",
                 "--video-bit-rate", bitrate,
                 "--max-fps", str(max_fps),
-                "--always-on-top"
+                "--always-on-top",
+                "--record", self.video_path,  # Enable video recording
+                "--record-format", "mp4"
             ]
 
             # Start process in background
@@ -76,6 +97,11 @@ class MirrorSession:
 
             threading.Thread(target=log_output, daemon=True).start()
 
+            # Start Android event recording
+            self.event_recorder = AndroidEventRecorder()
+            self.event_recorder.start_recording(self.device_id)
+            logger.info(f"Started Android event recording for session {self.session_id}")
+
             return True
 
         except Exception as e:
@@ -83,19 +109,47 @@ class MirrorSession:
             logger.error(f"Failed to start scrcpy: {e}")
             return False
 
-    def stop(self):
-        """Terminate the scrcpy process."""
+    def stop(self) -> dict[str, Any] | None:
+        """
+        Terminate the scrcpy process and stop event recording.
+        Returns dict with video_path and events (local storage, not yet persisted).
+        """
+        # Stop event recording first
+        captured_events = []
+        if self.event_recorder:
+            android_events = self.event_recorder.stop_recording()
+            captured_events = self.event_recorder.to_trace_events(
+                session_id=self.session_id,
+                thread_id="global"
+            )
+            self.captured_events = captured_events
+            logger.info(f"Stopped event recording. Captured {len(captured_events)} events")
+
+        # Stop scrcpy
         if self.process:
             self.process.terminate()
             try:
-                self.process.wait(timeout=2)
+                self.process.wait(timeout=3)
             except subprocess.TimeoutExpired:
                 self.process.kill()
+                self.process.wait()
             self.process = None
 
         self.is_active = False
         self.should_be_active = False  # Manual stop clears intention
-        logger.info(f"Stopped mirror session {self.session_id}")
+
+        # Verify video file exists
+        video_path = self.video_path
+        if video_path and os.path.exists(video_path):
+            logger.info(f"Mirror session {self.session_id} stopped. Video saved to: {video_path}")
+            return {
+                "video_path": video_path,
+                "events": captured_events,
+                "session_id": self.session_id
+            }
+        else:
+            logger.warning(f"Mirror session {self.session_id} stopped but video file not found: {video_path}")
+            return None
 
 
 class MirrorSessionManager:
@@ -119,12 +173,19 @@ class MirrorSessionManager:
     def get_session(self, session_id: str) -> MirrorSession | None:
         return self.sessions.get(session_id)
 
-    def stop_session(self, session_id: str) -> bool:
+    def stop_session(self, session_id: str) -> dict[str, Any] | None:
+        """Stop session and return video path and events."""
         session = self.sessions.pop(session_id, None)
         if session:
-            session.stop()
-            return True
-        return False
+            return session.stop()
+        return None
+
+    def get_session_events(self, session_id: str) -> list[dict]:
+        """Get captured events for a session (for delayed persistence)."""
+        session = self.sessions.get(session_id)
+        if session:
+            return session.captured_events
+        return []
 
     async def on_device_connected(self, device_id: str):
         """Handle device reconnection."""

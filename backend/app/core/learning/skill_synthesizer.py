@@ -149,7 +149,7 @@ class WorkflowSynthesizer:
 
         from app.infrastructure.config.service import SystemConfigService
         user_lang = SystemConfigService.get_language_preference()
-        language_constraint = i18n.get("prompts.learning.synthesis_lang_constraint", lang=user_lang)
+        language_constraint = i18n.get("learning.synthesis_lang_constraint", lang=user_lang)
 
         prompt_vars = {
             "trace_narrative": narrative,
@@ -202,7 +202,7 @@ class WorkflowSynthesizer:
             elif step.node_name in ("global_observation", "mobile_interaction"):
                 # Fallback for old traces
                 source_type = "mobile"
-            
+
             event_type = step.action_type
             payload = dict(step.action_args)
             

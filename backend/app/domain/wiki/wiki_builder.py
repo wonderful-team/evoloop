@@ -40,8 +40,8 @@ class WikiBuilder:
             "page_title": page_title,
             "relevant_files_content": relevant_files_content,
             "files_list_md": "\n".join([f"- {path}" for path in relevant_file_paths]),
-            "i18n_relevant_files": i18n.get("prompts.wiki.generated_content.relevant_files"),
-            "i18n_files_used": i18n.get("prompts.wiki.generated_content.files_used"),
+            "i18n_relevant_files": i18n.get("wiki.generated_content.relevant_files"),
+            "i18n_files_used": i18n.get("wiki.generated_content.files_used"),
             "target_lang": self._get_target_lang()
         }
         return self._render(template_vars)

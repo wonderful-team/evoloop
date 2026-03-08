@@ -1,4 +1,5 @@
 import logging
+import re
 import uuid
 
 from langchain_core.messages import AIMessage
@@ -27,10 +28,14 @@ def _extract_tool_usage(messages: list) -> str:
 
 
 def _extract_final_summary(messages: list) -> str:
-    """Extract the last AIMessage text as the reviewer's conclusion."""
+    """Extract the last AIMessage text as the reviewer's conclusion, stripping technical markers."""
     for msg in reversed(messages):
         if isinstance(msg, AIMessage) and msg.content:
-            return str(msg.content)[:2000]
+            content = str(msg.content)
+            # Remove technical markers defined in FinishPromptBuilder
+            content = content.replace("✅ SESSION COMPLETE", "").replace("❌ SESSION COMPLETE", "")
+            content = re.sub(r"^Outcome:.*$", "", content, flags=re.MULTILINE)
+            return content.strip()[:2000]
     return "Session concluded."
 
 
@@ -104,9 +109,8 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     cwd = ctx.working_directory or config.get("configurable", {}).get("working_directory")
 
     if not cwd:
-        logger.error("Finish: No working_directory found. Ending session with error.")
-        _trigger_session_recording(ctx, config, "Session ended with missing context.")
-        return {"messages": [], "next_node": "END"}
+        logger.warning("Finish: No working_directory found in context (Global Mode?).")
+        cwd = "GLOBAL"
 
     # 2. Collect context for prompt
     current_plan = state.get("current_plan", "")

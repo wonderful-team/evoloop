@@ -127,6 +127,7 @@ async def stream_chat(thread_id: str):
                                 "active_memories": current.get("active_memories", []),
                                 "verification": current.get("verification", {}),
                                 "status": current.get("status", "unknown"),
+                                "human_request": current.get("human_request"),
                             }
                             yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
 

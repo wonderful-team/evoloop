@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 @evoloop_tool(is_pollable=True)
 async def find_element(
     target: str,
-    platform: Literal["macos", "android"] = "android",
+    platform: Literal["macos", "android"] | None = None,
     action: Literal["None", "tap", "click"] = "None",
     device_id: str | None = None,
     return_all: bool = False,
@@ -33,34 +33,30 @@ async def find_element(
     
     Args:
         target: Natural language description of the element to find.
-                Examples: "微信图标", "搜索按钮", "输入框", "提交按钮"
-        platform: Target platform ("macos" or "android")
-        action: Optional action to perform on the found element:
-                - "None": Find only (default)
-                - "tap": Find and tap (Android only)
-                - "click": Find and click (MacOS only)
-        device_id: Device serial for Android (optional)
-        return_all: If True, return all detected elements
-        
-    Returns:
-        Information about the found element and action result.
-    
-    Example:
-        # One-shot Find & Click:
-        find_element(target="微信图标", platform="android", action="tap")
-        
-        # Just Find:
-        find_element(target="搜索按钮", platform="android")
+        platform: Target platform ("macos" or "android"). If None, resolved from session context.
+        action: Optional action to perform on the found element ("tap" for mobile, "click" for desktop).
+        device_id: Device serial for Android (optional).
+        return_all: If True, return all detected elements.
     """
     try:
-        # Step 1: Take a screenshot
+        # Step 1: Resolve Platform & Take a screenshot
+        if platform is None:
+            from app.core.context import ContextManager
+            ctx = ContextManager.current()
+            platform = ctx.metadata.get("current_ecosystem")
+
+        if not platform:
+            return "Error: Platform not specified and could not be resolved from context. Please specify 'platform' (macos/android)."
+
         if platform == "android":
             try:
                 screenshot_path = adb_driver.screenshot(device_id=device_id)
             except ADBError as e:
                 return f"Android error: {e}"
-        else:  # macos
+        elif platform == "macos":
             screenshot_path = macos_driver.screenshot()
+        else:
+            return f"Error: Unsupported platform '{platform}'"
 
         # Step 2: Run perception pipeline via VisionEngine
         result = await vision_engine.process(
@@ -160,14 +156,15 @@ async def find_element(
         )
 
         # Step 5: Perform Action (Turbo Mode)
-        if action == "tap" and platform == "android":
-            adb_driver.tap(best_match.x, best_match.y, device_id=device_id)
-            result_msg += f"\n👉 ACTION PERFORMED: Tapped at ({best_match.x}, {best_match.y})"
-
-        elif action == "click" and platform == "macos":
-            macos_driver.click(best_match.x, best_match.y)
-            result_msg += f"\n👉 ACTION PERFORMED: Clicked at ({best_match.x}, {best_match.y})"
-
+        if action == "tap" or action == "click":
+            if platform == "android":
+                adb_driver.tap(best_match.x, best_match.y, device_id=device_id)
+                result_msg += f"\n👉 ACTION PERFORMED: Tapped at ({best_match.x}, {best_match.y})"
+            elif platform == "macos":
+                macos_driver.click(best_match.x, best_match.y)
+                result_msg += f"\n👉 ACTION PERFORMED: Clicked at ({best_match.x}, {best_match.y})"
+            else:
+                result_msg += f"\nWarning: Action '{action}' is not supported on platform '{platform}'"
         else:
             result_msg += f"\nReady to interact: {platform}_control(action='tap/click', x={best_match.x}, y={best_match.y})"
 

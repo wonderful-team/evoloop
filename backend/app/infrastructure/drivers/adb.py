@@ -571,21 +571,45 @@ class ADBDriver:
         except Exception:
             return []
 
-    def read_sms(self, regex_pattern: str | None = None, timeout: int = 30, device_id: str | None = None) -> list[dict]:
+    def read_sms(
+        self,
+        regex_pattern: str | None = None,
+        timeout: int = 30,
+        device_id: str | None = None,
+        after_timestamp: int | None = None,
+    ) -> list[dict]:
         """
         Read recent SMS messages from the device inbox.
         If a regex_pattern is provided, polls for up to timeout seconds until a match is found.
-        
+
+        Polling Strategy:
+        - Waits 3 seconds before first query (SMS typically takes 3-8s to arrive)
+        - Then polls with dynamic intervals: 2s → 2s → 3s → 3s → 3s → 5s → 5s...
+        - Returns immediately when a matching SMS is found
+        - Returns empty list if timeout is reached without finding a match
+
         Args:
             regex_pattern: Optional regex to match against message bodies (e.g., r'\d{4,6}').
             timeout: Maximum seconds to poll if regex_pattern is provided.
             device_id: Optional device serial
-            
+            after_timestamp: Optional Unix timestamp (milliseconds). Only return SMS with date > this value.
+                            Use this to filter out old messages and only listen for new ones.
+
         Returns:
             List of matching SMS dicts with 'body', 'date', and 'extract' keys.
         """
         start_time = time.time()
-        
+
+        # Phase 1: Initial delay - SMS typically takes 3-8 seconds to arrive
+        # Skip initial query to avoid false negatives on recently sent codes
+        initial_delay = min(3, timeout)  # Wait at least 3 seconds before first query, or less if timeout is short
+        if initial_delay > 0:
+            time.sleep(initial_delay)
+
+        # Phase 2: Polling loop with dynamic intervals
+        poll_count = 0
+        base_interval = 2.0  # Base polling interval in seconds
+
         while True:
             try:
                 # Query the latest 5 messages
@@ -604,8 +628,13 @@ class ADBDriver:
                     if body_match and date_match:
                         body_text = body_match.group(1).strip()
                         date_val = int(date_match.group(1))
+
+                        # Skip messages older than after_timestamp (if specified)
+                        if after_timestamp and date_val <= after_timestamp:
+                            continue
+
                         msg_dict = {"body": body_text, "date": date_val, "extract": None}
-                        
+
                         if regex_pattern:
                             extract_match = re.search(regex_pattern, body_text)
                             if extract_match:
@@ -627,13 +656,26 @@ class ADBDriver:
                     
             except Exception as e:
                 logger.warning(f"Failed to read SMS: {e}")
-                
+
             elapsed = time.time() - start_time
             if elapsed >= timeout:
                 break
-                
-            time.sleep(2.0)
-            
+
+            # Dynamic polling interval: more frequent at first, then slower
+            poll_count += 1
+            if poll_count <= 2:
+                sleep_interval = 2.0  # First 2 polls: every 2 seconds
+            elif poll_count <= 5:
+                sleep_interval = 3.0  # Next 3 polls: every 3 seconds
+            else:
+                sleep_interval = 5.0  # After that: every 5 seconds
+
+            # Don't sleep longer than remaining timeout
+            remaining = timeout - elapsed
+            sleep_interval = min(sleep_interval, remaining)
+            if sleep_interval > 0:
+                time.sleep(sleep_interval)
+
         return []
 
     def is_available(self) -> bool:

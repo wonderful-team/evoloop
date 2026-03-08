@@ -45,7 +45,7 @@ class I18nService:
     def get(self, key: str, **kwargs) -> str:
         """
         Get localized string by key (dot notation).
-        Example: i18n.get("prompts.tasks.objective", title="Foo")
+        Example: i18n.get("tasks.objective", title="Foo")
         """
         if not self._loaded:
             self.load_locales()

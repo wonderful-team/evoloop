@@ -96,7 +96,7 @@ class AdaptiveChatOpenAI(ChatOpenAI):
             RunnablePassthrough,
         )
 
-        prompt = PromptTemplate.from_template(i18n.get("prompts.adaptive_llm.summarize_prompt"))
+        prompt = PromptTemplate.from_template(i18n.get("adaptive_llm.summarize_prompt"))
         chain = (
             RunnablePassthrough.assign(prompt=prompt)
             | RunnableLambda(lambda x: x["prompt"].format(input=x["input"]))

@@ -156,7 +156,8 @@ class WorkerNode:
     ) -> dict[str, Any]:
         """
         Universal post-processing pipeline (absorbed from OperatorNode).
-        Handles: result summary, cache invalidation, verification capture, MCP interception.
+        Handles: result summary, cache invalidation, verification capture, MCP interception,
+        and subtask result collection (Phase 1).
         """
         last_msg = engine_result["messages"][-1]
         content = last_msg.content if isinstance(last_msg, AIMessage) else ""
@@ -171,6 +172,40 @@ class WorkerNode:
             "messages": [AIMessage(content=summary)],
             "next_node": routing_target or "supervisor",
         }
+
+        # --- 🏅 Phase 1: Subtask Result Collection ---
+        # If this is a subtask execution, store result for aggregation
+        agent_config = execution_ticket.get("agent_config", {})
+        if agent_config.get("is_subtask"):
+            subtask_id = execution_ticket.get("subtask_id", "unknown")
+            parent_task_id = execution_ticket.get("parent_task_id", "unknown")
+
+            subtask_result = {
+                "subtask_id": subtask_id,
+                "status": "completed",
+                "result": content,
+                "tools_used": tool_history,
+                "timestamp": asyncio.get_event_loop().time(),
+            }
+
+            # Store in scratchpad for aggregation
+            scratchpad = state.get("scratchpad", {})
+            if "subtask_results" not in scratchpad:
+                scratchpad["subtask_results"] = []
+            scratchpad["subtask_results"].append(subtask_result)
+
+            # Check if all subtasks are complete
+            pending_agg = scratchpad.get("_pending_aggregation", {})
+            if pending_agg:
+                expected_count = pending_agg.get("expected_count", 0)
+                current_count = len(scratchpad["subtask_results"])
+
+                logger.info(f"[Worker] Subtask {subtask_id} completed ({current_count}/{expected_count})")
+
+                # Note: Aggregation is handled by Supervisor checking scratchpad
+                # Worker always returns to Supervisor for centralized control
+
+            return_state["scratchpad"] = scratchpad
 
         # 5a. Cache Invalidation (Universal via Metadata)
         # Instead of a hardcoded list, we use the tool registry's metadata.

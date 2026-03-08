@@ -140,7 +140,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
 
             if is_orphaned:
                 dummy = AIMessage(
-                    content=i18n.get("prompts.core_utils.orphaned_tool"),
+                    content=i18n.get("core_utils.orphaned_tool"),
                     tool_calls=[{
                         "id": msg.tool_call_id,
                         "name": msg.name or "unknown_tool",
@@ -206,9 +206,9 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
     if non_system_indices:
         first_idx = non_system_indices[0]
         if isinstance(final_repaired[first_idx], AIMessage):
-            final_repaired.insert(first_idx, HumanMessage(content=i18n.get("prompts.core_utils.conversation_continuation")))
+            final_repaired.insert(first_idx, HumanMessage(content=i18n.get("core_utils.conversation_continuation")))
     elif not final_repaired:
-        final_repaired.append(HumanMessage(content=i18n.get("prompts.core_utils.conversation_continuation")))
+        final_repaired.append(HumanMessage(content=i18n.get("core_utils.conversation_continuation")))
 
     return final_repaired
 
