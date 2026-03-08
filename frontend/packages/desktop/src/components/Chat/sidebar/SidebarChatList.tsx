@@ -76,10 +76,7 @@ export function SidebarChatList({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             type="text"
-            placeholder={t(
-              "chat.sidebar.searchPlaceholder",
-              "Search conversations...",
-            )}
+            placeholder={t("chat.sidebar.searchPlaceholder")}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 h-9 text-sm bg-muted/50 border-muted-foreground/20 focus:bg-background transition-colors shadow-sm"
@@ -220,8 +217,7 @@ export function SidebarChatList({
                 className={`h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity ${thread.status === "running" ? "hidden" : ""}`}
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (confirm(t("chat.sidebar.deleteConfirm")))
-                    onDeleteThread(thread.thread_id)
+                  onDeleteThread(thread.thread_id)
                 }}
               >
                 <Trash2

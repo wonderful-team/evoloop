@@ -3,7 +3,7 @@ use tauri::menu::MenuItem;
 use tauri::tray::TrayIcon;
 use tauri::WindowEvent;
 #[cfg(desktop)]
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
 #[cfg(desktop)]
 use std::sync::{Arc, Mutex};
 #[cfg(desktop)]
@@ -36,6 +36,8 @@ pub struct AppServiceState {
     pub is_blinking: Arc<AtomicBool>,
     // Timer: stores the Instant when recording started (None when not recording)
     pub recording_start_time: Arc<Mutex<Option<std::time::Instant>>>,
+    // Event count from frontend (DOM + Global events)
+    pub event_count: Arc<AtomicUsize>,
 }
 
 // ===== Trivial Command =====
@@ -104,7 +106,8 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_stt::init())
-        .plugin(tauri_plugin_tts::init());
+        .plugin(tauri_plugin_tts::init())
+        .plugin(tauri_plugin_fs::init());
 
     let builder = builder.setup(|_app| {
         #[cfg(mobile)]
@@ -129,6 +132,7 @@ pub fn run() {
                 recording_path: Arc::new(Mutex::new(None)),
                 is_blinking: Arc::new(AtomicBool::new(false)),
                 recording_start_time: Arc::new(Mutex::new(None)),
+                event_count: Arc::new(AtomicUsize::new(0)),
             };
             _app.manage(service_state);
 
@@ -241,6 +245,7 @@ pub fn run() {
             commands::permissions::open_accessibility_settings,
             tray::sync_tray_recording_state,
             tray::sync_tray_translations,
+            tray::sync_tray_event_count,
             screen_recorder::start_screen_recording,
             screen_recorder::stop_screen_recording,
             commands::permissions::check_screen_recording_permission,

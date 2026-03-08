@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@evoloop/shared/compon
 import { Badge } from '@evoloop/shared/components/ui/badge';
 import { toast } from 'sonner';
 import { ScrollArea } from '@evoloop/shared/components/ui/scroll-area';
-import { SynthesizeSkillDialog } from './SynthesizeSkillDialog';
+import { MultimodalSynthesizeDialog } from './MultimodalSynthesizeDialog';
 
 interface AndroidMirrorConsoleProps {
     onOpenEditor?: (skillId: number) => void;
@@ -19,6 +19,7 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
     const [activeSession, setActiveSession] = useState<{ sessionId: string, deviceId: string } | null>(null);
     const [synthesizeOpen, setSynthesizeOpen] = useState(false);
     const [lastSessionId, setLastSessionId] = useState<string | null>(null);
+    const [lastVideoPath, setLastVideoPath] = useState<string | null>(null);
 
     const { data, isLoading, refetch, isFetching } = useQuery({
         queryKey: ['mirror-devices'],
@@ -41,9 +42,10 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
 
     const stopMutation = useMutation({
         mutationFn: (sessionId: string) => MirrorService.stopMirror(sessionId),
-        onSuccess: (_: any, sessionId: string) => {
+        onSuccess: (res: any, sessionId: string) => {
             setActiveSession(null);
             setLastSessionId(sessionId);
+            setLastVideoPath(res.video_path || null);
             setSynthesizeOpen(true);
             toast.info(t('learning.mirror.stop'));
         }
@@ -53,14 +55,14 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
     const scrcpyAvailable = data?.scrcpy_available ?? true;
 
     return (
-        <div className="flex flex-col gap-6">
+        <div className="flex flex-col h-full gap-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight flex items-center gap-3">
-                        <Smartphone className="h-6 w-6 text-primary" />
+                    <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">
+                        <Smartphone className="h-5 w-5 text-primary" />
                         {t('learning.mirror.title')}
-                    </h1>
-                    <p className="text-muted-foreground">{t('learning.mirror.description')}</p>
+                    </h2>
+                    <p className="text-sm text-muted-foreground">{t('learning.mirror.description')}</p>
                 </div>
                 <Button
                     variant="outline"
@@ -243,12 +245,21 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
                 </div>
             </div>
 
-            <SynthesizeSkillDialog
+            <MultimodalSynthesizeDialog
                 open={synthesizeOpen}
-                onOpenChange={setSynthesizeOpen}
+                onOpenChange={(open) => {
+                    setSynthesizeOpen(open);
+                    if (!open) {
+                        // Dialog closed, clean up
+                        setLastSessionId(null);
+                        setLastVideoPath(null);
+                    }
+                }}
                 sessionId={lastSessionId || ""}
                 threadId="global"
+                videoPath={lastVideoPath}
                 onOpenEditor={onOpenEditor}
+                sourceType="android"
             />
         </div>
     );

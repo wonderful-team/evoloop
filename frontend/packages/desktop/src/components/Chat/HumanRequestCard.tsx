@@ -13,7 +13,7 @@ import { useChatStore } from "@/stores/chatStore"
 export interface HumanRequestCardProps {
     request: {
         id: string
-        type: "text" | "choice" | "confirmation" | "approval"
+        type: "text" | "choice" | "confirmation" | "approval" | "text_input" | "confirm"
         prompt: string
         options?: string[]
         context?: string
@@ -40,7 +40,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
             <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2 text-amber-600 dark:text-amber-500">
                     <MessageCircleQuestion className="h-4 w-4" />
-                    {t("chat.request.title", "Input Required")}
+                    {t("chat.request.title")}
                 </CardTitle>
             </CardHeader>
 
@@ -64,7 +64,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                 {/* Inputs based on Type */}
 
                 {/* Text Input */}
-                {request.type === "text" && (
+                {(request.type === "text" || request.type === "text_input") && (
                     <Textarea
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
@@ -89,7 +89,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
             <CardFooter className="flex justify-end gap-2 pt-0">
 
                 {/* Standard Submit for Text/Choice */}
-                {(request.type === "text" || request.type === "choice") && (
+                {(request.type === "text" || request.type === "text_input" || request.type === "choice") && (
                     <Button
                         onClick={() => handleResponse(input)}
                         disabled={isSubmitting || !input.trim()}
@@ -101,7 +101,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
                 )}
 
                 {/* Confirmation Buttons */}
-                {(request.type === "confirmation" || request.type === "approval") && (
+                {(request.type === "confirmation" || request.type === "confirm" || request.type === "approval") && (
                     <>
                         <Button
                             variant="outline"

@@ -1,52 +1,104 @@
-import { useState, useCallback, useEffect } from "react"
+import { useState, useCallback, useEffect, useRef } from "react"
 import { invoke } from "@tauri-apps/api/core"
+
+// Throttle interval: 10 seconds between permission checks
+const CHECK_THROTTLE_MS = 10000
+// Debounce focus events to avoid rapid re-checks
+const FOCUS_DEBOUNCE_MS = 500
 
 export function useAccessibilityPermission() {
     const [hasPermission, setHasPermission] = useState<boolean | null>(null)
+    const [isChecking, setIsChecking] = useState(false)
+    const lastCheckTime = useRef<number>(0)
+    const focusTimeoutRef = useRef<number | null>(null)
+    // Track consecutive failures to avoid flickering UI
+    const consecutiveFalseCount = useRef<number>(0)
 
-    const checkPermission = useCallback(async () => {
-        // Only relevant on macOS, but we can check checking OS or just catch error
-        // Rust command is #[cfg(target_os = "macos")] so it might fail on windows if not handled
+    const checkPermission = useCallback(async (force = false) => {
+        // Prevent concurrent checks
+        if (isChecking && !force) {
+            console.log("[useAccessibilityPermission] Skipping check (already in progress)")
+            return hasPermission ?? true
+        }
+
+        // Throttle checks unless forced
+        const now = Date.now()
+        if (!force && now - lastCheckTime.current < CHECK_THROTTLE_MS) {
+            console.log("[useAccessibilityPermission] Skipping check (throttled)")
+            return hasPermission ?? true
+        }
+
+        setIsChecking(true)
         try {
-            // We can check platform first if needed, but let's assume invoke returns safely or we use try/catch
+            lastCheckTime.current = now
             const result = await invoke<boolean>("check_accessibility_permission")
+            console.log("[useAccessibilityPermission] checkPermission result:", result)
+
+            // Only update state if result is stable or forced
+            // If we had permission before and now it's false, require 2 consecutive failures
+            if (hasPermission === true && result === false && !force) {
+                consecutiveFalseCount.current += 1
+                if (consecutiveFalseCount.current < 2) {
+                    console.log("[useAccessibilityPermission] Ignoring single false result, waiting for confirmation")
+                    setIsChecking(false)
+                    return hasPermission ?? true
+                }
+            } else {
+                consecutiveFalseCount.current = 0
+            }
+
             setHasPermission(result)
             return result
         } catch (error) {
             // Likely not implemented on this OS or other error
-            // Treat as true for non-macOS or handle gracefully
-            console.warn("Check permission failed (likely not in Tauri or not macOS):", error)
-            // If checking fails, we might assume true to avoid blocking in browser dev
-            setHasPermission(true)
-            return true
+            console.warn("Check accessibility permission failed:", error)
+            // Default to previous value or true to avoid flickering
+            const fallback = hasPermission ?? true
+            setHasPermission(fallback)
+            return fallback
+        } finally {
+            setIsChecking(false)
         }
-    }, [])
+    }, [hasPermission, isChecking])
 
     const requestPermission = useCallback(async () => {
         if (!window.__TAURI__) return
         try {
             await invoke("open_accessibility_settings")
-
-            // Re-check immediately after requesting. 
-            // The prompt might block execution or return promptly. 
-            // For good measure we might want to poll, but let's try a simple re-check first.
-            await checkPermission()
+            // Reset failure count when user opens settings
+            consecutiveFalseCount.current = 0
+            // Re-check after a delay (user needs time to grant permission)
+            setTimeout(() => checkPermission(true), 1000)
         } catch (error) {
             console.error("Failed to open accessibility settings:", error)
         }
     }, [checkPermission])
 
-    // Check on mount and focus
     useEffect(() => {
+        // Initial check
         checkPermission()
 
         const onFocus = () => {
-            checkPermission()
+            // Debounce focus events
+            if (focusTimeoutRef.current) {
+                window.clearTimeout(focusTimeoutRef.current)
+            }
+            focusTimeoutRef.current = window.setTimeout(() => {
+                // Only re-check if we don't already have permission confirmed
+                if (hasPermission !== true) {
+                    checkPermission()
+                }
+            }, FOCUS_DEBOUNCE_MS)
         }
 
         window.addEventListener("focus", onFocus)
-        return () => window.removeEventListener("focus", onFocus)
-    }, [checkPermission])
+        return () => {
+            window.removeEventListener("focus", onFocus)
+            if (focusTimeoutRef.current) {
+                window.clearTimeout(focusTimeoutRef.current)
+            }
+        }
+    }, [checkPermission, hasPermission])
 
     return { hasPermission, checkPermission, requestPermission }
 }

@@ -4,13 +4,12 @@
 
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
-import { CheckCircle2, Edit2, Save, FileJson } from "lucide-react"
+import { CheckCircle2, Edit2, Save, FileJson, X } from "lucide-react"
 
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { cn } from "@evoloop/shared/lib/utils"
 
 import { MacroEditor, MacroJsonEditor, MacroStep } from "./MacroEditor"
 
@@ -56,6 +55,9 @@ export function SkillReviewPanel({
                     </div>
                 </div>
                 <div className="flex gap-2">
+                    <Button variant="ghost" size="icon" onClick={onCancel} className="text-muted-foreground hover:text-foreground">
+                        <X className="h-5 w-5" />
+                    </Button>
                     <MacroJsonEditor steps={macroScript} onChange={setMacroScript}>
                         <Button variant="outline" size="sm">
                             <FileJson className="mr-2 h-4 w-4" />

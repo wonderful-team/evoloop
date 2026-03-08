@@ -47,7 +47,7 @@ export function McpView() {
     )
 
     return (
-        <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-right-4 duration-500">
+        <div className="flex flex-col h-full gap-6 animate-in fade-in slide-in-from-right-4 duration-500">
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-xl font-bold tracking-tight flex items-center gap-2">

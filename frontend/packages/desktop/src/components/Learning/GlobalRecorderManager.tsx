@@ -21,6 +21,8 @@ export function GlobalRecorderManager() {
         setSessionId,
         setVideoPath,
         postRecordingAction,
+        setLocalEvents,
+        clearLocalEvents,
         stopRecording // to sync back if error
     } = useRecordingStore()
 
@@ -52,8 +54,14 @@ export function GlobalRecorderManager() {
             if (state.isRecording) {
                 state.setPostRecordingAction('synthesize')
                 state.stopRecording()
+            } else if (state.isPreparing) {
+                // Cancel the countdown if user clicks during preparation
+                state.setIsPreparing(false)
+                state.setCountdown(0)
+                console.log("[GlobalRecorderManager] Recording preparation cancelled from tray")
             } else {
-                state.startRecording("global")
+                // Start countdown preparation
+                state.initiateRecording("global")
             }
         })
         return () => {
@@ -91,21 +99,27 @@ export function GlobalRecorderManager() {
     // We use the hooks here, but control them via the store's state
     const { hasPermission: hasVideoPermission, requestPermission: requestVideoPermission } = useScreenRecordingPermission()
 
+    // Use delayed persistence - events stay local until user confirms "Synthesize"
     const domRecorder = useActionRecorder({
         threadId: activeThreadId || "",
         enabled: !!activeThreadId,
-        scope: isGlobalMode ? "both" : "dom"
+        scope: isGlobalMode ? "both" : "dom",
+        persistToBackend: false
     })
 
     const globalRecorder = useGlobalRecorder({
         threadId: activeThreadId || "",
         sessionId: domRecorder.sessionId,
-        enabled: isGlobalMode
+        enabled: isGlobalMode,
+        persistToBackend: false
     })
 
-    // Sync event count to store
+    // Sync event count to store and tray
     useEffect(() => {
-        setEventCount(domRecorder.eventCount + globalRecorder.eventCount)
+        const totalEvents = domRecorder.eventCount + globalRecorder.eventCount
+        setEventCount(totalEvents)
+        // Sync to tray
+        invoke("sync_tray_event_count", { count: totalEvents })
     }, [domRecorder.eventCount, globalRecorder.eventCount, setEventCount])
 
     // Sync session ID to store (for dialogs)
@@ -183,29 +197,23 @@ export function GlobalRecorderManager() {
                             console.warn("[GlobalRecorderManager] Screen recording stop failed:", videoErr)
                         }
 
+                        // Store local events in the store for later persistence
+                        const domBufferedEvents = domRecorder.getBufferedEvents ? domRecorder.getBufferedEvents() : []
+                        const globalBufferedEvents = globalRecorder.getBufferedEvents ? globalRecorder.getBufferedEvents() : []
+                        setLocalEvents(domBufferedEvents, globalBufferedEvents)
+
                         if (totalEventsCount === 0) {
                             // If video exists but no events, or video is tiny, it's likely a permission issue
                             toast.warning(t("learning.noEvents", "No events captured, skipping skill creation."))
                             setSessionId(null)
                             setVideoPath(null)
+                            clearLocalEvents()
                             busyRef.current = false
                             return
                         }
 
-                        // Trigger backend extraction if we have a video and session
-                        if (vPath && domRes?.sessionId) {
-                            // Check if video is suspiciously small - usually indicates permission issue on Mac
-                            // We can't check size easily via JS here, but we've added Rust logs.
-                            // If it fails often, warn about Screen Recording perm.
-                            LearningService.extractKeyframes({
-                                requestBody: {
-                                    session_id: domRes.sessionId,
-                                    video_path: vPath,
-                                    thread_id: activeThreadId,
-                                }
-                            }).then(() => console.log("[GlobalRecorderManager] Keyframe extraction triggered"))
-                                .catch(err => console.error("[GlobalRecorderManager] Failed to trigger extraction:", err))
-                        }
+                        // Note: Keyframe extraction now happens after events are persisted in MultimodalSynthesizeDialog
+                        // We'll trigger it there once user confirms synthesis
 
                         toast.success(t("learning.recordingStopped", { count: totalEventsCount }))
                         if (domRes?.sessionId) setSessionId(domRes.sessionId)
@@ -218,7 +226,8 @@ export function GlobalRecorderManager() {
                     } catch (e) {
                         console.error("Failed to stop recording", e)
                     } finally {
-                        setVideoPath(null)
+                        // Don't clear videoPath immediately - let the UI (SmartReplayEditor) use it first
+                        // It will be cleared on next recording start
                         busyRef.current = false
                     }
                 }

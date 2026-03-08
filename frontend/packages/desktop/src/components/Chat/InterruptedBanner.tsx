@@ -118,17 +118,17 @@ export function InterruptedBanner() {
                 disabled={isSubmitting}
               >
                 <FolderGit2 className="h-4 w-4" />
-                {t("chat.interrupted.selectProject", "Select a Project...")}
+                {t("chat.interrupted.selectProject")}
               </Button>
             ) : (
               <div className="space-y-2">
                 <p className="text-xs text-muted-foreground">
-                  {t("chat.interrupted.chooseProject", "Choose a project to continue:")}
+                  {t("chat.interrupted.chooseProject")}
                 </p>
                 <div className="max-h-[200px] overflow-y-auto space-y-1 border rounded-md p-2">
                   {availableProjects.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
-                      {t("chat.interrupted.noProjects", "No available projects")}
+                      {t("chat.interrupted.noProjects")}
                     </p>
                   ) : (
                     availableProjects.map((project) => (
@@ -162,7 +162,7 @@ export function InterruptedBanner() {
                 {selectedProjectId && (
                   <p className="text-xs text-green-600 flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3" />
-                    {t("chat.interrupted.projectSelected", "Project selected. Click Resume to continue.")}
+                    {t("chat.interrupted.projectSelected")}
                   </p>
                 )}
               </div>
@@ -193,10 +193,7 @@ export function InterruptedBanner() {
                 <Textarea
                   value={userInput}
                   onChange={(e) => setUserInput(e.target.value)}
-                  placeholder={t(
-                    "chat.interrupted.inputPlaceholder",
-                    "Enter additional instructions (optional)...",
-                  )}
+                  placeholder={t("chat.interrupted.inputPlaceholder")}
                   className="text-sm min-h-[60px]"
                 />
               </div>
@@ -210,7 +207,7 @@ export function InterruptedBanner() {
                 disabled={isSubmitting}
                 className="mt-2"
               >
-                {t("chat.interrupted.addInput", "Add Instructions")}
+                {t("chat.interrupted.addInput")}
               </Button>
             )}
           </>
@@ -222,12 +219,12 @@ export function InterruptedBanner() {
   const getTitle = () => {
     switch (interactionType) {
       case "project_switch":
-        return t("chat.interrupted.projectSwitchTitle", "Project Switch Required")
+        return t("chat.interrupted.projectSwitchTitle")
       case "confirm":
-        return t("chat.interrupted.confirmTitle", "Confirmation Required")
+        return t("chat.interrupted.confirmTitle")
       case "text_input":
       default:
-        return t("chat.interrupted.title", "Agent Paused")
+        return t("chat.interrupted.title")
     }
   }
 
@@ -236,10 +233,10 @@ export function InterruptedBanner() {
     switch (interactionType) {
       case "project_switch":
         return selectedProjectId
-          ? t("chat.interrupted.resumeWithProject", "Resume with Selected Project")
-          : t("chat.interrupted.resume", "Resume")
+          ? t("chat.interrupted.resumeWithProject")
+          : t("chat.interrupted.resume")
       case "confirm":
-        return humanRequest?.payload?.confirm_text || t("chat.interrupted.confirm", "Confirm")
+        return humanRequest?.payload?.confirm_text || t("chat.interrupted.confirm")
       default:
         return t("chat.interrupted.resume", "Resume")
     }
@@ -284,7 +281,7 @@ export function InterruptedBanner() {
               >
                 <XCircle className="h-3.5 w-3.5" />
                 {humanRequest?.payload?.cancel_text ||
-                  t("chat.interrupted.cancel", "Cancel")}
+                  t("chat.interrupted.cancel")}
               </Button>
             )}
           </div>

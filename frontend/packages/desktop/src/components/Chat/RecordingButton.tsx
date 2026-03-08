@@ -1,6 +1,6 @@
 import { Circle, Square, Monitor, ShieldAlert, Video } from "lucide-react"
 import { toast } from "sonner"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { MultimodalSynthesizeDialog } from "@/components/Learning/MultimodalSynthesizeDialog"
 import { Badge } from "@evoloop/shared/components/ui/badge"
@@ -26,7 +26,7 @@ export function RecordingButton({
   const { t } = useTranslation()
   const {
     isRecording,
-    startRecording,
+    initiateRecording,
     stopRecording,
     eventCount,
     isGlobalMode,
@@ -45,7 +45,7 @@ export function RecordingButton({
       // Better to have a local state tracking "did I just stop it?" or just handle the open logic
       // Actually, if we stopped and have a session ID, we probably want to synthesize.
       // But if we navigate away and back, we don't want it popping up again.
-      // So let's only show it if we explicitly stop here? 
+      // So let's only show it if we explicitly stop here?
       // Or rely on the fact that sessionId remains in store until reset?
     }
   }, [isRecording, storedSessionId])
@@ -53,7 +53,7 @@ export function RecordingButton({
   const { hasPermission: hasAxPermission, requestPermission: requestAxPermission } = useAccessibilityPermission()
   const { hasPermission: hasVideoPermission, requestPermission: requestVideoPermission } = useScreenRecordingPermission()
 
-  const handleStart = () => {
+  const handleStart = useCallback(() => {
     console.log("[RecordingButton] handleStart clicked", { isGlobalMode, hasAxPermission, hasVideoPermission, threadId })
 
     // 1. Check Video Permission (Always needed)
@@ -70,9 +70,10 @@ export function RecordingButton({
       requestAxPermission()
       return
     }
-    console.log("[RecordingButton] Starting recording for thread:", threadId)
-    startRecording(threadId)
-  }
+
+    // 3. Start countdown (countdown logic is now in store)
+    initiateRecording(threadId)
+  }, [hasVideoPermission, hasAxPermission, isGlobalMode, threadId, t, requestVideoPermission, requestAxPermission, initiateRecording])
 
   const handleStop = () => {
     stopRecording()

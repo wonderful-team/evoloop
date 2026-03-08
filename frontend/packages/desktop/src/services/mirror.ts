@@ -19,6 +19,14 @@ export interface StartMirrorResponse {
     device_id: string;
 }
 
+export interface StopMirrorResponse {
+    success: boolean;
+    message: string;
+    video_path: string;
+    session_id: string;
+    event_count: number;
+}
+
 export class MirrorService {
     /**
      * List connected Android devices for mirroring.
@@ -45,10 +53,22 @@ export class MirrorService {
     /**
      * Stop an active mirroring session.
      */
-    public static stopMirror(sessionId: string): CancelablePromise<any> {
+    public static stopMirror(sessionId: string): CancelablePromise<StopMirrorResponse> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/learning/mirror/stop',
+            body: { session_id: sessionId },
+            mediaType: 'application/json',
+        });
+    }
+
+    /**
+     * Persist Android mirror events to backend (delayed persistence).
+     */
+    public static persistEvents(sessionId: string): CancelablePromise<any> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/learning/mirror/events',
             body: { session_id: sessionId },
             mediaType: 'application/json',
         });

@@ -62,6 +62,7 @@ export function ChatInterface() {
   const setThread = useChatStore((s) => s.setThread)
   const sendMessage = useChatStore((s) => s.sendMessage)
   const stopAgent = useChatStore((s) => s.stopAgent)
+  const _truncateMessages = useChatStore((s) => s._truncateMessages)
 
   // We maintain 'showContextPanel' locally as it involves UI preference
   const [showContextPanel, setShowContextPanel] = useState(true)
@@ -172,7 +173,19 @@ export function ChatInterface() {
 
   const handleNewChat = () => {
     const newId = crypto.randomUUID()
-    if (projectId !== undefined) setThread(newId, projectId)
+    if (projectId !== undefined) {
+      setThread(newId, projectId)
+    }
+  }
+
+  // Wrapper for sendMessage to handle post-send actions
+  const handleSendMessage = async (content: string, attachments?: any[]) => {
+    const isNewThread = messages.length === 0
+    await sendMessage(content, attachments)
+    // If this was a new thread (first message), refresh the conversation list
+    if (isNewThread && projectId !== undefined) {
+      queryClient.invalidateQueries({ queryKey: ["projectConversations", projectId] })
+    }
   }
 
   const handleDeleteThread = async (id: string) => {
@@ -266,8 +279,6 @@ export function ChatInterface() {
   // Phase 6: Retry Logic
   const retryMutation = useMutation({
     mutationFn: async (revertFiles: boolean) => {
-      if (!activeThreadId) throw new Error("No active thread")
-      // Check if AgentService has retryChat (manually added to SDK)
       // @ts-ignore
       return AgentService.retryChat({
         requestBody: {
@@ -277,6 +288,14 @@ export function ChatInterface() {
           revert_files: revertFiles
         }
       } as any)
+    },
+    onMutate: () => {
+      // Optimistically truncate the messages list to remove old AI messages
+      const lastHumanIndex = [...messages].reverse().findIndex(m => m.role === "user")
+      if (lastHumanIndex !== -1) {
+        const actualIndex = messages.length - 1 - lastHumanIndex
+        _truncateMessages(actualIndex + 1)
+      }
     },
     // @ts-ignore
     onSuccess: (data: any) => {
@@ -506,7 +525,7 @@ export function ChatInterface() {
             {/* Input Area */}
             <ChatInputArea
               ref={chatInputRef}
-              onSend={sendMessage}
+              onSend={handleSendMessage}
               onStop={stopAgent}
               isAgentWorking={status === "running" || status === "SUMMARIZING"}
               isSending={false} // Store handles optimistic, no separate loading state needed here

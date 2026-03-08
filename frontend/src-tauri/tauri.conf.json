@@ -20,7 +20,19 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": null,
+      "assetProtocol": {
+        "enable": true,
+        "scope": [
+          "$APPLOCALDATA/**",
+          "$TEMP/**",
+          "$HOME/.evoloop/**",
+          "$HOME/Library/Application Support/com.evoloop.app/**",
+          "**/*.mp4",
+          "**/*.mov",
+          "**/*.webm"
+        ]
+      }
     }
   },
   "bundle": {

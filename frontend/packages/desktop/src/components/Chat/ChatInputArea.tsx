@@ -58,6 +58,11 @@ export const ChatInputArea = memo(
       // The store handles the optimistic display formatting and API payload construction
       onSend(inputValue, attachments)
 
+      // Request notification permission on first user gesture (if not already handled)
+      if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission()
+      }
+
       // Add to history (Newest first)
       if (inputValue.trim()) {
         setHistory(prev => [inputValue, ...prev])

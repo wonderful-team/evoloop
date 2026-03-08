@@ -28,7 +28,7 @@ export const HITLBanner = memo(() => {
         >
             <AlertCircle size={16} className="text-amber-600 shrink-0" />
             <span className="text-sm font-medium text-amber-700 dark:text-amber-400">
-                {t("chat.hitl.waiting", "Agent is waiting for your input...")}
+                {t("chat.hitl.waiting")}
             </span>
         </div>
     )

@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
+import { convertFileSrc } from "@tauri-apps/api/core"
 import {
     Loader2,
     Play,
@@ -23,6 +24,7 @@ import {
     Sparkles,
     AlertCircle,
     CheckCircle2,
+    X,
 } from "lucide-react"
 
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -31,6 +33,14 @@ import { Input } from "@evoloop/shared/components/ui/input"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
 import { cn } from "@evoloop/shared/lib/utils"
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@evoloop/shared/components/ui/dialog"
 
 import { AnnotationList } from "./AnnotationList"
 import { Timeline } from "./Timeline"
@@ -79,6 +89,23 @@ export function SmartReplayEditor({
     const [isPlaying, setIsPlaying] = useState(false)
     const [currentTime, setCurrentTime] = useState(0)
     const [duration, setDuration] = useState(0)
+    const [videoSrc, setVideoSrc] = useState<string>("")
+
+    // Convert video path to safe URL using Tauri's convertFileSrc
+    useEffect(() => {
+        if (videoPath) {
+            try {
+                // Convert local file path to safe URL for Tauri
+                const safeUrl = convertFileSrc(videoPath)
+                setVideoSrc(safeUrl)
+                console.log("[SmartReplayEditor] Video path converted:", videoPath, "->", safeUrl)
+            } catch (error) {
+                console.error("[SmartReplayEditor] Failed to convert video path:", error)
+                // Fallback to direct path (may not work in production)
+                setVideoSrc(videoPath)
+            }
+        }
+    }, [videoPath])
 
     // Annotation state
     const [annotations, setAnnotations] = useState<Annotation[]>([])
@@ -99,6 +126,41 @@ export function SmartReplayEditor({
         result?: any
         error?: any
     } | null>(null)
+
+    // Close confirmation state
+    const [showCloseConfirm, setShowCloseConfirm] = useState(false)
+    const [deleteAssociatedFiles, setDeleteAssociatedFiles] = useState(true)
+
+    // Handle close request
+    const handleClose = useCallback(() => {
+        setShowCloseConfirm(true)
+    }, [])
+
+    // Handle confirmed close
+    const handleConfirmClose = useCallback(async () => {
+        if (deleteAssociatedFiles) {
+            try {
+                // Delete all annotations first
+                for (const annotation of annotations) {
+                    if (annotation.id) {
+                        await LearningService.deleteAnnotation({ annotationId: annotation.id })
+                    }
+                }
+                toast.success(t("smartReplay.toast.filesDeleted", "Recording data deleted"))
+            } catch (error) {
+                console.error("Failed to delete annotations:", error)
+                toast.error(t("smartReplay.toast.deleteFailed", "Failed to delete some data"))
+            }
+        }
+        setShowCloseConfirm(false)
+        onCancel?.()
+    }, [annotations, deleteAssociatedFiles, onCancel, t])
+
+    // Handle cancel close dialog
+    const handleCancelClose = useCallback(() => {
+        setShowCloseConfirm(false)
+        setDeleteAssociatedFiles(true)
+    }, [])
 
     // Load video metadata
     useEffect(() => {
@@ -323,10 +385,49 @@ export function SmartReplayEditor({
         onComplete?.(result.skill.name)
     }, [onComplete])
 
+    // Render close confirmation dialog
+    const renderCloseConfirmDialog = () => (
+        <Dialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>{t("smartReplay.closeConfirmTitle", "Close Smart Replay")}</DialogTitle>
+                    <DialogDescription>
+                        {t("smartReplay.closeConfirmDesc", "Are you sure you want to close? This will discard your current progress.")}
+                    </DialogDescription>
+                </DialogHeader>
+                <div className="py-4">
+                    <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                        <input
+                            type="checkbox"
+                            checked={deleteAssociatedFiles}
+                            onChange={(e) => setDeleteAssociatedFiles(e.target.checked)}
+                            className="w-4 h-4 rounded border-gray-300"
+                        />
+                        <div className="flex-1">
+                            <p className="font-medium">{t("smartReplay.deleteAssociatedFiles", "Delete associated recording files")}</p>
+                            <p className="text-sm text-muted-foreground">
+                                {t("smartReplay.deleteFilesHint", "Video file and annotations will be permanently removed")}
+                            </p>
+                        </div>
+                    </label>
+                </div>
+                <DialogFooter className="gap-2">
+                    <Button variant="outline" onClick={handleCancelClose}>
+                        {t("common.cancel", "Cancel")}
+                    </Button>
+                    <Button variant="destructive" onClick={handleConfirmClose}>
+                        {t("smartReplay.closeAndDiscard", "Close & Discard")}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    )
+
     // Render different phases
     if (phase === "annotating") {
         return (
             <div className="flex flex-col h-full gap-4">
+                {renderCloseConfirmDialog()}
                 <div className="flex items-center justify-between">
                     <div>
                         <h2 className="text-lg font-semibold">{t("smartReplay.markRegions")}</h2>
@@ -334,13 +435,23 @@ export function SmartReplayEditor({
                             {t("smartReplay.markRegionsDesc")}
                         </p>
                     </div>
-                    <Button
-                        onClick={() => setPhase("describing")}
-                        disabled={annotations.length === 0}
-                    >
-                        {t("smartReplay.nextDescribeGoal")}
-                        <ChevronRight className="ml-2 h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={handleClose}
+                            className="text-muted-foreground hover:text-foreground"
+                        >
+                            <X className="h-5 w-5" />
+                        </Button>
+                        <Button
+                            onClick={() => setPhase("describing")}
+                            disabled={annotations.length === 0}
+                        >
+                            {t("smartReplay.nextDescribeGoal")}
+                            <ChevronRight className="ml-2 h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="flex-1 flex gap-4 min-h-0">
@@ -352,14 +463,30 @@ export function SmartReplayEditor({
                             onMouseUp={handleMouseUp}
                             onMouseLeave={handleMouseUp}
                         >
-                            <video
-                                ref={videoRef}
-                                src={videoPath}
-                                className="w-full h-full object-contain"
-                                onClick={(e) => {
-                                    if (!isDrawing) e.preventDefault()
-                                }}
-                            />
+                            {videoSrc ? (
+                                <video
+                                    ref={videoRef}
+                                    src={videoSrc}
+                                    className="w-full h-full object-contain"
+                                    onClick={(e) => {
+                                        if (!isDrawing) e.preventDefault()
+                                    }}
+                                    onError={(e) => {
+                                        console.error("[SmartReplayEditor] Video failed to load:", videoSrc, e)
+                                        toast.error(t("smartReplay.videoLoadFailed", "Failed to load video"))
+                                    }}
+                                    controls={false}
+                                    playsInline
+                                    preload="auto"
+                                />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-white/50">
+                                    <div className="text-center">
+                                        <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+                                        <p>{t("smartReplay.loadingVideo", "Loading video...")}</p>
+                                    </div>
+                                </div>
+                            )}
 
                             {selectionBox && (
                                 <div
@@ -478,7 +605,21 @@ export function SmartReplayEditor({
 
     if (phase === "describing") {
         return (
-            <div className="flex flex-col h-full max-w-2xl mx-auto gap-6 py-8">
+            <div className="flex flex-col h-full max-w-2xl mx-auto gap-6 py-8 relative">
+                {renderCloseConfirmDialog()}
+
+                {/* Close button */}
+                <div className="absolute top-0 right-0">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleClose}
+                        className="text-muted-foreground hover:text-foreground"
+                    >
+                        <X className="h-5 w-5" />
+                    </Button>
+                </div>
+
                 <div className="text-center space-y-2">
                     <h2 className="text-2xl font-semibold">{t("smartReplay.describeGoal")}</h2>
                     <p className="text-muted-foreground">
@@ -536,7 +677,21 @@ export function SmartReplayEditor({
 
     if (phase === "synthesizing") {
         return (
-            <div className="flex flex-col h-full items-center justify-center gap-6">
+            <div className="flex flex-col h-full items-center justify-center gap-6 relative">
+                {renderCloseConfirmDialog()}
+
+                {/* Close button */}
+                <div className="absolute top-0 right-0">
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={handleClose}
+                        className="text-muted-foreground hover:text-foreground"
+                    >
+                        <X className="h-5 w-5" />
+                    </Button>
+                </div>
+
                 <SynthesisProgress
                     status={synthesisStatus?.status || "processing"}
                     progress={synthesisStatus?.progress || 0}
@@ -561,14 +716,17 @@ export function SmartReplayEditor({
 
     if (phase === "reviewing" && synthesisStatus?.result?.skill) {
         return (
-            <SkillReviewPanel
-                skill={synthesisStatus.result.skill}
-                macroScript={synthesisStatus.result.skill.macro_script}
-                onEdit={() => setPhase("annotating")}
-                onComplete={handleComplete}
-                onCancel={onCancel}
-                videoPath={videoPath}
-            />
+            <>
+                {renderCloseConfirmDialog()}
+                <SkillReviewPanel
+                    skill={synthesisStatus.result.skill}
+                    macroScript={synthesisStatus.result.skill.macro_script}
+                    onEdit={() => setPhase("annotating")}
+                    onComplete={handleComplete}
+                    onCancel={handleClose}
+                    videoPath={videoPath}
+                />
+            </>
         )
     }
 

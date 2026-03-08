@@ -54,6 +54,7 @@ interface ChatState {
     _setActivitySnapshot: (snapshot: any) => void
     _setHumanRequest: (request: any) => void
     _appendMessage: (msg: any) => void // Phase 11
+    _truncateMessages: (index: number) => void // Phase 25: Optimistic Truncate
     _setError: (error: string) => void
 }
 
@@ -306,21 +307,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
             })
 
             // 2. Desktop Notification (For background awareness)
-            if ("Notification" in window) {
-                if (Notification.permission === "granted") {
-                    new Notification(`EvoLoop: ${title}`, {
-                        body: req.prompt,
-                        requireInteraction: true,
-                    })
-                } else if (Notification.permission !== "denied") {
-                    Notification.requestPermission().then((permission) => {
-                        if (permission === "granted") {
-                            new Notification(`EvoLoop: ${title}`, {
-                                body: req.prompt,
-                            })
-                        }
-                    })
-                }
+            if ("Notification" in window && Notification.permission === "granted") {
+                new Notification(`EvoLoop: ${title}`, {
+                    body: req.prompt,
+                    requireInteraction: true,
+                })
             }
         }
     },
@@ -489,6 +480,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
             messages: [...state.messages, newMsg],
             streamedContent: "" // Commit the stream
         }))
+    },
+
+    _truncateMessages: (index: number) => {
+        const { messages } = get()
+        if (index >= 0 && index < messages.length) {
+            set({ messages: messages.slice(0, index) })
+        }
     },
 
     _setError: (error: string) => {

@@ -19,6 +19,7 @@ interface UseGlobalRecorderOptions {
     sessionId?: string | null
     enabled?: boolean
     autoFlushInterval?: number
+    persistToBackend?: boolean // NEW: if false, events stay local until persistEvents() is called
 }
 
 export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
@@ -26,7 +27,8 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
         threadId,
         sessionId,
         enabled = false,
-        autoFlushInterval = 2000
+        autoFlushInterval = 2000,
+        persistToBackend = true
     } = options
 
     const [isRecording, setIsRecording] = useState(false)
@@ -40,10 +42,23 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
 
     const eventsBuffer = useRef<GlobalEvent[]>([])
     const flushTimerRef = useRef<number | null>(null)
+    const persistToBackendRef = useRef(persistToBackend)
+
+    // Keep ref in sync with prop
+    useEffect(() => {
+        persistToBackendRef.current = persistToBackend
+    }, [persistToBackend])
 
     // Flush events to backend
     const flushEvents = useCallback(async () => {
         if (eventsBuffer.current.length === 0) return
+
+        // If not persisting to backend, just count locally
+        if (!persistToBackendRef.current) {
+            eventCountRef.current = eventsBuffer.current.length
+            setEventCount(eventCountRef.current)
+            return
+        }
 
         const events = [...eventsBuffer.current]
         eventsBuffer.current = []
@@ -75,8 +90,10 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
             setIsRecording(true)
             isRecordingRef.current = true
 
-            // Start flush timer
-            flushTimerRef.current = window.setInterval(flushEvents, autoFlushInterval)
+            // Start flush timer only if persisting to backend
+            if (persistToBackendRef.current) {
+                flushTimerRef.current = window.setInterval(flushEvents, autoFlushInterval)
+            }
         } catch (err) {
             console.error("Failed to start global recording (likely not in Tauri):", err)
         }
@@ -93,8 +110,15 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
                 clearInterval(flushTimerRef.current)
                 flushTimerRef.current = null
             }
-            // Final flush of remaining events
-            await flushEvents()
+
+            // Only flush if persisting to backend
+            if (persistToBackendRef.current) {
+                await flushEvents()
+            } else {
+                // Update count to reflect buffered events
+                eventCountRef.current = eventsBuffer.current.length
+                setEventCount(eventCountRef.current)
+            }
 
             return { eventCount: eventCountRef.current }
         } catch (err) {
@@ -136,10 +160,55 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
         }
     }, [])
 
+    // NEW: Get buffered events without clearing
+    const getBufferedEvents = useCallback(() => {
+        return [...eventsBuffer.current]
+    }, [])
+
+    // NEW: Clear buffered events
+    const clearBufferedEvents = useCallback(() => {
+        eventsBuffer.current = []
+        eventCountRef.current = 0
+        setEventCount(0)
+    }, [])
+
+    // NEW: Manually persist events to backend
+    const persistEvents = useCallback(async () => {
+        if (!sessionIdRef.current || eventsBuffer.current.length === 0) {
+            console.log("[GlobalRecorder] No events to persist")
+            return false
+        }
+
+        const events = [...eventsBuffer.current]
+        eventsBuffer.current = []
+
+        try {
+            await LearningService.recordGlobalEvents({
+                requestBody: {
+                    thread_id: threadId,
+                    session_id: sessionIdRef.current,
+                    events: events
+                }
+            })
+            eventCountRef.current += events.length
+            setEventCount(eventCountRef.current)
+            console.log(`[GlobalRecorder] Persisted ${events.length} events to backend`)
+            return true
+        } catch (error) {
+            console.error("[GlobalRecorder] Failed to persist events:", error)
+            // Re-add to buffer
+            eventsBuffer.current = [...events, ...eventsBuffer.current]
+            return false
+        }
+    }, [threadId])
+
     return useMemo(() => ({
         isRecording,
         startRecording,
         stopRecording,
-        eventCount
-    }), [isRecording, startRecording, stopRecording, eventCount])
+        eventCount,
+        persistEvents,
+        getBufferedEvents,
+        clearBufferedEvents
+    }), [isRecording, startRecording, stopRecording, eventCount, persistEvents, getBufferedEvents, clearBufferedEvents])
 }

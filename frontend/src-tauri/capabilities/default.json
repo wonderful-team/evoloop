@@ -6,7 +6,58 @@
   "permissions": [
     "core:default",
     "opener:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "$HOME/.evoloop/recordings/**"
+        },
+        {
+          "path": "$HOME/.evoloop/recordings/android/**"
+        },
+        {
+          "path": "$APPLOCALDATA/**"
+        },
+        {
+          "path": "$TEMP/**"
+        }
+      ]
+    },
     "dialog:default",
+    {
+      "identifier": "fs:allow-exists",
+      "allow": [
+        {
+          "path": "$HOME/.evoloop/recordings/**"
+        },
+        {
+          "path": "$HOME/.evoloop/recordings/android/**"
+        },
+        {
+          "path": "$APPLOCALDATA/**"
+        },
+        {
+          "path": "$TEMP/**"
+        }
+      ]
+    },
+    {
+      "identifier": "fs:allow-remove",
+      "allow": [
+        {
+          "path": "$HOME/.evoloop/recordings/**"
+        },
+        {
+          "path": "$HOME/.evoloop/recordings/android/**"
+        },
+        {
+          "path": "$APPLOCALDATA/**"
+        },
+        {
+          "path": "$TEMP/**"
+        }
+      ]
+    },
     "shell:default",
     "stt:default",
     "tts:default",

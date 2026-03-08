@@ -1103,6 +1103,12 @@ export type LearningStopMirrorSessionData = {
 
 export type LearningStopMirrorSessionResponse = (unknown);
 
+export type LearningPersistMirrorEventsData = {
+    sessionId: string;
+};
+
+export type LearningPersistMirrorEventsResponse = (unknown);
+
 export type LearningUploadScreenshotData = {
     formData: Body_learning_upload_screenshot;
 };
@@ -1164,6 +1170,13 @@ export type LearningListSessionSynthesisJobsData = {
 };
 
 export type LearningListSessionSynthesisJobsResponse = (Array<SynthesisJobResponse>);
+
+export type LearningCleanupRecordingSessionData = {
+    sessionId: string;
+    videoPath?: (string | null);
+};
+
+export type LearningCleanupRecordingSessionResponse = (unknown);
 
 export type LibraryListLibraryFilesData = {
     requestBody?: User;

@@ -63,6 +63,19 @@ pub fn sync_tray_recording_state() {}
 #[cfg(mobile)]
 pub fn sync_tray_translations() {}
 
+#[tauri::command]
+#[cfg(desktop)]
+pub fn sync_tray_event_count(
+    state: tauri::State<'_, AppServiceState>,
+    count: usize,
+) {
+    state.event_count.store(count, Ordering::Relaxed);
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+pub fn sync_tray_event_count() {}
+
 // ===== Tray Setup =====
 
 /// Builds and returns the system tray icon.
@@ -148,30 +161,39 @@ pub fn setup_tray(
         })
         .build(app)?;
 
-    // 2. Start blinking + timer thread
+    // 2. Start timer + event count thread
     let state = app.state::<AppServiceState>();
     let is_blinking       = state.is_blinking.clone();
     let recording_start   = Arc::clone(&state.recording_start_time);
     let record_item_arc   = Arc::clone(&state.record_item);
+    let event_count_arc   = Arc::clone(&state.event_count);
     let tray_handle       = tray.clone();
-    
-    std::thread::spawn(move || {
-        let mut last_was_active = false;
-        loop {
-            let blinking = is_blinking.load(Ordering::Relaxed);
-            if blinking {
-                // --- Icon blink ---
-                last_was_active = !last_was_active;
-                let icon = if last_was_active { active_icon.clone() } else { normal_icon.clone() };
-                let _ = tray_handle.set_icon(Some(icon));
 
-                // --- Timer in menu text ---
+    std::thread::spawn(move || {
+        let mut was_recording = false;  // Track if we were in recording state last iteration
+        loop {
+            let is_recording = is_blinking.load(Ordering::Relaxed);
+            if is_recording {
+                was_recording = true;
+
+                // --- Keep red icon while recording (no blinking) ---
+                let _ = tray_handle.set_icon(Some(active_icon.clone()));
+
+                // --- Calculate time ---
                 let elapsed_secs = recording_start.lock().unwrap()
                     .map(|t| t.elapsed().as_secs())
                     .unwrap_or(0);
                 let mm = elapsed_secs / 60;
                 let ss = elapsed_secs % 60;
-                let label = format!("停止录制 ({:02}:{:02})", mm, ss);
+                let time_str = format!("{:02}:{:02}", mm, ss);
+
+                // --- Show time in tray title (macOS) ---
+                #[cfg(target_os = "macos")]
+                let _ = tray_handle.set_title(Some(&time_str));
+
+                // --- Event count in menu text ---
+                let event_count = event_count_arc.load(Ordering::Relaxed);
+                let label = format!("停止录制 [{} 事件]", event_count);
                 let lock = record_item_arc.lock().unwrap();
                 if let Some(item) = lock.as_ref() {
                     let _ = item.set_text(label);
@@ -179,15 +201,17 @@ pub fn setup_tray(
 
                 std::thread::sleep(std::time::Duration::from_millis(700));
             } else {
-                // If not blinking, ensure it's the normal icon and reset label
-                if last_was_active {
+                // Only reset when transitioning from recording to stopped state
+                if was_recording {
                     let _ = tray_handle.set_icon(Some(normal_icon.clone()));
-                    // Reset menu text to default (will be overwritten by sync_tray_recording_state)
+                    // Clear tray title (macOS)
+                    #[cfg(target_os = "macos")]
+                    let _ = tray_handle.set_title(None::<&str>);
                     let lock = record_item_arc.lock().unwrap();
                     if let Some(item) = lock.as_ref() {
                         let _ = item.set_text("开始录制");
                     }
-                    last_was_active = false;
+                    was_recording = false;
                 }
                 std::thread::sleep(std::time::Duration::from_millis(1000));
             }

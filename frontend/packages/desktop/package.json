@@ -11,6 +11,7 @@
     },
     "dependencies": {
         "@evoloop/shared": "workspace:*",
+        "@tauri-apps/plugin-fs": "^2.0.0",
         "mermaid": "^11.12.2",
         "rehype-raw": "^7.0.0"
     },

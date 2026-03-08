@@ -3,13 +3,14 @@ import { createFileRoute, useNavigate, Outlet, useRouterState } from "@tanstack/
 import { AndroidMirrorConsole } from "@/components/Learning/AndroidMirrorConsole"
 import { SkillLibraryView } from "@/components/Learning/SkillLibraryView"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
-import { BookOpen, GraduationCap, Sparkles, Server } from "lucide-react"
+import { BookOpen, GraduationCap, Sparkles, Server, Square } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useState } from "react"
 import { McpView } from "@/components/Learning/McpView"
 import { RecordingButton } from "@/components/Chat/RecordingButton"
 import { useRecordingStore } from "@/stores/recordingStore"
 import { SmartReplayEditor } from "@/components/Learning/SmartReplay"
+import { MultimodalSynthesizeDialog } from "@/components/Learning/MultimodalSynthesizeDialog"
 
 export const Route = createFileRoute("/_layout/learning")({
     component: LearningPage,
@@ -21,21 +22,23 @@ function LearningPage() {
     const [activeTab, setActiveTab] = useState("library")
     const [highlightSkillId, setHighlightSkillId] = useState<number | null>(null)
 
-    const { sessionId, videoPath, postRecordingAction, setPostRecordingAction } = useRecordingStore()
-    const [smartReplayOpen, setSmartReplayOpen] = useState(false)
+    const { sessionId, videoPath, postRecordingAction, setPostRecordingAction, isRecording, isPreparing, countdown, stopRecording } = useRecordingStore()
+    const [synthesizeDialogOpen, setSynthesizeDialogOpen] = useState(false)
+    const [isStoppingRecording, setIsStoppingRecording] = useState(false)
 
     // Check if we're on a child route (e.g., /learning/skills/:id/edit)
     const isChildRoute = router.location.pathname.startsWith("/learning/") && router.location.pathname !== "/learning"
 
     // Automatic trigger for synthesis dialog
     useEffect(() => {
-        if (postRecordingAction === 'synthesize' && sessionId) {
-            setSmartReplayOpen(true)
+        if (postRecordingAction === 'synthesize' && sessionId && videoPath) {
+            setSynthesizeDialogOpen(true)
+            setIsStoppingRecording(false)
         }
-    }, [postRecordingAction, sessionId])
+    }, [postRecordingAction, sessionId, videoPath])
 
-    const handleSmartReplayComplete = (skillName: string) => {
-        setSmartReplayOpen(false)
+    const handleSynthesizeComplete = () => {
+        setSynthesizeDialogOpen(false)
         setPostRecordingAction(null)
         // Navigate to skill library to see the new skill
         setActiveTab("library")
@@ -106,18 +109,98 @@ function LearningPage() {
                 </TabsContent>
             </Tabs>
 
-            {smartReplayOpen && sessionId && videoPath && (
-                <div className="fixed inset-0 z-50 bg-background p-6 overflow-auto">
-                    <SmartReplayEditor
-                        sessionId={sessionId}
-                        threadId="global"
-                        videoPath={videoPath}
-                        onComplete={handleSmartReplayComplete}
-                        onCancel={() => {
-                            setSmartReplayOpen(false)
-                            setPostRecordingAction(null)
-                        }}
-                    />
+            {/* Simple synthesis dialog - using MultimodalSynthesizeDialog instead of SmartReplayEditor for now */}
+            <MultimodalSynthesizeDialog
+                open={synthesizeDialogOpen}
+                onOpenChange={setSynthesizeDialogOpen}
+                sessionId={sessionId || ""}
+                threadId="global"
+                videoPath={videoPath}
+                onSuccess={handleSynthesizeComplete}
+                sourceType="desktop"
+            />
+
+            {/* Countdown Overlay - Show during preparation */}
+            {isPreparing && (
+                <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-6">
+                        <div className="text-white/60 text-sm font-medium">
+                            {t("learning.preparingRecording", "Preparing recording...")}
+                        </div>
+                        <div className="text-8xl font-bold text-white animate-in zoom-in duration-300">
+                            {countdown}
+                        </div>
+                        <button
+                            onClick={() => {
+                                useRecordingStore.getState().setIsPreparing(false)
+                                useRecordingStore.getState().setCountdown(0)
+                            }}
+                            className="px-4 py-2 text-white/80 hover:text-white border border-white/30 hover:border-white/60 rounded-lg transition-colors"
+                        >
+                            {t("common.cancel", "Cancel")}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Recording Overlay - Full screen gray overlay with stop button */}
+            {isRecording && (
+                <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-300">
+                        {/* Recording indicator */}
+                        <div className="flex items-center gap-2 text-white/90">
+                            {isStoppingRecording ? (
+                                <>
+                                    <span className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
+                                    <span className="text-lg font-medium tracking-wide">
+                                        {t("learning.finalizingRecording", "Finalizing recording...")}
+                                    </span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="relative flex h-4 w-4">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
+                                    </span>
+                                    <span className="text-lg font-medium tracking-wide">
+                                        {t("learning.recordingInProgress", "Recording in progress...")}
+                                    </span>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Stop Button - Large and centered */}
+                        <button
+                            onClick={() => {
+                                // Must set action BEFORE stopping, so GlobalRecorderManager knows to trigger synthesis
+                                setPostRecordingAction('synthesize')
+                                setIsStoppingRecording(true)
+                                stopRecording()
+                            }}
+                            disabled={isStoppingRecording}
+                            className="group relative flex items-center justify-center gap-3 px-12 py-6 bg-red-500 hover:bg-red-600 active:bg-red-700 text-white rounded-2xl shadow-2xl transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed"
+                        >
+                            <div className="flex items-center justify-center w-10 h-10 bg-white/20 rounded-lg">
+                                {isStoppingRecording ? (
+                                    <span className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
+                                ) : (
+                                    <Square className="w-6 h-6 fill-current" />
+                                )}
+                            </div>
+                            <span className="text-2xl font-bold">
+                                {isStoppingRecording
+                                    ? t("learning.processing", "Processing...")
+                                    : t("learning.stopRecording", "Stop Recording")}
+                            </span>
+                        </button>
+
+                        {/* Hint text */}
+                        {!isStoppingRecording && (
+                            <p className="text-white/60 text-sm">
+                                {t("learning.recordingHint", "Click the button above to stop and synthesize")}
+                            </p>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

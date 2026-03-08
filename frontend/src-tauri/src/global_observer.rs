@@ -31,7 +31,7 @@ impl GlobalObserver {
 
     pub fn start(&self, app: AppHandle) {
         println!("GlobalObserver::start called");
-        
+
         let mut child_lock = self.child.lock().unwrap();
         if child_lock.is_some() {
              println!("GlobalObserver already recording");
@@ -39,20 +39,89 @@ impl GlobalObserver {
         }
 
         // Run the recorder binary directly.
-        // In dev mode (and prod if bundled correctly), it should be in the same folder as the main executable.
+        // Try multiple locations for development and production.
         let exe_path = std::env::current_exe().unwrap_or_else(|_| std::path::PathBuf::from("recorder"));
-        let mut cmd_path = exe_path.clone();
-        cmd_path.pop(); // Remove executable name
-        cmd_path.push("recorder"); // Add recorder binary name
+        let mut cmd_path = std::path::PathBuf::new();
 
-        if !cmd_path.exists() {
-             // Valid for dev mode where CWD is src-tauri
-             cmd_path = std::path::PathBuf::from("./target/debug/recorder");
-             if !cmd_path.exists() {
-                  if let Ok(cwd) = std::env::current_dir() {
-                      cmd_path = cwd.join("target/debug/recorder");
-                  }
-             }
+        // Helper to find target directory from executable path
+        // In dev: target/debug/EvoLoop -> target/debug/recorder
+        // In prod: EvoLoop.app/Contents/MacOS/EvoLoop -> EvoLoop.app/Contents/MacOS/recorder
+        fn find_from_exe_dir(exe: &std::path::Path) -> Option<std::path::PathBuf> {
+            let mut p = exe.to_path_buf();
+            p.pop(); // Remove exe name
+            p.push("recorder");
+            if p.exists() { Some(p) } else { None }
+        }
+
+        fn find_in_target(exe: &std::path::Path, profile: &str) -> Option<std::path::PathBuf> {
+            // Walk up to find target directory
+            let mut p = exe.to_path_buf();
+            while p.pop() {
+                if p.file_name().map(|n| n == "target").unwrap_or(false) {
+                    let mut recorder = p.clone();
+                    recorder.push(profile);
+                    recorder.push("recorder");
+                    if recorder.exists() {
+                        return Some(recorder);
+                    }
+                    break;
+                }
+            }
+            None
+        }
+
+        // 1. Try same directory as main executable (works for both dev and prod)
+        if let Some(p) = find_from_exe_dir(&exe_path) {
+            cmd_path = p;
+            println!("Found recorder at: {:?}", cmd_path);
+        }
+
+        // 2. Try target/debug/recorder (walking up from exe)
+        if cmd_path.as_os_str().is_empty() {
+            if let Some(p) = find_in_target(&exe_path, "debug") {
+                cmd_path = p;
+                println!("Found recorder in target/debug: {:?}", cmd_path);
+            }
+        }
+
+        // 3. Try target/release/recorder
+        if cmd_path.as_os_str().is_empty() {
+            if let Some(p) = find_in_target(&exe_path, "release") {
+                cmd_path = p;
+                println!("Found recorder in target/release: {:?}", cmd_path);
+            }
+        }
+
+        // 4. Try CWD-based paths (fallback)
+        if cmd_path.as_os_str().is_empty() {
+            if let Ok(cwd) = std::env::current_dir() {
+                let candidates = [
+                    cwd.join("target/debug/recorder"),
+                    cwd.join("target/release/recorder"),
+                    cwd.join("frontend/src-tauri/target/debug/recorder"),
+                    cwd.join("frontend/src-tauri/target/release/recorder"),
+                    cwd.join("src-tauri/target/debug/recorder"),
+                    cwd.join("src-tauri/target/release/recorder"),
+                ];
+                for p in &candidates {
+                    if p.exists() {
+                        cmd_path = p.clone();
+                        println!("Found recorder via CWD: {:?}", cmd_path);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if cmd_path.as_os_str().is_empty() {
+            eprintln!("ERROR: Could not find recorder binary. Checked:");
+            eprintln!("  - Same dir as executable: {:?}", exe_path.parent());
+            eprintln!("  - target/debug/recorder");
+            eprintln!("  - target/release/recorder");
+            eprintln!("");
+            eprintln!("To build recorder, run:");
+            eprintln!("  cd frontend/src-tauri && cargo build --bin recorder");
+            return;
         }
         
         let mut cmd = Command::new(cmd_path);

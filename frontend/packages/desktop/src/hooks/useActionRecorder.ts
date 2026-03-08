@@ -29,6 +29,7 @@ interface UseActionRecorderOptions {
   autoFlushInterval?: number // ms, default 5000
   enabled?: boolean
   scope?: "dom" | "global" | "both" // NEW: scope selection
+  persistToBackend?: boolean // NEW: if false, events stay local until persistEvents() is called
 }
 
 interface UseActionRecorderReturn {
@@ -38,6 +39,9 @@ interface UseActionRecorderReturn {
   recordEvent: (event: Omit<RecordedEvent, "timestamp">) => void
   eventCount: number
   sessionId: string | null
+  persistEvents: () => Promise<boolean> // NEW: manually persist buffered events to backend
+  getBufferedEvents: () => RecordedEvent[] // NEW: get local events without persisting
+  clearBufferedEvents: () => void // NEW: clear local buffer
 }
 
 // Helper to get a CSS selector for an element
@@ -90,6 +94,7 @@ export function useActionRecorder(
     autoFlushInterval = 5000,
     enabled = true,
     scope = "dom", // Default to DOM only
+    persistToBackend = true, // Default to immediate persistence for backward compatibility
   } = options
 
   const [isRecording, setIsRecording] = useState(false)
@@ -100,10 +105,23 @@ export function useActionRecorder(
   const isRecordingRef = useRef(false)
   const eventsBuffer = useRef<RecordedEvent[]>([])
   const flushTimerRef = useRef<number | null>(null)
+  const persistToBackendRef = useRef(persistToBackend)
+
+  // Keep ref in sync with prop
+  useEffect(() => {
+    persistToBackendRef.current = persistToBackend
+  }, [persistToBackend])
 
   // Flush events to backend
   const flushEvents = useCallback(async () => {
     if (!sessionId || eventsBuffer.current.length === 0) return
+
+    // If not persisting to backend, just count locally
+    if (!persistToBackendRef.current) {
+      eventCountRef.current = eventsBuffer.current.length
+      setEventCount(eventCountRef.current)
+      return
+    }
 
     const events = [...eventsBuffer.current]
     eventsBuffer.current = []
@@ -143,8 +161,10 @@ export function useActionRecorder(
       eventCountRef.current = 0
       eventsBuffer.current = []
 
-      // Start auto-flush timer
-      flushTimerRef.current = window.setInterval(flushEvents, autoFlushInterval)
+      // Start auto-flush timer only if persisting to backend
+      if (persistToBackendRef.current) {
+        flushTimerRef.current = window.setInterval(flushEvents, autoFlushInterval)
+      }
     } catch (error) {
       console.error("[ActionRecorder] Failed to start recording:", error)
       setIsRecording(false)
@@ -154,7 +174,7 @@ export function useActionRecorder(
 
   // Stop recording
   const stopRecording = useCallback(async () => {
-    if (!isRecording || !sessionId) return undefined
+    if (!isRecording) return undefined
 
     // Clear auto-flush timer
     if (flushTimerRef.current) {
@@ -162,21 +182,30 @@ export function useActionRecorder(
       flushTimerRef.current = null
     }
 
-    // Flush remaining events
-    await flushEvents()
+    // Only flush if persisting to backend
+    if (persistToBackendRef.current) {
+      await flushEvents()
+    } else {
+      // Update count to reflect buffered events
+      eventCountRef.current = eventsBuffer.current.length
+      setEventCount(eventCountRef.current)
+    }
 
     const finalSessionId = sessionId
     const finalCount = eventCountRef.current
 
-    try {
-      await LearningService.stopRecording({ sessionId })
-    } catch (error) {
-      console.error("[ActionRecorder] Failed to stop recording:", error)
+    // Only call stopRecording on backend if we were persisting
+    if (persistToBackendRef.current && sessionId) {
+      try {
+        await LearningService.stopRecording({ sessionId })
+      } catch (error) {
+        console.error("[ActionRecorder] Failed to stop recording:", error)
+      }
     }
 
     setIsRecording(false)
     isRecordingRef.current = false
-    setSessionId(null)
+    // Don't clear sessionId here - needed for persistEvents() later
 
     return { sessionId: finalSessionId, eventCount: finalCount }
   }, [isRecording, sessionId, flushEvents])
@@ -193,6 +222,48 @@ export function useActionRecorder(
     },
     [],
   )
+
+  // NEW: Get buffered events without clearing
+  const getBufferedEvents = useCallback(() => {
+    return [...eventsBuffer.current]
+  }, [])
+
+  // NEW: Clear buffered events
+  const clearBufferedEvents = useCallback(() => {
+    eventsBuffer.current = []
+    eventCountRef.current = 0
+    setEventCount(0)
+  }, [])
+
+  // NEW: Manually persist events to backend
+  const persistEvents = useCallback(async () => {
+    if (!sessionId || eventsBuffer.current.length === 0) {
+      console.log("[ActionRecorder] No events to persist")
+      return false
+    }
+
+    const events = [...eventsBuffer.current]
+    eventsBuffer.current = []
+
+    try {
+      await LearningService.recordEvents({
+        requestBody: {
+          session_id: sessionId,
+          thread_id: threadId,
+          events,
+        },
+      })
+      eventCountRef.current += events.length
+      setEventCount(eventCountRef.current)
+      console.log(`[ActionRecorder] Persisted ${events.length} events to backend`)
+      return true
+    } catch (error) {
+      console.error("[ActionRecorder] Failed to persist events:", error)
+      // Re-add events to buffer on failure
+      eventsBuffer.current = [...events, ...eventsBuffer.current]
+      return false
+    }
+  }, [sessionId, threadId])
 
   // Auto-capture click events when recording
   useEffect(() => {
@@ -267,5 +338,8 @@ export function useActionRecorder(
     recordEvent,
     eventCount,
     sessionId,
-  }), [isRecording, startRecording, stopRecording, recordEvent, eventCount, sessionId])
+    persistEvents,
+    getBufferedEvents,
+    clearBufferedEvents,
+  }), [isRecording, startRecording, stopRecording, recordEvent, eventCount, sessionId, persistEvents, getBufferedEvents, clearBufferedEvents])
 }
