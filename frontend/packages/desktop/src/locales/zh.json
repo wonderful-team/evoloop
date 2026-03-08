@@ -207,6 +207,9 @@
     "recordingStarted": "录制已开始",
     "recordingStopped": "录制已停止，捕捉到 {{count}} 个操作",
     "noEvents": "未捕捉到任何操作，跳过技能创建。",
+    "persistFailed": "保存录制数据失败",
+    "cleanupSuccess": "录制数据已清理",
+    "cleanupFailed": "清理录制数据失败",
     "triggerPatterns": "触发模式",
     "parameters": "用户输入项",
     "centerTitle": "学习中心",
@@ -1255,7 +1258,8 @@
       "wait": "等待",
       "dump": "转储 UI",
       "if": "条件判断 (If)",
-      "while": "循环 (While)"
+      "while": "循环 (While)",
+      "batch_loop": "批量循环"
     },
     "conditionConfig": "条件配置",
     "conditionType": "条件类型",

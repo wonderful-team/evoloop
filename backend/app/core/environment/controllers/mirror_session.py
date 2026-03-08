@@ -10,17 +10,13 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from app.core.config import settings
 from .android_event_recorder import AndroidEventRecorder
 
 logger = logging.getLogger(__name__)
 
-# Recording directory (same as screen recording)
-RECORDINGS_DIR = Path.home() / ".evoloop" / "recordings"
-RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
-
-# Android recordings subdirectory
-ANDROID_RECORDINGS_DIR = RECORDINGS_DIR / "android"
-ANDROID_RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
+# Android recordings directory (from settings)
+ANDROID_RECORDINGS_DIR = Path(settings.ANDROID_RECORDINGS_DIR)
 
 
 class MirrorSession:

@@ -49,7 +49,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
         queryKey: ["learnedSkills", page, pageSize],
         queryFn: async () => {
             const result = (await LearningService.listSkills({
-                activeOnly: true,
+                activeOnly: false,
                 page,
                 pageSize,
             })) as unknown as PaginatedSkillsResponse
@@ -113,7 +113,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
     }
 
     const handleDelete = (skillId: number) => {
-        if (confirm(t("learning.confirmDeactivate", "Are you sure you want to deactivate this skill?"))) {
+        if (confirm(t("learning.confirmDeactivate"))) {
             deleteMutation.mutate(skillId)
         }
     }

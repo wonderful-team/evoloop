@@ -207,6 +207,9 @@
     "recordingStarted": "Recording started",
     "recordingStopped": "Recording stopped, {{count}} events captured",
     "noEvents": "No events captured, skipping skill creation.",
+    "persistFailed": "Failed to save recording data",
+    "cleanupSuccess": "Recording data cleaned up",
+    "cleanupFailed": "Failed to cleanup recording data",
     "triggerPatterns": "Trigger Patterns",
     "parameters": "Parameters",
     "centerTitle": "Learning Center",
@@ -1255,7 +1258,8 @@
       "wait": "Wait",
       "dump": "Dump UI",
       "if": "Condition (If)",
-      "while": "Loop (While)"
+      "while": "Loop (While)",
+      "batch_loop": "Batch Loop"
     },
     "conditionConfig": "Condition Config",
     "conditionType": "Condition Type",

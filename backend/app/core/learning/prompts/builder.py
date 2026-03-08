@@ -66,3 +66,12 @@ class LearningPromptBuilder:
         except Exception as e:
             logger.error(f"Error rendering Metadata template: {e}")
             return f"Error loading metadata template: {e}"
+
+    def build_multimodal_synthesis_prompt(self, vars: Dict[str, Any]) -> str:
+        """Renders the multimodal skill synthesis prompt."""
+        try:
+            template = self.env.get_template("multimodal_synthesis.prompt.j2")
+            return template.render(**vars)
+        except Exception as e:
+            logger.error(f"Error rendering Multimodal Synthesis template: {e}")
+            return f"Error loading multimodal synthesis template: {e}"

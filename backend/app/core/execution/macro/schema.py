@@ -64,6 +64,7 @@ class MacroActionType(str, Enum):
     CLOSE_APP = "close_app"
     HOME = "home"
     BACK_KEY = "back_key"
+    MOUSE_CLICK = "mouse_click"
     APPLESCRIPT = "applescript"
     GET_ACTIVE_APP = "get_active_app"
     GET_INFO = "get_info"

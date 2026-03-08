@@ -18,6 +18,7 @@ from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
+from app.core.config import settings
 from app.models import Message
 
 logger = logging.getLogger(__name__)
@@ -29,9 +30,9 @@ ALLOWED_UI_ACTIONS = {
     "wait", "wait_for", "extract", "get_text", "get_html", "get_attribute", "run_js", "evaluate",
     # Mobile / Android
     "tap", "long_press", "swipe", "input_text", "open_app", "back", "home",
-    # Desktop
-    "applescript", "drag_drop",
-    # Global
+    # Desktop / Global
+    "applescript", "drag_drop", "mouse_click", "mouse_click_extract", "key_press",
+    # System
     "screenshot", "dump", "dump_ui"
 }
 
@@ -127,9 +128,30 @@ class WorkflowSynthesizer:
         # Step 4.2: Compile raw trace into deterministic macro JSON
         macro_script = self._compile_macro_script(sequence)
 
+        # [NEW] Step 4.3: Verification Dry-Run
+        # We verify the macro works BEFORE calling the expensive LLM
+        verification = await self.verify_macro(macro_script)
+        if verification["status"] != "success":
+            logger.warning(f"[{self.thread_id}] ⚠️ Verification failed: {verification.get('error') or 'Missing extracted keys'}. Aborting synthesis.")
+            # We still return some info or raise to allow human intervention
+            return None 
+
+        # Step 3: Call LLM to synthesize skill
+        # Pass first_user_msg to help align triggers
+        yaml_output = await self._generate_skill_yaml(narrative, summary, first_user_msg)
+
         # Step 4.5: Parse YAML to SynthesizedSkill and inject macro
         skill = self._parse_skill_yaml(yaml_output, sequence)
-        skill.macro_script = macro_script
+        
+        # Prefer the 'Smart' macro from LLM if it exists, otherwise fallback to linear trace macro
+        if not skill.macro_script:
+            skill.macro_script = macro_script
+            logger.info(f"[{self.thread_id}] Using compiled linear macro script (No LLM macro found)")
+        else:
+            logger.info(f"[{self.thread_id}] Using LLM-synthesized smart macro script")
+        
+        # Inject verification data into metadata if needed
+        # skill.verification_report = verification
         
         # Heuristic: If we compiled a valid macro, default to deterministic mode if there are no LLM decisions
         valid_macros = [s for s in macro_script if s.get("event_type") not in ["node_start", "llm_output"]]
@@ -142,6 +164,53 @@ class WorkflowSynthesizer:
 
         return skill
 
+    async def verify_macro(self, macro_script: list[dict], project_id: int = 1) -> dict:
+        """
+        [NEW] Dry-run verification of a draft macro.
+        Replays the macro using MacroEngine and checks if extraction targets were met.
+        """
+        from app.core.execution.macro.service import MacroService
+        from app.core.execution.macro.schema import MacroScript, MacroMetadata
+        
+        logger.info(f"[{self.thread_id}] 🔍 Starting macro verification dry-run...")
+        
+        script = MacroScript(
+            metadata=MacroMetadata(thread_id=self.thread_id, author="verifier"),
+            steps=macro_script
+        )
+        
+        # We run this in a specialized "verification" mode if supported, 
+        # or just run it via MacroService.
+        try:
+            result = await MacroService.run(script, project_id=project_id)
+            
+            # Check if all extraction steps in the macro were successful
+            # MacroService.run returns the execution context/results
+            success = result.get("success", False)
+            extracted_data = result.get("extracted_data", {})
+            
+            expected_keys = [s["key"] for s in macro_script if s.get("type") == "extract"]
+            missing_keys = [k for k in expected_keys if k not in extracted_data]
+            
+            verification_status = "success" if success and not missing_keys else "failed"
+            
+            logger.info(f"[{self.thread_id}] Verification {verification_status}. Extracted keys: {list(extracted_data.keys())}")
+            
+            return {
+                "status": verification_status,
+                "success": success,
+                "missing_keys": missing_keys,
+                "extracted_count": len(extracted_data),
+                "error": result.get("error")
+            }
+        except Exception as e:
+            logger.error(f"[{self.thread_id}] Macro verification crashed: {e}")
+            return {
+                "status": "error",
+                "success": False,
+                "error": str(e)
+            }
+
     async def _generate_skill_yaml(self, narrative: str, summary: dict, user_intent_hint: str = "") -> str:
         """Use LLM to generate skill YAML from trace narrative."""
         # Config is handled internally by LLMFactory
@@ -149,7 +218,7 @@ class WorkflowSynthesizer:
 
         from app.infrastructure.config.service import SystemConfigService
         user_lang = SystemConfigService.get_language_preference()
-        language_constraint = i18n.get("learning.synthesis_lang_constraint", lang=user_lang)
+        language_constraint = i18n.get("prompts.learning.synthesis_lang_constraint", lang=user_lang)
 
         prompt_vars = {
             "trace_narrative": narrative,
@@ -200,11 +269,51 @@ class WorkflowSynthesizer:
             elif step.action_name == "desktop_control":
                 source_type = "desktop"
             elif step.node_name in ("global_observation", "mobile_interaction"):
-                # Fallback for old traces
-                source_type = "mobile"
+                # Use mirrored context if available, otherwise default to desktop for OS recordings
+                if step.state_context.get("is_mirrored"):
+                    source_type = "mobile"
+                else:
+                    source_type = "desktop"
+            
+            # Filter out noisy standalone modifier keys from macro (e.g. Alt press during extraction marking)
+            if step.action_type == "key_press" and step.action_args.get("key") in ("Alt", "Shift", "Control", "Command", "Meta"):
+                continue
 
             event_type = step.action_type
             payload = dict(step.action_args)
+
+            # NEW: Handle Alt+Click extract intent from global recording
+            is_extract_intent = payload.get("is_extract_intent", False) or event_type == "mouse_click_extract"
+
+            if is_extract_intent:
+                # Convert click to extract step
+                window_bounds = payload.get("window_bounds")
+                position = payload.get("position")
+
+                if window_bounds and position:
+                    wx, wy, ww, wh = window_bounds
+                    x, y = position
+                    # Normalize to window-relative coordinates (0-1)
+                    rel_x = (x - wx) / ww if ww > 0 else 0.5
+                    rel_y = (y - wy) / wh if wh > 0 else 0.5
+
+                    macro_step = {
+                        "step_number": step.step_number,
+                        "type": "extract",
+                        "extract_type": "screenshot_region",
+                        "key": f"extracted_{step.step_number}",
+                        "source": "desktop" if source_type == "dom" else source_type,
+                        "target_selector": None,
+                        "payload": {
+                            "relative_position": {"x": round(rel_x, 3), "y": round(rel_y, 3)},
+                            "window_bounds": window_bounds,
+                            "extraction_method": "ocr_nearby",
+                            "search_radius_pixels": 100,
+                        }
+                    }
+                    macro.append(macro_step)
+                    has_extract = True
+                continue
             
             # Agent LangChain tool inputs often serialize with single quotes as python dicts
             # trace_recorder.py captures them in 'raw' if json.loads fails.
@@ -271,8 +380,20 @@ class WorkflowSynthesizer:
                     "type": "extract",
                     "extract_type": "dump_ui",
                     "key": f"data_{step.step_number}",
-                    "source": "global",
+                    "source": source_type,
                     "target_selector": target_selector,
+                    "payload": payload
+                }
+                is_extract = True
+            elif event_type == "mouse_click_extract":
+                # [NEW] Manual extraction marker from recorder (Alt+Click)
+                macro_step = {
+                    "step_number": step.step_number,
+                    "type": "extract",
+                    "extract_type": "gui_extract", # Generic GUI extraction
+                    "key": f"data_{step.step_number}",
+                    "source": source_type,
+                    "target_selector": target_selector, # May be None if global, handled by verifier/agent
                     "payload": payload
                 }
                 is_extract = True
@@ -339,6 +460,7 @@ class WorkflowSynthesizer:
             source_thread_id=self.thread_id,
             source_session_id=self.session_id,
             tools_used=list(set(sequence.tools_used)),
+            macro_script=data.get("macro_script"), # EXTRACT FROM LLM YAML
         )
 
     def _export_physical_skill(self, skill: SynthesizedSkill) -> None:
@@ -349,7 +471,7 @@ class WorkflowSynthesizer:
         import os
 
         # Base workspace skills directory
-        base_dir = os.path.expanduser("~/.evoloop/skills")
+        base_dir = settings.SKILLS_DIR
         namespace_path = os.path.join(base_dir, skill.namespace or "misc", skill.name)
 
         try:

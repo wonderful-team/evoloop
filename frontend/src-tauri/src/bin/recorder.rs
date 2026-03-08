@@ -83,6 +83,9 @@ fn main() {
     // 2. Mouse Listener & Event Dispatcher
     let window_info_listener = shared_window_info.clone();
     let mouse_pos_listener = shared_mouse_pos.clone();
+    
+    // Track modifier keys
+    let is_alt_pressed = Arc::new(Mutex::new(false));
 
     if let Err(error) = listen(move |event| {
         let timestamp = SystemTime::now()
@@ -97,6 +100,11 @@ fn main() {
                 *mouse_pos_listener.lock().unwrap() = (x, y);
             },
             EventType::KeyPress(key) => {
+                // macOS: Option key is usually detected as Alt or AltGr
+                if format!("{:?}", key).contains("Alt") {
+                    *is_alt_pressed.lock().unwrap() = true;
+                }
+                
                 let pos = *mouse_pos_listener.lock().unwrap();
                 global_event = Some(GlobalEvent {
                     timestamp,
@@ -109,11 +117,18 @@ fn main() {
                     window_bounds: None,
                 });
             },
+            EventType::KeyRelease(key) => {
+                if format!("{:?}", key).contains("Alt") {
+                    *is_alt_pressed.lock().unwrap() = false;
+                }
+            },
             EventType::ButtonPress(btn) => {
                 let pos = *mouse_pos_listener.lock().unwrap();
+                let alt_down = *is_alt_pressed.lock().unwrap();
+                
                 global_event = Some(GlobalEvent {
                     timestamp,
-                    event_type: "mouse_click".to_string(),
+                    event_type: if alt_down { "mouse_click_extract".to_string() } else { "mouse_click".to_string() },
                     key: None,
                     mouse_button: Some(format!("{:?}", btn)),
                     position: Some(pos),

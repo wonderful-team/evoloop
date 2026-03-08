@@ -471,7 +471,9 @@ async def extract_keyframes(body: ExtractKeyframesRequest, background_tasks: Bac
             base_ts = events[0].timestamp if events else 0
             for evt in events:
                 if evt.timestamp:
-                    relative_ms = int((evt.timestamp - base_ts) * 1000) if base_ts else int(evt.timestamp)
+                    # [FIX] If input is in ms, delta is already in ms. 
+                    # Previous bug: multiplied ms by 1000 again, seeking into the future.
+                    relative_ms = int(evt.timestamp - base_ts) if base_ts else 0
                     timestamps_ms.append(relative_ms)
                     event_ids.append(evt.id)
 
@@ -748,7 +750,8 @@ async def synthesize_skill(body: SynthesizeRequest):
                 tools_used=json.dumps(skill.tools_used),
                 source_thread_id=skill.source_thread_id,
                 source_session_id=skill.source_session_id,
-                is_active=True,
+                is_active=False,
+                status="pending_review",
                 instructions=skill.instructions,
                 execution_mode=skill.execution_mode,
                 macro_script=skill.macro_script,
@@ -1239,6 +1242,8 @@ class SynthesizeFromRecordingResponse(BaseModel):
     skill_id: int | None
     skill_name: str | None
     skill_yaml: str | None
+    macro_script: list[dict] | None = None
+    verification: dict | None = None
     error: str | None
     processing_time_seconds: float
     frames_analyzed: int
@@ -1287,6 +1292,7 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
         result = await synthesizer.synthesize(recording)
         skill_data = result["skill"]
         metadata = result["metadata"]
+        verification = result.get("verification", {"status": "skipped"})
 
         # 保存到数据库
         async with session_scope() as db:
@@ -1318,10 +1324,11 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
                 source_session_id=skill_data.get("source_session_id"),
                 source_thread_id=skill_data.get("source_thread_id"),
                 skill_source="multimodal_record",
-                status="draft",
+                status="pending_review", # [FIX] 需要用户二次确认
                 is_active=True,
                 execution_mode=skill_data.get("execution_mode", "agentic"),
                 macro_script=skill_data.get("macro_script"),
+                validation_report=verification, # [FIX] 存储 Dry-run 验证结果
             )
             db.add(db_skill)
             await db.flush()
@@ -1345,6 +1352,8 @@ parameters: {json.dumps(skill_data.get('parameters', []))}
                 skill_id=db_skill.id,
                 skill_name=skill_data["name"],
                 skill_yaml=skill_yaml,
+                macro_script=skill_data.get("macro_script"),
+                verification=verification,
                 error=None,
                 processing_time_seconds=round(processing_time, 2),
                 frames_analyzed=metadata["frames_analyzed"],
@@ -1721,8 +1730,8 @@ async def run_smart_synthesis(
                     instructions=skill.instructions,
                     execution_mode=skill.execution_mode,
                     macro_script=skill.macro_script,
-                    is_active=True,
-                    status="draft",  # 新生成的技能为草稿状态，需要审核
+                    is_active=False,
+                    status="pending_review",  # 标准化为 pending_review
                     skill_source="smart_replay",  # 标识来源为智能回放合成
                 )
                 db.add(new_skill)
@@ -1876,7 +1885,37 @@ async def cleanup_recording_session(
             "message": f"Recording session {session_id} cleaned up",
             "deleted": deleted_counts
         }
-
     except Exception as e:
         logger.exception(f"[Cleanup] Failed to cleanup session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+
+@router.post("/skills/{skill_id}/confirm", response_model=RespondResponse)
+async def confirm_learned_skill(skill_id: int):
+    """
+    [NEW] 用户确认合成的技能。
+    将状态从 pending_review 更新为 verified。
+    """
+    async with session_scope() as db:
+        stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
+        skill = (await db.execute(stmt)).scalar_one_or_none()
+
+        if not skill:
+            raise HTTPException(status_code=404, detail="Skill not found")
+
+        if skill.status != "pending_review":
+            return RespondResponse(
+                success=False, 
+                message=f"Skill is not in pending_review status (current: {skill.status})"
+            )
+
+        # 更新状态
+        skill.status = "verified"
+        skill.is_active = True
+        
+        # 记录日志
+        logger.info(f"Skill {skill.id} ({skill.name}) confirmed by user.")
+        
+        return RespondResponse(
+            success=True, 
+            message=f"Skill '{skill.name}' confirmed and activated."
+        )

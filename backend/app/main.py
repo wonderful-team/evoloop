@@ -33,6 +33,7 @@ from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database.sql.database import Base, engine
 from app.initial_data import init as init_data, register_config_handlers, init_atlas_config, init_mcp
 
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 
@@ -102,7 +103,7 @@ async def lifespan(_app: FastAPI):
         except Exception as e:
             logger.warning(f"MCP configuration failed (non-critical): {e}")
 
-        # 2.8 Skill Discovery Sync (Custom Skills in ~/.evoloop/skills)
+        # 2.8 Skill Discovery Sync (Custom Skills configured in Settings)
         try:
             await skill_discovery._sync_system_skills()
             logger.info("Skill synchronization complete.")

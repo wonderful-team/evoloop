@@ -56,7 +56,7 @@ import { cn } from "@evoloop/shared/lib/utils"
 // Macro step types
 export interface MacroStep {
     step_number: number
-    type: "action" | "extract" | "dump" | "wait" | "if" | "while" | "control"
+    type: "action" | "extract" | "dump" | "wait" | "if" | "while" | "batch_loop" | "control"
     source: "dom" | "mobile" | "desktop" | "hybrid" | "global"
     event_type?: string
     selector?: string
@@ -256,6 +256,7 @@ export function MacroEditor({
     const getStepIcon = useCallback((step: MacroStep) => {
         if (step.type === "if") return <Split className="h-4 w-4" />
         if (step.type === "while") return <Repeat className="h-4 w-4" />
+        if (step.type === "batch_loop") return <Repeat className="h-4 w-4" />
         if (step.type === "control") return <Settings2 className="h-4 w-4" />
 
         const sourceEvents = (eventTypes as any)[step.source] || eventTypes.dom
@@ -278,6 +279,8 @@ export function MacroEditor({
                 return "bg-cyan-500/10 border-cyan-500/30 text-cyan-600"
             case "while":
                 return "bg-rose-500/10 border-rose-500/30 text-rose-600"
+            case "batch_loop":
+                return "bg-orange-500/10 border-orange-500/30 text-orange-600"
             default:
                 return "bg-gray-500/10 border-gray-500/30 text-gray-600"
         }
@@ -454,6 +457,7 @@ export function MacroEditor({
                                                     <SelectItem value="dump">{t("macroEditor.stepTypes.dump")}</SelectItem>
                                                     <SelectItem value="if">{t("macroEditor.stepTypes.if")}</SelectItem>
                                                     <SelectItem value="while">{t("macroEditor.stepTypes.while")}</SelectItem>
+                                                    <SelectItem value="batch_loop">{t("macroEditor.stepTypes.batch_loop")}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
@@ -481,32 +485,34 @@ export function MacroEditor({
                                         </div>
 
                                         {/* Event type */}
-                                        <div className="space-y-2">
-                                            <Label className="text-xs">{t("macroEditor.eventType")}</Label>
-                                            <Select
-                                                value={step.event_type}
-                                                onValueChange={(value) =>
-                                                    updateStep(index, { event_type: value })
-                                                }
-                                                disabled={readOnly}
-                                            >
-                                                <SelectTrigger>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {(eventTypes[step.source] || eventTypes.dom).map(
-                                                        (event: any) => (
-                                                            <SelectItem key={event.value} value={event.value}>
-                                                                <div className="flex items-center gap-2">
-                                                                    {event.icon}
-                                                                    {t(`macroEditor.eventTypes.${event.value}`)}
-                                                                </div>
-                                                            </SelectItem>
-                                                        )
-                                                    )}
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
+                                        {step.type !== "if" && step.type !== "while" && step.type !== "batch_loop" && step.type !== "dump" && (
+                                            <div className="space-y-2">
+                                                <Label className="text-xs">{t("macroEditor.eventType")}</Label>
+                                                <Select
+                                                    value={step.event_type}
+                                                    onValueChange={(value) =>
+                                                        updateStep(index, { event_type: value })
+                                                    }
+                                                    disabled={readOnly}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {(eventTypes[step.source] || eventTypes.dom).map(
+                                                            (event: any) => (
+                                                                <SelectItem key={event.value} value={event.value}>
+                                                                    <div className="flex items-center gap-2">
+                                                                        {event.icon}
+                                                                        {t(`macroEditor.eventTypes.${event.value}`)}
+                                                                    </div>
+                                                                </SelectItem>
+                                                            )
+                                                        )}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
 
                                         {/* Selector type */}
                                         <div className="space-y-2">
@@ -530,52 +536,70 @@ export function MacroEditor({
                                             </Select>
                                         </div>
 
-                                        {/* Condition Configurator for If/While */}
-                                        {(step.type === "if" || step.type === "while") && (
+                                        {/* Condition Configurator for If/While/BatchLoop */}
+                                        {(step.type === "if" || step.type === "while" || step.type === "batch_loop") && (
                                             <div className="col-span-4 p-3 border rounded-md bg-muted/20 space-y-3">
                                                 <div className="flex items-center gap-2 text-sm font-medium">
                                                     <Settings2 className="h-4 w-4" />
                                                     {t("macroEditor.conditionConfig")}
                                                 </div>
                                                 <div className="grid grid-cols-2 gap-3">
-                                                    <div className="space-y-2">
-                                                        <Label className="text-xs">{t("macroEditor.conditionType")}</Label>
-                                                        <Select
-                                                            value={step.condition?.type || "element_exists"}
-                                                            onValueChange={(value) =>
-                                                                updateStep(index, {
-                                                                    condition: { type: value, target_selector: step.condition?.target_selector }
-                                                                })
-                                                            }
-                                                            disabled={readOnly}
-                                                        >
-                                                            <SelectTrigger>
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="element_exists">{t("macroEditor.conditions.elementExists")}</SelectItem>
-                                                                <SelectItem value="element_visible">{t("macroEditor.conditions.elementVisible")}</SelectItem>
-                                                                <SelectItem value="text_contains">{t("macroEditor.conditions.textContains")}</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <Label className="text-xs">{t("macroEditor.targetSelector")}</Label>
-                                                        <Input
-                                                            value={step.condition?.target_selector || ""}
-                                                            onChange={(e) =>
-                                                                updateStep(index, {
-                                                                    condition: {
-                                                                        type: step.condition?.type || "element_exists",
-                                                                        target_selector: e.target.value
+                                                    {step.type !== "batch_loop" ? (
+                                                        <>
+                                                            <div className="space-y-2">
+                                                                <Label className="text-xs">{t("macroEditor.conditionType")}</Label>
+                                                                <Select
+                                                                    value={step.condition?.type || "element_exists"}
+                                                                    onValueChange={(value) =>
+                                                                        updateStep(index, {
+                                                                            condition: { type: value, target_selector: step.condition?.target_selector }
+                                                                        })
                                                                     }
-                                                                })
-                                                            }
-                                                            placeholder={t("macroEditor.placeholders.selector")}
-                                                            disabled={readOnly}
-                                                        />
-                                                    </div>
-                                                    {step.type === "while" && (
+                                                                    disabled={readOnly}
+                                                                >
+                                                                    <SelectTrigger>
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="element_exists">{t("macroEditor.conditions.elementExists")}</SelectItem>
+                                                                        <SelectItem value="element_visible">{t("macroEditor.conditions.elementVisible")}</SelectItem>
+                                                                        <SelectItem value="text_contains">{t("macroEditor.conditions.textContains")}</SelectItem>
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                            <div className="space-y-2">
+                                                                <Label className="text-xs">{t("macroEditor.targetSelector")}</Label>
+                                                                <Input
+                                                                    value={step.condition?.target_selector || ""}
+                                                                    onChange={(e) =>
+                                                                        updateStep(index, {
+                                                                            condition: {
+                                                                                type: step.condition?.type || "element_exists",
+                                                                                target_selector: e.target.value
+                                                                            }
+                                                                        })
+                                                                    }
+                                                                    placeholder={t("macroEditor.placeholders.selector")}
+                                                                    disabled={readOnly}
+                                                                />
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <div className="space-y-2">
+                                                            <Label className="text-xs">Items Key</Label>
+                                                            <Input
+                                                                value={step.payload?.items_key || ""}
+                                                                onChange={(e) =>
+                                                                    updateStep(index, {
+                                                                        payload: { ...step.payload, items_key: e.target.value }
+                                                                    })
+                                                                }
+                                                                placeholder="e.g. products"
+                                                                disabled={readOnly}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                    {(step.type === "while" || step.type === "batch_loop") && (
                                                         <div className="space-y-2">
                                                             <Label className="text-xs">{t("macroEditor.maxIterations")}</Label>
                                                             <Input
@@ -628,14 +652,20 @@ export function MacroEditor({
                                             </div>
                                         )}
 
-                                        {/* Recursive Nested Steps for While (Do) */}
-                                        {step.type === "while" && (
+                                        {/* Recursive Nested Steps for While/BatchLoop (Do) */}
+                                        {(step.type === "while" || step.type === "batch_loop") && (
                                             <div className="col-span-4 space-y-4 pt-2 border-t mt-2">
                                                 <div className="space-y-2">
-                                                    <Label className="text-sm font-semibold text-rose-600 flex items-center gap-1">
+                                                    <Label className={cn(
+                                                        "text-sm font-semibold flex items-center gap-1",
+                                                        step.type === "while" ? "text-rose-600" : "text-orange-600"
+                                                    )}>
                                                         <ChevronRight className="h-4 w-4" /> {t("macroEditor.doBranch")}
                                                     </Label>
-                                                    <div className="pl-4 border-l-2 border-rose-500/30 ml-2">
+                                                    <div className={cn(
+                                                        "pl-4 border-l-2 ml-2",
+                                                        step.type === "while" ? "border-rose-500/30" : "border-orange-500/30"
+                                                    )}>
                                                         <MacroEditor
                                                             steps={step.do || []}
                                                             onChange={(newSteps) => updateStep(index, { do: newSteps })}
@@ -649,7 +679,7 @@ export function MacroEditor({
                                         )}
 
                                         {/* Selector */}
-                                        {step.type !== "if" && step.type !== "while" && (
+                                        {step.type !== "if" && step.type !== "while" && step.type !== "batch_loop" && (
                                             <div className="col-span-4 space-y-2">
                                                 <Label className="text-xs">{t("macroEditor.selector")}</Label>
                                                 <div className="flex gap-2">

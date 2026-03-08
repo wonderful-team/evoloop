@@ -1,4 +1,7 @@
-import { Info, Terminal, Layout, Clock, TrendingUp, Play, Edit, Trash2, Sparkles, Zap } from "lucide-react"
+import { Info, Terminal, Layout, Clock, TrendingUp, Play, Edit, Trash2, Sparkles, Zap, CheckCircle2 } from "lucide-react"
+import { useQueryClient, useMutation } from "@tanstack/react-query"
+import { LearningService } from "@/client/sdk.gen"
+import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
@@ -35,6 +38,21 @@ export function SkillDetailsPanel({
     onDelete,
 }: SkillDetailsPanelProps) {
     const { t } = useTranslation()
+    const queryClient = useQueryClient()
+
+    const confirmMutation = useMutation({
+        mutationFn: async (skillId: number) => {
+            return await LearningService.confirmLearnedSkill({ skillId });
+        },
+        onSuccess: () => {
+            toast.success(t("learning.confirmSuccess", "Skill confirmed successfully"));
+            queryClient.invalidateQueries({ queryKey: ["learnedSkills"] });
+            onOpenChange(false);
+        },
+        onError: (error: any) => {
+            toast.error(t("learning.confirmError", `Failed to confirm skill: ${error.message}`));
+        }
+    });
 
     if (!skill) return null
 
@@ -59,6 +77,23 @@ export function SkillDetailsPanel({
 
     // Check if skill has macro script
     const hasMacroScript = Array.isArray(macroScript) && macroScript.length > 0;
+
+    // Recursive function to flatten macro script for flat table display with indentation
+    const flattenMacroScript = (steps: any[], depth = 0): any[] => {
+        let result: any[] = [];
+        steps.forEach(step => {
+            result.push({ ...step, depth });
+            if (step.type === "if") {
+                if (step.then) result = [...result, ...flattenMacroScript(step.then, depth + 1)];
+                if (step.else) result = [...result, ...flattenMacroScript(step.else, depth + 1)];
+            } else if ((step.type === "while" || step.type === "batch_loop") && step.do) {
+                result = [...result, ...flattenMacroScript(step.do, depth + 1)];
+            }
+        });
+        return result;
+    };
+
+    const flattenedMacro = hasMacroScript ? flattenMacroScript(macroScript) : [];
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -247,10 +282,19 @@ export function SkillDetailsPanel({
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {macroScript.map((step: any, i: number) => (
+                                                {flattenedMacro.map((step: any, i: number) => (
                                                     <tr key={i} className="border-b border-emerald-500/10 last:border-0 hover:bg-emerald-500/5">
                                                         <td className="py-2 px-2 font-mono text-emerald-600 font-bold">
-                                                            {step.step_number || i + 1}
+                                                            <div className="flex items-center">
+                                                                {step.depth > 0 && (
+                                                                    <div className="flex mr-1.5 h-4 items-center">
+                                                                        {[...Array(step.depth)].map((_, idx) => (
+                                                                            <div key={idx} className="w-2.5 h-full border-l-2 border-emerald-500/20 ml-1" />
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                                {step.step_number || i + 1}
+                                                            </div>
                                                         </td>
                                                         <td className="py-2 px-2">
                                                             <Badge variant="outline" className="text-[9px] capitalize bg-background">
@@ -273,7 +317,7 @@ export function SkillDetailsPanel({
                                         </table>
                                         <div className="mt-3 flex items-center gap-2 pt-3 border-t border-emerald-500/20">
                                             <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] font-bold">
-                                                {t("learning.steps", { count: macroScript.length, defaultValue: "{{count}} STEPS" })}
+                                                {t("learning.steps", { count: flattenedMacro.length, defaultValue: `${flattenedMacro.length} STEPS` })}
                                             </Badge>
                                         </div>
                                     </div>
@@ -328,14 +372,26 @@ export function SkillDetailsPanel({
                 </ScrollArea>
 
                 <div className="p-4 border-t bg-card mt-auto flex gap-3 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
-                    <Button
-                        variant="default"
-                        className="flex-1 h-10 font-medium shadow-sm transition-all hover:shadow-md"
-                        onClick={() => { onRun?.(skill); onOpenChange(false); }}
-                    >
-                        <Play className="h-4 w-4 mr-2 fill-current" />
-                        {t("common.run", "Run Skill")}
-                    </Button>
+                    {skill.status === "pending_review" ? (
+                        <Button
+                            variant="default"
+                            className="flex-1 h-10 font-medium shadow-sm transition-all hover:shadow-md bg-emerald-600 hover:bg-emerald-700"
+                            onClick={() => confirmMutation.mutate(skill.id)}
+                            disabled={confirmMutation.isPending}
+                        >
+                            <CheckCircle2 className="h-4 w-4 mr-2" />
+                            {confirmMutation.isPending ? t("common.processing", "Processing...") : t("common.confirm", "Confirm Skill")}
+                        </Button>
+                    ) : (
+                        <Button
+                            variant="default"
+                            className="flex-1 h-10 font-medium shadow-sm transition-all hover:shadow-md"
+                            onClick={() => { onRun?.(skill); onOpenChange(false); }}
+                        >
+                            <Play className="h-4 w-4 mr-2 fill-current" />
+                            {t("common.run", "Run Skill")}
+                        </Button>
+                    )}
                     <Button
                         variant="outline"
                         className="h-10 px-4"

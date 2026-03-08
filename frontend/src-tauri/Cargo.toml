@@ -10,10 +10,6 @@ default-run = "EvoLoop"
 name = "evoloop_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-[[bin]]
-name = "recorder"
-path = "src/bin/recorder.rs"
-
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 

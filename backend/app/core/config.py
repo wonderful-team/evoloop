@@ -270,6 +270,14 @@ class Settings(BaseSettings):
 
     @computed_field
     @property
+    def ANDROID_RECORDINGS_DIR(self) -> str:
+        """Android screen recordings directory."""
+        path = os.path.join(self.SCREEN_RECORDINGS_DIR, "android")
+        os.makedirs(path, exist_ok=True)
+        return path
+
+    @computed_field
+    @property
     def SCREEN_RECORDING_FRAMES_DIR(self) -> str:
         """Extracted frames from screen recordings."""
         path = os.path.join(self.APP_DATA_DIR, "artifacts", "recordings", "frames")

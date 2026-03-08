@@ -338,6 +338,11 @@ class DesktopController:
             elif action == "key_press":
                 if not key:
                     return "Error: 'key' is required for key_press action."
+                
+                # [Phase 14] Normalize OS-prefixed keys (e.g. 'keyg' -> 'g')
+                if key.lower().startswith("key") and len(key) == 4:
+                    key = key[3:].lower()
+                
                 macos_driver.key_press(key)
                 await _record("key_press", {"key": key})
                 return f"Pressed key: {key}"

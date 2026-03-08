@@ -20,6 +20,7 @@ import json
 import logging
 import subprocess
 import time
+import base64
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -35,12 +36,11 @@ from app.core.learning.frame_compressor import (
     KeyframeSelector,
     NormalizedEvent,
 )
-from app.core.learning.trace_parser import TraceSequence
+from app.core.learning.prompts.builder import LearningPromptBuilder
 from app.infrastructure.database.sql.database import session_scope
-from app.infrastructure.llm.factory import LLMFactory
 from app.infrastructure.llm.vision import VisionLLMFactory
 from app.infrastructure.config.service import SystemConfigService
-from app.models import TraceEvent
+from app.models import TraceEvent, LearnedSkill
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,7 @@ class MultimodalSkillSynthesizer:
     def __init__(self):
         self.compressor = FrameCompressor()
         self.keyframe_selector = KeyframeSelector()
+        self.prompt_builder = LearningPromptBuilder()
         # 使用系统配置的 Vision LLM
         self.vision_llm = VisionLLMFactory.create_vision_llm(temperature=0.3)
         self.model_name = SystemConfigService.get_value("VISION_MODEL") or SystemConfigService.get_value("LLM_MODEL")
@@ -124,20 +125,20 @@ class MultimodalSkillSynthesizer:
         )
         logger.info(f"Compressed {len(compressed_frames)} frames")
 
-        # Step 5: 构建事件上下文（含归一化坐标）
+        # Step 5: 构建事件上下文（用于 Prompt 文本部分）
         event_context = self._build_event_context(
             events=events,
             original_resolution=(video_info.width, video_info.height)
         )
 
-        # Step 6: 关联事件到帧
+        # Step 6: 关联事件到帧（用于多模态图片标注）
         frames_with_events = self._associate_events_to_frames(
             frames=compressed_frames,
             keyframes=keyframes,
             normalizer=CoordinateNormalizer(video_info.width, video_info.height)
         )
 
-        # Step 7: 调用多模态 LLM (使用系统配置的 Vision LLM)
+        # Step 7: 调用多模态 LLM
         logger.info(f"Calling Vision LLM ({self.model_name})...")
         try:
             llm_response = await self._call_vision_llm(
@@ -152,11 +153,40 @@ class MultimodalSkillSynthesizer:
         # Step 8: 解析 LLM 输出
         skill_data = self._parse_llm_response(llm_response, recording)
 
+        # Step 9: 辅助生成确定性宏脚本 (Fallback/Verification Basis)
+        compiled_macro = await self._compile_macro_from_events(events)
+        
+        # Step 10: 验证 Dry-run (优先验证实际要返回的宏)
+        target_macro = skill_data.get("macro_script") or compiled_macro
+        
+        # 如果 LLM 返回的是字符串 JSON，尝试解析它
+        if isinstance(target_macro, str) and (target_macro.strip().startswith("[") or target_macro.strip().startswith("{")):
+            try:
+                target_macro = json.loads(target_macro)
+            except Exception as e:
+                logger.warning(f"Failed to parse LLM macro string as JSON: {e}")
+
+        # [Phase 15] 宏规范化 (处理 LLM 的不规范输出)
+        if isinstance(target_macro, list):
+            target_macro = self._cleanup_macro(target_macro)
+            skill_data["macro_script"] = target_macro
+
+        verification = await self.verify_macro(target_macro)
+        skill_data["verification_report"] = verification
+
+        # 如果没有有效的 LLM 宏，使用编译出来的作为兜底
+        if not skill_data.get("macro_script") or not isinstance(skill_data.get("macro_script"), list):
+            skill_data["macro_script"] = compiled_macro
+            skill_data["execution_mode"] = "deterministic"
+        else:
+            skill_data["execution_mode"] = "deterministic"
+
         processing_time = time.time() - start_time
-        logger.info(f"Synthesis completed in {processing_time:.1f}s")
+        logger.info(f"Synthesis completed in {processing_time:.1f}s. Verification: {verification['status']}")
 
         return {
             "skill": skill_data,
+            "verification": verification,
             "metadata": {
                 "processing_time_seconds": processing_time,
                 "frames_analyzed": len(compressed_frames),
@@ -166,76 +196,148 @@ class MultimodalSkillSynthesizer:
             }
         }
 
-    async def _get_video_info(self, video_path: str) -> VideoInfo:
-        """
-        使用 ffprobe 获取视频元信息
-        """
-        try:
-            # 获取时长
-            duration_cmd = [
-                "ffprobe", "-v", "error",
-                "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1",
-                video_path
-            ]
-            duration_result = subprocess.run(
-                duration_cmd, capture_output=True, text=True, timeout=10
-            )
-            duration = float(duration_result.stdout.strip())
+    def _cleanup_macro(self, steps: List[dict]) -> List[dict]:
+        """规范化 LLM 生成的宏步骤 (修复常见格式错误)"""
+        clean_steps = []
+        for i, step in enumerate(steps, 1):
+            if not isinstance(step, dict): continue
+            
+            # 1. 确保有 step_number
+            if "step_number" not in step:
+                step["step_number"] = i
+                
+            # 2. 映射非标准 type
+            s_type = step.get("type")
+            if s_type == "wait":
+                # type: wait -> type: action, event_type: wait
+                step["type"] = "action"
+                step["event_type"] = "wait"
+                # 处理 condition/timeout -> payload
+                payload = step.get("payload", {})
+                if "timeout" in step and "seconds" not in payload:
+                    payload["seconds"] = float(step["timeout"]) / 1000.0
+                step["payload"] = payload
+            elif s_type == "loop":
+                # type: loop -> type: while 或 batch_loop
+                if "items_key" in step.get("payload", {}):
+                    step["type"] = "batch_loop"
+                else:
+                    step["type"] = "while"
+                # 处理 steps -> do
+                if "steps" in step and "do" not in step:
+                    step["do"] = self._cleanup_macro(step["steps"])
+            
+            # 3. 递归处理嵌套步骤
+            for branch in ["then", "else", "do"]:
+                if branch in step and isinstance(step[branch], list):
+                    step[branch] = self._cleanup_macro(step[branch])
+                    
+            clean_steps.append(step)
+        return clean_steps
 
-            # 获取分辨率
-            resolution_cmd = [
+    async def _compile_macro_from_events(self, events: List[TraceEvent]) -> List[dict]:
+        """从 TraceEvent 序列编译确定性宏脚本 (复用 WorkflowSynthesizer)"""
+        from app.core.learning.skill_synthesizer import WorkflowSynthesizer
+        from app.core.learning.trace_parser import TraceParser
+        
+        if not events:
+            return []
+            
+        thread_id = events[0].thread_id or "unknown"
+        session_id = events[0].recording_session_id
+        
+        parser = TraceParser(thread_id=thread_id, session_id=session_id)
+        # 转换为 TraceSequence
+        sequence = parser._convert_to_sequence(events)
+        
+        synth = WorkflowSynthesizer(thread_id=thread_id)
+        return synth._compile_macro_script(sequence)
+
+    async def verify_macro(self, macro_script: list[dict], project_id: int = 1) -> dict:
+        """Dry-run 验证宏脚本的有效性"""
+        from app.core.execution.macro.service import MacroService
+        from app.core.execution.macro.schema import MacroScript, MacroMetadata
+        
+        logger.info(f"🔍 Starting verification dry-run for synthesized macro...")
+        
+        script = MacroScript(
+            metadata=MacroMetadata(thread_id="verifier", author="multimodal_verifier"),
+            steps=macro_script
+        )
+        
+        try:
+            # MacroService.run(thread_id, script_input, params=None)
+            result = await MacroService.run(
+                thread_id="multimodal_dryrun",
+                script_input=macro_script
+            )
+            success = result.get("success", False)
+            extracted_data = result.get("extracted_data", {})
+            
+            # 检查提取点数据
+            expected_keys = [s["key"] for s in macro_script if s.get("type") == "extract"]
+            missing_keys = [k for k in expected_keys if k not in extracted_data]
+            
+            status = "success" if success and not missing_keys else "failed"
+            
+            return {
+                "status": status,
+                "success": success,
+                "missing_keys": missing_keys,
+                "extracted_count": len(extracted_data),
+                "error": result.get("error")
+            }
+        except Exception as e:
+            logger.error(f"Verification crashed: {e}")
+            return {"status": "error", "success": False, "error": str(e)}
+
+    async def _get_video_info(self, video_path: str) -> VideoInfo:
+        """使用 ffprobe JSON 获取视频元信息（更鲁棒）"""
+        try:
+            cmd = [
                 "ffprobe", "-v", "error",
                 "-select_streams", "v:0",
-                "-show_entries", "stream=width,height,r_frame_rate",
+                "-show_entries", "stream=width,height,r_frame_rate,duration",
+                "-show_entries", "format=duration",
                 "-of", "json",
                 video_path
             ]
-            resolution_result = subprocess.run(
-                resolution_cmd, capture_output=True, text=True, timeout=10
-            )
-            stream_info = json.loads(resolution_result.stdout)["streams"][0]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            data = json.loads(result.stdout)
+            
+            stream = data["streams"][0]
+            format_data = data.get("format", {})
+            
+            # 优先从 format 获取 duration
+            duration = float(format_data.get("duration") or stream.get("duration", 0.0))
+            width = int(stream["width"])
+            height = int(stream["height"])
+            
+            # 解析帧率
+            fps_str = stream.get("r_frame_rate", "15/1")
+            fps = float(fps_str.split("/")[0]) / float(fps_str.split("/")[1]) if "/" in fps_str else float(fps_str)
 
-            width = int(stream_info["width"])
-            height = int(stream_info["height"])
-
-            # 解析帧率 (可能是 "15/1" 格式)
-            fps_str = stream_info.get("r_frame_rate", "15/1")
-            if "/" in fps_str:
-                num, den = fps_str.split("/")
-                fps = float(num) / float(den)
-            else:
-                fps = float(fps_str)
-
-            return VideoInfo(
-                duration=duration,
-                width=width,
-                height=height,
-                fps=fps
-            )
-
+            return VideoInfo(duration=duration, width=width, height=height, fps=fps)
         except Exception as e:
-            logger.error(f"Failed to get video info: {e}")
-            # 返回默认值
-            return VideoInfo(
-                duration=30.0,
-                width=1920,
-                height=1080,
-                fps=self.DEFAULT_VIDEO_FPS
-            )
+            logger.error(f"Failed to get video info for {video_path}: {e}")
+            return VideoInfo(duration=30.0, width=1920, height=1080, fps=self.DEFAULT_VIDEO_FPS)
 
     async def _fetch_events(self, session_id: str) -> List[TraceEvent]:
-        """
-        从数据库获取事件序列
-        """
+        """从数据库获取事件并进行时间轴归一化"""
         async with session_scope() as session:
-            stmt = (
-                select(TraceEvent)
-                .where(TraceEvent.recording_session_id == session_id)
-                .order_by(TraceEvent.timestamp)
-            )
+            stmt = select(TraceEvent).where(TraceEvent.recording_session_id == session_id).order_by(TraceEvent.timestamp)
             result = await session.execute(stmt)
-            return list(result.scalars().all())
+            events = list(result.scalars().all())
+            
+            if not events:
+                return []
+                
+            # 绝对毫秒 -> 相对秒 (以视频开始为 0)
+            base_ms = events[0].timestamp
+            for event in events:
+                event.timestamp = (event.timestamp - base_ms) / 1000.0 if event.timestamp else 0.0
+                    
+            return events
 
     async def _extract_and_compress_frames(
         self,
@@ -243,127 +345,80 @@ class MultimodalSkillSynthesizer:
         keyframes: List[KeyframeCandidate],
         original_resolution: Tuple[int, int]
     ) -> List[CompressedFrame]:
-        """
-        从视频提取关键帧并压缩
-        """
+        """批量提取并压缩帧"""
         frames = []
-
-        for i, keyframe in enumerate(keyframes):
+        for keyframe in keyframes:
             try:
                 # 提取单帧
-                frame_path = await self._extract_single_frame(
-                    video_path, keyframe.timestamp
-                )
-
-                # 压缩
+                frame_path = await self._extract_single_frame(video_path, keyframe.timestamp)
+                # 执行压缩
                 compressed = self.compressor.compress(frame_path)
-
-                # 如果太大，自适应压缩
-                if len(compressed.data) > 150 * 1024:  # 150KB
-                    compressed = self.compressor.compress_with_target_size(
-                        frame_path, target_kb=100
-                    )
-
+                # 自适应控制大小 (150KB 以内)
+                if len(compressed.data) > 150 * 1024:
+                    compressed = self.compressor.compress_with_target_size(frame_path, target_kb=100)
+                
+                # 注入元数据供 Prompt 使用
+                compressed.timestamp = keyframe.timestamp
+                compressed.description = keyframe.description
+                
                 frames.append(compressed)
-                logger.debug(f"Frame {i+1}/{len(keyframes)}: {compressed.width}x{compressed.height}, "
-                           f"{len(compressed.data)/1024:.1f}KB")
-
             except Exception as e:
-                logger.warning(f"Failed to extract/compress frame at {keyframe.timestamp}s: {e}")
+                logger.warning(f"Failed to process frame at {keyframe.timestamp}s: {e}")
                 continue
-
         return frames
 
     async def _extract_single_frame(self, video_path: str, timestamp: float) -> str:
-        """
-        从视频提取单帧
-
-        Returns:
-            临时帧文件路径
-        """
+        """FFmpeg 提取单帧 (兼容 Mac 格式)"""
         import tempfile
-
-        temp_dir = tempfile.gettempdir()
-        output_path = Path(temp_dir) / f"evoloop_frame_{timestamp:.3f}.jpg"
+        output_path = Path(tempfile.gettempdir()) / f"evoloop_frame_{timestamp:.3f}.jpg"
 
         cmd = [
-            "ffmpeg",
-            "-y",                           # 覆盖
-            "-ss", str(timestamp),          # 时间点
-            "-i", video_path,               # 输入
-            "-frames:v", "1",               # 一帧
-            "-q:v", "2",                    # 高质量
+            "ffmpeg", "-y", 
+            "-ss", str(timestamp), 
+            "-i", video_path, 
+            "-frames:v", "1", 
+            "-q:v", "2", 
+            "-pix_fmt", "yuvj420p", # Mac JPEG 兼容性
             str(output_path)
         ]
-
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=10
-        )
-
+        result = subprocess.run(cmd, capture_output=True, timeout=10)
         if result.returncode != 0:
-            raise RuntimeError(f"ffmpeg failed: {result.stderr.decode()}")
-
-        if not output_path.exists():
-            raise RuntimeError(f"Frame extraction failed: no output file")
-
+            raise RuntimeError(f"FFmpeg extraction failed: {result.stderr.decode()}")
         return str(output_path)
 
-    def _build_event_context(
-        self,
-        events: List[TraceEvent],
-        original_resolution: Tuple[int, int]
-    ) -> str:
-        """
-        构建格式化的事件上下文（含归一化坐标）
-        """
-        normalizer = CoordinateNormalizer(
-            original_resolution[0],
-            original_resolution[1]
-        )
-
-        lines = []
-        lines.append(f"Total Events: {len(events)}")
-        lines.append(f"Screen Resolution: {original_resolution[0]}x{original_resolution[1]}")
-        lines.append("")
+    def _build_event_context(self, events: List[TraceEvent], original_resolution: Tuple[int, int]) -> str:
+        """构建详细的事件内容上下文 (用于 Prompt)"""
+        normalizer = CoordinateNormalizer(original_resolution[0], original_resolution[1])
+        lines = [
+            f"Total Events: {len(events)}",
+            f"Screen Resolution: {original_resolution[0]}x{original_resolution[1]}",
+            ""
+        ]
 
         for i, event in enumerate(events, 1):
-            # 跳过鼠标移动（太多噪声）
             if event.action_type in ("mouse_move", "cursor_move"):
                 continue
 
-            # 归一化坐标
-            norm_pos = normalizer.normalize(
-                getattr(event, 'mouse_x', None),
-                getattr(event, 'mouse_y', None)
-            )
-
-            # 构建描述
-            ts = getattr(event, 'timestamp', 0)
+            ts = getattr(event, 'timestamp', 0.0)
             line = f"{i}. [{ts:.2f}s] {event.action_type}"
-
+            
+            # 坐标描述
+            norm_pos = normalizer.normalize(getattr(event, 'mouse_x', None), getattr(event, 'mouse_y', None))
             if norm_pos:
-                desc = CoordinateNormalizer.describe_position(norm_pos[0], norm_pos[1])
+                desc = self._describe_position(norm_pos[0], norm_pos[1])
                 line += f" at ({norm_pos[0]:.3f}, {norm_pos[1]:.3f}) [{desc}]"
 
-            # 目标信息
+            # 语义上下文
             target = getattr(event, 'target_text', None)
-            if target:
-                line += f' on "{target}"'
-
-            # 窗口信息
+            if target: line += f' on "{target}"'
+            
             window = getattr(event, 'window_title', None)
             app = getattr(event, 'app_name', None)
-            if window and app:
-                line += f" in [{app} - {window}]"
-            elif app:
-                line += f" in [{app}]"
-
-            # 按键信息
+            if window and app: line += f" in [{app} - {window}]"
+            elif app: line += f" in [{app}]"
+            
             key = getattr(event, 'key_name', None)
-            if key:
-                line += f" key='{key}'"
+            if key: line += f" key='{key}'"
 
             lines.append(line)
 
@@ -375,115 +430,52 @@ class MultimodalSkillSynthesizer:
         keyframes: List[KeyframeCandidate],
         normalizer: CoordinateNormalizer
     ) -> List[CompressedFrame]:
-        """
-        将事件关联到对应的关键帧
-        """
-        result = []
-
+        """将事件语义关联到关键帧对象中"""
         for frame, keyframe in zip(frames, keyframes):
-            # 收集关联事件的归一化信息
-            related_event = keyframe.related_event
-            if related_event:
-                norm_pos = normalizer.normalize(
-                    getattr(related_event, 'mouse_x', None),
-                    getattr(related_event, 'mouse_y', None)
+            if keyframe.related_event:
+                pos = normalizer.normalize(
+                    getattr(keyframe.related_event, 'mouse_x', None),
+                    getattr(keyframe.related_event, 'mouse_y', None)
                 )
-
                 frame.norm_events = [{
-                    'action': related_event.action_type,
-                    'position': norm_pos,
-                    'target_text': getattr(related_event, 'target_text', None),
-                    'timestamp': getattr(related_event, 'timestamp', 0),
+                    'action': keyframe.related_event.action_type,
+                    'position': pos,
+                    'target_text': getattr(keyframe.related_event, 'target_text', None),
+                    'timestamp': getattr(keyframe.related_event, 'timestamp', 0),
                 }]
+        return frames
 
-            result.append(frame)
-
-        return result
-
-    async def _call_vision_llm(
-        self,
-        task_description: str,
-        frames: List[CompressedFrame],
-        event_context: str
-    ) -> str:
-        """
-        使用 VisionLLMFactory 调用多模态 LLM
-
-        支持 GPT-4V, Claude 3, Kimi 等系统配置的模型
-        """
+    async def _call_vision_llm(self, task_description: str, frames: List[CompressedFrame], event_context: str) -> str:
+        """构建多模态消息并调用 LLM"""
         from langchain_core.messages import HumanMessage, SystemMessage
 
-        # 构建系统提示
-        system_prompt = self._get_system_prompt()
+        # 加载新的系统模板
+        system_prompt = self.prompt_builder.build_multimodal_synthesis_prompt({})
 
-        # 构建多模态消息内容
-        content = self._build_multimodal_content(
-            task_description=task_description,
-            frames=frames,
-            event_context=event_context
-        )
-
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=content)
-        ]
-
-        # 调用 LLM
-        response = await self.vision_llm.ainvoke(messages)
-        return response.content
-
-    def _build_multimodal_content(
-        self,
-        task_description: str,
-        frames: List[CompressedFrame],
-        event_context: str
-    ) -> List[dict]:
-        """
-        构建多模态消息内容（文本+图片）
-        """
-        import base64
-
+        # 构建人机交互内容 (文本说明 + 交叉排布的图片)
         content = []
-
-        # 1. 任务描述
+        
+        # 1. 任务背景与全局事件序列
         content.append({
-            "type": "text",
-            "text": f"## Task Description\n{task_description}\n\n"
-        })
-
-        # 2. 坐标系说明
-        content.append({
-            "type": "text",
+            "type": "text", 
             "text": (
-                "## Coordinate System\n"
-                "All coordinates are normalized to 0.0-1.0 range:\n"
-                "- (0.0, 0.0) = top-left corner of screen\n"
-                "- (1.0, 1.0) = bottom-right corner of screen\n"
-                "- (0.5, 0.5) = center of screen\n\n"
+                f"## Task Description\n{task_description}\n\n"
+                f"## Coordinate System\n"
+                "All coordinates are normalized to 0.0-1.0 range (0.0=top/left, 1.0=bottom/right).\n\n"
+                f"## User Actions (Complete Timeline)\n{event_context}\n\n"
             )
         })
 
-        # 3. 事件上下文
-        content.append({
-            "type": "text",
-            "text": f"## User Actions (Chronological)\n{event_context}\n\n"
-        })
-
-        # 4. 关键帧（多模态核心）
-        content.append({
-            "type": "text",
-            "text": "## Screen Recording Keyframes\n"
-        })
-
+        # 2. 关键帧详情 (附带图片)
+        content.append({"type": "text", "text": "## Screen Recording Keyframes\n"})
+        
         for i, frame in enumerate(frames, 1):
-            # 帧描述
+            # 帧文本描述
             frame_desc = f"\n### Frame {i} [{frame.timestamp:.2f}s]\n"
-            frame_desc += f"**Context**: {frame.description}\n"
-            frame_desc += f"**Resolution**: {frame.width}x{frame.height}\n"
-
-            # 如果有归一化事件，显示坐标
+            frame_desc += f"**Visual Context**: {frame.description}\n"
+            
             if frame.norm_events:
-                frame_desc += "**Actions in this frame**:\n"
+                frame_desc += "**User actions during this frame**:\n"
                 for evt in frame.norm_events:
                     pos = evt.get('position')
                     if pos:
@@ -491,159 +483,51 @@ class MultimodalSkillSynthesizer:
                         frame_desc += f"  - {evt['action']} at ({pos[0]:.3f}, {pos[1]:.3f}) [{desc}]\n"
                     if evt.get('target_text'):
                         frame_desc += f"    Target: \"{evt['target_text']}\"\n"
-
+            
             content.append({"type": "text", "text": frame_desc})
-
-            # Base64 图片
-            base64_image = base64.b64encode(frame.data).decode('utf-8')
+            
+            # 插入 Base64 图片
+            base64_img = base64.b64encode(frame.data).decode('utf-8')
             content.append({
                 "type": "image_url",
-                "image_url": {
-                    "url": f"data:image/jpeg;base64,{base64_image}"
-                }
+                "image_url": {"url": f"data:image/jpeg;base64,{base64_img}"}
             })
 
-        # 5. 输出要求
-        content.append({
-            "type": "text",
-            "text": self._get_output_requirement_prompt()
-        })
-
-        return content
-
-    def _get_system_prompt(self) -> str:
-        """
-        获取系统提示
-        """
-        return """You are EvoLoop's Skill Architect, an expert at analyzing screen recordings and creating reusable automation skills.
-
-Your task is to:
-1. Observe the sequence of screenshots to understand the UI flow
-2. Combine visual information with the action log to understand user intent
-3. Generate a high-quality Expert Skill Guide (not rigid steps, but strategic guidance)
-
-Key principles:
-- FOCUS ON PATTERNS: Identify repeatable strategies, not just specific coordinates
-- VISUAL REASONING: Use UI layout, colors, icons, and text positions
-- SPATIAL AWARENESS: Describe positions relatively ("top-left", "near the header")
-- TIMING INSIGHTS: Note loading delays, animations, and transition states
-- ERROR RECOVERY: Anticipate what could go wrong and how to recover
-
-Anti-patterns to avoid:
-- ❌ "Click at (0.234, 0.567)" → Too rigid, will break on different resolutions
-- ❌ "Click the button" → Too vague, which button?
-- ✅ "Click the blue 'Search' button in the top-right corner of the window"
-
-The output must be a valid YAML frontmatter + Markdown body in the exact format specified.
-"""
-
-    def _get_output_requirement_prompt(self) -> str:
-        """
-        获取输出格式要求
-        """
-        return """
-
-## Required Output Format
-
-Generate a skill in YAML + Markdown format:
-
-```yaml
-name: [short_descriptive_name]
-namespace: [logical_category like "cross_app", "os/macos/wechat", "web/browser"]
-description: |
-  [Clear description of what this skill does]
-trigger_patterns:
-  - "[natural language pattern with {{parameter}}]"
-  - "[alternative phrasing]"
-parameters:
-  - name: [param_name]
-    type: string
-    required: true/false
-    description: "[what this parameter represents]"
-```
-
-# 🧠 Expert Skill Guide
-
-## 1. Mental Model
-[The high-level strategy and business logic. Why are we doing this? What's the core insight?]
-
-Example: "This skill bridges information between apps using clipboard as a universal transfer medium and OCR for element location. The key insight is that custom UI apps like WeChat don't expose native accessibility APIs, so we must use visual reasoning."
-
-## 2. Visual Anchors & Context
-[Key visual indicators that confirm we're in the right state:]
-- **Window Title**: Look for "..."
-- **UI Elements**: Search for "..." label/icon
-- **Color/Layout**: The ... should be visible in the ...
-
-## 3. Execution Workflow
-
-### Phase 1: [Name]
-1. **Activate**: Focus the target application
-2. **Visual Scan**: Look for [specific element] in [location]
-3. **Action**: [What to do with details]
-4. **Verify**: Confirm [expected state change]
-
-### Phase 2: [Name]
-...
-
-## 4. Common Pitfalls & Gotchas
-- **Timing**: [e.g., "Wait 1s for the dropdown to animate"]
-- **False Positives**: [e.g., "Don't confuse 'Search' with 'Search Settings'"]
-- **Hidden States**: [e.g., "If element not found, check if sidebar is collapsed"]
-
-## 5. Error Recovery Strategies
-- If [failure condition] → [recovery action]
-- If [alternative failure] → [alternative recovery]
-
----
-IMPORTANT:
-1. STAY GROUNDED: Only describe elements visible in the screenshots
-2. BE SPECIFIC: Name exact UI labels, colors, positions
-3. THINK STRATEGIC: Focus on "how to think about this task" not just "what buttons to click"
-4. ANTICIPATE: Include timing notes and recovery strategies based on observed behavior
-"""
+        messages = [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=content)
+        ]
+        
+        response = await self.vision_llm.ainvoke(messages)
+        return response.content
 
     def _describe_position(self, norm_x: float, norm_y: float) -> str:
-        """将归一化坐标转换为人类可读描述"""
-        if norm_x < 0.2:
-            h = "left"
-        elif norm_x < 0.4:
-            h = "left-center"
-        elif norm_x < 0.6:
-            h = "center"
-        elif norm_x < 0.8:
-            h = "right-center"
-        else:
-            h = "right"
+        """将归一化坐标转换为精细的语义描述 (5x5 风格)"""
+        # 水平段
+        if norm_x < 0.2: h = "left"
+        elif norm_x < 0.4: h = "left-center"
+        elif norm_x < 0.6: h = "center"
+        elif norm_x < 0.8: h = "right-center"
+        else: h = "right"
 
-        if norm_y < 0.2:
-            v = "top"
-        elif norm_y < 0.4:
-            v = "upper"
-        elif norm_y < 0.6:
-            v = "middle"
-        elif norm_y < 0.8:
-            v = "lower"
-        else:
-            v = "bottom"
+        # 垂直段
+        if norm_y < 0.2: v = "top"
+        elif norm_y < 0.4: v = "upper"
+        elif norm_y < 0.6: v = "middle"
+        elif norm_y < 0.8: v = "lower"
+        else: v = "bottom"
 
         return f"{v}-{h}"
 
     def _parse_llm_response(self, response: str, recording: RecordingSession) -> dict:
-        """
-        解析 LLM 输出，提取 YAML 和 Markdown
-        """
-        # 提取 YAML 部分
+        """解析 LLM 返回的混合格式"""
         yaml_content = self._extract_yaml(response)
-
-        # 提取 Markdown 部分（instructions）
         instructions = self._extract_instructions(response)
 
-        # 解析 YAML
         try:
             metadata = yaml.safe_load(yaml_content) if yaml_content else {}
-        except yaml.YAMLError as e:
-            logger.error(f"Failed to parse YAML: {e}")
+        except Exception as e:
+            logger.error(f"Failed to parse LLM YAML metadata: {e}")
             metadata = {}
 
         return {
@@ -652,69 +536,28 @@ IMPORTANT:
             "description": metadata.get("description", ""),
             "trigger_patterns": metadata.get("trigger_patterns", []),
             "parameters": metadata.get("parameters", []),
-            "instructions": instructions or response,  # 如果解析失败，保留全文
+            "instructions": instructions or response,
             "source_session_id": recording.session_id,
             "source_thread_id": recording.thread_id,
             "skill_source": "multimodal_record",
-            "status": "draft",
+            "status": "pending_review",
+            "macro_script": metadata.get("macro_script"),
+            "execution_mode": "deterministic" if metadata.get("macro_script") else "agentic"
         }
 
     def _extract_yaml(self, text: str) -> Optional[str]:
-        """
-        从文本提取 YAML 部分（```yaml 和 ``` 之间）
-        """
+        """提取 YAML 代码块"""
         if "```yaml" in text:
-            parts = text.split("```yaml", 1)
-            if len(parts) > 1:
-                yaml_part = parts[1].split("```", 1)[0]
-                return yaml_part.strip()
-
-        # 尝试找第一个代码块
+            return text.split("```yaml", 1)[1].split("```", 1)[0].strip()
         if "```" in text:
-            parts = text.split("```", 2)
-            if len(parts) >= 3:
-                return parts[1].strip()
-
-        # 没有代码块标记，尝试找 YAML frontmatter
-        lines = text.split("\n")
-        yaml_lines = []
-        in_yaml = False
-
-        for line in lines:
-            if line.strip() == "---" and not in_yaml:
-                in_yaml = True
-                # Don't include the opening --- in output
-            elif line.strip() == "---" and in_yaml:
-                # End of frontmatter, stop here (don't include closing ---)
-                break
-            elif in_yaml:
-                yaml_lines.append(line)
-
-        if yaml_lines:
-            return "\n".join(yaml_lines)
-
+            # 尝试提取第一个代码块
+            return text.split("```", 2)[1].strip()
         return None
 
     def _extract_instructions(self, text: str) -> Optional[str]:
-        """
-        提取 instructions 部分（通常是 # Expert Skill Guide 之后）
-        """
-        # 找 Expert Skill Guide 标题
-        markers = [
-            "# 🧠 Expert Skill Guide",
-            "# Expert Skill Guide",
-            "## 1. Mental Model",
-            "## 🧠 Mental Model",
-        ]
-
+        """从响应中提取 Markdown 文档部分"""
+        markers = ["# 🧠 Expert Skill Guide", "# Expert Skill Guide", "## 1. Mental Model"]
         for marker in markers:
             if marker in text:
-                idx = text.find(marker)
-                return text[idx:].strip()
-
-        # 如果找不到，返回 YAML 之后的内容
-        yaml_end = text.find("---", text.find("---") + 3) if "---" in text else -1
-        if yaml_end > 0:
-            return text[yaml_end + 3:].strip()
-
+                return text[text.find(marker):].strip()
         return text

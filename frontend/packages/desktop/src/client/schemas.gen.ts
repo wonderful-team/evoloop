@@ -924,6 +924,16 @@ export const GlobalRecordedEventSchema = {
                 }
             ],
             title: 'Window Bounds'
+        },
+        modifiers: {
+            anyOf: [
+                {
+                    '$ref': '#/components/schemas/Modifiers'
+                },
+                {
+                    type: 'null'
+                }
+            ]
         }
     },
     type: 'object',
@@ -1263,6 +1273,33 @@ export const MessageItemSchema = {
     type: 'object',
     required: ['id', 'type', 'content', 'thinking', 'created_at'],
     title: 'MessageItem'
+} as const;
+
+export const ModifiersSchema = {
+    properties: {
+        alt: {
+            type: 'boolean',
+            title: 'Alt',
+            default: false
+        },
+        ctrl: {
+            type: 'boolean',
+            title: 'Ctrl',
+            default: false
+        },
+        meta: {
+            type: 'boolean',
+            title: 'Meta',
+            default: false
+        },
+        shift: {
+            type: 'boolean',
+            title: 'Shift',
+            default: false
+        }
+    },
+    type: 'object',
+    title: 'Modifiers'
 } as const;
 
 export const OpenFileRequestSchema = {
@@ -2167,6 +2204,33 @@ export const SynthesizeFromRecordingResponseSchema = {
                 }
             ],
             title: 'Skill Yaml'
+        },
+        macro_script: {
+            anyOf: [
+                {
+                    items: {
+                        additionalProperties: true,
+                        type: 'object'
+                    },
+                    type: 'array'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Macro Script'
+        },
+        verification: {
+            anyOf: [
+                {
+                    additionalProperties: true,
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Verification'
         },
         error: {
             anyOf: [

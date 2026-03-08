@@ -208,6 +208,7 @@ export type GlobalRecordedEvent = {
     number,
     number
 ] | null);
+    modifiers?: (Modifiers | null);
 };
 
 export type HTTPValidationError = {
@@ -288,6 +289,13 @@ export type MessageItem = {
     references?: Array<ReferenceItem>;
     steps?: Array<ToolStep>;
     has_file_operations?: boolean;
+};
+
+export type Modifiers = {
+    alt?: boolean;
+    ctrl?: boolean;
+    meta?: boolean;
+    shift?: boolean;
 };
 
 export type OpenFileRequest = {
@@ -520,6 +528,12 @@ export type SynthesizeFromRecordingResponse = {
     skill_id: (number | null);
     skill_name: (string | null);
     skill_yaml: (string | null);
+    macro_script?: (Array<{
+    [key: string]: unknown;
+}> | null);
+    verification?: ({
+    [key: string]: unknown;
+} | null);
     error: (string | null);
     processing_time_seconds: number;
     frames_analyzed: number;
@@ -1177,6 +1191,12 @@ export type LearningCleanupRecordingSessionData = {
 };
 
 export type LearningCleanupRecordingSessionResponse = (unknown);
+
+export type LearningConfirmLearnedSkillData = {
+    skillId: number;
+};
+
+export type LearningConfirmLearnedSkillResponse = (RespondResponse);
 
 export type LibraryListLibraryFilesData = {
     requestBody?: User;

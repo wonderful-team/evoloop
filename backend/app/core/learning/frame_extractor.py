@@ -85,6 +85,7 @@ class FrameExtractor:
                         "-i", self.video_path,
                         "-frames:v", "1",
                         "-q:v", "2",  # High quality
+                        "-pix_fmt", "yuvj420p", # [FIX] Ensure compatible pixel format for MJPEG/PNG on Mac
                         "-y",  # Overwrite
                         str(output_path),
                     ],
@@ -187,6 +188,7 @@ class FrameExtractor:
                     "-i", self.video_path,
                     "-frames:v", "1",
                     "-q:v", "2",  # 高质量
+                    "-pix_fmt", "yuvj420p", # [FIX] Mac MJPEG compatibility
                     str(output_path),
                 ],
                 capture_output=True,

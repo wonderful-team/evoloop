@@ -215,14 +215,14 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                     params: {},
                 },
             })
-            toast.success(t("learning.executionStarted", "Execution started"))
+            toast.success(t("learning.executionStarted"))
         } catch (e) {
-            toast.error(t("learning.executionFailed", "Execution failed"))
+            toast.error(t("learning.executionFailed"))
         }
     }
 
     const handleDelete = () => {
-        if (confirm(t("learning.confirmDeactivate", "Are you sure you want to delete this skill?"))) {
+        if (confirm(t("learning.confirmDeactivate"))) {
             deleteMutation.mutate()
         }
     }
