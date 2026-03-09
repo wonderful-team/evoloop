@@ -1,11 +1,8 @@
 import logging
-import json
-from typing import Any
 
 from app.core.events import system_bus
 from app.core.events.registry import AgentEventType
 from app.core.events.agent import AgentRunCompletedEvent
-from app.core.engine.tasks import record_episode_task
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +23,7 @@ class LearningOrchestrator:
         thread_id = event.thread_id
         project_id = event.project_id
         
-        print(f"DEBUG: LearningOrchestrator received event for thread {thread_id}, status: {event.status}")
+        logger.debug(f"LearningOrchestrator received event for thread {thread_id}, status: {event.status}")
         
         if event.status != "done":
             logger.info(f"[Learning] Skipping run {thread_id}: status is {event.status}")
@@ -36,7 +33,7 @@ class LearningOrchestrator:
         logger.info(f"[Learning] 🚀 Triggering automated episode recording for thread: {thread_id}")
 
         try:
-            print(f"DEBUG: LearningOrchestrator dispatching via celery_app.send_task(engine_record_episode)")
+            logger.debug(f"LearningOrchestrator dispatching via celery_app.send_task(engine_record_episode)")
             from app.infrastructure.queue.celery import celery_app
             
             # Send task explicitly by name to ensure it reaches the correct broker/app
@@ -49,13 +46,15 @@ class LearningOrchestrator:
                 },
                 queue="default"
             )
-            print(f"DEBUG: Task dispatched, task_id: {task_res.id}")
+            logger.debug(f"Task dispatched, task_id: {task_res.id}")
         except Exception as e:
             logger.error(f"[Learning] Failed to trigger recording task for {thread_id}: {e}")
-            print(f"DEBUG: FAILED TO DISPATCH TASK: {e}")
 
 
 def register_learning_handlers() -> None:
     """Register learning-related event handlers with the system bus."""
+    from app.core.learning.self_healing import register_self_healing_advisor
+
     system_bus.subscribe(AgentEventType.RUN_COMPLETED, LearningOrchestrator.on_agent_run_completed)
-    logger.info("🧠 Learning Orchestrator registered (agent.run_completed -> Learning Pipeline)")
+    register_self_healing_advisor()
+    logger.info("🧠 Learning Orchestrator & Self-Healing Advisor registered.")

@@ -107,6 +107,7 @@ class BrowserController:
         continue_on_error: bool = True,
         delay_ms: int = 100,
         file_path: str | None = None,
+        **kwargs: Any  # Accept extra arguments like 'purpose' for screenshots
     ) -> str:
         """Execute a browser action. All business logic lives here."""
         try:
@@ -176,7 +177,21 @@ class BrowserController:
             elif action in ("click", "double_click"):
                 loc = _resolve_selector(selector, text)
                 if loc:
-                    target = page.locator(loc).first
+                    # Prefer visible elements if multiple match
+                    try:
+                        # Wait up to 2s for a visible instance if there are multiple matches
+                        visible_locator = page.locator(loc).filter(visible=True).first
+                        if await visible_locator.count() > 0:
+                             target = visible_locator
+                        else:
+                             # Wait for any visible one to appear
+                             await page.locator(loc).first.wait_for(state="visible", timeout=3000)
+                             target = page.locator(loc).filter(visible=True).first
+                    except Exception as ve:
+                        logger.debug(f"[Browser] Visibility wait failed: {ve}")
+                        target = page.locator(loc).first
+                        
+                    logger.debug(f"[Browser] Clicking locator: {loc} (target={target})")
                     if action == "click":
                         await target.click(timeout=timeout_ms)
                     else:
@@ -208,10 +223,39 @@ class BrowserController:
                     return "Error: 'selector' or 'text' is required for type_text."
                 if value is None:
                     return "Error: 'value' is required for type_text."
+                
+                # Prefer visible elements
                 target = page.locator(loc).first
-                if clear_first:
-                    await target.clear(timeout=timeout_ms)
-                await target.type(value, delay=30)
+                try:
+                    # Wait up to 2s for a visible instance
+                    visible_locator = page.locator(loc).filter(visible=True).first
+                    if await visible_locator.count() > 0:
+                        target = visible_locator
+                    else:
+                        await page.locator(loc).first.wait_for(state="visible", timeout=3000)
+                        target = page.locator(loc).filter(visible=True).first
+                except Exception as ve:
+                    logger.debug(f"[Browser] Visibility wait failed for type_text: {ve}")
+                    pass
+
+                # --- Robustness: If target is not an input/textarea, look for one inside it ---
+                try:
+                    tag_name = await target.evaluate("node => node.tagName.toLowerCase()")
+                    if tag_name not in ["input", "textarea"]:
+                        logger.debug(f"[Browser] Target {tag_name} is not an input. Searching for child input...")
+                        child_input = target.locator("input, textarea, [contenteditable='true']").first
+                        if await child_input.count() > 0:
+                            target = child_input
+                            logger.debug(f"[Browser] Found child input: {target}")
+                except Exception as ee:
+                    logger.debug(f"[Browser] Failed to check/find child input: {ee}")
+
+                logger.debug(f"[Browser] Typing into locator: {loc} (target={target})")
+                # Log the value being typed (truncated for privacy/length)
+                val_display = str(value)[:50] + ("..." if len(str(value)) > 50 else "")
+                logger.info(f"[Browser] Typing value '{val_display}' into locator: {loc}")
+                
+                await target.fill(value, timeout=timeout_ms)
                 await _record("type_text", {"selector": loc, "value": value})
                 preview = value[:60] + ("…" if len(value) > 60 else "")
                 return f"✅ Typed into {loc}: '{preview}'"
@@ -231,6 +275,9 @@ class BrowserController:
             elif action == "key_press":
                 if not key:
                     return "Error: 'key' is required for key_press."
+                # Standardize Enter/Return for Playwright
+                if key == "Return":
+                    key = "Enter"
                 await page.keyboard.press(key)
                 await _record("key_press", {"key": key})
                 return f"✅ Key pressed: {key}"
@@ -322,9 +369,37 @@ class BrowserController:
                 except Exception:
                     return f"❌ Element not found: '{loc}'."
 
+            elif action == "get_elements":
+                loc = _resolve_selector(selector, text)
+                if not loc:
+                    return "[]"
+                try:
+                    elements = page.locator(loc)
+                    count = await elements.count()
+                    logger.info(f"[Browser] Found {count} elements for selector: {loc}")
+                    results = []
+                    for i in range(min(count, 20)): # Limit to 20 for safety
+                        el = elements.nth(i)
+                        box = await el.bounding_box()
+                        txt = await el.inner_text()
+                        results.append({
+                            "index": i,
+                            "selector": f"{loc} >> nth={i}",
+                            "text": txt[:100],
+                            "x": box["x"] if box else 0,
+                            "y": box["y"] if box else 0,
+                            "width": box["width"] if box else 0,
+                            "height": box["height"] if box else 0
+                        })
+                    import json
+                    return json.dumps(results)
+                except Exception as e:
+                    logger.error(f"[Browser] get_elements failed: {e}")
+                    return "[]"
+
             # ── Perception ────────────────────────────────────────────────────
             elif action == "screenshot":
-                filepath = _tmp_screenshot_path()
+                filepath = _tmp_screenshot_path(purpose=kwargs.get("purpose", "temp"))
                 try:
                     if selector:
                         elem = page.locator(selector).first
@@ -420,6 +495,22 @@ class BrowserController:
                 except Exception:
                     body_preview = (await resp.text())[:500]
                 return f"✅ Network response captured:\nURL: {resp.url}\nStatus: {status}\nBody (preview): {body_preview}"
+
+            elif action == "wait_for_stability":
+                # Wait until DOM stops changing or max timeout
+                check_interval = 0.5
+                max_checks = int(timeout_ms / 1000 / check_interval)
+                last_html = ""
+                for _ in range(max_checks):
+                    try:
+                        curr_html = await page.content()
+                        if curr_html == last_html:
+                            return "✅ Page stable (DOM matched)."
+                        last_html = curr_html
+                        await asyncio.sleep(check_interval)
+                    except Exception:
+                        break
+                return "Warning: Page stability timeout reached."
 
             elif action == "dialog_handle":
                 if not dialog_action:

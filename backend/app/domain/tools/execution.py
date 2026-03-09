@@ -152,15 +152,20 @@ async def run_macro(
             f"{skill.instructions or '(No instructions available)'}"
         )
 
-    # 4. Execute via MacroService
     logger.info(
-        f"[run_macro] Executing skill '{skill.name}' (id={skill.id}) "
+        f"[run_macro] Executing skill '{skill_name}' (id={skill_id}) "
         f"with {len(macro_script)} steps, params={params}"
     )
+    
+    # Pass metadata for the event advisor to use
+    execution_params = params.copy() if params else {}
+    execution_params["_skill_id"] = skill_id
+    execution_params["_skill_name"] = skill_name
+    
     result = await MacroService.run(
         thread_id=thread_id,
         script_input=macro_script,
-        params=params or {},
+        params=execution_params,
     )
 
     # 5. Format result
@@ -174,10 +179,19 @@ async def run_macro(
     else:
         msg = result.get("message", "Unknown error")
         fallback = result.get("fallback_context")
+        suggestions = result.get("suggestions", [])
+        
         output = f"❌ Skill '{skill.name}' failed: {msg}"
         if fallback:
             failed_step = fallback.get("failed_step", {})
             output += f"\n\nFailed step: {failed_step.get('description') or failed_step.get('event_type')}"
             output += f"\nError: {fallback.get('error_message')}"
-            output += "\n\n💡 Suggestion: Retry the failed step manually using the appropriate tool, then call run_macro again."
+
+            # Use suggestions injected by listeners (via MacroService)
+            if suggestions:
+                output += "\n\n" + "\n".join(suggestions)
+            else:
+                # Fallback if no advisor registered
+                output += "\n\n💡 Suggestion: Retry the failed step manually using the appropriate tool."
+
         return output

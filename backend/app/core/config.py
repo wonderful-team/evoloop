@@ -131,6 +131,7 @@ class Settings(BaseSettings):
     ENABLE_QUERY_REWRITING: bool = True  # P1: Cross-Lingual Query Rewriting
 
     ENABLE_VISION_OCR: bool = True
+    ENABLE_MACRO_SELF_HEALING: bool = True
 
     ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None

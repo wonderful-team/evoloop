@@ -95,3 +95,10 @@ class AgentEventType(str, Enum):
     TOOL_EXECUTED = "agent.tool_executed"
     HITL_REQUESTED = "agent.hitl_requested"
     HITL_RESPONDED = "agent.hitl_responded"
+
+
+class MacroEventType(str, Enum):
+    """
+    Macro Execution event types.
+    """
+    EXECUTION_FAILED = "macro.execution_failed"

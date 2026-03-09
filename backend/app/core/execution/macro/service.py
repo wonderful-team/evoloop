@@ -55,7 +55,35 @@ class MacroService:
             if not success:
                 logger.error(f"[{thread_id}] Macro execution failed: {msg}")
                 await activity_monitor.end_run(thread_id, "failed")
-                result = {"success": False, "message": msg}
+                
+                # --- Decoupled Self-Healing Trigger ---
+                from app.core.events import system_bus
+                from app.core.events.macro import MacroExecutionFailedEvent
+                
+                event = MacroExecutionFailedEvent(
+                    skill_id=params.get("_skill_id") if params else None,
+                    skill_name=params.get("_skill_name") if params else "manual_macro",
+                    error_message=msg,
+                    fallback_context=fallback_ctx,
+                    thread_id=thread_id
+                )
+                # Pass self-healing switches to event data for Advisor to see
+                event.data["allow_self_healing"] = params.get("_allow_self_healing", True) if params else True
+                
+                # Publish synchronously so listeners can populate suggestions
+                await system_bus.publish(event)
+                
+                # Evaluate if self-healing is allowed based on suggestions
+                self_healing_allowed = True
+                if any("[SELF_HEALING_DISABLED]" in s for s in event.suggestions):
+                    self_healing_allowed = False
+
+                result = {
+                    "success": False, 
+                    "message": msg,
+                    "allow_self_healing": self_healing_allowed,
+                    "suggestions": event.suggestions
+                }
                 if fallback_ctx:
                     result["status"] = "fallback_required"
                     result["fallback_context"] = fallback_ctx

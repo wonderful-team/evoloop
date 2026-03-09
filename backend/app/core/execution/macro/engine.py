@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+import os
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -44,6 +46,22 @@ class MacroEngine:
             # Fallback for selector buried in payload
             target_selector = target_selector or payload.get("selector")
 
+            # --- Observability: Log BEFORE processing ---
+            desc = f"Execute Macro Step {step_num}: {step.type} "
+            if step.type == MacroStepType.ACTION:
+                desc = f"Execute Macro Step {step_num}: {step.event_type} "
+                if target_selector:
+                    desc += f"on {target_selector}"
+                elif "url" in payload:
+                    desc += f"to {payload['url']}"
+            elif step.type == MacroStepType.LOOP:
+                desc += f"(items_key='{payload.get('items_key')}')"
+            elif step.type == MacroStepType.EXTRACT:
+                desc += f"(key='{step.key}')"
+                
+            await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
+            logger.info(f"[{thread_id}] {desc}")
+
             # 2. Handle Control Flow
             if step.type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.LOOP):
                 success, msg, fallback = await cls._handle_control_flow(
@@ -63,19 +81,10 @@ class MacroEngine:
                 await cls._handle_dump(thread_id, payload, extracted_data)
                 continue
 
-            # 5. Regular UI Action
+            # 5. Handle UI Action
             if step.type == MacroStepType.ACTION:
                 event_type = step.event_type
                 source = step.source
-                
-                desc = f"Execute Macro Step {step_num}: {event_type} "
-                if target_selector:
-                    desc += f"on {target_selector}"
-                elif "url" in payload:
-                    desc += f"to {payload['url']}"
-                    
-                await activity_monitor.log_event("macro_thought", {"text": desc}, thread_id)
-                logger.debug(f"[{thread_id}] {desc}")
                 
                 try:
                     if source == MacroSource.DOM:
@@ -88,29 +97,50 @@ class MacroEngine:
                         logger.warning(f"Unknown macro source: {source}")
                 except Exception as e:
                     error_msg = str(e)
+                    
+                    # --- Observability: Capture screenshot on failure ---
+                    screenshot_path = None
+                    try:
+                        if source == MacroSource.DOM:
+                            # Use 'debug' purpose which exists in ScreenshotPurpose enum
+                            res = await BrowserController.execute(action="screenshot", purpose="debug")
+                            match = re.search(r"(/.*\.png)", str(res))
+                            screenshot_path = match.group(1) if match else None
+                    except Exception as se:
+                        logger.error(f"Failed to capture failure screenshot: {se}")
+
                     fallback_context = {
                         "failed_step": step.model_copy().dict(),
                         "error_message": error_msg,
-                        "source": source
+                        "source": source,
+                        "screenshot": screenshot_path
                     }
+                    
+                    if screenshot_path:
+                        await activity_monitor.log_event("macro_thought", {
+                            "text": f"❌ Step {step_num} failed. Failure captured: {screenshot_path}"
+                        }, thread_id)
+                        logger.error(f"[{thread_id}] ❌ Macro Step {step_num} failed. Screenshot: {screenshot_path}")
+                    
                     return False, f"Step {step_num} failed: {error_msg}", fallback_context
 
                 await activity_monitor.check_cancellation(thread_id)
-                await asyncio.sleep(0.5)
+                # Increase delay between steps for better stability
+                await asyncio.sleep(1.0)
                 
         return True, "", None
 
     @classmethod
     async def _handle_control_flow(cls, thread_id: str, step: MacroStep, params: dict, extracted_data: dict):
-        # Implementation of If/While logic
+        # Implementation of If/While/Loop logic
         condition = step.condition
-        if not condition:
-            return True, "", None
-            
-        cond_type = condition.type
-        selector = cls._inject_params(condition.target_selector, params)
+        cond_type = condition.type if condition else None
+        selector = cls._inject_params(condition.target_selector, params) if condition else None
         
         if step.type in (MacroStepType.CONTROL, MacroStepType.IF):
+            if not condition:
+                logger.warning(f"[{thread_id}] IF/CONTROL step {step.step_number} missing condition. Skipping.")
+                return True, "", None
             is_true = await cls._evaluate_condition(cond_type, selector, step.source)
             branch = step.then_steps if is_true else step.else_steps
             if branch:
@@ -168,8 +198,13 @@ class MacroEngine:
         items = extracted_data.get(items_key) or params.get(items_key)
         
         if not items or not isinstance(items, list):
-            logger.warning(f"[{thread_id}] Batch loop skipped: No items found for key '{items_key}'")
+            warn_msg = f"⚠️ Batch loop skipped: No items found for key '{items_key}'"
+            logger.warning(f"[{thread_id}] {warn_msg}")
+            await activity_monitor.log_event("macro_thought", {"text": warn_msg}, thread_id)
             return True, "", None
+
+        logger.info(f"[{thread_id}] 🔄 Starting Batch Loop: {len(items)} items for key '{items_key}'")
+        await activity_monitor.log_event("macro_thought", {"text": f"🔄 Starting loop ({len(items)} items)"}, thread_id)
 
         # Phase 3: Dynamic App Awareness
         is_dynamic = False
@@ -317,7 +352,14 @@ class MacroEngine:
                 match = re.search(r"(/.*\.png)", str(res))
                 extracted_data[key] = match.group(1) if match else res
             else:
-                extracted_data[key] = res
+                try:
+                    # Attempt to parse as JSON if it looks like a list or object
+                    if isinstance(res, str) and (res.startswith("[") or res.startswith("{")):
+                        extracted_data[key] = json.loads(res)
+                    else:
+                        extracted_data[key] = res
+                except Exception:
+                    extracted_data[key] = res
 
         elif step.source in (MacroSource.MOBILE, MacroSource.GLOBAL):
             if extract_type == "dump_ui":
@@ -337,8 +379,7 @@ class MacroEngine:
             from PIL import Image
             from app.core.vision.providers.native.android_a11y import android_a11y_provider
             from app.core.vision.types import VisionTask
-            import os
-            
+
             def _norm(t): return re.sub(r'\s+', '', t).lower() if t else ""
             a11y_res = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=None)
             
@@ -359,7 +400,6 @@ class MacroEngine:
 
     @classmethod
     async def _handle_dump(cls, thread_id: str, payload: dict, extracted_data: dict):
-        import json
         sink_path = payload.get("path", f"/tmp/macro_results_{thread_id}.json")
         await activity_monitor.log_event("macro_thought", {"text": f"Dump extracted data to {sink_path}"}, thread_id)
         try:
@@ -389,7 +429,8 @@ class MacroEngine:
         if event_type in ("goto", "navigate"):
             res = await BrowserController.execute(action=tool_action, url=payload.get("url"), timeout_ms=timeout_ms, continue_on_error=continue_on_error)
             handle_res(res)
-            await asyncio.sleep(2)
+            # Wait for page to stabilize after navigation
+            await BrowserController.execute(action="wait_for_stability", timeout_ms=5000)
         elif event_type == "back":
             handle_res(await BrowserController.execute(action=tool_action, timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type == "forward":
@@ -491,17 +532,36 @@ class MacroEngine:
     @classmethod
     def _inject_params(cls, value: Optional[str], params: Optional[dict]) -> Optional[str]:
         if not value or not params: return value
-        result = value
-        for k, v in params.items():
-            pattern = r"\{\{\s*(parameters\.)?" + re.escape(k) + r"\s*\}\}"
-            result = re.sub(pattern, str(v), result)
-        return result
+        
+        def _get_nested(data: dict, path: str):
+            parts = path.split('.')
+            curr = data
+            for p in parts:
+                if isinstance(curr, dict) and p in curr:
+                    curr = curr[p]
+                else:
+                    return None
+            return curr
+
+        # Regex to match {{key}}, {{parameters.key}}, {{item.selector}} etc.
+        pattern = r"\{\{\s*(?:parameters\.)?([a-zA-Z0-9_\-\.]+)\s*\}\}"
+        
+        def replacer(match):
+            path = match.group(1)
+            val = _get_nested(params, path)
+            if val is not None:
+                return str(val)
+            return match.group(0)
+
+        return re.sub(pattern, replacer, value)
 
     @classmethod
-    def _inject_payload_params(cls, payload: dict, params: Optional[dict]) -> dict:
+    def _inject_payload_params(cls, payload: Any, params: Optional[dict]) -> Any:
         if not params: return payload
-        new_payload = dict(payload)
-        for k, v in new_payload.items():
-            if isinstance(v, str):
-                new_payload[k] = cls._inject_params(v, params)
-        return new_payload
+        if isinstance(payload, str):
+            return cls._inject_params(payload, params)
+        elif isinstance(payload, dict):
+            return {k: cls._inject_payload_params(v, params) for k, v in payload.items()}
+        elif isinstance(payload, list):
+            return [cls._inject_payload_params(item, params) for item in payload]
+        return payload

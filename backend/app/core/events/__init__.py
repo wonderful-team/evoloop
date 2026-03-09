@@ -17,6 +17,7 @@ from app.core.events.registry import (
     IndexingEventType,
     ProjectEventType,
     SystemEventType,
+    MacroEventType,
 )
 
 __all__ = [
@@ -25,6 +26,8 @@ __all__ = [
     "AsyncEventBus",
     "SystemEventBus",
     "EventHandler",
+    # Macro events
+    "MacroEventType",
     # Global instance
     "system_bus",
     # Event types
@@ -33,4 +36,5 @@ __all__ = [
     "ProjectEventType",
     "IndexingEventType",
     "AgentEventType",
+    "MacroEventType",
 ]

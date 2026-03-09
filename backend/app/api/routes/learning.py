@@ -992,10 +992,21 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
         }
 
 
-async def execute_macro_with_fallback(thread_id: str, project_id: int, skill_id: int, skill_name: str, macro_payload: list, params: dict):
-    result = await MacroService.run(thread_id, macro_payload, params)
+async def execute_macro_with_fallback(thread_id: str, project_id: int, skill_id: int, skill_name: str, macro_payload: list, params: dict, allow_self_healing: bool = True):
+    # Pass metadata and healing switch to MacroService for event advisor
+    execution_params = params.copy() if params else {}
+    execution_params["_skill_id"] = skill_id
+    execution_params["_skill_name"] = skill_name
+    execution_params["_allow_self_healing"] = allow_self_healing
+
+    result = await MacroService.run(thread_id, macro_payload, execution_params)
     
     if result.get("status") == "fallback_required":
+        # Check if self-healing is actually allowed (voted by advisor)
+        if not result.get("allow_self_healing", True):
+            logger.warning(f"[{thread_id}] Macro failed, but Self-Healing is DISABLED. Skipping fallback.")
+            return
+
         logger.warning(f"[{thread_id}] Macro failed, triggering Agentic Fallback...")
         fallback_ctx = result.get("fallback_context", {})
         
@@ -1088,7 +1099,16 @@ async def execute_skill(
         
         # Deepcopy to avoid mutating the skill model in cache
         macro_payload = copy.deepcopy(skill.macro_script)
-        bg_tasks.add_task(execute_macro_with_fallback, body.thread_id, body.project_id, skill.id, skill_name, macro_payload, body.params)
+        bg_tasks.add_task(
+            execute_macro_with_fallback, 
+            body.thread_id, 
+            body.project_id, 
+            skill.id, 
+            skill_name, 
+            macro_payload, 
+            body.params,
+            skill.allow_self_healing  # Pass the skill-level switch
+        )
         return {"success": True, "message": f"Deterministic Macro execution queued for '{skill_name}'"}
     else:
         # Fallback to Agentic mode
