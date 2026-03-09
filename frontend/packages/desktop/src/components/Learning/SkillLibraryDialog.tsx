@@ -84,10 +84,8 @@ export function SkillLibraryDialog({
 
 
   const handleDelete = async (skillId: number) => {
-    if (!confirm(t("learning.confirmDeactivate"))) return
-
     try {
-      await LearningService.deactivateSkill({ skillId })
+      await (LearningService as any).deleteSkill({ skillId })
       toast.success(t("common.success"))
       queryClient.invalidateQueries({ queryKey: ["learnedSkills"] })
       if (selectedSkill?.id === skillId) {

@@ -1083,11 +1083,11 @@ export type LearningGetSkillData = {
 
 export type LearningGetSkillResponse = (unknown);
 
-export type LearningDeactivateSkillData = {
+export type LearningDeleteSkillData = {
     skillId: number;
 };
 
-export type LearningDeactivateSkillResponse = (unknown);
+export type LearningDeleteSkillResponse = (unknown);
 
 export type LearningUpdateSkillData = {
     requestBody: UpdateSkillRequest;

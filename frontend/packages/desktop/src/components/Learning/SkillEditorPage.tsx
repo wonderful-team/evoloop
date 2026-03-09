@@ -19,7 +19,6 @@ import { toast } from "sonner"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { LearningService } from "@/client/sdk.gen"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Separator } from "@evoloop/shared/components/ui/separator"
 import { EditorSidebar } from "./EditorSidebar"
 import { useChatStore } from "@/stores/chatStore"
@@ -37,7 +36,6 @@ interface SkillEditorPageProps {
 export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProps) {
     const { t } = useTranslation()
     const queryClient = useQueryClient()
-    const [loading, setLoading] = useState(false)
     const [aiOptimizing, setAiOptimizing] = useState(false)
 
     // Form state
@@ -130,7 +128,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
     })
 
     const deleteMutation = useMutation({
-        mutationFn: () => LearningService.deactivateSkill({ skillId }),
+        mutationFn: () => (LearningService as any).deleteSkill({ skillId }),
         onSuccess: () => {
             toast.success(t("common.success", "Skill deleted"))
             queryClient.invalidateQueries({ queryKey: ["learnedSkills"] })
@@ -222,9 +220,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
     }
 
     const handleDelete = () => {
-        if (confirm(t("learning.confirmDeactivate"))) {
-            deleteMutation.mutate()
-        }
+        deleteMutation.mutate()
     }
 
     if (isLoadingSkill) {
@@ -370,21 +366,19 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                             <div className="flex items-center gap-2 text-xs bg-background p-1 rounded-md border shadow-sm">
                                 <button
                                     onClick={() => setExecutionMode("agentic")}
-                                    className={`px-3 py-1.5 rounded-sm transition-colors ${
-                                        executionMode === "agentic"
-                                            ? "bg-amber-100 text-amber-800 font-bold"
-                                            : "hover:bg-muted text-muted-foreground"
-                                    }`}
+                                    className={`px-3 py-1.5 rounded-sm transition-colors ${executionMode === "agentic"
+                                        ? "bg-amber-100 text-amber-800 font-bold"
+                                        : "hover:bg-muted text-muted-foreground"
+                                        }`}
                                 >
                                     🧠 {t("learning.agentic", "Agentic")}
                                 </button>
                                 <button
                                     onClick={() => setExecutionMode("deterministic")}
-                                    className={`px-3 py-1.5 rounded-sm transition-colors ${
-                                        executionMode === "deterministic"
-                                            ? "bg-emerald-100 text-emerald-800 font-bold"
-                                            : "hover:bg-muted text-muted-foreground"
-                                    }`}
+                                    className={`px-3 py-1.5 rounded-sm transition-colors ${executionMode === "deterministic"
+                                        ? "bg-emerald-100 text-emerald-800 font-bold"
+                                        : "hover:bg-muted text-muted-foreground"
+                                        }`}
                                 >
                                     ⚡ {t("learning.deterministic", "Deterministic")}
                                 </button>

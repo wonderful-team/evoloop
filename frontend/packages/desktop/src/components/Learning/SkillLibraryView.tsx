@@ -87,7 +87,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
     }, [highlightSkillId, skills, onClearHighlight, navigate]);
 
     const deleteMutation = useMutation({
-        mutationFn: (skillId: number) => LearningService.deactivateSkill({ skillId }),
+        mutationFn: (skillId: number) => (LearningService as any).deleteSkill({ skillId }),
         onSuccess: () => {
             toast.success(t("common.success", "Skill deactivated successfully"))
             queryClient.invalidateQueries({ queryKey: ["learnedSkills"] })
@@ -113,9 +113,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
     }
 
     const handleDelete = (skillId: number) => {
-        if (confirm(t("learning.confirmDeactivate"))) {
-            deleteMutation.mutate(skillId)
-        }
+        deleteMutation.mutate(skillId)
     }
 
     return (
