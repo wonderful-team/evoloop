@@ -81,12 +81,12 @@ export function SkillExecutionDialog({
           project_id: projectId,
         },
       })
-      toast.success(t("learning.executionStarted", "Skill execution started"))
+      toast.success(t("learning.executionStarted"))
       onOpenChange(false)
       onSuccess?.()
     } catch (error) {
       console.error("Execution failed", error)
-      toast.error(t("learning.executionFailed", "Failed to execute skill"))
+      toast.error(t("learning.executionFailed"))
     } finally {
       setExecuting(false)
     }
@@ -182,7 +182,7 @@ export function SkillExecutionDialog({
             {t("learning.execution.title", { name: skill.name })}
           </DialogTitle>
           <DialogDescription className="line-clamp-2">
-            {skill.description || t("learning.execution.description")}
+            {skill.description || t("learning.execution.noParamsDescription")}
           </DialogDescription>
         </DialogHeader>
 

@@ -100,7 +100,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
             try {
                 parsedMacro = JSON.parse(macroScript || "[]")
             } catch (e) {
-                throw new Error(t("learning.editor.invalidMacroJson", "Macro script must be valid JSON"))
+                throw new Error(t("learning.editor.invalidMacroJson"))
             }
 
             return LearningService.updateSkill({
@@ -130,7 +130,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
     const deleteMutation = useMutation({
         mutationFn: () => (LearningService as any).deleteSkill({ skillId }),
         onSuccess: () => {
-            toast.success(t("common.success", "Skill deleted"))
+            toast.success(t("common.success"))
             queryClient.invalidateQueries({ queryKey: ["learnedSkills"] })
             onBack?.()
         },
@@ -172,15 +172,15 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
         setAiOptimizing(true)
         await new Promise((resolve) => setTimeout(resolve, 1500))
 
-        const betterDescription = description || t("learning.editor.aiRefinedDesc", "AI refined description based on execution logic.")
-        const autoPrefix = t("learning.editor.automatedPrefix", "automated ")
+        const betterDescription = description || t("learning.editor.aiRefinedDesc")
+        const autoPrefix = t("learning.editor.automatedPrefix")
         if (!triggers.includes(autoPrefix + name.toLowerCase())) {
             setTriggers([...triggers, autoPrefix + name.toLowerCase()])
         }
-        setDescription(betterDescription + t("learning.editor.optimizedSuffix", " (Optimized)"))
+        setDescription(betterDescription + t("learning.editor.optimizedSuffix"))
 
         setAiOptimizing(false)
-        toast.success(t("common.success", "AI Refinement complete"))
+        toast.success(t("learning.editor.aiRefineSuccess"))
     }
 
     const handleSave = async () => {
@@ -234,7 +234,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
     if (!skill) {
         return (
             <div className="flex flex-col items-center justify-center h-full gap-4">
-                <p className="text-muted-foreground">{t("learning.skillNotFound", "Skill not found")}</p>
+                <p className="text-muted-foreground">{t("learning.skillNotFound")}</p>
                 <Button onClick={onBack}>
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     {t("common.back")}
@@ -273,7 +273,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                         disabled={updateMutation.isPending}
                     >
                         <Play className="h-3.5 w-3.5 fill-current" />
-                        {t("learning.execution.runNow", "Run Skill")}
+                        {t("learning.execution.runNow")}
                     </Button>
 
                     <Button
@@ -347,8 +347,8 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                             )}
                             <span className={executionMode === "deterministic" ? "text-emerald-600" : ""}>
                                 {executionMode === "agentic"
-                                    ? t("learning.expertGuide", "Expert Guide (Markdown SOP)")
-                                    : t("learning.macroSequence", "Macro Sequence (Visual Editor)")}
+                                    ? t("learning.expertGuide")
+                                    : t("learning.macroSequence")}
                             </span>
                         </div>
                         <div className="flex items-center gap-2">
@@ -359,7 +359,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                                 >
                                     <Button variant="outline" size="sm" className="gap-1.5">
                                         <FileJson className="h-3.5 w-3.5" />
-                                        {t("learning.editJson", "Edit JSON")}
+                                        {t("learning.editJson")}
                                     </Button>
                                 </MacroJsonEditor>
                             )}
@@ -371,7 +371,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                                         : "hover:bg-muted text-muted-foreground"
                                         }`}
                                 >
-                                    🧠 {t("learning.agentic", "Agentic")}
+                                    🧠 {t("learning.agentic")}
                                 </button>
                                 <button
                                     onClick={() => setExecutionMode("deterministic")}
@@ -380,7 +380,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                                         : "hover:bg-muted text-muted-foreground"
                                         }`}
                                 >
-                                    ⚡ {t("learning.deterministic", "Deterministic")}
+                                    ⚡ {t("learning.deterministic")}
                                 </button>
                             </div>
                         </div>

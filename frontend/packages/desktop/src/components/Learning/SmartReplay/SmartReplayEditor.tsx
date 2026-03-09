@@ -146,10 +146,10 @@ export function SmartReplayEditor({
                         await LearningService.deleteAnnotation({ annotationId: annotation.id })
                     }
                 }
-                toast.success(t("smartReplay.toast.filesDeleted", "Recording data deleted"))
+                toast.success(t("smartReplay.toast.filesDeleted"))
             } catch (error) {
                 console.error("Failed to delete annotations:", error)
-                toast.error(t("smartReplay.toast.deleteFailed", "Failed to delete some data"))
+                toast.error(t("smartReplay.toast.deleteFailed"))
             }
         }
         setShowCloseConfirm(false)
@@ -390,9 +390,9 @@ export function SmartReplayEditor({
         <Dialog open={showCloseConfirm} onOpenChange={setShowCloseConfirm}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>{t("smartReplay.closeConfirmTitle", "Close Smart Replay")}</DialogTitle>
+                    <DialogTitle>{t("smartReplay.closeConfirmTitle")}</DialogTitle>
                     <DialogDescription>
-                        {t("smartReplay.closeConfirmDesc", "Are you sure you want to close? This will discard your current progress.")}
+                        {t("smartReplay.closeConfirmDesc")}
                     </DialogDescription>
                 </DialogHeader>
                 <div className="py-4">
@@ -404,19 +404,19 @@ export function SmartReplayEditor({
                             className="w-4 h-4 rounded border-gray-300"
                         />
                         <div className="flex-1">
-                            <p className="font-medium">{t("smartReplay.deleteAssociatedFiles", "Delete associated recording files")}</p>
+                            <p className="font-medium">{t("smartReplay.deleteAssociatedFiles")}</p>
                             <p className="text-sm text-muted-foreground">
-                                {t("smartReplay.deleteFilesHint", "Video file and annotations will be permanently removed")}
+                                {t("smartReplay.deleteFilesHint")}
                             </p>
                         </div>
                     </label>
                 </div>
                 <DialogFooter className="gap-2">
                     <Button variant="outline" onClick={handleCancelClose}>
-                        {t("common.cancel", "Cancel")}
+                        {t("common.cancel")}
                     </Button>
                     <Button variant="destructive" onClick={handleConfirmClose}>
-                        {t("smartReplay.closeAndDiscard", "Close & Discard")}
+                        {t("smartReplay.closeAndDiscard")}
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -473,7 +473,7 @@ export function SmartReplayEditor({
                                     }}
                                     onError={(e) => {
                                         console.error("[SmartReplayEditor] Video failed to load:", videoSrc, e)
-                                        toast.error(t("smartReplay.videoLoadFailed", "Failed to load video"))
+                                        toast.error(t("smartReplay.videoLoadFailed"))
                                     }}
                                     controls={false}
                                     playsInline
@@ -483,7 +483,7 @@ export function SmartReplayEditor({
                                 <div className="w-full h-full flex items-center justify-center text-white/50">
                                     <div className="text-center">
                                         <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-                                        <p>{t("smartReplay.loadingVideo", "Loading video...")}</p>
+                                        <p>{t("smartReplay.loadingVideo")}</p>
                                     </div>
                                 </div>
                             )}

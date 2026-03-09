@@ -31,8 +31,8 @@ export function GlobalRecorderManager() {
     // Sync static translations to tray
     useEffect(() => {
         invoke("sync_tray_translations", {
-            showText: t("learning.tray.show", "Show Main Interface"),
-            quitText: t("learning.tray.quit", "Quit")
+            showText: t("learning.tray.show"),
+            quitText: t("learning.tray.quit")
         })
     }, [i18n.language, t])
 
@@ -40,8 +40,8 @@ export function GlobalRecorderManager() {
     useEffect(() => {
         invoke("sync_tray_recording_state", {
             isRecording: shouldRecord,
-            startText: t("learning.tray.startRecording", "Start Recording (⌘R)"),
-            stopText: t("learning.tray.stopRecording", "Stop Recording (⌘R)")
+            startText: t("learning.tray.startRecording"),
+            stopText: t("learning.tray.stopRecording")
         })
     }, [shouldRecord, i18n.language, t])
 
@@ -80,11 +80,11 @@ export function GlobalRecorderManager() {
 
             // Show appropriate toast
             if (reason === "timeout") {
-                toast.warning(t("learning.recordingAutoStoppedTimeout", "Recording stopped automatically: 10-minute limit reached."))
+                toast.warning(t("learning.recordingAutoStoppedTimeout"))
             } else if (reason === "size_limit") {
-                toast.warning(t("learning.recordingAutoStoppedSize", "Recording stopped automatically: file size limit (500MB) reached."))
+                toast.warning(t("learning.recordingAutoStoppedSize"))
             } else {
-                toast.warning(t("learning.recordingAutoStopped", "Recording was stopped automatically."))
+                toast.warning(t("learning.recordingAutoStopped"))
             }
 
             // Trigger the same graceful stop flow as a manual tray stop
@@ -164,10 +164,10 @@ export function GlobalRecorderManager() {
                             toast.error(t("learning.videoRecordingFailed", { error: videoErr }))
                         }
 
-                        toast.info(t("learning.recordingStarted", "Recording started"))
+                        toast.info(t("learning.recordingStarted"))
                     } catch (e) {
                         console.error("Failed to start recording", e)
-                        toast.error(t("learning.recordingFailed", "Failed to start"))
+                        toast.error(t("learning.recordingFailed"))
                         stopRecording()
                     } finally {
                         busyRef.current = false
@@ -204,7 +204,7 @@ export function GlobalRecorderManager() {
 
                         if (totalEventsCount === 0) {
                             // If video exists but no events, or video is tiny, it's likely a permission issue
-                            toast.warning(t("learning.noEvents", "No events captured, skipping skill creation."))
+                            toast.warning(t("learning.noEvents"))
                             setSessionId(null)
                             setVideoPath(null)
                             clearLocalEvents()

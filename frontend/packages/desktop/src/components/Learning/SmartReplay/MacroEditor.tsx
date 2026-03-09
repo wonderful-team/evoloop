@@ -270,6 +270,7 @@ export function MacroEditor({
         const actionIconMap: Record<string, React.ReactNode> = {
             click: <MousePointerClick className="h-4 w-4" />,
             navigate: <LucideIcons.Globe className="h-4 w-4" />,
+            back: <LucideIcons.ArrowLeft className="h-4 w-4" />,
             input: <LucideIcons.Type className="h-4 w-4" />,
             key_press: <LucideIcons.Keyboard className="h-4 w-4" />,
             wait: (LucideIcons.Timer ? <LucideIcons.Timer className="h-4 w-4" /> : <LucideIcons.Clock className="h-4 w-4" />)
@@ -477,7 +478,7 @@ export function MacroEditor({
                                             <Label className="text-xs">{t("macroEditor.type")}</Label>
                                             <Select
                                                 value={(() => {
-                                                    const commonActions = ["click", "navigate", "input", "key_press", "wait"];
+                                                    const commonActions = ["click", "navigate", "back", "input", "key_press", "wait"];
                                                     if (step.type === "action" && commonActions.includes(step.event_type || "")) {
                                                         return step.event_type;
                                                     }
@@ -501,6 +502,7 @@ export function MacroEditor({
                                                     <div className="h-px bg-muted my-1" />
                                                     <SelectItem value="click">{t("macroEditor.eventTypes.click")}</SelectItem>
                                                     <SelectItem value="navigate">{t("macroEditor.eventTypes.navigate")}</SelectItem>
+                                                    <SelectItem value="back">{t("macroEditor.eventTypes.back")}</SelectItem>
                                                     <SelectItem value="input">{t("macroEditor.eventTypes.input")}</SelectItem>
                                                     <SelectItem value="key_press">{t("macroEditor.eventTypes.key_press")}</SelectItem>
                                                     <SelectItem value="wait">{t("macroEditor.eventTypes.wait")}</SelectItem>
@@ -508,7 +510,7 @@ export function MacroEditor({
                                                     <SelectItem value="extract">{t("macroEditor.stepTypes.extract")}</SelectItem>
                                                     <SelectItem value="if">{t("macroEditor.stepTypes.if")}</SelectItem>
                                                     <SelectItem value="loop">{t("macroEditor.stepTypes.loop")}</SelectItem>
-                                                    <SelectItem value="control">{t("macroEditor.stepTypes.control", "Control")}</SelectItem>
+                                                    <SelectItem value="control">{t("macroEditor.stepTypes.control")}</SelectItem>
                                                     <SelectItem value="dump">{t("macroEditor.stepTypes.dump")}</SelectItem>
                                                 </SelectContent>
                                             </Select>

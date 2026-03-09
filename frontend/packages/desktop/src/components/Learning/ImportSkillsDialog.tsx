@@ -43,14 +43,14 @@ export function ImportSkillsDialog({ isOpen, onClose, onSuccess }: ImportSkillsD
 
             if (response.success) {
                 setResult(response.results)
-                toast.success(t('learning.import.success', 'Skills imported successfully!'))
+                toast.success(t('learning.import.success'))
                 onSuccess?.()
             } else {
-                toast.error(t('learning.import.failed', 'Failed to import skills'))
+                toast.error(t('learning.import.failed'))
             }
         } catch (error: any) {
             console.error('Skill import failed:', error)
-            toast.error(error.message || t('learning.import.error', 'An error occurred during import'))
+            toast.error(error.message || t('learning.import.error'))
         } finally {
             setIsImporting(false)
         }
@@ -62,27 +62,27 @@ export function ImportSkillsDialog({ isOpen, onClose, onSuccess }: ImportSkillsD
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         <FolderDown className="h-5 w-5 text-primary" />
-                        {t('learning.import.title', 'Import External Skills')}
+                        {t('learning.import.title')}
                     </DialogTitle>
                     <DialogDescription>
-                        {t('learning.import.description', 'Bulk import standard skills from a directory containing SKILL.md packages.')}
+                        {t('learning.import.description')}
                     </DialogDescription>
                 </DialogHeader>
 
                 {!result ? (
                     <div className="py-6 space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="directory">{t('learning.import.directoryLabel', 'Directory Path')}</Label>
+                            <Label htmlFor="directory">{t('learning.import.directoryLabel')}</Label>
                             <Input
                                 id="directory"
-                                placeholder={t('learning.import.placeholder', 'e.g. skills/skills')}
+                                placeholder={t('learning.import.placeholder')}
                                 value={directory}
                                 onChange={(e) => setDirectory(e.target.value)}
                                 disabled={isImporting}
                             />
                             <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                                 <Info className="h-3 w-3" />
-                                {t('learning.import.directoryHint', 'Path relative to project root or absolute path.')}
+                                {t('learning.import.directoryHint')}
                             </p>
                         </div>
                     </div>
@@ -93,19 +93,19 @@ export function ImportSkillsDialog({ isOpen, onClose, onSuccess }: ImportSkillsD
                                 <div className="space-y-1">
                                     <div className="text-2xl font-bold">{result.total_found}</div>
                                     <div className="text-[10px] uppercase text-muted-foreground font-semibold">
-                                        {t('learning.import.stats.found', 'Found')}
+                                        {t('learning.import.stats.found')}
                                     </div>
                                 </div>
                                 <div className="space-y-1">
                                     <div className="text-2xl font-bold text-emerald-500">{result.imported}</div>
                                     <div className="text-[10px] uppercase text-muted-foreground font-semibold">
-                                        {t('learning.import.stats.imported', 'Imported')}
+                                        {t('learning.import.stats.imported')}
                                     </div>
                                 </div>
                                 <div className="space-y-1">
                                     <div className="text-2xl font-bold text-orange-400">{result.skipped}</div>
                                     <div className="text-[10px] uppercase text-muted-foreground font-semibold">
-                                        {t('learning.import.stats.skipped', 'Skipped')}
+                                        {t('learning.import.stats.skipped')}
                                     </div>
                                 </div>
                             </div>
@@ -114,7 +114,7 @@ export function ImportSkillsDialog({ isOpen, onClose, onSuccess }: ImportSkillsD
                         {result.errors.length > 0 && (
                             <div className="space-y-2">
                                 <Label className="text-[10px] uppercase font-bold text-destructive flex items-center gap-1">
-                                    <AlertCircle className="h-3 w-3" /> {t('learning.import.errors', 'Errors')}
+                                    <AlertCircle className="h-3 w-3" /> {t('learning.import.errors')}
                                 </Label>
                                 <div className="max-height-[150px] overflow-y-auto space-y-1 pr-2">
                                     {result.errors.map((err, i) => (
@@ -128,7 +128,7 @@ export function ImportSkillsDialog({ isOpen, onClose, onSuccess }: ImportSkillsD
 
                         <div className="flex items-center gap-2 p-3 bg-emerald-500/5 rounded-xl border border-emerald-500/20 text-emerald-600">
                             <CheckCircle2 className="h-4 w-4" />
-                            <span className="text-xs font-medium">{t('learning.import.complete', 'Import process finished.')}</span>
+                            <span className="text-xs font-medium">{t('learning.import.complete')}</span>
                         </div>
                     </div>
                 )}
@@ -136,12 +136,12 @@ export function ImportSkillsDialog({ isOpen, onClose, onSuccess }: ImportSkillsD
                 <DialogFooter>
                     {result ? (
                         <Button onClick={onClose} className="w-full">
-                            {t('common.done', 'Done')}
+                            {t('common.done')}
                         </Button>
                     ) : (
                         <>
                             <Button variant="ghost" onClick={onClose} disabled={isImporting}>
-                                {t('common.cancel', 'Cancel')}
+                                {t('common.cancel')}
                             </Button>
                             <Button
                                 onClick={handleImport}
@@ -149,7 +149,7 @@ export function ImportSkillsDialog({ isOpen, onClose, onSuccess }: ImportSkillsD
                                 className="gap-2"
                             >
                                 {isImporting && <Loader2 className="h-4 w-4 animate-spin" />}
-                                {t('learning.import.button', 'Start Import')}
+                                {t('learning.import.button')}
                             </Button>
                         </>
                     )}

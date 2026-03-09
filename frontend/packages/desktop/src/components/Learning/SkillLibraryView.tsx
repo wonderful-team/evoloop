@@ -89,7 +89,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
     const deleteMutation = useMutation({
         mutationFn: (skillId: number) => (LearningService as any).deleteSkill({ skillId }),
         onSuccess: () => {
-            toast.success(t("common.success", "Skill deactivated successfully"))
+            toast.success(t("learning.skillDeactivated"))
             queryClient.invalidateQueries({ queryKey: ["learnedSkills"] })
         },
         onError: (error: any) => {
@@ -123,7 +123,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                 <div className="relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder={t("learning.searchSkills", "Search learned skills...")}
+                        placeholder={t("learning.searchSkills")}
                         className="pl-10"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -137,7 +137,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                         onClick={() => setImportOpen(true)}
                     >
                         <FolderDown className="h-3.5 w-3.5" />
-                        {t("learning.import.button", "Import")}
+                        {t("learning.import.button")}
                     </Button>
                     <Badge variant="outline" className="px-3 py-1 font-bold">
                         {totalSkills} {t("learning.totalSkills")}
@@ -156,7 +156,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                 ) : filteredSkills.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-20 bg-muted/10 rounded-2xl border-2 border-dashed">
                         <BookOpen className="h-12 w-12 text-muted-foreground mb-4 opacity-20" />
-                        <p className="text-muted-foreground">{t("learning.noSkillsFound", "No skills found.")}</p>
+                        <p className="text-muted-foreground">{t("learning.noSkillsFound")}</p>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-1">
@@ -222,7 +222,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                                     <div className="flex flex-wrap gap-1.5 mt-3">
                                         {skill.instructions && (
                                             <Badge variant="default" className="text-[9px] bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/20">
-                                                <Terminal className="h-3 w-3 mr-1" /> {t("learning.expertBadge", "Expert Skill")}
+                                                <Terminal className="h-3 w-3 mr-1" /> {t("learning.expertBadge")}
                                             </Badge>
                                         )}
                                         {skill.tools_used?.slice(0, 2).map((tool, j) => (
@@ -235,7 +235,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                                 <CardFooter className="p-4 pt-0 flex justify-between items-center">
                                     <div className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium">
                                         <TrendingUp className="h-3 w-3 text-green-500" />
-                                        {skill.success_count || 0} {t("learning.uses", "uses")}
+                                        {skill.success_count || 0} {t("learning.uses")}
                                     </div>
                                     <Button
                                         size="sm"
@@ -247,7 +247,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                                         }}
                                     >
                                         <Play className="h-3 w-3 fill-current" />
-                                        {t("common.run", "Run")}
+                                        {t("common.run")}
                                     </Button>
                                 </CardFooter>
                             </Card>

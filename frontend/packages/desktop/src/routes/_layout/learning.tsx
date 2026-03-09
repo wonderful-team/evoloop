@@ -57,11 +57,11 @@ function LearningPage() {
                     <div className="flex items-center gap-3">
                         <GraduationCap className="h-6 w-6 text-primary" />
                         <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                            {t("learning.centerTitle", "Learning Center")}
+                            {t("learning.centerTitle")}
                         </h1>
                     </div>
                     <p className="text-muted-foreground text-sm max-w-2xl">
-                        {t("learning.centerSubtitle", "Manage your learned skills and train the agent through interactive recording sessions.")}
+                        {t("learning.centerSubtitle")}
                     </p>
                 </div>
 
@@ -85,7 +85,7 @@ function LearningPage() {
                     </TabsTrigger>
                     <TabsTrigger value="mcp" className="rounded-md px-6 gap-2 text-xs data-[state=active]:bg-background data-[state=active]:shadow-sm transition-all text-left">
                         <Server className="h-3.5 w-3.5" />
-                        {t("learning.tabs.mcpServers", "MCP Servers")}
+                        {t("learning.tabs.mcpServers")}
                     </TabsTrigger>
                 </TabsList>
 
@@ -125,7 +125,7 @@ function LearningPage() {
                 <div className="fixed inset-0 z-[100] bg-black/80 flex items-center justify-center">
                     <div className="flex flex-col items-center gap-6">
                         <div className="text-white/60 text-sm font-medium">
-                            {t("learning.preparingRecording", "Preparing recording...")}
+                            {t("learning.preparingRecording")}
                         </div>
                         <div className="text-8xl font-bold text-white animate-in zoom-in duration-300">
                             {countdown}
@@ -137,7 +137,7 @@ function LearningPage() {
                             }}
                             className="px-4 py-2 text-white/80 hover:text-white border border-white/30 hover:border-white/60 rounded-lg transition-colors"
                         >
-                            {t("common.cancel", "Cancel")}
+                            {t("common.cancel")}
                         </button>
                     </div>
                 </div>
@@ -153,7 +153,7 @@ function LearningPage() {
                                 <>
                                     <span className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
                                     <span className="text-lg font-medium tracking-wide">
-                                        {t("learning.finalizingRecording", "Finalizing recording...")}
+                                        {t("learning.finalizingRecording")}
                                     </span>
                                 </>
                             ) : (
@@ -163,7 +163,7 @@ function LearningPage() {
                                         <span className="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
                                     </span>
                                     <span className="text-lg font-medium tracking-wide">
-                                        {t("learning.recordingInProgress", "Recording in progress...")}
+                                        {t("learning.recordingInProgress")}
                                     </span>
                                 </>
                             )}
@@ -189,15 +189,15 @@ function LearningPage() {
                             </div>
                             <span className="text-2xl font-bold">
                                 {isStoppingRecording
-                                    ? t("learning.processing", "Processing...")
-                                    : t("learning.stopRecording", "Stop Recording")}
+                                    ? t("learning.processing")
+                                    : t("learning.stopRecording")}
                             </span>
                         </button>
 
                         {/* Hint text */}
                         {!isStoppingRecording && (
                             <p className="text-white/60 text-sm">
-                                {t("learning.recordingHint", "Click the button above to stop and synthesize")}
+                                {t("learning.recordingHint")}
                             </p>
                         )}
                     </div>

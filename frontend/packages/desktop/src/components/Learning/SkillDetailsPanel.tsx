@@ -45,12 +45,12 @@ export function SkillDetailsPanel({
             return await LearningService.confirmLearnedSkill({ skillId });
         },
         onSuccess: () => {
-            toast.success(t("learning.confirmSuccess", "Skill confirmed successfully"));
+            toast.success(t("learning.confirmSuccess"));
             queryClient.invalidateQueries({ queryKey: ["learnedSkills"] });
             onOpenChange(false);
         },
         onError: (error: any) => {
-            toast.error(t("learning.confirmError", `Failed to confirm skill: ${error.message}`));
+            toast.error(t("learning.confirmError", { message: error.message }));
         }
     });
 
@@ -101,7 +101,7 @@ export function SkillDetailsPanel({
                 <SheetHeader className="p-6 pb-2 border-b">
                     <div className="flex items-center gap-2 text-primary mb-1">
                         <Terminal className="h-5 w-5" />
-                        <span className="text-xs font-bold uppercase tracking-wider">{t("learning.skillDetails", "Skill Details")}</span>
+                        <span className="text-xs font-bold uppercase tracking-wider">{t("learning.skillDetails")}</span>
                     </div>
                     <SheetTitle className="text-2xl font-bold">{skill.name}</SheetTitle>
                     <SheetDescription className="mt-2 text-sm leading-relaxed">
@@ -114,7 +114,7 @@ export function SkillDetailsPanel({
                         {/* Stats Summary */}
                         <div className="grid grid-cols-2 gap-4">
                             <div className="bg-muted/30 p-4 rounded-xl border flex flex-col gap-1">
-                                <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.status", "Status")}</span>
+                                <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.status")}</span>
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
                                         {t(`learning.statusBadge.${skill.status || "draft"}`, skill.status || "draft")}
@@ -126,15 +126,15 @@ export function SkillDetailsPanel({
                                             : "bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px]"
                                         }
                                     >
-                                        {executionMode === "deterministic" ? `⚡ ${t("learning.deterministic", "DETERMINISTIC")}` : `🧠 ${t("learning.agentic", "AGENTIC")}`}
+                                        {executionMode === "deterministic" ? `⚡ ${t("learning.deterministic")}` : `🧠 ${t("learning.agentic")}`}
                                     </Badge>
                                 </div>
                             </div>
                             <div className="bg-muted/30 p-4 rounded-xl border flex flex-col gap-1">
-                                <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.performance", "Performance")}</span>
+                                <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.performance")}</span>
                                 <div className="flex items-center gap-2 font-bold text-green-600">
                                     <TrendingUp className="h-4 w-4" />
-                                    {skill.success_count || 0} {t("learning.successes", "Successes")}
+                                    {skill.success_count || 0} {t("learning.successes")}
                                 </div>
                             </div>
                         </div>
@@ -143,7 +143,7 @@ export function SkillDetailsPanel({
                         <section className="space-y-3">
                             <div className="flex items-center gap-2 text-sm font-bold">
                                 <Info className="h-4 w-4 text-primary" />
-                                {t("learning.triggerPatterns", "Trigger Patterns")}
+                                {t("learning.triggerPatterns")}
                             </div>
                             <div className="space-y-2">
                                 {triggerPatterns?.map((pattern: string, i: number) => (
@@ -160,7 +160,7 @@ export function SkillDetailsPanel({
                         <section className="space-y-3">
                             <div className="flex items-center gap-2 text-sm font-bold">
                                 <Layout className="h-4 w-4 text-primary" />
-                                {t("learning.parameters", "Required Inputs")}
+                                {t("learning.parameters")}
                             </div>
                             {parameters && parameters.length > 0 ? (
                                 <div className="space-y-2">
@@ -179,7 +179,7 @@ export function SkillDetailsPanel({
                                     ))}
                                 </div>
                             ) : (
-                                <p className="text-xs text-muted-foreground italic px-1">{t("learning.execution.noParams", "No inputs required for this skill.")}</p>
+                                <p className="text-xs text-muted-foreground italic px-1">{t("learning.execution.noParams")}</p>
                             )}
                         </section>
 
@@ -190,7 +190,7 @@ export function SkillDetailsPanel({
                             <section className="space-y-4">
                                 <div className="flex items-center gap-2 text-sm font-bold text-amber-600">
                                     <Sparkles className="h-4 w-4" />
-                                    {t("learning.expertGuide", "Expert Strategic Guide")}
+                                    {t("learning.expertStrategicGuide")}
                                 </div>
                                 <div className="bg-amber-50/30 dark:bg-amber-950/10 p-5 rounded-2xl border border-amber-500/20 shadow-[0_4px_20px_rgba(245,158,11,0.05)]">
                                     <div className="text-[13px] leading-relaxed prose prose-sm dark:prose-invert max-w-none text-foreground/90">
@@ -211,7 +211,7 @@ export function SkillDetailsPanel({
                                                                         onClick={() => navigator.clipboard.writeText(codeString)}
                                                                         className="hover:text-white transition-colors"
                                                                     >
-                                                                        {t("chat.messageList.copy", "Copy")}
+                                                                        {t("chat.messageList.copy")}
                                                                     </button>
                                                                 </div>
                                                                 <SyntaxHighlighter
@@ -247,7 +247,7 @@ export function SkillDetailsPanel({
                                     </div>
                                     <div className="mt-4 flex items-center gap-2">
                                         <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20 text-[9px] font-bold">
-                                            {t("learning.optimizedBadge", "LLM OPTIMIZED")}
+                                            {t("learning.optimizedBadge")}
                                         </Badge>
                                     </div>
                                 </div>
@@ -255,7 +255,7 @@ export function SkillDetailsPanel({
                         ) : (
                             <div className="bg-muted/20 p-6 rounded-2xl border border-dashed flex flex-col items-center justify-center text-center gap-2">
                                 <Info className="h-8 w-8 text-muted-foreground/30" />
-                                <p className="text-xs text-muted-foreground">{t("learning.noExpertGuide", "This skill is a raw recording without an expert guide.")}</p>
+                                <p className="text-xs text-muted-foreground">{t("learning.noExpertGuide")}</p>
                             </div>
                         )}
 
@@ -268,7 +268,7 @@ export function SkillDetailsPanel({
                                         <Zap className="h-4 w-4" />
                                         {t("learning.macroScript")}
                                         <Badge variant="outline" className="text-[9px] ml-2 bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                                            ⚡ {t("learning.deterministic", "DETERMINISTIC")}
+                                            ⚡ {t("learning.deterministic")}
                                         </Badge>
                                     </div>
                                     <div className="bg-emerald-50/30 dark:bg-emerald-950/10 p-4 rounded-2xl border border-emerald-500/20">
@@ -276,9 +276,9 @@ export function SkillDetailsPanel({
                                             <thead>
                                                 <tr className="border-b border-emerald-500/20 text-emerald-700 dark:text-emerald-400">
                                                     <th className="text-left py-2 px-2 w-10 font-bold">#</th>
-                                                    <th className="text-left py-2 px-2 w-16 font-bold">{t("macroEditor.type", "Type")}</th>
-                                                    <th className="text-left py-2 px-2 w-20 font-bold">{t("macroEditor.eventType", "Action")}</th>
-                                                    <th className="text-left py-2 px-2 font-bold">{t("macroEditor.selector", "Target")}</th>
+                                                    <th className="text-left py-2 px-2 w-16 font-bold">{t("macroEditor.type")}</th>
+                                                    <th className="text-left py-2 px-2 w-20 font-bold">{t("macroEditor.eventType")}</th>
+                                                    <th className="text-left py-2 px-2 font-bold">{t("macroEditor.selector")}</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -332,7 +332,7 @@ export function SkillDetailsPanel({
                             <section className="space-y-3">
                                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                     <Layout className="h-4 w-4" />
-                                    {t("learning.parameters", "Parameters")}
+                                    {t("learning.parameters")}
                                 </div>
                                 {parameters && parameters.length > 0 ? (
                                     <div className="space-y-2">
@@ -354,7 +354,7 @@ export function SkillDetailsPanel({
                             <section className="space-y-3">
                                 <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                     <Clock className="h-4 w-4" />
-                                    {t("learning.history", "History")}
+                                    {t("learning.history")}
                                 </div>
                                 <div className="space-y-2 text-[11px]">
                                     <div className="flex justify-between">
@@ -380,7 +380,7 @@ export function SkillDetailsPanel({
                             disabled={confirmMutation.isPending}
                         >
                             <CheckCircle2 className="h-4 w-4 mr-2" />
-                            {confirmMutation.isPending ? t("common.processing", "Processing...") : t("common.confirm", "Confirm Skill")}
+                            {confirmMutation.isPending ? t("common.processing") : t("common.confirm")}
                         </Button>
                     ) : (
                         <Button
@@ -389,7 +389,7 @@ export function SkillDetailsPanel({
                             onClick={() => { onRun?.(skill); onOpenChange(false); }}
                         >
                             <Play className="h-4 w-4 mr-2 fill-current" />
-                            {t("common.run", "Run Skill")}
+                            {t("learning.runSkill")}
                         </Button>
                     )}
                     <Button

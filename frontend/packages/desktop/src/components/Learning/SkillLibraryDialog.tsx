@@ -117,7 +117,7 @@ export function SkillLibraryDialog({
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-2">
                 <BookOpen className="h-5 w-5" />
-                {t("learning.skillLibrary", "Skill Library")}
+                {t("learning.skillLibrary")}
               </DialogTitle>
 
             </div>
@@ -200,7 +200,7 @@ export function SkillLibraryDialog({
                       <div>
                         <div className="flex items-center gap-2 text-primary mb-2">
                           <Terminal className="h-4 w-4" />
-                          <span className="text-xs font-bold uppercase tracking-wider">{t("learning.skillDetails", "Skill Details")}</span>
+                          <span className="text-xs font-bold uppercase tracking-wider">{t("learning.skillDetails")}</span>
                         </div>
                         <h3 className="text-2xl font-bold">{selectedSkill.name}</h3>
                         <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{selectedSkill.description}</p>
@@ -209,7 +209,7 @@ export function SkillLibraryDialog({
                       {/* Stats */}
                       <div className="grid grid-cols-2 gap-4">
                         <div className="bg-muted/30 p-3 rounded-xl border flex flex-col gap-1">
-                          <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.status", "Status")}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.status")}</span>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[10px]">
                               {t(`learning.statusBadge.${selectedSkill.status || "active"}`, selectedSkill.status || "active")}
@@ -217,10 +217,10 @@ export function SkillLibraryDialog({
                           </div>
                         </div>
                         <div className="bg-muted/30 p-3 rounded-xl border flex flex-col gap-1">
-                          <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.performance", "Performance")}</span>
+                          <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.performance")}</span>
                           <div className="flex items-center gap-2 font-bold text-green-600 text-sm">
                             <TrendingUp className="h-4 w-4" />
-                            {selectedSkill.success_count || 0} {t("learning.successes", "Successes")}
+                            {selectedSkill.success_count || 0} {t("learning.successes")}
                           </div>
                         </div>
                       </div>
@@ -253,7 +253,7 @@ export function SkillLibraryDialog({
                           <section className="space-y-3">
                             <div className="flex items-center gap-2 text-sm font-bold text-amber-600">
                               <Sparkles className="h-4 w-4" />
-                              {t("learning.expertGuide", "Expert Guide")}
+                              {t("learning.expertGuide")}
                             </div>
                             <div className="bg-amber-50/30 dark:bg-amber-950/10 p-4 rounded-xl border border-amber-500/20">
                               <div className="text-xs leading-relaxed whitespace-pre-wrap text-foreground/90 font-medium">
@@ -270,7 +270,7 @@ export function SkillLibraryDialog({
                       <section className="space-y-3">
                         <div className="flex items-center gap-2 text-sm font-bold">
                           <Layout className="h-4 w-4 text-primary" />
-                          {t("learning.parameters", "Required Inputs")}
+                          {t("learning.parameters")}
                         </div>
                         {selectedSkill.parameters && selectedSkill.parameters.length > 0 ? (
                           <div className="space-y-2">
@@ -285,7 +285,7 @@ export function SkillLibraryDialog({
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-muted-foreground italic text-[10px]">{t("learning.execution.noParams", "No inputs required.")}</p>
+                          <p className="text-xs text-muted-foreground italic text-[10px]">{t("learning.execution.noParams")}</p>
                         )}
                       </section>
                     </div>

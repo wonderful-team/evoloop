@@ -49,7 +49,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ onClose }) => {
                         <Bug className="w-4 h-4" />
                     </div>
                     <div>
-                        <h3 className="text-xs font-bold uppercase tracking-wider">{t("learning.editor.debugPanel", "Debug Console")}</h3>
+                        <h3 className="text-xs font-bold uppercase tracking-wider">{t("learning.editor.debugPanel")}</h3>
                         <p className="text-[10px] text-muted-foreground">{status === "running" ? t("common.status.running") : t("common.status.idle")}</p>
                     </div>
                 </div>
@@ -64,7 +64,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ onClose }) => {
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-muted-foreground tracking-widest">
                             <ChevronRight className="w-3 h-3" />
-                            {t("learning.editor.currentPath", "Current Path")}
+                            {t("learning.editor.currentPath")}
                         </div>
                         {currentPath.length > 0 ? (
                             <div className="flex flex-wrap gap-1.5">
@@ -79,7 +79,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ onClose }) => {
                             </div>
                         ) : (
                             <div className="text-[10px] text-muted-foreground italic bg-muted/20 p-2 rounded-lg border border-dashed text-center">
-                                {t("learning.editor.noActiveStep", "No active step")}
+                                {t("learning.editor.noActiveStep")}
                             </div>
                         )}
                     </div>
@@ -88,7 +88,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ onClose }) => {
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-muted-foreground tracking-widest">
                             <Terminal className="w-3 h-3" />
-                            {t("learning.editor.previousResult", "Last Output")}
+                            {t("learning.editor.previousResult")}
                         </div>
                         <div className="bg-muted/30 p-3 rounded-xl border border-muted/50 max-h-40 overflow-hidden relative">
                             <div className="text-[11px] leading-relaxed break-all">
@@ -101,7 +101,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ onClose }) => {
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-[10px] font-bold uppercase text-muted-foreground tracking-widest">
                             <Database className="w-3 h-3" />
-                            {t("learning.editor.variables", "Variables")}
+                            {t("learning.editor.variables")}
                         </div>
                         <div className="space-y-2">
                             {Object.entries(variables).length > 0 ? (
@@ -123,7 +123,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ onClose }) => {
                                 ))
                             ) : (
                                 <div className="text-[10px] text-muted-foreground italic bg-muted/20 p-2 rounded-lg border border-dashed text-center">
-                                    {t("learning.editor.noVariables", "No variables in context")}
+                                    {t("learning.editor.noVariables")}
                                 </div>
                             )}
                         </div>

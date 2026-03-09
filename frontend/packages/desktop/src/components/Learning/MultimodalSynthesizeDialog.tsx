@@ -72,24 +72,24 @@ export function MultimodalSynthesizeDialog({
 
     const { synthesize, isSynthesizing, progress } = useMultimodalSynthesis({
         onSuccess: (data) => {
-            toast.success(t("learning.synthesisSuccess", "Skill created successfully!"))
+            toast.success(t("learning.synthesisSuccess"))
             setResult(data)
             setEditedName(data.skill_name || "")
             onSuccess?.()
         },
         onError: (error) => {
-            toast.error(t("learning.synthesisError", "An error occurred during synthesis"))
+            toast.error(t("learning.synthesisError"))
             console.error("Synthesis error:", error)
         },
     })
 
     const handleSynthesize = async () => {
         if (!videoPath) {
-            toast.error(t("learning.noVideoPath", "No video recording found"))
+            toast.error(t("learning.noVideoPath"))
             return
         }
         if (!taskDescription.trim()) {
-            toast.error(t("learning.taskDescriptionRequired", "Please describe what you did in the recording"))
+            toast.error(t("learning.taskDescriptionRequired"))
             return
         }
 
@@ -140,7 +140,7 @@ export function MultimodalSynthesizeDialog({
             console.log("[MultimodalSynthesizeDialog] Keyframe extraction triggered")
         } catch (error) {
             console.error("[MultimodalSynthesizeDialog] Failed to persist events:", error)
-            toast.error(t("learning.persistFailed", "Failed to save recording data"))
+            toast.error(t("learning.persistFailed"))
             return
         }
 
@@ -164,7 +164,7 @@ export function MultimodalSynthesizeDialog({
                 onSuccess?.()
             } catch (error) {
                 console.error("Update error:", error)
-                toast.error(t("common.error.message", "Failed to update"))
+                toast.error(t("common.error.message"))
                 setIsUpdating(false)
                 return
             }
@@ -210,12 +210,12 @@ export function MultimodalSynthesizeDialog({
             // Reset recording store
             resetRecording()
 
-            toast.success(t("learning.cleanupSuccess", "Recording data cleaned up"))
+            toast.success(t("learning.cleanupSuccess"))
             setShowCleanupConfirm(false)
             handleClose()
         } catch (error) {
             console.error("[MultimodalSynthesizeDialog] Cleanup failed:", error)
-            toast.error(t("learning.cleanupFailed", "Failed to cleanup recording data"))
+            toast.error(t("learning.cleanupFailed"))
         } finally {
             setIsCleaningUp(false)
         }
@@ -232,7 +232,7 @@ export function MultimodalSynthesizeDialog({
     // Handle click on video file to open with system player
     const handleOpenVideo = useCallback(async () => {
         if (!videoPath) {
-            toast.error(t("learning.noVideoPath", "No video recording found"))
+            toast.error(t("learning.noVideoPath"))
             return
         }
         try {
@@ -242,7 +242,7 @@ export function MultimodalSynthesizeDialog({
             // First check if file exists
             const fileExists = await exists(videoPath)
             if (!fileExists) {
-                toast.error(t("learning.videoNotFound", "Video file not found at path: " + videoPath))
+                toast.error(t("learning.videoNotFound") + videoPath)
                 console.error("[MultimodalSynthesizeDialog] File does not exist:", videoPath)
                 return
             }
@@ -253,7 +253,7 @@ export function MultimodalSynthesizeDialog({
         } catch (error: any) {
             console.error("[MultimodalSynthesizeDialog] Failed to open video:", error)
             const errorMsg = error?.message || String(error)
-            toast.error(t("learning.openVideoFailed", "Failed to open video: " + errorMsg))
+            toast.error(t("learning.openVideoFailed") + errorMsg)
         }
     }, [videoPath, videoExists, t])
 
@@ -269,13 +269,13 @@ export function MultimodalSynthesizeDialog({
                     <DialogTitle className="flex items-center gap-2">
                         <Sparkles className="h-5 w-5 text-yellow-500" />
                         {result
-                            ? t("learning.skillCreated", "Skill Created")
-                            : t("learning.createSkillMultimodal", "Create Skill from Recording")}
+                            ? t("learning.skillCreated")
+                            : t("learning.createSkillMultimodal")}
                     </DialogTitle>
                     <DialogDescription>
                         {result
-                            ? t("learning.skillCreatedDesc", "Your skill has been created successfully.")
-                            : t("learning.createSkillMultimodalDesc", "AI will analyze your screen recording and actions to create a reusable skill.")}
+                            ? t("learning.skillCreatedDesc")
+                            : t("learning.createSkillMultimodalDesc")}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -283,7 +283,7 @@ export function MultimodalSynthesizeDialog({
                     <div className="py-4 space-y-4">
                         <div className="grid gap-2">
                             <label className="text-[10px] font-bold uppercase text-muted-foreground">
-                                {t("learning.skillName", "Skill Name")}
+                                {t("learning.skillName")}
                             </label>
                             <Input value={editedName} onChange={(e) => setEditedName(e.target.value)} />
                         </div>
@@ -291,7 +291,7 @@ export function MultimodalSynthesizeDialog({
                         {result.skill_yaml && (
                             <div className="bg-muted/30 p-3 rounded-lg border border-dashed text-xs text-muted-foreground">
                                 <div className="flex items-center gap-1.5 font-bold mb-1 uppercase text-[10px]">
-                                    <Info className="h-3 w-3" /> {t("learning.skillYaml", "Skill Configuration")}
+                                    <Info className="h-3 w-3" /> {t("learning.skillYaml")}
                                 </div>
                                 <pre className="text-[10px] overflow-auto max-h-32">{result.skill_yaml.slice(0, 500)}...</pre>
                             </div>
@@ -300,15 +300,15 @@ export function MultimodalSynthesizeDialog({
                         <div className="grid grid-cols-3 gap-2 text-xs">
                             <div className="bg-muted/20 p-2 rounded border text-center">
                                 <div className="font-bold text-lg">{result.frames_analyzed}</div>
-                                <div className="text-muted-foreground text-[10px]">{t("learning.framesAnalyzed", "Frames")}</div>
+                                <div className="text-muted-foreground text-[10px]">{t("learning.framesAnalyzed")}</div>
                             </div>
                             <div className="bg-muted/20 p-2 rounded border text-center">
                                 <div className="font-bold text-lg">{result.events_processed}</div>
-                                <div className="text-muted-foreground text-[10px]">{t("learning.eventsProcessed", "Events")}</div>
+                                <div className="text-muted-foreground text-[10px]">{t("learning.eventsProcessed")}</div>
                             </div>
                             <div className="bg-muted/20 p-2 rounded border text-center">
                                 <div className="font-bold text-lg">{result.processing_time_seconds.toFixed(1)}s</div>
-                                <div className="text-muted-foreground text-[10px]">{t("learning.processingTime", "Time")}</div>
+                                <div className="text-muted-foreground text-[10px]">{t("learning.processingTime")}</div>
                             </div>
                         </div>
 
@@ -325,7 +325,7 @@ export function MultimodalSynthesizeDialog({
                                 }}
                             >
                                 <Settings2 className="h-3.5 w-3.5" />
-                                {t("learning.openFullEditor", "Open Full Editor")}
+                                {t("learning.openFullEditor")}
                             </Button>
                         </div>
                     </div>
@@ -353,7 +353,7 @@ export function MultimodalSynthesizeDialog({
                                 <div className="text-xs font-medium truncate">
                                     {videoPath
                                         ? videoPath.split("/").pop()
-                                        : t("learning.noVideo", "No video available")}
+                                        : t("learning.noVideo")}
                                 </div>
                                 <div className={`text-[10px] flex items-center gap-1 ${
                                     videoExists === false ? 'text-destructive' : 'text-muted-foreground'
@@ -361,22 +361,22 @@ export function MultimodalSynthesizeDialog({
                                     {videoPath ? (
                                         videoExists === false ? (
                                             <>
-                                                {t("learning.videoNotFound", "File not accessible")}
+                                                {t("learning.videoNotFound")}
                                                 <AlertTriangle className="h-3 w-3 inline" />
                                             </>
                                         ) : videoExists === null ? (
                                             <>
                                                 <Loader2 className="h-3 w-3 inline animate-spin" />
-                                                {t("learning.checkingVideo", "Checking...")}
+                                                {t("learning.checkingVideo")}
                                             </>
                                         ) : (
                                             <>
-                                                {t("learning.clickToOpenVideo", "Click to open video")}
+                                                {t("learning.clickToOpenVideo")}
                                                 <ExternalLink className="h-3 w-3 inline" />
                                             </>
                                         )
                                     ) : (
-                                        t("learning.videoMissing", "Screen recording not found")
+                                        t("learning.videoMissing")
                                     )}
                                 </div>
                             </div>
@@ -385,7 +385,7 @@ export function MultimodalSynthesizeDialog({
                         {/* Task Description Input */}
                         <div className="space-y-2">
                             <label className="text-xs font-medium">
-                                {t("learning.taskDescription", "What did you do in this recording?")}
+                                {t("learning.taskDescription")}
                                 <span className="text-destructive ml-1">*</span>
                             </label>
                             <Textarea
@@ -419,12 +419,12 @@ export function MultimodalSynthesizeDialog({
                     {result ? (
                         <Button onClick={handleSaveAndClose} disabled={isUpdating} className="w-full">
                             {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {t("common.saveAndClose", "Save and Close")}
+                            {t("common.saveAndClose")}
                         </Button>
                     ) : (
                         <div className="flex w-full gap-2">
                             <Button variant="outline" onClick={handleCancelClick} disabled={isSynthesizing} className="flex-1">
-                                {t("common.cancel", "Cancel")}
+                                {t("common.cancel")}
                             </Button>
                             <Button
                                 onClick={handleSynthesize}
@@ -436,7 +436,7 @@ export function MultimodalSynthesizeDialog({
                                 ) : (
                                     <>
                                         <Sparkles className="mr-2 h-4 w-4" />
-                                        {t("learning.synthesize", "Synthesize")}
+                                        {t("learning.synthesize")}
                                     </>
                                 )}
                             </Button>
@@ -456,10 +456,10 @@ export function MultimodalSynthesizeDialog({
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-destructive">
                         <AlertTriangle className="h-5 w-5" />
-                        {t("learning.confirmCleanupTitle", "Discard Recording?")}
+                        {t("learning.confirmCleanupTitle")}
                     </DialogTitle>
                     <DialogDescription>
-                        {t("learning.confirmCleanupDesc", "This will permanently delete the video file and all recorded events. This action cannot be undone.")}
+                        {t("learning.confirmCleanupDesc")}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -467,33 +467,33 @@ export function MultimodalSynthesizeDialog({
                     <div className="bg-muted/50 p-3 rounded-lg space-y-2 text-sm">
                         <div className="flex items-center gap-2">
                             <FileVideo className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">{t("learning.videoFile", "Video file")}</span>
+                            <span className="text-muted-foreground">{t("learning.videoFile")}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <Trash2 className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">{t("learning.recordedEvents", "Recorded events")}</span>
+                            <span className="text-muted-foreground">{t("learning.recordedEvents")}</span>
                         </div>
                         <div className="flex items-center gap-2">
                             <Trash2 className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">{t("learning.annotations", "Annotations")}</span>
+                            <span className="text-muted-foreground">{t("learning.annotations")}</span>
                         </div>
                     </div>
                 </div>
 
                 <DialogFooter className="gap-2">
                     <Button variant="outline" onClick={() => setShowCleanupConfirm(false)} disabled={isCleaningUp}>
-                        {t("common.keep", "Keep")}
+                        {t("common.keep")}
                     </Button>
                     <Button variant="destructive" onClick={handleConfirmCleanup} disabled={isCleaningUp}>
                         {isCleaningUp ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                {t("common.deleting", "Deleting...")}
+                                {t("common.deleting")}
                             </>
                         ) : (
                             <>
                                 <Trash2 className="mr-2 h-4 w-4" />
-                                {t("common.discard", "Discard")}
+                                {t("common.discard")}
                             </>
                         )}
                     </Button>
