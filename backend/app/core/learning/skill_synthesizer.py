@@ -32,6 +32,8 @@ ALLOWED_UI_ACTIONS = {
     "tap", "long_press", "swipe", "input_text", "open_app", "back", "home",
     # Desktop / Global
     "applescript", "drag_drop", "mouse_click", "mouse_click_extract", "key_press",
+    # Automation Primitives
+    "detect_pagination", "scroll_to_bottom",
     # System
     "screenshot", "dump", "dump_ui"
 }

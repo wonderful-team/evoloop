@@ -274,3 +274,23 @@ ActionRegistry.register(ActionDef(
     zh="转储 UI",
     en="Dump UI"
 ))
+
+
+ActionRegistry.register(ActionDef(
+    id="detect_pagination",
+    platforms=["dom"],
+    icon="ArrowRightCircle",
+    description="Detect next-page buttons or indicators on the current page. Returns JSON with 'has_next' and 'next_selector'.",
+    zh="检测分页",
+    en="Detect Pagination"
+))
+
+
+ActionRegistry.register(ActionDef(
+    id="scroll_to_bottom",
+    platforms=["dom"],
+    icon="ChevronLast",
+    description="Scroll to the bottom of the page incrementally to trigger infinite scroll/loading. Supports 'max_scrolls' and 'delay_ms'.",
+    zh="滚动到底部",
+    en="Scroll to Bottom"
+))

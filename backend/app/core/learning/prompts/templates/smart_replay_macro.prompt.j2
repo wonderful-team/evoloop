@@ -61,6 +61,12 @@ Control Flow:
 3. **Complex Interaction**: Use "hover" before clicking elements that require a mouse-over to be interactable.
 4. **Resilience**: Use `if` blocks for optional elements like "Close Ad", "Accept Cookies", or "Newsletter Popup".
 5. **Loop Identification**: If the task involves "multiple results", "all items", or "pagination", use a `loop`.
+6. **Automation Primitives**:
+   - For **Infinite Scroll**: Use `scroll_to_bottom` with `max_scrolls` and `delay_ms` before extraction.
+   - For **Multi-page (Pagination)**: 
+     a. Use `extract` with `extract_type: "detect_pagination"` and `key: "pagination"`.
+     b. Use a `loop` with `condition: { type: "element_exists", target_selector: "{{pagination.next_selector}}" }`.
+     c. Inside the loop, perform extraction, then `click` on `{{pagination.next_selector}}`.
 
 Respond with ONLY a JSON array:
 ```json

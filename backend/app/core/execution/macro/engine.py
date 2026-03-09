@@ -449,6 +449,12 @@ class MacroEngine:
             handle_res(await BrowserController.execute(action=tool_action, source_selector=payload.get("source_selector") or selector, target_selector=payload.get("target_selector"), timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type == "upload":
             handle_res(await BrowserController.execute(action=tool_action, selector=selector, file_path=payload.get("file_path"), timeout_ms=timeout_ms, continue_on_error=continue_on_error))
+        elif event_type == "run_js":
+            handle_res(await BrowserController.execute(action=tool_action, selector=selector, script=payload.get("script"), timeout_ms=timeout_ms, continue_on_error=continue_on_error))
+        elif event_type == "detect_pagination":
+            handle_res(await BrowserController.execute(action="detect_pagination", timeout_ms=timeout_ms, continue_on_error=continue_on_error))
+        elif event_type == "scroll_to_bottom":
+            handle_res(await BrowserController.execute(action="scroll_to_bottom", selector=selector, payload=payload, timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type == "wait":
             duration = payload.get("seconds") or (payload.get("duration_ms", 1000) / 1000.0)
             await asyncio.sleep(float(duration))

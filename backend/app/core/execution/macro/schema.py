@@ -69,6 +69,10 @@ class MacroActionType(str, Enum):
     
     # Advanced / Generic
     BATCH = "batch"
+    
+    # Automation Primitives
+    DETECT_PAGINATION = "detect_pagination"
+    SCROLL_TO_BOTTOM = "scroll_to_bottom"
 
 
 class MacroCondition(BaseModel):

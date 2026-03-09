@@ -7,6 +7,7 @@ Extracted from app.domain.tools.environment.browser to allow:
      tool interface (domain/tools/environment/browser.py thin wrapper).
 """
 import asyncio
+import json
 import logging
 import os
 import re
@@ -391,7 +392,6 @@ class BrowserController:
                             "width": box["width"] if box else 0,
                             "height": box["height"] if box else 0
                         })
-                    import json
                     return json.dumps(results)
                 except Exception as e:
                     logger.error(f"[Browser] get_elements failed: {e}")
@@ -526,6 +526,102 @@ class BrowserController:
 
                 page.once("dialog", _handler)
                 return f"✅ Dialog handler registered: will '{dialog_action}' next dialog."
+
+            elif action == "scroll_to_bottom":
+                max_scrolls = int(payload.get("max_scrolls", 5)) or 5
+                delay_ms = int(payload.get("delay_ms", 2000)) or 2000
+                item_selector = selector or "[class*='item'], [class*='card'], .feed-card"
+                
+                logger.info(f"[Browser] Starting scroll_to_bottom (max={max_scrolls}, delay={delay_ms}ms)")
+                
+                last_count = 0
+                for i in range(max_scrolls):
+                    # Get current count
+                    try:
+                        count = await page.locator(item_selector).count()
+                    except:
+                        count = 0
+                        
+                    if count > last_count and last_count > 0:
+                        logger.info(f"[Browser] Scroll {i}: Items increased {last_count} -> {count}")
+                    
+                    last_count = count
+                    
+                    # Scroll
+                    await page.evaluate("window.scrollBy(0, window.innerHeight * 0.8)")
+                    await asyncio.sleep(delay_ms / 1000)
+                    
+                    # Check if reached absolute bottom
+                    is_bottom = await page.evaluate("(window.innerHeight + window.scrollY) >= document.body.scrollHeight - 100")
+                    if is_bottom:
+                        # Try one last small scroll to be sure
+                        await page.evaluate("window.scrollBy(0, 500)")
+                        await asyncio.sleep(1)
+                        break
+                
+                final_count = await page.locator(item_selector).count()
+                return f"✅ Scrolled to bottom. Final items: {final_count}"
+
+            elif action == "detect_pagination":
+                # Returns a JSON string with pagination info
+                js_detect = """
+                (() => {
+                    const nextPatterns = [
+                        { text: /下一页/, weight: 10 },
+                        { text: /更多/, weight: 6 },
+                        { text: />/, weight: 5 },
+                        { text: /Next/i, weight: 8 },
+                        { selector: "a.next, .pagination-next, [aria-label*='Next'], [class*='next']", weight: 7 }
+                    ];
+                    
+                    const matches = [];
+                    const allElements = document.querySelectorAll('a, button, div[role="button"], span, li');
+                    
+                    allElements.forEach(el => {
+                        const text = el.innerText || "";
+                        let score = 0;
+                        let patternUsed = "";
+                        
+                        for (const p of nextPatterns) {
+                            if (p.text && p.text.test(text)) {
+                                score += p.weight;
+                                patternUsed = p.text.toString();
+                            }
+                            if (p.selector && el.matches(p.selector)) {
+                                score += p.weight;
+                                patternUsed = p.selector;
+                            }
+                        }
+                        
+                        if (score > 0 && el.offsetWidth > 0 && el.offsetHeight > 0) {
+                            // Basic selector generation
+                            let selector = el.tagName.toLowerCase();
+                            if (el.id) selector += '#' + el.id;
+                            if (el.className) selector += '.' + Array.from(el.classList).join('.');
+                            
+                            matches.push({
+                                text: text.trim().substring(0, 30),
+                                selector: selector,
+                                score: score,
+                                pattern: patternUsed
+                            });
+                        }
+                    });
+                    
+                    // Also check for numeric sequences
+                    const numbers = Array.from(document.querySelectorAll('a, button, li'))
+                        .filter(el => /^[0-9]+$/.test(el.innerText.trim()) && el.offsetWidth > 0);
+                    
+                    return {
+                        has_next: matches.length > 0,
+                        next_selector: matches.length > 0 ? matches.sort((a, b) => b.score - a.score)[0].selector : null,
+                        has_numbers: numbers.length > 2,
+                        candidates: matches.sort((a, b) => b.score - a.score).slice(0, 3)
+                    };
+                })()
+                """
+                result = await page.evaluate(js_detect)
+                return json.dumps(result)
 
             # ── Batch & File ──────────────────────────────────────────────────
             elif action == "batch":
