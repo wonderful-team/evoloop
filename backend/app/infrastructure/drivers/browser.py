@@ -46,16 +46,34 @@ class BrowserManager:
     async def get_page(self):
         """Return the active Page, lazily starting Chrome if needed."""
         async with self._lock_pool.get():
-            if self._context is None:
+            # Check if existing context belongs to a connected browser
+            needs_init = self._context is None
+            if not needs_init and self._browser:
+                if not self._browser.is_connected():
+                    logger.info("[Browser] Browser disconnected. Re-initializing...")
+                    needs_init = True
+            
+            if needs_init:
+                await self.close_internal()  # Clean up any partial state
                 await self._start()
-            ctx_pages = self._context.pages
-            if not ctx_pages:
-                self._pages = [await self._context.new_page()]
-                self._active_page_idx = 0
-            else:
-                self._pages = list(ctx_pages)
-                self._active_page_idx = min(self._active_page_idx, len(self._pages) - 1)
-            return self._pages[self._active_page_idx]
+            
+            try:
+                ctx_pages = self._context.pages
+                if not ctx_pages:
+                    self._pages = [await self._context.new_page()]
+                    self._active_page_idx = 0
+                else:
+                    self._pages = list(ctx_pages)
+                    self._active_page_idx = min(self._active_page_idx, len(self._pages) - 1)
+                return self._pages[self._active_page_idx]
+            except Exception as e:
+                # Catch cases where context exists but is closed (e.g. TargetClosed)
+                if "closed" in str(e).lower():
+                    logger.warning(f"[Browser] Context is closed ({e}). Re-starting.")
+                    await self.close_internal()
+                    await self._start()
+                    return await self._context.new_page()
+                raise
 
     async def _start(self) -> None:
         import subprocess
@@ -186,39 +204,53 @@ class BrowserManager:
         }
 
     async def close(self) -> None:
+        """Public entry to close the browser, synchronized."""
         async with self._lock_pool.get():
-            # 1. Close Playwright browser/context
-            if self._is_cdp and self._browser:
+            await self.close_internal()
+
+    async def close_internal(self) -> None:
+        """Internal close logic, caller must hold the lock."""
+        # 1. Close Playwright browser/context
+        if self._is_cdp and self._browser:
+            try:
                 await self._browser.close()
-            elif self._context:
+            except Exception:
+                pass
+        elif self._context:
+            try:
                 await self._context.close()
+            except Exception:
+                pass
 
-            if self._playwright:
+        if self._playwright:
+            try:
                 await self._playwright.stop()
+            except Exception:
+                pass
 
-            # 2. Terminate auto-launched subprocess if any
-            if self._chrome_proc:
-                logger.info(f"[Browser] Terminating auto-launched Chrome (pid={self._chrome_proc.pid})")
-                try:
-                    self._chrome_proc.terminate()
-                    # Wait slightly for it to die
-                    for _ in range(10):
-                        if self._chrome_proc.poll() is not None:
-                            break
-                        await asyncio.sleep(0.1)
-                    if self._chrome_proc.poll() is None:
-                        self._chrome_proc.kill()
-                except Exception as e:
-                    logger.warning(f"[Browser] Failed to terminate Chrome subprocess: {e}")
-                self._chrome_proc = None
+        # 2. Terminate auto-launched subprocess if any
+        if self._chrome_proc:
+            logger.info(f"[Browser] Terminating auto-launched Chrome (pid={self._chrome_proc.pid})")
+            try:
+                self._chrome_proc.terminate()
+                # Wait slightly for it to die
+                for _ in range(10):
+                    if self._chrome_proc.poll() is not None:
+                        break
+                    await asyncio.sleep(0.1)
+                if self._chrome_proc.poll() is None:
+                    self._chrome_proc.kill()
+            except Exception as e:
+                logger.warning(f"[Browser] Failed to terminate Chrome subprocess: {e}")
+            self._chrome_proc = None
 
-            # 3. Reset state
-            self._context = None
-            self._browser = None
-            self._playwright = None
-            self._pages = []
-            self._is_cdp = False
-            self._active_page_idx = 0
+        # 3. Reset state
+        self._context = None
+        self._browser = None
+        self._playwright = None
+        self._pages = []
+        self._is_cdp = False
+        self._active_page_idx = 0
         logger.info("[Browser] Browser closed.")
 
 

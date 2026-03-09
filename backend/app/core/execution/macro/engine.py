@@ -387,44 +387,44 @@ class MacroEngine:
         tool_action = ActionRegistry.get_tool_action(event_type, "dom")
 
         if event_type in ("goto", "navigate"):
-            res = await BrowserController.execute(action=tool_action, url=payload.get("url"), timeout_ms=timeout_ms)
+            res = await BrowserController.execute(action=tool_action, url=payload.get("url"), timeout_ms=timeout_ms, continue_on_error=continue_on_error)
             handle_res(res)
             await asyncio.sleep(2)
         elif event_type == "back":
-            handle_res(await BrowserController.execute(action=tool_action, timeout_ms=timeout_ms))
+            handle_res(await BrowserController.execute(action=tool_action, timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type == "forward":
-            handle_res(await BrowserController.execute(action=tool_action, timeout_ms=timeout_ms))
+            handle_res(await BrowserController.execute(action=tool_action, timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type == "reload":
-            handle_res(await BrowserController.execute(action=tool_action, timeout_ms=timeout_ms))
+            handle_res(await BrowserController.execute(action=tool_action, timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type in ("click", "tap", "double_click", "hover"):
-            handle_res(await BrowserController.execute(action=tool_action, selector=selector, x=payload.get("x"), y=payload.get("y"), timeout_ms=timeout_ms))
+            handle_res(await BrowserController.execute(action=tool_action, selector=selector, x=payload.get("x"), y=payload.get("y"), timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type in ("input", "type_text"):
-            handle_res(await BrowserController.execute(action="type_text", selector=selector, value=payload.get("text") or payload.get("value", ""), clear_first=payload.get("clear_first", True), timeout_ms=timeout_ms))
+            handle_res(await BrowserController.execute(action="type_text", selector=selector, value=payload.get("text") or payload.get("value", ""), clear_first=payload.get("clear_first", True), timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type == "select_option":
-            handle_res(await BrowserController.execute(action=tool_action, selector=selector, value=payload.get("value"), timeout_ms=timeout_ms))
+            handle_res(await BrowserController.execute(action=tool_action, selector=selector, value=payload.get("value"), timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type == "key_press":
-            handle_res(await BrowserController.execute(action=tool_action, key=payload.get("key"), timeout_ms=timeout_ms))
+            handle_res(await BrowserController.execute(action=tool_action, key=payload.get("key"), timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type == "drag_drop":
-            handle_res(await BrowserController.execute(action=tool_action, source_selector=payload.get("source_selector") or selector, target_selector=payload.get("target_selector"), timeout_ms=timeout_ms))
+            handle_res(await BrowserController.execute(action=tool_action, source_selector=payload.get("source_selector") or selector, target_selector=payload.get("target_selector"), timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type == "upload":
-            handle_res(await BrowserController.execute(action=tool_action, selector=selector, file_path=payload.get("file_path"), timeout_ms=timeout_ms))
+            handle_res(await BrowserController.execute(action=tool_action, selector=selector, file_path=payload.get("file_path"), timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type == "wait":
             duration = payload.get("seconds") or (payload.get("duration_ms", 1000) / 1000.0)
             await asyncio.sleep(float(duration))
         elif event_type == "wait_for":
-            handle_res(await BrowserController.execute(action=tool_action, selector=payload.get("selector") or selector, state=payload.get("state", "visible"), url_pattern=payload.get("url_pattern"), timeout_ms=timeout_ms))
+            handle_res(await BrowserController.execute(action=tool_action, selector=payload.get("selector") or selector, state=payload.get("state", "visible"), url_pattern=payload.get("url_pattern"), timeout_ms=timeout_ms, continue_on_error=continue_on_error))
         elif event_type == "scroll":
-            await BrowserController.execute(action=tool_action, selector=selector, direction=payload.get("direction", "down"), amount=payload.get("amount", 300))
+            await BrowserController.execute(action=tool_action, selector=selector, direction=payload.get("direction", "down"), amount=payload.get("amount", 300), continue_on_error=continue_on_error)
         elif event_type == "screenshot":
-            await BrowserController.execute(action=tool_action, selector=selector, full_page=payload.get("full_page", False))
+            await BrowserController.execute(action=tool_action, selector=selector, full_page=payload.get("full_page", False), continue_on_error=continue_on_error)
         elif event_type == "new_tab":
-            await BrowserController.execute(action=tool_action, url=payload.get("url"))
+            await BrowserController.execute(action=tool_action, url=payload.get("url"), continue_on_error=continue_on_error)
         elif event_type == "switch_tab":
-            await BrowserController.execute(action=tool_action, tab_index=payload.get("tab_index"))
+            await BrowserController.execute(action=tool_action, tab_index=payload.get("tab_index"), continue_on_error=continue_on_error)
         elif event_type == "dialog_handle":
-            await BrowserController.execute(action=tool_action, dialog_action=payload.get("dialog_action"), dialog_text=payload.get("dialog_text"))
+            await BrowserController.execute(action=tool_action, dialog_action=payload.get("dialog_action"), dialog_text=payload.get("dialog_text"), continue_on_error=continue_on_error)
         elif event_type in ("run_js", "evaluate"):
-            await BrowserController.execute(action="run_js", script=payload.get("script") or payload.get("expression"))
+            await BrowserController.execute(action="run_js", script=payload.get("script") or payload.get("expression"), continue_on_error=continue_on_error)
 
     @classmethod
     async def _execute_desktop_step(cls, event_type: str, selector: str, payload: dict):
