@@ -75,6 +75,20 @@ class MacroActionType(str, Enum):
     SCROLL_TO_BOTTOM = "scroll_to_bottom"
 
 
+class ExtractType(str, Enum):
+    """Valid extract types for EXTRACT steps."""
+    GET_TEXT = "get_text"
+    GET_ATTRIBUTE = "get_attribute"
+    GET_HTML = "get_html"
+    GET_LINKS = "get_links"
+    GET_ELEMENTS = "get_elements"  # Get multiple elements
+    SCREENSHOT = "screenshot"
+    GUI_EXTRACT = "gui_extract"  # Coordinate-based GUI extraction (OCR)
+    DUMP_UI = "dump_ui"
+    RUN_JS = "run_js"
+    BATCH = "batch"  # Internal: batched extract operations
+
+
 class MacroCondition(BaseModel):
     type: str = "element_exists"
     target_selector: Optional[str] = None
@@ -83,7 +97,7 @@ class MacroCondition(BaseModel):
 
 
 class MacroStep(BaseModel):
-    step_number: int
+    step_number: Optional[int] = None
     type: MacroStepType
     description: Optional[str] = None
     source: MacroSource = MacroSource.DOM
@@ -100,8 +114,8 @@ class MacroStep(BaseModel):
     steps: List["MacroStep"] = Field(default_factory=list)
     max_iterations: int = 100
 
-    @root_validator(pre=True)
-    def migrate_legacy_fields(cls, values):
+    @model_validator(mode='before')
+    def migrate_legacy_fields(self, values):
         # 1. Migrate Type
         step_type = values.get("type")
         if step_type in ("while", "batch_loop"):
@@ -126,8 +140,15 @@ class MacroStep(BaseModel):
         return values
     
     # Extraction
-    extract_type: Optional[str] = None
+    extract_type: Optional[ExtractType] = None
     key: Optional[str] = "data"
+
+    @model_validator(mode='after')
+    def validate_extract_type(self):
+        """Validate extract_type is valid when step type is 'extract'."""
+        if self.type == MacroStepType.EXTRACT and self.extract_type is None:
+            raise ValueError("extract_type is required when step type is 'extract'")
+        return self
 
     class Config:
         use_enum_values = True
@@ -145,6 +166,53 @@ class MacroScript(BaseModel):
     metadata: MacroMetadata = Field(default_factory=MacroMetadata)
     steps: List[MacroStep] = Field(default_factory=list)
     parameters_schema: List[Dict[str, Any]] = Field(default_factory=list)
+
+    @model_validator(mode='before')
+    def check_step_numbers(self, values):
+        """Validate step numbers are unique and sequential."""
+        steps = values.get('steps', []) if isinstance(values, dict) else getattr(values, 'steps', [])
+        if not steps:
+            return values
+
+        def collect_step_numbers(steps_list, parent_num=""):
+            """Recursively collect all step numbers including nested."""
+            numbers = []
+            for i, step in enumerate(steps_list, 1):
+                current_num = f"{parent_num}.{i}" if parent_num else str(i)
+                if isinstance(step, dict):
+                    step_num = step.get('step_number')
+                else:
+                    step_num = getattr(step, 'step_number', None)
+                numbers.append((current_num, step_num))
+
+                # Check nested steps
+                if isinstance(step, dict):
+                    then_steps = step.get('then_steps', []) or []
+                    else_steps = step.get('else_steps', []) or []
+                    loop_steps = step.get('steps', []) or []
+                else:
+                    then_steps = getattr(step, 'then_steps', []) or []
+                    else_steps = getattr(step, 'else_steps', []) or []
+                    loop_steps = getattr(step, 'steps', []) or []
+
+                if then_steps:
+                    numbers.extend(collect_step_numbers(then_steps, current_num))
+                if else_steps:
+                    numbers.extend(collect_step_numbers(else_steps, current_num))
+                if loop_steps:
+                    numbers.extend(collect_step_numbers(loop_steps, current_num))
+
+            return numbers
+
+        all_numbers = collect_step_numbers(steps)
+        seen = set()
+        for path, num in all_numbers:
+            if num in seen:
+                raise ValueError(f"Duplicate step number '{num}' found at path '{path}'")
+            if num is not None:
+                seen.add(num)
+
+        return values
 
 
 # Resolve forward references
