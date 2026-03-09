@@ -57,7 +57,10 @@ macro_script: |
       "extract_type": "gui_extract",
       "source": "desktop",
       "key": "title",
-      "payload": {"extraction_method": "ocr"}
+      "payload": {
+        "relative_position": {"x": 0.5, "y": 0.3},
+        "extraction_method": "ocr_nearby"
+      }
     },
     {
       "type": "loop",
@@ -79,7 +82,6 @@ macro_script: |
 The `macro_script` field MUST be a JSON array of steps following these rules:
 
 ### 1. Root Step Fields:
-- `step_number`: (int) Sequential 1-based index.
 - `type`: Must be one of: "action", "extract", "loop", "if", "dump".
 - `source`: Must be one of: "dom" (web), "desktop" (macOS), "mobile" (Android).
 - `event_type`: (Required for type="action") e.g., "click", "input", "navigate", "scroll", "wait", "key_press", "open_app".
@@ -87,12 +89,23 @@ The `macro_script` field MUST be a JSON array of steps following these rules:
 - `key`: (Required for type="extract") The variable name to store data (e.g., "price").
 - `payload`: (Object) Additional arguments (url, text, timeout_ms, x, y, direction).
 
-### 2. Allowed Event Types by Source:
-- **DOM**: "navigate", "click", "input", "key_press", "scroll", "wait", "get_text", "run_js".
+### 2. Extract Types (STRICT - Must be one of):
+- **get_text**: Extract text content from an element
+- **get_attribute**: Extract a specific attribute (e.g., href, src)
+- **get_html**: Extract HTML content
+- **get_links**: Extract all links from a page
+- **get_elements**: Extract multiple elements matching a selector
+- **screenshot**: Capture a screenshot
+- **gui_extract**: Extract from specific GUI region using coordinates/OCR
+- **dump_ui**: Get the UI hierarchy (accessibility tree)
+- **run_js**: Execute JavaScript and return the result
+
+### 3. Allowed Event Types by Source:
+- **DOM**: "navigate", "click", "input", "key_press", "scroll", "wait", "get_text", "run_js", "detect_pagination", "scroll_to_bottom".
 - **Desktop/Mobile**: "click", "tap", "type_text", "key_press", "scroll", "swipe", "open_app", "screenshot", "dump_ui".
 
-### 3. Loop & Logic:
-- **if**: Use `"type": "if"`, `"condition": {"type": "element_exists", "target_selector": "..."}`, and `"then"`/`"else"` arrays.
+### 4. Loop & Logic:
+- **if**: Use `"type": "if"`, `"condition": {"type": "element_exists", "target_selector": "..."}`, and `"then_steps"`/`"else_steps"` arrays.
 - **loop**: Use `"type": "loop"`. Put loop steps in a `"steps"` array. If it's a batch loop, include `"items_key"` in payload. If it's a conditional loop, include `"condition"`.
 - **wait**: Use `"event_type": "wait"` with `"payload": {"seconds": 2}`. DO NOT use `type: "wait"`.
 

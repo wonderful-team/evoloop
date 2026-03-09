@@ -8,6 +8,7 @@ Extracted from app.domain.tools.environment.mobile to allow:
 """
 import asyncio
 import logging
+import math
 import os
 import time
 
@@ -56,6 +57,7 @@ class MobileController:
         direction: str | None = None,
         scroll_amount: str = "medium",
         after_timestamp: int | None = None,
+        region: str | None = None,
     ) -> str:
         """Execute a mobile action. All business logic lives here."""
         # Resolve device_id from context if not provided
@@ -304,6 +306,30 @@ class MobileController:
 
             elif action == "screenshot":
                 filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
+                
+                # [Phase 15] Handle Region Cropping (Align with Desktop)
+                if region and filepath and os.path.exists(filepath):
+                    try:
+                        from PIL import Image
+                        # Expected format: "x,y,w,h"
+                        coords = [int(c.strip()) for c in region.split(",")]
+                        if len(coords) == 4:
+                            rx, ry, rw, rh = coords
+                            with Image.open(filepath) as img:
+                                # Ensure we don't exceed image bounds
+                                img_w, img_h = img.size
+                                box = (
+                                    max(0, rx), 
+                                    max(0, ry), 
+                                    min(img_w, rx + rw), 
+                                    min(img_h, ry + rh)
+                                )
+                                cropped = img.crop(box)
+                                cropped.save(filepath)
+                                logger.info(f"[Mobile] Screenshot cropped to region: {region}")
+                    except Exception as e:
+                        logger.warning(f"[Mobile] Region cropping failed: {e}")
+
                 msg = f"Screenshot: {filepath}"
                 if ocr:
                     try:
@@ -536,6 +562,63 @@ class MobileController:
                 if latest.get("extract"):
                     return await finish_action(f"SMS Received! Extracted Match: {latest['extract']}\nFull Body: {latest['body']}")
                 return await finish_action(f"SMS Received: {latest['body']}")
+
+            elif action == "gui_extract":
+                # [Phase 16] Intelligent GUI Extraction (OCR-Nearby)
+                from app.core.vision.router import VisionRouter
+
+                # 1. Capture Screenshot
+                filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
+                if region and filepath and os.path.exists(filepath):
+                    try:
+                        from PIL import Image
+                        coords = [int(c.strip()) for c in region.split(",")]
+                        if len(coords) == 4:
+                            rx, ry, rw, rh = coords
+                            with Image.open(filepath) as img:
+                                box = (max(0, rx), max(0, ry), min(img.size[0], rx + rw), min(img.size[1], ry + rh))
+                                cropped = img.crop(box)
+                                cropped.save(filepath)
+                    except Exception: pass
+
+                if not filepath or not os.path.exists(filepath):
+                    return "Error: Failed to capture screenshot for GUI extraction."
+
+                try:
+                    # 2. OCR Processing
+                    router = VisionRouter()
+                    provider = await router.get_provider(VisionTask.OCR, on_android=True, device_id=device_id)
+                    if not provider:
+                        if os.path.exists(filepath):
+                            os.remove(filepath)
+                        return "Error: No OCR provider available for mobile GUI extraction."
+
+                    result = await provider.process(VisionTask.OCR, filepath)
+                    if not result.success or not result.elements:
+                        if os.path.exists(filepath):
+                            os.remove(filepath)
+                        return ""
+
+                    # 3. Spatial Matching
+                    target_x = x if x is not None else 0.5
+                    target_y = y if y is not None else 0.5
+
+                    best_match = None
+                    min_dist = float('inf')
+
+                    for el in result.elements:
+                        # Normalize to 0-1 for comparison if needed, but providers vary.
+                        # Simple Euclidean distance on logical points or normalized center.
+                        dist = math.sqrt((el.x - (target_x if target_x > 1 else target_x * 1000))**2 + 
+                                         (el.y - (target_y if target_y > 1 else target_y * 1000))**2)
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_match = el.text
+
+                    return best_match or ""
+                finally:
+                    if filepath and os.path.exists(filepath):
+                        os.remove(filepath)
 
             return f"Error: Unknown action '{action}'."
 

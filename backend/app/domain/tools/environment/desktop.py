@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(is_pollable=True)
 async def desktop_control(
-    action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app", "scroll", "drag_drop", "dump_ui"],
+    action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app", "scroll", "drag_drop", "dump_ui", "gui_extract"],
     x: int | None = None,
     y: int | None = None,
     element_name: str | None = None,
@@ -67,6 +67,7 @@ async def desktop_control(
             - "scroll": Scroll in the given direction by amount pixels.
             - "drag_drop": Drag from source to target (by element name or coordinates).
             - "dump_ui": Dump the Accessibility Tree as JSON array of UI elements.
+            - "gui_extract": Intelligent text extraction from a region or near coordinates (x, y) using OCR.
         x: X coordinate for click action.
         y: Y coordinate for click action.
         element_name: Semantic name/label of the UI element to click (e.g., "Login", "Close").

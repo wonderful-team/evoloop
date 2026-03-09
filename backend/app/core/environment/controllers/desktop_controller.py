@@ -9,6 +9,7 @@ Extracted from app.domain.tools.environment.desktop to allow:
 import ast
 import asyncio
 import logging
+import math
 import os
 import time
 
@@ -518,6 +519,50 @@ class DesktopController:
                     return "\n".join(output_lines)
                 except Exception as e:
                     return f"Error: dump_ui failed: {e}"
+
+            elif action == "gui_extract":
+                # [Phase 16] Intelligent GUI Extraction (OCR-Nearby)
+                from app.core.vision.router import VisionRouter
+
+                # 1. Capture Screenshot
+                filepath = await asyncio.to_thread(macos_driver.screenshot, region=region)
+                if not filepath or not os.path.exists(filepath):
+                    return "Error: Failed to capture screenshot for GUI extraction."
+
+                try:
+                    # 2. OCR Processing
+                    router = VisionRouter()
+                    provider = await router.get_provider(VisionTask.OCR)
+                    if not provider:
+                        if os.path.exists(filepath):
+                            os.remove(filepath)
+                        return "Error: No OCR provider available for desktop GUI extraction."
+
+                    result = await provider.process(VisionTask.OCR, filepath)
+                    if not result.success or not result.elements:
+                        if os.path.exists(filepath):
+                            os.remove(filepath)
+                        return ""
+
+                    # 3. Spatial Matching
+                    target_x = x if x is not None else 0.5
+                    target_y = y if y is not None else 0.5
+
+                    best_match = None
+                    min_dist = float('inf')
+
+                    for el in result.elements:
+                        # Euclidean distance on logical points
+                        dist = math.sqrt((el.x - (target_x if target_x > 1 else target_x * 1000))**2 + 
+                                         (el.y - (target_y if target_y > 1 else target_y * 1000))**2)
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_match = el.text
+
+                    return best_match or ""
+                finally:
+                    if filepath and os.path.exists(filepath):
+                        os.remove(filepath)
 
             else:
                 return f"Error: Unknown action '{action}'."

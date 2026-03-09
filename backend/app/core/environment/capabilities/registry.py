@@ -211,9 +211,20 @@ ActionRegistry.register(ActionDef(
     id="screenshot",
     platforms=["dom", "mobile", "desktop"],
     icon="Eye",
-    description="Take a screenshot of the current view.",
+    description="Take a screenshot of the current view. Supports 'region' parameter (x,y,w,h).",
     zh="截图",
-    en="Screenshot"
+    en="Screenshot",
+    params={"region": "str"}
+))
+
+ActionRegistry.register(ActionDef(
+    id="gui_extract",
+    platforms=["mobile", "desktop"],
+    icon="ScanText",
+    description="Extract text from a specific GUI region using coordinates and OCR. Supports 'ocr_nearby' method.",
+    zh="智能提取 (OCR)",
+    en="AI GUI Extract (OCR)",
+    params={"relative_position": "dict", "extraction_method": "str"}
 ))
 
 # OS / App

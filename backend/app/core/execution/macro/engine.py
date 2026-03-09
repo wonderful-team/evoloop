@@ -361,17 +361,55 @@ class MacroEngine:
                 except Exception:
                     extracted_data[key] = res
 
-        elif step.source in (MacroSource.MOBILE, MacroSource.GLOBAL):
+        elif step.source in (MacroSource.MOBILE, MacroSource.GLOBAL, MacroSource.DESKTOP):
+            if extract_type == "gui_extract":
+                await cls._handle_gui_extract(thread_id, step, selector, payload, params, extracted_data)
+                return
+
             if extract_type == "dump_ui":
                 res = await MobileController.execute(action="dump_ui")
                 extracted_data[key] = res
             elif extract_type == "screenshot":
-                res = await MobileController.execute(action="screenshot")
+                res = await MobileController.execute(action="screenshot", region=payload.get("region"))
                 match = re.search(r"(/.*\.png)", str(res))
                 filepath = match.group(1) if match else str(res)
                 if selector and filepath.endswith(".png"):
                     filepath = await cls._crop_mobile_screenshot(filepath, selector)
                 extracted_data[key] = filepath
+
+    @classmethod
+    async def _handle_gui_extract(cls, thread_id: str, step: MacroStep, selector: str, payload: dict, params: dict, extracted_data: dict):
+        """Handle Coordinate-based GUI extraction (OCR)."""
+        key = cls._inject_params(step.key, params) or "extracted_text"
+        pos = payload.get("relative_position") or {"x": payload.get("x", 0.5), "y": payload.get("y", 0.5)}
+        region = payload.get("region")
+        
+        # [Refactor] Route through controllers for unified logic
+        try:
+            if step.source == MacroSource.DESKTOP:
+                res = await DesktopController.execute(
+                    action="gui_extract", 
+                    x=pos.get("x"), 
+                    y=pos.get("y"), 
+                    region=region
+                )
+                extracted_data[key] = res
+            elif step.source == MacroSource.MOBILE:
+                res = await MobileController.execute(
+                    action="gui_extract", 
+                    x=pos.get("x"), 
+                    y=pos.get("y"), 
+                    region=region
+                )
+                extracted_data[key] = res
+            else:
+                extracted_data[key] = None
+        except Exception as e:
+            logger.error(f"GUI Extract OCR failed: {e}")
+            extracted_data[key] = None
+        finally:
+            # Clean up if needed (though controllers handle this now)
+            pass
 
     @classmethod
     async def _crop_mobile_screenshot(cls, filepath: str, selector: str) -> str:
