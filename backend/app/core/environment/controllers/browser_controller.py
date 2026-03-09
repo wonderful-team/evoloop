@@ -528,6 +528,8 @@ class BrowserController:
                 return f"✅ Dialog handler registered: will '{dialog_action}' next dialog."
 
             elif action == "scroll_to_bottom":
+                # Get payload from kwargs (passed from macro engine)
+                payload = kwargs.get("payload", {})
                 max_scrolls = int(payload.get("max_scrolls", 5)) or 5
                 delay_ms = int(payload.get("delay_ms", 2000)) or 2000
                 item_selector = selector or "[class*='item'], [class*='card'], .feed-card"

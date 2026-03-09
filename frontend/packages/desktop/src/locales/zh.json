@@ -1260,6 +1260,8 @@
     "eventType": "事件类型",
     "selectorType": "选择器类型",
     "selector": "选择器",
+    "extractType": "提取类型",
+    "extractKey": "存储 Key (变量名)",
     "description": "描述",
     "payload": "载荷 (JSON)",
     "timeout": "超时 (毫秒)",
@@ -1320,6 +1322,7 @@
       "input": "输入",
       "select_option": "下拉选择",
       "scroll": "滚动",
+      "scroll_to_bottom": "滚动到底部",
       "drag_drop": "拖拽",
       "upload": "上传文件",
       "wait": "等待时间",
@@ -1346,6 +1349,9 @@
       "close_app": "关闭应用",
       "dump_ui": "转储 UI",
       "applescript": "AppleScript",
+      "detect_pagination": "检测分页",
+      "gui_extract": "智能提取 (OCR)",
+      "get_elements": "提取元素列表",
       "keypress": "按键"
     },
     "placeholders": {

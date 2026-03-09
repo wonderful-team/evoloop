@@ -32,9 +32,23 @@ Use for repetitive tasks (e.g., clicking 'Next' button until it disappears, or i
 
 ## Step Properties
 Each step MUST have:
-- step_number: integer sequence
 - type: "action" | "extract" | "dump" | "if" | "loop"
 - description: Brief explanation of the step
+
+### Type-specific Requirements:
+**For "action" steps:**
+- `event_type`: One of the available actions listed below
+- `target_selector`: CSS/XPath selector for the target element (if applicable)
+
+**For "extract" steps:**
+- `extract_type`: MUST be one of: "get_text", "get_attribute", "get_html", "get_links", "get_elements", "screenshot", "gui_extract", "dump_ui", "run_js"
+- `key`: The key name to store extracted data (e.g., "product_title", "page_content")
+- `target_selector`: Element to extract from (not needed for "screenshot", "dump_ui")
+
+**IMPORTANT DISTINCTION:**
+- "detect_pagination" and "scroll_to_bottom" are `event_type` values for ACTION steps, NOT extract_type values
+- For pagination detection, use: `{ "type": "action", "event_type": "detect_pagination" }`
+- For scrolling, use: `{ "type": "action", "event_type": "scroll_to_bottom" }`
 
 Action Types (By Platform):
 {% if action_docs %}
@@ -72,7 +86,6 @@ Respond with ONLY a JSON array:
 ```json
 [
   {
-    "step_number": 1,
     "type": "action",
     "event_type": "navigate",
     "source": "dom",

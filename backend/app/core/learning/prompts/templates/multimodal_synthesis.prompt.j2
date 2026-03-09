@@ -39,7 +39,6 @@ parameters:
 macro_script: |
   [
     {
-      "step_number": 1,
       "type": "action",
       "event_type": "navigate",
       "source": "dom",
@@ -47,7 +46,6 @@ macro_script: |
       "payload": {"url": "https://example.com"}
     },
     {
-      "step_number": 2,
       "type": "action",
       "event_type": "click",
       "source": "dom",
@@ -55,7 +53,6 @@ macro_script: |
       "payload": {"x": 0.5, "y": 0.3}
     },
     {
-      "step_number": 3,
       "type": "extract",
       "extract_type": "gui_extract",
       "source": "desktop",
@@ -63,13 +60,11 @@ macro_script: |
       "payload": {"extraction_method": "ocr"}
     },
     {
-      "step_number": 4,
       "type": "loop",
       "source": "dom",
       "payload": {"items_key": "products"},
       "steps": [
          {
-           "step_number": 5,
            "type": "action",
            "event_type": "click",
            "payload": {"target": "item"}

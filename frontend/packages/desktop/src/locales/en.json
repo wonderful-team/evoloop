@@ -1260,6 +1260,8 @@
     "eventType": "Event Type",
     "selectorType": "Selector Type",
     "selector": "Selector",
+    "extractType": "Extract Type",
+    "extractKey": "Store Key (Variable)",
     "description": "Description",
     "payload": "Payload (JSON)",
     "timeout": "Timeout (ms)",
@@ -1320,6 +1322,7 @@
       "input": "Input",
       "select_option": "Select Option",
       "scroll": "Scroll",
+      "scroll_to_bottom": "Scroll to Bottom",
       "drag_drop": "Drag & Drop",
       "upload": "Upload",
       "wait": "Wait Duration",
@@ -1346,6 +1349,9 @@
       "close_app": "Close App",
       "dump_ui": "Dump UI",
       "applescript": "AppleScript",
+      "detect_pagination": "Detect Pagination",
+      "gui_extract": "AI GUI Extract (OCR)",
+      "get_elements": "Extract Elements List",
       "keypress": "Key Press"
     },
     "placeholders": {

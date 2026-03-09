@@ -66,6 +66,9 @@ export interface MacroStep {
     wait_condition?: string
     timeout_ms?: number
     description?: string
+    // Extraction
+    extract_type?: "get_text" | "get_attribute" | "get_html" | "get_links" | "get_elements" | "screenshot" | "gui_extract" | "dump_ui" | "run_js"
+    key?: string
     // Control flow
     condition?: {
         type: string
@@ -505,6 +508,8 @@ export function MacroEditor({
                                                     <SelectItem value="back">{t("macroEditor.eventTypes.back")}</SelectItem>
                                                     <SelectItem value="input">{t("macroEditor.eventTypes.input")}</SelectItem>
                                                     <SelectItem value="key_press">{t("macroEditor.eventTypes.key_press")}</SelectItem>
+                                                    <SelectItem value="scroll_to_bottom">{t("macroEditor.eventTypes.scroll_to_bottom")}</SelectItem>
+                                                    <SelectItem value="detect_pagination">{t("macroEditor.eventTypes.detect_pagination")}</SelectItem>
                                                     <SelectItem value="wait">{t("macroEditor.eventTypes.wait")}</SelectItem>
                                                     <div className="h-px bg-muted my-1" />
                                                     <SelectItem value="extract">{t("macroEditor.stepTypes.extract")}</SelectItem>
@@ -540,7 +545,7 @@ export function MacroEditor({
 
                                         {/* Event type - Only show for generic "action" that isn't virtualized */}
                                         {(() => {
-                                            const commonActions = ["click", "navigate", "input", "key_press", "wait"];
+                                            const commonActions = ["click", "navigate", "back", "input", "key_press", "scroll_to_bottom", "detect_pagination", "wait"];
                                             const isVirtualType = commonActions.includes(step.event_type || "");
                                             const isGenericAction = step.type === "action" && !isVirtualType;
 
@@ -575,6 +580,50 @@ export function MacroEditor({
                                                 </div>
                                             );
                                         })()}
+
+                                        {/* Extract type - Only for EXTRACT steps */}
+                                        {step.type === "extract" && (
+                                            <div className="space-y-2">
+                                                <Label className="text-xs">{t("macroEditor.extractType")}</Label>
+                                                <Select
+                                                    value={step.extract_type || "get_text"}
+                                                    onValueChange={(value: any) =>
+                                                        updateStep(index, { extract_type: value })
+                                                    }
+                                                    disabled={readOnly}
+                                                >
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="get_text">{t("macroEditor.eventTypes.get_text")}</SelectItem>
+                                                        <SelectItem value="get_attribute">{t("macroEditor.eventTypes.get_attribute")}</SelectItem>
+                                                        <SelectItem value="get_html">{t("macroEditor.eventTypes.get_html")}</SelectItem>
+                                                        <SelectItem value="get_links">{t("macroEditor.eventTypes.get_links")}</SelectItem>
+                                                        <SelectItem value="get_elements">{t("macroEditor.eventTypes.get_elements")}</SelectItem>
+                                                        <SelectItem value="screenshot">{t("macroEditor.eventTypes.screenshot")}</SelectItem>
+                                                        <SelectItem value="gui_extract">{t("macroEditor.eventTypes.gui_extract")}</SelectItem>
+                                                        <SelectItem value="dump_ui">{t("macroEditor.eventTypes.dump_ui")}</SelectItem>
+                                                        <SelectItem value="run_js">{t("macroEditor.eventTypes.run_js")}</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
+
+                                        {/* Extract key - Only for EXTRACT steps */}
+                                        {step.type === "extract" && (
+                                            <div className="space-y-2">
+                                                <Label className="text-xs">{t("macroEditor.extractKey")}</Label>
+                                                <Input
+                                                    value={step.key || ""}
+                                                    onChange={(e) =>
+                                                        updateStep(index, { key: e.target.value })
+                                                    }
+                                                    placeholder="e.g. product_title"
+                                                    disabled={readOnly}
+                                                />
+                                            </div>
+                                        )}
 
                                         {/* Selector type */}
                                         <div className="space-y-2">

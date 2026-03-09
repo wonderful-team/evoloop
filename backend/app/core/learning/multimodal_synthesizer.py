@@ -168,7 +168,8 @@ class MultimodalSkillSynthesizer:
 
         # [Phase 15] 宏规范化 (处理 LLM 的不规范输出)
         if isinstance(target_macro, list):
-            target_macro = self._cleanup_macro(target_macro)
+            from app.core.learning.skill_synthesizer import WorkflowSynthesizer
+            target_macro, _ = WorkflowSynthesizer._cleanup_macro(target_macro)
             skill_data["macro_script"] = target_macro
 
         verification = await self.verify_macro(target_macro)
@@ -195,53 +196,6 @@ class MultimodalSkillSynthesizer:
                 "model": self.model_name or "unknown",
             }
         }
-
-    def _cleanup_macro(self, steps: List[dict]) -> List[dict]:
-        """规范化 LLM 生成的宏步骤 (修复常见格式错误)"""
-        clean_steps = []
-        for i, step in enumerate(steps, 1):
-            if not isinstance(step, dict): continue
-            
-            # 1. 确保有 step_number
-            if "step_number" not in step:
-                step["step_number"] = i
-                
-            # 2. 映射非标准 type
-            s_type = step.get("type")
-            if s_type == "wait":
-                # type: wait -> type: action, event_type: wait
-                step["type"] = "action"
-                step["event_type"] = "wait"
-                # 处理 condition/timeout -> payload
-                payload = step.get("payload", {})
-                if "timeout" in step and "seconds" not in payload:
-                    payload["seconds"] = float(step["timeout"]) / 1000.0
-                step["payload"] = payload
-            elif s_type in ("while", "batch_loop", "loop"):
-                # 统一为 loop
-                step["type"] = "loop"
-
-            # 3. 规范化嵌套字段名
-            # then -> then_steps
-            if "then" in step and "then_steps" not in step:
-                step["then_steps"] = step.pop("then")
-                
-            # else -> else_steps
-            if "else" in step and "else_steps" not in step:
-                step["else_steps"] = step.pop("else")
-                
-            # do/do_steps -> steps
-            legacy_substeps = step.pop("do", None) or step.pop("do_steps", None)
-            if legacy_substeps and "steps" not in step:
-                step["steps"] = legacy_substeps
-            
-            # 4. 递归处理嵌套步骤
-            for branch in ["then_steps", "else_steps", "steps"]:
-                if branch in step and isinstance(step[branch], list):
-                    step[branch] = self._cleanup_macro(step[branch])
-                    
-            clean_steps.append(step)
-        return clean_steps
 
     async def _compile_macro_from_events(self, events: List[TraceEvent]) -> List[dict]:
         """从 TraceEvent 序列编译确定性宏脚本 (复用 WorkflowSynthesizer)"""

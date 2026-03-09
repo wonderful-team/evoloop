@@ -7,7 +7,7 @@ It produces structured skill configurations that can be registered and executed.
 
 import logging
 from dataclasses import asdict, dataclass, field
-from typing import Any
+from typing import Any, List, Tuple
 
 import yaml
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -302,7 +302,7 @@ class WorkflowSynthesizer:
                     macro_step = {
                         "step_number": step.step_number,
                         "type": "extract",
-                        "extract_type": "screenshot_region",
+                        "extract_type": "gui_extract",
                         "key": f"extracted_{step.step_number}",
                         "source": "desktop" if source_type == "dom" else source_type,
                         "target_selector": None,
@@ -423,7 +423,53 @@ class WorkflowSynthesizer:
             })
 
         # Macro optimization is now handled via MacroService in the main synthesize flow
-        return macro
+        return self._cleanup_macro(macro)[0]
+
+    @classmethod
+    def _cleanup_macro(cls, steps: List[dict], start_index: int = 1) -> Tuple[List[dict], int]:
+        """规范化 LLM 生成的宏步骤 (修复常见格式错误并确保全局步骤编号唯一)"""
+        clean_steps = []
+        current_idx = start_index
+        
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            
+            # 1. 强制重新分配连续且唯一的 step_number
+            step["step_number"] = current_idx
+            current_idx += 1
+                
+            # 2. 映射非标准 type
+            s_type = step.get("type")
+            if s_type == "wait":
+                step["type"] = "action"
+                step["event_type"] = "wait"
+                payload = step.get("payload", {})
+                if "timeout" in step and "seconds" not in payload:
+                    payload["seconds"] = float(step["timeout"]) / 1000.0
+                step["payload"] = payload
+            elif s_type in ("while", "batch_loop", "loop"):
+                step["type"] = "loop"
+
+            # 3. 规范化嵌套字段名
+            if "then" in step and "then_steps" not in step:
+                step["then_steps"] = step.pop("then")
+            if "else" in step and "else_steps" not in step:
+                step["else_steps"] = step.pop("else")
+            legacy_substeps = step.pop("do", None) or step.pop("do_steps", None)
+            if legacy_substeps and "steps" not in step:
+                step["steps"] = legacy_substeps
+            
+            # 4. 递归处理嵌套步骤，共享计数器
+            for branch in ["then_steps", "else_steps", "steps"]:
+                if branch in step and isinstance(step[branch], list):
+                    nested_steps, next_idx = cls._cleanup_macro(step[branch], start_index=current_idx)
+                    step[branch] = nested_steps
+                    current_idx = next_idx
+                    
+            clean_steps.append(step)
+            
+        return clean_steps, current_idx
 
     def _parse_skill_yaml(self, yaml_str: str, sequence: TraceSequence) -> SynthesizedSkill:
         """Parse YAML string into SynthesizedSkill object."""
