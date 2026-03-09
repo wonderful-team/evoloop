@@ -95,14 +95,14 @@ The `macro_script` field MUST be a JSON array of steps following these rules:
 - **get_html**: Extract HTML content
 - **get_links**: Extract all links from a page
 - **get_elements**: Extract multiple elements matching a selector
-- **screenshot**: Capture a screenshot
-- **gui_extract**: Extract from specific GUI region using coordinates/OCR
+- **screenshot**: Capture a screenshot (supports "region": "x,y,w,h" in payload)
+- **gui_extract**: Extract text near coordinates using OCR. Use "relative_position": {"x": 0.5, "y": 0.3} and "extraction_method": "ocr_nearby"
 - **dump_ui**: Get the UI hierarchy (accessibility tree)
 - **run_js**: Execute JavaScript and return the result
 
 ### 3. Allowed Event Types by Source:
 - **DOM**: "navigate", "click", "input", "key_press", "scroll", "wait", "get_text", "run_js", "detect_pagination", "scroll_to_bottom".
-- **Desktop/Mobile**: "click", "tap", "type_text", "key_press", "scroll", "swipe", "open_app", "screenshot", "dump_ui".
+- **Desktop/Mobile**: "click", "tap", "type_text", "key_press", "scroll", "swipe", "open_app", "screenshot", "gui_extract", "back", "dump_ui".
 
 ### 4. Loop & Logic:
 - **if**: Use `"type": "if"`, `"condition": {"type": "element_exists", "target_selector": "..."}`, and `"then_steps"`/`"else_steps"` arrays.
@@ -141,6 +141,7 @@ Example: "This skill bridges information between apps using clipboard as a unive
 ## 5. Error Recovery Strategies
 - If [failure condition] → [recovery action]
 - If [alternative failure] → [alternative recovery]
+- **Pro-tip**: Use `gui_extract` with `ocr_nearby` whenever you encounter applications that lack a reliable Accessibility Tree (e.g., legacy Win32 apps, Electron apps with disabled A11y, or gaming interfaces).
 
 ---
 IMPORTANT:

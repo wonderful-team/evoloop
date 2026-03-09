@@ -101,7 +101,9 @@ execution_mode: deterministic
     source: "dom"
     payload:
       url: "https://example.com"
-  # Support interactions include: back, forward, reload, hover, double_click, drag_drop, select_option, upload, run_js, open_app, back_key, home, key_press, etc.
+  # Support interactions include: back, gui_extract, screenshot, hover, double_click, drag_drop, select_option, upload, run_js, open_app, back_key, home, key_press, etc.
+  # For 'gui_extract', use 'relative_position: {x, y}' and 'extraction_method: ocr_nearby' in payload.
+  # For 'screenshot', you can optionally provide 'region: "x,y,w,h"'.
   # ... more steps ...
 ```
 
