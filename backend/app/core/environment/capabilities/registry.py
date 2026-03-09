@@ -189,6 +189,15 @@ ActionRegistry.register(ActionDef(
 ))
 
 ActionRegistry.register(ActionDef(
+    id="get_elements",
+    platforms=["dom"],
+    icon="List",
+    description="Extract a list of elements matching a selector. Returns a list of element data objects.",
+    zh="提取元素列表",
+    en="Extract Elements List"
+))
+
+ActionRegistry.register(ActionDef(
     id="get_attribute",
     platforms=["dom"],
     icon="Download",
