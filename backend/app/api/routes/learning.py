@@ -7,6 +7,7 @@ import json
 import logging
 import math
 import os
+import shutil
 import subprocess
 import traceback
 from datetime import datetime
@@ -537,9 +538,7 @@ async def extract_keyframes(body: ExtractKeyframesRequest, background_tasks: Bac
                         .values(**update_values)
                     )
 
-            logger.info(
-                f"Extracted and analyzed {len(results)} keyframes for session {body.session_id}"
-            )
+            logger.info(f"Extracted and analyzed {len(results)} keyframes for session {body.session_id}")
 
         except FileNotFoundError as e:
             logger.error(f"Keyframe extraction failed: {e}")
@@ -887,15 +886,33 @@ async def get_skill(skill_id: int):
 
 
 @router.delete("/skills/{skill_id}")
-async def deactivate_skill(skill_id: int):
+async def delete_skill(skill_id: int):
     """
-    Deactivate (soft delete) a skill.
+    Physically delete a skill and its resources.
     """
     async with session_scope() as db:
-        stmt = update(LearnedSkill).where(LearnedSkill.id == skill_id).values(is_active=False)
-        await db.execute(stmt)
+        # 1. Get Skill
+        stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
+        result = await db.execute(stmt)
+        skill = result.scalar_one_or_none()
 
-    return {"success": True, "message": f"Skill {skill_id} deactivated"}
+        if not skill:
+            raise HTTPException(status_code=404, detail="Skill not found")
+
+        # 2. Cleanup Resources on Disk (Phase 5 folders)
+        if skill.resource_path:
+            try:
+                path = Path(skill.resource_path)
+                if path.exists() and path.is_dir():
+                    shutil.rmtree(path)
+                    logger.info(f"Deleted skill resources at: {path}")
+            except Exception as e:
+                logger.error(f"Failed to delete skill resources at {skill.resource_path}: {e}")
+
+        # 3. Physical Delete from DB
+        await db.delete(skill)
+
+    return {"success": True, "message": f"Skill {skill_id} physically deleted"}
 
 
 class UpdateSkillRequest(BaseModel):
@@ -1888,6 +1905,7 @@ async def cleanup_recording_session(
     except Exception as e:
         logger.exception(f"[Cleanup] Failed to cleanup session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Cleanup failed: {str(e)}")
+
 
 @router.post("/skills/{skill_id}/confirm", response_model=RespondResponse)
 async def confirm_learned_skill(skill_id: int):
