@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, validator, root_validator
 
 
@@ -25,7 +25,7 @@ class MacroActionType(str, Enum):
     BACK = "back"
     FORWARD = "forward"
     RELOAD = "reload"
-    
+
     # Interaction
     CLICK = "click"
     DOUBLE_CLICK = "double_click"
@@ -40,7 +40,7 @@ class MacroActionType(str, Enum):
     HOVER = "hover"
     WAIT = "wait"
     WAIT_FOR = "wait_for"
-    
+
     # Browser / Web
     SELECT_OPTION = "select_option"
     NEW_TAB = "new_tab"
@@ -48,7 +48,7 @@ class MacroActionType(str, Enum):
     UPLOAD = "upload"
     RUN_JS = "run_js"
     DIALOG_HANDLE = "dialog_handle"
-    
+
     # Extraction / Perception
     GET_TEXT = "get_text"
     GET_ATTRIBUTE = "get_attribute"
@@ -56,7 +56,7 @@ class MacroActionType(str, Enum):
     GET_LINKS = "get_links"
     SCREENSHOT = "screenshot"
     DUMP_UI = "dump_ui"
-    
+
     # OS / App
     OPEN_APP = "open_app"
     CLOSE_APP = "close_app"
@@ -66,10 +66,10 @@ class MacroActionType(str, Enum):
     APPLESCRIPT = "applescript"
     GET_ACTIVE_APP = "get_active_app"
     GET_INFO = "get_info"
-    
+
     # Advanced / Generic
     BATCH = "batch"
-    
+
     # Automation Primitives
     DETECT_PAGINATION = "detect_pagination"
     SCROLL_TO_BOTTOM = "scroll_to_bottom"

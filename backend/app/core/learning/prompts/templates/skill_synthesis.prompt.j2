@@ -49,13 +49,13 @@ Use when an action should only happen if an element is present/visible.
   condition:
     type: "element_exists"  # or "element_visible", "text_contains"
     target_selector: ".modal-close"
-  then:
+  then_steps:
     - step_number: 6
       type: action
       event_type: "click"
       source: "dom"
       target_selector: ".modal-close"
-  else: [] # Optional
+  else_steps: [] # Optional
 ```
 
 ### 2. Loop Logic (`loop`)
