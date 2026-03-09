@@ -347,6 +347,29 @@ class ADBDriver:
         self._run_adb(["pull", remote_path, local_path], device_id=device_id)
         logger.info(f"Pulled {remote_path} to {local_path}")
 
+    def get_clipboard(self, device_id: str | None = None) -> str:
+        """
+        Get the current clipboard text from the device.
+        Note: Requires ADB connection and might be restricted on modern Android.
+        Attempts to use 'service call clipboard 2' which is common on many ROMs.
+        """
+        try:
+            # Different Android versions use different service call signatures
+            # This is a common one for reading clipboard (getPrimaryClip)
+            stdout, _ = self._run_adb(["shell", "service", "call", "clipboard", "2", "i32", "1"], device_id=device_id)
+            
+            # Output format: "Result: Parcel(00000000 00000018 'https://x.y.z' ...)"
+            # We extract the string within single quotes
+            match = re.search(r"'(.*?)'", stdout)
+            if match:
+                return match.group(1).encode('utf-8').decode('unicode_escape', errors='ignore')
+            
+            # Alternative: Logcat fallback if the system logs clipboard changes
+            return ""
+        except Exception as e:
+            logger.debug(f"Failed to read clipboard: {e}")
+            return ""
+
     def dump_ui(self, device_id: str | None = None) -> str:
         """
         Dump the current UI hierarchy as XML.

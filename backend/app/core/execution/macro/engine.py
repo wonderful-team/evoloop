@@ -22,6 +22,22 @@ class MacroEngine:
     """
 
     @classmethod
+    async def execute(
+        cls, 
+        thread_id: str, 
+        script: Any, # MacroScript
+        params: Optional[Dict[str, Any]] = None, 
+        extracted_data: Optional[Dict[str, Any]] = None
+    ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+        """Public entry point for MacroScript execution."""
+        return await cls.execute_steps(
+            thread_id=thread_id,
+            steps=script.steps,
+            params=params,
+            extracted_data=extracted_data
+        )
+
+    @classmethod
     async def execute_steps(
         cls, 
         thread_id: str, 
@@ -408,9 +424,18 @@ class MacroEngine:
                     action="gui_extract", 
                     x=pos.get("x"), 
                     y=pos.get("y"), 
-                    region=region
+                    region=region,
+                    extraction_method=payload.get("extraction_method")
                 )
-                extracted_data[key] = res
+                
+                # Deserialization check for structural results (like lists)
+                if isinstance(res, str) and (res.startswith("[") or res.startswith("{")):
+                    try:
+                        extracted_data[key] = json.loads(res)
+                    except:
+                        extracted_data[key] = res
+                else:
+                    extracted_data[key] = res
             else:
                 extracted_data[key] = None
         except Exception as e:
@@ -578,6 +603,15 @@ class MacroEngine:
             await MobileController.execute(action=tool_action)
         elif event_type == "dump_ui":
             await MobileController.execute(action=tool_action)
+        elif event_type == "get_clipboard":
+            await MobileController.execute(action="get_clipboard")
+        elif event_type == "scroll_to_bottom":
+            await MobileController.execute(
+                action="scroll_to_bottom", 
+                max_scrolls=payload.get("max_scrolls", 5),
+                scroll_amount=payload.get("scroll_amount", "medium"),
+                delay_ms=payload.get("delay_ms", 1000)
+            )
 
     # --- Utils ---
     @classmethod

@@ -1198,11 +1198,18 @@
     "aiAnalyzing": "AI is analyzing your recording...",
     "aiAnalyzingDesc": "This may take 1-2 minutes. The AI is reviewing your marked regions, understanding your task flow, and generating an optimized skill.",
     "currentPhase": "Current: {{phase}}",
+    "closeConfirmTitle": "Confirm Close",
+    "closeConfirmDesc": "Are you sure you want to close? Unsaved progress will be lost.",
+    "deleteAssociatedFiles": "Delete associated files",
+    "deleteFilesHint": "Also delete recorded video and annotation data",
+    "closeAndDiscard": "Close and Discard",
     "toast": {
       "saveAnnotationFailed": "Failed to save annotation",
       "deleteAnnotationFailed": "Failed to delete annotation",
       "startSynthesisFailed": "Failed to start synthesis",
-      "describeGoalRequired": "Please describe your task goal"
+      "describeGoalRequired": "Please describe your task goal",
+      "filesDeleted": "Files deleted",
+      "deleteFailed": "Delete failed"
     }
   },
   "annotationList": {

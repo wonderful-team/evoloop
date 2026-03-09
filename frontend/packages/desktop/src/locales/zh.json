@@ -1198,11 +1198,18 @@
     "aiAnalyzing": "AI 正在分析您的录制...",
     "aiAnalyzingDesc": "这可能需要 1-2 分钟。AI 正在查看您标记的区域，理解您的任务流程，并生成优化的技能。",
     "currentPhase": "当前：{{phase}}",
+    "closeConfirmTitle": "确认关闭",
+    "closeConfirmDesc": "您确定要关闭吗？未保存的进度将会丢失。",
+    "deleteAssociatedFiles": "删除关联文件",
+    "deleteFilesHint": "同时删除录制的视频和标注数据",
+    "closeAndDiscard": "关闭并丢弃",
     "toast": {
       "saveAnnotationFailed": "保存标注失败",
       "deleteAnnotationFailed": "删除标注失败",
       "startSynthesisFailed": "启动合成失败",
-      "describeGoalRequired": "请描述您的任务目标"
+      "describeGoalRequired": "请描述您的任务目标",
+      "filesDeleted": "文件已删除",
+      "deleteFailed": "删除失败"
     }
   },
   "annotationList": {

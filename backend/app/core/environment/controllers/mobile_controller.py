@@ -11,6 +11,7 @@ import logging
 import math
 import os
 import time
+from typing import Any, Dict, List, Optional
 
 from app.constants import INTERCEPT_TARGETS, RISK_KEYWORDS
 from app.core.atlas import atlas_engine
@@ -58,6 +59,7 @@ class MobileController:
         scroll_amount: str = "medium",
         after_timestamp: int | None = None,
         region: str | None = None,
+        **kwargs: Any
     ) -> str:
         """Execute a mobile action. All business logic lives here."""
         # Resolve device_id from context if not provided
@@ -467,6 +469,53 @@ class MobileController:
                 asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
                 return await finish_action(f"Input text: {text[:50]}..." + (f" (focused on '{element_name}')" if element_name else ""))
 
+            elif action == "scroll_to_bottom":
+                # [Phase 20] Incremental Scrolling for Infinite lists
+                max_scrolls = int(kwargs.get("max_scrolls", 5))
+                scroll_amount = kwargs.get("scroll_amount", "medium")
+                delay_ms = int(kwargs.get("delay_ms", 1000))
+                
+                # Mapping distance
+                size = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
+                width, height = size
+                
+                start_x = width // 2
+                end_x = start_x
+                
+                if scroll_amount == "small":
+                    distance = height // 4
+                elif scroll_amount == "large":
+                    distance = (height // 4) * 3
+                else: # medium
+                    distance = height // 2
+                
+                start_y = (height // 2) + (distance // 2)
+                end_y = (height // 2) - (distance // 2)
+                
+                scroll_count = 0
+                last_ui_hash = ""
+                
+                while scroll_count < max_scrolls:
+                    # 1. Capture current state for stability check
+                    try:
+                        curr_ui = await asyncio.to_thread(adb_driver.dump_ui, device_id=device_id)
+                        curr_hash = str(hash(curr_ui))
+                    except:
+                        curr_hash = str(time.time()) # Fallback if dump fails
+                    
+                    if curr_hash == last_ui_hash:
+                        logger.info(f"[Mobile] Scroll reached bottom (UI stable) after {scroll_count} scrolls.")
+                        break
+                    
+                    last_ui_hash = curr_hash
+                    
+                    # 2. Perform Swipe
+                    await asyncio.to_thread(adb_driver.swipe, start_x, start_y, end_x, end_y, duration_ms=400, device_id=device_id)
+                    scroll_count += 1
+                    await asyncio.sleep(delay_ms / 1000.0)
+                
+                return await finish_action(f"Scrolled {scroll_count} times.")
+
             elif action == "press_key":
                 if keycode is None:
                     return "Error: 'keycode' required."
@@ -563,6 +612,10 @@ class MobileController:
                     return await finish_action(f"SMS Received! Extracted Match: {latest['extract']}\nFull Body: {latest['body']}")
                 return await finish_action(f"SMS Received: {latest['body']}")
 
+            elif action == "get_clipboard":
+                text = await asyncio.to_thread(adb_driver.get_clipboard, device_id=device_id)
+                return await finish_action(text or "")
+
             elif action == "gui_extract":
                 # [Phase 16] Intelligent GUI Extraction (OCR-Nearby)
                 from app.core.vision.router import VisionRouter
@@ -599,7 +652,51 @@ class MobileController:
                             os.remove(filepath)
                         return ""
 
-                    # 3. Spatial Matching
+                    if kwargs.get("extraction_method") == "list":
+                        # Group elements vertically to find "Rows"
+                        # Simple heuristic: elements within 5% height of each other are in the same record
+                        rows = []
+                        screen_height = 2400 # Default if unknown
+                        try:
+                            _, h = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
+                            screen_height = h
+                        except: pass
+                        
+                        threshold = screen_height * 0.05
+                        sorted_elements = sorted(result.elements, key=lambda e: e.y)
+                        
+                        current_row = []
+                        last_y = -float('inf')
+                        
+                        for el in sorted_elements:
+                            if abs(el.y - last_y) > threshold:
+                                if current_row:
+                                    # Create a structured item with text and center coordinates
+                                    avg_x = sum(e.x for e in current_row) / len(current_row)
+                                    avg_y = sum(e.y for e in current_row) / len(current_row)
+                                    rows.append({
+                                        "text": " | ".join([e.text for e in sorted(current_row, key=lambda x: x.x)]),
+                                        "x": int(avg_x),
+                                        "y": int(avg_y)
+                                    })
+                                current_row = [el]
+                                last_y = el.y
+                            else:
+                                current_row.append(el)
+                        
+                        if current_row:
+                            avg_x = sum(e.x for e in current_row) / len(current_row)
+                            avg_y = sum(e.y for e in current_row) / len(current_row)
+                            rows.append({
+                                "text": " | ".join([e.text for e in sorted(current_row, key=lambda x: x.x)]),
+                                "x": int(avg_x),
+                                "y": int(avg_y)
+                            })
+                        
+                        import json
+                        return json.dumps(rows, ensure_ascii=False)
+
+                    # Standard Nearby Matching
                     target_x = x if x is not None else 0.5
                     target_y = y if y is not None else 0.5
 

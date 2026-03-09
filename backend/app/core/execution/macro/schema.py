@@ -115,7 +115,8 @@ class MacroStep(BaseModel):
     max_iterations: int = 100
 
     @model_validator(mode='before')
-    def migrate_legacy_fields(self, values):
+    @classmethod
+    def migrate_legacy_fields(cls, values):
         # 1. Migrate Type
         step_type = values.get("type")
         if step_type in ("while", "batch_loop"):
@@ -168,7 +169,8 @@ class MacroScript(BaseModel):
     parameters_schema: List[Dict[str, Any]] = Field(default_factory=list)
 
     @model_validator(mode='before')
-    def check_step_numbers(self, values):
+    @classmethod
+    def check_step_numbers(cls, values):
         """Validate step numbers are unique and sequential."""
         steps = values.get('steps', []) if isinstance(values, dict) else getattr(values, 'steps', [])
         if not steps:

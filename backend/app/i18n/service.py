@@ -46,9 +46,14 @@ class I18nService:
         """
         Get localized string by key (dot notation).
         Example: i18n.get("tasks.objective", title="Foo")
+
+        Use `default` kwarg to specify a fallback value when key is not found.
         """
         if not self._loaded:
             self.load_locales()
+
+        # Extract default value before processing
+        default = kwargs.pop("default", None)
 
         # 1. Determine Language
         # Try to get from kwargs first (override), then system config
@@ -67,10 +72,10 @@ class I18nService:
         if template is None and lang != "en":
             template = self._get_template("en", key)
 
-        # Fallback to key if still not found
+        # Fallback to default or key if still not found
         if template is None:
             logger.debug(f"Missing translation for key: {key} (lang={lang})")
-            return key
+            return default if default is not None else key
 
         # 3. Format
         try:
