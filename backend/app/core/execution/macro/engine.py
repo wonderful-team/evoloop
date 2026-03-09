@@ -367,14 +367,23 @@ class MacroEngine:
                 return
 
             if extract_type == "dump_ui":
-                res = await MobileController.execute(action="dump_ui")
+                if step.source == MacroSource.DESKTOP:
+                    res = await DesktopController.execute(action="dump_ui")
+                else:
+                    res = await MobileController.execute(action="dump_ui")
                 extracted_data[key] = res
             elif extract_type == "screenshot":
-                res = await MobileController.execute(action="screenshot", region=payload.get("region"))
+                if step.source == MacroSource.DESKTOP:
+                    res = await DesktopController.execute(action="screenshot", region=payload.get("region"))
+                else:
+                    res = await MobileController.execute(action="screenshot", region=payload.get("region"))
+                
                 match = re.search(r"(/.*\.png)", str(res))
                 filepath = match.group(1) if match else str(res)
                 if selector and filepath.endswith(".png"):
-                    filepath = await cls._crop_mobile_screenshot(filepath, selector)
+                    if step.source == MacroSource.MOBILE:
+                        filepath = await cls._crop_mobile_screenshot(filepath, selector)
+                    # For DESKTOP, we might not have a specific crop helper yet if selector is complex
                 extracted_data[key] = filepath
 
     @classmethod
