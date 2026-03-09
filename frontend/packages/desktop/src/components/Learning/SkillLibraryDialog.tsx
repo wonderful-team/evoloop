@@ -212,7 +212,7 @@ export function SkillLibraryDialog({
                           <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.status")}</span>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 text-[10px]">
-                              {t(`learning.statusBadge.${selectedSkill.status || "active"}`, selectedSkill.status || "active")}
+                              {t(`learning.statusBadge.${selectedSkill.status || "active"}`)}
                             </Badge>
                           </div>
                         </div>

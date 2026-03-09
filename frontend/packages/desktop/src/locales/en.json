@@ -275,6 +275,7 @@
     },
     "execution": {
       "noParams": "This skill requires no inputs.",
+      "noParamsDescription": "This skill doesn't require any parameters, just run it directly.",
       "description": "Please answer the following questions to run the skill.",
       "title": "Run Skill: {{name}}",
       "starting": "Starting...",

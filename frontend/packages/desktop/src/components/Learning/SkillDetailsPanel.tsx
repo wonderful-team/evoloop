@@ -117,7 +117,7 @@ export function SkillDetailsPanel({
                                 <span className="text-[10px] text-muted-foreground uppercase font-bold">{t("learning.status")}</span>
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">
-                                        {t(`learning.statusBadge.${skill.status || "draft"}`, skill.status || "draft")}
+                                        {t(`learning.statusBadge.${skill.status || "draft"}`)}
                                     </Badge>
                                     <Badge
                                         variant="outline"
@@ -298,12 +298,12 @@ export function SkillDetailsPanel({
                                                         </td>
                                                         <td className="py-2 px-2">
                                                             <Badge variant="outline" className="text-[9px] capitalize bg-background">
-                                                                {step.type ? String(t(`macroEditor.stepTypes.${step.type}`, step.type)) : "-"}
+                                                                {step.type ? String(t(`macroEditor.stepTypes.${step.type}`)) : "-"}
                                                             </Badge>
                                                         </td>
                                                         <td className="py-2 px-2">
                                                             <span className="capitalize">
-                                                                {step.event_type ? String(t(`macroEditor.eventTypes.${step.event_type}`, step.event_type)) : "-"}
+                                                                {step.event_type ? String(t(`macroEditor.eventTypes.${step.event_type}`)) : "-"}
                                                             </span>
                                                         </td>
                                                         <td className="py-2 px-2">

@@ -176,7 +176,7 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                                                 <CardTitle className="text-base font-semibold leading-tight line-clamp-1 tracking-tight">{skill.name}</CardTitle>
                                                 <div className="flex items-center gap-2 mt-1.5">
                                                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-medium bg-muted/50">
-                                                        {t(`learning.statusBadge.${skill.status || "active"}`, skill.status || "active")}
+                                                        {t(`learning.statusBadge.${skill.status || "active"}`)}
                                                     </Badge>
                                                     <span className="text-[10px] text-muted-foreground flex items-center gap-1">
                                                         <Clock className="h-3 w-3" />

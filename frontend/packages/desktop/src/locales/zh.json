@@ -275,6 +275,7 @@
     },
     "execution": {
       "noParams": "此技能无需任何输入。",
+      "noParamsDescription": "此技能不需要任何参数，直接运行即可。",
       "description": "请回答以下问题以运行技能。",
       "title": "运行技能：{{name}}",
       "starting": "正在启动...",
