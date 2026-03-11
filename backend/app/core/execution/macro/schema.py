@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 
@@ -112,7 +112,7 @@ class MacroStep(BaseModel):
     then_steps: List["MacroStep"] = Field(default_factory=list)
     else_steps: List["MacroStep"] = Field(default_factory=list)
     steps: List["MacroStep"] = Field(default_factory=list)
-    max_iterations: int = 100
+    max_iterations: Union[int, str] = 100
 
     @model_validator(mode='before')
     @classmethod
@@ -135,9 +135,22 @@ class MacroStep(BaseModel):
         legacy_steps = values.get("do") or values.get("do_steps")
         if legacy_steps and not values.get("steps"):
             values["steps"] = legacy_steps
-            # Cleanup legacy keys from the dict to avoid pollution if needed, 
-            # but usually pydantic ignores extra fields anyway.
-            
+
+        # 3. Pull metadata from payload if missing at root (LLM compatibility)
+        payload = values.get("payload")
+        if isinstance(payload, dict):
+            # Pull 'condition'
+            if payload.get("condition") and not values.get("condition"):
+                values["condition"] = payload.get("condition")
+
+            # Pull 'max_iterations'
+            if payload.get("max_iterations") and not values.get("max_iterations"):
+                values["max_iterations"] = payload.get("max_iterations")
+
+            # Pull 'steps' if it's buried in payload (some LLMs do this)
+            if payload.get("steps") and not values.get("steps"):
+                values["steps"] = payload.get("steps")
+
         return values
     
     # Extraction

@@ -55,7 +55,7 @@ async def mobile_control(
             - "click": Semantic click. Polls locally if element_name is used (Reactor).
             - "long_press": Long-press at (x, y) OR element_name.
             - "swipe": Swipe from (x, y) to (x2, y2).
-            - "scroll": Semantic scroll in direction with amount (small/medium/large/full).
+            - "scroll": Semantic scroll in direction with amount (small/medium/large/full or custom float).
             - "input_text": Type text. If element_name given, taps it first.
             - "press_key": Press a key (home, back, enter, etc.).
             - "dump_ui": Get UI hierarchy as XML.

@@ -333,6 +333,13 @@ class ADBDriver:
         )
         logger.info(f"Launched app: {package_name}")
 
+    def force_stop(self, package_name: str, device_id: str | None = None) -> None:
+        """
+        Force-stop an application.
+        """
+        self._run_adb(["shell", "am", "force-stop", package_name], device_id=device_id)
+        logger.info(f"Force-stopped app: {package_name}")
+
     def push(self, local_path: str, remote_path: str, device_id: str | None = None) -> None:
         """
         Push a local file or directory to the device.

@@ -87,10 +87,22 @@ class RespondResponse(BaseModel):
 
 class StartMirrorRequest(BaseModel):
     device_id: str
+    record_video: bool = True
 
 
 class StopMirrorRequest(BaseModel):
     session_id: str
+
+
+class StartMirrorRecordingRequest(BaseModel):
+    """[NEW] Request to start event recording for an active mirror session."""
+    session_id: str
+
+
+class PersistMirrorEventsRequest(BaseModel):
+    """请求模型：持久化存储镜像事件"""
+    session_id: str
+    thread_id: str | None = None  # [NEW] Optional thread binding
 
 
 class ImportSkillsRequest(BaseModel):
@@ -325,12 +337,6 @@ class StartRecordingResponse(BaseModel):
     message: str
 
 
-class RecordEventsRequest(BaseModel):
-    session_id: str
-    thread_id: str
-    events: list[RecordedEvent]
-
-
 class StopRecordingResponse(BaseModel):
     session_id: str
     event_count: int
@@ -361,196 +367,19 @@ class GlobalRecordedEvent(BaseModel):
     modifiers: Modifiers | None = None  # NEW: Alt/Ctrl/Meta/Shift states
 
 
+class MobileRecordedEvent(BaseModel):
+    """Android/Mobile recorded event from mirror session."""
+    timestamp: float  # Relative milliseconds from recording start
+    event_type: str  # "touch", "key", "swipe", etc.
+    target_selector: str | None = None  # UI element selector (if available)
+    target_text: str | None = None  # UI element text (if available)
+    payload: dict | None = None  # Additional event data including x, y, package_name, device_id
+
+
 class UploadScreenshotResponse(BaseModel):
     success: bool
     path: str
     message: str
-
-
-class RecordGlobalEventsRequest(BaseModel):
-    thread_id: str
-    session_id: str | None = None
-    events: list[GlobalRecordedEvent]
-
-
-class ExtractKeyframesRequest(BaseModel):
-    """Request to extract keyframes from a screen recording video."""
-    session_id: str
-    video_path: str
-    thread_id: str | None = None
-
-
-@router.post("/traces/global-events", response_model=RespondResponse)
-async def record_global_events(body: RecordGlobalEventsRequest):
-    """
-    Record global observation events from Rust layer.
-    """
-    try:
-        async with session_scope() as db:
-            events_saved = 0
-            for idx, event in enumerate(body.events):
-                # Ensure we have a valid step number, maybe increment from last?
-                # For simplicity in global recording, we just use idx if session tracking is loose
-                # Or better, fetch last step number. But for high throughput, maybe just auto-increment via DB or loose idx
-                # Using 0-indexed relative to batch for now
-
-                # Build action_payload with modifiers and extract intent
-                payload = {
-                    "window_bounds": event.window_bounds,
-                    "is_extract_intent": event.event_type == "mouse_click_extract",
-                    "modifiers": event.modifiers.dict() if event.modifiers else {},
-                }
-
-                trace_event = TraceEvent(
-                    thread_id=body.thread_id,
-                    step_number=idx, # Logic to be refined for continuity
-                    node_name="global_observation",
-                    action_type=event.event_type,
-                    is_human_action=True,
-                    source="global",
-                    window_title=event.window_title,
-                    app_name=event.app_name,
-                    process_id=event.process_id,
-                    mouse_x=event.position[0] if event.position else None,
-                    mouse_y=event.position[1] if event.position else None,
-                    key_name=event.key,
-                    mouse_button=event.mouse_button,
-                    state_snapshot=json.dumps({"context": "global_recording"}),
-                    action_payload=json.dumps(payload),
-                    recording_session_id=body.session_id,
-                    # Compatibility fields
-                    session_id=body.session_id,
-                    timestamp=event.timestamp,
-                    event_type=event.event_type,
-                )
-                db.add(trace_event)
-                events_saved += 1
-
-            return RespondResponse(success=True, message=f"Recorded {events_saved} global events")
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save global events: {e}")
-
-
-@router.post("/traces/extract-keyframes")
-async def extract_keyframes(body: ExtractKeyframesRequest, background_tasks: BackgroundTasks):
-    """
-    Extract keyframes from a screen recording video at event timestamps.
-    Called after recording stops. Runs extraction in the background.
-    """
-    from app.core.learning.frame_extractor import FrameExtractor
-
-    async def _extract_and_update():
-        try:
-            # 1. Query all global events for this session to get timestamps
-            async with session_scope() as db:
-                stmt = (
-                    select(TraceEvent)
-                    .where(TraceEvent.recording_session_id == body.session_id)
-                    # Support both global and dom sources
-                    .where(TraceEvent.source.in_(["global", "dom", "cli"]))
-                    # Handle different naming conventions: 'click', 'mouse_click', 'MouseButtonPress', etc.
-                    .where(or_(
-                        TraceEvent.event_type.ilike("%click%"),
-                        TraceEvent.event_type.ilike("%press%"),
-                        TraceEvent.event_type.in_(["input", "enter", "tab"])
-                    ))
-                    .order_by(TraceEvent.timestamp)
-                )
-                result = await db.execute(stmt)
-                events = result.scalars().all()
-
-            logger.info(f"Found {len(events)} events for session {body.session_id} to extract keyframes from")
-
-            if not events:
-                logger.warning(f"No matching events (click/press) found for session {body.session_id} in sources ['global', 'dom', 'cli']")
-                return
-
-            # 2. Extract timestamps (convert to ms)
-            timestamps_ms = []
-            event_ids = []
-            base_ts = events[0].timestamp if events else 0
-            for evt in events:
-                if evt.timestamp:
-                    # [FIX] If input is in ms, delta is already in ms. 
-                    # Previous bug: multiplied ms by 1000 again, seeking into the future.
-                    relative_ms = int(evt.timestamp - base_ts) if base_ts else 0
-                    timestamps_ms.append(relative_ms)
-                    event_ids.append(evt.id)
-
-            # 3. Extract frames and analyze with OCR
-            extractor = FrameExtractor(body.video_path, session_id=body.session_id)
-            # Use extract_and_analyze instead of extract_frames
-            results = await extractor.extract_and_analyze(timestamps_ms)
-
-            # 4. Write screenshot paths and OCR data back to DB
-            async with session_scope() as db:
-                for event_id, result in zip(event_ids, results):
-                    frame_path = result.get("screenshot_path")
-                    ocr_elements = result.get("ocr_elements", [])
-
-                    # Prepare update values
-                    update_values = {"screenshot_path": frame_path}
-
-                    # Geometry Matching: Find element at click position
-                    # We need to fetch the event again or use cached data to get coordinates
-                    # Since we are inside a new session scope/transaction context, let's fetch strictly needed info
-                    # But we have event_id, so we can do a targeted update with logic?
-                    # Actually, we need the event coordinates to match.
-                    # Let's re-fetch the specific event to get its coordinates for matching.
-                    stmt_evt = select(TraceEvent).where(TraceEvent.id == event_id)
-                    evt = (await db.execute(stmt_evt)).scalar_one_or_none()
-
-                    if evt and evt.mouse_x is not None and evt.mouse_y is not None:
-                        # Find matching element
-                        mx, my = evt.mouse_x, evt.mouse_y
-                        matched_text = None
-
-                        # Simple point-in-rect check
-                        for el in ocr_elements:
-                            # bounds: [x, y, w, h] (top-left, usually? Wait, frame_extractor said: [x-w/2, y-h/2, w, h])
-                            # frame_extractor logic: bounds=[el.x - el.width//2, el.y - el.height//2, el.width, el.height]
-                            # So it is [left, top, width, height]
-                            x, y, w, h = el["bounds"]
-                            if x <= mx <= x + w and y <= my <= y + h:
-                                matched_text = el["text"]
-                                break
-
-                        if matched_text:
-                            update_values["target_text"] = matched_text
-                            # Also update ui_element_info for redundancy/compatibility
-                            info = {}
-                            if evt.ui_element_info:
-                                try:
-                                    info = json.loads(evt.ui_element_info)
-                                except:
-                                    pass
-                            info["text"] = matched_text
-                            info["source"] = "ocr_global"
-                            update_values["ui_element_info"] = json.dumps(info)
-
-                            logger.info(f"OCR Match for event {event_id}: '{matched_text}' at ({mx}, {my})")
-
-                    # Perform the update
-                    await db.execute(
-                        update(TraceEvent)
-                        .where(TraceEvent.id == event_id)
-                        .values(**update_values)
-                    )
-
-            logger.info(f"Extracted and analyzed {len(results)} keyframes for session {body.session_id}")
-
-        except FileNotFoundError as e:
-            logger.error(f"Keyframe extraction failed: {e}")
-        except Exception as e:
-            logger.exception(f"Keyframe extraction error: {e}")
-
-    background_tasks.add_task(_extract_and_update)
-
-    return {
-        "success": True,
-        "message": f"Keyframe extraction and OCR analysis started for session {body.session_id}",
-    }
 
 
 @router.post("/traces/start", response_model=StartRecordingResponse)
@@ -571,88 +400,6 @@ async def start_recording(body: StartRecordingRequest):
         session_id=session_id,
         message=f"Recording session started for thread {body.thread_id}",
     )
-
-
-@router.post("/traces/events", response_model=RespondResponse)
-async def record_events(body: RecordEventsRequest):
-    """
-    Record a batch of UI events from the frontend ActionRecorder.
-    These are stored as TraceEvent rows with is_human_action=True.
-    """
-    if body.session_id not in _active_sessions:
-        raise HTTPException(status_code=404, detail="Recording session not found")
-
-    session = _active_sessions[body.session_id]
-    events_saved = 0
-
-    try:
-        async with session_scope() as db:
-            for idx, event in enumerate(body.events):
-                # Build UI element info
-                ui_info = None
-                if event.target_selector or event.target_text:
-                    ui_info = json.dumps({
-                        "selector": event.target_selector,
-                        "text": event.target_text
-                    })
-
-                # Handle screenshot if provided
-                screenshot_path = None
-                if event.screenshot_base64:
-                    try:
-                        # Use hierarchical storage for dataset (IL training data)
-                        from app.core.vision.storage import screenshot_storage
-
-                        # Decode base64
-                        b64_data = event.screenshot_base64
-                        if "," in b64_data:
-                            b64_data = b64_data.split(",", 1)[1]
-
-                        image_data = base64.b64decode(b64_data)
-
-                        # Save to dataset directory with session organization
-                        screenshot_path = screenshot_storage.save_screenshot(
-                            image_data=image_data,
-                            purpose="dataset",
-                            platform="macos",  # Desktop recording
-                            bundle_id=body.session_id,  # Use session_id for organization
-                            suffix=f"event_{idx}"
-                        )
-
-                        logger.debug(f"Saved screenshot to: {screenshot_path}")
-                    except Exception as e:
-                        logger.warning(f"Failed to save screenshot: {e}")
-                        # Don't fail the event recording, just skip screenshot
-                        pass
-
-                trace_event = TraceEvent(
-                    thread_id=body.thread_id,
-                    step_number=session["event_count"] + idx + 1,
-                    node_name="user_interaction",
-                    state_snapshot=json.dumps({"context": "user_recording"}),
-                    action_type=event.event_type,
-                    action_payload=json.dumps(event.payload or {}),
-                    is_human_action=True,
-                    screenshot_path=screenshot_path,
-                    ui_element_info=ui_info,
-                    recording_session_id=body.session_id,
-                    # New columns population
-                    session_id=body.session_id,
-                    timestamp=event.timestamp,
-                    event_type=event.event_type,
-                    target_selector=event.target_selector,
-                    target_text=event.target_text,
-                    payload=event.payload,
-                )
-                db.add(trace_event)
-                events_saved += 1
-
-            session["event_count"] += events_saved
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to save events: {e}")
-
-    return RespondResponse(success=True, message=f"Recorded {events_saved} events")
 
 
 @router.post("/traces/stop", response_model=StopRecordingResponse)
@@ -1146,14 +893,41 @@ async def list_mirror_devices():
 @router.post("/mirror/start")
 async def start_mirror_session(body: StartMirrorRequest):
     """Start a scrcpy mirroring session."""
-    session = await mirror_manager.create_session(body.device_id)
+    session = await mirror_manager.create_session(body.device_id, record_video=body.record_video)
     if not session.is_active:
         raise HTTPException(status_code=500, detail=session.error or "Failed to start mirroring session")
+
+    # Register in active sessions so /traces/events can accept events for this session
+    _active_sessions[session.session_id] = {
+        "thread_id": "global",
+        "task_name": f"Android Mirror ({body.device_id})",
+        "started_at": datetime.utcnow(),
+        "event_count": 0,
+    }
 
     return {
         "success": True,
         "session_id": session.session_id,
         "device_id": session.device_id
+    }
+
+
+@router.post("/mirror/start-recording")
+async def start_mirror_recording(body: StartMirrorRecordingRequest):
+    """
+    [NEW] Start event recording for an active mirror session.
+    Called when user clicks 'Start Recording' button.
+    """
+    logger.info(f"[API] Received start-recording request for session: {body.session_id}")
+    success = mirror_manager.start_recording(body.session_id)
+    logger.info(f"[API] start_recording result: {success}")
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to start recording. Session may not be active or recording already started.")
+
+    return {
+        "success": True,
+        "message": "Recording started",
+        "session_id": body.session_id
     }
 
 
@@ -1176,29 +950,57 @@ async def stop_mirror_session(body: StopMirrorRequest):
 
 
 @router.post("/mirror/events")
-async def persist_mirror_events(session_id: str):
+async def persist_mirror_events(body: PersistMirrorEventsRequest):
     """
     Persist Android mirror events to backend (delayed persistence).
     Called when user confirms skill synthesis.
     """
     # Get events from session
-    events = mirror_manager.get_session_events(session_id)
+    events = mirror_manager.get_session_events(body.session_id)
     if not events:
         return {"success": True, "message": "No events to persist", "count": 0}
 
     try:
         async with session_scope() as db:
-            for event_data in events:
+            for i, event_data in enumerate(events):
+                payload_data = event_data.get("payload", {})
+
+                # [FIX] event_data["timestamp"] is now relative milliseconds from recording start
+                # This aligns with video timing for keyframe extraction
+                relative_ms = event_data.get("timestamp", 0)
+
+                # [FIX] Remove hardcoded fields and use dynamic payload values
+                node_name = event_data.get("node_name") or payload_data.get("device_id") or "android_mirror"
+                source = event_data.get("source") or "mobile"
+                thread_id = body.thread_id or "global"
+
                 trace_event = TraceEvent(
-                    session_id=session_id,
-                    thread_id="global",
-                    timestamp=event_data["timestamp"],
+                    session_id=body.session_id,
+                    recording_session_id=body.session_id,
+                    thread_id=thread_id,
+                    step_number=i,
+                    node_name=node_name,
+                    action_type="user_interaction",
+                    timestamp=relative_ms,  # [FIX] Relative milliseconds for video sync
                     event_type=event_data["event_type"],
                     target_selector=event_data.get("target_selector"),
                     target_text=event_data.get("target_text"),
-                    payload=json.dumps(event_data.get("payload", {}))
+                    payload=payload_data,
+                    mouse_x=payload_data.get("x"),
+                    mouse_y=payload_data.get("y"),
+                    source=source,
+                    app_name=payload_data.get("package_name"),
+                    state_snapshot=json.dumps({"context": "android_mirror"}),
+                    action_payload=json.dumps(payload_data)
                 )
                 db.add(trace_event)
+
+                # [NEW] Log first few events for debugging
+                if i < 5:
+                    logger.info(f"[persist_mirror_events] Event {i}: {event_data['event_type']} at {relative_ms}ms, "
+                                f"device_id={payload_data.get('device_id')}, "
+                                f"package={payload_data.get('package_name')}, "
+                                f"coords=({payload_data.get('x')}, {payload_data.get('y')})")
 
         return {"success": True, "message": "Events persisted", "count": len(events)}
     except Exception as e:
@@ -1265,12 +1067,25 @@ async def validate_skill(skill_id: int):
 # ============ Multimodal Synthesis API (NEW) ============
 
 
+class RecordingEventsInput(BaseModel):
+    """录制事件输入（用于单次合成流程）"""
+    dom_events: list[RecordedEvent] = []      # DOM 事件（桌面录制）
+    global_events: list[GlobalRecordedEvent] = []  # 全局事件（桌面/移动录制）
+    mobile_events: list[MobileRecordedEvent] = []  # Mobile/Android 事件（移动录制）
+
+
 class SynthesizeFromRecordingRequest(BaseModel):
-    """从录制合成 Skill 的请求"""
+    """从录制合成 Skill 的请求（v2 - 合并版）
+
+    支持两种模式：
+    1. 传统模式：只传 session_id，从数据库读取已持久化的事件
+    2. 合并模式：同时传入 events，自动持久化后再合成（推荐，减少 HTTP 请求）
+    """
     video_path: str           # Tauri 返回的视频文件路径
     session_id: str           # 关联事件的 session_id
     task_description: str     # 用户描述的任务
     thread_id: str | None = None
+    events: RecordingEventsInput | None = None  # 可选：直接传入事件数据（v2 新增）
 
 
 class SynthesizeFromRecordingResponse(BaseModel):
@@ -1287,24 +1102,154 @@ class SynthesizeFromRecordingResponse(BaseModel):
     events_processed: int
 
 
+async def _save_events_internal(
+    session_id: str,
+    thread_id: str | None,
+    dom_events: list[RecordedEvent],
+    global_events: list[GlobalRecordedEvent],
+    mobile_events: list[MobileRecordedEvent] = None
+) -> int:
+    """内部函数：保存事件到数据库（合并 DOM、全局和 Mobile 事件）
+
+    Returns:
+        保存的事件总数
+    """
+    total_saved = 0
+    mobile_events = mobile_events or []
+
+    async with session_scope() as db:
+        # 保存 DOM 事件
+        for idx, event in enumerate(dom_events):
+            ui_info = None
+            if event.target_selector or event.target_text:
+                ui_info = json.dumps({
+                    "selector": event.target_selector,
+                    "text": event.target_text
+                })
+
+            # 处理截图
+            screenshot_path = None
+            if event.screenshot_base64:
+                try:
+                    from app.core.vision.storage import screenshot_storage
+                    b64_data = event.screenshot_base64
+                    if "," in b64_data:
+                        b64_data = b64_data.split(",", 1)[1]
+                    image_data = base64.b64decode(b64_data)
+                    screenshot_path = screenshot_storage.save_screenshot(
+                        image_data=image_data,
+                        purpose="dataset",
+                        platform="macos",
+                        bundle_id=session_id,
+                        suffix=f"event_{idx}"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to save screenshot: {e}")
+
+            trace_event = TraceEvent(
+                thread_id=thread_id or "synthesis",
+                step_number=idx + 1,
+                node_name="user_interaction",
+                state_snapshot=json.dumps({"context": "user_recording"}),
+                action_type=event.event_type,
+                action_payload=json.dumps(event.payload or {}),
+                is_human_action=True,
+                screenshot_path=screenshot_path,
+                ui_element_info=ui_info,
+                recording_session_id=session_id,
+                session_id=session_id,
+                timestamp=event.timestamp,
+                event_type=event.event_type,
+                target_selector=event.target_selector,
+                target_text=event.target_text,
+                payload=event.payload,
+            )
+            db.add(trace_event)
+            total_saved += 1
+
+        # 保存全局事件
+        for idx, event in enumerate(global_events):
+            payload = {
+                "window_bounds": event.window_bounds,
+                "is_extract_intent": event.event_type == "mouse_click_extract",
+                "modifiers": event.modifiers.dict() if event.modifiers else {},
+            }
+
+            trace_event = TraceEvent(
+                thread_id=thread_id or "synthesis",
+                step_number=len(dom_events) + idx + 1,
+                node_name="global_observation",
+                action_type=event.event_type,
+                is_human_action=True,
+                source="global",
+                window_title=event.window_title,
+                app_name=event.app_name,
+                process_id=event.process_id,
+                mouse_x=event.position[0] if event.position else None,
+                mouse_y=event.position[1] if event.position else None,
+                key_name=event.key,
+                mouse_button=event.mouse_button,
+                state_snapshot=json.dumps({"context": "global_recording"}),
+                action_payload=json.dumps(payload),
+                recording_session_id=session_id,
+                session_id=session_id,
+                timestamp=event.timestamp,
+                event_type=event.event_type,
+            )
+            db.add(trace_event)
+            total_saved += 1
+
+        # 保存 Mobile 事件
+        for idx, event in enumerate(mobile_events):
+            payload_data = event.payload or {}
+
+            trace_event = TraceEvent(
+                thread_id=thread_id or "synthesis",
+                step_number=len(dom_events) + len(global_events) + idx + 1,
+                node_name=payload_data.get("device_id") or "android_mirror",
+                action_type="user_interaction",
+                is_human_action=True,
+                source="mobile",
+                app_name=payload_data.get("package_name"),
+                mouse_x=payload_data.get("x"),
+                mouse_y=payload_data.get("y"),
+                state_snapshot=json.dumps({"context": "android_mirror"}),
+                action_payload=json.dumps(payload_data),
+                recording_session_id=session_id,
+                session_id=session_id,
+                timestamp=event.timestamp,
+                event_type=event.event_type,
+                target_selector=event.target_selector,
+                target_text=event.target_text,
+                payload=payload_data,
+            )
+            db.add(trace_event)
+            total_saved += 1
+
+    logger.info(f"[_save_events_internal] Saved {total_saved} events ({len(dom_events)} DOM, {len(global_events)} global, {len(mobile_events)} mobile)")
+    return total_saved
+
+
 @router.post("/skills/synthesize-from-recording", response_model=SynthesizeFromRecordingResponse)
 async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
     """
-    从视频录制同步合成 Skill（多模态版本）
+    从视频录制同步合成 Skill（多模态版本 - v2 合并版）
 
     流程：
-    1. 根据 session_id 获取事件序列
+    1. 【可选】如果传入 events 数据，先持久化到数据库
     2. 从视频提取关键帧
     3. 压缩帧并归一化坐标
     4. 调用 Kimi 多模态 LLM 分析
     5. 解析并保存 Skill
 
     **注意**：此 API 是同步的，处理时间约 10-60 秒，请设置合适的客户端超时。
+
+    **v2 变更**：支持直接传入 events 数据，无需预先调用 recordEvents/extractKeyframes
     """
     import time
     start_time = time.time()
 
-    logger.info(f"Received synthesis request: session={request.session_id}, video={request.video_path}")
+    logger.info(f"Received synthesis request: session={request.session_id}, video={request.video_path}, has_events={request.events is not None}")
 
     try:
         # 验证视频文件存在
@@ -1313,6 +1258,22 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
                 status_code=400,
                 detail=f"Video file not found: {request.video_path}"
             )
+
+        # [v2 新增] Step 0: 如果提供了事件数据，先持久化
+        if request.events:
+            dom_events = request.events.dom_events or []
+            global_events = request.events.global_events or []
+            mobile_events = request.events.mobile_events or []
+
+            if dom_events or global_events or mobile_events:
+                logger.info(f"[v2] Persisting {len(dom_events)} DOM, {len(global_events)} global, {len(mobile_events)} mobile events")
+                await _save_events_internal(
+                    session_id=request.session_id,
+                    thread_id=request.thread_id,
+                    dom_events=dom_events,
+                    global_events=global_events,
+                    mobile_events=mobile_events
+                )
 
         # 创建合成器
         synthesizer = MultimodalSkillSynthesizer()
@@ -1325,11 +1286,10 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
             thread_id=request.thread_id
         )
 
-        # 执行合成
+        # 执行合成 (只合成，不执行验证，以便在验证失败时也能保存)
         result = await synthesizer.synthesize(recording)
         skill_data = result["skill"]
         metadata = result["metadata"]
-        verification = result.get("verification", {"status": "skipped"})
 
         # 保存到数据库
         async with session_scope() as db:
@@ -1365,10 +1325,26 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
                 is_active=True,
                 execution_mode=skill_data.get("execution_mode", "agentic"),
                 macro_script=skill_data.get("macro_script"),
-                validation_report=verification, # [FIX] 存储 Dry-run 验证结果
+                validation_report={"status": "pending_verification"}, # 初始状态
             )
             db.add(db_skill)
             await db.flush()
+            
+            # [Fix 2] 在技能落库之后执行 Dry-run 验证
+            verification = {"status": "skipped"}
+            if db_skill.macro_script:
+                try:
+                    verification = await synthesizer.verify_macro(db_skill.macro_script)
+                except Exception as e:
+                    logger.error(f"Verification failed after saving DB: {e}")
+                    verification = {
+                        "status": "failed",
+                        "error_message": str(e)
+                    }
+                
+                # 更新验证结果
+                db_skill.validation_report = verification
+                await db.flush()
 
             # 生成 YAML 输出
             skill_yaml = f"""---
@@ -1892,7 +1868,12 @@ async def cleanup_recording_session(
     try:
         async with session_scope() as db:
             # 1. 删除 TraceEvent
-            stmt = delete(TraceEvent).where(TraceEvent.recording_session_id == session_id)
+            stmt = delete(TraceEvent).where(
+                or_(
+                    TraceEvent.recording_session_id == session_id,
+                    TraceEvent.session_id == session_id
+                )
+            )
             result = await db.execute(stmt)
             deleted_counts["events"] = result.rowcount
 

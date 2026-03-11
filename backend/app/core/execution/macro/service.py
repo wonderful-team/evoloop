@@ -41,6 +41,8 @@ class MacroService:
             return {"success": False, "message": "Macro script is empty"}
 
         logger.info(f"[{thread_id}] Starting Standardized Macro Execution ({len(script.steps)} steps)")
+        if params is None:
+            params = {}
         
         # 2. Activity Monitoring
         await activity_monitor.start_run(thread_id)

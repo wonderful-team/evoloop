@@ -51,6 +51,8 @@ class MacroEngine:
         """
         if extracted_data is None:
             extracted_data = {}
+        if params is None:
+            params = {}
 
         for step in steps:
             step_num = step.step_number
@@ -71,7 +73,11 @@ class MacroEngine:
                 elif "url" in payload:
                     desc += f"to {payload['url']}"
             elif step.type == MacroStepType.LOOP:
-                desc += f"(items_key='{payload.get('items_key')}')"
+                if payload.get("items_key"):
+                    desc += f"(items_key='{payload.get('items_key')}')"
+                else:
+                    max_iters = payload.get("max_iterations", step.max_iterations)
+                    desc += f"(max_iterations={max_iters})"
             elif step.type == MacroStepType.EXTRACT:
                 desc += f"(key='{step.key}')"
                 
@@ -81,7 +87,7 @@ class MacroEngine:
             # 2. Handle Control Flow
             if step.type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.LOOP):
                 success, msg, fallback = await cls._handle_control_flow(
-                    thread_id, step, params, extracted_data
+                    thread_id, step, payload, params, extracted_data
                 )
                 if not success:
                     return False, msg, fallback
@@ -147,7 +153,9 @@ class MacroEngine:
         return True, "", None
 
     @classmethod
-    async def _handle_control_flow(cls, thread_id: str, step: MacroStep, params: dict, extracted_data: dict):
+    async def _handle_control_flow(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict):
+        if params is None:
+            params = {}
         # Implementation of If/While/Loop logic
         condition = step.condition
         cond_type = condition.type if condition else None
@@ -164,15 +172,24 @@ class MacroEngine:
         
         elif step.type == MacroStepType.LOOP:
             # 1. Batch Loop Mode (if payload contains items_key)
-            if step.payload.get("items_key"):
-                return await cls._handle_loop(thread_id, step, params, extracted_data)
+            if payload.get("items_key"):
+                return await cls._handle_loop(thread_id, step, payload, params, extracted_data)
 
             # 2. Conditional Loop Mode (Standard While)
             iterations = 0
             if not step.steps:
                 return True, "", None
 
-            while iterations < step.max_iterations:
+            # Extract max_iterations from payload if present (allowing for parameter injection)
+            max_iters = payload.get("max_iterations", step.max_iterations)
+            if isinstance(max_iters, str):
+                try:
+                    max_iters = int(max_iters)
+                except ValueError:
+                    # If it's an unresolved template like {{max_scrolls}}, use a safe default
+                    max_iters = 5
+            
+            while iterations < max_iters:
                 is_true = await cls._evaluate_condition(cond_type, selector, step.source)
                 if not is_true:
                     break
@@ -191,33 +208,41 @@ class MacroEngine:
                     fallback["loop_progress"] = {
                         "loop_step_number": step.step_number,
                         "current_iteration": iterations,
-                        "max_iterations": step.max_iterations,
+                        "max_iterations": max_iters,
                         "condition": cond_type
                     }
                     return False, msg, fallback
                     
                 iterations += 1
             
-            if iterations >= step.max_iterations:
-                logger.warning(f"[{thread_id}] While loop reached max iterations ({step.max_iterations})")
+            if iterations >= max_iters:
+                logger.warning(f"[{thread_id}] While loop reached max iterations ({max_iters})")
                 
         return True, "", None
 
     @classmethod
-    async def _handle_loop(cls, thread_id: str, step: MacroStep, params: dict, extracted_data: dict):
+    async def _handle_loop(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict):
         """
         Handle a batch loop by iterating over a list of items and executing nested steps.
         Includes exponential backoff for network errors and DLQ support.
         Phase 3: Integrates DynamicAppTriage for autonomous scrolling.
         """
-        items_key = step.payload.get("items_key", "items")
+        items_key = payload.get("items_key", "items")
         items = extracted_data.get(items_key) or params.get(items_key)
-        
+
         if not items or not isinstance(items, list):
-            warn_msg = f"⚠️ Batch loop skipped: No items found for key '{items_key}'"
-            logger.warning(f"[{thread_id}] {warn_msg}")
-            await activity_monitor.log_event("macro_thought", {"text": warn_msg}, thread_id)
-            return True, "", None
+            # Fuzzy matching: if there's only one list in extracted_data, use it
+            lists = {k: v for k, v in extracted_data.items() if isinstance(v, list)}
+            if len(lists) == 1:
+                items_key = list(lists.keys())[0]
+                items = lists[items_key]
+                logger.info(f"[{thread_id}] 💡 Using fuzzy match for loop: key '{items_key}' found instead of '{payload.get('items_key')}'")
+                await activity_monitor.log_event("macro_thought", {"text": f"💡 Using fuzzy match: '{items_key}'"}, thread_id)
+            else:
+                warn_msg = f"⚠️ Batch loop skipped: No items found for key '{items_key}'"
+                logger.warning(f"[{thread_id}] {warn_msg}")
+                await activity_monitor.log_event("macro_thought", {"text": warn_msg}, thread_id)
+                return True, "", None
 
         logger.info(f"[{thread_id}] 🔄 Starting Batch Loop: {len(items)} items for key '{items_key}'")
         await activity_monitor.log_event("macro_thought", {"text": f"🔄 Starting loop ({len(items)} items)"}, thread_id)
@@ -242,8 +267,8 @@ class MacroEngine:
             except Exception as e:
                 logger.warning(f"Failed to detect dynamic status: {e}")
 
-        max_retries = step.payload.get("max_retries", 3)
-        backoff_base = step.payload.get("backoff_base", 2)
+        max_retries = payload.get("max_retries", 3)
+        backoff_base = payload.get("backoff_base", 2)
         
         dlq = []
         
@@ -344,6 +369,11 @@ class MacroEngine:
             elif source == MacroSource.DESKTOP:
                 res = await DesktopController.execute(action="applescript", script=f'tell application "System Events" to get name of every UI element whose name contains "{selector}"')
                 return len(str(res)) > 5
+
+        elif cond_type in ("has_more_items", "more_items", "pagination_exists"):
+            # For synthesis dry-runs, we default to True to allow testing the loop body
+            # Real implementation could check screen scrollability or presence of 'Next' buttons
+            return True
 
         return False
 
@@ -581,37 +611,93 @@ class MacroEngine:
         """Execute a mobile step directly via MobileController (no @evoloop_tool overhead)."""
         tool_action = ActionRegistry.get_tool_action(event_type, "mobile")
 
+        def handle_res(res):
+            if res and isinstance(res, str):
+                if "Error:" in res or "Execution failed:" in res or res.startswith("ERR_"):
+                    raise ValueError(res)
+
+        # Helper to extract x, y from various possible payload locations
+        def _get_coords(p, key):
+            val = p.get(key)
+            if val is not None:
+                return val
+
+            # Map x->start_x, x2->end_x to handle LLM variations
+            alias_map = {"x": "start_x", "y": "start_y", "x2": "end_x", "y2": "end_y"}
+            if key in alias_map and alias_map[key] in p:
+                return p[alias_map[key]]
+
+            if "relative_position" in p:
+                # relative_position usually only handles a single point, 
+                # but if swipe used it for the start, it map x, y
+                if key in ["x", "y"] and key in p["relative_position"]:
+                    return p["relative_position"][key]
+
+            if "position" in p:
+                if key in ["x", "y"] and key in p["position"]:
+                    return p["position"][key]
+
+            # Handle start_relative / end_relative creative LLM mapping
+            if "start_relative" in p and key in ["x", "y"]:
+                return p["start_relative"].get(key)
+            if "end_relative" in p and key in ["x2", "y2"]:
+                # Map x2 -> x inside end_relative
+                return p["end_relative"].get("x" if key == "x2" else "y")
+
+            return None
+
         if event_type in ("click", "tap"):
-            await MobileController.execute(action=tool_action, x=payload.get("x"), y=payload.get("y"), element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0))
+            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0), disable_atlas=True))
         elif event_type == "long_press":
-            await MobileController.execute(action=tool_action, x=payload.get("x"), y=payload.get("y"), element_name=selector or payload.get("element_name"), duration_ms=payload.get("duration_ms", 800))
+            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name"), duration_ms=payload.get("duration_ms", 800), disable_atlas=True))
         elif event_type in ("input", "type_text"):
-            await MobileController.execute(action="input_text", text=payload.get("text") or payload.get("value", ""), element_name=selector or payload.get("element_name"))
+            handle_res(await MobileController.execute(action="input_text", text=payload.get("text") or payload.get("value", ""), element_name=selector or payload.get("element_name"), disable_atlas=True))
         elif event_type in ("swipe", "scroll"):
-            await MobileController.execute(action=tool_action, x=payload.get("x"), y=payload.get("y"), x2=payload.get("x2"), y2=payload.get("y2"), direction=payload.get("direction"), duration_ms=payload.get("duration_ms", 500))
+            actual_action = tool_action
+            # If it's a swipe but we only have direction/distance (no coords), redirect to scroll
+            if event_type == "swipe" and payload.get("direction") and _get_coords(payload, "x") is None:
+                actual_action = "scroll"
+
+            handle_res(await MobileController.execute(
+                action=actual_action,
+                x=_get_coords(payload, "x"),
+                y=_get_coords(payload, "y"),
+                x2=_get_coords(payload, "x2"),
+                y2=_get_coords(payload, "y2"),
+                direction=payload.get("direction"),
+                scroll_amount=payload.get("distance") or payload.get("scroll_amount", "medium"),
+                duration_ms=payload.get("duration_ms", 500),
+                disable_atlas=True
+            ))
         elif event_type == "back":
-            await MobileController.execute(action="press_key", keycode="back")
+            handle_res(await MobileController.execute(action="press_key", keycode="back", disable_atlas=True))
         elif event_type == "back_key":
-            await MobileController.execute(action="press_key", keycode=payload.get("keycode", "back"))
+            handle_res(await MobileController.execute(action="press_key", keycode=payload.get("keycode", "back"), disable_atlas=True))
         elif event_type == "home":
-            await MobileController.execute(action="press_key", keycode="home")
+            handle_res(await MobileController.execute(action="press_key", keycode="home", disable_atlas=True))
         elif event_type == "key_press":
-            await MobileController.execute(action=tool_action, keycode=payload.get("key") or payload.get("keycode"))
+            handle_res(await MobileController.execute(action=tool_action, keycode=payload.get("key") or payload.get("keycode"), disable_atlas=True))
         elif event_type == "open_app":
-            await MobileController.execute(action=tool_action, text=payload.get("package") or payload.get("text") or payload.get("app_name"))
+            handle_res(await MobileController.execute(
+                action=tool_action,
+                text=payload.get("package") or payload.get("text") or payload.get("app_name"),
+                force_stop=payload.get("force_stop", True),
+                disable_atlas=True
+            ))
         elif event_type == "screenshot":
-            await MobileController.execute(action=tool_action)
+            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True))
         elif event_type == "dump_ui":
-            await MobileController.execute(action=tool_action)
+            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True))
         elif event_type == "get_clipboard":
-            await MobileController.execute(action="get_clipboard")
+            handle_res(await MobileController.execute(action="get_clipboard", disable_atlas=True))
         elif event_type == "scroll_to_bottom":
-            await MobileController.execute(
-                action="scroll_to_bottom", 
+            handle_res(await MobileController.execute(
+                action="scroll_to_bottom",
                 max_scrolls=payload.get("max_scrolls", 5),
                 scroll_amount=payload.get("scroll_amount", "medium"),
-                delay_ms=payload.get("delay_ms", 1000)
-            )
+                delay_ms=payload.get("delay_ms", 1000),
+                disable_atlas=True
+            ))
 
     # --- Utils ---
     @classmethod
