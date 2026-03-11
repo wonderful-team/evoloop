@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Smartphone, RefreshCcw, Monitor, StopCircle, AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@evoloop/shared/compon
 import { Badge } from '@evoloop/shared/components/ui/badge';
 import { toast } from 'sonner';
 import { ScrollArea } from '@evoloop/shared/components/ui/scroll-area';
-import { MultimodalSynthesizeDialog } from './MultimodalSynthesizeDialog';
+import { useRecordingStore } from '@/stores/recordingStore';
 
 interface AndroidMirrorConsoleProps {
     onOpenEditor?: (skillId: number) => void;
@@ -17,7 +17,14 @@ interface AndroidMirrorConsoleProps {
 export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps) {
     const { t } = useTranslation();
     const [activeSession, setActiveSession] = useState<{ sessionId: string, deviceId: string } | null>(null);
-    const [synthesizeOpen, setSynthesizeOpen] = useState(false);
+    const {
+        isRecording,
+        startRecording,
+        stopRecording,
+        setPostRecordingAction,
+        setSessionId,
+        setVideoPath,
+    } = useRecordingStore();
     const [lastSessionId, setLastSessionId] = useState<string | null>(null);
     const [lastVideoPath, setLastVideoPath] = useState<string | null>(null);
 
@@ -32,6 +39,8 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
         onSuccess: (res) => {
             if (res.success) {
                 setActiveSession({ sessionId: res.session_id, deviceId: res.device_id });
+                // [FIX] Immediately set store to recording state as backend is already recording
+                startRecording('global', 'mobile', res.device_id, res.session_id);
                 toast.success(t('learning.mirror.active'));
             }
         },
@@ -40,13 +49,28 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
         }
     });
 
+    const videoPathFromStore = useRecordingStore(state => state.videoPath);
+    const sessionIdFromStore = useRecordingStore(state => state.sessionId);
+    const recordingSource = useRecordingStore(state => state.recordingSource);
+
+    // Effect when mobile recording stops - update local state to show "Create Skill" card
+    useEffect(() => {
+        if (!isRecording && recordingSource === 'mobile' && sessionIdFromStore && videoPathFromStore) {
+            setLastSessionId(sessionIdFromStore);
+            setLastVideoPath(videoPathFromStore);
+            setActiveSession(null);
+        }
+    }, [isRecording, recordingSource, sessionIdFromStore, videoPathFromStore]);
+
     const stopMutation = useMutation({
         mutationFn: (sessionId: string) => MirrorService.stopMirror(sessionId),
         onSuccess: (res: any, sessionId: string) => {
             setActiveSession(null);
-            setLastSessionId(sessionId);
-            setLastVideoPath(res.video_path || null);
-            setSynthesizeOpen(true);
+            // Only show the card if not already handled by recording flow
+            if (!sessionIdFromStore) {
+                setLastSessionId(sessionId);
+                setLastVideoPath(res.video_path || null);
+            }
             toast.info(t('learning.mirror.stop'));
         }
     });
@@ -204,6 +228,40 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
                                 <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">
                                     {t('learning.mirror.liveOverlay')}
                                 </Badge>
+
+                                <div className="pt-4 space-y-3">
+                                    {isRecording ? (
+                                        <Button
+                                            variant="destructive"
+                                            className="w-full gap-2 font-bold h-10 shadow-lg shadow-destructive/20 animate-pulse"
+                                            onClick={async () => {
+                                                setPostRecordingAction('synthesize');
+                                                stopRecording();
+
+                                                // [CRITICAL FIX]: Immediately persist events to DB from memory 
+                                                // so they aren't lost if the backend restarts before synthesis!
+                                                if (activeSession) {
+                                                    try {
+                                                        await MirrorService.persistEvents(activeSession.sessionId);
+                                                    } catch (e) {
+                                                        console.error("Failed to persist mirror events:", e);
+                                                    }
+                                                }
+                                            }}
+                                        >
+                                            <StopCircle className="h-4 w-4" />
+                                            {t('learning.mirror.recordStop')}
+                                        </Button>
+                                    ) : (
+                                        <div className="flex flex-col items-center gap-2 text-muted-foreground animate-in fade-in">
+                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                            <p className="text-[10px] font-bold uppercase tracking-widest">{t('learning.mirror.connecting')}</p>
+                                        </div>
+                                    )}
+                                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest opacity-60">
+                                        {isRecording ? t('learning.mirror.recordingInProgress') : t('learning.mirror.recordingAction')}
+                                    </p>
+                                </div>
                             </div>
                         ) : lastSessionId ? (
                             <div className="space-y-6 animate-in fade-in duration-500 text-center">
@@ -218,7 +276,12 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
                                 </div>
                                 <Button
                                     className="gap-2 font-bold"
-                                    onClick={() => setSynthesizeOpen(true)}
+                                    onClick={() => {
+                                        // Trigger parent learning.tsx dialog by setting store values
+                                        if (lastSessionId) setSessionId(lastSessionId);
+                                        if (lastVideoPath) setVideoPath(lastVideoPath);
+                                        setPostRecordingAction('synthesize');
+                                    }}
                                 >
                                     <Sparkles className="h-4 w-4" />
                                     {t('learning.synthesize')}
@@ -245,22 +308,6 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
                 </div>
             </div>
 
-            <MultimodalSynthesizeDialog
-                open={synthesizeOpen}
-                onOpenChange={(open) => {
-                    setSynthesizeOpen(open);
-                    if (!open) {
-                        // Dialog closed, clean up
-                        setLastSessionId(null);
-                        setLastVideoPath(null);
-                    }
-                }}
-                sessionId={lastSessionId || ""}
-                threadId="global"
-                videoPath={lastVideoPath}
-                onOpenEditor={onOpenEditor}
-                sourceType="android"
-            />
         </div>
     );
 }

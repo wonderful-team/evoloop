@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react"
 import { useRecordingStore } from "@/stores/recordingStore"
-import { LearningService } from "@/client/sdk.gen"
 import { useActionRecorder } from "@/hooks/useActionRecorder"
 import { useGlobalRecorder } from "@/hooks/useGlobalRecorder"
+import { MirrorService } from "@/services/mirror"
 import { useScreenRecordingPermission } from "@/hooks/useScreenRecordingPermission"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
@@ -100,9 +100,13 @@ export function GlobalRecorderManager() {
     const { hasPermission: hasVideoPermission, requestPermission: requestVideoPermission } = useScreenRecordingPermission()
 
     // Use delayed persistence - events stay local until user confirms "Synthesize"
+    // [FIX] Isolate recording: Disable Mac recorders if source is mobile
+    const recordingSource = useRecordingStore(state => state.recordingSource)
+    const isDesktopSource = recordingSource === 'desktop'
+
     const domRecorder = useActionRecorder({
         threadId: activeThreadId || "",
-        enabled: !!activeThreadId,
+        enabled: isDesktopSource && !!activeThreadId,
         scope: isGlobalMode ? "both" : "dom",
         persistToBackend: false
     })
@@ -110,9 +114,12 @@ export function GlobalRecorderManager() {
     const globalRecorder = useGlobalRecorder({
         threadId: activeThreadId || "",
         sessionId: domRecorder.sessionId,
-        enabled: isGlobalMode,
+        enabled: isDesktopSource && isGlobalMode,
         persistToBackend: false
     })
+
+    const recordingSourceSessionId = useRecordingStore(state => state.recordingSourceSessionId)
+    const recordingStartedRef = useRef(false)
 
     // Sync event count to store and tray
     useEffect(() => {
@@ -124,15 +131,18 @@ export function GlobalRecorderManager() {
 
     // Sync session ID to store (for dialogs)
     useEffect(() => {
-        if (domRecorder.sessionId) {
+        if (isDesktopSource && domRecorder.sessionId) {
             setSessionId(domRecorder.sessionId)
+        } else if (!isDesktopSource && recordingSourceSessionId) {
+            // [FIX] Sync mobile session ID to global sessionId to trigger synthesis dialog
+            setSessionId(recordingSourceSessionId)
         }
-    }, [domRecorder.sessionId, setSessionId])
+    }, [domRecorder.sessionId, isDesktopSource, recordingSourceSessionId, setSessionId])
 
     // Effect to Start/Stop based on store state
     useEffect(() => {
         const manageRecording = async () => {
-            console.log("[GlobalRecorderManager] manageRecording triggered", { shouldRecord, isGlobalMode, activeThreadId, domRecIsRec: domRecorder.isRecording })
+            console.log("[GlobalRecorderManager] manageRecording triggered", { shouldRecord, isGlobalMode, activeThreadId, domRecIsRec: domRecorder.isRecording, isDesktopSource })
             // START
             if (shouldRecord) {
                 if (!domRecorder.isRecording && !busyRef.current) {
@@ -148,20 +158,29 @@ export function GlobalRecorderManager() {
                             return
                         }
 
-                        console.log("[GlobalRecorderManager] Starting recorders...")
-                        await domRecorder.startRecording()
-                        if (isGlobalMode) {
+                        console.log(`[GlobalRecorderManager] Starting recorders... isDesktopSource=${isDesktopSource}`)
+                        if (isDesktopSource) {
+                            await domRecorder.startRecording()
+                        }
+                        if (isGlobalMode && isDesktopSource) {
                             await globalRecorder.startRecording()
                         }
 
-                        // Start screen video recording
-                        try {
-                            const path = await invoke<string>("start_screen_recording")
-                            setVideoPath(path)
-                            console.log("[GlobalRecorderManager] Screen recording started:", path)
-                        } catch (videoErr) {
-                            console.error("[GlobalRecorderManager] Screen recording failed:", videoErr)
-                            toast.error(t("learning.videoRecordingFailed", { error: videoErr }))
+                        // [FIX] Track that we started recording even if desktop recorders are isolated
+                        recordingStartedRef.current = true
+
+                        // Start screen video recording - Skip if we are recording mobile specifically
+                        if (useRecordingStore.getState().recordingSource === 'desktop') {
+                            try {
+                                const path = await invoke<string>("start_screen_recording")
+                                setVideoPath(path)
+                                console.log("[GlobalRecorderManager] Screen recording started:", path)
+                            } catch (videoErr) {
+                                console.error("[GlobalRecorderManager] Screen recording failed:", videoErr)
+                                toast.error(t("learning.videoRecordingFailed", { error: videoErr }))
+                            }
+                        } else {
+                            console.log("[GlobalRecorderManager] Mobile recording mode - skipping desktop screen recording")
                         }
 
                         toast.info(t("learning.recordingStarted"))
@@ -176,8 +195,10 @@ export function GlobalRecorderManager() {
             }
             // STOP
             else {
-                if (domRecorder.isRecording && !busyRef.current) {
+                // [FIX] Enter stop logic if either domRecorder is active OR we previously started a recording (incl mobile)
+                if ((domRecorder.isRecording || recordingStartedRef.current) && !busyRef.current) {
                     busyRef.current = true
+                    recordingStartedRef.current = false
                     console.log("[GlobalRecorderManager] Stopping recorders...")
                     try {
                         let totalEventsCount = 0
@@ -188,13 +209,35 @@ export function GlobalRecorderManager() {
                         const domRes = await domRecorder.stopRecording()
                         if (domRes) totalEventsCount += domRes.eventCount
 
-                        // Stop screen recording
+                        // Stop screen recording - Skip if we are recording mobile specifically
                         let vPath: string | null = null
-                        try {
-                            vPath = await invoke<string>("stop_screen_recording")
-                            console.log("[GlobalRecorderManager] Screen recording stopped:", vPath)
-                        } catch (videoErr) {
-                            console.warn("[GlobalRecorderManager] Screen recording stop failed:", videoErr)
+                        if (useRecordingStore.getState().recordingSource === 'desktop') {
+                            try {
+                                vPath = await invoke<string>("stop_screen_recording")
+                                console.log("[GlobalRecorderManager] Screen recording stopped:", vPath)
+                            } catch (videoErr) {
+                                console.warn("[GlobalRecorderManager] Screen recording stop failed:", videoErr)
+                            }
+                        } else {
+                            console.log("[GlobalRecorderManager] Mobile recording mode - stopping backend mirror session")
+                            const mobSessionId = useRecordingStore.getState().recordingSourceSessionId
+                            if (mobSessionId) {
+                                try {
+                                    const res = await MirrorService.stopMirror(mobSessionId)
+                                    vPath = res.video_path || null
+                                    // [FIX] Add Android events count from backend to result total
+                                    const androidEventCount = res.event_count || 0
+                                    totalEventsCount += androidEventCount
+                                    console.log("[GlobalRecorderManager] Mobile mirror session stopped, video path:", vPath, "android events:", androidEventCount)
+                                } catch (mobErr) {
+                                    console.error("[GlobalRecorderManager] Failed to stop mobile mirror session:", mobErr)
+                                }
+                            }
+                        }
+
+                        // Set the video path in the store so the synthesizer can find it
+                        if (vPath) {
+                            setVideoPath(vPath)
                         }
 
                         // Store local events in the store for later persistence
@@ -216,7 +259,15 @@ export function GlobalRecorderManager() {
                         // We'll trigger it there once user confirms synthesis
 
                         toast.success(t("learning.recordingStopped", { count: totalEventsCount }))
-                        if (domRes?.sessionId) setSessionId(domRes.sessionId)
+
+                        if (useRecordingStore.getState().recordingSource === 'mobile') {
+                            const mobSessionId = useRecordingStore.getState().recordingSourceSessionId
+                            if (mobSessionId) {
+                                setSessionId(mobSessionId)
+                            }
+                        } else {
+                            if (domRes?.sessionId) setSessionId(domRes.sessionId)
+                        }
 
                         // If it was triggered from tray, navigate to learning center
                         if (postRecordingAction === 'synthesize') {

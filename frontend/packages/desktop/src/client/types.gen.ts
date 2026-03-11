@@ -310,6 +310,10 @@ export type PaginatedSkillsResponse = {
     total_pages: number;
 };
 
+export type PersistMirrorEventsRequest = {
+    session_id: string;
+};
+
 /**
  * Single recorded event from frontend.
  */
@@ -467,6 +471,7 @@ export type SmartSynthesisResponse = {
 
 export type StartMirrorRequest = {
     device_id: string;
+    record_video?: boolean;
 };
 
 export type StartRecordingRequest = {
@@ -511,13 +516,37 @@ export type SynthesisJobResponse = {
 };
 
 /**
- * 从录制合成 Skill 的请求
+ * 录制事件输入（用于单次合成流程）
+ */
+export type MobileRecordedEvent = {
+    timestamp: number;
+    event_type: string;
+    target_selector?: (string | null);
+    target_text?: (string | null);
+    payload?: ({
+        [key: string]: unknown;
+    } | null);
+};
+
+export type RecordingEventsInput = {
+    dom_events?: RecordedEvent[];
+    global_events?: GlobalRecordedEvent[];
+    mobile_events?: MobileRecordedEvent[];
+};
+
+/**
+ * 从录制合成 Skill 的请求（v2 - 合并版）
+ *
+ * 支持两种模式：
+ * 1. 传统模式：只传 session_id，从数据库读取已持久化的事件
+ * 2. 合并模式：同时传入 events，自动持久化后再合成（推荐，减少 HTTP 请求）
  */
 export type SynthesizeFromRecordingRequest = {
     video_path: string;
     session_id: string;
     task_description: string;
     thread_id?: (string | null);
+    events?: (RecordingEventsInput | null);
 };
 
 /**
@@ -1111,6 +1140,12 @@ export type LearningStartMirrorSessionData = {
 
 export type LearningStartMirrorSessionResponse = (unknown);
 
+export type LearningStartMirrorRecordingData = {
+    requestBody: StartRecordingRequest;
+};
+
+export type LearningStartMirrorRecordingResponse = (unknown);
+
 export type LearningStopMirrorSessionData = {
     requestBody: StopMirrorRequest;
 };
@@ -1118,7 +1153,7 @@ export type LearningStopMirrorSessionData = {
 export type LearningStopMirrorSessionResponse = (unknown);
 
 export type LearningPersistMirrorEventsData = {
-    sessionId: string;
+    requestBody: PersistMirrorEventsRequest;
 };
 
 export type LearningPersistMirrorEventsResponse = (unknown);

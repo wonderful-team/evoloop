@@ -1,8 +1,7 @@
 import { Circle, Square, Monitor, ShieldAlert, Video } from "lucide-react"
 import { toast } from "sonner"
-import { useState, useEffect, useCallback } from "react"
+import { useCallback } from "react"
 import { useTranslation } from "react-i18next"
-import { MultimodalSynthesizeDialog } from "@/components/Learning/MultimodalSynthesizeDialog"
 import { Badge } from "@evoloop/shared/components/ui/badge"
 import { Button } from "@evoloop/shared/components/ui/button"
 import {
@@ -31,24 +30,11 @@ export function RecordingButton({
     eventCount,
     isGlobalMode,
     setIsGlobalMode,
-    sessionId: storedSessionId,
-    videoPath: storedVideoPath
+    setPostRecordingAction,
   } = useRecordingStore()
 
-  const [showSynthesizeDialog, setShowSynthesizeDialog] = useState(false)
-
-  // Watch for session completion to show dialog
-  useEffect(() => {
-    if (!isRecording && storedSessionId) {
-      // Logic to show dialog is handled here or in manager?
-      // If we do it here, it might pop up on page load if session persists?
-      // Better to have a local state tracking "did I just stop it?" or just handle the open logic
-      // Actually, if we stopped and have a session ID, we probably want to synthesize.
-      // But if we navigate away and back, we don't want it popping up again.
-      // So let's only show it if we explicitly stop here?
-      // Or rely on the fact that sessionId remains in store until reset?
-    }
-  }, [isRecording, storedSessionId])
+  // Note: Synthesize dialog is handled by parent component (learning.tsx)
+  // via postRecordingAction state, not here
 
   const { hasPermission: hasAxPermission, requestPermission: requestAxPermission } = useAccessibilityPermission()
   const { hasPermission: hasVideoPermission, requestPermission: requestVideoPermission } = useScreenRecordingPermission()
@@ -76,18 +62,11 @@ export function RecordingButton({
   }, [hasVideoPermission, hasAxPermission, isGlobalMode, threadId, t, requestVideoPermission, requestAxPermission, initiateRecording])
 
   const handleStop = () => {
+    // Must set action BEFORE stopping, so GlobalRecorderManager knows to trigger synthesis
+    setPostRecordingAction('synthesize')
     stopRecording()
-    // The Manager handles the actual stop and session setting.
-    // We can show the dialog when we detect session ID update?
-    // Let's manually trigger dialog open 500ms later or via effect?
-    // Actually, simple way: Manager sets sessionId.
-    setTimeout(() => {
-      // Check fresh state to verify if we actually captured anything AND session is valid
-      const state = useRecordingStore.getState()
-      if (state.eventCount > 0 && state.sessionId) {
-        setShowSynthesizeDialog(true)
-      }
-    }, 1000)
+    // Synthesize dialog is handled by parent component (learning.tsx)
+    // via postRecordingAction state
   }
 
   const handleClick = () => {
@@ -194,13 +173,6 @@ export function RecordingButton({
         </TooltipContent>
       </Tooltip>
 
-      <MultimodalSynthesizeDialog
-        open={showSynthesizeDialog}
-        onOpenChange={setShowSynthesizeDialog}
-        sessionId={storedSessionId || ""}
-        threadId={threadId}
-        videoPath={storedVideoPath}
-      />
     </div>
   )
 }

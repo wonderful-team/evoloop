@@ -271,7 +271,11 @@
       "found": "Found",
       "liveOverlay": "Live Overlay Active",
       "warning": "Warning",
-      "failedToStart": "Failed to start mirror"
+      "failedToStart": "Failed to start mirror",
+      "recordStart": "Start Recording",
+      "recordStop": "Stop Recording",
+      "recordingInProgress": "Recording...",
+      "recordingAction": "Ready to record"
     },
     "execution": {
       "noParams": "This skill requires no inputs.",
@@ -360,6 +364,7 @@
     "confirmCleanupDesc": "This will permanently delete the video file and all recorded events. This action cannot be undone.",
     "videoFile": "Video file",
     "recordedEvents": "Recorded events",
+    "annotations": "Annotation data",
     "macroScript": "Macro Script",
     "preparingRecording": "Preparing recording...",
     "finalizingRecording": "Finalizing recording...",
@@ -699,6 +704,7 @@
     "saveAndClose": "Save & Close",
     "keep": "Keep",
     "discard": "Discard",
+    "deleting": "Deleting...",
     "search": "Search",
     "scanning": "Scanning...",
     "global": "Global",
@@ -1198,6 +1204,8 @@
     "aiAnalyzing": "AI is analyzing your recording...",
     "aiAnalyzingDesc": "This may take 1-2 minutes. The AI is reviewing your marked regions, understanding your task flow, and generating an optimized skill.",
     "currentPhase": "Current: {{phase}}",
+    "loadingVideo": "Loading video...",
+    "videoLoadFailed": "Failed to load video",
     "closeConfirmTitle": "Confirm Close",
     "closeConfirmDesc": "Are you sure you want to close? Unsaved progress will be lost.",
     "deleteAssociatedFiles": "Delete associated files",

@@ -6,7 +6,6 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { LearningService } from "@/client/sdk.gen"
 
 declare global {
   interface Window {
@@ -112,36 +111,15 @@ export function useActionRecorder(
     persistToBackendRef.current = persistToBackend
   }, [persistToBackend])
 
-  // Flush events to backend
+  // Flush events - now just updates local count
+  // Events are persisted via synthesizeFromRecording API
   const flushEvents = useCallback(async () => {
-    if (!sessionId || eventsBuffer.current.length === 0) return
+    if (eventsBuffer.current.length === 0) return
 
-    // If not persisting to backend, just count locally
-    if (!persistToBackendRef.current) {
-      eventCountRef.current = eventsBuffer.current.length
-      setEventCount(eventCountRef.current)
-      return
-    }
-
-    const events = [...eventsBuffer.current]
-    eventsBuffer.current = []
-
-    try {
-      await LearningService.recordEvents({
-        requestBody: {
-          session_id: sessionId,
-          thread_id: threadId,
-          events,
-        },
-      })
-      eventCountRef.current += events.length
-      setEventCount(eventCountRef.current)
-    } catch (error) {
-      console.error("[ActionRecorder] Failed to flush events:", error)
-      // Re-add events to buffer on failure
-      eventsBuffer.current = [...events, ...eventsBuffer.current]
-    }
-  }, [sessionId, threadId])
+    // Always just count locally - events will be sent with synthesis
+    eventCountRef.current = eventsBuffer.current.length
+    setEventCount(eventCountRef.current)
+  }, [])
 
   // Start recording
   const startRecording = useCallback(async () => {
@@ -235,35 +213,12 @@ export function useActionRecorder(
     setEventCount(0)
   }, [])
 
-  // NEW: Manually persist events to backend
+  // DEPRECATED: Events are now persisted via synthesizeFromRecording API
+  // Kept for API compatibility - just returns success without network call
   const persistEvents = useCallback(async () => {
-    if (!sessionId || eventsBuffer.current.length === 0) {
-      console.log("[ActionRecorder] No events to persist")
-      return false
-    }
-
-    const events = [...eventsBuffer.current]
-    eventsBuffer.current = []
-
-    try {
-      await LearningService.recordEvents({
-        requestBody: {
-          session_id: sessionId,
-          thread_id: threadId,
-          events,
-        },
-      })
-      eventCountRef.current += events.length
-      setEventCount(eventCountRef.current)
-      console.log(`[ActionRecorder] Persisted ${events.length} events to backend`)
-      return true
-    } catch (error) {
-      console.error("[ActionRecorder] Failed to persist events:", error)
-      // Re-add events to buffer on failure
-      eventsBuffer.current = [...events, ...eventsBuffer.current]
-      return false
-    }
-  }, [sessionId, threadId])
+    console.log("[ActionRecorder] persistEvents() is deprecated. Events are now sent via synthesizeFromRecording")
+    return true
+  }, [])
 
   // Auto-capture click events when recording
   useEffect(() => {

@@ -1345,6 +1345,18 @@ export const PaginatedSkillsResponseSchema = {
     title: 'PaginatedSkillsResponse'
 } as const;
 
+export const PersistMirrorEventsRequestSchema = {
+    properties: {
+        session_id: {
+            type: 'string',
+            title: 'Session Id'
+        }
+    },
+    type: 'object',
+    required: ['session_id'],
+    title: 'PersistMirrorEventsRequest'
+} as const;
+
 export const RecordEventsRequestSchema = {
     properties: {
         session_id: {
@@ -1963,6 +1975,11 @@ export const StartMirrorRequestSchema = {
         device_id: {
             type: 'string',
             title: 'Device Id'
+        },
+        record_video: {
+            type: 'boolean',
+            title: 'Record Video',
+            default: true
         }
     },
     type: 'object',

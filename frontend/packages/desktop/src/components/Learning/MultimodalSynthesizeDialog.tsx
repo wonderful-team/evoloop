@@ -93,63 +93,38 @@ export function MultimodalSynthesizeDialog({
             return
         }
 
-        // Persist events to backend before synthesizing (delayed persistence)
+        // [v2] 合并接口：直接传入事件数据，后端统一处理持久化和合成
         try {
+            let events = undefined
+
             if (sourceType === 'desktop') {
-                // Desktop recording: persist local events from store
-                // Persist DOM events
-                if (localEvents.domEvents.length > 0) {
-                    await LearningService.recordEvents({
-                        requestBody: {
-                            session_id: sessionId,
-                            thread_id: threadId,
-                            events: localEvents.domEvents,
-                        }
-                    })
-                    console.log(`[MultimodalSynthesizeDialog] Persisted ${localEvents.domEvents.length} DOM events`)
+                // Desktop recording: 直接使用本地存储的事件
+                events = {
+                    domEvents: localEvents.domEvents.length > 0 ? localEvents.domEvents : undefined,
+                    globalEvents: localEvents.globalEvents.length > 0 ? localEvents.globalEvents : undefined,
                 }
+                console.log(`[MultimodalSynthesizeDialog] Using ${localEvents.domEvents.length} DOM + ${localEvents.globalEvents.length} global events`)
 
-                // Persist global events
-                if (localEvents.globalEvents.length > 0) {
-                    await LearningService.recordGlobalEvents({
-                        requestBody: {
-                            thread_id: threadId,
-                            session_id: sessionId,
-                            events: localEvents.globalEvents,
-                        }
-                    })
-                    console.log(`[MultimodalSynthesizeDialog] Persisted ${localEvents.globalEvents.length} global events`)
-                }
-
-                // Clear local events after successful persistence
+                // 合成成功后清理本地事件
                 clearLocalEvents()
             } else if (sourceType === 'android') {
-                // Android mirror: persist events from backend session
+                // Android mirror: 仍需先持久化，因为事件存储在 mirror session 中
                 await MirrorService.persistEvents(sessionId)
                 console.log(`[MultimodalSynthesizeDialog] Persisted Android mirror events for session ${sessionId}`)
             }
 
-            // Trigger keyframe extraction
-            await LearningService.extractKeyframes({
-                requestBody: {
-                    session_id: sessionId,
-                    video_path: videoPath,
-                    thread_id: threadId,
-                }
+            // 单次调用完成所有操作（保存事件 + 提取关键帧 + 合成）
+            await synthesize({
+                videoPath,
+                sessionId,
+                taskDescription: taskDescription.trim(),
+                threadId,
+                events,
             })
-            console.log("[MultimodalSynthesizeDialog] Keyframe extraction triggered")
         } catch (error) {
-            console.error("[MultimodalSynthesizeDialog] Failed to persist events:", error)
-            toast.error(t("learning.persistFailed"))
-            return
+            console.error("[MultimodalSynthesizeDialog] Synthesis failed:", error)
+            toast.error(t("learning.synthesisError"))
         }
-
-        await synthesize({
-            videoPath,
-            sessionId,
-            taskDescription: taskDescription.trim(),
-            threadId,
-        })
     }
 
     const handleSaveAndClose = async () => {
@@ -190,7 +165,21 @@ export function MultimodalSynthesizeDialog({
     const handleConfirmCleanup = async () => {
         setIsCleaningUp(true)
         try {
-            // Delete video file using Tauri fs API
+            // 1. Cleanup backend data first (events, annotations, jobs)
+            if (sessionId) {
+                try {
+                    await LearningService.cleanupRecordingSession({
+                        sessionId,
+                        videoPath: videoPath || undefined
+                    })
+                    console.log("[MultimodalSynthesizeDialog] Backend cleanup completed for session:", sessionId)
+                } catch (err) {
+                    console.warn("[MultimodalSynthesizeDialog] Backend cleanup failed (may be already cleaned):", err)
+                    // Continue with local cleanup even if backend fails
+                }
+            }
+
+            // 2. Delete local video file using Tauri fs API
             if (videoPath) {
                 try {
                     await remove(videoPath)
@@ -201,13 +190,13 @@ export function MultimodalSynthesizeDialog({
                 }
             }
 
-            // Clear local events (they were never persisted to backend)
+            // 3. Clear local events
             clearLocalEvents()
 
-            // Clear session from store (events never went to backend, so no backend cleanup needed)
+            // 4. Clear session from store
             setSessionId(null)
 
-            // Reset recording store
+            // 5. Reset recording store
             resetRecording()
 
             toast.success(t("learning.cleanupSuccess"))
@@ -259,247 +248,244 @@ export function MultimodalSynthesizeDialog({
 
     return (
         <>
-        <Dialog open={open} onOpenChange={handleClose} modal>
-            <DialogContent
-                className="sm:max-w-lg"
-                onPointerDownOutside={(e) => e.preventDefault()}
-                onInteractOutside={(e) => e.preventDefault()}
-            >
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-yellow-500" />
-                        {result
-                            ? t("learning.skillCreated")
-                            : t("learning.createSkillMultimodal")}
-                    </DialogTitle>
-                    <DialogDescription>
-                        {result
-                            ? t("learning.skillCreatedDesc")
-                            : t("learning.createSkillMultimodalDesc")}
-                    </DialogDescription>
-                </DialogHeader>
+            <Dialog open={open} onOpenChange={handleClose} modal>
+                <DialogContent
+                    className="sm:max-w-lg"
+                    onPointerDownOutside={(e) => e.preventDefault()}
+                    onInteractOutside={(e) => e.preventDefault()}
+                >
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Sparkles className="h-5 w-5 text-yellow-500" />
+                            {result
+                                ? t("learning.skillCreated")
+                                : t("learning.createSkillMultimodal")}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {result
+                                ? t("learning.skillCreatedDesc")
+                                : t("learning.createSkillMultimodalDesc")}
+                        </DialogDescription>
+                    </DialogHeader>
 
-                {result ? (
-                    <div className="py-4 space-y-4">
-                        <div className="grid gap-2">
-                            <label className="text-[10px] font-bold uppercase text-muted-foreground">
-                                {t("learning.skillName")}
-                            </label>
-                            <Input value={editedName} onChange={(e) => setEditedName(e.target.value)} />
-                        </div>
-
-                        {result.skill_yaml && (
-                            <div className="bg-muted/30 p-3 rounded-lg border border-dashed text-xs text-muted-foreground">
-                                <div className="flex items-center gap-1.5 font-bold mb-1 uppercase text-[10px]">
-                                    <Info className="h-3 w-3" /> {t("learning.skillYaml")}
-                                </div>
-                                <pre className="text-[10px] overflow-auto max-h-32">{result.skill_yaml.slice(0, 500)}...</pre>
-                            </div>
-                        )}
-
-                        <div className="grid grid-cols-3 gap-2 text-xs">
-                            <div className="bg-muted/20 p-2 rounded border text-center">
-                                <div className="font-bold text-lg">{result.frames_analyzed}</div>
-                                <div className="text-muted-foreground text-[10px]">{t("learning.framesAnalyzed")}</div>
-                            </div>
-                            <div className="bg-muted/20 p-2 rounded border text-center">
-                                <div className="font-bold text-lg">{result.events_processed}</div>
-                                <div className="text-muted-foreground text-[10px]">{t("learning.eventsProcessed")}</div>
-                            </div>
-                            <div className="bg-muted/20 p-2 rounded border text-center">
-                                <div className="font-bold text-lg">{result.processing_time_seconds.toFixed(1)}s</div>
-                                <div className="text-muted-foreground text-[10px]">{t("learning.processingTime")}</div>
-                            </div>
-                        </div>
-
-                        <div className="flex justify-center pt-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className="w-full gap-2 text-xs h-8 border-primary/20 hover:border-primary/50 text-primary"
-                                onClick={() => {
-                                    if (result.skill_id) {
-                                        onOpenEditor?.(result.skill_id)
-                                    }
-                                    handleClose()
-                                }}
-                            >
-                                <Settings2 className="h-3.5 w-3.5" />
-                                {t("learning.openFullEditor")}
-                            </Button>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="py-4 space-y-4">
-                        {/* Recording Info */}
-                        <button
-                            type="button"
-                            onClick={handleOpenVideo}
-                            disabled={!videoPath || videoExists === false}
-                            className={`w-full flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors text-left group ${
-                                videoExists === false
-                                    ? 'bg-destructive/10 border-destructive/30 hover:bg-destructive/20'
-                                    : 'bg-muted/20 hover:bg-muted/30 disabled:opacity-50 disabled:cursor-not-allowed'
-                            }`}
-                        >
-                            <div className={`p-2 rounded transition-colors ${
-                                videoExists === false
-                                    ? 'bg-destructive/20 text-destructive'
-                                    : 'bg-primary/10 group-hover:bg-primary/20'
-                            }`}>
-                                <FileVideo className={`h-4 w-4 ${videoExists === false ? 'text-destructive' : 'text-primary'}`} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <div className="text-xs font-medium truncate">
-                                    {videoPath
-                                        ? videoPath.split("/").pop()
-                                        : t("learning.noVideo")}
-                                </div>
-                                <div className={`text-[10px] flex items-center gap-1 ${
-                                    videoExists === false ? 'text-destructive' : 'text-muted-foreground'
-                                }`}>
-                                    {videoPath ? (
-                                        videoExists === false ? (
-                                            <>
-                                                {t("learning.videoNotFound")}
-                                                <AlertTriangle className="h-3 w-3 inline" />
-                                            </>
-                                        ) : videoExists === null ? (
-                                            <>
-                                                <Loader2 className="h-3 w-3 inline animate-spin" />
-                                                {t("learning.checkingVideo")}
-                                            </>
-                                        ) : (
-                                            <>
-                                                {t("learning.clickToOpenVideo")}
-                                                <ExternalLink className="h-3 w-3 inline" />
-                                            </>
-                                        )
-                                    ) : (
-                                        t("learning.videoMissing")
-                                    )}
-                                </div>
-                            </div>
-                        </button>
-
-                        {/* Task Description Input */}
-                        <div className="space-y-2">
-                            <label className="text-xs font-medium">
-                                {t("learning.taskDescription")}
-                                <span className="text-destructive ml-1">*</span>
-                            </label>
-                            <Textarea
-                                value={taskDescription}
-                                onChange={(e) => setTaskDescription(e.target.value)}
-                                placeholder={t(
-                                    "learning.taskDescriptionPlaceholder",
-                                    "e.g., Send a message to Zhang San in WeChat, then attach a file from Desktop"
-                                )}
-                                className="min-h-[80px] text-sm"
-                            />
-                            <p className="text-[10px] text-muted-foreground">
-                                {t(
-                                    "learning.taskDescriptionHelp",
-                                    "Describe the task clearly. AI will analyze the video and your actions to understand the workflow."
-                                )}
-                            </p>
-                        </div>
-
-                        {/* Progress */}
-                        {isSynthesizing && progress && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                {progress}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                <DialogFooter>
                     {result ? (
-                        <Button onClick={handleSaveAndClose} disabled={isUpdating} className="w-full">
-                            {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            {t("common.saveAndClose")}
-                        </Button>
+                        <div className="py-4 space-y-4">
+                            <div className="grid gap-2">
+                                <label className="text-[10px] font-bold uppercase text-muted-foreground">
+                                    {t("learning.skillName")}
+                                </label>
+                                <Input value={editedName} onChange={(e) => setEditedName(e.target.value)} />
+                            </div>
+
+                            {result.skill_yaml && (
+                                <div className="bg-muted/30 p-3 rounded-lg border border-dashed text-xs text-muted-foreground">
+                                    <div className="flex items-center gap-1.5 font-bold mb-1 uppercase text-[10px]">
+                                        <Info className="h-3 w-3" /> {t("learning.skillYaml")}
+                                    </div>
+                                    <pre className="text-[10px] overflow-y-auto overflow-x-hidden max-h-32 whitespace-pre-wrap break-all">{result.skill_yaml.slice(0, 500)}...</pre>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-3 gap-2 text-xs">
+                                <div className="bg-muted/20 p-2 rounded border text-center">
+                                    <div className="font-bold text-lg">{result.frames_analyzed}</div>
+                                    <div className="text-muted-foreground text-[10px]">{t("learning.framesAnalyzed")}</div>
+                                </div>
+                                <div className="bg-muted/20 p-2 rounded border text-center">
+                                    <div className="font-bold text-lg">{result.events_processed}</div>
+                                    <div className="text-muted-foreground text-[10px]">{t("learning.eventsProcessed")}</div>
+                                </div>
+                                <div className="bg-muted/20 p-2 rounded border text-center">
+                                    <div className="font-bold text-lg">{result.processing_time_seconds.toFixed(1)}s</div>
+                                    <div className="text-muted-foreground text-[10px]">{t("learning.processingTime")}</div>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-center pt-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full gap-2 text-xs h-8 border-primary/20 hover:border-primary/50 text-primary"
+                                    onClick={() => {
+                                        if (result.skill_id) {
+                                            onOpenEditor?.(result.skill_id)
+                                        }
+                                        handleClose()
+                                    }}
+                                >
+                                    <Settings2 className="h-3.5 w-3.5" />
+                                    {t("learning.openFullEditor")}
+                                </Button>
+                            </div>
+                        </div>
                     ) : (
-                        <div className="flex w-full gap-2">
-                            <Button variant="outline" onClick={handleCancelClick} disabled={isSynthesizing} className="flex-1">
-                                {t("common.cancel")}
-                            </Button>
-                            <Button
-                                onClick={handleSynthesize}
-                                disabled={isSynthesizing || !videoPath || !taskDescription.trim()}
-                                className="flex-1"
+                        <div className="py-4 space-y-4">
+                            {/* Recording Info */}
+                            <button
+                                type="button"
+                                onClick={handleOpenVideo}
+                                disabled={!videoPath || videoExists === false}
+                                className={`w-full flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors text-left group ${videoExists === false
+                                        ? 'bg-destructive/10 border-destructive/30 hover:bg-destructive/20'
+                                        : 'bg-muted/20 hover:bg-muted/30 disabled:opacity-50 disabled:cursor-not-allowed'
+                                    }`}
                             >
-                                {isSynthesizing ? (
+                                <div className={`p-2 rounded transition-colors ${videoExists === false
+                                        ? 'bg-destructive/20 text-destructive'
+                                        : 'bg-primary/10 group-hover:bg-primary/20'
+                                    }`}>
+                                    <FileVideo className={`h-4 w-4 ${videoExists === false ? 'text-destructive' : 'text-primary'}`} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-xs font-medium truncate">
+                                        {videoPath
+                                            ? videoPath.split("/").pop()
+                                            : t("learning.noVideo")}
+                                    </div>
+                                    <div className={`text-[10px] flex items-center gap-1 ${videoExists === false ? 'text-destructive' : 'text-muted-foreground'
+                                        }`}>
+                                        {videoPath ? (
+                                            videoExists === false ? (
+                                                <>
+                                                    {t("learning.videoNotFound")}
+                                                    <AlertTriangle className="h-3 w-3 inline" />
+                                                </>
+                                            ) : videoExists === null ? (
+                                                <>
+                                                    <Loader2 className="h-3 w-3 inline animate-spin" />
+                                                    {t("learning.checkingVideo")}
+                                                </>
+                                            ) : (
+                                                <>
+                                                    {t("learning.clickToOpenVideo")}
+                                                    <ExternalLink className="h-3 w-3 inline" />
+                                                </>
+                                            )
+                                        ) : (
+                                            t("learning.videoMissing")
+                                        )}
+                                    </div>
+                                </div>
+                            </button>
+
+                            {/* Task Description Input */}
+                            <div className="space-y-2">
+                                <label className="text-xs font-medium">
+                                    {t("learning.taskDescription")}
+                                    <span className="text-destructive ml-1">*</span>
+                                </label>
+                                <Textarea
+                                    value={taskDescription}
+                                    onChange={(e) => setTaskDescription(e.target.value)}
+                                    placeholder={t(
+                                        "learning.taskDescriptionPlaceholder",
+                                        "e.g., Send a message to Zhang San in WeChat, then attach a file from Desktop"
+                                    )}
+                                    className="min-h-[80px] text-sm"
+                                />
+                                <p className="text-[10px] text-muted-foreground">
+                                    {t(
+                                        "learning.taskDescriptionHelp",
+                                        "Describe the task clearly. AI will analyze the video and your actions to understand the workflow."
+                                    )}
+                                </p>
+                            </div>
+
+                            {/* Progress */}
+                            {isSynthesizing && progress && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                     <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                    <>
-                                        <Sparkles className="mr-2 h-4 w-4" />
-                                        {t("learning.synthesize")}
-                                    </>
-                                )}
-                            </Button>
+                                    {progress}
+                                </div>
+                            )}
                         </div>
                     )}
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
 
-        {/* Cleanup Confirmation Dialog */}
-        <Dialog open={showCleanupConfirm} onOpenChange={setShowCleanupConfirm} modal>
-            <DialogContent
-                className="sm:max-w-md"
-                onPointerDownOutside={(e) => e.preventDefault()}
-                onInteractOutside={(e) => e.preventDefault()}
-            >
-                <DialogHeader>
-                    <DialogTitle className="flex items-center gap-2 text-destructive">
-                        <AlertTriangle className="h-5 w-5" />
-                        {t("learning.confirmCleanupTitle")}
-                    </DialogTitle>
-                    <DialogDescription>
-                        {t("learning.confirmCleanupDesc")}
-                    </DialogDescription>
-                </DialogHeader>
+                    <DialogFooter>
+                        {result ? (
+                            <Button onClick={handleSaveAndClose} disabled={isUpdating} className="w-full">
+                                {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                {t("common.saveAndClose")}
+                            </Button>
+                        ) : (
+                            <div className="flex w-full gap-2">
+                                <Button variant="outline" onClick={handleCancelClick} disabled={isSynthesizing} className="flex-1">
+                                    {t("common.cancel")}
+                                </Button>
+                                <Button
+                                    onClick={handleSynthesize}
+                                    disabled={isSynthesizing || !videoPath || !taskDescription.trim()}
+                                    className="flex-1"
+                                >
+                                    {isSynthesizing ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <>
+                                            <Sparkles className="mr-2 h-4 w-4" />
+                                            {t("learning.synthesize")}
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
+                        )}
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
-                <div className="py-4">
-                    <div className="bg-muted/50 p-3 rounded-lg space-y-2 text-sm">
-                        <div className="flex items-center gap-2">
-                            <FileVideo className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">{t("learning.videoFile")}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Trash2 className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">{t("learning.recordedEvents")}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <Trash2 className="h-4 w-4 text-muted-foreground" />
-                            <span className="text-muted-foreground">{t("learning.annotations")}</span>
+            {/* Cleanup Confirmation Dialog */}
+            <Dialog open={showCleanupConfirm} onOpenChange={setShowCleanupConfirm} modal>
+                <DialogContent
+                    className="sm:max-w-md"
+                    onPointerDownOutside={(e) => e.preventDefault()}
+                    onInteractOutside={(e) => e.preventDefault()}
+                >
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-destructive">
+                            <AlertTriangle className="h-5 w-5" />
+                            {t("learning.confirmCleanupTitle")}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {t("learning.confirmCleanupDesc")}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="py-4">
+                        <div className="bg-muted/50 p-3 rounded-lg space-y-2 text-sm">
+                            <div className="flex items-center gap-2">
+                                <FileVideo className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">{t("learning.videoFile")}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">{t("learning.recordedEvents")}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Trash2 className="h-4 w-4 text-muted-foreground" />
+                                <span className="text-muted-foreground">{t("learning.annotations")}</span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <DialogFooter className="gap-2">
-                    <Button variant="outline" onClick={() => setShowCleanupConfirm(false)} disabled={isCleaningUp}>
-                        {t("common.keep")}
-                    </Button>
-                    <Button variant="destructive" onClick={handleConfirmCleanup} disabled={isCleaningUp}>
-                        {isCleaningUp ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                {t("common.deleting")}
-                            </>
-                        ) : (
-                            <>
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                {t("common.discard")}
-                            </>
-                        )}
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setShowCleanupConfirm(false)} disabled={isCleaningUp}>
+                            {t("common.keep")}
+                        </Button>
+                        <Button variant="destructive" onClick={handleConfirmCleanup} disabled={isCleaningUp}>
+                            {isCleaningUp ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    {t("common.deleting")}
+                                </>
+                            ) : (
+                                <>
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    {t("common.discard")}
+                                </>
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </>
     )
 }

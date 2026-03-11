@@ -198,7 +198,10 @@ export function SkillLibraryView({ threadId, projectId, highlightSkillId, onClea
                                                 }}>
                                                     <Edit className="mr-2 h-4 w-4" /> {t("common.edit")}
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(skill.id)}>
+                                                <DropdownMenuItem className="text-destructive" onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    handleDelete(skill.id);
+                                                }}>
                                                     <Trash2 className="mr-2 h-4 w-4" /> {t("common.delete")}
                                                 </DropdownMenuItem>
                                             </DropdownMenuContent>

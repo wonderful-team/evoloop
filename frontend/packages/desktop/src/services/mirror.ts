@@ -41,11 +41,14 @@ export class MirrorService {
     /**
      * Start a scrcpy mirroring session.
      */
-    public static startMirror(deviceId: string): CancelablePromise<StartMirrorResponse> {
+    public static startMirror(deviceId: string, recordVideo: boolean = true): CancelablePromise<StartMirrorResponse> {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/learning/mirror/start',
-            body: { device_id: deviceId },
+            body: {
+                device_id: deviceId,
+                record_video: recordVideo
+            },
             mediaType: 'application/json',
         });
     }

@@ -271,7 +271,11 @@
       "found": "发现",
       "liveOverlay": "实时覆盖层已激活",
       "warning": "警告",
-      "failedToStart": "启动镜像失败"
+      "failedToStart": "启动镜像失败",
+      "recordStart": "开始录制",
+      "recordStop": "停止录制",
+      "recordingInProgress": "录制中...",
+      "recordingAction": "准备录制"
     },
     "execution": {
       "noParams": "此技能无需任何输入。",
@@ -360,6 +364,7 @@
     "confirmCleanupDesc": "这将永久删除视频文件和所有录制的事件。此操作无法撤销。",
     "videoFile": "视频文件",
     "recordedEvents": "录制的事件",
+    "annotations": "标注数据",
     "macroScript": "步骤序列",
     "preparingRecording": "准备录制中...",
     "finalizingRecording": "正在完成录制...",
@@ -699,6 +704,7 @@
     "saveAndClose": "保存并关闭",
     "keep": "保留",
     "discard": "放弃",
+    "deleting": "删除中...",
     "search": "搜索",
     "scanning": "扫描中...",
     "global": "全局",
@@ -1198,6 +1204,8 @@
     "aiAnalyzing": "AI 正在分析您的录制...",
     "aiAnalyzingDesc": "这可能需要 1-2 分钟。AI 正在查看您标记的区域，理解您的任务流程，并生成优化的技能。",
     "currentPhase": "当前：{{phase}}",
+    "loadingVideo": "加载视频中...",
+    "videoLoadFailed": "视频加载失败",
     "closeConfirmTitle": "确认关闭",
     "closeConfirmDesc": "您确定要关闭吗？未保存的进度将会丢失。",
     "deleteAssociatedFiles": "删除关联文件",

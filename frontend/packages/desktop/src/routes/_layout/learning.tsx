@@ -22,7 +22,7 @@ function LearningPage() {
     const [activeTab, setActiveTab] = useState("library")
     const [highlightSkillId, setHighlightSkillId] = useState<number | null>(null)
 
-    const { sessionId, videoPath, postRecordingAction, setPostRecordingAction, isRecording, isPreparing, countdown, stopRecording } = useRecordingStore()
+    const { sessionId, videoPath, postRecordingAction, setPostRecordingAction, isRecording, isPreparing, countdown, stopRecording, recordingSource } = useRecordingStore()
     const [synthesizeDialogOpen, setSynthesizeDialogOpen] = useState(false)
     const [isStoppingRecording, setIsStoppingRecording] = useState(false)
 
@@ -117,7 +117,7 @@ function LearningPage() {
                 threadId="global"
                 videoPath={videoPath}
                 onSuccess={handleSynthesizeComplete}
-                sourceType="desktop"
+                sourceType={recordingSource === 'mobile' ? 'android' : 'desktop'}
             />
 
             {/* Countdown Overlay - Show during preparation */}

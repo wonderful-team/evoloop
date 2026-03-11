@@ -2,6 +2,7 @@ import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { invoke } from "@tauri-apps/api/core"
 import { LearningService } from "@/client/sdk.gen"
+import type { RecordedEvent, GlobalRecordedEvent, MobileRecordedEvent } from "@/client/types.gen"
 
 export interface SynthesisResult {
     success: boolean
@@ -54,6 +55,11 @@ export function useMultimodalSynthesis(options: UseMultimodalSynthesisOptions = 
         sessionId: string
         taskDescription: string
         threadId?: string
+        events?: {
+            domEvents?: RecordedEvent[]
+            globalEvents?: GlobalRecordedEvent[]
+            mobileEvents?: MobileRecordedEvent[]
+        }
     }): Promise<SynthesisResult | null> => {
         setIsSynthesizing(true)
         setProgress(t("learning.synthesizingProgress", "正在分析录制内容..."))
@@ -65,6 +71,11 @@ export function useMultimodalSynthesis(options: UseMultimodalSynthesisOptions = 
                     session_id: params.sessionId,
                     task_description: params.taskDescription,
                     thread_id: params.threadId,
+                    events: params.events ? {
+                        dom_events: params.events.domEvents || [],
+                        global_events: params.events.globalEvents || [],
+                        mobile_events: params.events.mobileEvents || [],
+                    } : undefined,
                 },
             })
 

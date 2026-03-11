@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { listen, UnlistenFn } from "@tauri-apps/api/event"
-import { LearningService } from "@/client/sdk.gen"
 
 interface Modifiers {
     alt: boolean
@@ -57,36 +56,15 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
         persistToBackendRef.current = persistToBackend
     }, [persistToBackend])
 
-    // Flush events to backend
+    // Flush events - now just updates local count
+    // Events are persisted via synthesizeFromRecording API
     const flushEvents = useCallback(async () => {
         if (eventsBuffer.current.length === 0) return
 
-        // If not persisting to backend, just count locally
-        if (!persistToBackendRef.current) {
-            eventCountRef.current = eventsBuffer.current.length
-            setEventCount(eventCountRef.current)
-            return
-        }
-
-        const events = [...eventsBuffer.current]
-        eventsBuffer.current = []
-
-        try {
-            await LearningService.recordGlobalEvents({
-                requestBody: {
-                    thread_id: threadId,
-                    session_id: sessionIdRef.current || undefined,
-                    events: events
-                }
-            })
-            eventCountRef.current += events.length
-            setEventCount(eventCountRef.current)
-        } catch (error) {
-            console.error("[GlobalRecorder] Failed to flush events:", error)
-            // Re-add to buffer
-            eventsBuffer.current = [...events, ...eventsBuffer.current]
-        }
-    }, [threadId])
+        // Always just count locally - events will be sent with synthesis
+        eventCountRef.current = eventsBuffer.current.length
+        setEventCount(eventCountRef.current)
+    }, [])
 
     // Start/Stop recording via Rust
     const startRecording = useCallback(async () => {
@@ -180,35 +158,12 @@ export function useGlobalRecorder(options: UseGlobalRecorderOptions) {
         setEventCount(0)
     }, [])
 
-    // NEW: Manually persist events to backend
+    // DEPRECATED: Events are now persisted via synthesizeFromRecording API
+    // Kept for API compatibility - just returns success without network call
     const persistEvents = useCallback(async () => {
-        if (!sessionIdRef.current || eventsBuffer.current.length === 0) {
-            console.log("[GlobalRecorder] No events to persist")
-            return false
-        }
-
-        const events = [...eventsBuffer.current]
-        eventsBuffer.current = []
-
-        try {
-            await LearningService.recordGlobalEvents({
-                requestBody: {
-                    thread_id: threadId,
-                    session_id: sessionIdRef.current,
-                    events: events
-                }
-            })
-            eventCountRef.current += events.length
-            setEventCount(eventCountRef.current)
-            console.log(`[GlobalRecorder] Persisted ${events.length} events to backend`)
-            return true
-        } catch (error) {
-            console.error("[GlobalRecorder] Failed to persist events:", error)
-            // Re-add to buffer
-            eventsBuffer.current = [...events, ...eventsBuffer.current]
-            return false
-        }
-    }, [threadId])
+        console.log("[GlobalRecorder] persistEvents() is deprecated. Events are now sent via synthesizeFromRecording")
+        return true
+    }, [])
 
     return useMemo(() => ({
         isRecording,
