@@ -101,6 +101,11 @@ class VisionEngine:
 
         # 5. Passive Atlas Learning for non-DETECT tasks
         if task != VisionTask.DETECT and result.success:
+            # Check platform
+            platform = kwargs.get("platform")
+            if not platform:
+                platform = "android" if kwargs.get("on_android") else "macos"
+
             # Dispatch to Celery background worker to offload OCR/Neo4j processing
             try:
                 from app.infrastructure.queue.celery import celery_app
@@ -109,7 +114,7 @@ class VisionEngine:
                     args=(
                         image_source,
                         kwargs.get("device_id"),
-                        "macos",
+                        platform,
                         ""
                     )
                 )

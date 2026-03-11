@@ -142,6 +142,9 @@ class MacOSVisionOCRProvider(VisionProvider):
     def _get_ui_scale_factor(self, image_source: str) -> float:
         """Get host-specific scale factor only if image is from macOS."""
         # Check if this is a macOS image by directory
+        if "android" in image_source or "mobile" in image_source or "frames" in image_source:
+             return 1.0
+             
         # macOS ones from ~/.evoloop/artifacts/screenshots
         try:
             return macos_driver.get_ui_scale_factor()
