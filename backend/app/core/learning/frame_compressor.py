@@ -343,7 +343,7 @@ class KeyframeSelector:
 
     # 配置
     PRE_ACTION_OFFSET_MS = -200    # 操作前 200ms
-    POST_ACTION_OFFSET_MS = 500    # 操作后 500ms
+    POST_ACTION_OFFSET_MS = 1000   # 操作后 1000ms (Increased for Android settling)
     TRANSITION_DELAY_MS = 800      # 页面切换等待
     MIN_INTERVAL_MS = 300          # 最小帧间隔
     MAX_KEYFRAMES = 15             # 最大关键帧数
@@ -377,6 +377,11 @@ class KeyframeSelector:
                 continue
 
             event_ts = float(event_ts)
+
+            # [FIX] Skip events that are beyond video duration
+            if event_ts > video_duration:
+                logger.warning(f"[KeyframeSelector] Event {i} timestamp {event_ts:.3f}s exceeds video duration {video_duration:.3f}s, skipping")
+                continue
 
             # 跳过鼠标移动事件（太多了）
             action_type = getattr(event, 'action_type', '')

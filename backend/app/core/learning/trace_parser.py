@@ -199,10 +199,10 @@ class TraceParser:
 
     def _parse_global_event(self, event: TraceEvent) -> TraceStep:
         """Parse a global observation event."""
-        # Map event types to readable actions
+        # Map event types to readable actions for LLM
         action_mapping = {
             "key_press": "key_press",
-            "mouse_click": "mouse_click",
+            "mouse_click": "click",
             "window_change": "window_change"
         }
 
@@ -233,7 +233,7 @@ class TraceParser:
                 except:
                     pass
 
-            if window_bounds and len(window_bounds) == 4 and event.action_type == "mouse_click":
+            if window_bounds and len(window_bounds) == 4 and event.action_type in ("mouse_click", "click"):
                 wx, wy, ww, wh = window_bounds
                 if ww > 0 and wh > 0:
                     nx = (event.mouse_x - wx) / ww
@@ -256,11 +256,12 @@ class TraceParser:
                             timestamp=event.timestamp or 0.0
                         )
 
+        mapped_action_type = action_mapping.get(event.action_type, event.action_type)
         return TraceStep(
             step_number=event.step_number,
             source=ActionSource.HUMAN,
             category=ActionCategory.SYSTEM_INTERACTION,
-            action_type=event.action_type,
+            action_type=mapped_action_type,
             action_name=action_name,
             action_args=action_args,
             node_name="global_observation",

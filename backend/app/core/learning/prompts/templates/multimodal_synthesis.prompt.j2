@@ -80,8 +80,11 @@ macro_script: |
 ## 🛠️ Macro Script Schema (STRICT)
 
 The `macro_script` field MUST be a JSON array of steps following these rules:
-
-### 1. Root Step Fields:
+### 1. Root Step Fields (STRICT):
+- **STARTING ACTION**: The VERY FIRST step of the `macro_script` MUST be an activation action to ensure a clean start:
+    - **Mobile**: Use `event_type: "open_app"`.
+    - **DOM**: Use `event_type: "navigate"`.
+    - **Desktop**: Ensure the first step focuses the target app window.
 - `type`: Must be one of: "action", "extract", "loop", "if", "dump".
 - `source`: Must be one of: "dom" (web), "desktop" (macOS), "mobile" (Android).
 - `event_type`: (Required for type="action") e.g., "click", "input", "navigate", "scroll", "wait", "key_press", "open_app".
@@ -102,11 +105,21 @@ The `macro_script` field MUST be a JSON array of steps following these rules:
 
 ### 3. Allowed Event Types by Source:
 - **DOM**: "navigate", "click", "input", "key_press", "scroll", "wait", "get_text", "run_js", "detect_pagination", "scroll_to_bottom".
-- **Desktop/Mobile**: "click", "tap", "type_text", "key_press", "scroll", "swipe", "open_app", "screenshot", "gui_extract", "back", "dump_ui".
+- **Desktop**: "click", "double_click", "type_text", "key_press", "scroll", "drag_drop", "screenshot", "gui_extract", "dump_ui", "open_app", "applescript".
+- **Mobile**: "tap", "long_press", "input_text", "key_press", "scroll", "screenshot", "gui_extract", "dump_ui", "open_app".
+    - **open_app**: For Mobile, ALWAYS use the provided `Target Application (Package Name)` as the payload `package` value. DO NOT use localized names like "藏宝阁".
+    - **Mobile Coordinates (CRITICAL)**: Whenever possible for `tap`, provide precise `x` and `y` values in the `payload` (based on the visual trace's relative positions). Mobile UI element names are often ambiguous; providing coordinates ensures the execution engine has a reliable fallback if `target_selector` fails to resolve.
+    - **Scroll**: For scrolling a page or list, use `scroll` with `direction` (up/down/left/right) and `distance` (float).
+    - **target_selector**: For mobile, try to match actual A11y text or resource IDs exactly. Do not invent descriptive names.
 
-### 4. Loop & Logic:
+### 4. Loop & Logic (STRICT):
 - **if**: Use `"type": "if"`, `"condition": {"type": "element_exists", "target_selector": "..."}`, and `"then_steps"`/`"else_steps"` arrays.
-- **loop**: Use `"type": "loop"`. Put loop steps in a `"steps"` array. If it's a batch loop, include `"items_key"` in payload. If it's a conditional loop, include `"condition"`.
+- **loop (conditional)**: Use `"type": "loop"`. Place `"condition"` (e.g., `{"type": "has_more_items"}`) and `"max_iterations"` (e.g., `20`) at the **ROOT level** of the step, NOT inside `payload`. Place loop body in `"steps"` array.
+- **loop (batch)**: Use `"type": "loop"`. Place `"items_key"` (matching a previous `extract` key) at the **ROOT level**. Iterate using `"item"` variable in `"steps"`.
+- **Logic**: For dry-runs, `has_more_items` always evaluates to `True` initially.
+        - **VARIABLE CONSISTENCY**: The `items_key` MUST exactly match a `key` used in a previous `extract` step.
+- **Parameters & Templates**: 
+    - You MAY use `{{parameter_name}}` in payloads ONLY if the parameter is defined in the YAML `parameters` section.
 - **wait**: Use `"event_type": "wait"` with `"payload": {"seconds": 2}`. DO NOT use `type: "wait"`.
 
 # 🧠 Expert Skill Guide
@@ -133,8 +146,15 @@ Example: "This skill bridges information between apps using clipboard as a unive
 ### Phase 2: [Name]
 ...
 
-## 4. Common Pitfalls & Gotchas
-- **Timing**: [e.g., "Wait 1s for the dropdown to animate"]
+## 4. Common Patterns & Best Practices
+- **List-to-Detail Navigation (CRITICAL)**: If the task requires extracting "detail" information from a list of items (e.g., "collect every character's price, title, skills"), you CANNOT just extract the list view. You MUST synthesize a `loop` that explicitly does the following:
+  1. `tap` into a specific item in the list.
+  2. `wait` for the detail page to load.
+  3. `gui_extract` the requested details (Title, Price, etc.) on the detail page using `ocr_nearby` or `ocr_region`.
+  4. `tap` the back button (with precise `x` and `y` coordinates) to return to the list.
+  5. `scroll` the list to reveal new items.
+  You must infer these steps from the video even if explicit "extraction markers" are missing!
+- **Scroll Timing**: [e.g., "Wait 1.5s after scroll for the list to finish animating"]
 - **False Positives**: [e.g., "Don't confuse 'Search' with 'Search Settings'"]
 - **Hidden States**: [e.g., "If element not found, check if sidebar is collapsed"]
 

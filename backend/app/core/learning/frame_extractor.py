@@ -111,7 +111,7 @@ class FrameExtractor:
 
         return extracted_paths
 
-    async def extract_and_analyze(self, timestamps_ms: list[int]) -> list[dict]:
+    async def extract_and_analyze(self, timestamps_ms: list[int], on_android: bool = False) -> list[dict]:
         """
         Extract keyframes and analyze them with Vision/OCR.
 
@@ -143,7 +143,8 @@ class FrameExtractor:
                 # Use the singleton vision_engine
                 vision_result = await vision_engine.process(
                     task=VisionTask.OCR,
-                    image_source=frame_path
+                    image_source=frame_path,
+                    on_android=on_android
                 )
 
                 if vision_result.success:

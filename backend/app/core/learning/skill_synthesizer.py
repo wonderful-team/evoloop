@@ -31,7 +31,7 @@ ALLOWED_UI_ACTIONS = {
     # Mobile / Android
     "tap", "long_press", "swipe", "input_text", "open_app", "back", "home",
     # Desktop / Global
-    "applescript", "drag_drop", "mouse_click", "mouse_click_extract", "key_press",
+    "applescript", "drag_drop", "click_extract", "key_press",
     # Automation Primitives
     "detect_pagination", "scroll_to_bottom",
     # System
@@ -285,7 +285,7 @@ class WorkflowSynthesizer:
             payload = dict(step.action_args)
 
             # NEW: Handle Alt+Click extract intent from global recording
-            is_extract_intent = payload.get("is_extract_intent", False) or event_type == "mouse_click_extract"
+            is_extract_intent = payload.get("is_extract_intent", False) or event_type == "click_extract"
 
             if is_extract_intent:
                 # Convert click to extract step
@@ -387,7 +387,7 @@ class WorkflowSynthesizer:
                     "payload": payload
                 }
                 is_extract = True
-            elif event_type == "mouse_click_extract":
+            elif event_type == "click_extract":
                 # [NEW] Manual extraction marker from recorder (Alt+Click)
                 macro_step = {
                     "step_number": step.step_number,

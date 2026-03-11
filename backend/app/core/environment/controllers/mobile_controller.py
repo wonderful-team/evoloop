@@ -7,6 +7,7 @@ Extracted from app.domain.tools.environment.mobile to allow:
      tool interface (domain/tools/environment/mobile.py thin wrapper).
 """
 import asyncio
+import json
 import logging
 import math
 import os
@@ -164,8 +165,13 @@ class MobileController:
                     return False
                 return True
 
+            # Check if Atlas harvesting should be disabled (e.g., during macro execution)
+            disable_atlas = kwargs.get("disable_atlas", False)
+
             async def trigger_atlas_harvest(screenshot_path: str | None = None, bundle_id: str | None = None):
                 """Phase 5: Automated Harvesting."""
+                if disable_atlas:
+                    return  # Skip Atlas harvesting for performance during macro execution
                 try:
                     from app.core.atlas.tasks import map_observed_ui_task
                     src = screenshot_path or await asyncio.to_thread(
@@ -354,8 +360,16 @@ class MobileController:
                 if element_name:
                     resolved = await resolve_element(element_name, element_role, timeout_val=timeout, expected_pkg=base_pkg)
                     if isinstance(resolved, str):
-                        return resolved
-                    tx, ty = resolved["x"], resolved["y"]
+                        if tx is not None and ty is not None:
+                            logger.warning(f"[Mobile] Element '{element_name}' not found. Falling back to coordinates ({tx}, {ty})")
+                            if any(isinstance(v, float) for v in [tx, ty]):
+                                sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
+                                tx = int(tx * sw) if isinstance(tx, float) else tx
+                                ty = int(ty * sh) if isinstance(ty, float) else ty
+                        else:
+                            return resolved
+                    else:
+                        tx, ty = resolved["x"], resolved["y"]
                 else:
                     if any(isinstance(v, float) for v in [tx, ty]):
                         sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
@@ -378,8 +392,16 @@ class MobileController:
                 if element_name:
                     resolved = await resolve_element(element_name, element_role, timeout_val=timeout, expected_pkg=base_pkg)
                     if isinstance(resolved, str):
-                        return resolved
-                    tx, ty = resolved["x"], resolved["y"]
+                        if tx is not None and ty is not None:
+                            logger.warning(f"[Mobile] Element '{element_name}' not found. Falling back to coordinates ({tx}, {ty})")
+                            if any(isinstance(v, float) for v in [tx, ty]):
+                                sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
+                                tx = int(tx * sw) if isinstance(tx, float) else tx
+                                ty = int(ty * sh) if isinstance(ty, float) else ty
+                        else:
+                            return resolved
+                    else:
+                        tx, ty = resolved["x"], resolved["y"]
                 else:
                     if any(isinstance(v, float) for v in [tx, ty]):
                         sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
@@ -414,8 +436,12 @@ class MobileController:
                 if not direction:
                     return "Error: 'direction' (up/down/left/right) is required for scroll."
                 sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
-                amount_map = {"small": 0.3, "medium": 0.5, "large": 0.7, "full": 0.9}
-                scroll_ratio = amount_map.get(scroll_amount, 0.5)
+                if isinstance(scroll_amount, (int, float)):
+                    scroll_ratio = min(1.0, max(0.1, float(scroll_amount)))
+                else:
+                    amount_map = {"small": 0.3, "medium": 0.5, "large": 0.7, "full": 0.9}
+                    scroll_ratio = amount_map.get(scroll_amount, 0.5)
+                    
                 scroll_distance = int(sh * scroll_ratio) if direction in ("up", "down") else int(sw * scroll_ratio)
                 center_x = int(sw * 0.5)
                 if element_name:
@@ -428,17 +454,23 @@ class MobileController:
                         center_x, center_y = int(sw * 0.5), int(sh * 0.5)
                 else:
                     center_y = int(sh * 0.5)
+                    
+                # Note: To scroll a page DOWN, you swipe UP (from bottom to top)
                 if direction == "up":
-                    start_y, end_y = center_y + scroll_distance // 2, center_y - scroll_distance // 2
-                    start_x = end_x = center_x
-                elif direction == "down":
+                    # Scroll UP -> Swipe DOWN
                     start_y, end_y = center_y - scroll_distance // 2, center_y + scroll_distance // 2
                     start_x = end_x = center_x
+                elif direction == "down":
+                    # Scroll DOWN -> Swipe UP
+                    start_y, end_y = center_y + scroll_distance // 2, center_y - scroll_distance // 2
+                    start_x = end_x = center_x
                 elif direction == "left":
-                    start_x, end_x = center_x + scroll_distance // 2, center_x - scroll_distance // 2
+                    # Scroll LEFT -> Swipe RIGHT
+                    start_x, end_x = center_x - scroll_distance // 2, center_x + scroll_distance // 2
                     start_y = end_y = center_y
                 else:
-                    start_x, end_x = center_x - scroll_distance // 2, center_x + scroll_distance // 2
+                    # Scroll RIGHT -> Swipe LEFT
+                    start_x, end_x = center_x + scroll_distance // 2, center_x - scroll_distance // 2
                     start_y = end_y = center_y
                 start_x = max(0, min(sw, start_x))
                 start_y = max(0, min(sh, start_y))
@@ -533,6 +565,12 @@ class MobileController:
             elif action == "open_app":
                 if not text:
                     return "Error: package name in 'text' required."
+                
+                # Check for force_stop flag (useful for clean macro starts)
+                if kwargs.get("force_stop") or kwargs.get("restart", False):
+                    await asyncio.to_thread(adb_driver.force_stop, text, device_id=device_id)
+                    await asyncio.sleep(0.5)
+
                 is_dynamic = await atlas_engine.is_dynamic_app(text, "android")
                 icon = "🔄" if is_dynamic else "📍"
                 app_type_str = "DYNAMIC" if is_dynamic else "STATIC"
@@ -650,11 +688,13 @@ class MobileController:
                     if not result.success or not result.elements:
                         if os.path.exists(filepath):
                             os.remove(filepath)
-                        return ""
+                        return "[]" if kwargs.get("extraction_method") == "list" or "loop" in str(kwargs) else ""
 
-                    if kwargs.get("extraction_method") == "list":
+                    # Automatic list detection if extraction_method is list OR method is ocr_region
+                    is_list_request = kwargs.get("extraction_method") == "list" or kwargs.get("extraction_method") == "ocr_region"
+
+                    if is_list_request:
                         # Group elements vertically to find "Rows"
-                        # Simple heuristic: elements within 5% height of each other are in the same record
                         rows = []
                         screen_height = 2400 # Default if unknown
                         try:
@@ -671,7 +711,6 @@ class MobileController:
                         for el in sorted_elements:
                             if abs(el.y - last_y) > threshold:
                                 if current_row:
-                                    # Create a structured item with text and center coordinates
                                     avg_x = sum(e.x for e in current_row) / len(current_row)
                                     avg_y = sum(e.y for e in current_row) / len(current_row)
                                     rows.append({
@@ -693,10 +732,9 @@ class MobileController:
                                 "y": int(avg_y)
                             })
                         
-                        import json
-                        return json.dumps(rows, ensure_ascii=False)
+                        return json.dumps(rows, ensure_ascii=False) if kwargs.get("extraction_method") == "list" else rows
 
-                    # Standard Nearby Matching
+                    # Standard Nearby Matching (Single Item)
                     target_x = x if x is not None else 0.5
                     target_y = y if y is not None else 0.5
 

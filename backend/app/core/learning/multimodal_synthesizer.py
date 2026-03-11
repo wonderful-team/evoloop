@@ -26,7 +26,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 import yaml
-from sqlalchemy import select
+from sqlalchemy import select, or_
 
 from app.core.learning.frame_compressor import (
     CompressedFrame,
@@ -138,11 +138,21 @@ class MultimodalSkillSynthesizer:
             normalizer=CoordinateNormalizer(video_info.width, video_info.height)
         )
 
+        # Step 6.5: 提取真实包名 (用于 open_app 指令)
+        bundle_id = "unknown"
+        for e in events:
+            p = e.payload if isinstance(e.payload, dict) else {}
+            if p.get("package_name"):
+                bundle_id = p["package_name"]
+                break
+        logger.info(f"Target package detected: {bundle_id}")
+
         # Step 7: 调用多模态 LLM
         logger.info(f"Calling Vision LLM ({self.model_name})...")
         try:
             llm_response = await self._call_vision_llm(
                 task_description=recording.task_description,
+                bundle_id=bundle_id,
                 frames=frames_with_events,
                 event_context=event_context
             )
@@ -160,20 +170,33 @@ class MultimodalSkillSynthesizer:
         target_macro = skill_data.get("macro_script") or compiled_macro
         
         # 如果 LLM 返回的是字符串 JSON，尝试解析它
-        if isinstance(target_macro, str) and (target_macro.strip().startswith("[") or target_macro.strip().startswith("{")):
-            try:
-                target_macro = json.loads(target_macro)
-            except Exception as e:
-                logger.warning(f"Failed to parse LLM macro string as JSON: {e}")
+        if isinstance(target_macro, str):
+            cleaned_macro = target_macro.strip()
+            if cleaned_macro.startswith("```json"):
+                cleaned_macro = cleaned_macro[7:].strip()
+            elif cleaned_macro.startswith("```"):
+                cleaned_macro = cleaned_macro[3:].strip()
+            if cleaned_macro.endswith("```"):
+                cleaned_macro = cleaned_macro[:-3].strip()
+                
+            if cleaned_macro.startswith("[") or cleaned_macro.startswith("{"):
+                try:
+                    target_macro = json.loads(cleaned_macro)
+                except Exception as e:
+                    logger.warning(f"Failed to parse LLM macro string as JSON: {e}")
+                    target_macro = compiled_macro
+            else:
+                target_macro = compiled_macro
 
         # [Phase 15] 宏规范化 (处理 LLM 的不规范输出)
         if isinstance(target_macro, list):
             from app.core.learning.skill_synthesizer import WorkflowSynthesizer
             target_macro, _ = WorkflowSynthesizer._cleanup_macro(target_macro)
             skill_data["macro_script"] = target_macro
-
-        verification = await self.verify_macro(target_macro)
-        skill_data["verification_report"] = verification
+        else:
+            logger.warning("Target macro is not a list, falling back to compiled_macro.")
+            target_macro = compiled_macro
+            skill_data["macro_script"] = compiled_macro
 
         # 如果没有有效的 LLM 宏，使用编译出来的作为兜底
         if not skill_data.get("macro_script") or not isinstance(skill_data.get("macro_script"), list):
@@ -183,11 +206,10 @@ class MultimodalSkillSynthesizer:
             skill_data["execution_mode"] = "deterministic"
 
         processing_time = time.time() - start_time
-        logger.info(f"Synthesis completed in {processing_time:.1f}s. Verification: {verification['status']}")
+        logger.info(f"Synthesis completed in {processing_time:.1f}s.")
 
         return {
             "skill": skill_data,
-            "verification": verification,
             "metadata": {
                 "processing_time_seconds": processing_time,
                 "frames_analyzed": len(compressed_frames),
@@ -228,10 +250,17 @@ class MultimodalSkillSynthesizer:
         )
         
         try:
+            # Provide some default parameters for the dry-run to resolve templates like {{max_scrolls}}
+            params = {
+                "max_scrolls": 2,
+                "is_dry_run": True
+            }
+            
             # MacroService.run(thread_id, script_input, params=None)
             result = await MacroService.run(
                 thread_id="multimodal_dryrun",
-                script_input=macro_script
+                script_input=macro_script,
+                params=params
             )
             success = result.get("success", False)
             extracted_data = result.get("extracted_data", {})
@@ -287,18 +316,55 @@ class MultimodalSkillSynthesizer:
     async def _fetch_events(self, session_id: str) -> List[TraceEvent]:
         """从数据库获取事件并进行时间轴归一化"""
         async with session_scope() as session:
-            stmt = select(TraceEvent).where(TraceEvent.recording_session_id == session_id).order_by(TraceEvent.timestamp)
+            stmt = select(TraceEvent).where(
+                or_(
+                    TraceEvent.recording_session_id == session_id,
+                    TraceEvent.session_id == session_id
+                )
+            ).order_by(TraceEvent.timestamp)
             result = await session.execute(stmt)
             events = list(result.scalars().all())
-            
+
+            # [FIX] Detach objects from session to prevent in-place modifications 
+            # (like timestamp normalization) from being persisted back to DB.
+            session.expunge_all()
+
             if not events:
                 return []
-                
-            # 绝对毫秒 -> 相对秒 (以视频开始为 0)
-            base_ms = events[0].timestamp
+
+            # [FIX] Normalize timestamps: ensure they start from 0 (rel ms -> rel sec)
+            # The database timestamp could be Unix MS, Unix Sec, or Relative MS.
+            first_raw_ts = events[0].timestamp if events else 0
+
             for event in events:
-                event.timestamp = (event.timestamp - base_ms) / 1000.0 if event.timestamp else 0.0
-                    
+                if event.timestamp is not None:
+                    # [FIX] For Android mirroring, timestamps are already relative to video start
+                    if event.source in ("android", "mobile"):
+                        # Database stores ms, llm expects relative seconds
+                        event.timestamp = float(event.timestamp) / 1000.0
+                    # Robustly detect timestamp format and normalize to relative seconds
+                    elif event.timestamp > 1000000000000: # Unix MS (e.g. 1773155100916)
+                        event.timestamp = (event.timestamp - first_raw_ts) / 1000.0
+                    elif event.timestamp > 1000000000:    # Unix Seconds (e.g. 1773155100.916)
+                        event.timestamp = (event.timestamp - first_raw_ts)
+                    else:
+                        # Already small value, assume it's relative ms or relative seconds
+                        # If first_raw_ts is also small, it's relative.
+                        if first_raw_ts < 1000000:
+                            # Both small, assume relative seconds
+                            event.timestamp = (event.timestamp - first_raw_ts)
+                        else:
+                            # first_raw_ts is large (Unix MS), but current event.timestamp is small
+                            event.timestamp = float(event.timestamp) / 1000.0
+                else:
+                    event.timestamp = 0.0
+
+            # [DEBUG] 记录时间戳范围
+            if events:
+                timestamps = [e.timestamp for e in events if e.timestamp is not None]
+                if timestamps:
+                    logger.info(f"[_fetch_events] Normalized timestamp range: {min(timestamps):.3f}s - {max(timestamps):.3f}s, count: {len(timestamps)}")
+
             return events
 
     async def _extract_and_compress_frames(
@@ -358,11 +424,12 @@ class MultimodalSkillSynthesizer:
         ]
 
         for i, event in enumerate(events, 1):
-            if event.action_type in ("mouse_move", "cursor_move"):
+            if event.action_type in ("mouse_move", "cursor_move", "touch_up"):
                 continue
 
             ts = getattr(event, 'timestamp', 0.0)
-            line = f"{i}. [{ts:.2f}s] {event.action_type}"
+            action_name = "tap" if event.action_type == "touch_down" else event.action_type
+            line = f"{i}. [{ts:.2f}s] {action_name}"
             
             # 坐标描述
             norm_pos = normalizer.normalize(getattr(event, 'mouse_x', None), getattr(event, 'mouse_y', None))
@@ -399,15 +466,18 @@ class MultimodalSkillSynthesizer:
                     getattr(keyframe.related_event, 'mouse_x', None),
                     getattr(keyframe.related_event, 'mouse_y', None)
                 )
+                payload = getattr(keyframe.related_event, 'payload', {}) or {}
+                action_name = "tap" if keyframe.related_event.action_type == "touch_down" else keyframe.related_event.action_type
                 frame.norm_events = [{
-                    'action': keyframe.related_event.action_type,
+                    'action': action_name,
                     'position': pos,
                     'target_text': getattr(keyframe.related_event, 'target_text', None),
                     'timestamp': getattr(keyframe.related_event, 'timestamp', 0),
+                    'package_name': payload.get('package_name')
                 }]
         return frames
 
-    async def _call_vision_llm(self, task_description: str, frames: List[CompressedFrame], event_context: str) -> str:
+    async def _call_vision_llm(self, task_description: str, bundle_id: str, frames: List[CompressedFrame], event_context: str) -> str:
         """构建多模态消息并调用 LLM"""
         from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -422,6 +492,7 @@ class MultimodalSkillSynthesizer:
             "type": "text", 
             "text": (
                 f"## Task Description\n{task_description}\n\n"
+                f"## Target Application (Package Name)\n{bundle_id}\n\n"
                 f"## Coordinate System\n"
                 "All coordinates are normalized to 0.0-1.0 range (0.0=top/left, 1.0=bottom/right).\n\n"
                 f"## User Actions (Complete Timeline)\n{event_context}\n\n"
