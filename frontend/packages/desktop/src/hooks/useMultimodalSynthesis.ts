@@ -2,7 +2,6 @@ import { useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { invoke } from "@tauri-apps/api/core"
 import { LearningService } from "@/client/sdk.gen"
-import type { RecordedEvent, GlobalRecordedEvent, MobileRecordedEvent } from "@/client/types.gen"
 
 export interface SynthesisResult {
     success: boolean
@@ -21,9 +20,10 @@ export interface UseMultimodalSynthesisOptions {
 }
 
 /**
- * 多模态 Skill 合成 Hook
+ * 多模态 Skill 合成 Hook (v3 Unified)
  *
  * 从视频录制 + 事件序列合成 Expert Guide Skill
+ * [v3] 事件统一通过实时 API 持久化到后端，合成时只需提供 sessionId
  *
  * 使用示例：
  * ```tsx
@@ -55,11 +55,6 @@ export function useMultimodalSynthesis(options: UseMultimodalSynthesisOptions = 
         sessionId: string
         taskDescription: string
         threadId?: string
-        events?: {
-            domEvents?: RecordedEvent[]
-            globalEvents?: GlobalRecordedEvent[]
-            mobileEvents?: MobileRecordedEvent[]
-        }
     }): Promise<SynthesisResult | null> => {
         setIsSynthesizing(true)
         setProgress(t("learning.synthesizingProgress", "正在分析录制内容..."))
@@ -71,11 +66,8 @@ export function useMultimodalSynthesis(options: UseMultimodalSynthesisOptions = 
                     session_id: params.sessionId,
                     task_description: params.taskDescription,
                     thread_id: params.threadId,
-                    events: params.events ? {
-                        dom_events: params.events.domEvents || [],
-                        global_events: params.events.globalEvents || [],
-                        mobile_events: params.events.mobileEvents || [],
-                    } : undefined,
+                    // [v3 Unified] Events are already persisted via real-time APIs
+                    // Backend reads from TraceEvent table by session_id
                 },
             })
 

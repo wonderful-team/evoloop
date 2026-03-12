@@ -1,29 +1,34 @@
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useRecordingStore } from "@/stores/recordingStore"
 import { useActionRecorder } from "@/hooks/useActionRecorder"
 import { useGlobalRecorder } from "@/hooks/useGlobalRecorder"
-import { MirrorService } from "@/services/mirror"
+import { LearningService } from "@/client/sdk.gen"
 import { useScreenRecordingPermission } from "@/hooks/useScreenRecordingPermission"
 import { toast } from "sonner"
 import { useTranslation } from "react-i18next"
-import { listen } from "@tauri-apps/api/event"
+import { listen, emit } from "@tauri-apps/api/event"
 import { invoke } from "@tauri-apps/api/core"
+import { getCurrentWindow } from "@tauri-apps/api/window"
 import { useNavigate } from "@tanstack/react-router"
 
 export function GlobalRecorderManager() {
     const { t, i18n } = useTranslation()
     const navigate = useNavigate()
     const {
-        isRecording: shouldRecord,
+        isRecording,
         activeThreadId,
         isGlobalMode,
         setEventCount,
         setSessionId,
         setVideoPath,
         postRecordingAction,
-        setLocalEvents,
-        clearLocalEvents,
-        stopRecording // to sync back if error
+        stopRecording,
+        isPreparing,
+        countdown,
+        recordingSource,
+        recordingSourceSessionId,
+        deviceResolution,
+        recordingStartTime,
     } = useRecordingStore()
 
     const busyRef = useRef(false)
@@ -36,14 +41,21 @@ export function GlobalRecorderManager() {
         })
     }, [i18n.language, t])
 
-    // Sync state to tray
     useEffect(() => {
         invoke("sync_tray_recording_state", {
-            isRecording: shouldRecord,
+            isRecording,
             startText: t("learning.tray.startRecording"),
             stopText: t("learning.tray.stopRecording")
         })
-    }, [shouldRecord, i18n.language, t])
+    }, [isRecording, i18n.language, t])
+
+    // Sync countdown to tray
+    useEffect(() => {
+        invoke("sync_tray_countdown", {
+            isPreparing,
+            countdown
+        })
+    }, [isPreparing, countdown])
 
     // Listen for tray events
     useEffect(() => {
@@ -101,33 +113,92 @@ export function GlobalRecorderManager() {
 
     // Use delayed persistence - events stay local until user confirms "Synthesize"
     // [FIX] Isolate recording: Disable Mac recorders if source is mobile
-    const recordingSource = useRecordingStore(state => state.recordingSource)
     const isDesktopSource = recordingSource === 'desktop'
 
+    // [v3 Unified] All recordings now use real-time persistence to backend
+    // Events are sent via /global/events and /dom/events APIs
     const domRecorder = useActionRecorder({
         threadId: activeThreadId || "",
         enabled: isDesktopSource && !!activeThreadId,
         scope: isGlobalMode ? "both" : "dom",
-        persistToBackend: false
+        autoFlushInterval: 500,  // 500ms batch flush
+        batchSize: 50
     })
+
+    const [mirrorBounds, setMirrorBounds] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
+
+    const isMarkingRef = useRef(false);
+
+    useEffect(() => {
+        const unlistenStarted = listen("marking-started", () => { isMarkingRef.current = true; });
+        const unlistenStopped = listen("marking-stopped", () => { isMarkingRef.current = false; });
+        return () => {
+            unlistenStarted.then(f => f());
+            unlistenStopped.then(f => f());
+        }
+    }, []);
 
     const globalRecorder = useGlobalRecorder({
         threadId: activeThreadId || "",
-        sessionId: domRecorder.sessionId,
-        enabled: isDesktopSource && isGlobalMode,
-        persistToBackend: false
+        sessionId: isDesktopSource ? domRecorder.sessionId : recordingSourceSessionId,
+        enabled: (isDesktopSource && isGlobalMode) || (!isDesktopSource && isRecording),
+        autoFlushInterval: 500,  // 500ms batch flush
+        batchSize: 50,
+        startTime: recordingStartTime,
+        transformEvent: (event) => {
+            // [v4] Skip interaction events if we are currently marking a region
+            if (isMarkingRef.current) return null;
+
+            // [FIX] Deduplication: skip events on the main EvoLoop window to avoid double recording with domRecorder
+            if (isDesktopSource && event.window_title === "EvoLoop") {
+                return null;
+            }
+
+            // Coordinate transformation for mobile mirror window
+            if (!isDesktopSource && recordingSource === 'mobile' && mirrorBounds && deviceResolution) {
+                if (event.event_type === 'mouse_click' && event.position) {
+                    const [x, y] = event.position;
+                    // Check if inside mirror bounds
+                    if (x >= mirrorBounds.x && x <= mirrorBounds.x + mirrorBounds.width &&
+                        y >= mirrorBounds.y && y <= mirrorBounds.y + mirrorBounds.height) {
+
+                        // Convert to relative (0-1)
+                        const relX = (x - mirrorBounds.x) / mirrorBounds.width;
+                        const relY = (y - mirrorBounds.y) / mirrorBounds.height;
+
+                        // Convert to device pixels
+                        const pixelX = relX * deviceResolution.width;
+                        const pixelY = relY * deviceResolution.height;
+
+                        console.log(`[GlobalRecorderManager] Transformed mirror click: (${x},${y}) -> (${pixelX},${pixelY})`);
+
+                        return {
+                            ...event,
+                            position: [pixelX, pixelY],
+                            source: 'mobile' // [FIX] Tag as mobile so backend stores with correct source
+                        };
+                    } else {
+                        // Clicked outside mirror window during mobile recording - skip capture
+                        return null;
+                    }
+                }
+            }
+
+            return event;
+        }
     })
 
-    const recordingSourceSessionId = useRecordingStore(state => state.recordingSourceSessionId)
     const recordingStartedRef = useRef(false)
 
     // Sync event count to store and tray
     useEffect(() => {
-        const totalEvents = domRecorder.eventCount + globalRecorder.eventCount
+        // [FIX] Avoid double counting: when in global mode, only count global events
+        // [v3] For mobile, we also rely on globalRecorder for mirror window clicks
+        const totalEvents = (isGlobalMode || recordingSource === 'mobile') ? globalRecorder.eventCount : domRecorder.eventCount
         setEventCount(totalEvents)
         // Sync to tray
         invoke("sync_tray_event_count", { count: totalEvents })
-    }, [domRecorder.eventCount, globalRecorder.eventCount, setEventCount])
+    }, [domRecorder.eventCount, globalRecorder.eventCount, isGlobalMode, recordingSource, setEventCount])
 
     // Sync session ID to store (for dialogs)
     useEffect(() => {
@@ -142,9 +213,9 @@ export function GlobalRecorderManager() {
     // Effect to Start/Stop based on store state
     useEffect(() => {
         const manageRecording = async () => {
-            console.log("[GlobalRecorderManager] manageRecording triggered", { shouldRecord, isGlobalMode, activeThreadId, domRecIsRec: domRecorder.isRecording, isDesktopSource })
+            console.log("[GlobalRecorderManager] manageRecording triggered", { isRecording, isGlobalMode, activeThreadId, domRecIsRec: domRecorder.isRecording, isDesktopSource })
             // START
-            if (shouldRecord) {
+            if (isRecording) {
                 if (!domRecorder.isRecording && !busyRef.current) {
                     busyRef.current = true
                     try {
@@ -160,9 +231,23 @@ export function GlobalRecorderManager() {
 
                         console.log(`[GlobalRecorderManager] Starting recorders... isDesktopSource=${isDesktopSource}`)
                         if (isDesktopSource) {
-                            await domRecorder.startRecording()
+                            await domRecorder.startRecording();
                         }
-                        if (isGlobalMode && isDesktopSource) {
+
+                        if ((isGlobalMode && isDesktopSource) || !isDesktopSource) {
+                            // Fetch mirror bounds for coordinate transformation if recording mobile
+                            if (!isDesktopSource && recordingSource === 'mobile') {
+                                try {
+                                    const deviceId = useRecordingStore.getState().recordingSourceDeviceId;
+                                    if (deviceId) {
+                                        const bounds = await invoke<any>("get_mirror_window_bounds", { deviceId });
+                                        setMirrorBounds(bounds);
+                                        console.log("[GlobalRecorderManager] Mirror bounds for transformation:", bounds);
+                                    }
+                                } catch (e) {
+                                    console.warn("[GlobalRecorderManager] Failed to fetch mirror bounds:", e);
+                                }
+                            }
                             await globalRecorder.startRecording()
                         }
 
@@ -175,6 +260,15 @@ export function GlobalRecorderManager() {
                                 const path = await invoke<string>("start_screen_recording")
                                 setVideoPath(path)
                                 console.log("[GlobalRecorderManager] Screen recording started:", path)
+
+                                // [v3 Unified] Pass session info to standalone desktop marker overlay
+                                const currentStartTime = useRecordingStore.getState().recordingStartTime
+                                console.log("[GlobalRecorderManager] Emitting session to marker overlay:", { sessionId: domRecorder.sessionId, recordingStartTime: currentStartTime, threadId: activeThreadId })
+                                await emit('desktop-marker-session', {
+                                    sessionId: domRecorder.sessionId,
+                                    recordingStartTime: currentStartTime,
+                                    threadId: activeThreadId
+                                })
                             } catch (videoErr) {
                                 console.error("[GlobalRecorderManager] Screen recording failed:", videoErr)
                                 toast.error(t("learning.videoRecordingFailed", { error: videoErr }))
@@ -184,6 +278,14 @@ export function GlobalRecorderManager() {
                         }
 
                         toast.info(t("learning.recordingStarted"))
+
+                        // [FIX] Hide main window when recording starts to avoid obstructing the screen
+                        try {
+                            const win = getCurrentWindow()
+                            await win.hide()
+                        } catch (hideErr) {
+                            console.warn("[GlobalRecorderManager] Failed to hide main window:", hideErr)
+                        }
                     } catch (e) {
                         console.error("Failed to start recording", e)
                         toast.error(t("learning.recordingFailed"))
@@ -202,7 +304,7 @@ export function GlobalRecorderManager() {
                     console.log("[GlobalRecorderManager] Stopping recorders...")
                     try {
                         let totalEventsCount = 0
-                        if (isGlobalMode) {
+                        if (isGlobalMode || recordingSource === 'mobile') {
                             const res = await globalRecorder.stopRecording()
                             if (res) totalEventsCount += res.eventCount
                         }
@@ -223,7 +325,7 @@ export function GlobalRecorderManager() {
                             const mobSessionId = useRecordingStore.getState().recordingSourceSessionId
                             if (mobSessionId) {
                                 try {
-                                    const res = await MirrorService.stopMirror(mobSessionId)
+                                    const res = await LearningService.stopMirrorSession({ requestBody: { session_id: mobSessionId } })
                                     vPath = res.video_path || null
                                     // [FIX] Add Android events count from backend to result total
                                     const androidEventCount = res.event_count || 0
@@ -240,17 +342,16 @@ export function GlobalRecorderManager() {
                             setVideoPath(vPath)
                         }
 
-                        // Store local events in the store for later persistence
-                        const domBufferedEvents = domRecorder.getBufferedEvents ? domRecorder.getBufferedEvents() : []
-                        const globalBufferedEvents = globalRecorder.getBufferedEvents ? globalRecorder.getBufferedEvents() : []
-                        setLocalEvents(domBufferedEvents, globalBufferedEvents)
+                        // [v3 Unified] Events are now persisted in real-time via /global/events and /dom/events
+                        // No need to cache locally - just ensure final flush is complete
+                        // Final flush happens in stopRecording() of each recorder
+                        console.log("[GlobalRecorderManager] Recording stopped, events persisted via real-time API")
 
                         if (totalEventsCount === 0) {
                             // If video exists but no events, or video is tiny, it's likely a permission issue
                             toast.warning(t("learning.noEvents"))
                             setSessionId(null)
                             setVideoPath(null)
-                            clearLocalEvents()
                             busyRef.current = false
                             return
                         }
@@ -274,10 +375,17 @@ export function GlobalRecorderManager() {
                             navigate({ to: '/learning' })
                         }
 
+                        // [FIX] Show and focus main window when recording stops
+                        try {
+                            await invoke("show_main_window")
+                        } catch (showErr) {
+                            console.warn("[GlobalRecorderManager] Failed to show/focus main window:", showErr)
+                        }
+
                     } catch (e) {
                         console.error("Failed to stop recording", e)
                     } finally {
-                        // Don't clear videoPath immediately - let the UI (SmartReplayEditor) use it first
+                        // Don't clear videoPath immediately - let the UI (MultimodalSynthesizeDialog) use it first
                         // It will be cleared on next recording start
                         busyRef.current = false
                     }
@@ -286,7 +394,7 @@ export function GlobalRecorderManager() {
         }
 
         manageRecording()
-    }, [shouldRecord, isGlobalMode, activeThreadId, postRecordingAction, navigate]) // eslint-disable-line
+    }, [isRecording, isGlobalMode, activeThreadId, postRecordingAction, navigate]) // eslint-disable-line
 
     return null // Headless
 }

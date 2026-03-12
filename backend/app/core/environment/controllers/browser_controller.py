@@ -18,6 +18,12 @@ from app.core.context import ContextManager
 from app.core.learning.trace_recorder import get_recorder
 from app.core.vision import vision_engine, VisionTask
 from app.infrastructure.drivers.browser import browser_manager
+from app.core.environment.controllers.utils import (
+    cleanup_file,
+    RecordingContext,
+    truncate_output,
+    BatchExecutor,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -135,20 +141,20 @@ class BrowserController:
             # Phase 5: Imitation Learning - Trace Recording
             thread_id = ContextManager.get_var("thread_id") or "default"
             recorder = get_recorder(thread_id)
-            
+            recording_ctx = RecordingContext(
+                platform="web",
+                recorder=recorder,
+                screenshot_actions=("click", "type_text", "navigate", "submit")
+            )
+
             async def _record(action_type: str, params: dict):
-                if recorder.is_recording:
-                    # Optional: capture screenshot if it's a mutation
-                    shot = None
-                    if action_type in ("click", "type_text", "navigate", "submit"):
-                        shot = await page.screenshot(animations="disabled")
-                    await recorder.record_action(
-                        action_type=action_type,
-                        platform="web",
-                        parameters=params,
-                        context={"url": page.url, "title": await page.title()},
-                        screenshot_data=shot
-                    )
+                async def screenshot_fn():
+                    return await page.screenshot(animations="disabled")
+
+                async def context_fn():
+                    return {"url": page.url, "title": await page.title()}
+
+                await recording_ctx.record(action_type, params, screenshot_fn, context_fn)
 
             # ── Navigation ────────────────────────────────────────────────────
             if action == "navigate":
@@ -312,20 +318,14 @@ class BrowserController:
                 else:
                     content = await page.inner_text("body")
                 content = re.sub(r"\n{3,}", "\n\n", content).strip()
-                max_len = 6000
-                if len(content) > max_len:
-                    content = content[:max_len] + f"\n… [truncated, total {len(content)} chars]"
-                return content
+                return truncate_output(content, max_len=6000, suffix="\n… [truncated, total {len(content)} chars]")
 
             elif action == "get_html":
                 if selector:
                     content = await page.locator(selector).first.outer_html()
                 else:
                     content = await page.content()
-                max_len = 8000
-                if len(content) > max_len:
-                    content = content[:max_len] + f"\n<!-- truncated, total {len(content)} chars -->"
-                return content
+                return truncate_output(content, max_len=8000, suffix="\n<!-- truncated, total {len(content)} chars -->")
 
             elif action == "get_attribute":
                 if not selector:
@@ -631,44 +631,14 @@ class BrowserController:
                     return "Error: 'actions' list is required for batch."
 
                 batch_start = time.time()
-                results = []
-                total = len(actions)
-                logger.info(f"[Browser] Starting batch of {total} actions (continue_on_error={continue_on_error})")
+                executor = BatchExecutor(continue_on_error=continue_on_error, delay_ms=delay_ms)
 
-                for i, action_dict in enumerate(actions, 1):
-                    step_start = time.time()
-                    step_action = action_dict.get("action", "unknown")
-                    try:
-                        # Build params for recursive call
-                        params = {k: v for k, v in action_dict.items() if k != "action" and v is not None}
-                        step_result = await cls.execute(action=step_action, **params)
-                        latency = int((time.time() - step_start) * 1000)
-                        results.append({
-                            "step": i, "action": step_action,
-                            "status": "success" if not step_result.startswith("Error") else "error",
-                            "result": step_result, "latency_ms": latency,
-                        })
-                        if step_result.startswith("Error"):
-                            logger.warning(f"[Browser] Batch step {i} ({step_action}) failed: {step_result}")
-                    except Exception as e:
-                        latency = int((time.time() - step_start) * 1000)
-                        results.append({"step": i, "action": step_action, "status": "error", "result": str(e), "latency_ms": latency})
-                        logger.error(f"[Browser] Batch step {i} ({step_action}) crashed: {e}")
-                        if not continue_on_error:
-                            break
-                    if i < total and delay_ms > 0:
-                        await asyncio.sleep(delay_ms / 1000)
+                async def _exec_action(action_dict: dict) -> str:
+                    params = {k: v for k, v in action_dict.items() if k != "action" and v is not None}
+                    return await cls.execute(action=action_dict.get("action", "unknown"), **params)
 
-                total_time = time.time() - batch_start
-                ok = sum(1 for r in results if r["status"] == "success")
-                fail = len(results) - ok
-                lines = [f"✅ Batch Complete: {ok}/{total} succeeded, {fail} failed ({total_time:.2f}s)", ""]
-                for r in results:
-                    icon = "✅" if r["status"] == "success" else "❌"
-                    lines.append(f"  {icon} Step {r['step']}: {r['action']} ({r['latency_ms']}ms)")
-                    if r["status"] == "error":
-                        lines.append(f"      Error: {str(r['result'])[:100]}")
-                return "\n".join(lines)
+                await executor.execute(actions, _exec_action)
+                return executor.format_summary(time.time() - batch_start)
 
             elif action == "upload":
                 if not file_path:

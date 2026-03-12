@@ -22,6 +22,12 @@ from app.core.vision import vision_engine, VisionTask
 from app.core.vision.providers.native.android_a11y import android_a11y_provider
 from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.core.learning.trace_recorder import get_recorder
+from app.core.environment.controllers.utils import (
+    cleanup_file,
+    normalize_text,
+    RecordingContext,
+    resolve_element_alias,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +40,73 @@ class MobileController:
     singleton `adb_driver` from infrastructure. The Reactor (resolve_element)
     and all Phase 4/5/6 logic are encapsulated here.
     """
+
+    # Package name cache: {device_id: (package_name, timestamp)}
+    # Used to avoid repeated ADB queries within a single operation (500ms TTL)
+    _package_cache: Dict[str, tuple[str, float]] = {}
+    _package_cache_ttl_ms: float = 500.0
+
+    @classmethod
+    def _get_cached_package(cls, device_id: str | None) -> str | None:
+        """
+        Get cached package name if valid (within TTL).
+
+        Args:
+            device_id: Device identifier
+
+        Returns:
+            Cached package name or None if expired/missing
+        """
+        if not device_id:
+            return None
+        cache_entry = cls._package_cache.get(device_id)
+        if cache_entry:
+            package, timestamp = cache_entry
+            elapsed_ms = (time.time() - timestamp) * 1000
+            if elapsed_ms < cls._package_cache_ttl_ms:
+                logger.debug(f"[MobileController] Using cached package '{package}' for {device_id}")
+                return package
+        return None
+
+    @classmethod
+    def _set_cached_package(cls, device_id: str | None, package: str) -> None:
+        """
+        Cache package name for device.
+
+        Args:
+            device_id: Device identifier
+            package: Package name to cache
+        """
+        if device_id:
+            cls._package_cache[device_id] = (package, time.time())
+
+    @classmethod
+    async def get_current_app_cached(cls, device_id: str | None = None) -> Dict[str, Any]:
+        """
+        Get current app with caching support.
+
+        Checks cache first, only queries ADB if cache miss or expired.
+        Cache TTL: 500ms to avoid repeated queries within single operation.
+
+        Args:
+            device_id: Device identifier
+
+        Returns:
+            Dict with 'package', 'activity', 'confidence' keys
+        """
+        # Check cache first
+        cached = cls._get_cached_package(device_id)
+        if cached:
+            return {"package": cached, "activity": "", "confidence": 1.0}
+
+        # Cache miss - query ADB
+        result = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
+
+        # Update cache if we got a valid package
+        if result.get("package") and result["package"] not in ("unknown", "error", ""):
+            cls._set_cached_package(device_id, result["package"])
+
+        return result
 
     @classmethod
     async def execute(
@@ -71,38 +144,32 @@ class MobileController:
 
         session_id = ContextManager.get_var("thread_id")
         recorder = get_recorder(session_id) if session_id else None
+        recording_ctx = RecordingContext(
+            platform="android",
+            recorder=recorder,
+            screenshot_actions=("click", "long_press", "swipe", "scroll", "input_text", "open_app"),
+            disable_screenshot=kwargs.get("disable_trace_screenshot", False)
+        )
 
         async def _record(action_type: str, params: dict):
-            if recorder and recorder.is_recording:
-                # Capture screenshot for mutations
-                shot = None
-                if action_type in ("click", "long_press", "swipe", "scroll", "input_text", "open_app"):
-                    try:
-                        shot = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
-                    except Exception: pass
-                
-                curr = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
-                await recorder.record_action(
-                    action_type=action_type,
-                    platform="android",
-                    parameters=params,
-                    context={"package": curr.get("package"), "activity": curr.get("activity")},
-                    screenshot_data=shot
-                )
+            async def screenshot_fn():
+                return await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
+
+            def context_fn():
+                # Use cached package if available (sync path - recording context)
+                pkg = cls._get_cached_package(device_id)
+                if pkg:
+                    return {"package": pkg, "activity": ""}
+                curr = adb_driver.get_current_app(device_id=device_id)
+                return {"package": curr.get("package"), "activity": curr.get("activity")}
+
+            await recording_ctx.record(action_type, params, screenshot_fn, context_fn)
 
         try:
             # Parameter alias
-            if target and not element_name:
-                element_name = target
+            element_name = resolve_element_alias(target, element_name)
 
             # ── Internal helpers (closures capturing context) ──────────────
-
-            import unicodedata
-
-            def normalize_text(t: str) -> str:
-                if not t:
-                    return ""
-                return unicodedata.normalize('NFC', str(t)).lower().strip().replace(" ", "").replace("\u3000", "")
 
             async def finish_action(msg: str) -> str:
                 """Phase 4/6: wait_after_ms logic."""
@@ -111,14 +178,15 @@ class MobileController:
                     return f"{msg} (waited {wait_after_ms}ms)"
                 return msg
 
-            async def probe_hybrid() -> bool:
+            async def probe_hybrid(a11y_result=None) -> bool:
                 """Four-Dimensional H5 Detection."""
-                a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
+                if a11y_result is None:
+                    a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
                 has_webview = False
                 if a11y_result.success:
                     has_webview = any("webview" in el.metadata.get("class", "").lower() for el in a11y_result.elements)
                 try:
-                    curr = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
+                    curr = await cls.get_current_app_cached(device_id=device_id)
                     act = curr.get("activity", "").lower()
                     hb = any(k in act for k in ["web", "hybrid", "browser", "h5"])
                 except Exception:
@@ -129,11 +197,12 @@ class MobileController:
                     logger.info(f"[Mobile] Hybrid/H5 detected (Nodes: {node_count})")
                 return is_h5
 
-            async def flash_intercept() -> bool:
+            async def flash_intercept(a11y_result=None) -> bool:
                 """Phase 4: Atomic Interceptor - Flash-scan for common close buttons."""
-                a11y_res = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
-                if a11y_res.success and a11y_res.elements:
-                    for el in a11y_res.elements:
+                if a11y_result is None:
+                    a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
+                if a11y_result.success and a11y_result.elements:
+                    for el in a11y_result.elements:
                         txt = normalize_text(el.text)
                         if any(normalize_text(k) in txt for k in INTERCEPT_TARGETS):
                             logger.info(f"[Reactor] Intercepted artifact: '{el.text}' at ({el.x}, {el.y})")
@@ -152,13 +221,13 @@ class MobileController:
                     await asyncio.to_thread(adb_driver.launch_app, expected_pkg, device_id=device_id)
                     await asyncio.sleep(2.0)
                     return False
-                curr = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
+                curr = await cls.get_current_app_cached(device_id=device_id)
                 curr_pkg = curr.get("package")
                 if curr_pkg != expected_pkg and curr_pkg != "com.android.systemui":
                     logger.warning(f"[Sentinel] Drift! Current: {curr_pkg}, Expected: {expected_pkg}. Recovering...")
                     await asyncio.to_thread(adb_driver.press_key, "back", device_id=device_id)
                     await asyncio.sleep(1.2)
-                    curr = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
+                    curr = await cls.get_current_app_cached(device_id=device_id)
                     if curr.get("package") != expected_pkg:
                         await asyncio.to_thread(adb_driver.launch_app, expected_pkg, device_id=device_id)
                         await asyncio.sleep(2.5)
@@ -188,10 +257,58 @@ class MobileController:
                         return f"ERR_CONFIRMATION_REQUIRED: The action involves sensitive operations ('{t}'). Please ask the user to confirm before proceeding with this specific step."
                 return None
 
+            async def _normalize_coordinates(
+                px: int | float | None,
+                py: int | float | None
+            ) -> tuple[int | None, int | None]:
+                """Convert relative coordinates (0.0-1.0) to pixel coordinates."""
+                if px is None or py is None:
+                    return px, py
+                if not any(isinstance(v, float) for v in [px, py]):
+                    return int(px), int(py)
+                sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
+                nx = int(px * sw) if isinstance(px, float) else int(px)
+                ny = int(py * sh) if isinstance(py, float) else int(py)
+                return nx, ny
+
+            async def _get_current_package() -> str | None:
+                """Get current app package name."""
+                curr = await cls.get_current_app_cached(device_id=device_id)
+                pkg = curr.get("package")
+                return None if pkg in ("com.android.launcher3",) else pkg
+
+            async def _resolve_with_fallback(
+                name: str,
+                role: str | None,
+                fallback_x: int | None,
+                fallback_y: int | None,
+                timeout_val: float = 8.0,
+                expected_pkg: str | None = None
+            ) -> tuple[int, int] | str:
+                """Resolve element with coordinate fallback."""
+                resolved = await resolve_element(name, role, timeout_val=timeout_val, expected_pkg=expected_pkg)
+                if isinstance(resolved, str):
+                    if fallback_x is not None and fallback_y is not None:
+                        return fallback_x, fallback_y
+                    return resolved
+                return resolved["x"], resolved["y"]
+
+            async def _post_action_cleanup(
+                action_type: str,
+                params: dict,
+                package: str | None,
+                message: str
+            ) -> str:
+                """Common cleanup: record, trigger atlas harvest, finish."""
+                await _record(action_type, params)
+                if package:
+                    asyncio.create_task(trigger_atlas_harvest(bundle_id=package))
+                return await finish_action(message)
+
             async def validate_outcome(before_pkg: str, expected_pkg: str | None = None) -> bool:
                 """Phase 4: Post-Action Validation."""
                 await asyncio.sleep(0.8)
-                curr = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
+                curr = await cls.get_current_app_cached(device_id=device_id)
                 curr_pkg = curr.get("package")
                 if curr_pkg != before_pkg and expected_pkg and curr_pkg != expected_pkg:
                     logger.warning(f"[Validation] Drift suspected: {before_pkg} -> {curr_pkg}")
@@ -202,12 +319,18 @@ class MobileController:
                 """Reactor: High-frequency poll for element with fallback."""
                 start_time = time.time()
                 target_norm = normalize_text(name)
-                await flash_intercept()
-                is_h5 = await probe_hybrid()
+                
+                # Fetch A11y ONCE per resolve_element start
+                initial_a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
+                
+                await flash_intercept(initial_a11y_result)
+                is_h5 = await probe_hybrid(initial_a11y_result)
+                
                 retry_delay = 0.2
                 ocr_attempts = 0
                 max_ocr_attempts = 2
                 last_sentinel_check = start_time
+                used_initial_a11y = False
 
                 while time.time() - start_time < timeout_val:
                     loop_start = time.time()
@@ -216,7 +339,12 @@ class MobileController:
                         last_sentinel_check = loop_start
 
                     # 1. A11y (Native)
-                    a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
+                    if not used_initial_a11y:
+                        a11y_result = initial_a11y_result
+                        used_initial_a11y = True
+                    else:
+                        a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
+                        
                     if a11y_result.success and a11y_result.elements:
                         candidates = []
                         for el in a11y_result.elements:
@@ -243,7 +371,7 @@ class MobileController:
                     elapsed = time.time() - start_time
                     if elapsed > 1.5:
                         try:
-                            curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
+                            curr_app = await cls.get_current_app_cached(device_id=device_id)
                             bundle_id = curr_app.get("package")
                             if bundle_id:
                                 is_dynamic = await atlas_engine.is_dynamic_app(bundle_id, "android")
@@ -351,86 +479,61 @@ class MobileController:
                 return await finish_action(msg)
 
             elif action in ["tap", "click"]:
-                risk_error = await check_risk_confirmation(name=element_name)
-                if risk_error:
+                if risk_error := await check_risk_confirmation(name=element_name):
                     return risk_error
-                tx, ty = x, y
-                curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
-                base_pkg = curr_app.get("package")
+                base_pkg = await _get_current_package()
+                tx, ty = await _normalize_coordinates(x, y)
                 if element_name:
-                    resolved = await resolve_element(element_name, element_role, timeout_val=timeout, expected_pkg=base_pkg)
-                    if isinstance(resolved, str):
-                        if tx is not None and ty is not None:
-                            logger.warning(f"[Mobile] Element '{element_name}' not found. Falling back to coordinates ({tx}, {ty})")
-                            if any(isinstance(v, float) for v in [tx, ty]):
-                                sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
-                                tx = int(tx * sw) if isinstance(tx, float) else tx
-                                ty = int(ty * sh) if isinstance(ty, float) else ty
-                        else:
-                            return resolved
-                    else:
-                        tx, ty = resolved["x"], resolved["y"]
-                else:
-                    if any(isinstance(v, float) for v in [tx, ty]):
-                        sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
-                        tx = int(tx * sw) if isinstance(tx, float) else tx
-                        ty = int(ty * sh) if isinstance(ty, float) else ty
+                    result = await _resolve_with_fallback(element_name, element_role, tx, ty, timeout, base_pkg)
+                    if isinstance(result, str):
+                        return result
+                    tx, ty = result
                 if tx is None or ty is None:
                     return "Error: Coordinates or element_name required."
                 await asyncio.to_thread(adb_driver.tap, tx, ty, device_id=device_id)
-                await _record("click", {"x": tx, "y": ty, "element_name": element_name})
-                asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
-                return await finish_action(f"Tapped at ({tx}, {ty})" + (f" (resolved from '{element_name}')" if element_name else ""))
+                return await _post_action_cleanup(
+                    "click",
+                    {"x": tx, "y": ty, "element_name": element_name},
+                    base_pkg,
+                    f"Tapped at ({tx}, {ty})" + (f" (resolved from '{element_name}')" if element_name else "")
+                )
 
             elif action == "long_press":
-                risk_error = await check_risk_confirmation(name=element_name)
-                if risk_error:
+                if risk_error := await check_risk_confirmation(name=element_name):
                     return risk_error
-                tx, ty = x, y
-                curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
-                base_pkg = curr_app.get("package")
+                base_pkg = await _get_current_package()
+                tx, ty = await _normalize_coordinates(x, y)
                 if element_name:
-                    resolved = await resolve_element(element_name, element_role, timeout_val=timeout, expected_pkg=base_pkg)
-                    if isinstance(resolved, str):
-                        if tx is not None and ty is not None:
-                            logger.warning(f"[Mobile] Element '{element_name}' not found. Falling back to coordinates ({tx}, {ty})")
-                            if any(isinstance(v, float) for v in [tx, ty]):
-                                sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
-                                tx = int(tx * sw) if isinstance(tx, float) else tx
-                                ty = int(ty * sh) if isinstance(ty, float) else ty
-                        else:
-                            return resolved
-                    else:
-                        tx, ty = resolved["x"], resolved["y"]
-                else:
-                    if any(isinstance(v, float) for v in [tx, ty]):
-                        sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
-                        tx = int(tx * sw) if isinstance(tx, float) else tx
-                        ty = int(ty * sh) if isinstance(ty, float) else ty
+                    result = await _resolve_with_fallback(element_name, element_role, tx, ty, timeout, base_pkg)
+                    if isinstance(result, str):
+                        return result
+                    tx, ty = result
                 if tx is None or ty is None:
                     return "Error: Coordinates or element_name required."
                 press_duration = duration_ms if duration_ms > 300 else 800
                 await asyncio.to_thread(adb_driver.long_press, tx, ty, duration_ms=press_duration, device_id=device_id)
-                await _record("long_press", {"x": tx, "y": ty, "element_name": element_name, "duration": press_duration})
-                asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
-                return await finish_action(f"Long-pressed at ({tx}, {ty}) for {press_duration}ms" + (f" (resolved from '{element_name}')" if element_name else ""))
+                return await _post_action_cleanup(
+                    "long_press",
+                    {"x": tx, "y": ty, "element_name": element_name, "duration": press_duration},
+                    base_pkg,
+                    f"Long-pressed at ({tx}, {ty}) for {press_duration}ms" + (f" (resolved from '{element_name}')" if element_name else "")
+                )
 
             elif action == "swipe":
-                risk_error = await check_risk_confirmation(name=element_name)
-                if risk_error:
+                if risk_error := await check_risk_confirmation(name=element_name):
                     return risk_error
                 if any(v is None for v in [x, y, x2, y2]):
                     return "Error: Need x, y, x2, y2."
-                sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
-                rx = int(x * sw) if isinstance(x, float) else x
-                ry = int(y * sh) if isinstance(y, float) else y
-                rx2 = int(x2 * sw) if isinstance(x2, float) else x2
-                ry2 = int(y2 * sh) if isinstance(y2, float) else y2
+                rx, ry = await _normalize_coordinates(x, y)
+                rx2, ry2 = await _normalize_coordinates(x2, y2)
                 await asyncio.to_thread(adb_driver.swipe, rx, ry, rx2, ry2, duration_ms=duration_ms, device_id=device_id)
-                await _record("swipe", {"x1": rx, "y1": ry, "x2": rx2, "y2": ry2, "duration": duration_ms})
-                curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
-                asyncio.create_task(trigger_atlas_harvest(bundle_id=curr_app.get("package")))
-                return await finish_action(f"Swiped from ({rx}, {ry}) to ({rx2}, {ry2})")
+                base_pkg = await _get_current_package()
+                return await _post_action_cleanup(
+                    "swipe",
+                    {"x1": rx, "y1": ry, "x2": rx2, "y2": ry2, "duration": duration_ms},
+                    base_pkg,
+                    f"Swiped from ({rx}, {ry}) to ({rx2}, {ry2})"
+                )
 
             elif action == "scroll":
                 if not direction:
@@ -441,55 +544,48 @@ class MobileController:
                 else:
                     amount_map = {"small": 0.3, "medium": 0.5, "large": 0.7, "full": 0.9}
                     scroll_ratio = amount_map.get(scroll_amount, 0.5)
-                    
+
                 scroll_distance = int(sh * scroll_ratio) if direction in ("up", "down") else int(sw * scroll_ratio)
                 center_x = int(sw * 0.5)
+                center_y = int(sh * 0.5)
                 if element_name:
                     resolved = await resolve_element(element_name, element_role, timeout_val=timeout)
                     if isinstance(resolved, str):
                         return resolved
-                    if "x" in resolved:
-                        center_x, center_y = resolved["x"], resolved["y"]
-                    else:
-                        center_x, center_y = int(sw * 0.5), int(sh * 0.5)
-                else:
-                    center_y = int(sh * 0.5)
-                    
-                # Note: To scroll a page DOWN, you swipe UP (from bottom to top)
+                    center_x, center_y = resolved.get("x", center_x), resolved.get("y", center_y)
+
+                # Calculate swipe coordinates based on direction
                 if direction == "up":
-                    # Scroll UP -> Swipe DOWN
+                    start_x = end_x = center_x
                     start_y, end_y = center_y - scroll_distance // 2, center_y + scroll_distance // 2
-                    start_x = end_x = center_x
                 elif direction == "down":
-                    # Scroll DOWN -> Swipe UP
-                    start_y, end_y = center_y + scroll_distance // 2, center_y - scroll_distance // 2
                     start_x = end_x = center_x
+                    start_y, end_y = center_y + scroll_distance // 2, center_y - scroll_distance // 2
                 elif direction == "left":
-                    # Scroll LEFT -> Swipe RIGHT
+                    start_y = end_y = center_y
                     start_x, end_x = center_x - scroll_distance // 2, center_x + scroll_distance // 2
+                else:  # right
                     start_y = end_y = center_y
-                else:
-                    # Scroll RIGHT -> Swipe LEFT
                     start_x, end_x = center_x + scroll_distance // 2, center_x - scroll_distance // 2
-                    start_y = end_y = center_y
-                start_x = max(0, min(sw, start_x))
-                start_y = max(0, min(sh, start_y))
-                end_x = max(0, min(sw, end_x))
-                end_y = max(0, min(sh, end_y))
+
+                start_x, start_y = max(0, min(sw, start_x)), max(0, min(sh, start_y))
+                end_x, end_y = max(0, min(sw, end_x)), max(0, min(sh, end_y))
+
                 await asyncio.to_thread(adb_driver.swipe, start_x, start_y, end_x, end_y, duration_ms=duration_ms, device_id=device_id)
-                await _record("scroll", {"direction": direction, "amount": scroll_amount, "element_name": element_name})
-                curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
-                asyncio.create_task(trigger_atlas_harvest(bundle_id=curr_app.get("package")))
-                return await finish_action(f"Scrolled {direction} by {scroll_amount}" + (f" (in '{element_name}')" if element_name else ""))
+                base_pkg = await _get_current_package()
+                return await _post_action_cleanup(
+                    "scroll",
+                    {"direction": direction, "amount": scroll_amount, "element_name": element_name},
+                    base_pkg,
+                    f"Scrolled {direction} by {scroll_amount}" + (f" (in '{element_name}')" if element_name else "")
+                )
 
             elif action == "input_text":
                 if not text:
                     return "Error: 'text' required."
-                risk_error = await check_risk_confirmation(name=element_name, input_val=text)
-                if risk_error:
+                if risk_error := await check_risk_confirmation(name=element_name, input_val=text):
                     return risk_error
-                curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
-                base_pkg = curr_app.get("package")
+                base_pkg = await _get_current_package()
                 if element_name:
                     resolved = await resolve_element(element_name, element_role, timeout_val=timeout, expected_pkg=base_pkg)
                     if isinstance(resolved, str):
@@ -497,9 +593,12 @@ class MobileController:
                     await asyncio.to_thread(adb_driver.tap, resolved["x"], resolved["y"], device_id=device_id)
                     await asyncio.sleep(0.5)
                 await asyncio.to_thread(adb_driver.input_text, text, device_id=device_id)
-                await _record("input_text", {"text": text, "element_name": element_name})
-                asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
-                return await finish_action(f"Input text: {text[:50]}..." + (f" (focused on '{element_name}')" if element_name else ""))
+                return await _post_action_cleanup(
+                    "input_text",
+                    {"text": text, "element_name": element_name},
+                    base_pkg,
+                    f"Input text: {text[:50]}..." + (f" (focused on '{element_name}')" if element_name else "")
+                )
 
             elif action == "scroll_to_bottom":
                 # [Phase 20] Incremental Scrolling for Infinite lists
@@ -565,7 +664,7 @@ class MobileController:
             elif action == "open_app":
                 if not text:
                     return "Error: package name in 'text' required."
-                
+
                 # Check for force_stop flag (useful for clean macro starts)
                 if kwargs.get("force_stop") or kwargs.get("restart", False):
                     await asyncio.to_thread(adb_driver.force_stop, text, device_id=device_id)
@@ -574,13 +673,27 @@ class MobileController:
                 is_dynamic = await atlas_engine.is_dynamic_app(text, "android")
                 icon = "🔄" if is_dynamic else "📍"
                 app_type_str = "DYNAMIC" if is_dynamic else "STATIC"
+
+                # Launch app first
                 await asyncio.to_thread(adb_driver.launch_app, text, device_id=device_id)
-                if is_dynamic:
-                    strategy = await atlas_engine.get_app_strategy(text, "android")
-                    if strategy:
-                        logger.info(f"[Mobile] Preloaded strategy for {text}")
-                else:
-                    asyncio.create_task(trigger_atlas_harvest(bundle_id=text))
+
+                # Preload Atlas data in background for faster subsequent operations
+                async def _preload_atlas_data():
+                    """Background task to preload Atlas data after app launch."""
+                    try:
+                        if is_dynamic:
+                            # For dynamic apps: preload strategy
+                            strategy = await atlas_engine.get_app_strategy(text, "android")
+                            if strategy:
+                                logger.info(f"[Mobile] Atlas strategy preloaded for {text}")
+                        else:
+                            # For static apps: trigger harvest
+                            await trigger_atlas_harvest(bundle_id=text)
+                    except Exception as e:
+                        logger.debug(f"[Mobile] Atlas preload for {text} (non-critical): {e}")
+
+                asyncio.create_task(_preload_atlas_data())
+
                 await _record("open_app", {"package": text, "type": app_type_str})
                 return await finish_action(f"{icon} Opened: {text} [{app_type_str}]")
 
@@ -606,16 +719,15 @@ class MobileController:
                 if not intents:
                     return "Error: 'intents' list is required for intent_flow."
                 steps_done = 0
-                curr = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
-                base_pkg = curr.get("package")
-                if base_pkg == "com.android.launcher3":
-                    base_pkg = None
-                for it in intents:
+                base_pkg = await _get_current_package()
+
+                async def _execute_intent_step(it: dict) -> str | None:
+                    """Execute a single intent step. Returns error message or None on success."""
                     act = it.get("action")
                     tgt = it.get("target") or it.get("element_name")
-                    risk_error = await check_risk_confirmation(name=tgt, input_val=it.get("text"))
-                    if risk_error:
+                    if risk_error := await check_risk_confirmation(name=tgt, input_val=it.get("text")):
                         return risk_error
+
                     if act == "click" and tgt:
                         resolved = await resolve_element(tgt, expected_pkg=base_pkg, timeout_val=timeout)
                         if isinstance(resolved, str):
@@ -624,16 +736,21 @@ class MobileController:
                         if not await validate_outcome(base_pkg):
                             await check_sentinel(base_pkg)
                     elif act == "input" and it.get("text"):
-                        text_to_input = it["text"]
                         if tgt:
                             resolved = await resolve_element(tgt, expected_pkg=base_pkg, timeout_val=timeout)
                             if isinstance(resolved, str):
                                 return resolved
                             await asyncio.to_thread(adb_driver.tap, resolved["x"], resolved["y"], device_id=device_id)
                             await asyncio.sleep(0.3)
-                        await asyncio.to_thread(adb_driver.input_text, text_to_input, device_id=device_id)
+                        await asyncio.to_thread(adb_driver.input_text, it["text"], device_id=device_id)
+                    return None
+
+                for it in intents:
+                    if error := await _execute_intent_step(it):
+                        return error
                     steps_done += 1
                     await asyncio.sleep(0.5)
+
                 asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
                 return await finish_action(f"Successfully executed intent flow with {steps_done} steps.")
 
@@ -655,105 +772,88 @@ class MobileController:
                 return await finish_action(text or "")
 
             elif action == "gui_extract":
-                # [Phase 16] Intelligent GUI Extraction (OCR-Nearby)
                 from app.core.vision.router import VisionRouter
+
+                def _crop_screenshot(filepath: str, region_str: str) -> bool:
+                    try:
+                        from PIL import Image
+                        coords = [int(c.strip()) for c in region_str.split(",")]
+                        if len(coords) != 4:
+                            return False
+                        rx, ry, rw, rh = coords
+                        with Image.open(filepath) as img:
+                            box = (max(0, rx), max(0, ry), min(img.size[0], rx + rw), min(img.size[1], ry + rh))
+                            img.crop(box).save(filepath)
+                        return True
+                    except Exception:
+                        return False
+
+                def _group_elements_to_rows(elements, screen_height: int = 2400):
+                    threshold = screen_height * 0.05
+                    sorted_elements = sorted(elements, key=lambda e: e.y)
+                    rows, current_row, last_y = [], [], -float('inf')
+
+                    for el in sorted_elements:
+                        if abs(el.y - last_y) > threshold:
+                            if current_row:
+                                avg_x = sum(e.x for e in current_row) / len(current_row)
+                                avg_y = sum(e.y for e in current_row) / len(current_row)
+                                rows.append({
+                                    "text": " | ".join([e.text for e in sorted(current_row, key=lambda x: x.x)]),
+                                    "x": int(avg_x), "y": int(avg_y)
+                                })
+                            current_row, last_y = [el], el.y
+                        else:
+                            current_row.append(el)
+
+                    if current_row:
+                        avg_x = sum(e.x for e in current_row) / len(current_row)
+                        avg_y = sum(e.y for e in current_row) / len(current_row)
+                        rows.append({
+                            "text": " | ".join([e.text for e in sorted(current_row, key=lambda x: x.x)]),
+                            "x": int(avg_x), "y": int(avg_y)
+                        })
+                    return rows
 
                 # 1. Capture Screenshot
                 filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
-                if region and filepath and os.path.exists(filepath):
-                    try:
-                        from PIL import Image
-                        coords = [int(c.strip()) for c in region.split(",")]
-                        if len(coords) == 4:
-                            rx, ry, rw, rh = coords
-                            with Image.open(filepath) as img:
-                                box = (max(0, rx), max(0, ry), min(img.size[0], rx + rw), min(img.size[1], ry + rh))
-                                cropped = img.crop(box)
-                                cropped.save(filepath)
-                    except Exception: pass
+                if region and filepath:
+                    _crop_screenshot(filepath, region)
 
                 if not filepath or not os.path.exists(filepath):
                     return "Error: Failed to capture screenshot for GUI extraction."
 
                 try:
-                    # 2. OCR Processing
                     router = VisionRouter()
                     provider = await router.get_provider(VisionTask.OCR, on_android=True, device_id=device_id)
                     if not provider:
-                        if os.path.exists(filepath):
-                            os.remove(filepath)
                         return "Error: No OCR provider available for mobile GUI extraction."
 
                     result = await provider.process(VisionTask.OCR, filepath)
                     if not result.success or not result.elements:
-                        if os.path.exists(filepath):
-                            os.remove(filepath)
                         return "[]" if kwargs.get("extraction_method") == "list" or "loop" in str(kwargs) else ""
 
-                    # Automatic list detection if extraction_method is list OR method is ocr_region
-                    is_list_request = kwargs.get("extraction_method") == "list" or kwargs.get("extraction_method") == "ocr_region"
+                    is_list_request = kwargs.get("extraction_method") in ("list", "ocr_region")
 
                     if is_list_request:
-                        # Group elements vertically to find "Rows"
-                        rows = []
-                        screen_height = 2400 # Default if unknown
-                        try:
-                            _, h = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
-                            screen_height = h
-                        except: pass
-                        
-                        threshold = screen_height * 0.05
-                        sorted_elements = sorted(result.elements, key=lambda e: e.y)
-                        
-                        current_row = []
-                        last_y = -float('inf')
-                        
-                        for el in sorted_elements:
-                            if abs(el.y - last_y) > threshold:
-                                if current_row:
-                                    avg_x = sum(e.x for e in current_row) / len(current_row)
-                                    avg_y = sum(e.y for e in current_row) / len(current_row)
-                                    rows.append({
-                                        "text": " | ".join([e.text for e in sorted(current_row, key=lambda x: x.x)]),
-                                        "x": int(avg_x),
-                                        "y": int(avg_y)
-                                    })
-                                current_row = [el]
-                                last_y = el.y
-                            else:
-                                current_row.append(el)
-                        
-                        if current_row:
-                            avg_x = sum(e.x for e in current_row) / len(current_row)
-                            avg_y = sum(e.y for e in current_row) / len(current_row)
-                            rows.append({
-                                "text": " | ".join([e.text for e in sorted(current_row, key=lambda x: x.x)]),
-                                "x": int(avg_x),
-                                "y": int(avg_y)
-                            })
-                        
+                        _, screen_height = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
+                        rows = _group_elements_to_rows(result.elements, screen_height)
                         return json.dumps(rows, ensure_ascii=False) if kwargs.get("extraction_method") == "list" else rows
 
                     # Standard Nearby Matching (Single Item)
                     target_x = x if x is not None else 0.5
                     target_y = y if y is not None else 0.5
-
-                    best_match = None
-                    min_dist = float('inf')
+                    best_match, min_dist = None, float('inf')
 
                     for el in result.elements:
-                        # Normalize to 0-1 for comparison if needed, but providers vary.
-                        # Simple Euclidean distance on logical points or normalized center.
-                        dist = math.sqrt((el.x - (target_x if target_x > 1 else target_x * 1000))**2 + 
+                        dist = math.sqrt((el.x - (target_x if target_x > 1 else target_x * 1000))**2 +
                                          (el.y - (target_y if target_y > 1 else target_y * 1000))**2)
                         if dist < min_dist:
-                            min_dist = dist
-                            best_match = el.text
+                            min_dist, best_match = dist, el.text
 
                     return best_match or ""
                 finally:
-                    if filepath and os.path.exists(filepath):
-                        os.remove(filepath)
+                    cleanup_file(filepath)
 
             return f"Error: Unknown action '{action}'."
 

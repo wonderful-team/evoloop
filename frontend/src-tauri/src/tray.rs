@@ -32,6 +32,16 @@ pub fn sync_tray_recording_state(
     }
     // Update blinking state
     state.is_blinking.store(is_recording, Ordering::Relaxed);
+
+    // Explicitly clear tray title and start time when stopping
+    if !is_recording {
+        *state.recording_start_time.lock().unwrap() = None;
+        let tray_lock = state.tray.lock().unwrap();
+        if let Some(tray) = tray_lock.as_ref() {
+            #[cfg(target_os = "macos")]
+            let _ = tray.set_title(Some(""));
+        }
+    }
 }
 
 #[tauri::command]
@@ -75,6 +85,35 @@ pub fn sync_tray_event_count(
 #[tauri::command]
 #[cfg(mobile)]
 pub fn sync_tray_event_count() {}
+
+#[tauri::command]
+#[cfg(desktop)]
+pub fn sync_tray_countdown(
+    state: tauri::State<'_, AppServiceState>,
+    is_preparing: bool,
+    countdown: i32,
+) {
+    state.is_preparing.store(is_preparing, Ordering::Relaxed);
+    state.countdown.store(countdown, Ordering::Relaxed);
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+pub fn sync_tray_countdown() {}
+
+/// Set recording start time for Android recording (which doesn't use start_screen_recording)
+#[tauri::command]
+#[cfg(desktop)]
+pub fn set_recording_start_time(
+    state: tauri::State<'_, AppServiceState>,
+) {
+    *state.recording_start_time.lock().unwrap() = Some(std::time::Instant::now());
+    println!("[Tray] Recording start time set for Android recording");
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+pub fn set_recording_start_time() {}
 
 // ===== Tray Setup =====
 
@@ -164,32 +203,52 @@ pub fn setup_tray(
     // 2. Start timer + event count thread
     let state = app.state::<AppServiceState>();
     let is_blinking       = state.is_blinking.clone();
+    let is_preparing      = state.is_preparing.clone();
+    let countdown_arc     = state.countdown.clone();
     let recording_start   = Arc::clone(&state.recording_start_time);
     let record_item_arc   = Arc::clone(&state.record_item);
     let event_count_arc   = Arc::clone(&state.event_count);
     let tray_handle       = tray.clone();
 
     std::thread::spawn(move || {
-        let mut was_recording = false;  // Track if we were in recording state last iteration
+        let mut was_recording_or_preparing = false;  // Track if we were in recording or preparing state last iteration
         loop {
             let is_recording = is_blinking.load(Ordering::Relaxed);
+            let preparing = is_preparing.load(Ordering::Relaxed);
+
+            if preparing {
+                was_recording_or_preparing = true;
+                let cd = countdown_arc.load(Ordering::Relaxed);
+                let cd_str = format!("{}", cd);
+                #[cfg(target_os = "macos")]
+                let _ = tray_handle.set_title(Some(&cd_str));
+                
+                std::thread::sleep(std::time::Duration::from_millis(200));
+                continue;
+            }
+
             if is_recording {
-                was_recording = true;
+                was_recording_or_preparing = true;
 
                 // --- Keep red icon while recording (no blinking) ---
                 let _ = tray_handle.set_icon(Some(active_icon.clone()));
 
                 // --- Calculate time ---
-                let elapsed_secs = recording_start.lock().unwrap()
-                    .map(|t| t.elapsed().as_secs())
-                    .unwrap_or(0);
-                let mm = elapsed_secs / 60;
-                let ss = elapsed_secs % 60;
-                let time_str = format!("{:02}:{:02}", mm, ss);
+                let start_time_lock = recording_start.lock().unwrap();
+                if let Some(start_time) = start_time_lock.as_ref() {
+                    let elapsed_secs = start_time.elapsed().as_secs();
+                    let mm = elapsed_secs / 60;
+                    let ss = elapsed_secs % 60;
+                    let time_str = format!("{:02}:{:02}", mm, ss);
 
-                // --- Show time in tray title (macOS) ---
-                #[cfg(target_os = "macos")]
-                let _ = tray_handle.set_title(Some(&time_str));
+                    // --- Show time in tray title (macOS) ---
+                    #[cfg(target_os = "macos")]
+                    let _ = tray_handle.set_title(Some(&time_str));
+                } else {
+                    // Start time not yet available (ffmpeg starting or preparation)
+                    #[cfg(target_os = "macos")]
+                    let _ = tray_handle.set_title(Some("00:00"));
+                }
 
                 // --- Event count in menu text ---
                 let event_count = event_count_arc.load(Ordering::Relaxed);
@@ -199,21 +258,21 @@ pub fn setup_tray(
                     let _ = item.set_text(label);
                 }
 
-                std::thread::sleep(std::time::Duration::from_millis(700));
+                std::thread::sleep(std::time::Duration::from_millis(500));
             } else {
-                // Only reset when transitioning from recording to stopped state
-                if was_recording {
+                // Only reset when transitioning from recording/preparing to stopped state
+                if was_recording_or_preparing {
                     let _ = tray_handle.set_icon(Some(normal_icon.clone()));
                     // Clear tray title (macOS)
                     #[cfg(target_os = "macos")]
-                    let _ = tray_handle.set_title(None::<&str>);
+                    let _ = tray_handle.set_title(Some(""));
                     let lock = record_item_arc.lock().unwrap();
                     if let Some(item) = lock.as_ref() {
                         let _ = item.set_text("开始录制");
                     }
-                    was_recording = false;
+                    was_recording_or_preparing = false;
                 }
-                std::thread::sleep(std::time::Duration::from_millis(1000));
+                std::thread::sleep(std::time::Duration::from_millis(500));
             }
         }
     });

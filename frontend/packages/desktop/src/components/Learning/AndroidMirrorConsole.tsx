@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Smartphone, RefreshCcw, Monitor, StopCircle, AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { MirrorService } from '@/services/mirror';
+import { invoke } from '@tauri-apps/api/core';
+import { LearningService } from "@/client/sdk.gen";
 import { Button } from '@evoloop/shared/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@evoloop/shared/components/ui/card';
 import { Badge } from '@evoloop/shared/components/ui/badge';
@@ -24,23 +25,52 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
         setPostRecordingAction,
         setSessionId,
         setVideoPath,
+        recordingStartTime,
+        setDeviceResolution,
     } = useRecordingStore();
     const [lastSessionId, setLastSessionId] = useState<string | null>(null);
     const [lastVideoPath, setLastVideoPath] = useState<string | null>(null);
+    const {
+        openAndroidMarkerOverlay,
+        closeAndroidMarkerOverlay,
+    } = useRecordingStore();
 
     const { data, isLoading, refetch, isFetching } = useQuery({
         queryKey: ['mirror-devices'],
-        queryFn: () => MirrorService.listDevices(),
+        queryFn: () => LearningService.listMirrorDevices(),
         refetchInterval: 5000,
     });
 
     const startMutation = useMutation({
-        mutationFn: (deviceId: string) => MirrorService.startMirror(deviceId),
-        onSuccess: (res) => {
+        mutationFn: (deviceId: string) => LearningService.startMirrorSession({ requestBody: { device_id: deviceId, record_video: true } }),
+        onSuccess: async (res) => {
             if (res.success) {
+                // [FIX] Fetch device resolution for coordinate unification
+                try {
+                    const devices = await LearningService.listMirrorDevices();
+                    const device = devices.devices.find((d: any) => d.serial === res.device_id);
+                    if (device) {
+                        // Use ADB directly if possible, or fallback to sensible default
+                        // In v3, we can call a helper on LearningService
+                        const resolution = await LearningService.getDeviceResolution({ deviceId: res.device_id });
+                        if (resolution) {
+                            console.log("[AndroidMirrorConsole] Device resolution:", resolution);
+                            setDeviceResolution(resolution);
+                        }
+                    }
+                } catch (resErr) {
+                    console.error("[AndroidMirrorConsole] Failed to fetch device resolution:", resErr);
+                }
+
                 setActiveSession({ sessionId: res.session_id, deviceId: res.device_id });
                 // [FIX] Immediately set store to recording state as backend is already recording
                 startRecording('global', 'mobile', res.device_id, res.session_id);
+                // [FIX] Set tray recording start time for Android recording
+                try {
+                    await invoke('set_recording_start_time');
+                } catch (e) {
+                    console.error('[AndroidMirrorConsole] Failed to set recording start time:', e);
+                }
                 toast.success(t('learning.mirror.active'));
             }
         },
@@ -55,15 +85,69 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
 
     // Effect when mobile recording stops - update local state to show "Create Skill" card
     useEffect(() => {
-        if (!isRecording && recordingSource === 'mobile' && sessionIdFromStore && videoPathFromStore) {
-            setLastSessionId(sessionIdFromStore);
-            setLastVideoPath(videoPathFromStore);
+        if (!isRecording && recordingSource === 'mobile' && activeSession) {
+            // Clear active session when recording stops
             setActiveSession(null);
+            // Set last session info if available
+            if (sessionIdFromStore) setLastSessionId(sessionIdFromStore);
+            if (videoPathFromStore) setLastVideoPath(videoPathFromStore);
         }
-    }, [isRecording, recordingSource, sessionIdFromStore, videoPathFromStore]);
+    }, [isRecording, recordingSource, activeSession, sessionIdFromStore, videoPathFromStore]);
+
+    // Get active thread ID from store for Android marker overlay
+    const activeThreadId = useRecordingStore(state => state.activeThreadId);
+
+    // Handle Android marker overlay - open when recording starts, close when stops
+    useEffect(() => {
+        const handleRecordingState = async () => {
+            if (isRecording && activeSession?.sessionId) {
+                // Open Android marker overlay when recording starts
+                await openAndroidMarkerOverlay();
+
+                // [FIX] Wait for overlay to be ready before sending session info
+                const { listen } = await import('@tauri-apps/api/event');
+                const { emit } = await import('@tauri-apps/api/event');
+
+                // Wait for the overlay to emit 'android-marker-ready'
+                await new Promise<void>((resolve) => {
+                    const unlisten = listen('android-marker-ready', () => {
+                        console.log("[AndroidMirrorConsole] Overlay is ready, sending session info");
+                        unlisten.then(f => f());
+                        resolve();
+                    });
+
+                    // Timeout after 5 seconds just in case
+                    setTimeout(() => {
+                        console.warn("[AndroidMirrorConsole] Timeout waiting for overlay ready, sending anyway");
+                        resolve();
+                    }, 5000);
+                });
+
+                // Send session ID, thread ID and start time to overlay
+                const payload = {
+                    sessionId: activeSession.sessionId,
+                    threadId: activeThreadId || activeSession.sessionId,
+                    recordingStartTime: recordingStartTime,
+                    deviceId: activeSession.deviceId
+                };
+                console.log("[AndroidMirrorConsole] Emitting session to overlay:", payload);
+                await emit('android-marker-session', payload);
+            } else {
+                // Close marker overlay when recording stops
+                await closeAndroidMarkerOverlay();
+            }
+        };
+
+        handleRecordingState();
+
+        // Cleanup on unmount
+        return () => {
+            closeAndroidMarkerOverlay();
+        };
+    }, [isRecording, activeSession, activeThreadId, recordingStartTime, openAndroidMarkerOverlay, closeAndroidMarkerOverlay]);
 
     const stopMutation = useMutation({
-        mutationFn: (sessionId: string) => MirrorService.stopMirror(sessionId),
+        mutationFn: (sessionId: string) => LearningService.stopMirrorSession({ requestBody: { session_id: sessionId } }),
         onSuccess: (res: any, sessionId: string) => {
             setActiveSession(null);
             // Only show the card if not already handled by recording flow
@@ -238,15 +322,18 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
                                                 setPostRecordingAction('synthesize');
                                                 stopRecording();
 
-                                                // [CRITICAL FIX]: Immediately persist events to DB from memory 
+                                                // [CRITICAL FIX]: Immediately persist events to DB from memory
                                                 // so they aren't lost if the backend restarts before synthesis!
                                                 if (activeSession) {
                                                     try {
-                                                        await MirrorService.persistEvents(activeSession.sessionId);
+                                                        await LearningService.persistMirrorEvents({ requestBody: { session_id: activeSession.sessionId } });
                                                     } catch (e) {
                                                         console.error("Failed to persist mirror events:", e);
                                                     }
                                                 }
+
+                                                // [FIX] Clear active session to update device list button state
+                                                setActiveSession(null);
                                             }}
                                         >
                                             <StopCircle className="h-4 w-4" />
@@ -308,6 +395,8 @@ export function AndroidMirrorConsole({ onOpenEditor }: AndroidMirrorConsoleProps
                 </div>
             </div>
 
+            {/* NOTE: Android marker overlay is now a system-level floating window */}
+            {/* It is created via Tauri WebviewWindow API when recording starts */}
         </div>
     );
 }

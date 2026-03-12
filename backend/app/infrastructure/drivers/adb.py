@@ -490,42 +490,123 @@ class ADBDriver:
         except Exception as e:
             return {"error": str(e)}
 
+    def get_uptime(self, device_id: str | None = None) -> float:
+        """
+        Get the device's kernel uptime in seconds.
+        Useful for synchronizing host time with Android kernel timestamps.
+        """
+        stdout, _ = self._run_adb(["shell", "cat", "/proc/uptime"], device_id=device_id)
+        # Format: "uptime_seconds idle_seconds"
+        try:
+            return float(stdout.split()[0])
+        except (IndexError, ValueError):
+            logger.error(f"Failed to parse uptime from: {stdout}")
+            return 0.0
+
     def get_current_app(self, device_id: str | None = None) -> dict:
         """
         Get the currently focused application package and activity.
-        Improved version with multiple fallback strategies for different Android versions.
+        Robust version with multi-strategy validation to avoid system UI false positives.
         """
+        def is_system_package(pkg: str) -> bool:
+            """Check if package is system UI that should be filtered out."""
+            if not pkg:
+                return True
+            system_prefixes = (
+                "com.android.systemui",
+                "com.android.launcher",
+                "com.google.android.inputmethod",
+                "android",
+            )
+            return pkg.startswith(system_prefixes) or pkg in ("unknown", "error", "")
+
+        def parse_package_from_line(line: str, pattern: str) -> tuple[str, str] | None:
+            """Extract package and activity from a line using regex pattern."""
+            match = re.search(pattern, line)
+            if match:
+                return match.group(1), match.group(2)
+            return None
+
         try:
-            # Strategy 1: dumpsys activity activities (Most accurate for recently resumed)
-            stdout, _ = self._run_adb(["shell", "dumpsys", "activity", "activities"], device_id=device_id)
-            for line in stdout.splitlines():
-                if ("mResumedActivity" in line or "topResumedActivity" in line) and "/" in line:
-                    match = re.search(r'([\w\.]+)/([\w\.\$]+)', line)
-                    if match:
-                        return {"package": match.group(1), "activity": match.group(2)}
+            results = []
 
-            # Strategy 2: dumpsys window | grep mCurrentFocus
-            stdout, _ = self._run_adb(["shell", "dumpsys", "window", "windows"], device_id=device_id)
-            for line in stdout.splitlines():
-                if ("mCurrentFocus" in line or "mFocusedApp" in line) and "/" in line:
-                    # Example: mCurrentFocus=Window{... u0 com.example.app/com.example.app.MainActivity}
-                    match = re.search(r'([\w\.]+)/([\w\.\$]+)', line)
-                    if match:
-                        return {"package": match.group(1), "activity": match.group(2)}
+            # Strategy 1: dumpsys activity top (Most reliable for foreground app)
+            # This shows the actual top activity stack, less affected by system overlays
+            try:
+                stdout, _ = self._run_adb(["shell", "dumpsys", "activity", "top"], device_id=device_id, timeout=5)
+                for line in stdout.splitlines():
+                    if "ACTIVITY" in line and "/" in line:
+                        # ACTIVITY com.android.settings/.Settings u0
+                        parsed = parse_package_from_line(line, r'ACTIVITY\s+([\w\.]+)/([\w\.\$]+)')
+                        if parsed:
+                            pkg, act = parsed
+                            if not is_system_package(pkg):
+                                results.append((pkg, act, "top", 3))  # weight 3
+                            break  # Only take first (topmost) activity
+            except Exception as e:
+                logger.debug(f"Strategy 1 (top) failed: {e}")
 
-            # Strategy 3: dumpsys activity top
-            stdout, _ = self._run_adb(["shell", "dumpsys", "activity", "top"], device_id=device_id, timeout=5)
-            for line in stdout.splitlines():
-                if "ACTIVITY" in line and "/" in line:
-                    # ACTIVITY com.android.settings/.Settings u0
-                    match = re.search(r'ACTIVITY\s+([\w\.]+)/([\w\.\$]+)', line)
-                    if match:
-                        return {"package": match.group(1), "activity": match.group(2)}
+            # Strategy 2: dumpsys activity activities (mResumedActivity)
+            try:
+                stdout, _ = self._run_adb(["shell", "dumpsys", "activity", "activities"], device_id=device_id)
+                for line in stdout.splitlines():
+                    if ("mResumedActivity" in line or "topResumedActivity" in line) and "/" in line:
+                        parsed = parse_package_from_line(line, r'([\w\.]+)/([\w\.\$]+)')
+                        if parsed:
+                            pkg, act = parsed
+                            if not is_system_package(pkg):
+                                results.append((pkg, act, "resumed", 2))  # weight 2
+                            break
+            except Exception as e:
+                logger.debug(f"Strategy 2 (resumed) failed: {e}")
 
-            return {"package": "unknown", "activity": "unknown"}
+            # Strategy 3: dumpsys window (mCurrentFocus)
+            try:
+                stdout, _ = self._run_adb(["shell", "dumpsys", "window", "windows"], device_id=device_id)
+                for line in stdout.splitlines():
+                    if ("mCurrentFocus" in line or "mFocusedApp" in line) and "/" in line:
+                        parsed = parse_package_from_line(line, r'([\w\.]+)/([\w\.\$]+)')
+                        if parsed:
+                            pkg, act = parsed
+                            if not is_system_package(pkg):
+                                results.append((pkg, act, "focus", 1))  # weight 1
+                            break
+            except Exception as e:
+                logger.debug(f"Strategy 3 (focus) failed: {e}")
+
+            # Vote for the most likely package
+            if not results:
+                return {"package": "unknown", "activity": "unknown", "confidence": "none"}
+
+            # If all strategies agree, high confidence
+            packages = [r[0] for r in results]
+            if len(set(packages)) == 1:
+                return {
+                    "package": results[0][0],
+                    "activity": results[0][1],
+                    "confidence": "high",
+                    "source": ",".join([r[2] for r in results])
+                }
+
+            # Weighted vote (prefer top activity)
+            pkg_weights = {}
+            for pkg, act, source, weight in results:
+                pkg_weights[pkg] = pkg_weights.get(pkg, 0) + weight
+
+            best_pkg = max(pkg_weights.keys(), key=lambda p: pkg_weights[p])
+            best_act = next(r[1] for r in results if r[0] == best_pkg)
+
+            return {
+                "package": best_pkg,
+                "activity": best_act,
+                "confidence": "medium",
+                "source": ",".join([r[2] for r in results if r[0] == best_pkg]),
+                "alternatives": list(set(packages))
+            }
+
         except Exception as e:
             logger.error(f"Failed to get current Android app: {e}")
-            return {"package": "error", "activity": "error"}
+            return {"package": "error", "activity": "error", "confidence": "none"}
 
     def get_package_info(self, package: str, device_id: str | None = None) -> dict:
         """

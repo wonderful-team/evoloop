@@ -19,6 +19,7 @@
         "maximized": true
       }
     ],
+    "macOSPrivateApi": true,
     "security": {
       "csp": null,
       "assetProtocol": {

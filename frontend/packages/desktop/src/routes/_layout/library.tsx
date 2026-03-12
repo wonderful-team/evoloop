@@ -7,8 +7,7 @@ import {
 import { useState, useRef } from "react"
 import { useTranslation } from "react-i18next"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { MemoryService } from "@/client"
-import { LibraryService } from "@/services/library"
+import { MemoryService, LibraryService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@evoloop/shared/components/ui/card"
 import { Badge } from "@evoloop/shared/components/ui/badge"
@@ -48,11 +47,11 @@ function LibraryPage() {
     // --- MANAGEMENT QUERIES ---
     const { data: libraryFiles, isLoading: isLoadingFiles, refetch: refreshFiles } = useQuery({
         queryKey: ["libraryFiles"],
-        queryFn: () => LibraryService.listFiles(),
+        queryFn: () => LibraryService.listLibraryFiles({}),
     })
 
     const uploadMutation = useMutation({
-        mutationFn: (file: File) => LibraryService.uploadFile(file),
+        mutationFn: (file: File) => LibraryService.uploadLibraryFile({ formData: { file } }),
         onSuccess: () => {
             toast.success(t("common.success", "Upload successful"))
             refreshFiles()
@@ -64,7 +63,7 @@ function LibraryPage() {
     })
 
     const deleteMutation = useMutation({
-        mutationFn: (id: number) => LibraryService.deleteFile(id),
+        mutationFn: (id: number) => LibraryService.deleteLibraryFile({ fileId: id }),
         onSuccess: () => {
             toast.success(t("common.success", "File deleted"))
             refreshFiles()

@@ -2,7 +2,6 @@
 Learning API Routes.
 Handles human-in-the-loop requests and imitation learning endpoints.
 """
-import base64
 import json
 import logging
 import math
@@ -44,7 +43,6 @@ from app.models import (
     Conversation,
     LearnedSkill,
     Message,
-    RecordingAnnotation,
     SynthesisJob,
     TraceEvent,
 )
@@ -103,6 +101,45 @@ class PersistMirrorEventsRequest(BaseModel):
     """请求模型：持久化存储镜像事件"""
     session_id: str
     thread_id: str | None = None  # [NEW] Optional thread binding
+
+
+class GlobalEventData(BaseModel):
+    """全局桌面事件数据"""
+    timestamp: float
+    event_type: str  # "mouse_click", "key_press"
+    key: str | None = None
+    mouse_button: str | None = None
+    position: tuple[float, float] | None = None
+    window_title: str | None = None
+    app_name: str | None = None
+    process_id: int | None = None
+    source: str | None = None # [NEW] Optional source override (e.g. "mobile" for mirror clicks)
+
+
+class GlobalEventsRequest(BaseModel):
+    """请求模型：接收全局桌面事件"""
+    session_id: str
+    thread_id: str
+    events: list[GlobalEventData]
+
+
+class DomEventData(BaseModel):
+    """DOM 事件数据"""
+    timestamp: float
+    event_type: str  # "click", "input", "scroll", etc.
+    selector: str | None = None
+    target_text: str | None = None
+    value: str | None = None
+    url: str | None = None
+    xpath: str | None = None
+    coordinates: dict | None = None  # {x, y, width, height}
+
+
+class DomEventsRequest(BaseModel):
+    """请求模型：接收 DOM 事件"""
+    session_id: str
+    thread_id: str
+    events: list[DomEventData]
 
 
 class ImportSkillsRequest(BaseModel):
@@ -316,17 +353,6 @@ def cleanup_requests(max_age_hours: int = 24):
 # ============ Trace Recording API (Phase 1) ============
 
 
-class RecordedEvent(BaseModel):
-    """Single recorded event from frontend."""
-
-    timestamp: float  # Unix timestamp in ms
-    event_type: str  # "click", "input", "message", "tool_result", "screenshot"
-    target_selector: str | None = None  # CSS selector of target element
-    target_text: str | None = None  # Text content of target element
-    payload: dict | None = None  # Additional event data
-    screenshot_base64: str | None = None  # Base64 encoded screenshot (optional)
-
-
 class StartRecordingRequest(BaseModel):
     thread_id: str
     task_name: str | None = None
@@ -345,35 +371,6 @@ class StopRecordingResponse(BaseModel):
 
 # In-memory session tracking
 _active_sessions: dict[str, dict] = {}
-
-
-class Modifiers(BaseModel):
-    alt: bool = False
-    ctrl: bool = False
-    meta: bool = False
-    shift: bool = False
-
-
-class GlobalRecordedEvent(BaseModel):
-    timestamp: float
-    event_type: str  # "key_press", "mouse_click", "mouse_click_extract", "window_change"
-    key: str | None = None
-    mouse_button: str | None = None
-    position: tuple[float, float] | None = None
-    window_title: str | None = None
-    app_name: str | None = None
-    process_id: int | None = None
-    window_bounds: tuple[float, float, float, float] | None = None
-    modifiers: Modifiers | None = None  # NEW: Alt/Ctrl/Meta/Shift states
-
-
-class MobileRecordedEvent(BaseModel):
-    """Android/Mobile recorded event from mirror session."""
-    timestamp: float  # Relative milliseconds from recording start
-    event_type: str  # "touch", "key", "swipe", etc.
-    target_selector: str | None = None  # UI element selector (if available)
-    target_text: str | None = None  # UI element text (if available)
-    payload: dict | None = None  # Additional event data including x, y, package_name, device_id
 
 
 class UploadScreenshotResponse(BaseModel):
@@ -933,43 +930,85 @@ async def start_mirror_recording(body: StartMirrorRecordingRequest):
 
 @router.post("/mirror/stop")
 async def stop_mirror_session(body: StopMirrorRequest):
-    """Stop an active mirroring session."""
+    """
+    Stop an active mirroring session.
+
+    [v3 Unified] Events are now persisted in real-time during recording,
+    so this endpoint no longer needs to persist events on stop.
+    """
     result = mirror_manager.stop_session(body.session_id)
     if result is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Events are stored locally in the session (delayed persistence)
-    # They will be persisted when user clicks "Synthesize"
+    # [v3] Events are persisted in real-time during recording
+    # [v3] Query database for total count of all events (ADB + DOM/Marker + Global)
+    # This ensures "No operation captured" doesn't trigger if only regions were marked
+    async with session_scope() as db:
+        stmt = select(func.count(TraceEvent.id)).where(
+            TraceEvent.recording_session_id == body.session_id
+        )
+        total_count_result = await db.execute(stmt)
+        total_count = total_count_result.scalar() or 0
+
     return {
         "success": True,
         "message": "Mirroring session stopped",
         "video_path": result.get("video_path"),
         "session_id": result.get("session_id"),
-        "event_count": len(result.get("events", []))
+        "event_count": total_count
     }
+
+
+@router.get("/mirror/device/{device_id}/resolution")
+async def get_device_resolution(device_id: str):
+    """Get Android device screen resolution via ADB."""
+    from app.infrastructure.drivers.adb import adb_driver
+    try:
+        size = await adb_driver.get_screen_size(device_id)
+        if not size:
+            return {"width": 1080, "height": 1920}  # Sensible fallback
+        return {"width": size[0], "height": size[1]}
+    except Exception as e:
+        logger.error(f"Failed to get device resolution: {e}")
+        return {"width": 1080, "height": 1920}
 
 
 @router.post("/mirror/events")
 async def persist_mirror_events(body: PersistMirrorEventsRequest):
     """
-    Persist Android mirror events to backend (delayed persistence).
-    Called when user confirms skill synthesis.
+    [v3 Unified] Persist Android mirror events to backend.
+
+    [NOTE] With v3 unified architecture, events are now persisted in real-time
+    during recording via _persist_loop(). This endpoint serves as:
+    1. A final flush/confirmation for any remaining buffered events
+    2. A retry mechanism in case of network issues during recording
+
+    Called when user confirms skill synthesis (recommended for data integrity).
     """
-    # Get events from session
+    # Get events from session (may include any not yet persisted)
     events = mirror_manager.get_session_events(body.session_id)
     if not events:
-        return {"success": True, "message": "No events to persist", "count": 0}
+        return {"success": True, "message": "No events to persist (already persisted in real-time)", "count": 0}
 
+    # Check if events are already in DB (real-time persistence succeeded)
+    async with session_scope() as db:
+        stmt = select(TraceEvent).where(TraceEvent.recording_session_id == body.session_id)
+        result = await db.execute(stmt)
+        existing_count = len(result.scalars().all())
+
+        if existing_count >= len(events):
+            logger.info(f"[persist_mirror_events] Events already persisted ({existing_count} in DB vs {len(events)} in session)")
+            return {"success": True, "message": "Events already persisted in real-time", "count": existing_count}
+
+    # Persist any missing events
     try:
         async with session_scope() as db:
             for i, event_data in enumerate(events):
                 payload_data = event_data.get("payload", {})
 
-                # [FIX] event_data["timestamp"] is now relative milliseconds from recording start
-                # This aligns with video timing for keyframe extraction
+                # event_data["timestamp"] is relative milliseconds from video recording start
                 relative_ms = event_data.get("timestamp", 0)
 
-                # [FIX] Remove hardcoded fields and use dynamic payload values
                 node_name = event_data.get("node_name") or payload_data.get("device_id") or "android_mirror"
                 source = event_data.get("source") or "mobile"
                 thread_id = body.thread_id or "global"
@@ -981,7 +1020,7 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest):
                     step_number=i,
                     node_name=node_name,
                     action_type="user_interaction",
-                    timestamp=relative_ms,  # [FIX] Relative milliseconds for video sync
+                    timestamp=relative_ms,  # Relative milliseconds from video start
                     event_type=event_data["event_type"],
                     target_selector=event_data.get("target_selector"),
                     target_text=event_data.get("target_text"),
@@ -1005,6 +1044,135 @@ async def persist_mirror_events(body: PersistMirrorEventsRequest):
         return {"success": True, "message": "Events persisted", "count": len(events)}
     except Exception as e:
         logger.exception(f"Failed to persist mirror events: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to persist events: {str(e)}")
+
+
+@router.post("/global/events")
+async def persist_global_events(body: GlobalEventsRequest):
+    """
+    Persist global desktop events to backend (real-time/batched persistence).
+    Unified with mirror events - all events go to TraceEvent table.
+    """
+    if not body.events:
+        return {"success": True, "message": "No events to persist", "count": 0}
+
+    try:
+        async with session_scope() as db:
+            for i, event in enumerate(body.events):
+                # Build payload with all available data
+                payload = {
+                    "key": event.key,
+                    "mouse_button": event.mouse_button,
+                    "position": event.position,
+                    "process_id": event.process_id,
+                    "platform": "macos",
+                    "relative_timestamp_ms": int(event.timestamp),
+                }
+                # Remove None values
+                payload = {k: v for k, v in payload.items() if v is not None}
+                
+                # [v3] Standardize source and app name
+                source = event.source or "global"
+                app_name = event.app_name
+                
+                # [FIX] For mobile events, sync package name from mirror session
+                if source == "mobile":
+                    session = mirror_manager.get_session(body.session_id)
+                    if session:
+                        resolved_pkg = session.get_current_package()
+                        if resolved_pkg:
+                            app_name = resolved_pkg
+                
+                # Ensure package_name is also in the payload for downstream consumers (like synthesizer)
+                if app_name:
+                    payload["package_name"] = app_name
+
+                trace_event = TraceEvent(
+                    session_id=body.session_id,
+                    recording_session_id=body.session_id,
+                    thread_id=body.thread_id,
+                    step_number=i,
+                    node_name=app_name or "global_recorder",
+                    action_type="user_interaction",
+                    timestamp=int(event.timestamp),  # Relative milliseconds
+                    event_type=event.event_type,
+                    target_selector=f"global://screen/{event.position[0]}/{event.position[1]}" if event.position else None,
+                    target_text=event.window_title,
+                    payload=payload,
+                    mouse_x=event.position[0] if event.position else None,
+                    mouse_y=event.position[1] if event.position else None,
+                    source=source,
+                    app_name=app_name,
+                    window_title=event.window_title,
+                    state_snapshot=json.dumps({"context": "global_recorder"}),
+                    action_payload=json.dumps(payload)
+                )
+                db.add(trace_event)
+
+                if i < 5:
+                    logger.info(f"[persist_global_events] Event {i}: {event.event_type} at {int(event.timestamp)}ms, "
+                                f"app={event.app_name}, window={event.window_title}")
+
+        return {"success": True, "message": "Global events persisted", "count": len(body.events)}
+    except Exception as e:
+        logger.exception(f"Failed to persist global events: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to persist events: {str(e)}")
+
+
+@router.post("/dom/events")
+async def persist_dom_events(body: DomEventsRequest):
+    """
+    Persist DOM events to backend (real-time/batched persistence).
+    Unified with mirror events - all events go to TraceEvent table.
+    """
+    if not body.events:
+        return {"success": True, "message": "No events to persist", "count": 0}
+
+    try:
+        async with session_scope() as db:
+            for i, event in enumerate(body.events):
+                # Build payload with all available data
+                payload = {
+                    "value": event.value,
+                    "url": event.url,
+                    "xpath": event.xpath,
+                    "coordinates": event.coordinates,
+                    "platform": "web",
+                    "relative_timestamp_ms": int(event.timestamp),
+                }
+                # Remove None values
+                payload = {k: v for k, v in payload.items() if v is not None}
+
+                is_region_extract = event.event_type == "region_extract"
+                action_type = "region_extract" if is_region_extract else "user_interaction"
+                node_name = "region_marker" if is_region_extract else "dom_recorder"
+
+                trace_event = TraceEvent(
+                    session_id=body.session_id,
+                    recording_session_id=body.session_id,
+                    thread_id=body.thread_id,
+                    step_number=i,
+                    node_name=node_name,
+                    action_type=action_type,
+                    timestamp=int(event.timestamp),  # Relative milliseconds
+                    event_type=event.event_type,
+                    target_selector=event.selector,
+                    target_text=event.target_text,
+                    payload=payload,
+                    source="dom",
+                    app_name=event.url if not is_region_extract else "screen_region",  # URL as app_name for web
+                    state_snapshot=json.dumps({"context": node_name, "url": event.url}),
+                    action_payload=json.dumps(payload)
+                )
+                db.add(trace_event)
+
+                if i < 5:
+                    logger.info(f"[persist_dom_events] Event {i}: {event.event_type} at {int(event.timestamp)}ms, "
+                                f"selector={event.selector}, url={event.url}")
+
+        return {"success": True, "message": "DOM events persisted", "count": len(body.events)}
+    except Exception as e:
+        logger.exception(f"Failed to persist DOM events: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to persist events: {str(e)}")
 
 
@@ -1067,25 +1235,17 @@ async def validate_skill(skill_id: int):
 # ============ Multimodal Synthesis API (NEW) ============
 
 
-class RecordingEventsInput(BaseModel):
-    """录制事件输入（用于单次合成流程）"""
-    dom_events: list[RecordedEvent] = []      # DOM 事件（桌面录制）
-    global_events: list[GlobalRecordedEvent] = []  # 全局事件（桌面/移动录制）
-    mobile_events: list[MobileRecordedEvent] = []  # Mobile/Android 事件（移动录制）
-
-
 class SynthesizeFromRecordingRequest(BaseModel):
-    """从录制合成 Skill 的请求（v2 - 合并版）
+    """从录制合成 Skill 的请求（v3 统一版）
 
-    支持两种模式：
-    1. 传统模式：只传 session_id，从数据库读取已持久化的事件
-    2. 合并模式：同时传入 events，自动持久化后再合成（推荐，减少 HTTP 请求）
+    [v3 统一架构] 所有录制类型（Desktop/Global/Android）的事件都已通过
+    实时 API（/global/events, /dom/events, /mirror/events）持久化到数据库，
+    合成时统一从数据库读取，不再支持通过请求体传入事件。
     """
     video_path: str           # Tauri 返回的视频文件路径
-    session_id: str           # 关联事件的 session_id
+    session_id: str           # 关联事件的 session_id（用于从数据库查询事件）
     task_description: str     # 用户描述的任务
     thread_id: str | None = None
-    events: RecordingEventsInput | None = None  # 可选：直接传入事件数据（v2 新增）
 
 
 class SynthesizeFromRecordingResponse(BaseModel):
@@ -1102,154 +1262,30 @@ class SynthesizeFromRecordingResponse(BaseModel):
     events_processed: int
 
 
-async def _save_events_internal(
-    session_id: str,
-    thread_id: str | None,
-    dom_events: list[RecordedEvent],
-    global_events: list[GlobalRecordedEvent],
-    mobile_events: list[MobileRecordedEvent] = None
-) -> int:
-    """内部函数：保存事件到数据库（合并 DOM、全局和 Mobile 事件）
-
-    Returns:
-        保存的事件总数
-    """
-    total_saved = 0
-    mobile_events = mobile_events or []
-
-    async with session_scope() as db:
-        # 保存 DOM 事件
-        for idx, event in enumerate(dom_events):
-            ui_info = None
-            if event.target_selector or event.target_text:
-                ui_info = json.dumps({
-                    "selector": event.target_selector,
-                    "text": event.target_text
-                })
-
-            # 处理截图
-            screenshot_path = None
-            if event.screenshot_base64:
-                try:
-                    from app.core.vision.storage import screenshot_storage
-                    b64_data = event.screenshot_base64
-                    if "," in b64_data:
-                        b64_data = b64_data.split(",", 1)[1]
-                    image_data = base64.b64decode(b64_data)
-                    screenshot_path = screenshot_storage.save_screenshot(
-                        image_data=image_data,
-                        purpose="dataset",
-                        platform="macos",
-                        bundle_id=session_id,
-                        suffix=f"event_{idx}"
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to save screenshot: {e}")
-
-            trace_event = TraceEvent(
-                thread_id=thread_id or "synthesis",
-                step_number=idx + 1,
-                node_name="user_interaction",
-                state_snapshot=json.dumps({"context": "user_recording"}),
-                action_type=event.event_type,
-                action_payload=json.dumps(event.payload or {}),
-                is_human_action=True,
-                screenshot_path=screenshot_path,
-                ui_element_info=ui_info,
-                recording_session_id=session_id,
-                session_id=session_id,
-                timestamp=event.timestamp,
-                event_type=event.event_type,
-                target_selector=event.target_selector,
-                target_text=event.target_text,
-                payload=event.payload,
-            )
-            db.add(trace_event)
-            total_saved += 1
-
-        # 保存全局事件
-        for idx, event in enumerate(global_events):
-            payload = {
-                "window_bounds": event.window_bounds,
-                "is_extract_intent": event.event_type == "mouse_click_extract",
-                "modifiers": event.modifiers.dict() if event.modifiers else {},
-            }
-
-            trace_event = TraceEvent(
-                thread_id=thread_id or "synthesis",
-                step_number=len(dom_events) + idx + 1,
-                node_name="global_observation",
-                action_type=event.event_type,
-                is_human_action=True,
-                source="global",
-                window_title=event.window_title,
-                app_name=event.app_name,
-                process_id=event.process_id,
-                mouse_x=event.position[0] if event.position else None,
-                mouse_y=event.position[1] if event.position else None,
-                key_name=event.key,
-                mouse_button=event.mouse_button,
-                state_snapshot=json.dumps({"context": "global_recording"}),
-                action_payload=json.dumps(payload),
-                recording_session_id=session_id,
-                session_id=session_id,
-                timestamp=event.timestamp,
-                event_type=event.event_type,
-            )
-            db.add(trace_event)
-            total_saved += 1
-
-        # 保存 Mobile 事件
-        for idx, event in enumerate(mobile_events):
-            payload_data = event.payload or {}
-
-            trace_event = TraceEvent(
-                thread_id=thread_id or "synthesis",
-                step_number=len(dom_events) + len(global_events) + idx + 1,
-                node_name=payload_data.get("device_id") or "android_mirror",
-                action_type="user_interaction",
-                is_human_action=True,
-                source="mobile",
-                app_name=payload_data.get("package_name"),
-                mouse_x=payload_data.get("x"),
-                mouse_y=payload_data.get("y"),
-                state_snapshot=json.dumps({"context": "android_mirror"}),
-                action_payload=json.dumps(payload_data),
-                recording_session_id=session_id,
-                session_id=session_id,
-                timestamp=event.timestamp,
-                event_type=event.event_type,
-                target_selector=event.target_selector,
-                target_text=event.target_text,
-                payload=payload_data,
-            )
-            db.add(trace_event)
-            total_saved += 1
-
-    logger.info(f"[_save_events_internal] Saved {total_saved} events ({len(dom_events)} DOM, {len(global_events)} global, {len(mobile_events)} mobile)")
-    return total_saved
-
-
 @router.post("/skills/synthesize-from-recording", response_model=SynthesizeFromRecordingResponse)
 async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
     """
-    从视频录制同步合成 Skill（多模态版本 - v2 合并版）
+    从视频录制同步合成 Skill（多模态版本 - v3 统一版）
 
     流程：
-    1. 【可选】如果传入 events 数据，先持久化到数据库
-    2. 从视频提取关键帧
-    3. 压缩帧并归一化坐标
-    4. 调用 Kimi 多模态 LLM 分析
-    5. 解析并保存 Skill
+    1. 【统一】所有录制类型（Desktop/Global/Android）的事件都已通过实时接口持久化到数据库
+    2. 【统一】合成器从数据库读取事件（按 session_id 查询）
+    3. 从视频提取关键帧
+    4. 压缩帧并归一化坐标
+    5. 调用 Kimi 多模态 LLM 分析
+    6. 解析并保存 Skill
 
     **注意**：此 API 是同步的，处理时间约 10-60 秒，请设置合适的客户端超时。
 
-    **v2 变更**：支持直接传入 events 数据，无需预先调用 recordEvents/extractKeyframes
+    **v3 变更**：
+    - 所有录制类型统一使用实时事件持久化（/global/events, /dom/events, /mirror/events）
+    - 合成时统一从数据库读取事件，不再依赖请求中的 events 参数
+    - 移除了向后兼容的 events 参数处理
     """
     import time
     start_time = time.time()
 
-    logger.info(f"Received synthesis request: session={request.session_id}, video={request.video_path}, has_events={request.events is not None}")
+    logger.info(f"[v3] Received synthesis request: session={request.session_id}, video={request.video_path}")
 
     try:
         # 验证视频文件存在
@@ -1259,21 +1295,8 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
                 detail=f"Video file not found: {request.video_path}"
             )
 
-        # [v2 新增] Step 0: 如果提供了事件数据，先持久化
-        if request.events:
-            dom_events = request.events.dom_events or []
-            global_events = request.events.global_events or []
-            mobile_events = request.events.mobile_events or []
-
-            if dom_events or global_events or mobile_events:
-                logger.info(f"[v2] Persisting {len(dom_events)} DOM, {len(global_events)} global, {len(mobile_events)} mobile events")
-                await _save_events_internal(
-                    session_id=request.session_id,
-                    thread_id=request.thread_id,
-                    dom_events=dom_events,
-                    global_events=global_events,
-                    mobile_events=mobile_events
-                )
+        # [v3 统一] 事件已通过实时 API 持久化，直接读取数据库
+        logger.info("[v3] Using unified flow: events will be read from database (already persisted via real-time API)")
 
         # 创建合成器
         synthesizer = MultimodalSkillSynthesizer()
@@ -1453,21 +1476,6 @@ async def preview_recording_data(
 
 # ============ Smart Replay Synthesis ============
 
-class AnnotationCreate(BaseModel):
-    """创建标注请求"""
-    session_id: str
-    thread_id: str | None = None
-    annotation_type: str = "extract_region"  # extract_region, click_point, task_boundary
-    video_timestamp_ms: int
-    frame_number: int | None = None
-    region_x: float | None = None
-    region_y: float | None = None
-    region_width: float | None = None
-    region_height: float | None = None
-    related_event_id: int | None = None
-    user_note: str | None = None
-
-
 class AnnotationResponse(BaseModel):
     """标注响应"""
     id: int
@@ -1476,6 +1484,31 @@ class AnnotationResponse(BaseModel):
     video_timestamp_ms: int
     region: dict | None
     user_note: str | None
+    created_at: datetime
+
+
+class AndroidExtractPointRequest(BaseModel):
+    """Android镜像实时提取点标记请求 - 支持区域标记"""
+    session_id: str
+    thread_id: str | None = None
+    x: float  # 区域左上角 X 坐标（相对坐标 0-1）
+    y: float  # 区域左上角 Y 坐标（相对坐标 0-1）
+    width: float | None = None   # 区域宽度（相对坐标 0-1），null 表示单点标记
+    height: float | None = None  # 区域高度（相对坐标 0-1），null 表示单点标记
+    timestamp_ms: int | None = None  # 可选：录制时间戳
+    note: str | None = None  # 可选：用户备注
+
+
+class AndroidExtractPointResponse(BaseModel):
+    """Android镜像提取点标记响应"""
+    id: int
+    session_id: str
+    x: float
+    y: float
+    width: float | None  # 区域宽度（相对坐标 0-1）
+    height: float | None  # 区域高度（相对坐标 0-1）
+    timestamp_ms: int | None
+    note: str | None
     created_at: datetime
 
 
@@ -1509,100 +1542,156 @@ class SynthesisJobResponse(BaseModel):
     error: dict | None  # 失败时包含错误信息
 
 
-@router.post("/recordings/annotations", response_model=AnnotationResponse)
-async def create_annotation(body: AnnotationCreate):
-    """
-    创建录制标注
-
-    用户在回放视频时框选的数据区域。
-    """
-
-    async with session_scope() as db:
-        annotation = RecordingAnnotation(
-            session_id=body.session_id,
-            thread_id=body.thread_id,
-            annotation_type=body.annotation_type,
-            video_timestamp_ms=body.video_timestamp_ms,
-            frame_number=body.frame_number,
-            region_x=body.region_x,
-            region_y=body.region_y,
-            region_width=body.region_width,
-            region_height=body.region_height,
-            related_event_id=body.related_event_id,
-            user_note=body.user_note,
-        )
-        db.add(annotation)
-        await db.flush()
-        await db.refresh(annotation)
-
-        return AnnotationResponse(
-            id=annotation.id,
-            session_id=annotation.session_id,
-            annotation_type=annotation.annotation_type,
-            video_timestamp_ms=annotation.video_timestamp_ms,
-            region={
-                "x": annotation.region_x,
-                "y": annotation.region_y,
-                "width": annotation.region_width,
-                "height": annotation.region_height,
-            } if annotation.region_x is not None else None,
-            user_note=annotation.user_note,
-            created_at=annotation.created_at,
-        )
-
-
 @router.get("/recordings/{session_id}/annotations", response_model=list[AnnotationResponse])
 async def list_annotations(session_id: str):
     """
-    获取录制的所有标注
+    获取录制的所有标注 (从 TraceEvent 表中查询 region_extract 类型事件)
+    [Scheme A] 废弃 RecordingAnnotation 表，统一使用 TraceEvent
     """
-    from sqlalchemy import select
-
     async with session_scope() as db:
-        stmt = select(RecordingAnnotation).where(
-            RecordingAnnotation.session_id == session_id
-        ).order_by(RecordingAnnotation.video_timestamp_ms)
+        # [Scheme A] Query TraceEvent for region_extract events instead of RecordingAnnotation
+        stmt = select(TraceEvent).where(
+            TraceEvent.recording_session_id == session_id,
+            TraceEvent.action_type == "region_extract"
+        ).order_by(TraceEvent.timestamp)
 
         result = await db.execute(stmt)
-        annotations = result.scalars().all()
+        events = result.scalars().all()
 
-        return [
-            AnnotationResponse(
-                id=a.id,
-                session_id=a.session_id,
-                annotation_type=a.annotation_type,
-                video_timestamp_ms=a.video_timestamp_ms,
-                region={
-                    "x": a.region_x,
-                    "y": a.region_y,
-                    "width": a.region_width,
-                    "height": a.region_height,
-                } if a.region_x is not None else None,
-                user_note=a.user_note,
-                created_at=a.created_at,
+        annotations = []
+        for e in events:
+            # Extract coordinates from payload
+            coords = e.payload.get("coordinates") if e.payload else None
+            annotations.append(
+                AnnotationResponse(
+                    id=e.id,
+                    session_id=e.recording_session_id or session_id,
+                    annotation_type="extract",
+                    video_timestamp_ms=int(e.timestamp) if e.timestamp else 0,
+                    region={
+                        "x": coords.get("x") if coords else None,
+                        "y": coords.get("y") if coords else None,
+                        "width": coords.get("width") if coords else None,
+                        "height": coords.get("height") if coords else None,
+                    } if coords else None,
+                    user_note=e.target_text or "Screen region extraction",
+                    created_at=e.created_at.isoformat() if e.created_at else datetime.now().isoformat(),
+                )
             )
-            for a in annotations
-        ]
+
+        return annotations
 
 
-@router.delete("/recordings/annotations/{annotation_id}")
-async def delete_annotation(annotation_id: int):
+@router.post("/mirror/extract-point", response_model=AndroidExtractPointResponse)
+async def create_android_extract_point(body: AndroidExtractPointRequest):
     """
-    删除标注
+    [Android Mirror] 实时标记数据提取点
+    [Scheme A] 废弃 RecordingAnnotation 表，统一使用 TraceEvent
+
+    在Android镜像录制过程中，用户通过悬浮按钮标记需要提取数据的屏幕位置。
+    该API创建一个 TraceEvent (action_type="region_extract")，用于后续SmartReplay分析。
+
+    用户通过悬浮按钮标记需要提取数据的屏幕位置，支持框选区域或单点标记。
     """
-    from sqlalchemy import select
+    import time
+    from app.models import TraceEvent
+
+    # 如果未提供时间戳，使用当前时间
+    timestamp_ms = body.timestamp_ms or int(time.time() * 1000)
 
     async with session_scope() as db:
-        stmt = select(RecordingAnnotation).where(RecordingAnnotation.id == annotation_id)
+        # [Scheme A] 创建 TraceEvent 记录，action_type="region_extract"
+        region_width = body.width if body.width is not None else 0.02  # 默认 2% 区域
+        region_height = body.height if body.height is not None else 0.02
+
+        trace_event = TraceEvent(
+            session_id=body.session_id,
+            recording_session_id=body.session_id,
+            thread_id=body.thread_id,
+            step_number=0,  # 由后续处理决定
+            node_name="android_region_marker",
+            action_type="region_extract",
+            timestamp=timestamp_ms,
+            event_type="region_extract",
+            target_selector=f"android://screen/{body.x:.4f}/{body.y:.4f}",
+            target_text=body.note or "Android镜像标记的数据提取点",
+            payload={
+                "coordinates": {
+                    "x": body.x,
+                    "y": body.y,
+                    "width": region_width,
+                    "height": region_height,
+                },
+                "platform": "android",
+                "relative_timestamp_ms": timestamp_ms,
+            },
+            source="android",
+            app_name="android_mirror",
+            state_snapshot=json.dumps({"context": "android_region_marker"}),
+            action_payload=json.dumps({
+                "x": body.x,
+                "y": body.y,
+                "width": region_width,
+                "height": region_height,
+            }),
+        )
+        db.add(trace_event)
+        await db.flush()
+        await db.refresh(trace_event)
+
+        region_type = "区域" if body.width and body.height else "单点"
+        logger.info(f"[AndroidMirror] Extract point created: id={trace_event.id}, "
+                   f"session={body.session_id}, pos=({body.x:.3f}, {body.y:.3f}), "
+                   f"size=({region_width:.3f}, {region_height:.3f}), type={region_type}")
+
+        return AndroidExtractPointResponse(
+            id=trace_event.id,
+            session_id=body.session_id,
+            x=body.x,
+            y=body.y,
+            width=region_width,
+            height=region_height,
+            timestamp_ms=timestamp_ms,
+            note=body.note or "Android镜像标记的数据提取点",
+            created_at=trace_event.created_at,
+        )
+
+
+@router.get("/mirror/{session_id}/extract-points", response_model=list[AndroidExtractPointResponse])
+async def list_android_extract_points(session_id: str):
+    """
+    [Android Mirror] 获取指定会话的所有提取点
+    [Scheme A] 从 TraceEvent 表查询 region_extract 类型事件
+    """
+    from app.models import TraceEvent
+
+    async with session_scope() as db:
+        stmt = select(TraceEvent).where(
+            TraceEvent.recording_session_id == session_id,
+            TraceEvent.action_type == "region_extract"
+        ).order_by(TraceEvent.timestamp)
+
         result = await db.execute(stmt)
-        annotation = result.scalar_one_or_none()
+        events = result.scalars().all()
 
-        if not annotation:
-            raise HTTPException(status_code=404, detail="Annotation not found")
+        extract_points = []
+        for e in events:
+            coords = e.payload.get("coordinates") if e.payload else {}
+            extract_points.append(
+                AndroidExtractPointResponse(
+                    id=e.id,
+                    session_id=e.recording_session_id or session_id,
+                    x=coords.get("x", 0) if coords else 0,
+                    y=coords.get("y", 0) if coords else 0,
+                    width=coords.get("width") if coords else None,
+                    height=coords.get("height") if coords else None,
+                    timestamp_ms=int(e.timestamp) if e.timestamp else 0,
+                    note=e.target_text or "Android镜像标记的数据提取点",
+                    created_at=e.created_at,
+                )
+            )
 
-        await db.delete(annotation)
-
-    return {"success": True, "message": "Annotation deleted"}
+        return extract_points
 
 
 @router.post("/recordings/{session_id}/smart-synthesis", response_model=SmartSynthesisResponse)
@@ -1615,19 +1704,22 @@ async def start_smart_synthesis(
     启动智能合成任务
 
     基于用户标注和任务目标，异步进行 LLM 推理生成技能。
+    [Scheme A] 使用 TraceEvent 替代 RecordingAnnotation，查询 action_type="region_extract" 的事件
     """
     from sqlalchemy import select
 
     # 验证 session 存在
     async with session_scope() as db:
-        # 获取使用的标注
+        # [Scheme A] 从 TraceEvent 获取区域提取事件作为标注
         if body.annotation_ids:
-            stmt = select(RecordingAnnotation).where(
-                RecordingAnnotation.id.in_(body.annotation_ids)
+            stmt = select(TraceEvent).where(
+                TraceEvent.id.in_(body.annotation_ids),
+                TraceEvent.action_type == "region_extract"
             )
         else:
-            stmt = select(RecordingAnnotation).where(
-                RecordingAnnotation.session_id == session_id
+            stmt = select(TraceEvent).where(
+                TraceEvent.recording_session_id == session_id,
+                TraceEvent.action_type == "region_extract"
             )
 
         result = await db.execute(stmt)
@@ -1678,6 +1770,7 @@ async def run_smart_synthesis(
 ):
     """
     后台运行智能合成
+    [Scheme A] 使用 TraceEvent 替代 RecordingAnnotation
     """
     from app.core.learning.smart_synthesizer import SmartSynthesizer
     from sqlalchemy import select
@@ -1692,10 +1785,11 @@ async def run_smart_synthesis(
         await db.commit()
 
     try:
-        # 获取标注详情
+        # [Scheme A] 从 TraceEvent 获取标注详情
         async with session_scope() as db:
-            stmt = select(RecordingAnnotation).where(
-                RecordingAnnotation.id.in_(annotation_ids)
+            stmt = select(TraceEvent).where(
+                TraceEvent.id.in_(annotation_ids),
+                TraceEvent.action_type == "region_extract"
             )
             result = await db.execute(stmt)
             annotations = result.scalars().all()
@@ -1850,24 +1944,24 @@ async def cleanup_recording_session(
     清理录制会话的所有关联数据。
 
     包括：
-    1. 删除 TraceEvent 中的事件记录
-    2. 删除 RecordingAnnotation 中的标注
-    3. 删除 SynthesisJob 记录
-    4. 删除视频文件（如果提供路径）
+    1. 删除 TraceEvent 中的事件记录（包括 region_extract 标注事件）
+    2. 删除 SynthesisJob 记录
+    3. 删除视频文件（如果提供路径）
+
+    [Scheme A] 已废弃 RecordingAnnotation 表，标注数据统一存储在 TraceEvent 中
     """
     from sqlalchemy import select, delete
     import os
 
     deleted_counts = {
         "events": 0,
-        "annotations": 0,
         "jobs": 0,
         "video_file": False
     }
 
     try:
         async with session_scope() as db:
-            # 1. 删除 TraceEvent
+            # 1. 删除 TraceEvent（包括所有事件和 region_extract 标注）
             stmt = delete(TraceEvent).where(
                 or_(
                     TraceEvent.recording_session_id == session_id,
@@ -1877,12 +1971,7 @@ async def cleanup_recording_session(
             result = await db.execute(stmt)
             deleted_counts["events"] = result.rowcount
 
-            # 2. 删除 RecordingAnnotation
-            stmt = delete(RecordingAnnotation).where(RecordingAnnotation.session_id == session_id)
-            result = await db.execute(stmt)
-            deleted_counts["annotations"] = result.rowcount
-
-            # 3. 删除 SynthesisJob
+            # 2. 删除 SynthesisJob
             stmt = delete(SynthesisJob).where(SynthesisJob.session_id == session_id)
             result = await db.execute(stmt)
             deleted_counts["jobs"] = result.rowcount

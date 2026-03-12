@@ -1,5 +1,5 @@
 /// Screen recording via ffmpeg (Two-Track Architecture).
-/// Manages an ffmpeg child process for capturing screen video to ~/.evoloop/recordings/.
+/// Manages an ffmpeg child process for capturing screen video to ~/.evoloop/artifacts/recordings/.
 ///
 /// AppServiceState fields used:
 ///   - recording_process: Arc<Mutex<Option<std::process::Child>>>
@@ -26,9 +26,9 @@ pub async fn start_screen_recording(
         return Err("Screen recording already in progress".to_string());
     }
 
-    // Use ~/.evoloop/recordings for better visibility (Tauri AppData is hidden on macOS)
+    // Use ~/.evoloop/artifacts/recordings for better visibility (Tauri AppData is hidden on macOS)
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
-    let recordings_dir = std::path::PathBuf::from(home).join(".evoloop").join("recordings");
+    let recordings_dir = std::path::PathBuf::from(home).join(".evoloop").join("artifacts").join("recordings");
 
     fs::create_dir_all(&recordings_dir)
         .map_err(|e| format!("Failed to create recordings dir: {}", e))?;
@@ -113,7 +113,7 @@ pub async fn start_screen_recording(
     *proc_lock = Some(child);
     *state.recording_path.lock().unwrap() = Some(video_path_str.clone());
 
-    // --- Record start time for tray timer ---
+    // --- Record start time for tray timer (Set BEFORE sleep to avoid gap) ---
     *state.recording_start_time.lock().unwrap() = Some(std::time::Instant::now());
 
     // --- Watchdog: 10-minute hard limit + 500 MB size fuse ---
@@ -233,6 +233,8 @@ pub async fn stop_screen_recording(
     }
 
     // Clear start time
+    // Handled in sync_tray_recording_state for responsiveness, 
+    // but also here for consistency.
     *state.recording_start_time.lock().unwrap() = None;
 
     Ok(video_path)

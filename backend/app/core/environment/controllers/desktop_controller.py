@@ -18,9 +18,18 @@ import markdownify
 from app.constants import MAX_OUTPUT_LENGTH
 from app.core.atlas import atlas_engine, get_bundle_id
 from app.core.vision import vision_engine, VisionTask
+from app.core.vision.router import VisionRouter
 from app.infrastructure.drivers.macos import macos_driver
 from app.core.learning.trace_recorder import get_recorder
 from app.core.context.manager import ContextManager
+from app.core.environment.controllers.utils import (
+    cleanup_file,
+    normalize_text,
+    RecordingContext,
+    resolve_element_alias,
+    truncate_output,
+    BatchExecutor,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -77,12 +86,6 @@ class DesktopController:
     @classmethod
     async def _resolve_element(cls, name: str, role: str | None = None) -> dict | str:
         """Tri-Engine element resolution: AX Tree → Atlas → OCR."""
-        import unicodedata
-
-        def normalize_text(t: str) -> str:
-            if not t:
-                return ""
-            return unicodedata.normalize('NFC', str(t)).lower().strip().replace(" ", "").replace("\u3000", "")
 
         # 1. Try Live Accessibility Tree (Fastest and Native)
         raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
@@ -158,7 +161,6 @@ class DesktopController:
 
         # 3. Try Local Vision OCR
         try:
-            import unicodedata
             app_info = macos_driver.get_current_app()
             bounds_str = app_info.get("bounds")
             win_x, win_y = 0, 0
@@ -172,18 +174,14 @@ class DesktopController:
                 temp_img = macos_driver.screenshot()
 
             result = await vision_engine.process(VisionTask.OCR, temp_img)
-            target_name = unicodedata.normalize('NFC', name).strip().lower().replace(" ", "").replace("\u3000", "")
+            target_name = normalize_text(name)
             if result.success:
-                if os.path.exists(temp_img):
-                    os.remove(temp_img)
+                cleanup_file(temp_img)
                 for el in result.elements:
-                    el_text_raw = (el.text or "")
-                    el_text = unicodedata.normalize('NFC', el_text_raw).strip().lower().replace(" ", "").replace("\u3000", "")
-                    if target_name in el_text:
+                    if target_name in normalize_text(el.text):
                         logger.info(f"[Desktop] Resolved '{name}' via OCR → Absolute ({win_x + el.x}, {win_y + el.y})")
                         return {"type": "coords", "x": win_x + el.x, "y": win_y + el.y}
-            if os.path.exists(temp_img):
-                os.remove(temp_img)
+            cleanup_file(temp_img)
         except Exception as e:
             logger.debug(f"[Desktop] Vision OCR fallback failed: {e}")
 
@@ -223,8 +221,7 @@ class DesktopController:
         """Execute a desktop action. All business logic lives here."""
         try:
             # Parameter alias
-            if target and not element_name:
-                element_name = target
+            element_name = resolve_element_alias(target, element_name)
 
             # Phase 5: Imitation Learning - Trace Recording
             recorder = None
@@ -232,23 +229,21 @@ class DesktopController:
             if session_id:
                 recorder = get_recorder(session_id)
 
+            recording_ctx = RecordingContext(
+                platform="macos",
+                recorder=recorder,
+                screenshot_actions=("click", "double_click", "type_text", "key_press", "open_app", "drag_drop")
+            )
+
             async def _record(action_type: str, params: dict):
-                if recorder and recorder.is_recording:
-                    # Capture screenshot for mutations
-                    shot = None
-                    if action_type in ("click", "double_click", "type_text", "key_press", "open_app", "drag_drop"):
-                        try:
-                            shot = await asyncio.to_thread(macos_driver.screenshot)
-                        except Exception: pass
-                    
+                async def screenshot_fn():
+                    return await asyncio.to_thread(macos_driver.screenshot)
+
+                def context_fn():
                     app_info = macos_driver.get_current_app()
-                    await recorder.record_action(
-                        action_type=action_type,
-                        platform="macos",
-                        parameters=params,
-                        context={"app": app_info.get("name"), "bundle_id": app_info.get("bundle_id")},
-                        screenshot_data=shot
-                    )
+                    return {"app": app_info.get("name"), "bundle_id": app_info.get("bundle_id")}
+
+                await recording_ctx.record(action_type, params, screenshot_fn, context_fn)
 
             if action == "screenshot":
                 app_info = await asyncio.to_thread(macos_driver.get_current_app)
@@ -379,44 +374,21 @@ class DesktopController:
                                 output = f"[Converted from HTML to Markdown]\n{md_output}"
                         except Exception as e:
                             logger.warning(f"Markdown conversion failed: {e}")
-                    if len(output) > MAX_OUTPUT_LENGTH:
-                        truncated_len = len(output)
-                        output = output[:MAX_OUTPUT_LENGTH] + f"\n... [Output truncated, length: {truncated_len}]"
+                    output = truncate_output(output, MAX_OUTPUT_LENGTH)
                 return f"AppleScript executed.\nOutput: {output}" if output else "AppleScript executed successfully."
 
             elif action == "batch":
                 if not actions:
                     return "Error: 'actions' list is required for batch action."
                 batch_start = time.time()
-                results = []
-                total = len(actions)
-                for i, action_dict in enumerate(actions, 1):
-                    step_start = time.time()
-                    step_action = action_dict.get("action", "unknown")
-                    try:
-                        params = {k: v for k, v in action_dict.items() if k != "action" and v is not None}
-                        result = await cls.execute(action=step_action, **params)
-                        latency = int((time.time() - step_start) * 1000)
-                        results.append({"step": i, "action": step_action,
-                                        "status": "success" if not result.startswith("Error") else "error",
-                                        "result": result, "latency_ms": latency})
-                    except Exception as e:
-                        latency = int((time.time() - step_start) * 1000)
-                        results.append({"step": i, "action": step_action, "status": "error", "result": str(e), "latency_ms": latency})
-                        if not continue_on_error:
-                            break
-                    if i < total and delay_ms > 0:
-                        await asyncio.sleep(delay_ms / 1000)
-                total_time = time.time() - batch_start
-                ok = sum(1 for r in results if r["status"] == "success")
-                fail = len(results) - ok
-                lines = [f"✅ Batch Complete: {ok}/{total} succeeded, {fail} failed ({total_time:.2f}s)", ""]
-                for r in results:
-                    icon = "✅" if r["status"] == "success" else "❌"
-                    lines.append(f"  {icon} Step {r['step']}: {r['action']} ({r['latency_ms']}ms)")
-                    if r["status"] == "error":
-                        lines.append(f"      Error: {r['result'][:100]}")
-                return "\n".join(lines)
+                executor = BatchExecutor(continue_on_error=continue_on_error, delay_ms=delay_ms)
+
+                async def _exec_action(action_dict: dict) -> str:
+                    params = {k: v for k, v in action_dict.items() if k != "action" and v is not None}
+                    return await cls.execute(action=action_dict.get("action", "unknown"), **params)
+
+                await executor.execute(actions, _exec_action)
+                return executor.format_summary(time.time() - batch_start)
 
             elif action == "scroll":
                 if not direction:
@@ -521,48 +493,33 @@ class DesktopController:
                     return f"Error: dump_ui failed: {e}"
 
             elif action == "gui_extract":
-                # [Phase 16] Intelligent GUI Extraction (OCR-Nearby)
-                from app.core.vision.router import VisionRouter
-
-                # 1. Capture Screenshot
                 filepath = await asyncio.to_thread(macos_driver.screenshot, region=region)
                 if not filepath or not os.path.exists(filepath):
                     return "Error: Failed to capture screenshot for GUI extraction."
 
                 try:
-                    # 2. OCR Processing
                     router = VisionRouter()
                     provider = await router.get_provider(VisionTask.OCR)
                     if not provider:
-                        if os.path.exists(filepath):
-                            os.remove(filepath)
                         return "Error: No OCR provider available for desktop GUI extraction."
 
                     result = await provider.process(VisionTask.OCR, filepath)
                     if not result.success or not result.elements:
-                        if os.path.exists(filepath):
-                            os.remove(filepath)
                         return ""
 
-                    # 3. Spatial Matching
                     target_x = x if x is not None else 0.5
                     target_y = y if y is not None else 0.5
-
-                    best_match = None
-                    min_dist = float('inf')
+                    best_match, min_dist = None, float('inf')
 
                     for el in result.elements:
-                        # Euclidean distance on logical points
-                        dist = math.sqrt((el.x - (target_x if target_x > 1 else target_x * 1000))**2 + 
+                        dist = math.sqrt((el.x - (target_x if target_x > 1 else target_x * 1000))**2 +
                                          (el.y - (target_y if target_y > 1 else target_y * 1000))**2)
                         if dist < min_dist:
-                            min_dist = dist
-                            best_match = el.text
+                            min_dist, best_match = dist, el.text
 
                     return best_match or ""
                 finally:
-                    if filepath and os.path.exists(filepath):
-                        os.remove(filepath)
+                    cleanup_file(filepath)
 
             else:
                 return f"Error: Unknown action '{action}'."

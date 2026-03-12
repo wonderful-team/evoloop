@@ -169,42 +169,6 @@ class RouterTrainingData(Base):
     source: Mapped[str] = mapped_column(String(50), default="user_feedback")  # 'manual', 'user_feedback', 'system'
 
 
-class RecordingAnnotation(Base):
-    """
-    Smart Replay Synthesis: User annotations on recorded video.
-    Stores region selections and notes for LLM analysis.
-    """
-
-    __tablename__ = "recording_annotations"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    session_id: Mapped[str] = mapped_column(String(255), index=True)
-    thread_id: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
-
-    # Annotation type
-    annotation_type: Mapped[str] = mapped_column(String(50), default="extract_region")  # extract_region, click_point, task_boundary
-
-    # Temporal position
-    video_timestamp_ms: Mapped[int] = mapped_column(Integer)  # Position in video (milliseconds)
-    frame_number: Mapped[int | None] = mapped_column(Integer, nullable=True)
-
-    # Spatial region (video coordinate space)
-    region_x: Mapped[float | None] = mapped_column(Float, nullable=True)
-    region_y: Mapped[float | None] = mapped_column(Float, nullable=True)
-    region_width: Mapped[float | None] = mapped_column(Float, nullable=True)
-    region_height: Mapped[float | None] = mapped_column(Float, nullable=True)
-
-    # Associated event (if any)
-    related_event_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-
-    # User note (optional short description)
-    user_note: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    # Metadata
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
-    created_by: Mapped[str | None] = mapped_column(String(255), nullable=True)  # user identifier
-
-
 class SynthesisJob(Base):
     """
     Smart Replay Synthesis: LLM synthesis job tracking.
@@ -219,7 +183,7 @@ class SynthesisJob(Base):
 
     # User input
     task_goal: Mapped[str] = mapped_column(Text)  # User's stated goal
-    annotation_ids: Mapped[list] = mapped_column(JSON, default=list)  # List of annotation IDs used
+    annotation_ids: Mapped[list] = mapped_column(JSON, default=list)  # [Scheme A] List of TraceEvent IDs (action_type="region_extract") used as annotations
 
     # Job status
     status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, processing, analyzing_frames, understanding_phases, generating_macro, generating_metadata, completed, failed

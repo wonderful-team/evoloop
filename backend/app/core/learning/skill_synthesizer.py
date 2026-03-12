@@ -15,23 +15,27 @@ from sqlalchemy import select
 
 from app.core.learning.prompts import prompt_builder
 from app.core.learning.trace_parser import TraceParser, TraceSequence
+from app.core.learning.synthesizer_utils import (
+    cleanup_macro_steps,
+    export_skill_to_filesystem,
+    verify_macro_script,
+)
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
-from app.core.config import settings
 from app.models import Message
 
 logger = logging.getLogger(__name__)
 
-# [Phase 13] Strict Allowlist for Deterministic Execution
 ALLOWED_UI_ACTIONS = {
     # Browser / DOM
     "goto", "navigate", "click", "type_text", "input", "key_press", "scroll",
-    "wait", "wait_for", "extract", "get_text", "get_html", "get_attribute", "run_js", "evaluate",
+    "wait", "wait_for", "extract", "get_text", "get_html", "get_attribute",
+    "run_js", "evaluate",
     # Mobile / Android
     "tap", "long_press", "swipe", "input_text", "open_app", "back", "home",
     # Desktop / Global
-    "applescript", "drag_drop", "click_extract", "key_press",
+    "applescript", "drag_drop", "key_press",
     # Automation Primitives
     "detect_pagination", "scroll_to_bottom",
     # System
@@ -171,47 +175,11 @@ class WorkflowSynthesizer:
         [NEW] Dry-run verification of a draft macro.
         Replays the macro using MacroEngine and checks if extraction targets were met.
         """
-        from app.core.execution.macro.service import MacroService
-        from app.core.execution.macro.schema import MacroScript, MacroMetadata
-        
-        logger.info(f"[{self.thread_id}] 🔍 Starting macro verification dry-run...")
-        
-        script = MacroScript(
-            metadata=MacroMetadata(thread_id=self.thread_id, author="verifier"),
-            steps=macro_script
+        return await verify_macro_script(
+            macro_script=macro_script,
+            thread_id=self.thread_id,
+            project_id=project_id
         )
-        
-        # We run this in a specialized "verification" mode if supported, 
-        # or just run it via MacroService.
-        try:
-            result = await MacroService.run(script, project_id=project_id)
-            
-            # Check if all extraction steps in the macro were successful
-            # MacroService.run returns the execution context/results
-            success = result.get("success", False)
-            extracted_data = result.get("extracted_data", {})
-            
-            expected_keys = [s["key"] for s in macro_script if s.get("type") == "extract"]
-            missing_keys = [k for k in expected_keys if k not in extracted_data]
-            
-            verification_status = "success" if success and not missing_keys else "failed"
-            
-            logger.info(f"[{self.thread_id}] Verification {verification_status}. Extracted keys: {list(extracted_data.keys())}")
-            
-            return {
-                "status": verification_status,
-                "success": success,
-                "missing_keys": missing_keys,
-                "extracted_count": len(extracted_data),
-                "error": result.get("error")
-            }
-        except Exception as e:
-            logger.error(f"[{self.thread_id}] Macro verification crashed: {e}")
-            return {
-                "status": "error",
-                "success": False,
-                "error": str(e)
-            }
 
     async def _generate_skill_yaml(self, narrative: str, summary: dict, user_intent_hint: str = "") -> str:
         """Use LLM to generate skill YAML from trace narrative."""
@@ -277,46 +245,13 @@ class WorkflowSynthesizer:
                 else:
                     source_type = "desktop"
             
-            # Filter out noisy standalone modifier keys from macro (e.g. Alt press during extraction marking)
+            # Filter out noisy standalone modifier keys from macro
             if step.action_type == "key_press" and step.action_args.get("key") in ("Alt", "Shift", "Control", "Command", "Meta"):
                 continue
 
             event_type = step.action_type
             payload = dict(step.action_args)
 
-            # NEW: Handle Alt+Click extract intent from global recording
-            is_extract_intent = payload.get("is_extract_intent", False) or event_type == "click_extract"
-
-            if is_extract_intent:
-                # Convert click to extract step
-                window_bounds = payload.get("window_bounds")
-                position = payload.get("position")
-
-                if window_bounds and position:
-                    wx, wy, ww, wh = window_bounds
-                    x, y = position
-                    # Normalize to window-relative coordinates (0-1)
-                    rel_x = (x - wx) / ww if ww > 0 else 0.5
-                    rel_y = (y - wy) / wh if wh > 0 else 0.5
-
-                    macro_step = {
-                        "step_number": step.step_number,
-                        "type": "extract",
-                        "extract_type": "gui_extract",
-                        "key": f"extracted_{step.step_number}",
-                        "source": "desktop" if source_type == "dom" else source_type,
-                        "target_selector": None,
-                        "payload": {
-                            "relative_position": {"x": round(rel_x, 3), "y": round(rel_y, 3)},
-                            "window_bounds": window_bounds,
-                            "extraction_method": "ocr_nearby",
-                            "search_radius_pixels": 100,
-                        }
-                    }
-                    macro.append(macro_step)
-                    has_extract = True
-                continue
-            
             # Agent LangChain tool inputs often serialize with single quotes as python dicts
             # trace_recorder.py captures them in 'raw' if json.loads fails.
             if "raw" in payload and isinstance(payload["raw"], str):
@@ -387,18 +322,6 @@ class WorkflowSynthesizer:
                     "payload": payload
                 }
                 is_extract = True
-            elif event_type == "click_extract":
-                # [NEW] Manual extraction marker from recorder (Alt+Click)
-                macro_step = {
-                    "step_number": step.step_number,
-                    "type": "extract",
-                    "extract_type": "gui_extract", # Generic GUI extraction
-                    "key": f"data_{step.step_number}",
-                    "source": source_type,
-                    "target_selector": target_selector, # May be None if global, handled by verifier/agent
-                    "payload": payload
-                }
-                is_extract = True
             else:
                 macro_step = {
                     "step_number": step.step_number,
@@ -428,48 +351,7 @@ class WorkflowSynthesizer:
     @classmethod
     def _cleanup_macro(cls, steps: List[dict], start_index: int = 1) -> Tuple[List[dict], int]:
         """规范化 LLM 生成的宏步骤 (修复常见格式错误并确保全局步骤编号唯一)"""
-        clean_steps = []
-        current_idx = start_index
-        
-        for step in steps:
-            if not isinstance(step, dict):
-                continue
-            
-            # 1. 强制重新分配连续且唯一的 step_number
-            step["step_number"] = current_idx
-            current_idx += 1
-                
-            # 2. 映射非标准 type
-            s_type = step.get("type")
-            if s_type == "wait":
-                step["type"] = "action"
-                step["event_type"] = "wait"
-                payload = step.get("payload", {})
-                if "timeout" in step and "seconds" not in payload:
-                    payload["seconds"] = float(step["timeout"]) / 1000.0
-                step["payload"] = payload
-            elif s_type in ("while", "batch_loop", "loop"):
-                step["type"] = "loop"
-
-            # 3. 规范化嵌套字段名
-            if "then" in step and "then_steps" not in step:
-                step["then_steps"] = step.pop("then")
-            if "else" in step and "else_steps" not in step:
-                step["else_steps"] = step.pop("else")
-            legacy_substeps = step.pop("do", None) or step.pop("do_steps", None)
-            if legacy_substeps and "steps" not in step:
-                step["steps"] = legacy_substeps
-            
-            # 4. 递归处理嵌套步骤，共享计数器
-            for branch in ["then_steps", "else_steps", "steps"]:
-                if branch in step and isinstance(step[branch], list):
-                    nested_steps, next_idx = cls._cleanup_macro(step[branch], start_index=current_idx)
-                    step[branch] = nested_steps
-                    current_idx = next_idx
-                    
-            clean_steps.append(step)
-            
-        return clean_steps, current_idx
+        return cleanup_macro_steps(steps, start_index)
 
     def _parse_skill_yaml(self, yaml_str: str, sequence: TraceSequence) -> SynthesizedSkill:
         """Parse YAML string into SynthesizedSkill object."""
@@ -513,35 +395,18 @@ class WorkflowSynthesizer:
 
     def _export_physical_skill(self, skill: SynthesizedSkill) -> None:
         """
-        Phase 5: Export the synthesized instructions into a physical workspace 
+        Phase 5: Export the synthesized instructions into a physical workspace
         folder structure based on its namespace.
         """
-        import os
-
-        # Base workspace skills directory
-        base_dir = settings.SKILLS_DIR
-        namespace_path = os.path.join(base_dir, skill.namespace or "misc", skill.name)
-
-        try:
-            os.makedirs(namespace_path, exist_ok=True)
-            skill_md_path = os.path.join(namespace_path, "SKILL.md")
-
-            # Combine YAML frontmatter and Markdown body
-            frontmatter = {
-                "name": skill.name,
-                "description": skill.description,
-                "trigger_patterns": skill.trigger_patterns,
-                "parameters": [asdict(p) for p in skill.parameters],
-                "preconditions": skill.preconditions,
-            }
-
-            content = f"---\n{yaml.dump(frontmatter, sort_keys=False)}---\n\n{skill.instructions or ''}"
-
-            with open(skill_md_path, "w", encoding="utf-8") as f:
-                f.write(content)
-
-            skill.resource_path = skill_md_path
-            logger.info(f"[Synthesizer] Exported physical skill {skill.name} to {skill_md_path}")
-
-        except Exception as e:
-            logger.error(f"[Synthesizer] Failed to export physical skill file: {e}")
+        skill_data = {
+            "name": skill.name,
+            "namespace": skill.namespace,
+            "description": skill.description,
+            "trigger_patterns": skill.trigger_patterns,
+            "parameters": [asdict(p) for p in skill.parameters],
+            "preconditions": skill.preconditions,
+            "instructions": skill.instructions,
+        }
+        path = export_skill_to_filesystem(skill_data)
+        if path:
+            skill.resource_path = path

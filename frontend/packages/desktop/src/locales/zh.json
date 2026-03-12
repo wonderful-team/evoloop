@@ -275,7 +275,28 @@
       "recordStart": "开始录制",
       "recordStop": "停止录制",
       "recordingInProgress": "录制中...",
-      "recordingAction": "准备录制"
+      "recordingAction": "准备录制",
+      "extractMarker": {
+        "clickToMark": "点击标记数据点",
+        "clickDescription": "点击按钮后，点击屏幕上需要提取数据的位置",
+        "clickAnywhere": "点击标记",
+        "dragToMove": "拖拽移动按钮",
+        "clickToMarkData": "点击标记数据提取点",
+        "pointMarked": "已标记提取点",
+        "pointsCleared": "已清除所有标记点",
+        "markedPoints": "已标记的数据点",
+        "dragToMark": "拖拽标记数据区域",
+        "dragDescription": "在 scrcpy 窗口上拖拽绘制选择框来标记数据区域",
+        "dragToSelect": "拖拽选择区域",
+        "selecting": "选择中...",
+        "dragToMarkRegion": "拖拽框选数据区域",
+        "clickToCancel": "点击取消选择模式",
+        "regionMarked": "已标记数据区域",
+        "regionsCleared": "已清除所有标记区域",
+        "markedRegions": "已标记的数据区域"
+      },
+      "noActiveSession": "没有活动的镜像会话",
+      "failedToSaveExtractPoint": "保存提取点失败"
     },
     "execution": {
       "noParams": "此技能无需任何输入。",
@@ -369,7 +390,9 @@
     "preparingRecording": "准备录制中...",
     "finalizingRecording": "正在完成录制...",
     "recordingInProgress": "正在录制...",
-    "recordingHint": "点击上方按钮停止并合成"
+    "recordingHint": "点击上方按钮停止并合成",
+    "skillNotFound": "未找到技能",
+    "openVideoFailed": "打开视频失败："
   },
   "todos": {
     "create": {
@@ -616,6 +639,9 @@
     "status": {
       "working": "工作中..."
     },
+    "messageList": {
+      "copy": "复制"
+    },
     "noPinnedFiles": "在文件浏览器中右键点击文件可将其置顶至此。",
     "pinnedFiles": "置顶文件",
     "stateWorkDir": "工作目录",
@@ -725,11 +751,17 @@
     "fullView": "完整视图",
     "status": {
       "active": "运行中",
-      "idle": "空闲"
+      "idle": "空闲",
+      "running": "运行中",
+      "title": "状态"
     },
     "error": {
-      "unknown": "未知错误"
+      "unknown": "未知错误",
+      "message": "出错了"
     },
+    "next": "下一页",
+    "previous": "上一页",
+    "processing": "处理中...",
     "tool": {
       "defaultName": "工具"
     }
@@ -1182,82 +1214,6 @@
   "system": {
     "initializationDesc": "请配置以下系统设置以继续。",
     "initializationTitle": "需要系统集成"
-  },
-  "smartReplay": {
-    "title": "智能录制回放",
-    "markRegions": "标记数据区域",
-    "markRegionsDesc": "观看录制并在视频中标记包含要提取数据的区域",
-    "nextDescribeGoal": "下一步：描述目标",
-    "drawRegion": "绘制区域",
-    "drawing": "绘制中...",
-    "annotations": "标注",
-    "annotationsCount": "标注 ({{count}})",
-    "describeGoal": "描述任务目标",
-    "describeGoalDesc": "告诉我们您希望通过此自动化实现什么",
-    "regionsMarked": "您已标记 {{count}} 个区域：",
-    "noDescription": "无描述",
-    "whatAccomplish": "您想要完成什么？",
-    "taskGoalPlaceholder": "例如：我想从这个网站提取产品价格和卖家信息，并保存到 Excel 文件",
-    "taskGoalHint": "请具体说明：您需要什么数据，数据来源，以及您希望的输出方式",
-    "backToAnnotations": "返回标注",
-    "startAiAnalysis": "开始 AI 分析",
-    "aiAnalyzing": "AI 正在分析您的录制...",
-    "aiAnalyzingDesc": "这可能需要 1-2 分钟。AI 正在查看您标记的区域，理解您的任务流程，并生成优化的技能。",
-    "currentPhase": "当前：{{phase}}",
-    "loadingVideo": "加载视频中...",
-    "videoLoadFailed": "视频加载失败",
-    "closeConfirmTitle": "确认关闭",
-    "closeConfirmDesc": "您确定要关闭吗？未保存的进度将会丢失。",
-    "deleteAssociatedFiles": "删除关联文件",
-    "deleteFilesHint": "同时删除录制的视频和标注数据",
-    "closeAndDiscard": "关闭并丢弃",
-    "toast": {
-      "saveAnnotationFailed": "保存标注失败",
-      "deleteAnnotationFailed": "删除标注失败",
-      "startSynthesisFailed": "启动合成失败",
-      "describeGoalRequired": "请描述您的任务目标",
-      "filesDeleted": "文件已删除",
-      "deleteFailed": "删除失败"
-    }
-  },
-  "annotationList": {
-    "noAnnotations": "暂无标注",
-    "clickDrawRegion": "点击「绘制区域」并在视频上拖动以标记数据区域",
-    "describeRegion": "描述此区域...",
-    "clickToAddDescription": "点击添加描述...",
-    "markerTitle": "标注 {{number}} 在 {{time}}"
-  },
-  "synthesisProgress": {
-    "loadingData": "正在加载数据...",
-    "extractingKeyframes": "正在提取关键帧...",
-    "analyzingFrames": "正在使用 AI 分析帧...",
-    "understandingPhases": "正在理解任务流程...",
-    "identifyingSteps": "正在识别关键步骤...",
-    "generatingMacro": "正在生成宏脚本...",
-    "generatingMetadata": "正在生成技能文档...",
-    "completed": "已完成！",
-    "failed": "合成失败。请重试。"
-  },
-  "skillReview": {
-    "title": "技能已生成！",
-    "subtitle": "查看并确认生成的自动化技能",
-    "editJson": "编辑 JSON",
-    "back": "返回",
-    "saveSkill": "保存技能",
-    "overview": "概览",
-    "instructions": "使用说明 (心法)",
-    "macroScript": "宏脚本 ({{count}} 步)",
-    "skillName": "技能名称",
-    "description": "描述",
-    "namespace": "命名空间",
-    "triggerPatterns": "触发模式",
-    "executionMode": "执行模式",
-    "deterministicDesc": "快速、可预测的执行，无需 LLM 调用",
-    "agenticDesc": "灵活的执行，具有 LLM 决策能力",
-    "totalSteps": "总步骤",
-    "extractSteps": "提取步骤",
-    "actionSteps": "操作步骤",
-    "noInstructions": "未生成使用说明。"
   },
   "macroEditor": {
     "steps": "{{count}} 步",

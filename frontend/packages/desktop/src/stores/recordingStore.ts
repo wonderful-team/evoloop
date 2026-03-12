@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { invoke } from "@tauri-apps/api/core"
 
 interface RecordingState {
     isRecording: boolean
@@ -6,21 +7,24 @@ interface RecordingState {
     activeThreadId: string | null
     eventCount: number
     sessionId: string | null
-    videoPath: string | null  // Screen recording video path (Two-Track Architecture)
+    videoPath: string | null
     postRecordingAction: 'synthesize' | null
-    // Local buffered events (for delayed persistence)
-    localEvents: { domEvents: unknown[]; globalEvents: unknown[] }
-    // Countdown state
     isPreparing: boolean
     countdown: number
 
     recordingSource: 'desktop' | 'mobile'
     recordingSourceDeviceId: string | null
     recordingSourceSessionId: string | null
+    recordingStartTime: number | null
+    deviceResolution: { width: number, height: number } | null
+
+    // Marker overlay state
+    isMarkerOverlayOpen: boolean
+    isAndroidMarkerOverlayOpen: boolean
 
     // Actions
-    initiateRecording: (threadId: string, source?: 'desktop' | 'mobile', deviceId?: string, sessionId?: string, onBeforeStart?: () => Promise<void>) => void  // Start countdown
-    startRecording: (threadId: string, source?: 'desktop' | 'mobile', deviceId?: string, sessionId?: string) => void     // Actually start (after countdown)
+    initiateRecording: (threadId: string, source?: 'desktop' | 'mobile', deviceId?: string, sessionId?: string, onBeforeStart?: () => Promise<void>) => void
+    startRecording: (threadId: string, source?: 'desktop' | 'mobile', deviceId?: string, sessionId?: string) => void
     setRecordingSource: (source: 'desktop' | 'mobile', deviceId?: string | null) => void
     stopRecording: () => void
     setEventCount: (count: number) => void
@@ -28,10 +32,13 @@ interface RecordingState {
     setIsGlobalMode: (isGlobal: boolean) => void
     setVideoPath: (path: string | null) => void
     setPostRecordingAction: (action: 'synthesize' | null) => void
-    setLocalEvents: (domEvents: unknown[], globalEvents: unknown[]) => void
-    clearLocalEvents: () => void
     setIsPreparing: (isPreparing: boolean) => void
     setCountdown: (countdown: number) => void
+    setDeviceResolution: (res: { width: number, height: number } | null) => void
+    openMarkerOverlay: () => Promise<void>
+    closeMarkerOverlay: () => Promise<void>
+    openAndroidMarkerOverlay: () => Promise<void>
+    closeAndroidMarkerOverlay: () => Promise<void>
     reset: () => void
 }
 
@@ -45,23 +52,24 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
     sessionId: null,
     videoPath: null,
     postRecordingAction: null,
-    localEvents: { domEvents: [], globalEvents: [] },
     isPreparing: false,
     countdown: 0,
     recordingSource: 'desktop',
     recordingSourceDeviceId: null,
     recordingSourceSessionId: null,
+    recordingStartTime: null,
+    deviceResolution: null,
+    isMarkerOverlayOpen: false,
+    isAndroidMarkerOverlayOpen: false,
 
-    // Initiate recording with countdown
     initiateRecording: (threadId, source = 'desktop', deviceId = undefined, sessionId = undefined, onBeforeStart = undefined) => {
         set({ isPreparing: true, countdown: COUNTDOWN_SECONDS, activeThreadId: threadId, recordingSource: source, recordingSourceDeviceId: deviceId, recordingSourceSessionId: sessionId })
 
         const runCountdown = async () => {
             const state = get()
-            if (!state.isPreparing) return // Cancelled
+            if (!state.isPreparing) return
 
             if (state.countdown <= 1) {
-                // Countdown complete, call onBeforeStart if provided (e.g., to start backend recording)
                 if (onBeforeStart) {
                     try {
                         console.log("[RecordingStore] Calling onBeforeStart...")
@@ -73,12 +81,10 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
                         return
                     }
                 }
-                // Actually start recording
                 console.log("[RecordingStore] Starting recording...")
                 get().startRecording(threadId)
                 console.log("[RecordingStore] Recording started, isRecording:", get().isRecording)
             } else {
-                // Continue countdown
                 set({ countdown: state.countdown - 1 })
                 setTimeout(runCountdown, 1000)
             }
@@ -87,7 +93,6 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
         setTimeout(runCountdown, 1000)
     },
 
-    // Actually start recording (called after countdown)
     startRecording: (threadId, source, deviceId, sessionId) => {
         const currentSource = source || get().recordingSource
         const currentDeviceId = deviceId || get().recordingSourceDeviceId
@@ -101,23 +106,79 @@ export const useRecordingStore = create<RecordingState>((set, get) => ({
             sessionId: null,
             videoPath: null,
             postRecordingAction: null,
-            localEvents: { domEvents: [], globalEvents: [] },
             recordingSource: currentSource,
             recordingSourceDeviceId: currentDeviceId,
-            recordingSourceSessionId: currentSessionId
+            recordingSourceSessionId: currentSessionId,
+            recordingStartTime: Date.now()
         })
     },
 
-    stopRecording: () => set({ isRecording: false, isPreparing: false, countdown: 0 }), // Manager will clear activeThreadId after cleanup if needed
+    stopRecording: () => set({ isRecording: false, isPreparing: false, countdown: 0, recordingStartTime: null }),
     setEventCount: (count) => set({ eventCount: count }),
     setSessionId: (id) => set({ sessionId: id }),
     setRecordingSource: (source, deviceId = null) => set({ recordingSource: source, recordingSourceDeviceId: deviceId }),
     setIsGlobalMode: (isGlobal) => set({ isGlobalMode: isGlobal }),
     setVideoPath: (path) => set({ videoPath: path }),
     setPostRecordingAction: (action) => set({ postRecordingAction: action }),
-    setLocalEvents: (domEvents, globalEvents) => set({ localEvents: { domEvents, globalEvents } }),
-    clearLocalEvents: () => set({ localEvents: { domEvents: [], globalEvents: [] } }),
     setIsPreparing: (isPreparing) => set({ isPreparing }),
     setCountdown: (countdown) => set({ countdown }),
-    reset: () => set({ isRecording: false, activeThreadId: null, eventCount: 0, sessionId: null, videoPath: null, postRecordingAction: null, localEvents: { domEvents: [], globalEvents: [] }, isPreparing: false, countdown: 0, recordingSource: 'desktop', recordingSourceDeviceId: null, recordingSourceSessionId: null })
+    setDeviceResolution: (res) => set({ deviceResolution: res }),
+
+    openMarkerOverlay: async () => {
+        try {
+            const result = await invoke<string>("create_marker_overlay")
+            console.log("[RecordingStore] Marker overlay:", result)
+            set({ isMarkerOverlayOpen: true })
+        } catch (err) {
+            console.error("[RecordingStore] Failed to open marker overlay:", err)
+        }
+    },
+
+    closeMarkerOverlay: async () => {
+        try {
+            const result = await invoke<string>("close_marker_overlay")
+            console.log("[RecordingStore] Marker overlay:", result)
+            set({ isMarkerOverlayOpen: false })
+        } catch (err) {
+            console.error("[RecordingStore] Failed to close marker overlay:", err)
+        }
+    },
+
+    openAndroidMarkerOverlay: async () => {
+        try {
+            const result = await invoke<string>("create_android_marker_overlay")
+            console.log("[RecordingStore] Android marker overlay:", result)
+            set({ isAndroidMarkerOverlayOpen: true })
+        } catch (err) {
+            console.error("[RecordingStore] Failed to open Android marker overlay:", err)
+        }
+    },
+
+    closeAndroidMarkerOverlay: async () => {
+        try {
+            const result = await invoke<string>("close_android_marker_overlay")
+            console.log("[RecordingStore] Android marker overlay:", result)
+            set({ isAndroidMarkerOverlayOpen: false })
+        } catch (err) {
+            console.error("[RecordingStore] Failed to close Android marker overlay:", err)
+        }
+    },
+
+    reset: () => set({
+        isRecording: false,
+        activeThreadId: null,
+        eventCount: 0,
+        sessionId: null,
+        videoPath: null,
+        postRecordingAction: null,
+        isPreparing: false,
+        countdown: 0,
+        recordingSource: 'desktop',
+        recordingSourceDeviceId: null,
+        recordingSourceSessionId: null,
+        recordingStartTime: null,
+        deviceResolution: null,
+        isMarkerOverlayOpen: false,
+        isAndroidMarkerOverlayOpen: false
+    })
 }))

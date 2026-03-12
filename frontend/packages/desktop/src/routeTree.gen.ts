@@ -12,7 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RecoverPasswordRouteImport } from './routes/recover-password'
+import { Route as MarkerOverlayRouteImport } from './routes/marker-overlay'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as AndroidMarkerOverlayRouteImport } from './routes/android-marker-overlay'
 import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
 import { Route as LayoutTodosRouteImport } from './routes/_layout/todos'
@@ -47,9 +49,19 @@ const RecoverPasswordRoute = RecoverPasswordRouteImport.update({
   path: '/recover-password',
   getParentRoute: () => rootRouteImport,
 } as any)
+const MarkerOverlayRoute = MarkerOverlayRouteImport.update({
+  id: '/marker-overlay',
+  path: '/marker-overlay',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AndroidMarkerOverlayRoute = AndroidMarkerOverlayRouteImport.update({
+  id: '/android-marker-overlay',
+  path: '/android-marker-overlay',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LayoutRoute = LayoutRouteImport.update({
@@ -153,7 +165,9 @@ const LayoutLearningSkillsSkillIdEditRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof LayoutIndexRoute
+  '/android-marker-overlay': typeof AndroidMarkerOverlayRoute
   '/login': typeof LoginRoute
+  '/marker-overlay': typeof MarkerOverlayRoute
   '/recover-password': typeof RecoverPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
@@ -175,7 +189,9 @@ export interface FileRoutesByFullPath {
   '/learning/skills/$skillId/edit': typeof LayoutLearningSkillsSkillIdEditRoute
 }
 export interface FileRoutesByTo {
+  '/android-marker-overlay': typeof AndroidMarkerOverlayRoute
   '/login': typeof LoginRoute
+  '/marker-overlay': typeof MarkerOverlayRoute
   '/recover-password': typeof RecoverPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
@@ -199,7 +215,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_layout': typeof LayoutRouteWithChildren
+  '/android-marker-overlay': typeof AndroidMarkerOverlayRoute
   '/login': typeof LoginRoute
+  '/marker-overlay': typeof MarkerOverlayRoute
   '/recover-password': typeof RecoverPasswordRoute
   '/reset-password': typeof ResetPasswordRoute
   '/signup': typeof SignupRoute
@@ -225,7 +243,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/android-marker-overlay'
     | '/login'
+    | '/marker-overlay'
     | '/recover-password'
     | '/reset-password'
     | '/signup'
@@ -247,7 +267,9 @@ export interface FileRouteTypes {
     | '/learning/skills/$skillId/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/android-marker-overlay'
     | '/login'
+    | '/marker-overlay'
     | '/recover-password'
     | '/reset-password'
     | '/signup'
@@ -270,7 +292,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_layout'
+    | '/android-marker-overlay'
     | '/login'
+    | '/marker-overlay'
     | '/recover-password'
     | '/reset-password'
     | '/signup'
@@ -295,7 +319,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   LayoutRoute: typeof LayoutRouteWithChildren
+  AndroidMarkerOverlayRoute: typeof AndroidMarkerOverlayRoute
   LoginRoute: typeof LoginRoute
+  MarkerOverlayRoute: typeof MarkerOverlayRoute
   RecoverPasswordRoute: typeof RecoverPasswordRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SignupRoute: typeof SignupRoute
@@ -324,11 +350,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RecoverPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/marker-overlay': {
+      id: '/marker-overlay'
+      path: '/marker-overlay'
+      fullPath: '/marker-overlay'
+      preLoaderRoute: typeof MarkerOverlayRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/android-marker-overlay': {
+      id: '/android-marker-overlay'
+      path: '/android-marker-overlay'
+      fullPath: '/android-marker-overlay'
+      preLoaderRoute: typeof AndroidMarkerOverlayRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_layout': {
@@ -529,7 +569,9 @@ const LayoutRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   LayoutRoute: LayoutRouteWithChildren,
+  AndroidMarkerOverlayRoute: AndroidMarkerOverlayRoute,
   LoginRoute: LoginRoute,
+  MarkerOverlayRoute: MarkerOverlayRoute,
   RecoverPasswordRoute: RecoverPasswordRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SignupRoute: SignupRoute,

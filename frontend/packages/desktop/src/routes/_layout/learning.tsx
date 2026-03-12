@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { createFileRoute, useNavigate, Outlet, useRouterState } from "@tanstack/react-router"
+import { createFileRoute, Outlet, useRouterState } from "@tanstack/react-router"
 import { AndroidMirrorConsole } from "@/components/Learning/AndroidMirrorConsole"
 import { SkillLibraryView } from "@/components/Learning/SkillLibraryView"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@evoloop/shared/components/ui/tabs"
@@ -9,7 +9,6 @@ import { useState } from "react"
 import { McpView } from "@/components/Learning/McpView"
 import { RecordingButton } from "@/components/Chat/RecordingButton"
 import { useRecordingStore } from "@/stores/recordingStore"
-import { SmartReplayEditor } from "@/components/Learning/SmartReplay"
 import { MultimodalSynthesizeDialog } from "@/components/Learning/MultimodalSynthesizeDialog"
 
 export const Route = createFileRoute("/_layout/learning")({
@@ -22,11 +21,23 @@ function LearningPage() {
     const [activeTab, setActiveTab] = useState("library")
     const [highlightSkillId, setHighlightSkillId] = useState<number | null>(null)
 
-    const { sessionId, videoPath, postRecordingAction, setPostRecordingAction, isRecording, isPreparing, countdown, stopRecording, recordingSource } = useRecordingStore()
+    const {
+        sessionId,
+        videoPath,
+        postRecordingAction,
+        setPostRecordingAction,
+        isRecording,
+        isPreparing,
+        countdown,
+        stopRecording,
+        recordingSource,
+        openMarkerOverlay,
+        closeMarkerOverlay,
+    } = useRecordingStore()
     const [synthesizeDialogOpen, setSynthesizeDialogOpen] = useState(false)
     const [isStoppingRecording, setIsStoppingRecording] = useState(false)
 
-    // Check if we're on a child route (e.g., /learning/skills/:id/edit)
+    // Check if we're on a child route (e.g. /learning/skills/:id/edit)
     const isChildRoute = router.location.pathname.startsWith("/learning/") && router.location.pathname !== "/learning"
 
     // Automatic trigger for synthesis dialog
@@ -36,6 +47,26 @@ function LearningPage() {
             setIsStoppingRecording(false)
         }
     }, [postRecordingAction, sessionId, videoPath])
+
+    // Handle recording state changes - open/close marker overlay
+    useEffect(() => {
+        const handleRecordingState = async () => {
+            if (isRecording && recordingSource === 'desktop') {
+                // Open marker overlay when global recording starts
+                await openMarkerOverlay()
+            } else {
+                // Close marker overlay when recording stops
+                await closeMarkerOverlay()
+            }
+        }
+
+        handleRecordingState()
+
+        // Cleanup on unmount
+        return () => {
+            closeMarkerOverlay()
+        }
+    }, [isRecording, recordingSource, openMarkerOverlay, closeMarkerOverlay])
 
     const handleSynthesizeComplete = () => {
         setSynthesizeDialogOpen(false)
@@ -109,7 +140,7 @@ function LearningPage() {
                 </TabsContent>
             </Tabs>
 
-            {/* Simple synthesis dialog - using MultimodalSynthesizeDialog instead of SmartReplayEditor for now */}
+            {/* Synthesis dialog - using MultimodalSynthesizeDialog for skill synthesis from recordings */}
             <MultimodalSynthesizeDialog
                 open={synthesizeDialogOpen}
                 onOpenChange={setSynthesizeDialogOpen}

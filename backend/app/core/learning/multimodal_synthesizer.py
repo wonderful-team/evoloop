@@ -37,9 +37,19 @@ from app.core.learning.frame_compressor import (
     NormalizedEvent,
 )
 from app.core.learning.prompts.builder import LearningPromptBuilder
+from app.core.learning.synthesizer_utils import (
+    cleanup_macro_steps,
+    describe_normalized_position,
+    export_skill_to_filesystem,
+    extract_instructions_section,
+    extract_yaml_block,
+    normalize_timestamp_to_seconds,
+    verify_macro_script,
+)
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.vision import VisionLLMFactory
 from app.infrastructure.config.service import SystemConfigService
+from app.infrastructure.drivers.adb import adb_driver
 from app.models import TraceEvent, LearnedSkill
 
 logger = logging.getLogger(__name__)
@@ -104,7 +114,14 @@ class MultimodalSkillSynthesizer:
         events = await self._fetch_events(recording.session_id)
         if not events:
             raise ValueError(f"No events found for session {recording.session_id}")
-        logger.info(f"Fetched {len(events)} events")
+
+        # [v3 Unified] Log event source distribution
+        source_counts = {}
+        for e in events:
+            src = getattr(e, 'source', 'unknown') or 'unknown'
+            source_counts[src] = source_counts.get(src, 0) + 1
+        source_summary = ", ".join([f"{k}={v}" for k, v in source_counts.items()])
+        logger.info(f"[Unified] Fetched {len(events)} events ({source_summary})")
 
         # Step 3: 智能选择关键帧
         keyframes = self.keyframe_selector.select_keyframes(
@@ -139,12 +156,7 @@ class MultimodalSkillSynthesizer:
         )
 
         # Step 6.5: 提取真实包名 (用于 open_app 指令)
-        bundle_id = "unknown"
-        for e in events:
-            p = e.payload if isinstance(e.payload, dict) else {}
-            if p.get("package_name"):
-                bundle_id = p["package_name"]
-                break
+        bundle_id = await self._get_bundle_id_from_events(events)
         logger.info(f"Target package detected: {bundle_id}")
 
         # Step 7: 调用多模态 LLM
@@ -190,8 +202,7 @@ class MultimodalSkillSynthesizer:
 
         # [Phase 15] 宏规范化 (处理 LLM 的不规范输出)
         if isinstance(target_macro, list):
-            from app.core.learning.skill_synthesizer import WorkflowSynthesizer
-            target_macro, _ = WorkflowSynthesizer._cleanup_macro(target_macro)
+            target_macro, _ = cleanup_macro_steps(target_macro)
             skill_data["macro_script"] = target_macro
         else:
             logger.warning("Target macro is not a list, falling back to compiled_macro.")
@@ -207,6 +218,9 @@ class MultimodalSkillSynthesizer:
 
         processing_time = time.time() - start_time
         logger.info(f"Synthesis completed in {processing_time:.1f}s.")
+
+        # Export to filesystem
+        export_skill_to_filesystem(skill_data)
 
         return {
             "skill": skill_data,
@@ -239,48 +253,12 @@ class MultimodalSkillSynthesizer:
 
     async def verify_macro(self, macro_script: list[dict], project_id: int = 1) -> dict:
         """Dry-run 验证宏脚本的有效性"""
-        from app.core.execution.macro.service import MacroService
-        from app.core.execution.macro.schema import MacroScript, MacroMetadata
-        
-        logger.info(f"🔍 Starting verification dry-run for synthesized macro...")
-        
-        script = MacroScript(
-            metadata=MacroMetadata(thread_id="verifier", author="multimodal_verifier"),
-            steps=macro_script
+        return await verify_macro_script(
+            macro_script=macro_script,
+            thread_id="multimodal_dryrun",
+            project_id=project_id,
+            params={"max_scrolls": 2, "is_dry_run": True}
         )
-        
-        try:
-            # Provide some default parameters for the dry-run to resolve templates like {{max_scrolls}}
-            params = {
-                "max_scrolls": 2,
-                "is_dry_run": True
-            }
-            
-            # MacroService.run(thread_id, script_input, params=None)
-            result = await MacroService.run(
-                thread_id="multimodal_dryrun",
-                script_input=macro_script,
-                params=params
-            )
-            success = result.get("success", False)
-            extracted_data = result.get("extracted_data", {})
-            
-            # 检查提取点数据
-            expected_keys = [s["key"] for s in macro_script if s.get("type") == "extract"]
-            missing_keys = [k for k in expected_keys if k not in extracted_data]
-            
-            status = "success" if success and not missing_keys else "failed"
-            
-            return {
-                "status": status,
-                "success": success,
-                "missing_keys": missing_keys,
-                "extracted_count": len(extracted_data),
-                "error": result.get("error")
-            }
-        except Exception as e:
-            logger.error(f"Verification crashed: {e}")
-            return {"status": "error", "success": False, "error": str(e)}
 
     async def _get_video_info(self, video_path: str) -> VideoInfo:
         """使用 ffprobe JSON 获取视频元信息（更鲁棒）"""
@@ -325,41 +303,14 @@ class MultimodalSkillSynthesizer:
             result = await session.execute(stmt)
             events = list(result.scalars().all())
 
-            # [FIX] Detach objects from session to prevent in-place modifications 
-            # (like timestamp normalization) from being persisted back to DB.
             session.expunge_all()
 
             if not events:
                 return []
 
-            # [FIX] Normalize timestamps: ensure they start from 0 (rel ms -> rel sec)
-            # The database timestamp could be Unix MS, Unix Sec, or Relative MS.
-            first_raw_ts = events[0].timestamp if events else 0
-
             for event in events:
-                if event.timestamp is not None:
-                    # [FIX] For Android mirroring, timestamps are already relative to video start
-                    if event.source in ("android", "mobile"):
-                        # Database stores ms, llm expects relative seconds
-                        event.timestamp = float(event.timestamp) / 1000.0
-                    # Robustly detect timestamp format and normalize to relative seconds
-                    elif event.timestamp > 1000000000000: # Unix MS (e.g. 1773155100916)
-                        event.timestamp = (event.timestamp - first_raw_ts) / 1000.0
-                    elif event.timestamp > 1000000000:    # Unix Seconds (e.g. 1773155100.916)
-                        event.timestamp = (event.timestamp - first_raw_ts)
-                    else:
-                        # Already small value, assume it's relative ms or relative seconds
-                        # If first_raw_ts is also small, it's relative.
-                        if first_raw_ts < 1000000:
-                            # Both small, assume relative seconds
-                            event.timestamp = (event.timestamp - first_raw_ts)
-                        else:
-                            # first_raw_ts is large (Unix MS), but current event.timestamp is small
-                            event.timestamp = float(event.timestamp) / 1000.0
-                else:
-                    event.timestamp = 0.0
+                event.timestamp = normalize_timestamp_to_seconds(event.timestamp)
 
-            # [DEBUG] 记录时间戳范围
             if events:
                 timestamps = [e.timestamp for e in events if e.timestamp is not None]
                 if timestamps:
@@ -375,24 +326,68 @@ class MultimodalSkillSynthesizer:
     ) -> List[CompressedFrame]:
         """批量提取并压缩帧"""
         frames = []
-        for keyframe in keyframes:
+        logger.info(f"[KeyframeExtraction] Starting extraction of {len(keyframes)} keyframes from video: {video_path}")
+
+        for i, keyframe in enumerate(keyframes, 1):
             try:
                 # 提取单帧
                 frame_path = await self._extract_single_frame(video_path, keyframe.timestamp)
+
+                # 记录原始截图路径
+                logger.info(
+                    f"[KeyframeExtraction] Frame {i}/{len(keyframes)} | "
+                    f"Timestamp: {keyframe.timestamp:.3f}s | "
+                    f"Context: {keyframe.context} | "
+                    f"Priority: {keyframe.priority} | "
+                    f"Raw screenshot: {frame_path}"
+                )
+
                 # 执行压缩
                 compressed = self.compressor.compress(frame_path)
+                original_size_kb = len(compressed.data) / 1024
+
                 # 自适应控制大小 (150KB 以内)
                 if len(compressed.data) > 150 * 1024:
                     compressed = self.compressor.compress_with_target_size(frame_path, target_kb=100)
-                
+                    compressed_size_kb = len(compressed.data) / 1024
+                    logger.info(
+                        f"[KeyframeExtraction] Frame {i} compressed (adaptive): "
+                        f"{original_size_kb:.1f}KB -> {compressed_size_kb:.1f}KB "
+                        f"(ratio: {compressed.compression_ratio:.1%})"
+                    )
+                else:
+                    compressed_size_kb = original_size_kb
+                    logger.info(
+                        f"[KeyframeExtraction] Frame {i} compressed: "
+                        f"{compressed_size_kb:.1f}KB "
+                        f"(ratio: {compressed.compression_ratio:.1%})"
+                    )
+
                 # 注入元数据供 Prompt 使用
                 compressed.timestamp = keyframe.timestamp
                 compressed.description = keyframe.description
-                
+
+                # 记录详细信息
+                logger.debug(
+                    f"[KeyframeExtraction] Frame {i} details: "
+                    f"resolution={compressed.width}x{compressed.height}, "
+                    f"original_resolution={compressed.original_size}, "
+                    f"detail_level={compressed.detail_level}, "
+                    f"description='{keyframe.description}'"
+                )
+
                 frames.append(compressed)
             except Exception as e:
-                logger.warning(f"Failed to process frame at {keyframe.timestamp}s: {e}")
+                logger.warning(
+                    f"[KeyframeExtraction] Failed to process frame {i} at {keyframe.timestamp}s: {e} | "
+                    f"Context: {keyframe.context}, Description: {keyframe.description}"
+                )
                 continue
+
+        logger.info(
+            f"[KeyframeExtraction] Completed: {len(frames)}/{len(keyframes)} frames extracted successfully | "
+            f"Total size: {sum(len(f.data) for f in frames) / 1024:.1f}KB"
+        )
         return frames
 
     async def _extract_single_frame(self, video_path: str, timestamp: float) -> str:
@@ -477,6 +472,54 @@ class MultimodalSkillSynthesizer:
                 }]
         return frames
 
+    async def _get_bundle_id_from_events(self, events: List[TraceEvent]) -> str:
+        """
+        从事件中提取包名，如果不存在或无效则从设备获取。
+
+        策略：
+        1. 检查 events 的 app_name 或 node_name 字段 (后端解析注入的数据)
+        2. 尝试从事件 payload 中提取 package_name (前端直接上报的数据)
+        3. 如果均未找到有效值，且设备连接中，则通过 ADB 查询设备当前应用 (Fallback)
+        """
+        bundle_id = "unknown"
+        system_prefixes = (
+            "com.android.systemui",
+            "com.android.launcher",
+            "com.google.android.inputmethod",
+            "android",
+            "scrcpy", # 视为无效包名，触发 re-poll
+            "global_recorder"
+        )
+
+        for e in events:
+            # 优先从数据库第一级字段获取 (这是后台解析 MirrorSession 后的真实数据)
+            pkg = getattr(e, "app_name", None) or getattr(e, "node_name", None)
+            
+            # 其次从 payload 获取
+            if not pkg or pkg in ("unknown", "error", ""):
+                p = e.payload if isinstance(e.payload, dict) else {}
+                pkg = p.get("package_name")
+
+            if pkg and pkg not in ("unknown", "error", ""):
+                if not any(pkg.startswith(p) for p in system_prefixes) and pkg != "global_recorder":
+                    bundle_id = pkg
+                    break
+
+        # 步骤 2: 如果未找到有效包名，尝试从设备获取
+        if bundle_id == "unknown":
+            try:
+                logger.debug("No valid package_name in events, fetching from device via ADB")
+                app_info = adb_driver.get_current_app()
+                if app_info and app_info.get("package"):
+                    pkg = app_info["package"]
+                    if pkg and pkg not in ("unknown", "error", "") and not pkg.startswith(system_prefixes):
+                        bundle_id = pkg
+                        logger.info(f"Fetched package name from device (fallback): {bundle_id}")
+            except Exception as e:
+                logger.warning(f"Failed to fetch package name from device: {e}")
+
+        return bundle_id
+
     async def _call_vision_llm(self, task_description: str, bundle_id: str, frames: List[CompressedFrame], event_context: str) -> str:
         """构建多模态消息并调用 LLM"""
         from langchain_core.messages import HumanMessage, SystemMessage
@@ -536,21 +579,7 @@ class MultimodalSkillSynthesizer:
 
     def _describe_position(self, norm_x: float, norm_y: float) -> str:
         """将归一化坐标转换为精细的语义描述 (5x5 风格)"""
-        # 水平段
-        if norm_x < 0.2: h = "left"
-        elif norm_x < 0.4: h = "left-center"
-        elif norm_x < 0.6: h = "center"
-        elif norm_x < 0.8: h = "right-center"
-        else: h = "right"
-
-        # 垂直段
-        if norm_y < 0.2: v = "top"
-        elif norm_y < 0.4: v = "upper"
-        elif norm_y < 0.6: v = "middle"
-        elif norm_y < 0.8: v = "lower"
-        else: v = "bottom"
-
-        return f"{v}-{h}"
+        return describe_normalized_position(norm_x, norm_y)
 
     def _parse_llm_response(self, response: str, recording: RecordingSession) -> dict:
         """解析 LLM 返回的混合格式"""
@@ -580,17 +609,16 @@ class MultimodalSkillSynthesizer:
 
     def _extract_yaml(self, text: str) -> Optional[str]:
         """提取 YAML 代码块"""
-        if "```yaml" in text:
-            return text.split("```yaml", 1)[1].split("```", 1)[0].strip()
-        if "```" in text:
-            # 尝试提取第一个代码块
-            return text.split("```", 2)[1].strip()
-        return None
+        return extract_yaml_block(text)
 
     def _extract_instructions(self, text: str) -> Optional[str]:
         """从响应中提取 Markdown 文档部分"""
-        markers = ["# 🧠 Expert Skill Guide", "# Expert Skill Guide", "## 1. Mental Model"]
-        for marker in markers:
-            if marker in text:
-                return text[text.find(marker):].strip()
-        return text
+        result = extract_instructions_section(text)
+        # 如果工具函数返回原文，说明没有找到标记，返回 None
+        if result == text and not any(m in text for m in [
+            "# 🧠 Expert Skill Guide",
+            "# Expert Skill Guide",
+            "## 1. Mental Model"
+        ]):
+            return None
+        return result

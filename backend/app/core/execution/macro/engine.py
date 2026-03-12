@@ -147,9 +147,11 @@ class MacroEngine:
                     return False, f"Step {step_num} failed: {error_msg}", fallback_context
 
                 await activity_monitor.check_cancellation(thread_id)
-                # Increase delay between steps for better stability
-                await asyncio.sleep(1.0)
-                
+                # Configurable delay between steps for better stability (default to 100ms instead of 1000ms)
+                delay_ms = payload.get("delay_after_ms", 100)
+                if delay_ms > 0:
+                    await asyncio.sleep(delay_ms / 1000.0)
+
         return True, "", None
 
     @classmethod
@@ -623,9 +625,23 @@ class MacroEngine:
                 return val
 
             # Map x->start_x, x2->end_x to handle LLM variations
-            alias_map = {"x": "start_x", "y": "start_y", "x2": "end_x", "y2": "end_y"}
+            # [DEBOUNCE] Also map x2->end_x, y2->end_y for debounced swipe events
+            alias_map = {
+                "x": "start_x",
+                "y": "start_y",
+                "x2": "end_x",
+                "y2": "end_y",
+                "end_x": "x2",  # Reverse mapping for debounced swipe events
+                "end_y": "y2"
+            }
             if key in alias_map and alias_map[key] in p:
                 return p[alias_map[key]]
+
+            # [DEBOUNCE] Direct support for debounced swipe event format
+            if key == "x2" and "end_x" in p:
+                return p["end_x"]
+            if key == "y2" and "end_y" in p:
+                return p["end_y"]
 
             if "relative_position" in p:
                 # relative_position usually only handles a single point, 
@@ -647,11 +663,11 @@ class MacroEngine:
             return None
 
         if event_type in ("click", "tap"):
-            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0), disable_atlas=True))
+            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0), disable_atlas=True, disable_trace_screenshot=True))
         elif event_type == "long_press":
-            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name"), duration_ms=payload.get("duration_ms", 800), disable_atlas=True))
+            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name"), duration_ms=payload.get("duration_ms", 800), disable_atlas=True, disable_trace_screenshot=True))
         elif event_type in ("input", "type_text"):
-            handle_res(await MobileController.execute(action="input_text", text=payload.get("text") or payload.get("value", ""), element_name=selector or payload.get("element_name"), disable_atlas=True))
+            handle_res(await MobileController.execute(action="input_text", text=payload.get("text") or payload.get("value", ""), element_name=selector or payload.get("element_name"), disable_atlas=True, disable_trace_screenshot=True))
         elif event_type in ("swipe", "scroll"):
             actual_action = tool_action
             # If it's a swipe but we only have direction/distance (no coords), redirect to scroll
@@ -667,36 +683,39 @@ class MacroEngine:
                 direction=payload.get("direction"),
                 scroll_amount=payload.get("distance") or payload.get("scroll_amount", "medium"),
                 duration_ms=payload.get("duration_ms", 500),
-                disable_atlas=True
+                disable_atlas=True,
+                disable_trace_screenshot=True
             ))
         elif event_type == "back":
-            handle_res(await MobileController.execute(action="press_key", keycode="back", disable_atlas=True))
+            handle_res(await MobileController.execute(action="press_key", keycode="back", disable_atlas=True, disable_trace_screenshot=True))
         elif event_type == "back_key":
-            handle_res(await MobileController.execute(action="press_key", keycode=payload.get("keycode", "back"), disable_atlas=True))
+            handle_res(await MobileController.execute(action="press_key", keycode=payload.get("keycode", "back"), disable_atlas=True, disable_trace_screenshot=True))
         elif event_type == "home":
-            handle_res(await MobileController.execute(action="press_key", keycode="home", disable_atlas=True))
+            handle_res(await MobileController.execute(action="press_key", keycode="home", disable_atlas=True, disable_trace_screenshot=True))
         elif event_type == "key_press":
-            handle_res(await MobileController.execute(action=tool_action, keycode=payload.get("key") or payload.get("keycode"), disable_atlas=True))
+            handle_res(await MobileController.execute(action=tool_action, keycode=payload.get("key") or payload.get("keycode"), disable_atlas=True, disable_trace_screenshot=True))
         elif event_type == "open_app":
             handle_res(await MobileController.execute(
                 action=tool_action,
                 text=payload.get("package") or payload.get("text") or payload.get("app_name"),
                 force_stop=payload.get("force_stop", True),
-                disable_atlas=True
+                disable_atlas=True,
+                disable_trace_screenshot=True
             ))
         elif event_type == "screenshot":
-            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True))
+            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True, disable_trace_screenshot=True))
         elif event_type == "dump_ui":
-            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True))
+            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True, disable_trace_screenshot=True))
         elif event_type == "get_clipboard":
-            handle_res(await MobileController.execute(action="get_clipboard", disable_atlas=True))
+            handle_res(await MobileController.execute(action="get_clipboard", disable_atlas=True, disable_trace_screenshot=True))
         elif event_type == "scroll_to_bottom":
             handle_res(await MobileController.execute(
                 action="scroll_to_bottom",
                 max_scrolls=payload.get("max_scrolls", 5),
                 scroll_amount=payload.get("scroll_amount", "medium"),
                 delay_ms=payload.get("delay_ms", 1000),
-                disable_atlas=True
+                disable_atlas=True,
+                disable_trace_screenshot=True
             ))
 
     # --- Utils ---

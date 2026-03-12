@@ -24,6 +24,20 @@
     },
     "dialog:default",
     {
+      "identifier": "fs:allow-read",
+      "allow": [
+        {
+          "path": "$HOME/.evoloop/artifacts/**"
+        },
+        {
+          "path": "$APPLOCALDATA/**"
+        },
+        {
+          "path": "$TEMP/**"
+        }
+      ]
+    },
+    {
       "identifier": "fs:allow-exists",
       "allow": [
         {
@@ -57,6 +71,10 @@
     "core:tray:default",
     "core:tray:allow-set-title",
     "core:tray:allow-set-icon-as-template",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-always-on-top",
     {
       "identifier": "http:default",
       "allow": [

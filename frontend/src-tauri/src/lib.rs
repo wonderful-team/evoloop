@@ -3,13 +3,21 @@ use tauri::menu::MenuItem;
 use tauri::tray::TrayIcon;
 use tauri::WindowEvent;
 #[cfg(desktop)]
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicUsize, AtomicI32};
 #[cfg(desktop)]
 use std::sync::{Arc, Mutex};
 #[cfg(desktop)]
 use tauri_plugin_shell::process::CommandChild;
 #[cfg(desktop)]
 use tauri_plugin_shell::ShellExt;
+
+// Marker overlay window management
+#[cfg(desktop)]
+use tauri::WebviewWindowBuilder;
+#[cfg(desktop)]
+static MARKER_OVERLAY_OPEN: AtomicBool = AtomicBool::new(false);
+#[cfg(desktop)]
+static ANDROID_MARKER_OVERLAY_OPEN: AtomicBool = AtomicBool::new(false);
 
 #[cfg(desktop)]
 mod global_observer;
@@ -36,6 +44,8 @@ pub struct AppServiceState {
     pub is_blinking: Arc<AtomicBool>,
     // Timer: stores the Instant when recording started (None when not recording)
     pub recording_start_time: Arc<Mutex<Option<std::time::Instant>>>,
+    pub is_preparing: Arc<AtomicBool>,
+    pub countdown: Arc<AtomicI32>,
     // Event count from frontend (DOM + Global events)
     pub event_count: Arc<AtomicUsize>,
 }
@@ -88,6 +98,172 @@ fn is_global_recording(state: tauri::State<'_, AppServiceState>) -> bool {
     state.global_observer.is_recording()
 }
 
+#[tauri::command]
+#[cfg(desktop)]
+async fn show_main_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        #[cfg(target_os = "macos")]
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[cfg(mobile)]
+async fn show_main_window() -> Result<(), String> {
+    Ok(())
+}
+
+// ===== Marker Overlay Window Commands =====
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn create_marker_overlay(app: tauri::AppHandle) -> Result<String, String> {
+    use std::sync::atomic::Ordering;
+
+    // Check if already open
+    if MARKER_OVERLAY_OPEN.load(Ordering::SeqCst) {
+        // Just show it if it exists
+        if let Some(window) = app.get_webview_window("marker-overlay") {
+            let _ = window.show();
+            let _ = window.set_focus();
+            return Ok("marker-overlay-already-exists".to_string());
+        }
+    }
+
+    MARKER_OVERLAY_OPEN.store(true, Ordering::SeqCst);
+
+    let _window = WebviewWindowBuilder::new(
+        &app,
+        "marker-overlay",
+        tauri::WebviewUrl::App("/marker-overlay".into())
+    )
+    .title("EvoLoop Marker Overlay")
+    .inner_size(64.0, 64.0)
+    .max_inner_size(64.0, 64.0)
+    .min_inner_size(64.0, 64.0)
+    .always_on_top(true)
+    .decorations(false)
+    .skip_taskbar(true)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(false)
+    .closable(true)
+    .visible(false) // Start hidden, move in react, then show
+    .transparent(true)
+    .shadow(false)
+    .position(100.0, 100.0)
+    .build()
+    .map_err(|e| format!("Failed to create marker overlay: {}", e))?;
+
+    // We can show it immediately or let React show it. Given React does `initPosition()`, let's let React show it or show it here.
+    // Actually, setting visible(false) means React needs to show it.
+
+    Ok("marker-overlay-created".to_string())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn close_marker_overlay(app: tauri::AppHandle) -> Result<String, String> {
+    use std::sync::atomic::Ordering;
+
+    if let Some(window) = app.get_webview_window("marker-overlay") {
+        let _ = window.close();
+    }
+
+    MARKER_OVERLAY_OPEN.store(false, Ordering::SeqCst);
+    Ok("marker-overlay-closed".to_string())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn update_marker_overlay_position(
+    app: tauri::AppHandle,
+    x: f64,
+    y: f64
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("marker-overlay") {
+        use tauri::LogicalPosition;
+        window.set_position(LogicalPosition::new(x, y))
+            .map_err(|e| format!("Failed to update position: {}", e))?;
+    }
+    Ok(())
+}
+
+// ===== Android Marker Overlay Window Commands =====
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn create_android_marker_overlay(app: tauri::AppHandle) -> Result<String, String> {
+    use std::sync::atomic::Ordering;
+
+    // Check if already open
+    if ANDROID_MARKER_OVERLAY_OPEN.load(Ordering::SeqCst) {
+        if let Some(window) = app.get_webview_window("android-marker-overlay") {
+            let _ = window.show();
+            let _ = window.set_focus();
+            return Ok("android-marker-overlay-already-exists".to_string());
+        }
+    }
+
+    ANDROID_MARKER_OVERLAY_OPEN.store(true, Ordering::SeqCst);
+
+    let _window = WebviewWindowBuilder::new(
+        &app,
+        "android-marker-overlay",
+        tauri::WebviewUrl::App("/android-marker-overlay".into())
+    )
+    .title("EvoLoop Android Marker Overlay")
+    .inner_size(64.0, 64.0)
+    .max_inner_size(64.0, 64.0)
+    .min_inner_size(64.0, 64.0)
+    .always_on_top(true)
+    .decorations(false)
+    .skip_taskbar(true)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(false)
+    .closable(true)
+    .visible(false) // Start hidden to prevent jump
+    .transparent(true)
+    .shadow(false)
+    .position(100.0, 100.0)
+    .build()
+    .map_err(|e| format!("Failed to create Android marker overlay: {}", e))?;
+
+    Ok("android-marker-overlay-created".to_string())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn close_android_marker_overlay(app: tauri::AppHandle) -> Result<String, String> {
+    use std::sync::atomic::Ordering;
+
+    if let Some(window) = app.get_webview_window("android-marker-overlay") {
+        let _ = window.close();
+    }
+
+    ANDROID_MARKER_OVERLAY_OPEN.store(false, Ordering::SeqCst);
+    Ok("android-marker-overlay-closed".to_string())
+}
+
+#[tauri::command]
+#[cfg(desktop)]
+async fn update_android_marker_position(
+    app: tauri::AppHandle,
+    x: f64,
+    y: f64
+) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("android-marker-overlay") {
+        use tauri::LogicalPosition;
+        window.set_position(LogicalPosition::new(x, y))
+            .map_err(|e| format!("Failed to update position: {}", e))?;
+    }
+    Ok(())
+}
+
 // ===== Application Entry Point =====
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -132,6 +308,8 @@ pub fn run() {
                 recording_path: Arc::new(Mutex::new(None)),
                 is_blinking: Arc::new(AtomicBool::new(false)),
                 recording_start_time: Arc::new(Mutex::new(None)),
+                is_preparing: Arc::new(AtomicBool::new(false)),
+                countdown: Arc::new(AtomicI32::new(0)),
                 event_count: Arc::new(AtomicUsize::new(0)),
             };
             _app.manage(service_state);
@@ -217,7 +395,7 @@ pub fn run() {
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
                 #[cfg(desktop)]
-                {
+                if window.label() == "main" {
                     let _ = window.hide();
                     #[cfg(target_os = "macos")]
                     window.app_handle().set_activation_policy(tauri::ActivationPolicy::Accessory).ok();
@@ -246,10 +424,21 @@ pub fn run() {
             tray::sync_tray_recording_state,
             tray::sync_tray_translations,
             tray::sync_tray_event_count,
+            tray::sync_tray_countdown,
+            tray::set_recording_start_time,
             screen_recorder::start_screen_recording,
             screen_recorder::stop_screen_recording,
             commands::permissions::check_screen_recording_permission,
             commands::permissions::open_screen_recording_settings,
+            create_marker_overlay,
+            close_marker_overlay,
+            update_marker_overlay_position,
+            create_android_marker_overlay,
+            close_android_marker_overlay,
+            update_android_marker_position,
+            show_main_window,
+            commands::window::get_window_bounds_by_title,
+            commands::window::get_mirror_window_bounds,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");

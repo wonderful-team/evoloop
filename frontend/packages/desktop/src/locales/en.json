@@ -275,7 +275,28 @@
       "recordStart": "Start Recording",
       "recordStop": "Stop Recording",
       "recordingInProgress": "Recording...",
-      "recordingAction": "Ready to record"
+      "recordingAction": "Ready to record",
+      "extractMarker": {
+        "clickToMark": "Click to Mark Data Point",
+        "clickDescription": "After clicking the button, click on the screen where you want to extract data",
+        "clickAnywhere": "Click to Mark",
+        "dragToMove": "Drag to move button",
+        "clickToMarkData": "Click to mark data extraction point",
+        "pointMarked": "Extraction point marked",
+        "pointsCleared": "All marked points cleared",
+        "markedPoints": "Marked Data Points",
+        "dragToMark": "Drag to Mark Data Region",
+        "dragDescription": "Drag on the scrcpy window to draw a selection box for data extraction",
+        "dragToSelect": "Drag to Select Region",
+        "selecting": "Selecting...",
+        "dragToMarkRegion": "Drag to select data region",
+        "clickToCancel": "Click to cancel selection mode",
+        "regionMarked": "Data region marked",
+        "regionsCleared": "All marked regions cleared",
+        "markedRegions": "Marked Data Regions"
+      },
+      "noActiveSession": "No active mirror session",
+      "failedToSaveExtractPoint": "Failed to save extraction point"
     },
     "execution": {
       "noParams": "This skill requires no inputs.",
@@ -369,7 +390,9 @@
     "preparingRecording": "Preparing recording...",
     "finalizingRecording": "Finalizing recording...",
     "recordingInProgress": "Recording in progress...",
-    "recordingHint": "Click the button above to stop and synthesize"
+    "recordingHint": "Click the button above to stop and synthesize",
+    "skillNotFound": "Skill not found",
+    "openVideoFailed": "Failed to open video: "
   },
   "todos": {
     "create": {
@@ -616,6 +639,9 @@
     "status": {
       "working": "Working..."
     },
+    "messageList": {
+      "copy": "Copy"
+    },
     "noPinnedFiles": "Right click files in file explorer to pin them here.",
     "pinnedFiles": "Pinned Files",
     "stateWorkDir": "Work Dir",
@@ -725,11 +751,17 @@
     "fullView": "Full view",
     "status": {
       "active": "ACTIVE",
-      "idle": "IDLE"
+      "idle": "IDLE",
+      "running": "RUNNING",
+      "title": "Status"
     },
     "error": {
-      "unknown": "Unknown error"
+      "unknown": "Unknown error",
+      "message": "An error occurred"
     },
+    "next": "Next",
+    "previous": "Previous",
+    "processing": "Processing...",
     "tool": {
       "defaultName": "Tool"
     }
@@ -1182,82 +1214,6 @@
   "system": {
     "initializationDesc": "Please configure the following system settings to proceed.",
     "initializationTitle": "System Integration Required"
-  },
-  "smartReplay": {
-    "title": "Smart Replay",
-    "markRegions": "Mark Data Regions",
-    "markRegionsDesc": "Watch the recording and mark areas containing data you want to extract",
-    "nextDescribeGoal": "Next: Describe Goal",
-    "drawRegion": "Draw Region",
-    "drawing": "Drawing...",
-    "annotations": "Annotations",
-    "annotationsCount": "Annotations ({{count}})",
-    "describeGoal": "Describe Your Task Goal",
-    "describeGoalDesc": "Tell us what you want to achieve with this automation",
-    "regionsMarked": "You've marked {{count}} regions:",
-    "noDescription": "No description",
-    "whatAccomplish": "What do you want to accomplish?",
-    "taskGoalPlaceholder": "e.g., I want to extract product prices and seller information from this website and save them to an Excel file",
-    "taskGoalHint": "Be specific about: what data you need, where it comes from, and how you want it output",
-    "backToAnnotations": "Back to Annotations",
-    "startAiAnalysis": "Start AI Analysis",
-    "aiAnalyzing": "AI is analyzing your recording...",
-    "aiAnalyzingDesc": "This may take 1-2 minutes. The AI is reviewing your marked regions, understanding your task flow, and generating an optimized skill.",
-    "currentPhase": "Current: {{phase}}",
-    "loadingVideo": "Loading video...",
-    "videoLoadFailed": "Failed to load video",
-    "closeConfirmTitle": "Confirm Close",
-    "closeConfirmDesc": "Are you sure you want to close? Unsaved progress will be lost.",
-    "deleteAssociatedFiles": "Delete associated files",
-    "deleteFilesHint": "Also delete recorded video and annotation data",
-    "closeAndDiscard": "Close and Discard",
-    "toast": {
-      "saveAnnotationFailed": "Failed to save annotation",
-      "deleteAnnotationFailed": "Failed to delete annotation",
-      "startSynthesisFailed": "Failed to start synthesis",
-      "describeGoalRequired": "Please describe your task goal",
-      "filesDeleted": "Files deleted",
-      "deleteFailed": "Delete failed"
-    }
-  },
-  "annotationList": {
-    "noAnnotations": "No annotations yet",
-    "clickDrawRegion": "Click 'Draw Region' and drag on the video to mark data areas",
-    "describeRegion": "Describe this region...",
-    "clickToAddDescription": "Click to add description...",
-    "markerTitle": "Annotation {{number}} at {{time}}"
-  },
-  "synthesisProgress": {
-    "loadingData": "Loading data...",
-    "extractingKeyframes": "Extracting keyframes...",
-    "analyzingFrames": "Analyzing frames with AI...",
-    "understandingPhases": "Understanding task flow...",
-    "identifyingSteps": "Identifying critical steps...",
-    "generatingMacro": "Generating macro script...",
-    "generatingMetadata": "Generating skill documentation...",
-    "completed": "Completed!",
-    "failed": "Synthesis failed. Please try again."
-  },
-  "skillReview": {
-    "title": "Skill Generated!",
-    "subtitle": "Review and confirm the generated automation skill",
-    "editJson": "Edit JSON",
-    "back": "Back",
-    "saveSkill": "Save Skill",
-    "overview": "Overview",
-    "instructions": "Instructions",
-    "macroScript": "Macro Script ({{count}} steps)",
-    "skillName": "Skill Name",
-    "description": "Description",
-    "namespace": "Namespace",
-    "triggerPatterns": "Trigger Patterns",
-    "executionMode": "Execution Mode",
-    "deterministicDesc": "Fast, predictable execution without LLM calls",
-    "agenticDesc": "Flexible execution with LLM decision-making",
-    "totalSteps": "Total Steps",
-    "extractSteps": "Extract Steps",
-    "actionSteps": "Action Steps",
-    "noInstructions": "No instructions generated."
   },
   "macroEditor": {
     "steps": "{{count}} steps",

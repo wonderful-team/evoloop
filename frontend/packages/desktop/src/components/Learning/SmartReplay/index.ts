@@ -1,6 +1,8 @@
-export { SmartReplayEditor } from "./SmartReplayEditor"
-export { AnnotationList } from "./AnnotationList"
-export { Timeline } from "./Timeline"
-export { SynthesisProgress } from "./SynthesisProgress"
-export { SkillReviewPanel } from "./SkillReviewPanel"
+/**
+ * SmartReplay Components
+ *
+ * [DEPRECATED] SmartReplay feature has been replaced by MultimodalSynthesizeDialog.
+ * Only MacroEditor is kept for skill macro script editing in SkillEditorPage.
+ */
+
 export { MacroEditor, MacroJsonEditor, type MacroStep } from "./MacroEditor"

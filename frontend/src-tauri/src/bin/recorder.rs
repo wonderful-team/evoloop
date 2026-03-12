@@ -27,7 +27,7 @@ struct WindowInfo {
 }
 
 fn main() {
-    println!("Recorder sidecar started (Improved v2)");
+    println!("Recorder sidecar started (Region Marker v3)");
 
     let shared_window_info = Arc::new(Mutex::new(None::<WindowInfo>));
     let shared_mouse_pos = Arc::new(Mutex::new((0.0, 0.0)));
@@ -51,11 +51,11 @@ fn main() {
                     end try
                 end tell
                 "#;
-                
+
             if let Ok(output) = std::process::Command::new("osascript")
                 .arg("-e")
                 .arg(script)
-                .output() 
+                .output()
             {
                 if output.status.success() {
                     let result = String::from_utf8_lossy(&output.stdout);
@@ -63,7 +63,7 @@ fn main() {
                     if parts.len() >= 4 {
                         let pos_parts: Vec<&str> = parts[2].split(',').collect();
                         let size_parts: Vec<&str> = parts[3].split(',').collect();
-                        
+
                         let info = WindowInfo {
                             app_name: parts[0].to_string(),
                             title: parts[1].to_string(),
@@ -83,16 +83,13 @@ fn main() {
     // 2. Mouse Listener & Event Dispatcher
     let window_info_listener = shared_window_info.clone();
     let mouse_pos_listener = shared_mouse_pos.clone();
-    
-    // Track modifier keys
-    let is_alt_pressed = Arc::new(Mutex::new(false));
 
     if let Err(error) = listen(move |event| {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_millis() as u64;
-            
+
         let mut global_event: Option<GlobalEvent> = None;
 
         match event.event_type {
@@ -100,11 +97,6 @@ fn main() {
                 *mouse_pos_listener.lock().unwrap() = (x, y);
             },
             EventType::KeyPress(key) => {
-                // macOS: Option key is usually detected as Alt or AltGr
-                if format!("{:?}", key).contains("Alt") {
-                    *is_alt_pressed.lock().unwrap() = true;
-                }
-                
                 let pos = *mouse_pos_listener.lock().unwrap();
                 global_event = Some(GlobalEvent {
                     timestamp,
@@ -117,18 +109,13 @@ fn main() {
                     window_bounds: None,
                 });
             },
-            EventType::KeyRelease(key) => {
-                if format!("{:?}", key).contains("Alt") {
-                    *is_alt_pressed.lock().unwrap() = false;
-                }
-            },
+            EventType::KeyRelease(_key) => {}
             EventType::ButtonPress(btn) => {
                 let pos = *mouse_pos_listener.lock().unwrap();
-                let alt_down = *is_alt_pressed.lock().unwrap();
-                
+
                 global_event = Some(GlobalEvent {
                     timestamp,
-                    event_type: if alt_down { "mouse_click_extract".to_string() } else { "mouse_click".to_string() },
+                    event_type: "mouse_click".to_string(),
                     key: None,
                     mouse_button: Some(format!("{:?}", btn)),
                     position: Some(pos),
@@ -148,7 +135,7 @@ fn main() {
                      evt.window_bounds = Some((info.x, info.y, info.width, info.height));
                  }
              }
-             
+
              if let Ok(json) = serde_json::to_string(&evt) {
                  println!("{}", json);
              }

@@ -1,4 +1,4 @@
-import { Loader2, Sparkles, Info, Settings2, FileVideo, ExternalLink, Trash2, AlertTriangle } from "lucide-react"
+import { Loader2, Sparkles, Info, Settings2, FileVideo, ExternalLink, Trash2, AlertTriangle, Image as ImageIcon, Crosshair } from "lucide-react"
 import { useState, useCallback, useEffect } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
@@ -7,7 +7,7 @@ import { remove, exists } from "@tauri-apps/plugin-fs"
 import { useMultimodalSynthesis, type SynthesisResult } from "@/hooks"
 import { useRecordingStore } from "@/stores/recordingStore"
 import { LearningService } from "@/client/sdk.gen"
-import { MirrorService } from "@/services/mirror"
+import { type AnnotationResponse } from "@/client/types.gen"
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Textarea } from "@evoloop/shared/components/ui/textarea"
@@ -19,6 +19,8 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@evoloop/shared/components/ui/dialog"
+import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
+import { Badge } from "@evoloop/shared/components/ui/badge"
 
 interface MultimodalSynthesizeDialogProps {
     open: boolean
@@ -42,7 +44,7 @@ export function MultimodalSynthesizeDialog({
     sourceType = 'desktop',
 }: MultimodalSynthesizeDialogProps) {
     const { t } = useTranslation()
-    const { reset: resetRecording, localEvents, clearLocalEvents, setSessionId } = useRecordingStore()
+    const { reset: resetRecording, setSessionId } = useRecordingStore()
     const [taskDescription, setTaskDescription] = useState("")
     const [result, setResult] = useState<SynthesisResult | null>(null)
     const [editedName, setEditedName] = useState("")
@@ -50,6 +52,31 @@ export function MultimodalSynthesizeDialog({
     const [showCleanupConfirm, setShowCleanupConfirm] = useState(false)
     const [isCleaningUp, setIsCleaningUp] = useState(false)
     const [videoExists, setVideoExists] = useState<boolean | null>(null)
+    const [annotations, setAnnotations] = useState<AnnotationResponse[]>([])
+    const [isLoadingAnnotations, setIsLoadingAnnotations] = useState(false)
+
+    // Fetch annotations when dialog opens
+    useEffect(() => {
+        if (!open || !sessionId) {
+            setAnnotations([])
+            return
+        }
+
+        const fetchAnnotations = async () => {
+            setIsLoadingAnnotations(true)
+            try {
+                const data = await LearningService.listAnnotations({ sessionId })
+                setAnnotations(data)
+                console.log(`[MultimodalSynthesizeDialog] Loaded ${data.length} annotations`)
+            } catch (err) {
+                console.error("[MultimodalSynthesizeDialog] Failed to load annotations:", err)
+            } finally {
+                setIsLoadingAnnotations(false)
+            }
+        }
+
+        fetchAnnotations()
+    }, [open, sessionId])
 
     // Check if video file exists when videoPath changes
     useEffect(() => {
@@ -93,33 +120,28 @@ export function MultimodalSynthesizeDialog({
             return
         }
 
-        // [v2] 合并接口：直接传入事件数据，后端统一处理持久化和合成
+        // [Unified] All recordings now persist events in real-time to backend
+        // Desktop/DOM/Global: events persisted via hooks (useGlobalRecorder, useActionRecorder)
+        // Android: events persisted via MirrorService.persistEvents
         try {
-            let events = undefined
-
-            if (sourceType === 'desktop') {
-                // Desktop recording: 直接使用本地存储的事件
-                events = {
-                    domEvents: localEvents.domEvents.length > 0 ? localEvents.domEvents : undefined,
-                    globalEvents: localEvents.globalEvents.length > 0 ? localEvents.globalEvents : undefined,
-                }
-                console.log(`[MultimodalSynthesizeDialog] Using ${localEvents.domEvents.length} DOM + ${localEvents.globalEvents.length} global events`)
-
-                // 合成成功后清理本地事件
-                clearLocalEvents()
-            } else if (sourceType === 'android') {
-                // Android mirror: 仍需先持久化，因为事件存储在 mirror session 中
-                await MirrorService.persistEvents(sessionId)
+            if (sourceType === 'android') {
+                // Android mirror: ensure events are persisted before synthesis
+                // (they are buffered in mirror session until persistEvents is called)
+                await LearningService.persistMirrorEvents({ requestBody: { session_id: sessionId } })
                 console.log(`[MultimodalSynthesizeDialog] Persisted Android mirror events for session ${sessionId}`)
             }
 
-            // 单次调用完成所有操作（保存事件 + 提取关键帧 + 合成）
+            // [v3 Unified] Desktop recordings: events are already persisted in real-time by hooks
+            // (via /global/events and /dom/events APIs)
+            // Backend will read all events from DB by sessionId
+
+            // Unified synthesis call - backend reads events from TraceEvent table by sessionId
             await synthesize({
                 videoPath,
                 sessionId,
                 taskDescription: taskDescription.trim(),
                 threadId,
-                events,
+                // events: undefined - backend reads from DB (unified with Android)
             })
         } catch (error) {
             console.error("[MultimodalSynthesizeDialog] Synthesis failed:", error)
@@ -190,13 +212,10 @@ export function MultimodalSynthesizeDialog({
                 }
             }
 
-            // 3. Clear local events
-            clearLocalEvents()
-
-            // 4. Clear session from store
+            // 3. Clear session from store
             setSessionId(null)
 
-            // 5. Reset recording store
+            // 4. Reset recording store
             resetRecording()
 
             toast.success(t("learning.cleanupSuccess"))
@@ -250,21 +269,17 @@ export function MultimodalSynthesizeDialog({
         <>
             <Dialog open={open} onOpenChange={handleClose} modal>
                 <DialogContent
-                    className="sm:max-w-lg"
+                    className="sm:max-w-4xl max-h-[90vh] overflow-hidden"
                     onPointerDownOutside={(e) => e.preventDefault()}
                     onInteractOutside={(e) => e.preventDefault()}
                 >
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <Sparkles className="h-5 w-5 text-yellow-500" />
-                            {result
-                                ? t("learning.skillCreated")
-                                : t("learning.createSkillMultimodal")}
+                            {result ? t("learning.skillCreated") : t("learning.createSkillMultimodal")}
                         </DialogTitle>
                         <DialogDescription>
-                            {result
-                                ? t("learning.skillCreatedDesc")
-                                : t("learning.createSkillMultimodalDesc")}
+                            {result ? t("learning.skillCreatedDesc") : t("learning.createSkillMultimodalDesc")}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -320,84 +335,166 @@ export function MultimodalSynthesizeDialog({
                         </div>
                     ) : (
                         <div className="py-4 space-y-4">
-                            {/* Recording Info */}
-                            <button
-                                type="button"
-                                onClick={handleOpenVideo}
-                                disabled={!videoPath || videoExists === false}
-                                className={`w-full flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors text-left group ${videoExists === false
-                                        ? 'bg-destructive/10 border-destructive/30 hover:bg-destructive/20'
-                                        : 'bg-muted/20 hover:bg-muted/30 disabled:opacity-50 disabled:cursor-not-allowed'
-                                    }`}
-                            >
-                                <div className={`p-2 rounded transition-colors ${videoExists === false
-                                        ? 'bg-destructive/20 text-destructive'
-                                        : 'bg-primary/10 group-hover:bg-primary/20'
-                                    }`}>
-                                    <FileVideo className={`h-4 w-4 ${videoExists === false ? 'text-destructive' : 'text-primary'}`} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-medium truncate">
-                                        {videoPath
-                                            ? videoPath.split("/").pop()
-                                            : t("learning.noVideo")}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Left Column - Form */}
+                                <div className="space-y-4">
+                                    {/* Recording Info */}
+                                    <button
+                                        type="button"
+                                        onClick={handleOpenVideo}
+                                        disabled={!videoPath || videoExists === false}
+                                        className={`w-full flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors text-left group ${videoExists === false
+                                            ? 'bg-destructive/10 border-destructive/30 hover:bg-destructive/20'
+                                            : 'bg-muted/20 hover:bg-muted/30 disabled:opacity-50 disabled:cursor-not-allowed'
+                                            }`}
+                                    >
+                                        <div className={`p-2 rounded transition-colors ${videoExists === false
+                                            ? 'bg-destructive/20 text-destructive'
+                                            : 'bg-primary/10 group-hover:bg-primary/20'
+                                            }`}>
+                                            <FileVideo className={`h-4 w-4 ${videoExists === false ? 'text-destructive' : 'text-primary'}`} />
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="text-xs font-medium truncate">
+                                                {videoPath
+                                                    ? videoPath.split("/").pop()
+                                                    : t("learning.noVideo")}
+                                            </div>
+                                            <div className={`text-[10px] flex items-center gap-1 ${videoExists === false ? 'text-destructive' : 'text-muted-foreground'
+                                                }`}>
+                                                {videoPath ? (
+                                                    videoExists === false ? (
+                                                        <>
+                                                            {t("learning.videoNotFound")}
+                                                            <AlertTriangle className="h-3 w-3 inline" />
+                                                        </>
+                                                    ) : videoExists === null ? (
+                                                        <>
+                                                            <Loader2 className="h-3 w-3 inline animate-spin" />
+                                                            {t("learning.checkingVideo")}
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            {t("learning.clickToOpenVideo")}
+                                                            <ExternalLink className="h-3 w-3 inline" />
+                                                        </>
+                                                    )
+                                                ) : (
+                                                    t("learning.videoMissing")
+                                                )}
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    {/* Task Description Input */}
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium">
+                                            {t("learning.taskDescription")}
+                                            <span className="text-destructive ml-1">*</span>
+                                        </label>
+                                        <Textarea
+                                            value={taskDescription}
+                                            onChange={(e) => setTaskDescription(e.target.value)}
+                                            placeholder={t(
+                                                "learning.taskDescriptionPlaceholder",
+                                                "e.g., Send a message to Zhang San in WeChat, then attach a file from Desktop"
+                                            )}
+                                            className="min-h-[80px] text-sm"
+                                        />
+                                        <p className="text-[10px] text-muted-foreground">
+                                            {t(
+                                                "learning.taskDescriptionHelp",
+                                                "Describe the task clearly. AI will analyze the video and your actions to understand the workflow."
+                                            )}
+                                        </p>
                                     </div>
-                                    <div className={`text-[10px] flex items-center gap-1 ${videoExists === false ? 'text-destructive' : 'text-muted-foreground'
-                                        }`}>
-                                        {videoPath ? (
-                                            videoExists === false ? (
-                                                <>
-                                                    {t("learning.videoNotFound")}
-                                                    <AlertTriangle className="h-3 w-3 inline" />
-                                                </>
-                                            ) : videoExists === null ? (
-                                                <>
-                                                    <Loader2 className="h-3 w-3 inline animate-spin" />
-                                                    {t("learning.checkingVideo")}
-                                                </>
-                                            ) : (
-                                                <>
-                                                    {t("learning.clickToOpenVideo")}
-                                                    <ExternalLink className="h-3 w-3 inline" />
-                                                </>
-                                            )
-                                        ) : (
-                                            t("learning.videoMissing")
+
+                                    {/* Progress */}
+                                    {isSynthesizing && progress && (
+                                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                            <Loader2 className="h-4 w-4 animate-spin" />
+                                            {progress}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Right Column - Annotations */}
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <label className="text-xs font-medium flex items-center gap-1.5">
+                                            <ImageIcon className="h-3.5 w-3.5" />
+                                            {t("learning.regionAnnotations", "区域截图")}
+                                        </label>
+                                        {annotations.length > 0 && (
+                                            <Badge variant="secondary" className="text-[10px]">
+                                                {annotations.length}
+                                            </Badge>
                                         )}
                                     </div>
-                                </div>
-                            </button>
 
-                            {/* Task Description Input */}
-                            <div className="space-y-2">
-                                <label className="text-xs font-medium">
-                                    {t("learning.taskDescription")}
-                                    <span className="text-destructive ml-1">*</span>
-                                </label>
-                                <Textarea
-                                    value={taskDescription}
-                                    onChange={(e) => setTaskDescription(e.target.value)}
-                                    placeholder={t(
-                                        "learning.taskDescriptionPlaceholder",
-                                        "e.g., Send a message to Zhang San in WeChat, then attach a file from Desktop"
-                                    )}
-                                    className="min-h-[80px] text-sm"
-                                />
-                                <p className="text-[10px] text-muted-foreground">
-                                    {t(
-                                        "learning.taskDescriptionHelp",
-                                        "Describe the task clearly. AI will analyze the video and your actions to understand the workflow."
-                                    )}
-                                </p>
+                                    <ScrollArea className="h-[280px] rounded-lg border bg-muted/20">
+                                        {isLoadingAnnotations ? (
+                                            <div className="flex items-center justify-center h-full">
+                                                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                                            </div>
+                                        ) : annotations.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-4">
+                                                <Crosshair className="h-8 w-8 mb-2 opacity-30" />
+                                                <p className="text-xs text-center">
+                                                    {t("learning.noAnnotations", "未标记区域")}
+                                                </p>
+                                                <p className="text-[10px] text-center mt-1 opacity-60">
+                                                    {t("learning.noAnnotationsDesc", "录制时使用悬浮球标记关键区域")}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="p-3 space-y-3">
+                                                {annotations.map((annotation, index) => (
+                                                    <div
+                                                        key={annotation.id}
+                                                        className="bg-background rounded-lg border p-3 space-y-2"
+                                                    >
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-[10px] font-medium text-muted-foreground">
+                                                                #{index + 1}
+                                                            </span>
+                                                            <span className="text-[10px] text-muted-foreground">
+                                                                {annotation.video_timestamp_ms}ms
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Region Preview Box */}
+                                                        {annotation.region && (
+                                                            <div className="relative aspect-video bg-muted rounded border overflow-hidden">
+                                                                {/* Visual representation of the region */}
+                                                                <div
+                                                                    className="absolute border-2 border-primary bg-primary/10"
+                                                                    style={{
+                                                                        left: `${(annotation.region.x || 0) * 100}%`,
+                                                                        top: `${(annotation.region.y || 0) * 100}%`,
+                                                                        width: `${(annotation.region.width || 0.1) * 100}%`,
+                                                                        height: `${(annotation.region.height || 0.1) * 100}%`,
+                                                                    }}
+                                                                >
+                                                                    <div className="absolute -top-5 left-0 bg-primary text-primary-foreground text-[9px] px-1 rounded">
+                                                                        {Math.round((annotation.region.width || 0) * 100)}% × {Math.round((annotation.region.height || 0) * 100)}%
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {annotation.user_note && (
+                                                            <p className="text-[10px] text-muted-foreground truncate">
+                                                                {annotation.user_note}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </ScrollArea>
+                                </div>
                             </div>
-
-                            {/* Progress */}
-                            {isSynthesizing && progress && (
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                    {progress}
-                                </div>
-                            )}
                         </div>
                     )}
 

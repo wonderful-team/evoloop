@@ -20,12 +20,26 @@ logger = logging.getLogger(__name__)
 class AndroidEvent:
     """Represents a single Android input event."""
     timestamp: float
-    event_type: str  # "touch_down", "touch_up", "touch_move", "key"
+    event_type: str  # "touch_down", "touch_up", "touch_move", "swipe", "key"
     x: int | None = None
     y: int | None = None
     key_code: int | None = None
     device_id: str = ""
     app_package: str | None = None
+    swipe_end_x: int | None = None
+    swipe_end_y: int | None = None
+    swipe_duration_ms: float | None = None
+
+
+@dataclass
+class DebounceConfig:
+    """Configuration for event debouncing."""
+    # Time threshold in milliseconds - ignore events within this window
+    time_threshold_ms: float = 50.0
+    # Spatial threshold in pixels - ignore movements smaller than this
+    spatial_threshold_px: int = 10
+    # Maximum swipe events to keep (for very long swipes)
+    max_swipe_points: int = 5
 
 
 class AndroidEventRecorder:
@@ -45,61 +59,93 @@ class AndroidEventRecorder:
         self.current_package: str | None = None
         self._last_package_poll: float = 0
 
-        # [FIX] Timestamp synchronization: kernel time to relative time
+        # Timestamp synchronization: kernel time to relative time
         self._start_time: float = 0.0          # System time when start_recording called
         self._kernel_time_base: float | None = None  # First kernel timestamp from getevent -t
         self._relative_offset_ms: float = 0.0  # MS offset from start_time when first event arrived
 
-    def _find_input_device(self, device_id: str) -> str | None:
-        """Find the touchscreen input device."""
-        try:
-            cmd = [self.adb_path, "-s", device_id, "shell", "getevent", "-lp"]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        # Video synchronization for keyframe extraction
+        self._video_start_time: float | None = None  # Unix timestamp when video recording started
+        self._time_offset_ms: float = 0.0      # Offset to add to event timestamps to sync with video
 
-            if result.returncode != 0:
-                logger.warning(f"Failed to list input devices: {result.stderr}")
-                return None
+        self._debounce_config = DebounceConfig()
+        self._last_event_time_ms: float = 0.0
+        self._last_x: int = 0
+        self._last_y: int = 0
+        self._swipe_buffer: list[dict] = []  # Buffer for swipe aggregation
+        self._swipe_start_time_ms: float = 0.0
+        self._swipe_start_x: int = 0
+        self._swipe_start_y: int = 0
 
-            # Look for touchscreen device
-            lines = result.stdout.split("\n")
-            current_device = None
+    def _should_debounce(self, x: int, y: int, timestamp_ms: float) -> bool:
+        """
+        Check if event should be debounced (ignored).
+        """
+        time_delta = timestamp_ms - self._last_event_time_ms
+        if time_delta < self._debounce_config.time_threshold_ms:
+            # Within time window, check spatial threshold
+            distance = ((x - self._last_x) ** 2 + (y - self._last_y) ** 2) ** 0.5
+            if distance < self._debounce_config.spatial_threshold_px:
+                return True
+        return False
 
-            for line in lines:
-                if line.startswith("add device"):
-                    current_device = line.split(":")[-1].strip()
-                elif "ABS_MT_POSITION_X" in line or "touchscreen" in line.lower():
-                    if current_device:
-                        logger.info(f"Found touchscreen device: {current_device}")
-                        return current_device
+    def _emit_swipe_event(self, final_x: int, final_y: int, final_time_ms: float):
+        """
+        Emit a swipe event from the buffered points.
+        """
+        if not self._swipe_buffer:
+            return
 
-            # Fallback to event2 (common for touch)
-            return "/dev/input/event2"
+        duration_ms = final_time_ms - self._swipe_start_time_ms
 
-        except Exception as e:
-            logger.error(f"Error finding input device: {e}")
-            return "/dev/input/event2"
+        # Create swipe event
+        swipe_event = AndroidEvent(
+            timestamp=int(self._swipe_start_time_ms),
+            event_type="swipe",
+            x=self._swipe_start_x,
+            y=self._swipe_start_y,
+            device_id=self.device_id or "",
+            app_package=self.current_package,
+            swipe_end_x=final_x,
+            swipe_end_y=final_y,
+            swipe_duration_ms=duration_ms
+        )
+
+        self.events.append(swipe_event)
+        if self.on_event_callback:
+            self.on_event_callback(swipe_event)
+
+        logger.debug(f"Swipe emitted: ({self._swipe_start_x},{self._swipe_start_y}) -> ({final_x},{final_y}), duration={duration_ms:.1f}ms")
+
+        # Clear buffer
+        self._swipe_buffer = []
+
+    def _start_swipe(self, x: int, y: int, timestamp_ms: float):
+        """Start tracking a new swipe sequence."""
+        self._swipe_start_x = x
+        self._swipe_start_y = y
+        self._swipe_start_time_ms = timestamp_ms
+        self._swipe_buffer = [{"x": x, "y": y, "t": timestamp_ms}]
+
+    def _add_swipe_point(self, x: int, y: int, timestamp_ms: float):
+        """Add a point to current swipe buffer."""
+        self._swipe_buffer.append({"x": x, "y": y, "t": timestamp_ms})
+
+        # Maintain max points limit
+        if len(self._swipe_buffer) > self._debounce_config.max_swipe_points:
+            first = self._swipe_buffer[0]
+            last = self._swipe_buffer[-1]
+            step = len(self._swipe_buffer) // (self._debounce_config.max_swipe_points - 1)
+            middle = [self._swipe_buffer[i * step] for i in range(1, self._debounce_config.max_swipe_points - 1)]
+            self._swipe_buffer = [first] + middle + [last]
 
     def _parse_event_line(self, line: str) -> tuple[AndroidEvent | None, float]:
-        """
-        Parse a getevent output line.
-
-        Format can be:
-        # 1. /dev/input/event2: 0003 0035 00000123
-        # 2. 0003 0035 00000123 (when device is specified)
-        # 3. [ 1234.567] /dev/input/event2: 0003 0035 00000123
-        # 4. [ 1234.567] 0003 0035 00000123
-
-        Returns:
-            tuple: (AndroidEvent or None, relative_timestamp_ms or 0)
-        """
+        """Parse a getevent output line."""
         try:
             clean_line = line.strip()
             if not clean_line:
                 return None, 0
 
-            # [FIX] Extract kernel timestamp from getevent -t output
-            # Format: [ 2003248.185078] /dev/input/event2: 0003 0035 00000286
-            # Note: Huawei and some devices have leading spaces
             kernel_timestamp = None
             if "[" in clean_line and "]" in clean_line:
                 ts_part = clean_line.split("]", 1)[0]
@@ -107,15 +153,12 @@ class AndroidEventRecorder:
                     ts_str = ts_part.split("[", 1)[1].strip()
                     try:
                         kernel_timestamp = float(ts_str)
-                        # Remove the timestamp part from clean_line
                         clean_line = clean_line.split("]", 1)[1].strip()
                     except ValueError:
                         pass
 
-            # Handle device prefix if present: /dev/input/event2: 0003...
             if ":" in clean_line:
-                parts = clean_line.split(":", 1)
-                data_str = parts[1].strip()
+                data_str = clean_line.split(":", 1)[1].strip()
             else:
                 data_str = clean_line
 
@@ -123,86 +166,46 @@ class AndroidEventRecorder:
             if len(data) < 3:
                 return None, 0
 
-            # Some lines might be labels if -l was used, we try to parse as hex
             try:
                 ev_type = int(data[0], 16)
                 ev_code = int(data[1], 16)
                 ev_value = int(data[2], 16)
             except ValueError:
-                # If they are labels (like EV_ABS), we skip for now
                 return None, 0
 
-            # [FIX] Calculate relative timestamp from kernel time
             relative_ts_ms = 0.0
             if kernel_timestamp is not None:
                 if self._kernel_time_base is None:
-                    # [NEW] Establish baseline on first event arrival
+                    # Fallback if _calibrate_clocks hasn't finished yet or failed
                     self._kernel_time_base = kernel_timestamp
-                    # How much time passed since start_recording()?
                     self._relative_offset_ms = (time.time() - self._start_time) * 1000.0
                     relative_ts_ms = self._relative_offset_ms
-                    logger.info(f"[AndroidEventRecorder] Baseline established: kernel={kernel_timestamp}, offset={self._relative_offset_ms:.2f}ms")
+                    logger.debug(f"[AndroidEventRecorder] Lazy calibration on first event: offset={self._relative_offset_ms:.1f}ms")
                 else:
-                    # Calculate offset from pre-set base
+                    # Use calibrated base
                     elapsed_kernel_ms = (kernel_timestamp - self._kernel_time_base) * 1000.0
                     relative_ts_ms = elapsed_kernel_ms + self._relative_offset_ms
             else:
-                # Fallback if no kernel timestamp (unlikely with -t)
+                # No kernel timestamp (unlikely with -t), use host time
                 relative_ts_ms = (time.time() - self._start_time) * 1000.0
 
-            # EV_ABS (0x03) - Absolute events (touch)
             if ev_type == 0x03:
-                # ABS_MT_POSITION_X (0x35)
                 if ev_code == 0x35:
-                    return AndroidEvent(
-                        timestamp=relative_ts_ms,  # [FIX] Now stored as milliseconds
-                        event_type="touch_x",
-                        x=ev_value,
-                        device_id=self.device_id or ""
-                    ), relative_ts_ms
-                # ABS_MT_POSITION_Y (0x36)
+                    return AndroidEvent(timestamp=relative_ts_ms, event_type="touch_x", x=ev_value, device_id=self.device_id or ""), relative_ts_ms
                 elif ev_code == 0x36:
-                    return AndroidEvent(
-                        timestamp=relative_ts_ms,  # [FIX] Store as milliseconds
-                        event_type="touch_y",
-                        y=ev_value,
-                        device_id=self.device_id or ""
-                    ), relative_ts_ms
-                # ABS_MT_TRACKING_ID (0x39) - touch down/up
+                    return AndroidEvent(timestamp=relative_ts_ms, event_type="touch_y", y=ev_value, device_id=self.device_id or ""), relative_ts_ms
                 elif ev_code == 0x39:
-                    # 0xffffffff is used for touch up
                     if ev_value == 0xffffffff or ev_value == 0xffffffff + 1 or ev_value == -1:
-                        return AndroidEvent(
-                            timestamp=relative_ts_ms,  # [FIX] Store as milliseconds
-                            event_type="touch_up",
-                            device_id=self.device_id or ""
-                        ), relative_ts_ms
+                        return AndroidEvent(timestamp=relative_ts_ms, event_type="touch_up", device_id=self.device_id or ""), relative_ts_ms
                     else:
-                        return AndroidEvent(
-                            timestamp=relative_ts_ms,  # [FIX] Store as milliseconds
-                            event_type="touch_down",
-                            device_id=self.device_id or ""
-                        ), relative_ts_ms
+                        return AndroidEvent(timestamp=relative_ts_ms, event_type="touch_down", device_id=self.device_id or ""), relative_ts_ms
 
-            # EV_KEY (0x01) - Button events
             elif ev_type == 0x01:
-                # BTN_TOUCH (0x14a) or generic key
                 if ev_code == 0x14a:
-                    # BTN_TOUCH is a reliable indicator of physical touch state
                     event_type = "touch_down" if ev_value == 1 else "touch_up"
-                    return AndroidEvent(
-                        timestamp=relative_ts_ms,  # [FIX] Store as milliseconds
-                        event_type=event_type,
-                        device_id=self.device_id or ""
-                    ), relative_ts_ms
-                # Power/Home/Back keys can also be useful
+                    return AndroidEvent(timestamp=relative_ts_ms, event_type=event_type, device_id=self.device_id or ""), relative_ts_ms
                 else:
-                    return AndroidEvent(
-                        timestamp=relative_ts_ms,  # [FIX] Store as milliseconds
-                        event_type="key",
-                        key_code=ev_code,
-                        device_id=self.device_id or ""
-                    ), relative_ts_ms
+                    return AndroidEvent(timestamp=relative_ts_ms, event_type="key", key_code=ev_code, device_id=self.device_id or ""), relative_ts_ms
 
             return None, 0
 
@@ -210,18 +213,51 @@ class AndroidEventRecorder:
             logger.debug(f"Failed to parse event line: {line.strip()}, error: {e}")
             return None, 0
 
+    def get_current_package(self, device_id: str | None = None) -> str | None:
+        """
+        Get the current active app package on the device.
+        """
+        target_device = device_id or self.device_id
+        if not target_device:
+            return None
+
+        now = time.time()
+        if now - self._last_package_poll < 2.0 and self.current_package:
+            return self.current_package
+
+        self._last_package_poll = now
+        package_found = None
+
+        strategies = [
+            ([self.adb_path, "-s", target_device, "shell", "dumpsys", "activity", "activities"], r'([\w\.]+)/([\w\.\$]+)', ["mResumedActivity", "topResumedActivity"]),
+            ([self.adb_path, "-s", target_device, "shell", "dumpsys", "window", "windows"], r'([\w\.]+)/([\w\.\$]+)', ["mCurrentFocus", "mFocusedApp"]),
+            ([self.adb_path, "-s", target_device, "shell", "dumpsys", "activity", "top"], r'ACTIVITY\s+([\w\.]+)/([\w\.\$]+)', ["ACTIVITY"]),
+        ]
+
+        for cmd, pattern, keywords in strategies:
+            try:
+                pkg_proc = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+                for line in pkg_proc.stdout.splitlines():
+                    if any(kw in line for kw in keywords) and "/" in line:
+                        match = re.search(pattern, line)
+                        if match:
+                            package_found = match.group(1)
+                            break
+                if package_found: break
+            except Exception:
+                continue
+
+        if package_found:
+            self.current_package = package_found
+        return self.current_package
+
     def _record_loop(self):
         """Main recording loop running in separate thread."""
         if not self.device_id:
             logger.error("No device_id set for recording")
             return
 
-        # Use global getevent - captures from ALL devices.
-        # This is more robust than trying to find the specific touchscreen device.
-        cmd = [
-            self.adb_path, "-s", self.device_id,
-            "shell", "getevent", "-t"
-        ]
+        cmd = [self.adb_path, "-s", self.device_id, "shell", "getevent", "-t"]
 
         try:
             self.process = subprocess.Popen(
@@ -230,73 +266,15 @@ class AndroidEventRecorder:
                 stderr=subprocess.STDOUT,
                 bufsize=0
             )
-
             proc = self.process
-            logger.info(f"[AndroidEventRecorder] Started Android event recording (PID: {proc.pid})")
+            logger.info(f"[AndroidEventRecorder] Started recording (PID: {proc.pid})")
+
+            # Initial poll
+            self.get_current_package()
 
             current_touch = {"x": 0, "y": 0, "down": False}
-            raw_line_count = 0
             buffer = ""
-            first_event_logged = False
 
-            # Diagnostic ranges
-            min_x, max_x = float('inf'), -float('inf')
-            min_y, max_y = float('inf'), -float('inf')
-
-            # Helper to get current app package efficiently
-            def poll_package():
-                now = time.time()
-                if now - self._last_package_poll > 2.0: # Poll every 2 seconds
-                    package_found = None
-
-                    # Strategy 1: dumpsys activity activities (Most accurate for recently resumed)
-                    try:
-                        cmd_pkg = [self.adb_path, "-s", self.device_id, "shell", "dumpsys", "activity", "activities"]
-                        pkg_proc = subprocess.run(cmd_pkg, capture_output=True, text=True, timeout=2)
-                        for line in pkg_proc.stdout.splitlines():
-                            if ("mResumedActivity" in line or "topResumedActivity" in line) and "/" in line:
-                                match = re.search(r'([\w\.]+)/([\w\.\$]+)', line)
-                                if match:
-                                    package_found = match.group(1)
-                                    break
-                    except Exception:
-                        pass
-
-                    # Strategy 2: dumpsys window windows (Fallback)
-                    if not package_found:
-                        try:
-                            cmd_pkg = [self.adb_path, "-s", self.device_id, "shell", "dumpsys", "window", "windows"]
-                            pkg_proc = subprocess.run(cmd_pkg, capture_output=True, text=True, timeout=2)
-                            for line in pkg_proc.stdout.splitlines():
-                                if ("mCurrentFocus" in line or "mFocusedApp" in line) and "/" in line:
-                                    match = re.search(r'([\w\.]+)/([\w\.\$]+)', line)
-                                    if match:
-                                        package_found = match.group(1)
-                                        break
-                        except Exception:
-                            pass
-
-                    # Strategy 3: dumpsys activity top (Last resort)
-                    if not package_found:
-                        try:
-                            cmd_pkg = [self.adb_path, "-s", self.device_id, "shell", "dumpsys", "activity", "top"]
-                            pkg_proc = subprocess.run(cmd_pkg, capture_output=True, text=True, timeout=2)
-                            for line in pkg_proc.stdout.splitlines():
-                                if "ACTIVITY" in line and "/" in line:
-                                    match = re.search(r'ACTIVITY\s+([\w\.]+)/([\w\.\$]+)', line)
-                                    if match:
-                                        package_found = match.group(1)
-                                        break
-                        except Exception:
-                            pass
-
-                    if package_found:
-                        self.current_package = package_found
-                        logger.debug(f"[AndroidEventRecorder] Current package: {package_found}")
-
-                    self._last_package_poll = now
-
-            # Set non-blocking to allow checking stop_event frequently
             fd = proc.stdout.fileno()
             fl = fcntl.fcntl(fd, fcntl.F_GETFL)
             fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
@@ -305,8 +283,7 @@ class AndroidEventRecorder:
                 try:
                     chunk = os.read(fd, 4096)
                     if not chunk:
-                        if proc.poll() is not None:
-                            break
+                        if proc.poll() is not None: break
                         time.sleep(0.01)
                         continue
 
@@ -314,40 +291,34 @@ class AndroidEventRecorder:
                     if "\n" in buffer:
                         lines = buffer.split("\n")
                         buffer = lines.pop()
-
                         for line in lines:
-                            raw_line_count += 1
-
                             event, relative_ts_ms = self._parse_event_line(line)
                             if not event:
                                 continue
 
-                            logger.debug(f"[AndroidEventRecorder] Captured: {event.event_type} (x={event.x}, y={event.y}) from line: {line!r}")
-
-                            # [FIX] Log first valid event timestamp
-                            if not first_event_logged and event.event_type in ("touch_x", "touch_y", "touch_down", "touch_up", "key"):
-                                logger.info(f"[AndroidEventRecorder] First event: {event.event_type} at relative_ts={relative_ts_ms:.3f}ms")
-                                first_event_logged = True
-
-                            # Track touch state
                             if event.event_type == "touch_x":
                                 current_touch["x"] = event.x or 0
-                                if event.x is not None:
-                                    min_x = min(min_x, event.x)
-                                    max_x = max(max_x, event.x)
+                                if current_touch["down"] and self._swipe_buffer:
+                                    if not self._should_debounce(current_touch["x"], current_touch["y"], relative_ts_ms):
+                                        self._add_swipe_point(current_touch["x"], current_touch["y"], relative_ts_ms)
+                                        self._last_x, self._last_y, self._last_event_time_ms = current_touch["x"], current_touch["y"], relative_ts_ms
+
                             elif event.event_type == "touch_y":
                                 current_touch["y"] = event.y or 0
-                                if event.y is not None:
-                                    min_y = min(min_y, event.y)
-                                    max_y = max(max_y, event.y)
 
                             elif event.event_type == "touch_down":
                                 if not current_touch["down"]:
                                     current_touch["down"] = True
-                                    poll_package()
-                                    # [FIX] Use the relative timestamp from kernel time
+                                    self.get_current_package()
+
+                                    if self._swipe_buffer:
+                                        self._emit_swipe_event(self._last_x, self._last_y, self._last_event_time_ms)
+
+                                    self._start_swipe(current_touch["x"], current_touch["y"], relative_ts_ms)
+                                    self._last_x, self._last_y, self._last_event_time_ms = current_touch["x"], current_touch["y"], relative_ts_ms
+
                                     data = AndroidEvent(
-                                        timestamp=int(relative_ts_ms),  # [FIX] Store as integer milliseconds
+                                        timestamp=int(relative_ts_ms),
                                         event_type="touch_down",
                                         x=current_touch["x"],
                                         y=current_touch["y"],
@@ -357,12 +328,15 @@ class AndroidEventRecorder:
                                     self.events.append(data)
                                     if self.on_event_callback:
                                         self.on_event_callback(data)
+
                             elif event.event_type == "touch_up":
                                 if current_touch["down"]:
                                     current_touch["down"] = False
-                                    # [FIX] Use the relative timestamp from kernel time
+                                    if self._swipe_buffer:
+                                        self._emit_swipe_event(current_touch["x"], current_touch["y"], relative_ts_ms)
+
                                     data = AndroidEvent(
-                                        timestamp=int(relative_ts_ms),  # [FIX] Store as integer milliseconds
+                                        timestamp=int(relative_ts_ms),
                                         event_type="touch_up",
                                         x=current_touch["x"],
                                         y=current_touch["y"],
@@ -372,25 +346,11 @@ class AndroidEventRecorder:
                                     self.events.append(data)
                                     if self.on_event_callback:
                                         self.on_event_callback(data)
+
                             elif event.event_type == "key":
-                                # [FIX] Use the relative timestamp from kernel time
                                 data = AndroidEvent(
-                                    timestamp=int(relative_ts_ms),  # [FIX] Store as integer milliseconds
+                                    timestamp=int(relative_ts_ms),
                                     event_type="key",
-                                    key_code=event.key_code, # Use the key_code from the parsed event
-                                    device_id=self.device_id or "",
-                                    app_package=self.current_package
-                                )
-                                self.events.append(data)
-                                if self.on_event_callback:
-                                    self.on_event_callback(data)
-                            else: # For any other parsed AndroidEvent that doesn't have specific handling
-                                # [FIX] Use the relative timestamp from kernel time
-                                data = AndroidEvent(
-                                    timestamp=int(relative_ts_ms),  # [FIX] Store as integer milliseconds
-                                    event_type=event.event_type,
-                                    x=event.x,
-                                    y=event.y,
                                     key_code=event.key_code,
                                     device_id=self.device_id or "",
                                     app_package=self.current_package
@@ -399,22 +359,12 @@ class AndroidEventRecorder:
                                 if self.on_event_callback:
                                     self.on_event_callback(data)
 
-                        # DEBUG: Log counts to a fixed file
-                        try:
-                            with open("/tmp/debug_recorder_counts.log", "w") as f:
-                                f.write(f"Raw lines: {raw_line_count}\nEvents: {len(self.events)}\n")
-                                f.write(f"X range: {min_x} - {max_x}\nY range: {min_y} - {max_y}\n")
-                        except:
-                            pass
-
                 except (BlockingIOError, InterruptedError):
                     time.sleep(0.01)
                     continue
                 except Exception as e:
                     logger.debug(f"Error reading from adb: {e}")
                     break
-            
-            logger.debug(f"Exited recording loop after {raw_line_count} raw lines. Process poll: {proc.poll()}")
 
         except Exception as e:
             logger.error(f"Event recording error: {e}")
@@ -422,77 +372,121 @@ class AndroidEventRecorder:
             self.is_recording = False
             logger.info(f"Android event recording stopped. Captured {len(self.events)} events")
 
+    async def _calibrate_clocks(self):
+        """
+        Synchronize Android kernel clock with host time immediately.
+        Avoids the 0.5s-1.0s startup latency of the adb process.
+        """
+        from app.infrastructure.drivers.adb import adb_driver
+        try:
+            # 1. Fetch kernel uptime (seconds)
+            kernel_uptime = adb_driver.get_uptime(self.device_id)
+            # 2. Record host time (Unix timestamp)
+            host_now = time.time()
 
-    def start_recording(self, device_id: str, callback=None) -> bool:
-        """Start recording events from device."""
-        if self.is_recording:
-            logger.warning("Already recording")
-            return False
+            if kernel_uptime > 0:
+                self._kernel_time_base = kernel_uptime
+                # Host time at the moment kernel_uptime was 0 (theoretically)
+                self._host_at_kernel_zero = host_now - kernel_uptime
+                # Calculate the relative start time offset
+                # (How many MS into the video/host-recording-session was the kernel_uptime captured)
+                self._relative_offset_ms = (host_now - self._start_time) * 1000.0
 
+                logger.info(
+                    f"[AndroidEventRecorder] Clock calibrated: "
+                    f"Kernel={kernel_uptime:.3f}s, Host={host_now:.3f}s. "
+                    f"Offset={self._relative_offset_ms:.1f}ms"
+                )
+        except Exception as e:
+            logger.warning(f"[AndroidEventRecorder] Failed to calibrate clocks: {e}")
+
+    def start_recording(self, device_id: str, callback=None, video_start_time: float | None = None) -> bool:
+        """Start recording events."""
+        if self.is_recording: return False
         self.device_id = device_id
         self.events = []
         self.is_recording = True
         self.on_event_callback = callback
         self._stop_event.clear()
-
-        self._stop_event.clear()
-
-        # [CRITICAL] Record start time for relative offset calculation
         self._start_time = time.time()
         self._kernel_time_base = None
-        self._relative_offset_ms = 0.0
-        logger.info(f"[AndroidEventRecorder] Recording started at {self._start_time}")
+        self._video_start_time = video_start_time
+        if video_start_time and video_start_time > 0:
+            self._time_offset_ms = (self._start_time - video_start_time) * 1000.0
+        else:
+            self._time_offset_ms = 0.0
+
+        # Sync clock immediately to avoid ADB process startup lag
+        # We use a helper task for this since start_recording is often called from sync code
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(self._calibrate_clocks())
+            else:
+                asyncio.run(self._calibrate_clocks())
+        except Exception:
+            # Fallback if loop is unavailable
+            pass
 
         self._recording_thread = threading.Thread(target=self._record_loop, daemon=True)
         self._recording_thread.start()
-
         return True
 
+    def set_video_start_time(self, video_start_time: float):
+        """
+        Update the video start time dynamically.
+        Useful when the exact recording start time is detected later (e.g., from scrcpy logs).
+        """
+        self._video_start_time = video_start_time
+        if video_start_time and video_start_time > 0:
+            # Re-calculate offset: (Recorder Start - Video Start)
+            self._time_offset_ms = (self._start_time - video_start_time) * 1000.0
+            logger.info(f"[AndroidEventRecorder] Updated video_start_time: {video_start_time}, new offset: {self._time_offset_ms:.1f}ms")
+
     def stop_recording(self) -> list[AndroidEvent]:
-        """Stop recording and return captured events."""
+        """Stop recording."""
         self._stop_event.set()
         self.is_recording = False
-
         if self.process:
             try:
                 self.process.terminate()
                 self.process.wait(timeout=2)
             except:
-                if self.process:
-                    self.process.kill()
+                if self.process: self.process.kill()
             self.process = None
-
         if self._recording_thread and self._recording_thread.is_alive():
             self._recording_thread.join(timeout=3)
-
         return self.events
 
     def to_trace_events(self, session_id: str, thread_id: str) -> list[dict]:
-        """
-        Convert Android events to trace event format for backend storage.
-
-        [FIX] timestamp is now relative time in seconds (from recording start),
-        not Unix epoch time. This aligns with video timing for keyframe extraction.
-        """
+        """Convert to trace events."""
         trace_events = []
-
         for event in self.events:
-            # [FIX] event.timestamp is already in milliseconds
-            relative_ms = int(event.timestamp)
+            relative_ms = int(event.timestamp + self._time_offset_ms)
+            if event.event_type == "swipe":
+                payload = {
+                    "x": event.x, "y": event.y,
+                    "end_x": event.swipe_end_x, "end_y": event.swipe_end_y,
+                    "duration_ms": event.swipe_duration_ms,
+                    "device_id": event.device_id, "platform": "android",
+                    "package_name": event.app_package,
+                    "relative_timestamp_ms": relative_ms, "is_swipe": True,
+                }
+                target_x, target_y = (event.swipe_end_x or event.x), (event.swipe_end_y or event.y)
+            else:
+                payload = {
+                    "x": event.x, "y": event.y, "key_code": event.key_code,
+                    "device_id": event.device_id, "platform": "android",
+                    "package_name": event.app_package,
+                    "relative_timestamp_ms": relative_ms,
+                }
+                target_x, target_y = event.x, event.y
 
             trace_events.append({
-                "timestamp": relative_ms,  # Relative milliseconds from recording start
+                "timestamp": relative_ms,
                 "event_type": event.event_type,
-                "target_selector": f"android://screen/{event.x}/{event.y}" if event.x is not None else None,
+                "target_selector": f"android://screen/{target_x}/{target_y}" if target_x is not None else None,
                 "target_text": None,
-                "payload": {
-                    "x": event.x,
-                    "y": event.y,
-                    "device_id": event.device_id,
-                    "platform": "android",
-                    "package_name": event.app_package,
-                    "relative_timestamp_ms": relative_ms,  # [NEW] Explicit field for clarity
-                }
+                "payload": payload
             })
-
         return trace_events
