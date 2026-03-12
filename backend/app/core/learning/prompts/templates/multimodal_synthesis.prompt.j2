@@ -107,7 +107,8 @@ The `macro_script` field MUST be a JSON array of steps following these rules:
 - **DOM**: "navigate", "click", "input", "key_press", "scroll", "wait", "get_text", "run_js", "detect_pagination", "scroll_to_bottom".
 - **Desktop**: "click", "double_click", "type_text", "key_press", "scroll", "drag_drop", "screenshot", "gui_extract", "dump_ui", "open_app", "applescript".
 - **Mobile**: "tap", "long_press", "input_text", "key_press", "scroll", "screenshot", "gui_extract", "dump_ui", "open_app".
-    - **open_app**: For Mobile, ALWAYS use the provided `Target Application (Package Name)` as the payload `package` value. DO NOT use localized names like "藏宝阁".
+    - **open_app**: For Mobile, ALWAYS use the provided `Target Application (Package Name)` as the payload `package` value. If multiple packages are provided, use the one relevant to the current phase of the task. DO NOT use localized names like "藏宝阁".
+    - **CROSS-APP TRANSITIONS**: If the task involves switching between applications, ensure the `macro_script` includes an `open_app` action at the exact point where the user switches context.
     - **Mobile Coordinates (CRITICAL)**: Whenever possible for `tap`, provide precise `x` and `y` values in the `payload` (based on the visual trace's relative positions). Mobile UI element names are often ambiguous; providing coordinates ensures the execution engine has a reliable fallback if `target_selector` fails to resolve.
     - **Scroll**: For scrolling a page or list, use `scroll` with `direction` (up/down/left/right) and `distance` (float).
     - **target_selector**: For mobile, try to match actual A11y text or resource IDs exactly. Do not invent descriptive names.
@@ -138,12 +139,16 @@ Example: "This skill bridges information between apps using clipboard as a unive
 ## 3. Execution Workflow
 
 ### Phase 1: [Name]
-1. **Activate**: Focus the target application
+1. **Activate**: Focus the target application (use `open_app` if switching)
 2. **Visual Scan**: Look for [specific element] in [location]
 3. **Action**: [What to do with details]
 4. **Verify**: Confirm [expected state change]
 
-### Phase 2: [Name]
+### Phase 2: [Name] (Application Switch)
+*Note: This phase focuses on transitioning data or context to [Application B]*
+1. **Switch**: Use `open_app` to bring [Application B] to the foreground.
+2. **Context Check**: Verify [Application B] is at [expected state].
+3. **Perform**: [Continuation of the workflow]
 ...
 
 ## 4. Common Patterns & Best Practices

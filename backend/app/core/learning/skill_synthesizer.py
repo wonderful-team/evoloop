@@ -236,7 +236,7 @@ class WorkflowSynthesizer:
             # Identify if this was a global (OS/Android) or DOM action
             source_type = "dom"
             current_package = step.state_context.get("app_name") or step.node_name
-            
+
             if step.action_name == "mobile_control":
                 source_type = "mobile"
             elif step.action_name == "desktop_control":
@@ -252,8 +252,15 @@ class WorkflowSynthesizer:
             if source_type in ("mobile", "desktop") and current_package not in ("global_observation", "mobile_interaction", "unknown"):
                 if last_package and current_package != last_package:
                     # Generic prefix logic (e.g. android, com.android.launcher are ignored)
-                    system_apps = ("com.android.launcher", "com.android.systemui", "android", "scrcpy", "EvoLoop")
-                    if not any(current_package.startswith(sys) for sys in system_apps):
+                    system_apps = ("com.android.launcher", "com.android.systemui", "android", "scrcpy", "EvoLoop", "com.android.settings")
+
+                    # IGNORE system noise during transitions
+                    # Note: We keep "com.android.settings" in case the user actually wants to automate settings, 
+                    # but usually it's noise if it's just a quick toggle. For now we treat it as a target if it's a switch.
+
+                    is_current_system = any(current_package.startswith(sys) for sys in system_apps)
+
+                    if not is_current_system:
                         logger.info(f"[Synthesizer] App transition detected: {last_package} -> {current_package}")
                         macro.append({
                             "step_number": len(macro) + 1,
@@ -262,7 +269,20 @@ class WorkflowSynthesizer:
                             "source": source_type,
                             "payload": {"package_name": current_package}
                         })
-                last_package = current_package
+                        # IMPORTANT: Add a stability wait after app switch to allow cold start/animation
+                        macro.append({
+                            "step_number": len(macro) + 1,
+                            "type": "action",
+                            "event_type": "wait",
+                            "source": source_type,
+                            "payload": {"duration_ms": 1500}
+                        })
+
+                # Update last_package only if the current one is NOT a system app or launcher noise
+                # This ensures that if we briefly go to Launcher and back to App A, it's not a transition.
+                system_noise = ("com.android.launcher", "com.android.systemui", "android", "scrcpy")
+                if not any(current_package.startswith(sys) for sys in system_noise):
+                    last_package = current_package
 
             # Filter out noisy standalone modifier keys from macro
             if step.action_type == "key_press" and step.action_args.get("key") in ("Alt", "Shift", "Control", "Command", "Meta"):

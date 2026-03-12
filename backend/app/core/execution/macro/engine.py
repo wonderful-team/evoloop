@@ -697,7 +697,7 @@ class MacroEngine:
         elif event_type == "open_app":
             handle_res(await MobileController.execute(
                 action=tool_action,
-                text=payload.get("package") or payload.get("text") or payload.get("app_name"),
+                text=payload.get("package_name") or payload.get("package") or payload.get("text") or payload.get("app_name"),
                 force_stop=payload.get("force_stop", True),
                 disable_atlas=True,
                 disable_trace_screenshot=True

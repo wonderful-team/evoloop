@@ -83,6 +83,7 @@ The VERY FIRST step of the `macro_script` MUST be an activation action to ensure
 - **Web**: Use `event_type: "navigate"` to the specific URL.
 - **Desktop**: Use `event_type: "open_app"` or `click` to bring the app to foreground.
 - **Mobile**: Use `event_type: "open_app"` with the package name in `payload.package`.
+- **TRANSITIONS**: If the task switches between applications, ensure an `open_app` action is used at the transition point.
 
 ---
 
