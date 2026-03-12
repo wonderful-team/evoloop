@@ -226,6 +226,7 @@ class WorkflowSynthesizer:
         """Compile raw TraceSteps into a clean deterministic macro JSON format."""
         macro = []
         has_extract = False
+        last_package = None
         
         for step in sequence.steps:
             # [Phase 13] Explicitly skip agentic bridge events early
@@ -234,26 +235,47 @@ class WorkflowSynthesizer:
 
             # Identify if this was a global (OS/Android) or DOM action
             source_type = "dom"
+            current_package = step.state_context.get("app_name") or step.node_name
+            
             if step.action_name == "mobile_control":
                 source_type = "mobile"
             elif step.action_name == "desktop_control":
                 source_type = "desktop"
             elif step.node_name in ("global_observation", "mobile_interaction"):
-                # Use mirrored context if available, otherwise default to desktop for OS recordings
                 if step.state_context.get("is_mirrored"):
                     source_type = "mobile"
                 else:
                     source_type = "desktop"
-            
+
+            # Detect App Transition (Cross-App Support)
+            # Only for mobile/desktop where app switching is a distinct action
+            if source_type in ("mobile", "desktop") and current_package not in ("global_observation", "mobile_interaction", "unknown"):
+                if last_package and current_package != last_package:
+                    # Generic prefix logic (e.g. android, com.android.launcher are ignored)
+                    system_apps = ("com.android.launcher", "com.android.systemui", "android", "scrcpy", "EvoLoop")
+                    if not any(current_package.startswith(sys) for sys in system_apps):
+                        logger.info(f"[Synthesizer] App transition detected: {last_package} -> {current_package}")
+                        macro.append({
+                            "step_number": len(macro) + 1,
+                            "type": "action",
+                            "event_type": "open_app" if source_type == "mobile" else "launch_app",
+                            "source": source_type,
+                            "payload": {"package_name": current_package}
+                        })
+                last_package = current_package
+
             # Filter out noisy standalone modifier keys from macro
             if step.action_type == "key_press" and step.action_args.get("key") in ("Alt", "Shift", "Control", "Command", "Meta"):
                 continue
 
             event_type = step.action_type
             payload = dict(step.action_args)
+            
+            # Ensure package_name is in payload for all steps
+            if current_package and current_package not in ("global_observation", "mobile_interaction", "unknown"):
+                payload["package_name"] = current_package
 
-            # Agent LangChain tool inputs often serialize with single quotes as python dicts
-            # trace_recorder.py captures them in 'raw' if json.loads fails.
+            # Agent LangChain tool inputs...
             if "raw" in payload and isinstance(payload["raw"], str):
                 import ast
                 try:
@@ -274,24 +296,17 @@ class WorkflowSynthesizer:
                     elif event_type == "type_text":
                         event_type = "input"
                 else:
-                    # Fallback if no specific action name exists in payload
                     tool_invoked = step.action_name
                     if tool_invoked == "wait_for":
                         event_type = "wait"
-                        # Extract seconds from args literal map
                         payload["duration_ms"] = float(payload.get("seconds", 1)) * 1000
                     elif tool_invoked == "memorize_concepts":
-                        # We skip memory tools during macro playback as they are semantic
                         continue
                     elif tool_invoked in ("request_human_input", "research", "manage_todo", "document_reader"):
-                        # Skip other non-UI tools
                         continue
                     else:
                         continue
 
-            # [Phase 13] Strict Allowlist Filter
-            # If the resolved event_type is not in the UI allowlist, discard it.
-            # This prevents internal research, memory, and todo tools from bloating the macro.
             if event_type not in ALLOWED_UI_ACTIONS:
                 logger.debug(f"[{self.thread_id}] Skipping non-UI action during synthesis: {event_type}")
                 continue
@@ -302,7 +317,7 @@ class WorkflowSynthesizer:
             is_extract = False
             if event_type in ("get_text", "get_html", "get_attribute"):
                 macro_step = {
-                    "step_number": step.step_number,
+                    "step_number": len(macro) + 1,
                     "type": "extract",
                     "extract_type": action_name,
                     "key": f"data_{step.step_number}",
@@ -313,7 +328,7 @@ class WorkflowSynthesizer:
                 is_extract = True
             elif event_type == "tool_call" and step.action_name == "mobile_control" and action_name == "dump_ui":
                 macro_step = {
-                    "step_number": step.step_number,
+                    "step_number": len(macro) + 1,
                     "type": "extract",
                     "extract_type": "dump_ui",
                     "key": f"data_{step.step_number}",
@@ -324,7 +339,7 @@ class WorkflowSynthesizer:
                 is_extract = True
             else:
                 macro_step = {
-                    "step_number": step.step_number,
+                    "step_number": len(macro) + 1,
                     "type": "action",
                     "event_type": event_type,
                     "source": source_type,
@@ -337,6 +352,14 @@ class WorkflowSynthesizer:
                 
             macro.append(macro_step)
             
+        # Append Dump Data Sink if any extraction occurred
+        if has_extract:
+            macro.append({
+                "step_number": len(macro) + 1,
+                "type": "dump",
+                "payload": {}
+            })
+
         # Append Dump Data Sink if any extraction occurred
         if has_extract:
             macro.append({

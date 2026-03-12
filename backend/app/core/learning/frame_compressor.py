@@ -341,21 +341,28 @@ class KeyframeSelector:
     从视频和事件中选择最具信息量的帧，同时控制总数和避免冗余。
     """
 
-    # 配置
+    # 默认配置（可被实例化参数覆盖）
+    DEFAULT_MAX_KEYFRAMES = 15
+
+    # 时间偏移配置
     PRE_ACTION_OFFSET_MS = -200    # 操作前 200ms
     POST_ACTION_OFFSET_MS = 1500   # 操作后 1500ms (Increased to allow Android UI settling)
     TRANSITION_DELAY_MS = 800      # 页面切换等待
     MIN_INTERVAL_MS = 300          # 最小帧间隔
-    MAX_KEYFRAMES = 15             # 最大关键帧数
 
-    def __init__(self):
-        pass
+    def __init__(self, max_keyframes: Optional[int] = None):
+        """
+        Args:
+            max_keyframes: 最大关键帧数，默认使用 DEFAULT_MAX_KEYFRAMES
+        """
+        self.max_keyframes = max_keyframes or self.DEFAULT_MAX_KEYFRAMES
 
     def select_keyframes(
         self,
         events: list,
         video_duration: float,
-        video_resolution: Tuple[int, int]
+        video_resolution: Tuple[int, int],
+        max_frames: Optional[int] = None
     ) -> List["KeyframeCandidate"]:
         """
         基于事件选择关键帧
@@ -417,9 +424,10 @@ class KeyframeSelector:
         # 时间窗口去重（保留高优先级的）
         deduped = self._temporal_deduplication(candidates)
 
-        # 限制总数
-        if len(deduped) > self.MAX_KEYFRAMES:
-            deduped = self._prioritize_frames(deduped)
+        # 限制总数（优先使用传入参数，其次使用实例配置）
+        limit = max_frames or self.max_keyframes
+        if len(deduped) > limit:
+            deduped = self._prioritize_frames(deduped, limit=limit)
 
         # 最终按时间排序
         return sorted(deduped, key=lambda k: k.timestamp)
@@ -450,7 +458,8 @@ class KeyframeSelector:
 
     def _prioritize_frames(
         self,
-        candidates: List["KeyframeCandidate"]
+        candidates: List["KeyframeCandidate"],
+        limit: int = 15
     ) -> List["KeyframeCandidate"]:
         """
         当帧数超过限制时，按优先级筛选
@@ -466,7 +475,7 @@ class KeyframeSelector:
             frames = by_priority[priority]
             # 同优先级内按时间间隔采样
             for i, frame in enumerate(frames):
-                if len(result) < self.MAX_KEYFRAMES:
+                if len(result) < limit:
                     result.append(frame)
 
         return result

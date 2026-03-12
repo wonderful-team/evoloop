@@ -133,6 +133,11 @@ class Settings(BaseSettings):
     ENABLE_VISION_OCR: bool = True
     ENABLE_MACRO_SELF_HEALING: bool = True
 
+    # --- Learning / Skill Synthesis Configuration ---
+    # Maximum keyframes to extract for skill synthesis (multimodal learning)
+    # Higher values = more context for LLM but higher token cost
+    MAX_KEYFRAMES: int = 50
+
     ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None
     BRAVE_API_KEY: str | None = None

@@ -28,6 +28,7 @@ from typing import List, Optional, Tuple
 import yaml
 from sqlalchemy import select, or_
 
+from app.core.config import settings
 from app.core.learning.frame_compressor import (
     CompressedFrame,
     CoordinateNormalizer,
@@ -80,14 +81,14 @@ class MultimodalSkillSynthesizer:
     同步处理流程，直接返回合成结果。
     """
 
-    # 配置
-    MAX_FRAMES = 15              # 最大关键帧数
-    MAX_PROCESSING_TIME = 60     # 60秒超时
+    # 配置（从 settings 读取，见 __init__）
+    MAX_PROCESSING_TIME = 300     # 60秒超时
     DEFAULT_VIDEO_FPS = 15       # 默认帧率
 
     def __init__(self):
         self.compressor = FrameCompressor()
-        self.keyframe_selector = KeyframeSelector()
+        # 从配置读取最大关键帧数
+        self.keyframe_selector = KeyframeSelector(max_keyframes=settings.MAX_KEYFRAMES)
         self.prompt_builder = LearningPromptBuilder()
         # 使用系统配置的 Vision LLM
         self.vision_llm = VisionLLMFactory.create_vision_llm(temperature=0.3)
@@ -474,51 +475,43 @@ class MultimodalSkillSynthesizer:
 
     async def _get_bundle_id_from_events(self, events: List[TraceEvent]) -> str:
         """
-        从事件中提取包名，如果不存在或无效则从设备获取。
-
-        策略：
-        1. 检查 events 的 app_name 或 node_name 字段 (后端解析注入的数据)
-        2. 尝试从事件 payload 中提取 package_name (前端直接上报的数据)
-        3. 如果均未找到有效值，且设备连接中，则通过 ADB 查询设备当前应用 (Fallback)
+        从事件中提取包名。对于跨应用场景，返回逗号分隔的列表。
         """
-        bundle_id = "unknown"
+        all_apps = []
         system_prefixes = (
             "com.android.systemui",
             "com.android.launcher",
             "com.google.android.inputmethod",
             "android",
-            "scrcpy", # 视为无效包名，触发 re-poll
+            "scrcpy",
             "global_recorder"
         )
 
         for e in events:
-            # 优先从数据库第一级字段获取 (这是后台解析 MirrorSession 后的真实数据)
             pkg = getattr(e, "app_name", None) or getattr(e, "node_name", None)
-            
-            # 其次从 payload 获取
             if not pkg or pkg in ("unknown", "error", ""):
                 p = e.payload if isinstance(e.payload, dict) else {}
                 pkg = p.get("package_name")
 
             if pkg and pkg not in ("unknown", "error", ""):
-                if not any(pkg.startswith(p) for p in system_prefixes) and pkg != "global_recorder":
-                    bundle_id = pkg
-                    break
+                # Filter system apps but don't stop searching
+                if not any(pkg.startswith(p) for p in system_prefixes):
+                    if pkg not in all_apps:
+                        all_apps.append(pkg)
 
-        # 步骤 2: 如果未找到有效包名，尝试从设备获取
-        if bundle_id == "unknown":
+        # Fallback to device re-poll if no user apps found
+        if not all_apps:
             try:
-                logger.debug("No valid package_name in events, fetching from device via ADB")
                 app_info = adb_driver.get_current_app()
-                if app_info and app_info.get("package"):
-                    pkg = app_info["package"]
-                    if pkg and pkg not in ("unknown", "error", "") and not pkg.startswith(system_prefixes):
-                        bundle_id = pkg
-                        logger.info(f"Fetched package name from device (fallback): {bundle_id}")
-            except Exception as e:
-                logger.warning(f"Failed to fetch package name from device: {e}")
+                pkg = app_info.get("package")
+                if pkg and pkg not in ("unknown", "error", "") and not pkg.startswith(system_prefixes):
+                    all_apps.append(pkg)
+            except Exception: pass
 
-        return bundle_id
+        if not all_apps:
+            return "unknown"
+            
+        return ", ".join(all_apps)
 
     async def _call_vision_llm(self, task_description: str, bundle_id: str, frames: List[CompressedFrame], event_context: str) -> str:
         """构建多模态消息并调用 LLM"""
@@ -527,15 +520,18 @@ class MultimodalSkillSynthesizer:
         # 加载新的系统模板
         system_prompt = self.prompt_builder.build_multimodal_synthesis_prompt({})
 
-        # 构建人机交互内容 (文本说明 + 交叉排布的图片)
+        # 构建人机交互内容
         content = []
         
-        # 1. 任务背景与全局事件序列
+        # Identify if we have multiple apps
+        is_cross_app = ", " in bundle_id
+        app_context_label = "Target Applications" if is_cross_app else "Target Application (Package Name)"
+
         content.append({
             "type": "text", 
             "text": (
                 f"## Task Description\n{task_description}\n\n"
-                f"## Target Application (Package Name)\n{bundle_id}\n\n"
+                f"## {app_context_label}\n{bundle_id}\n\n"
                 f"## Coordinate System\n"
                 "All coordinates are normalized to 0.0-1.0 range (0.0=top/left, 1.0=bottom/right).\n\n"
                 f"## User Actions (Complete Timeline)\n{event_context}\n\n"

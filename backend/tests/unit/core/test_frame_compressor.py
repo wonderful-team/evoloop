@@ -274,8 +274,7 @@ class TestKeyframeSelector:
 
     def test_max_keyframes_limit(self, mock_events):
         """Test maximum keyframes limit."""
-        selector = KeyframeSelector()
-        selector.MAX_KEYFRAMES = 3
+        selector = KeyframeSelector(max_keyframes=3)
 
         # Create many events
         many_events = []
@@ -291,7 +290,7 @@ class TestKeyframeSelector:
             video_resolution=(1920, 1080)
         )
 
-        assert len(keyframes) <= selector.MAX_KEYFRAMES
+        assert len(keyframes) <= selector.max_keyframes
 
 
 class TestCompressedFrame:

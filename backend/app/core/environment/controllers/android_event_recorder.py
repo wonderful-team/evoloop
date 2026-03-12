@@ -216,39 +216,22 @@ class AndroidEventRecorder:
     def get_current_package(self, device_id: str | None = None) -> str | None:
         """
         Get the current active app package on the device.
+        Uses centralized adb_driver with caching.
         """
+        from app.infrastructure.drivers.adb import adb_driver
         target_device = device_id or self.device_id
         if not target_device:
             return None
 
-        now = time.time()
-        if now - self._last_package_poll < 2.0 and self.current_package:
-            return self.current_package
+        try:
+            app_info = adb_driver.get_current_app(device_id=target_device)
+            pkg = app_info.get("package")
+            if pkg and pkg not in ("error", "unknown"):
+                self.current_package = pkg
+                return pkg
+        except Exception as e:
+            logger.debug(f"[AndroidEventRecorder] Failed to get package: {e}")
 
-        self._last_package_poll = now
-        package_found = None
-
-        strategies = [
-            ([self.adb_path, "-s", target_device, "shell", "dumpsys", "activity", "activities"], r'([\w\.]+)/([\w\.\$]+)', ["mResumedActivity", "topResumedActivity"]),
-            ([self.adb_path, "-s", target_device, "shell", "dumpsys", "window", "windows"], r'([\w\.]+)/([\w\.\$]+)', ["mCurrentFocus", "mFocusedApp"]),
-            ([self.adb_path, "-s", target_device, "shell", "dumpsys", "activity", "top"], r'ACTIVITY\s+([\w\.]+)/([\w\.\$]+)', ["ACTIVITY"]),
-        ]
-
-        for cmd, pattern, keywords in strategies:
-            try:
-                pkg_proc = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
-                for line in pkg_proc.stdout.splitlines():
-                    if any(kw in line for kw in keywords) and "/" in line:
-                        match = re.search(pattern, line)
-                        if match:
-                            package_found = match.group(1)
-                            break
-                if package_found: break
-            except Exception:
-                continue
-
-        if package_found:
-            self.current_package = package_found
         return self.current_package
 
     def _record_loop(self):
