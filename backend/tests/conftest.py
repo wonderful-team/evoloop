@@ -44,7 +44,7 @@ if test_env_path.exists():
                 os.environ.setdefault(key, value)
 
 # Ensure critical test settings (only if not already set from .env)
-os.environ.setdefault("APP_ENV", "testing")
+os.environ.setdefault("ENVIRONMENT", "local")
 os.environ.setdefault("LOG_LEVEL", "DEBUG")
 os.environ.setdefault("POSTGRES_DB", "app")
 os.environ.setdefault("POSTGRES_SERVER", "localhost")
@@ -123,7 +123,7 @@ def test_settings():
     from app.core.config import Settings
 
     settings = Settings(
-        APP_ENV="testing",
+        ENVIRONMENT="local",
         POSTGRES_DB="evoloop_test",
         REDIS_URL="redis://localhost:6379/15",
         USE_NEO4J_MEMORY=False,

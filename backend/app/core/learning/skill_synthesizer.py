@@ -18,8 +18,8 @@ from app.core.learning.trace_parser import TraceParser, TraceSequence
 from app.core.learning.synthesizer_utils import (
     cleanup_macro_steps,
     export_skill_to_filesystem,
-    verify_macro_script,
 )
+from app.core.execution.macro.verification_service import SynthesisIntegration
 from app.i18n.service import i18n
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
@@ -134,36 +134,56 @@ class WorkflowSynthesizer:
         # Step 4.2: Compile raw trace into deterministic macro JSON
         macro_script = self._compile_macro_script(sequence)
 
-        # [NEW] Step 4.3: Verification Dry-Run
-        # We verify the macro works BEFORE calling the expensive LLM
+        # [Phase 5] Step 4.3: Agent-based Macro Verification
+        # We verify and evolve the macro BEFORE calling the expensive LLM
         verification = await self.verify_macro(macro_script)
-        if verification["status"] != "success":
-            logger.warning(f"[{self.thread_id}] ⚠️ Verification failed: {verification.get('error') or 'Missing extracted keys'}. Aborting synthesis.")
-            # We still return some info or raise to allow human intervention
-            return None 
+
+        # Use evolved macro if available
+        if verification["status"] == "success" and verification.get("evolved_macro"):
+            original_count = len(macro_script)
+            evolved_count = len(verification["evolved_macro"])
+            macro_script = verification["evolved_macro"]
+            logger.info(
+                f"[{self.thread_id}] Using evolved macro: {original_count} -> {evolved_count} steps, "
+                f"mode={verification.get('execution_mode', 'unknown')}"
+            )
+        elif verification["status"] != "success":
+            logger.warning(
+                f"[{self.thread_id}] ⚠️ Verification failed: {verification.get('error', 'Unknown error')}. "
+                f"Proceeding with unverified macro."
+            )
+            # Don't abort - let the LLM have a chance to fix it
 
         # Step 3: Call LLM to synthesize skill
-        # Pass first_user_msg to help align triggers
         yaml_output = await self._generate_skill_yaml(narrative, summary, first_user_msg)
 
         # Step 4.5: Parse YAML to SynthesizedSkill and inject macro
         skill = self._parse_skill_yaml(yaml_output, sequence)
-        
-        # Prefer the 'Smart' macro from LLM if it exists, otherwise fallback to linear trace macro
+
+        # Prefer the evolved/compiled macro over LLM's version for reliability
         if not skill.macro_script:
             skill.macro_script = macro_script
-            logger.info(f"[{self.thread_id}] Using compiled linear macro script (No LLM macro found)")
+            logger.info(f"[{self.thread_id}] Using compiled/evolved macro (No LLM macro found)")
+        elif verification.get("status") == "success":
+            # Use evolved macro which is more robust
+            skill.macro_script = macro_script
+            logger.info(f"[{self.thread_id}] Using evolved macro over LLM version for reliability")
         else:
             logger.info(f"[{self.thread_id}] Using LLM-synthesized smart macro script")
-        
-        # Inject verification data into metadata if needed
-        # skill.verification_report = verification
-        
-        # Heuristic: If we compiled a valid macro, default to deterministic mode if there are no LLM decisions
-        valid_macros = [s for s in macro_script if s.get("event_type") not in ["node_start", "llm_output"]]
-        if len(valid_macros) > 0 and len(valid_macros) == len(macro_script):
-           skill.execution_mode = "deterministic"
-           logger.info(f"[{self.thread_id}] Selected 'deterministic' mode automatically for {skill.name}")
+
+        # Set execution mode based on verification results
+        if verification.get("status") == "success":
+            # Use the verified execution mode
+            skill.execution_mode = verification.get("execution_mode", "deterministic")
+            confidence = verification.get("confidence", 0)
+            logger.info(
+                f"[{self.thread_id}] Verified execution mode for {skill.name}: "
+                f"{skill.execution_mode} (confidence: {confidence:.2%})"
+            )
+        else:
+            # Fall back to agentic mode if verification failed
+            skill.execution_mode = "agentic"
+            logger.warning(f"[{self.thread_id}] Using 'agentic' mode due to verification failure")
 
         # [NEW] Step 5: Physical File Export (Phase 5)
         self._export_physical_skill(skill)
@@ -172,10 +192,21 @@ class WorkflowSynthesizer:
 
     async def verify_macro(self, macro_script: list[dict], project_id: int = 1) -> dict:
         """
-        [NEW] Dry-run verification of a draft macro.
-        Replays the macro using MacroEngine and checks if extraction targets were met.
+        [Phase 5] Agent-based verification of a draft macro.
+
+        Replaces the old dry-run verification with active agent-based verification
+        that detects anomalies and evolves the macro for better robustness.
+
+        Args:
+            macro_script: The compiled macro from trace
+            project_id: Project ID for environment context
+
+        Returns:
+            Verification result with evolved macro if improvements were made
         """
-        return await verify_macro_script(
+        logger.info(f"[{self.thread_id}] Phase 5: Running agent-based macro verification")
+
+        return await SynthesisIntegration.verify_for_synthesis(
             macro_script=macro_script,
             thread_id=self.thread_id,
             project_id=project_id

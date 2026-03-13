@@ -54,6 +54,7 @@ class EmbeddingConfigService:
         base_url: str,
         model: str,
         api_key: str = None,
+        dimensions: int = None,
         current_project_id: int = None,
     ):
         """
@@ -67,13 +68,16 @@ class EmbeddingConfigService:
         """
 
         # 1. Validate
-        _, new_dim = await EmbeddingConfigService.validate_connection(provider, base_url, model, api_key)
+        _, validated_dim = await EmbeddingConfigService.validate_connection(provider, base_url, model, api_key)
+        # Use provided dimensions or fall back to validated dimension
+        new_dim = dimensions or validated_dim
         logger.info(f"New Embedding Model Validated. Dimension: {new_dim}")
 
         # 2. Update Config
         SystemConfigService.set_value("EMBEDDING_PROVIDER", provider)
         SystemConfigService.set_value("EMBEDDING_BASE_URL", base_url)
         SystemConfigService.set_value("EMBEDDING_MODEL", model)
+        SystemConfigService.set_value("EMBEDDING_DIMENSIONS", str(new_dim))
         if api_key:
             SystemConfigService.set_value("EMBEDDING_API_KEY", api_key)
 

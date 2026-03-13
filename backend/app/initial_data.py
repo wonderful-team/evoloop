@@ -108,7 +108,7 @@ def _seed_llm_config(SystemConfigService):
 
         # Vision model (reuse main model if not specified)
         vision_model = getattr(settings, 'VISION_MODEL', settings.OPENAI_MODEL_NAME)
-        SystemConfigService.set_value("LLM_VISION_MODEL", vision_model, "Vision Model Name")
+        SystemConfigService.set_value("VISION_MODEL", vision_model, "Vision Model Name")
 
 
 async def init_atlas_config() -> None:

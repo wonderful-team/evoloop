@@ -38,7 +38,8 @@ import {
 
 const generalSettingsSchema = z.object({
   WORKSPACE_ROOT: z.string().min(1),
-  EVOLOOP_DEVICE_NAME: z.string().min(1),
+  EVOCLOUD_DEVICE_NAME: z.string().min(1),
+  LANGUAGE: z.string().default("zh"),
   INTENT_MIN_CONFIDENCE: z.string().optional(),
   REQUIRE_PLAN_APPROVAL: z.boolean().default(true),
 })
@@ -53,7 +54,8 @@ export default function GeneralSettings() {
     resolver: zodResolver(generalSettingsSchema) as any,
     defaultValues: {
       WORKSPACE_ROOT: "",
-      EVOLOOP_DEVICE_NAME: "",
+      EVOCLOUD_DEVICE_NAME: "",
+      LANGUAGE: "zh",
       INTENT_MIN_CONFIDENCE: "0.35",
       REQUIRE_PLAN_APPROVAL: true,
     },
@@ -68,17 +70,17 @@ export default function GeneralSettings() {
             configMap[item.key] = item.value
           })
 
+        const language = configMap.LANGUAGE || "zh"
         form.reset({
           WORKSPACE_ROOT: configMap.WORKSPACE_ROOT || "",
-          EVOLOOP_DEVICE_NAME: configMap.EVOLOOP_DEVICE_NAME || "",
+          EVOCLOUD_DEVICE_NAME: configMap.EVOCLOUD_DEVICE_NAME || "",
+          LANGUAGE: language,
           INTENT_MIN_CONFIDENCE: configMap.INTENT_MIN_CONFIDENCE || "0.35",
           REQUIRE_PLAN_APPROVAL: configMap.REQUIRE_PLAN_APPROVAL !== "false",
         })
 
-        // Sync Language from Backend if exists
-        if (configMap.LANGUAGE) {
-          i18n.changeLanguage(configMap.LANGUAGE)
-        }
+        // Sync Language from Backend
+        i18n.changeLanguage(language)
       } catch (_error) {
         toast.error(t("settings.general.loadError"))
       }
@@ -96,8 +98,8 @@ export default function GeneralSettings() {
       })
       await SystemService.updateSystemConfig({
         requestBody: {
-          key: "EVOLOOP_DEVICE_NAME",
-          value: data.EVOLOOP_DEVICE_NAME,
+          key: "EVOCLOUD_DEVICE_NAME",
+          value: data.EVOCLOUD_DEVICE_NAME,
         },
       })
       await SystemService.updateSystemConfig({
@@ -114,8 +116,10 @@ export default function GeneralSettings() {
       })
       // Save Language Preference
       await SystemService.updateSystemConfig({
-        requestBody: { key: "LANGUAGE", value: i18n.language },
+        requestBody: { key: "LANGUAGE", value: data.LANGUAGE },
       })
+      // Apply language change immediately
+      i18n.changeLanguage(data.LANGUAGE)
 
       toast.success(t("settings.general.success"))
       await queryClient.invalidateQueries({ queryKey: ["systemConfig"] })
@@ -157,30 +161,42 @@ export default function GeneralSettings() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <div className="grid gap-6 md:grid-cols-2">
-                <FormItem>
-                  <FormLabel>{t("settings.general.language")}</FormLabel>
-                  <Select
-                    value={i18n.language}
-                    onValueChange={(value) => i18n.changeLanguage(value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue
-                        placeholder={t("settings.general.selectLanguage")}
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="en">{t("settings.general.languageOptions.en")}</SelectItem>
-                      <SelectItem value="zh">{t("settings.general.languageOptions.zh")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormDescription>
-                    {t("settings.general.selectLanguageDesc")}
-                  </FormDescription>
-                </FormItem>
+                <FormField
+                  control={form.control}
+                  name="LANGUAGE"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t("settings.general.language")}</FormLabel>
+                      <Select
+                        value={field.value}
+                        onValueChange={(value) => {
+                          field.onChange(value)
+                          i18n.changeLanguage(value)
+                        }}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={t("settings.general.selectLanguage")}
+                            />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="en">{t("settings.general.languageOptions.en")}</SelectItem>
+                          <SelectItem value="zh">{t("settings.general.languageOptions.zh")}</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        {t("settings.general.selectLanguageDesc")}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}
-                  name="EVOLOOP_DEVICE_NAME"
+                  name="EVOCLOUD_DEVICE_NAME"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t("settings.general.deviceName")}</FormLabel>

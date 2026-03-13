@@ -99,7 +99,6 @@ class Settings(BaseSettings):
         return bool(self.SMTP_HOST and self.EMAILS_FROM_EMAIL)
 
     # --- EvoLoop Configuration ---
-    APP_ENV: Literal["development", "production", "testing"] = "development"
     LOG_LEVEL: str = "INFO"
 
     # File Upload

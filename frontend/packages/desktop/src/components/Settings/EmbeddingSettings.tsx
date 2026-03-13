@@ -38,6 +38,7 @@ const embeddingSchema = z.object({
   provider: z.string(),
   base_url: z.string().min(1, "Base URL is required"),
   model: z.string().min(1, "Model name is required"),
+  dimensions: z.string().optional(),
   api_key: z.string().optional(),
 })
 
@@ -59,6 +60,7 @@ export function EmbeddingSettings() {
       provider: "openai",
       base_url: "",
       model: "",
+      dimensions: "768",
       api_key: "",
     },
   })
@@ -78,6 +80,7 @@ export function EmbeddingSettings() {
           provider: configMap.EMBEDDING_PROVIDER || "openai",
           base_url: configMap.EMBEDDING_BASE_URL || "https://api.openai.com/v1",
           model: configMap.EMBEDDING_MODEL || "text-embedding-ada-002",
+          dimensions: configMap.EMBEDDING_DIMENSIONS || "768",
           api_key: configMap.EMBEDDING_API_KEY || "",
         })
       } catch (error) {
@@ -93,18 +96,22 @@ export function EmbeddingSettings() {
     if (val === "ollama") {
       form.setValue("base_url", "http://localhost:11434")
       form.setValue("model", "nomic-embed-text")
+      form.setValue("dimensions", "768")
     } else if (val === "generic") {
       form.setValue("base_url", "http://localhost:1234/v1")
       form.setValue("model", "text-embedding-nomic-embed-text-v1.5")
+      form.setValue("dimensions", "768")
     } else if (val === "openai") {
       form.setValue("base_url", "https://api.openai.com/v1")
       form.setValue("model", "text-embedding-3-small")
+      form.setValue("dimensions", "1536")
     } else if (val === "qwen") {
       form.setValue(
         "base_url",
         "https://dashscope.aliyuncs.com/compatible-mode/v1",
       )
       form.setValue("model", "text-embedding-v3")
+      form.setValue("dimensions", "1024")
     }
   }
 
@@ -163,6 +170,7 @@ export function EmbeddingSettings() {
           provider: data.provider,
           base_url: data.base_url,
           model: data.model,
+          dimensions: parseInt(data.dimensions || "768", 10),
           api_key: data.api_key,
           project_id: undefined,
         },
@@ -264,6 +272,23 @@ export function EmbeddingSettings() {
                 )}
               />
             </div>
+
+            <FormField
+              control={form.control}
+              name="dimensions"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("settings.modelFields.dimensions")}</FormLabel>
+                  <FormControl>
+                    <Input type="number" placeholder="768" {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t("settings.modelFields.dimensionsDesc")}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

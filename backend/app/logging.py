@@ -47,7 +47,7 @@ def setup_logging():
     """
     handler = logging.StreamHandler(sys.stderr)
 
-    if settings.APP_ENV == "development":
+    if settings.ENVIRONMENT == "local":
         # Dev: Human Readable but with Context
         formatter = logging.Formatter(
             "%(asctime)s - [%(thread_id)s|%(project_id)s] - %(name)s - %(levelname)s - %(message)s"

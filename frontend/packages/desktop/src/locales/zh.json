@@ -53,30 +53,6 @@
       "system": "跟随系统",
       "dark": "深色"
     },
-    "mcp": {
-      "args": "参数 (空格分隔)",
-      "argsPlaceholder": "例如：mcp-server-git .",
-      "add": "添加",
-      "description": "管理用于外部工具集成的 Model Context Protocol 服务器。",
-      "table": {
-        "tools": "工具",
-        "status": "状态",
-        "command": "命令",
-        "name": "名称"
-      },
-      "noServers": "未配置 MCP 服务器。",
-      "title": "MCP 服务器",
-      "toolsCount": "工具",
-      "command": "命令",
-      "loading": "加载服务器...",
-      "name": "名称",
-      "unknown": "未知",
-      "status": {
-        "connected": "已连接",
-        "error": "错误",
-        "disconnected": "已断开"
-      }
-    },
     "danger": {
       "kb_reset_title": "重置知识库 & 索引",
       "description": "永久删除账户及所有关联数据。",
@@ -137,7 +113,9 @@
       "baseUrl": "API 地址",
       "apiKey": "API 密钥",
       "visionModel": "视觉模型（可选）",
-      "visionModelDesc": "用于图像分析的模型（例如 gpt-4o, claude-3-opus）。"
+      "visionModelDesc": "用于图像分析的模型（例如 gpt-4o, claude-3-opus）。",
+      "dimensions": "向量维度",
+      "dimensionsDesc": "向量维度大小（例如 nomic 使用 768，OpenAI 使用 1536）。"
     },
     "title": "设置"
   },
@@ -339,7 +317,7 @@
     "tabs": {
       "library": "技能库",
       "recording": "移动录制",
-      "mcpServers": "MCP 服务器"
+      "mcpServers": "外部工具"
     },
     "quickStart": "操作录制",
     "screenRecordingPermissionTitle": "需要屏幕录制权限",
@@ -1049,38 +1027,44 @@
     }
   },
   "mcp": {
-    "nameLabel": "名称",
-    "commandPlaceholder": "例如 uvx",
-    "title": "MCP 服务器",
-    "description": "管理用于外部工具集成的 Model Context Protocol 服务器。",
-    "table": {
-      "status": "状态",
-      "toolsCount": "{{count}} 个工具",
-      "command": "命令",
-      "tools": "工具",
-      "unknown": "未知",
-      "name": "名称"
-    },
-    "commandRequired": "命令为必填项",
-    "add": "添加服务器",
-    "delete": "删除",
-    "argsPlaceholder": "例如 mcp-server-git .",
-    "namePlaceholder": "例如 git",
-    "commandLabel": "命令",
-    "deleteSuccess": "MCP 服务器删除成功",
-    "argsLabel": "参数 (空格分隔)",
-    "nameRequired": "名称为必填项",
-    "successEdit": "MCP 服务器更新成功",
-    "successAdd": "MCP 服务器添加成功",
-    "editTitle": "编辑 MCP 服务器",
-    "editDesc": "更新 MCP 服务器配置。",
-    "addTitle": "添加 MCP 服务器",
-    "addDesc": "添加新的 MCP 服务器以集成外部工具。",
+    "title": "外部工具连接",
+    "description": "让 AI 助手能够使用更多外部工具，比如搜索网页、操作文件、查询数据库等。就像给 AI 安装"App"一样，让它变得更强大。",
+    "add": "添加工具",
     "save": "保存",
+    "delete": "删除",
+    "deleteSuccess": "工具已删除",
+    "successAdd": "工具添加成功",
+    "successEdit": "工具信息已更新",
+    "addTitle": "添加外部工具",
+    "addDesc": "连接一个新的外部服务，让 AI 可以使用它的功能。",
+    "editTitle": "编辑工具信息",
+    "editDesc": "修改这个外部工具的配置信息。",
+    "nameLabel": "工具名称",
+    "namePlaceholder": "例如：文件助手",
+    "nameRequired": "请给工具起个名字",
+    "commandLabel": "运行方式",
+    "commandPlaceholder": "例如：npx -y @server/filesystem",
+    "commandRequired": "请填写运行方式",
+    "commandHelp": "这是启动工具的指令，通常可以从工具的说明文档中找到",
+    "argsLabel": "附加参数",
+    "argsPlaceholder": "例如：/Users/我的文件夹",
+    "argsHelp": "传递给工具的额外信息，比如要操作的文件夹路径",
+    "table": {
+      "name": "工具名称",
+      "status": "连接状态",
+      "tools": "可用功能",
+      "toolsCount": "{{count}} 个功能",
+      "command": "运行指令",
+      "unknown": "未知"
+    },
     "status": {
-      "connected": "已连接",
-      "error": "错误",
-      "disconnected": "已断开"
+      "connected": "已就绪",
+      "error": "连接出错",
+      "disconnected": "未连接"
+    },
+    "help": {
+      "title": "什么是外部工具？",
+      "content": "外部工具让 AI 助手能够执行更多任务，比如：\n\n• 搜索网络信息\n• 读写本地文件\n• 查询数据库\n• 发送邮件\n• 管理日历\n\n每个工具就像是一个"App"，安装后 AI 就可以在需要时调用它们。"
     }
   },
   "sidebar": {

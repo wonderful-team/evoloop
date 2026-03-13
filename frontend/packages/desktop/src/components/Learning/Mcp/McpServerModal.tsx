@@ -19,6 +19,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -199,6 +200,7 @@ export default function McpServerModal({
                       {...field}
                     />
                   </FormControl>
+                  <FormDescription>{t("mcp.commandHelp")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -212,6 +214,7 @@ export default function McpServerModal({
                   <FormControl>
                     <Input placeholder={t("mcp.argsPlaceholder")} {...field} />
                   </FormControl>
+                  <FormDescription>{t("mcp.argsHelp")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

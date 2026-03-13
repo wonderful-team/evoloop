@@ -32,6 +32,7 @@ class EmbeddingConfigRequest(BaseModel):
     provider: str = Field(..., description="openai, ollama, or generic")
     base_url: str = Field(..., description="API Base URL")
     model: str = Field(..., description="Model Name")
+    dimensions: int | None = None  # Embedding dimensions
     api_key: str | None = None
     project_id: int | None = None  # For triggering reindex
 
@@ -60,6 +61,7 @@ async def apply_embedding_config(req: EmbeddingConfigRequest):
         base_url=req.base_url,
         model=req.model,
         api_key=req.api_key,
+        dimensions=req.dimensions,
         current_project_id=req.project_id,
     )
     return {

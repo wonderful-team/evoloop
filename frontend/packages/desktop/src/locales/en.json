@@ -53,30 +53,6 @@
       "system": "System",
       "dark": "Dark"
     },
-    "mcp": {
-      "args": "Args (Space separated)",
-      "argsPlaceholder": "e.g. mcp-server-git .",
-      "add": "Add",
-      "description": "Manage Model Context Protocol servers for external tool integration.",
-      "table": {
-        "tools": "Tools",
-        "status": "Status",
-        "command": "Command",
-        "name": "Name"
-      },
-      "noServers": "No MCP servers configured.",
-      "title": "MCP Servers",
-      "toolsCount": "tools",
-      "command": "Command",
-      "loading": "Loading servers...",
-      "name": "Name",
-      "unknown": "unknown",
-      "status": {
-        "connected": "Connected",
-        "error": "Error",
-        "disconnected": "Disconnected"
-      }
-    },
     "danger": {
       "kb_reset_title": "Reset Knowledge Base & Index",
       "description": "Permanently delete your account and all associated data.",
@@ -137,7 +113,9 @@
       "baseUrl": "Base URL",
       "apiKey": "API Key",
       "visionModel": "Vision Model (Optional)",
-      "visionModelDesc": "Model used for image analysis (e.g. gpt-4o, claude-3-opus)."
+      "visionModelDesc": "Model used for image analysis (e.g. gpt-4o, claude-3-opus).",
+      "dimensions": "Embedding Dimensions",
+      "dimensionsDesc": "Vector dimension size (e.g. 768 for nomic, 1536 for OpenAI)."
     },
     "title": "Settings"
   },
@@ -339,7 +317,7 @@
     "tabs": {
       "library": "Skill Library",
       "recording": "Active Recording",
-      "mcpServers": "MCP Servers"
+      "mcpServers": "External Tools"
     },
     "quickStart": "Quick Record",
     "screenRecordingPermissionTitle": "Screen Recording Permission Required",
@@ -1049,38 +1027,44 @@
     }
   },
   "mcp": {
-    "add": "Add",
-    "nameLabel": "Name",
-    "commandPlaceholder": "e.g. uvx",
-    "title": "MCP Servers",
-    "description": "Manage Model Context Protocol servers for external tool integration.",
-    "table": {
-      "status": "Status",
-      "toolsCount": "{{count}} tools",
-      "command": "Command",
-      "tools": "Tools",
-      "unknown": "unknown",
-      "name": "Name"
-    },
-    "commandRequired": "Command is required",
-    "delete": "Delete",
-    "argsPlaceholder": "e.g. mcp-server-git .",
-    "namePlaceholder": "e.g. git",
-    "commandLabel": "Command",
-    "deleteSuccess": "MCP server deleted successfully",
-    "argsLabel": "Args (Space separated)",
-    "nameRequired": "Name is required",
-    "successEdit": "MCP server updated successfully",
-    "successAdd": "MCP server added successfully",
-    "editTitle": "Edit MCP Server",
-    "editDesc": "Update the MCP server configuration.",
-    "addTitle": "Add MCP Server",
-    "addDesc": "Add a new MCP server for external tool integration.",
+    "title": "External Tools",
+    "description": "Enable your AI assistant to use more external tools like web search, file operations, database queries, and more. Think of it like installing 'Apps' for your AI to make it more powerful.",
+    "add": "Add Tool",
     "save": "Save",
+    "delete": "Remove",
+    "deleteSuccess": "Tool removed successfully",
+    "successAdd": "Tool added successfully",
+    "successEdit": "Tool information updated",
+    "addTitle": "Add External Tool",
+    "addDesc": "Connect a new external service so your AI can use its capabilities.",
+    "editTitle": "Edit Tool",
+    "editDesc": "Update the configuration for this external tool.",
+    "nameLabel": "Tool Name",
+    "namePlaceholder": "e.g. File Assistant",
+    "nameRequired": "Please give the tool a name",
+    "commandLabel": "How to Run",
+    "commandPlaceholder": "e.g. npx -y @server/filesystem",
+    "commandRequired": "Please specify how to run this tool",
+    "commandHelp": "This is the command to start the tool, usually found in the tool's documentation",
+    "argsLabel": "Extra Parameters",
+    "argsPlaceholder": "e.g. /Users/my-folder",
+    "argsHelp": "Additional information passed to the tool, such as a folder path to work with",
+    "table": {
+      "name": "Tool Name",
+      "status": "Status",
+      "tools": "Available Features",
+      "toolsCount": "{{count}} features",
+      "command": "Run Command",
+      "unknown": "unknown"
+    },
     "status": {
-      "connected": "Connected",
+      "connected": "Ready",
       "error": "Error",
-      "disconnected": "Disconnected"
+      "disconnected": "Not Connected"
+    },
+    "help": {
+      "title": "What are External Tools?",
+      "content": "External tools let your AI assistant perform more tasks, such as:\n\n• Search the web\n• Read and write local files\n• Query databases\n• Send emails\n• Manage calendars\n\nEach tool is like an 'App' - once installed, your AI can use them when needed."
     }
   },
   "sidebar": {
