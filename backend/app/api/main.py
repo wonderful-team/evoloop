@@ -4,6 +4,7 @@ from app.api.routes import (
     agent,
     auth_proxy,
     brain,
+    cloud,
     conversations,
     devices,
     files,
@@ -71,3 +72,6 @@ api_router.include_router(wiki.router, prefix="/wiki", tags=["wiki"])
 
 # Cognitive Brain (Flash Mode)
 api_router.include_router(brain.router, prefix="/brain", tags=["brain"])
+
+# Cloud API (for client devices)
+api_router.include_router(cloud.router, tags=["cloud"])
