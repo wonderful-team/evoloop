@@ -78,11 +78,14 @@ importers:
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.3)(react@19.2.3)
       '@tauri-apps/api':
-        specifier: ^2.9.1
-        version: 2.9.1
+        specifier: ^2.10.0
+        version: 2.10.1
       '@tauri-apps/plugin-dialog':
         specifier: ^2.4.2
         version: 2.6.0
+      '@tauri-apps/plugin-fs':
+        specifier: ^2.0.0
+        version: 2.4.5
       '@tauri-apps/plugin-http':
         specifier: ^2.5.4
         version: 2.5.6
@@ -190,7 +193,7 @@ importers:
         version: 4.3.6
       zustand:
         specifier: ^5.0.9
-        version: 5.0.10(@types/react@19.2.9)(immer@10.2.0)(react@19.2.3)
+        version: 5.0.10(@types/react@19.2.9)(react@19.2.3)
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.3.8
@@ -276,18 +279,12 @@ importers:
       '@evoloop/shared':
         specifier: workspace:*
         version: link:../shared
-      immer:
-        specifier: ^10.1.1
-        version: 10.2.0
       mermaid:
         specifier: ^11.12.2
         version: 11.12.2
       rehype-raw:
         specifier: ^7.0.0
         version: 7.0.0
-      zustand:
-        specifier: ^5.0.9
-        version: 5.0.10(@types/react@19.2.9)(immer@10.2.0)(react@19.2.3)
     devDependencies:
       '@radix-ui/react-alert-dialog':
         specifier: ^1.1.15
@@ -3107,8 +3104,8 @@ packages:
     engines: {node: '>=12'}
     dev: true
 
-  /@tauri-apps/api@2.9.1:
-    resolution: {integrity: sha512-IGlhP6EivjXHepbBic618GOmiWe4URJiIeZFlB7x3czM0yDHHYviH1Xvoiv4FefdkQtn6v7TuwWCRfOGdnVUGw==}
+  /@tauri-apps/api@2.10.1:
+    resolution: {integrity: sha512-hKL/jWf293UDSUN09rR69hrToyIXBb8CjGaWC7gfinvnQrBVvnLr08FeFi38gxtugAVyVcTa5/FD/Xnkb1siBw==}
     dev: false
 
   /@tauri-apps/cli-darwin-arm64@2.9.6:
@@ -3236,31 +3233,37 @@ packages:
   /@tauri-apps/plugin-dialog@2.6.0:
     resolution: {integrity: sha512-q4Uq3eY87TdcYzXACiYSPhmpBA76shgmQswGkSVio4C82Sz2W4iehe9TnKYwbq7weHiL88Yw19XZm7v28+Micg==}
     dependencies:
-      '@tauri-apps/api': 2.9.1
+      '@tauri-apps/api': 2.10.1
+    dev: false
+
+  /@tauri-apps/plugin-fs@2.4.5:
+    resolution: {integrity: sha512-dVxWWGE6VrOxC7/jlhyE+ON/Cc2REJlM35R3PJX3UvFw2XwYhLGQVAIyrehenDdKjotipjYEVc4YjOl3qq90fA==}
+    dependencies:
+      '@tauri-apps/api': 2.10.1
     dev: false
 
   /@tauri-apps/plugin-http@2.5.6:
     resolution: {integrity: sha512-KhCK3TDNDF4vdz75/j+KNQipYKf+295Visa8r32QcXScg0+D3JwShcCM6D+FN8WuDF24X3KSiAB8QtRxW6jKRA==}
     dependencies:
-      '@tauri-apps/api': 2.9.1
+      '@tauri-apps/api': 2.10.1
     dev: false
 
   /@tauri-apps/plugin-opener@2.5.3:
     resolution: {integrity: sha512-CCcUltXMOfUEArbf3db3kCE7Ggy1ExBEBl51Ko2ODJ6GDYHRp1nSNlQm5uNCFY5k7/ufaK5Ib3Du/Zir19IYQQ==}
     dependencies:
-      '@tauri-apps/api': 2.9.1
+      '@tauri-apps/api': 2.10.1
     dev: false
 
   /@tauri-apps/plugin-process@2.3.1:
     resolution: {integrity: sha512-nCa4fGVaDL/B9ai03VyPOjfAHRHSBz5v6F/ObsB73r/dA3MHHhZtldaDMIc0V/pnUw9ehzr2iEG+XkSEyC0JJA==}
     dependencies:
-      '@tauri-apps/api': 2.9.1
+      '@tauri-apps/api': 2.10.1
     dev: false
 
   /@tauri-apps/plugin-shell@2.3.4:
     resolution: {integrity: sha512-ktsRWf8wHLD17aZEyqE8c5x98eNAuTizR1FSX475zQ4TxaiJnhwksLygQz+AGwckJL5bfEP13nWrlTNQJUpKpA==}
     dependencies:
-      '@tauri-apps/api': 2.9.1
+      '@tauri-apps/api': 2.10.1
     dev: false
 
   /@testing-library/dom@10.4.1:
@@ -5491,10 +5494,6 @@ packages:
     resolution: {integrity: sha512-XXOFtyqDjNDAQxVfYxuF7g9Il/IbWmmlQg2MYKOH8ExIT1qg6xc4zyS3HaEEATgs1btfzxq15ciUiY7gjSXRGQ==}
     dev: false
 
-  /immer@10.2.0:
-    resolution: {integrity: sha512-d/+XTN3zfODyjr89gM3mPq1WNX2B8pYsu7eORitdwyA2sBubnTl3laYlBk4sXY5FUa5qTZGBDPJICVbvqzjlbw==}
-    dev: false
-
   /import-fresh@3.3.1:
     resolution: {integrity: sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ==}
     engines: {node: '>=6'}
@@ -7508,13 +7507,13 @@ packages:
   /tauri-plugin-stt-api@0.1.0:
     resolution: {integrity: sha512-JM8fBLVp+t/pLmtdRPmyZXu821HF10abEBofwrccp9Rn/N42ug7o9Q7iKTZtd8rc2QUj2xZe+pgmIzrUEvDKcg==}
     dependencies:
-      '@tauri-apps/api': 2.9.1
+      '@tauri-apps/api': 2.10.1
     dev: false
 
   /tauri-plugin-tts-api@0.1.2:
     resolution: {integrity: sha512-oAqC4yn8AVo7JePMTpNpJ5SnfdlJn6hSWnGpLBjwbK2k8gw/Mu9YrZKr9/xMhuZVQH/2nRBuoRIxeZd0AbLj9Q==}
     dependencies:
-      '@tauri-apps/api': 2.9.1
+      '@tauri-apps/api': 2.10.1
     dev: false
 
   /test-exclude@7.0.2:
@@ -8234,7 +8233,7 @@ packages:
     resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
     dev: false
 
-  /zustand@5.0.10(@types/react@19.2.9)(immer@10.2.0)(react@19.2.3):
+  /zustand@5.0.10(@types/react@19.2.9)(react@19.2.3):
     resolution: {integrity: sha512-U1AiltS1O9hSy3rul+Ub82ut2fqIAefiSuwECWt6jlMVUGejvf+5omLcRBSzqbRagSM3hQZbtzdeRc6QVScXTg==}
     engines: {node: '>=12.20.0'}
     peerDependencies:
@@ -8253,7 +8252,6 @@ packages:
         optional: true
     dependencies:
       '@types/react': 19.2.9
-      immer: 10.2.0
       react: 19.2.3
     dev: false
 
