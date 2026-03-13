@@ -1,10 +1,11 @@
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useMutation } from "@tanstack/react-query"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
 
+import { UsersService } from "@/client"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card"
 import {
@@ -18,10 +19,10 @@ import {
 import { Input } from "@evoloop/shared/components/ui/input"
 import { LoadingButton } from "@evoloop/shared/components/ui/loading-button"
 import useAuth from "@/hooks/useAuth"
-// import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
+import useCustomToast from "@evoloop/shared/hooks/useCustomToast"
 import { cn } from "@evoloop/shared/lib/utils"
 
-// import { handleError } from "@/utils"
+import { handleError } from "@/utils"
 
 const createSchema = (t: any) =>
   z.object({
@@ -35,8 +36,8 @@ type FormData = z.infer<ReturnType<typeof createSchema>>
 
 const UserInformation = () => {
   const { t } = useTranslation()
-  // const queryClient = useQueryClient()
-  // const { showSuccessToast, /* showErrorToast */ } = useCustomToast()
+  const queryClient = useQueryClient()
+  const { showSuccessToast, showErrorToast } = useCustomToast()
   const [editMode, setEditMode] = useState(false)
   const { user: currentUser } = useAuth()
   const formSchema = createSchema(t)
@@ -55,42 +56,29 @@ const UserInformation = () => {
     setEditMode(!editMode)
   }
 
-  /*
   const mutation = useMutation({
-    mutationFn: (data: UserUpdateMe) =>
-      UsersService.updateUserMe({ requestBody: data }),
+    mutationFn: (data: FormData) => {
+      // Only send changed fields
+      const updateData: { nickname?: string; email?: string } = {}
+      if (data.nickname !== currentUser?.nickname) {
+        updateData.nickname = data.nickname
+      }
+      if (data.email !== currentUser?.email) {
+        updateData.email = data.email
+      }
+      return UsersService.updateUserMe({ requestBody: updateData })
+    },
     onSuccess: () => {
-      showSuccessToast("User updated successfully")
+      showSuccessToast(t("settings.profile.success"))
       toggleEditMode()
     },
     onError: handleError.bind(showErrorToast),
     onSettled: () => {
-      queryClient.invalidateQueries()
+      queryClient.invalidateQueries({ queryKey: ["currentUser"] })
     },
-  })
-  */
-  // Dummy mutation to satisfy usage
-  const mutation = useMutation({
-    mutationFn: async (data: any) => {
-      console.log("Update not supported", data)
-    },
-    onSuccess: () => toggleEditMode(),
   })
 
   const onSubmit = (data: FormData) => {
-    /*
-    const updateData: UserUpdateMe = {}
-
-    // only include fields that have changed
-    if (data.nickname !== currentUser?.nickname) {
-      updateData.nickname = data.nickname
-    }
-    if (data.email !== currentUser?.email) {
-      updateData.email = data.email
-    }
-
-    mutation.mutate(updateData)
-    */
     mutation.mutate(data)
   }
 

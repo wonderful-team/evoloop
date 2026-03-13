@@ -376,6 +376,26 @@ export const BrainResponseSchema = {
     title: 'BrainResponse'
 } as const;
 
+export const ChangePasswordRequestSchema = {
+    properties: {
+        old_password: {
+            type: 'string',
+            minLength: 1,
+            title: 'Old Password',
+            description: 'Current password'
+        },
+        new_password: {
+            type: 'string',
+            minLength: 8,
+            title: 'New Password',
+            description: 'New password (min 8 characters)'
+        }
+    },
+    type: 'object',
+    required: ['old_password', 'new_password'],
+    title: 'ChangePasswordRequest'
+} as const;
+
 export const ChangesetNodeSchema = {
     properties: {
         name: {
@@ -775,6 +795,17 @@ export const EmbeddingConfigRequestSchema = {
             type: 'string',
             title: 'Model',
             description: 'Model Name'
+        },
+        dimensions: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Dimensions'
         },
         api_key: {
             anyOf: [
@@ -1392,6 +1423,18 @@ export const MessageItemSchema = {
     type: 'object',
     required: ['id', 'type', 'content', 'thinking', 'created_at'],
     title: 'MessageItem'
+} as const;
+
+export const MessageResponseSchema = {
+    properties: {
+        message: {
+            type: 'string',
+            title: 'Message'
+        }
+    },
+    type: 'object',
+    required: ['message'],
+    title: 'MessageResponse'
 } as const;
 
 export const OpenFileRequestSchema = {
@@ -3072,6 +3115,49 @@ export const UpdateSkillRequestSchema = {
     },
     type: 'object',
     title: 'UpdateSkillRequest'
+} as const;
+
+export const UpdateUserRequestSchema = {
+    properties: {
+        nickname: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Nickname',
+            description: 'User nickname'
+        },
+        headimg: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Headimg',
+            description: 'Avatar URL'
+        },
+        email: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Email',
+            description: 'Email address'
+        }
+    },
+    type: 'object',
+    title: 'UpdateUserRequest'
 } as const;
 
 export const UploadScreenshotResponseSchema = {

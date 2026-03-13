@@ -4,7 +4,7 @@ import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
 
-// import { type UpdatePassword, UsersService } from "@/client"
+import { UsersService } from "@/client"
 import {
   Form,
   FormControl,
@@ -56,12 +56,13 @@ const ChangePassword = () => {
   })
 
   const mutation = useMutation({
-    // mutationFn: (data: UpdatePassword) =>
-    //   UsersService.updatePasswordMe({ requestBody: data }),
-    mutationFn: async (_data: any) => {
-      console.warn("Password update not implemented")
-      // Simulate not implemented or success based on logic?
-      // But user wanted translation, so let's translate the warn/toast
+    mutationFn: async (data: FormData) => {
+      return await UsersService.changePassword({
+        requestBody: {
+          old_password: data.current_password,
+          new_password: data.new_password,
+        },
+      })
     },
     onSuccess: () => {
       showSuccessToast(t("settings.password.success"))

@@ -337,6 +337,24 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data={"mobile": mobile, "code": code, "key": key, "password": password},
         )
 
+    async def change_password(self, old_password: str, new_password: str, token: str | None = None) -> dict[str, Any]:
+        """Change password for logged-in user."""
+        return await self.request(
+            "POST",
+            "/passport/api/password/change",
+            data={"old_password": old_password, "new_password": new_password},
+            token=token,
+        )
+
+    async def update_user_info(self, data: dict[str, Any], token: str | None = None) -> dict[str, Any]:
+        """Update current user info."""
+        return await self.request(
+            "POST",
+            "/api/member/update",
+            data=data,
+            token=token,
+        )
+
     # Device Specific via API
     async def get_devices(self, token: str | None = None) -> dict:
         return await self.request("GET", "/evolooplink/api/device/list", token=token)

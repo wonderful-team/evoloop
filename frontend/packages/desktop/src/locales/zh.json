@@ -104,7 +104,8 @@
       "email": "邮件",
       "edit": "编辑",
       "title": "用户信息",
-      "na": "暂无"
+      "na": "暂无",
+      "success": "用户信息更新成功"
     },
     "modelFields": {
       "apiKeyDesc": "密钥将安全存储。如不修改请留空。",

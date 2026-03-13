@@ -104,7 +104,8 @@
       "email": "Email",
       "edit": "Edit",
       "title": "User Information",
-      "na": "N/A"
+      "na": "N/A",
+      "success": "Profile updated successfully"
     },
     "modelFields": {
       "apiKeyDesc": "Key is stored securely. Leave blank if not changing.",

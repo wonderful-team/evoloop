@@ -88,6 +88,17 @@ export type BrainResponse = {
     mode?: string;
 };
 
+export type ChangePasswordRequest = {
+    /**
+     * Current password
+     */
+    old_password: string;
+    /**
+     * New password (min 8 characters)
+     */
+    new_password: string;
+};
+
 /**
  * Hierarchical node for file operation tree.
  */
@@ -186,6 +197,7 @@ export type EmbeddingConfigRequest = {
      * Model Name
      */
     model: string;
+    dimensions?: (number | null);
     api_key?: (string | null);
     project_id?: (number | null);
 };
@@ -323,6 +335,10 @@ export type MessageItem = {
     references?: Array<ReferenceItem>;
     steps?: Array<ToolStep>;
     has_file_operations?: boolean;
+};
+
+export type MessageResponse = {
+    message: string;
 };
 
 export type OpenFileRequest = {
@@ -684,6 +700,21 @@ export type UpdateSkillRequest = {
     macro_script?: (Array<{
     [key: string]: unknown;
 }> | null);
+};
+
+export type UpdateUserRequest = {
+    /**
+     * User nickname
+     */
+    nickname?: (string | null);
+    /**
+     * Avatar URL
+     */
+    headimg?: (string | null);
+    /**
+     * Email address
+     */
+    email?: (string | null);
 };
 
 export type UploadScreenshotResponse = {
@@ -1667,6 +1698,18 @@ export type ToolsListAllToolsResponse = (Array<{
 }>);
 
 export type UsersReadUserMeResponse = (UserPublic);
+
+export type UsersUpdateUserMeData = {
+    requestBody: UpdateUserRequest;
+};
+
+export type UsersUpdateUserMeResponse = (UserPublic);
+
+export type UsersChangePasswordData = {
+    requestBody: ChangePasswordRequest;
+};
+
+export type UsersChangePasswordResponse = (MessageResponse);
 
 export type UtilsHealthCheckResponse = (boolean);
 
