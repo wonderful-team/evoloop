@@ -8,7 +8,7 @@ from app.core.vision.events import (
     VisionProcessCompletedEvent,
     VisionProcessStartedEvent,
 )
-from app.core.vision.router import VisionRouter
+from app.core.vision.router import get_vision_router
 from app.core.vision.types import VisionResult, VisionTask
 from app.infrastructure.drivers.macos import macos_driver
 
@@ -22,7 +22,8 @@ class VisionEngine:
     """
 
     def __init__(self):
-        self.router = VisionRouter()
+        # Use singleton instance to avoid repeated initialization
+        self.router = get_vision_router()
 
     async def process(
         self,

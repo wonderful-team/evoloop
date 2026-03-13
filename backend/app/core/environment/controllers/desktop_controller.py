@@ -17,8 +17,7 @@ import markdownify
 
 from app.constants import MAX_OUTPUT_LENGTH
 from app.core.atlas import atlas_engine, get_bundle_id
-from app.core.vision import vision_engine, VisionTask
-from app.core.vision.router import VisionRouter
+from app.core.vision import vision_engine, VisionTask, get_vision_router
 from app.infrastructure.drivers.macos import macos_driver
 from app.core.learning.trace_recorder import get_recorder
 from app.core.context.manager import ContextManager
@@ -498,7 +497,7 @@ class DesktopController:
                     return "Error: Failed to capture screenshot for GUI extraction."
 
                 try:
-                    router = VisionRouter()
+                    router = get_vision_router()
                     provider = await router.get_provider(VisionTask.OCR)
                     if not provider:
                         return "Error: No OCR provider available for desktop GUI extraction."

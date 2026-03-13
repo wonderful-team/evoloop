@@ -1,4 +1,5 @@
 from app.core.vision.engine import vision_engine
+from app.core.vision.router import get_vision_router, VisionRouter
 from app.core.vision.storage import (
     ScreenshotPurpose,
     ScreenshotStorage,
@@ -14,6 +15,8 @@ from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTa
 
 __all__ = [
     "vision_engine",
+    "get_vision_router",
+    "VisionRouter",
     "VisionTask",
     "VisionResult",
     "UIElement",

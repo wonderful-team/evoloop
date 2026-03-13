@@ -23,31 +23,43 @@ class MacroEngine:
 
     @classmethod
     async def execute(
-        cls, 
-        thread_id: str, 
+        cls,
+        thread_id: str,
         script: Any, # MacroScript
-        params: Optional[Dict[str, Any]] = None, 
-        extracted_data: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
+        extracted_data: Optional[Dict[str, Any]] = None,
+        disable_ocr: bool = True
     ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-        """Public entry point for MacroScript execution."""
+        """Public entry point for MacroScript execution.
+
+        Args:
+            disable_ocr: If True, disables OCR fallback in element resolution for faster execution.
+                        Default is True for deterministic macro execution.
+        """
         return await cls.execute_steps(
             thread_id=thread_id,
             steps=script.steps,
             params=params,
-            extracted_data=extracted_data
+            extracted_data=extracted_data,
+            disable_ocr=disable_ocr
         )
 
     @classmethod
     async def execute_steps(
-        cls, 
-        thread_id: str, 
-        steps: List[MacroStep], 
-        params: Optional[Dict[str, Any]] = None, 
-        extracted_data: Optional[Dict[str, Any]] = None
+        cls,
+        thread_id: str,
+        steps: List[MacroStep],
+        params: Optional[Dict[str, Any]] = None,
+        extracted_data: Optional[Dict[str, Any]] = None,
+        disable_ocr: bool = True
     ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """
         Internal recursive execution of macro steps.
         Returns (success, message, fallback_context).
+
+        Args:
+            disable_ocr: If True, disables OCR fallback in element resolution for faster execution.
+                        Default is True for deterministic macro execution.
         """
         if extracted_data is None:
             extracted_data = {}
@@ -87,7 +99,7 @@ class MacroEngine:
             # 2. Handle Control Flow
             if step.type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.LOOP):
                 success, msg, fallback = await cls._handle_control_flow(
-                    thread_id, step, payload, params, extracted_data
+                    thread_id, step, payload, params, extracted_data, disable_ocr
                 )
                 if not success:
                     return False, msg, fallback
@@ -107,12 +119,12 @@ class MacroEngine:
             if step.type == MacroStepType.ACTION:
                 event_type = step.event_type
                 source = step.source
-                
+
                 try:
                     if source == MacroSource.DOM:
                         await cls._execute_browser_step(event_type, target_selector, payload)
                     elif source == MacroSource.MOBILE:
-                        await cls._execute_mobile_step(event_type, target_selector, payload)
+                        await cls._execute_mobile_step(event_type, target_selector, payload, disable_ocr)
                     elif source == MacroSource.DESKTOP:
                         await cls._execute_desktop_step(event_type, target_selector, payload)
                     else:
@@ -155,14 +167,14 @@ class MacroEngine:
         return True, "", None
 
     @classmethod
-    async def _handle_control_flow(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict):
+    async def _handle_control_flow(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict, disable_ocr: bool = True):
         if params is None:
             params = {}
         # Implementation of If/While/Loop logic
         condition = step.condition
         cond_type = condition.type if condition else None
         selector = cls._inject_params(condition.target_selector, params) if condition else None
-        
+
         if step.type in (MacroStepType.CONTROL, MacroStepType.IF):
             if not condition:
                 logger.warning(f"[{thread_id}] IF/CONTROL step {step.step_number} missing condition. Skipping.")
@@ -170,12 +182,12 @@ class MacroEngine:
             is_true = await cls._evaluate_condition(cond_type, selector, step.source)
             branch = step.then_steps if is_true else step.else_steps
             if branch:
-                return await cls.execute_steps(thread_id, branch, params, extracted_data)
-        
+                return await cls.execute_steps(thread_id, branch, params, extracted_data, disable_ocr)
+
         elif step.type == MacroStepType.LOOP:
             # 1. Batch Loop Mode (if payload contains items_key)
             if payload.get("items_key"):
-                return await cls._handle_loop(thread_id, step, payload, params, extracted_data)
+                return await cls._handle_loop(thread_id, step, payload, params, extracted_data, disable_ocr)
 
             # 2. Conditional Loop Mode (Standard While)
             iterations = 0
@@ -190,23 +202,23 @@ class MacroEngine:
                 except ValueError:
                     # If it's an unresolved template like {{max_scrolls}}, use a safe default
                     max_iters = 5
-            
+
             while iterations < max_iters:
                 is_true = await cls._evaluate_condition(cond_type, selector, step.source)
                 if not is_true:
                     break
-                    
+
                 loop_params = dict(params) if params else {}
                 loop_params["loop_index"] = iterations
-                
+
                 # Execute nested steps
-                success, msg, fallback = await cls.execute_steps(thread_id, step.steps, loop_params, extracted_data)
-                
+                success, msg, fallback = await cls.execute_steps(thread_id, step.steps, loop_params, extracted_data, disable_ocr)
+
                 if not success:
                     # Enrich fallback with loop progress
-                    if not fallback: 
+                    if not fallback:
                         fallback = {"failed_step": step.model_copy().dict()}
-                    
+
                     fallback["loop_progress"] = {
                         "loop_step_number": step.step_number,
                         "current_iteration": iterations,
@@ -214,16 +226,16 @@ class MacroEngine:
                         "condition": cond_type
                     }
                     return False, msg, fallback
-                    
+
                 iterations += 1
-            
+
             if iterations >= max_iters:
                 logger.warning(f"[{thread_id}] While loop reached max iterations ({max_iters})")
-                
+
         return True, "", None
 
     @classmethod
-    async def _handle_loop(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict):
+    async def _handle_loop(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict, disable_ocr: bool = True):
         """
         Handle a batch loop by iterating over a list of items and executing nested steps.
         Includes exponential backoff for network errors and DLQ support.
@@ -257,7 +269,7 @@ class MacroEngine:
                 from app.infrastructure.drivers.adb import adb_driver
                 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
                 from app.core.context.manager import ContextManager
-                
+
                 device_id = ContextManager.get_var("device_id")
                 curr_app = await asyncio.to_thread(adb_driver.get_current_app, device_id=device_id)
                 bundle_id = curr_app.get("package")
@@ -271,14 +283,14 @@ class MacroEngine:
 
         max_retries = payload.get("max_retries", 3)
         backoff_base = payload.get("backoff_base", 2)
-        
+
         dlq = []
-        
+
         for index, item in enumerate(items):
             retry_count = 0
             success = False
             last_error = ""
-            
+
             # For dynamic apps, we allow one 'scroll and retry' if the first attempt fails
             scroll_attempts = 1 if is_dynamic else 0
             current_scroll_attempt = 0
@@ -289,9 +301,9 @@ class MacroEngine:
                     iter_params = dict(params or {})
                     iter_params["item"] = item
                     iter_params["batch_index"] = index
-                    
+
                     # 2. Execute nested steps (unified)
-                    success, msg, fallback = await cls.execute_steps(thread_id, step.steps, iter_params, extracted_data)
+                    success, msg, fallback = await cls.execute_steps(thread_id, step.steps, iter_params, extracted_data, disable_ocr)
                     
                     if success:
                         break
@@ -517,6 +529,8 @@ class MacroEngine:
     @classmethod
     async def _execute_browser_step(cls, event_type: str, selector: str, payload: dict):
         """Execute a browser step directly via BrowserController (no @evoloop_tool overhead)."""
+        # Normalize event_type to lowercase for case-insensitive comparison
+        event_type = event_type.lower() if event_type else event_type
         continue_on_error = payload.get("continue_on_error", False)
         timeout_ms = payload.get("timeout_ms", 15000)
 
@@ -578,6 +592,8 @@ class MacroEngine:
     @classmethod
     async def _execute_desktop_step(cls, event_type: str, selector: str, payload: dict):
         """Execute a desktop step directly via DesktopController (no @evoloop_tool overhead)."""
+        # Normalize event_type to lowercase for case-insensitive comparison
+        event_type = event_type.lower() if event_type else event_type
         selector = selector or payload.get("element_name") or payload.get("target")
         tool_action = ActionRegistry.get_tool_action(event_type, "desktop")
 
@@ -609,8 +625,10 @@ class MacroEngine:
             handle_res(await DesktopController.execute(action=tool_action))
 
     @classmethod
-    async def _execute_mobile_step(cls, event_type: str, selector: str, payload: dict):
+    async def _execute_mobile_step(cls, event_type: str, selector: str, payload: dict, disable_ocr: bool = True):
         """Execute a mobile step directly via MobileController (no @evoloop_tool overhead)."""
+        # Normalize event_type to lowercase for case-insensitive comparison
+        event_type = event_type.lower() if event_type else event_type
         tool_action = ActionRegistry.get_tool_action(event_type, "mobile")
 
         def handle_res(res):
@@ -663,11 +681,13 @@ class MacroEngine:
             return None
 
         if event_type in ("click", "tap"):
-            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0), disable_atlas=True, disable_trace_screenshot=True))
+            logger.info(f"[_execute_mobile_step] Branch: click/tap")
+            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type == "long_press":
-            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name"), duration_ms=payload.get("duration_ms", 800), disable_atlas=True, disable_trace_screenshot=True))
+            logger.info(f"[_execute_mobile_step] Branch: long_press")
+            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name"), duration_ms=payload.get("duration_ms", 800), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type in ("input", "type_text"):
-            handle_res(await MobileController.execute(action="input_text", text=payload.get("text") or payload.get("value", ""), element_name=selector or payload.get("element_name"), disable_atlas=True, disable_trace_screenshot=True))
+            handle_res(await MobileController.execute(action="input_text", text=payload.get("text") or payload.get("value", ""), element_name=selector or payload.get("element_name"), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type in ("swipe", "scroll"):
             actual_action = tool_action
             # If it's a swipe but we only have direction/distance (no coords), redirect to scroll
@@ -684,30 +704,35 @@ class MacroEngine:
                 scroll_amount=payload.get("distance") or payload.get("scroll_amount", "medium"),
                 duration_ms=payload.get("duration_ms", 500),
                 disable_atlas=True,
-                disable_trace_screenshot=True
+                disable_trace_screenshot=True,
+                disable_ocr=disable_ocr
             ))
         elif event_type == "back":
-            handle_res(await MobileController.execute(action="press_key", keycode="back", disable_atlas=True, disable_trace_screenshot=True))
+            handle_res(await MobileController.execute(action="press_key", keycode="back", disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type == "back_key":
-            handle_res(await MobileController.execute(action="press_key", keycode=payload.get("keycode", "back"), disable_atlas=True, disable_trace_screenshot=True))
+            handle_res(await MobileController.execute(action="press_key", keycode=payload.get("keycode", "back"), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type == "home":
-            handle_res(await MobileController.execute(action="press_key", keycode="home", disable_atlas=True, disable_trace_screenshot=True))
+            handle_res(await MobileController.execute(action="press_key", keycode="home", disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type == "key_press":
-            handle_res(await MobileController.execute(action=tool_action, keycode=payload.get("key") or payload.get("keycode"), disable_atlas=True, disable_trace_screenshot=True))
+            handle_res(await MobileController.execute(action=tool_action, keycode=payload.get("key") or payload.get("keycode"), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type == "open_app":
             handle_res(await MobileController.execute(
                 action=tool_action,
                 text=payload.get("package_name") or payload.get("package") or payload.get("text") or payload.get("app_name"),
                 force_stop=payload.get("force_stop", True),
                 disable_atlas=True,
-                disable_trace_screenshot=True
+                disable_trace_screenshot=True,
+                disable_ocr=disable_ocr
             ))
         elif event_type == "screenshot":
-            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True, disable_trace_screenshot=True))
+            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type == "dump_ui":
-            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True, disable_trace_screenshot=True))
+            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+        elif event_type == "wait":
+            duration = payload.get("seconds") or (payload.get("duration_ms", 1000) / 1000.0)
+            await asyncio.sleep(float(duration))
         elif event_type == "get_clipboard":
-            handle_res(await MobileController.execute(action="get_clipboard", disable_atlas=True, disable_trace_screenshot=True))
+            handle_res(await MobileController.execute(action="get_clipboard", disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type == "scroll_to_bottom":
             handle_res(await MobileController.execute(
                 action="scroll_to_bottom",
@@ -715,7 +740,8 @@ class MacroEngine:
                 scroll_amount=payload.get("scroll_amount", "medium"),
                 delay_ms=payload.get("delay_ms", 1000),
                 disable_atlas=True,
-                disable_trace_screenshot=True
+                disable_trace_screenshot=True,
+                disable_ocr=disable_ocr
             ))
 
     # --- Utils ---

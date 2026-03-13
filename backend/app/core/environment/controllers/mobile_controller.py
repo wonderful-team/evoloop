@@ -133,6 +133,7 @@ class MobileController:
         scroll_amount: str = "medium",
         after_timestamp: int | None = None,
         region: str | None = None,
+        disable_ocr: bool = False,
         **kwargs: Any
     ) -> str:
         """Execute a mobile action. All business logic lives here."""
@@ -319,16 +320,16 @@ class MobileController:
                 """Reactor: High-frequency poll for element with fallback."""
                 start_time = time.time()
                 target_norm = normalize_text(name)
-                
+
                 # Fetch A11y ONCE per resolve_element start
                 initial_a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
-                
+
                 await flash_intercept(initial_a11y_result)
                 is_h5 = await probe_hybrid(initial_a11y_result)
-                
+
                 retry_delay = 0.2
                 ocr_attempts = 0
-                max_ocr_attempts = 2
+                max_ocr_attempts = 0 if disable_ocr else 2  # Disable OCR if flag is set
                 last_sentinel_check = start_time
                 used_initial_a11y = False
 
@@ -772,7 +773,7 @@ class MobileController:
                 return await finish_action(text or "")
 
             elif action == "gui_extract":
-                from app.core.vision.router import VisionRouter
+                from app.core.vision import get_vision_router
 
                 def _crop_screenshot(filepath: str, region_str: str) -> bool:
                     try:
@@ -824,7 +825,7 @@ class MobileController:
                     return "Error: Failed to capture screenshot for GUI extraction."
 
                 try:
-                    router = VisionRouter()
+                    router = get_vision_router()
                     provider = await router.get_provider(VisionTask.OCR, on_android=True, device_id=device_id)
                     if not provider:
                         return "Error: No OCR provider available for mobile GUI extraction."
