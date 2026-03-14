@@ -98,6 +98,15 @@ class CoordinateDriftTransformer(StepTransformer):
             original_payload = evolved.get("payload", {})
             evolved_payload = evolved_step.get("payload", {})
 
+            # Log coordinate transformation
+            step_num = step.get("step_number", "N/A")
+            orig_x = original_payload.get("x")
+            orig_y = original_payload.get("y")
+            new_x = evolved_payload.get("x")
+            new_y = evolved_payload.get("y")
+            if orig_x != new_x or orig_y != new_y:
+                logger.info(f"[CoordinateDriftTransformer] Step {step_num}: ({orig_x}, {orig_y}) -> ({new_x}, {new_y})")
+
             # Update x, y coordinates if corrected
             if "x" in evolved_payload:
                 original_payload["x"] = evolved_payload["x"]
@@ -310,14 +319,29 @@ class MacroEvolutionEngine:
         step_offset = 0
 
         for idx, step in enumerate(original_macro):
-            step_number = idx + 1
-            step["step_number"] = step_number
+            # Use original step_number if present, otherwise fallback to sequential
+            logical_step_number = step.get("step_number", idx + 1)
+
+            # Skip redundant steps
+            is_redundant = any(
+                res.step_number == logical_step_number and res.status == StepExecutionStatus.REDUNDANT
+                for res in step_results
+            )
+            if is_redundant:
+                logger.info(f"[EvolutionEngine] Removing redundant step {logical_step_number}")
+                step_offset -= 1
+                continue
+
+            # Update step number for re-sequencing (preserving global offset)
+            step_number = logical_step_number # For internal use in this iteration
+            step["step_number"] = step_number # Keep it consistent for evolution records lookup
 
             # Handle loop steps - process sub-steps recursively
             if step.get("type") == "loop":
                 evolved_loop = self._evolve_loop_step(
                     step, step_number, evolution_records, context
                 )
+                evolved_loop["step_number"] = step_number + step_offset
                 evolved_macro.append(evolved_loop)
                 continue
 
@@ -374,11 +398,26 @@ class MacroEvolutionEngine:
         records: List[MacroEvolutionRecord],
         context: EvolutionContext
     ) -> List[Dict[str, Any]]:
-        """Apply appropriate transformers to a step"""
+        """Apply appropriate transformers to a step
+
+        When multiple records exist for the same step, transformations are merged
+        cumulatively to preserve all corrections (e.g., coordinate fixes from
+        COORDINATE_DRIFT should not be overwritten by STATE_MISMATCH records).
+
+        Also handles additional_steps from adaptations (e.g., wait steps inserted
+        before the main action to handle popups/obstructions).
+        """
         evolved_steps = [copy.deepcopy(step)]
+        step_number = step.get("step_number", 0)
+        all_additional_steps: List[Dict[str, Any]] = []
 
         for record in records:
+            # Collect additional steps from this record (e.g., wait for popup to clear)
+            if record.additional_steps:
+                all_additional_steps.extend(record.additional_steps)
+
             # Find applicable transformer
+            transformed = False
             for transformer in self.transformers:
                 if transformer.can_transform(step, record):
                     # Transform the first step in chain
@@ -386,14 +425,67 @@ class MacroEvolutionEngine:
                     evolved_steps = transformer.transform(
                         evolved_steps[0], record, context
                     )
-                    context.modified_steps.add(step.get("step_number", 0))
+                    context.modified_steps.add(step_number)
+                    transformed = True
                     break
-            else:
-                # No specific transformer, use evolved step from record
+
+            if not transformed:
+                # No specific transformer for this record type
+                # Merge evolved_step properties instead of replacing entirely
                 if record.evolved_step:
-                    evolved_steps = [copy.deepcopy(record.evolved_step)]
+                    merged_step = self._merge_step_evolution(
+                        evolved_steps[0], record.evolved_step
+                    )
+                    evolved_steps = [merged_step]
+                    context.modified_steps.add(step_number)
+
+        # If there are additional steps (e.g., wait for obstruction to clear),
+        # insert them before the evolved step
+        if all_additional_steps:
+            logger.info(f"[TransformStep] Step {step_number}: Inserting {len(all_additional_steps)} additional steps")
+            # Return additional_steps first, then the evolved step(s)
+            return all_additional_steps + evolved_steps
 
         return evolved_steps
+
+    def _merge_step_evolution(
+        self,
+        current_step: Dict[str, Any],
+        evolved_step: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Merge evolved_step properties into current_step.
+
+        Preserves critical corrections like coordinate fixes while allowing
+        other properties to be updated from the evolved_step.
+        """
+        merged = copy.deepcopy(current_step)
+
+        # Merge payload fields - evolved_step takes precedence for most fields
+        current_payload = merged.get("payload", {})
+        evolved_payload = evolved_step.get("payload", {})
+
+        # Fields that should NOT be overwritten (coordinate corrections)
+        protected_fields = {"x", "y", "original_x", "original_y", "vision_corrected"}
+
+        for key, value in evolved_payload.items():
+            if key not in protected_fields:
+                current_payload[key] = value
+
+        # Update target_selector if provided in evolved_step
+        if evolved_step.get("target_selector"):
+            # Only update if current step doesn't have a vision-corrected coordinate
+            current_payload = merged.get("payload", {})
+            if not current_payload.get("vision_corrected"):
+                merged["target_selector"] = evolved_step["target_selector"]
+
+        merged["payload"] = current_payload
+
+        # Log the merge
+        step_num = current_step.get("step_number", "N/A")
+        logger.info(f"[StepMerge] Step {step_num}: Merged evolution, protected fields: {protected_fields}")
+
+        return merged
 
     def _evolve_loop_step(
         self,

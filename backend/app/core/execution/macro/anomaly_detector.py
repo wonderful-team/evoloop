@@ -104,9 +104,24 @@ class AnomalyDetector:
 
         # 当步骤包含坐标且有截图时，优先使用 Vision LLM 验证坐标
         if has_coords and screenshot_path:
-            logger.info(f"[AnomalyDetector] 使用坐标优先验证策略: ({payload['x']:.3f}, {payload['y']:.3f})")
-
             target_selector = step.get("target_selector")
+
+            # ========== 优化：启发式前置检查 (避免无意义的 Vision 调用) ==========
+            # 如果能从 UI Dump 中通过选择器找到对应元素，且坐标偏移在阈值内，则跳过 Vision
+            if target_selector and current_ui_state.get("elements"):
+                drift, actual_pos = self._check_coordinate_drift(step, current_ui_state)
+                if actual_pos and not drift:
+                    logger.info(f"[AnomalyDetector] 启发式验证通过: {target_selector} 坐标基本一致，跳过 Vision 验证.")
+                    return AnomalyDetectionResult(
+                        is_anomaly=False,
+                        anomaly_type=AnomalyType.UNKNOWN,
+                        confidence=0.9,
+                        details={"heuristic_verified": True, "element": target_selector},
+                        suggested_action="proceed"
+                    )
+            # =================================================================
+
+            logger.info(f"[AnomalyDetector] 启发式无法匹配或存在显著偏移，启用 Vision 验证: ({payload['x']:.3f}, {payload['y']:.3f})")
 
             # 情况1: 有选择器 + 有坐标 -> 验证坐标位置是否指向该元素
             if target_selector:
@@ -712,6 +727,8 @@ class AnomalyDetector:
             )
 
             response = await llm.ainvoke([image_message])
+            # 临时日志：输出 Vision LLM 原始响应
+            logger.info(f"[VisionDebug] Raw response for coords ({coords['x']:.3f}, {coords['y']:.3f}), target='{expected_description}': {response.content[:500]}")
             return self._parse_vision_match_response(response.content, expected_description)
 
         except Exception as e:
@@ -789,6 +806,8 @@ class AnomalyDetector:
             )
 
             response = await llm.ainvoke([image_message])
+            # 临时日志：输出 Vision LLM 原始响应
+            logger.info(f"[VisionDebug] Raw identify response for ({x:.3f}, {y:.3f}): {response.content[:500]}")
             return self._parse_vision_identify_response(response.content)
 
         except Exception as e:

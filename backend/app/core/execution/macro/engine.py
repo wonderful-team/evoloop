@@ -682,10 +682,20 @@ class MacroEngine:
 
         if event_type in ("click", "tap"):
             logger.info(f"[_execute_mobile_step] Branch: click/tap")
-            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            x, y = _get_coords(payload, "x"), _get_coords(payload, "y")
+            # If coordinates provided, use them directly without element resolution
+            if x is not None and y is not None:
+                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=None, timeout=payload.get("timeout", 8.0), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            else:
+                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type == "long_press":
             logger.info(f"[_execute_mobile_step] Branch: long_press")
-            handle_res(await MobileController.execute(action=tool_action, x=_get_coords(payload, "x"), y=_get_coords(payload, "y"), element_name=selector or payload.get("element_name"), duration_ms=payload.get("duration_ms", 800), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            x, y = _get_coords(payload, "x"), _get_coords(payload, "y")
+            # If coordinates provided, use them directly without element resolution
+            if x is not None and y is not None:
+                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=None, duration_ms=payload.get("duration_ms", 800), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            else:
+                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=selector or payload.get("element_name"), duration_ms=payload.get("duration_ms", 800), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type in ("input", "type_text"):
             handle_res(await MobileController.execute(action="input_text", text=payload.get("text") or payload.get("value", ""), element_name=selector or payload.get("element_name"), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
         elif event_type in ("swipe", "scroll"):

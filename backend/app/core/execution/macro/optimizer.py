@@ -122,8 +122,10 @@ class MacroOptimizer:
         for step in steps:
             if step.event_type in self.LOW_VALUE_ACTIONS: continue
             if step.event_type == MacroActionType.WAIT:
-                duration = step.payload.get('duration_ms', 0)
-                if duration <= 0: continue
+                payload = step.payload or {}
+                duration_ms = payload.get('duration_ms', 0)
+                seconds = payload.get('seconds', 0)
+                if (duration_ms + seconds * 1000) <= 0: continue
             filtered.append(step)
         return filtered
 
@@ -139,18 +141,20 @@ class MacroOptimizer:
                 i += 1
                 continue
             
-            total_wait = step.payload.get('duration_ms', 0)
+            total_wait_ms = step.payload.get('duration_ms', 0) + (step.payload.get('seconds', 0) * 1000)
             consecutive = 1
             j = i + 1
             while j < len(steps) and steps[j].event_type == MacroActionType.WAIT:
-                total_wait += steps[j].payload.get('duration_ms', 0)
+                total_wait_ms += steps[j].payload.get('duration_ms', 0) + (steps[j].payload.get('seconds', 0) * 1000)
                 consecutive += 1
                 j += 1
             
             new_step = step.model_copy()
-            final_wait = min(max(total_wait, self.MIN_WAIT_DURATION_MS), self.MAX_WAIT_DURATION_MS)
-            time_saved += (total_wait - final_wait) + (consecutive - 1) * 50
-            new_step.payload['duration_ms'] = final_wait
+            final_wait_ms = min(max(total_wait_ms, self.MIN_WAIT_DURATION_MS), self.MAX_WAIT_DURATION_MS)
+            time_saved += (total_wait_ms - final_wait_ms) + (consecutive - 1) * 50
+            new_step.payload['duration_ms'] = final_wait_ms
+            if 'seconds' in new_step.payload:
+                del new_step.payload['seconds'] # Standardize to duration_ms
             merged.append(new_step)
             merge_count += consecutive - 1
             i = j

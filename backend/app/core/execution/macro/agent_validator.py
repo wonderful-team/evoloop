@@ -6,6 +6,7 @@ Manages multi-round verification, anomaly detection, and macro evolution.
 """
 
 import asyncio
+import copy
 import logging
 import time
 from typing import Any, Dict, List, Optional, Tuple
@@ -308,16 +309,17 @@ class AgentMacroValidator:
                     suggested_action="remove"
                 )
 
-        # 3. 检查重复动作 (检查最近3步)
-        for prev_result in self._executed_steps[-3:]:
+        # 3. 检查重复动作 (仅针对 WAIT 步骤进行冗余判定，点击输入等状态改变动作不建议自动跳过)
+        if event_type == "wait" and self._executed_steps:
+            prev_result = self._executed_steps[-1]
             prev_step = prev_result.original_step
-            if self._steps_are_duplicate(step, prev_step):
+            if prev_step.get("event_type") == "wait":
                 return RedundancyCheckResult(
                     is_redundant=True,
                     redundancy_type=RedundancyType.DUPLICATE_ACTION,
-                    reason=f"Duplicate of step {prev_result.step_number}: same target and action",
+                    reason=f"Duplicate consecutive WAIT of step {prev_result.step_number}.",
                     similar_to_step=prev_result.step_number,
-                    suggested_action="merge" if event_type == "wait" else "remove"
+                    suggested_action="merge"
                 )
 
         return RedundancyCheckResult(is_redundant=False)
@@ -378,14 +380,15 @@ class AgentMacroValidator:
         if redundancy_check.is_redundant:
             logger.info(
                 f"[Validator] Step {step_number}: Detected as redundant "
-                f"({redundancy_check.redundancy_type.value})"
+                f"({redundancy_check.redundancy_type.value}). Skipping execution for performance."
             )
             result.status = StepExecutionStatus.REDUNDANT
             result.execution_time_ms = 0
             self._redundant_step_numbers.add(step_number)
 
-            # 对于冗余步骤，仍然记录但不执行
-            # (可根据配置选择是否跳过，这里选择执行以确保兼容性)
+            # Record result and return early to skip capture and execution
+            self._executed_steps.append(result)
+            return result
 
         # Capture pre-execution state (skip for open_app/wait/scroll/extract - no coordinate validation needed)
         event_type = step.get("event_type", "")
@@ -683,7 +686,8 @@ class AgentMacroValidator:
                 original_step=step,
                 evolved_step=primary_record.adapted_strategy,
                 evolution_reason=f"Phase 2: {primary_record.reasoning}",
-                confidence=anomaly.confidence
+                confidence=anomaly.confidence,
+                additional_steps=primary_record.additional_steps
             ))
             self.total_adaptations += 1
 

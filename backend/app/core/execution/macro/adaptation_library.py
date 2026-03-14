@@ -8,7 +8,7 @@ Implements two-tier adaptation: quick fixes and deep LLM-based strategies.
 import json
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 from app.core.execution.macro.verification_models import (
     AnomalyType,
@@ -74,15 +74,35 @@ class QuickFixStrategy(AdaptationStrategy):
         ui_state: Optional[Dict[str, Any]],
         attempt_number: int = 1
     ) -> AdaptationRecord:
-        """Apply quick fix based on anomaly type"""
+        """Apply quick fix based on anomaly type
 
+        Returns:
+            AdaptationRecord with additional_steps field populated if extra steps needed
+            (e.g., wait for popup to clear before main action)
+        """
         handler = self._get_handler()
         if handler:
             try:
-                adapted_step, reasoning = await handler(step, anomaly_details, ui_state)
-                return self._create_record(
-                    step, adapted_step, reasoning, True, attempt_number
+                result = await handler(step, anomaly_details, ui_state)
+
+                # Handle both old format (step, reasoning) and new format (step, reasoning, additional_steps)
+                if len(result) == 2:
+                    adapted_step, reasoning = result
+                    additional_steps = []
+                else:
+                    adapted_step, reasoning, additional_steps = result
+
+                # Only mark as successful if the step was actually modified or additional steps were added
+                is_modified = self._is_step_modified(step, adapted_step) or len(additional_steps) > 0
+                if not is_modified:
+                    logger.debug(f"[QuickFix] Handler returned unmodified step for {self.anomaly_type}")
+
+                record = self._create_record(
+                    step, adapted_step, reasoning, is_modified, attempt_number
                 )
+                # Store additional steps in the record
+                record.additional_steps = additional_steps
+                return record
             except Exception as e:
                 logger.warning(f"[QuickFix] Handler failed: {e}")
                 # Fall through to return failure
@@ -90,6 +110,16 @@ class QuickFixStrategy(AdaptationStrategy):
         return self._create_record(
             step, step, f"No quick fix available for {self.anomaly_type}", False, attempt_number
         )
+
+    def _is_step_modified(self, original: Dict[str, Any], adapted: Dict[str, Any]) -> bool:
+        """Check if the adapted step is meaningfully different from the original"""
+        import json
+        # Compare by serializing to JSON (ignores key order differences)
+        try:
+            return json.dumps(original, sort_keys=True) != json.dumps(adapted, sort_keys=True)
+        except (TypeError, ValueError):
+            # Fallback to simple comparison if serialization fails
+            return original != adapted
 
     def _get_handler(self) -> Optional[Callable]:
         """Get the appropriate handler for this anomaly type"""
@@ -107,15 +137,17 @@ class QuickFixStrategy(AdaptationStrategy):
         step: Dict[str, Any],
         details: Dict[str, Any],
         ui_state: Optional[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Any], str]:
+    ) -> Tuple[Dict[str, Any], str, List[Dict[str, Any]]]:
         """
         Fix coordinate drift by using actual detected position
         or switching to selector-based approach
 
         优化：支持 Vision LLM 提供的 correct_coords
+        Returns: (adapted_step, reasoning, additional_steps)
         """
         adapted = step.copy()
         payload = adapted.get("payload", {}).copy()
+        additional_steps: List[Dict[str, Any]] = []
 
         # ========== 优化：优先使用 Vision LLM 提供的正确坐标 ==========
         correct_coords = details.get("correct_coords")
@@ -130,7 +162,7 @@ class QuickFixStrategy(AdaptationStrategy):
             payload["vision_corrected"] = True
             adapted["payload"] = payload
             drift_distance = details.get("drift_distance", 0.0)
-            return adapted, f"Vision LLM corrected coordinates: ({recorded_x:.3f}, {recorded_y:.3f}) -> ({correct_coords['x']:.3f}, {correct_coords['y']:.3f}), distance={drift_distance:.3f}"
+            return adapted, f"Vision LLM corrected coordinates: ({recorded_x:.3f}, {recorded_y:.3f}) -> ({correct_coords['x']:.3f}, {correct_coords['y']:.3f}), distance={drift_distance:.3f}", additional_steps
 
         # 原有逻辑：使用启发式检测提供的 actual position
         actual_pos = details.get("actual")
@@ -138,7 +170,7 @@ class QuickFixStrategy(AdaptationStrategy):
             payload["x"] = actual_pos["x"]
             payload["y"] = actual_pos["y"]
             adapted["payload"] = payload
-            return adapted, f"Updated coordinates to actual position: ({actual_pos['x']}, {actual_pos['y']})"
+            return adapted, f"Updated coordinates to actual position: ({actual_pos['x']}, {actual_pos['y']})", additional_steps
 
         # Try to find element by text and get its coordinates
         target_selector = step.get("target_selector")
@@ -151,24 +183,26 @@ class QuickFixStrategy(AdaptationStrategy):
                         payload["x"] = bounds["center_x"]
                         payload["y"] = bounds["center_y"]
                         adapted["payload"] = payload
-                        return adapted, f"Switched to element center coordinates from UI dump"
+                        return adapted, f"Switched to element center coordinates from UI dump", additional_steps
 
-        return adapted, "No specific coordinate fix applied"
+        return adapted, "No specific coordinate fix applied", additional_steps
 
     async def _fix_element_not_found(
         self,
         step: Dict[str, Any],
         details: Dict[str, Any],
         ui_state: Optional[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Any], str]:
+    ) -> Tuple[Dict[str, Any], str, List[Dict[str, Any]]]:
         """
         Fix element not found by trying alternative selectors
         or switching to coordinate-based approach
 
         优化：支持使用 Vision LLM 提供的最近元素坐标
+        Returns: (adapted_step, reasoning, additional_steps)
         """
         adapted = step.copy()
         payload = adapted.get("payload", {}).copy()
+        additional_steps: List[Dict[str, Any]] = []
 
         # ========== 优化：优先使用 Vision LLM 提供的最近元素坐标 ==========
         nearest_coords = details.get("nearest_element_coords")
@@ -181,7 +215,7 @@ class QuickFixStrategy(AdaptationStrategy):
             payload["original_y"] = recorded_y
             payload["vision_corrected"] = True
             adapted["payload"] = payload
-            return adapted, f"Vision LLM relocated to nearest element: ({nearest_coords['x']:.3f}, {nearest_coords['y']:.3f})"
+            return adapted, f"Vision LLM relocated to nearest element: ({nearest_coords['x']:.3f}, {nearest_coords['y']:.3f})", additional_steps
 
         original_selector = details.get("selector", step.get("target_selector"))
 
@@ -199,35 +233,48 @@ class QuickFixStrategy(AdaptationStrategy):
                         payload["selector"] = new_selector
                         adapted["payload"] = payload
                         adapted["target_selector"] = new_selector
-                        return adapted, f"Switched to fuzzy matched selector: {new_selector}"
+                        return adapted, f"Switched to fuzzy matched selector: {new_selector}", additional_steps
 
-        return adapted, "Applied generic retry strategy"
+        return adapted, "Applied generic retry strategy", additional_steps
 
     async def _fix_element_obscured(
         self,
         step: Dict[str, Any],
         details: Dict[str, Any],
         ui_state: Optional[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Any], str]:
+    ) -> Tuple[Dict[str, Any], str, List[Dict[str, Any]]]:
         """
-        Fix element obscured by dismissing obstruction (popup, dialog, etc.)
-        Element obscured issue should be handled by Agent at execution time
+        Fix element obscured by adding a wait step before the action.
+        Returns: (adapted_step, reasoning, additional_steps)
         """
         adapted = step.copy()
-        return adapted, "Element obscured - will be handled during execution"
+
+        # Add a wait step before the action to allow UI to stabilize
+        additional_steps = []
+        wait_step = {
+            "type": "action",
+            "event_type": "wait",
+            "source": step.get("source", "dom"),
+            "payload": {"duration_ms": 1000, "reason": "wait_for_obstruction_clear"}
+        }
+        additional_steps.append(wait_step)
+
+        return adapted, "Added wait step for obstruction to clear", additional_steps
 
     async def _fix_loading_timeout(
         self,
         step: Dict[str, Any],
         details: Dict[str, Any],
         ui_state: Optional[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Any], str]:
+    ) -> Tuple[Dict[str, Any], str, List[Dict[str, Any]]]:
         """
         Fix loading timeout by increasing wait duration
         Engine-compatible: uses duration_ms (not timeout_ms)
+        Returns: (adapted_step, reasoning, additional_steps)
         """
         adapted = step.copy()
         payload = adapted.get("payload", {}).copy()
+        additional_steps: List[Dict[str, Any]] = []
 
         # Engine uses duration_ms for wait steps
         current_duration = payload.get("duration_ms", 5000)
@@ -236,19 +283,25 @@ class QuickFixStrategy(AdaptationStrategy):
         payload["duration_ms"] = new_duration
         adapted["payload"] = payload
 
-        return adapted, f"Increased wait duration from {current_duration}ms to {new_duration}ms"
+        return adapted, f"Increased wait duration from {current_duration}ms to {new_duration}ms", additional_steps
 
     async def _fix_state_mismatch(
         self,
         step: Dict[str, Any],
         details: Dict[str, Any],
         ui_state: Optional[Dict[str, Any]]
-    ) -> Tuple[Dict[str, Any], str]:
+    ) -> Tuple[Dict[str, Any], str, List[Dict[str, Any]]]:
         """
         Fix state mismatch by adding verification step or correcting coordinates
+        Returns: (adapted_step, reasoning, additional_steps)
         """
         adapted = step.copy()
+        additional_steps: List[Dict[str, Any]] = []
         payload = adapted.get("payload", {}).copy()
+
+        # Skip if already corrected by Vision LLM - avoid double correction
+        if payload.get("vision_corrected"):
+            return adapted, "Step already corrected by Vision LLM, skipping heuristic adjustment", additional_steps
 
         # Case 0: App launch failed (package name mismatch)
         expected_package = details.get("expected_package")
@@ -258,7 +311,7 @@ class QuickFixStrategy(AdaptationStrategy):
             payload["retry_launch"] = True
             payload["force_stop"] = True  # Force stop before relaunch
             adapted["payload"] = payload
-            return adapted, f"App launch failed: expected {expected_package}, got {actual_package}. Will retry with force_stop."
+            return adapted, f"App launch failed: expected {expected_package}, got {actual_package}. Will retry with force_stop.", additional_steps
 
         # Check if Vision LLM detected wrong page and suggested fix
         vision_analysis = details.get("vision_analysis", False)
@@ -266,8 +319,11 @@ class QuickFixStrategy(AdaptationStrategy):
         no_state_change = details.get("no_state_change_detected", False)
         current_coords = details.get("current_coords")
 
-        # Case 1: Vision LLM detected issue
+        # Case 1: Vision LLM detected issue - but we skip since it should have been handled
+        # by _fix_coordinate_drift which sets vision_corrected flag
         if vision_analysis and suggested_fix:
+            # This case should rarely be reached now due to vision_corrected check above
+            # Keep for backward compatibility
             current_coords = payload.get("x"), payload.get("y")
 
             if current_coords[0] is not None and current_coords[1] is not None:
@@ -282,7 +338,7 @@ class QuickFixStrategy(AdaptationStrategy):
                 payload["y"] = new_y
 
                 adapted["payload"] = payload
-                return adapted, f"Corrected coordinates based on Vision LLM analysis: ({current_coords[0]:.3f}, {current_coords[1]:.3f}) -> ({new_x:.3f}, {new_y:.3f})"
+                return adapted, f"Corrected coordinates based on Vision LLM analysis: ({current_coords[0]:.3f}, {current_coords[1]:.3f}) -> ({new_x:.3f}, {new_y:.3f})", additional_steps
 
         # Case 2: No state change detected (click didn't work) - try coordinate correction
         if no_state_change and current_coords and suggested_fix:
@@ -299,9 +355,9 @@ class QuickFixStrategy(AdaptationStrategy):
                 payload["y"] = new_y
 
                 adapted["payload"] = payload
-                return adapted, f"Corrected coordinates (no state change detected): ({x:.3f}, {y:.3f}) -> ({new_x:.3f}, {new_y:.3f})"
+                return adapted, f"Corrected coordinates (no state change detected): ({x:.3f}, {y:.3f}) -> ({new_x:.3f}, {new_y:.3f})", additional_steps
 
-        return adapted, "Applied generic retry strategy"
+        return adapted, "Applied generic retry strategy", additional_steps
 
     def _build_selector_from_element(self, elem: Dict[str, Any]) -> Optional[str]:
         """Build a selector from element properties"""

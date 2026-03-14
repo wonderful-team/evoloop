@@ -110,13 +110,21 @@ class RedundancyCheckResult(BaseModel):
 
 
 class AdaptationRecord(BaseModel):
-    """修正记录"""
+    """修正记录
+
+    支持步骤修改和额外步骤插入：
+    - adapted_strategy: 修改后的主步骤
+    - additional_steps: 额外添加的步骤（如前置等待、弹窗关闭等）
+    """
     anomaly_type: AnomalyType = AnomalyType.UNKNOWN
     original_strategy: Dict[str, Any] = Field(default_factory=dict)
     adapted_strategy: Dict[str, Any] = Field(default_factory=dict)
     reasoning: str = ""
     success: bool = False
     attempt_number: int = 1
+
+    # 额外步骤（在 adapted_strategy 之前执行）
+    additional_steps: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ExecutionDetail(BaseModel):
@@ -201,11 +209,19 @@ class VerificationReport(BaseModel):
 
 
 class MacroEvolutionRecord(BaseModel):
-    """宏进化记录"""
+    """宏进化记录
+
+    支持步骤修改和额外步骤插入：
+    - evolved_step: 修改后的主步骤
+    - additional_steps: 额外添加的步骤（如前置等待、弹窗关闭等）
+    """
     original_step: Dict[str, Any]
     evolved_step: Dict[str, Any]
     evolution_reason: str
     confidence: float = 1.0
+
+    # 额外步骤（在 evolved_step 之前执行）
+    additional_steps: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class VerificationResponse(BaseModel):

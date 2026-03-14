@@ -276,7 +276,9 @@ class VerificationWorker:
                 action='open_app',
                 text=package,
                 device_id=device_id,
-                force_stop=force_stop
+                force_stop=force_stop,
+                disable_trace_screenshot=True,
+                disable_atlas=True
             )
 
         # Tap/Click
@@ -306,13 +308,17 @@ class VerificationWorker:
                     action='click',
                     x=abs_x,
                     y=abs_y,
-                    device_id=device_id
+                    device_id=device_id,
+                    disable_trace_screenshot=True,
+                    disable_atlas=True
                 )
             elif selector:
                 return await MobileController.execute(
                     action='click',
                     element_name=selector,
-                    device_id=device_id
+                    device_id=device_id,
+                    disable_trace_screenshot=True,
+                    disable_atlas=True
                 )
             else:
                 raise ValueError("Tap requires coordinates or selector")
@@ -323,7 +329,9 @@ class VerificationWorker:
             return await MobileController.execute(
                 action='input_text',
                 text=text,
-                device_id=device_id
+                device_id=device_id,
+                disable_trace_screenshot=True,
+                disable_atlas=True
             )
 
         # Back button
@@ -331,7 +339,9 @@ class VerificationWorker:
             return await MobileController.execute(
                 action='press_key',
                 keycode=4,
-                device_id=device_id
+                device_id=device_id,
+                disable_trace_screenshot=True,
+                disable_atlas=True
             )
 
         # Home button
@@ -339,7 +349,9 @@ class VerificationWorker:
             return await MobileController.execute(
                 action='press_key',
                 keycode=3,
-                device_id=device_id
+                device_id=device_id,
+                disable_trace_screenshot=True,
+                disable_atlas=True
             )
 
         # Wait (支持 duration_ms 和 seconds)
@@ -360,7 +372,9 @@ class VerificationWorker:
         elif event_type == "screenshot":
             result = await MobileController.execute(
                 action='screenshot',
-                device_id=device_id
+                device_id=device_id,
+                disable_trace_screenshot=True,
+                disable_atlas=True
             )
             # Parse screenshot path from result
             if isinstance(result, str) and result.startswith("Screenshot: "):
@@ -371,7 +385,9 @@ class VerificationWorker:
         elif event_type == "dump_ui":
             return await MobileController.execute(
                 action='dump_ui',
-                device_id=device_id
+                device_id=device_id,
+                disable_trace_screenshot=True,
+                disable_atlas=True
             )
 
         # Scroll (swipe)
@@ -399,7 +415,9 @@ class VerificationWorker:
                         y=start_y,
                         x2=center_x,
                         y2=end_y,
-                        device_id=device_id
+                        device_id=device_id,
+                        disable_trace_screenshot=True,
+                        disable_atlas=True
                     )
             except Exception as e:
                 logger.warning(f"[Worker] Scroll failed: {e}")
@@ -564,7 +582,9 @@ class VerificationWorker:
         try:
             result = await MobileController.execute(
                 action='screenshot',
-                device_id=device_id
+                device_id=device_id,
+                disable_trace_screenshot=True,
+                disable_atlas=True
             )
             # Parse screenshot path from result
             screenshot_path = None
