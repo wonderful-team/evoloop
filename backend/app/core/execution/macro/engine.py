@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.environment.controllers.browser_controller import BrowserController
@@ -516,13 +517,121 @@ class MacroEngine:
 
     @classmethod
     async def _handle_dump(cls, thread_id: str, payload: dict, extracted_data: dict):
+        """Handle data persistence - supports file, MCP, and webhook sinks."""
+        sink_type = payload.get("sink_type", "file")
+
+        if sink_type == "file":
+            await cls._dump_to_file(thread_id, payload, extracted_data)
+        elif sink_type == "mcp":
+            await cls._dump_to_mcp(thread_id, payload, extracted_data)
+        elif sink_type == "webhook":
+            await cls._dump_to_webhook(thread_id, payload, extracted_data)
+        else:
+            logger.warning(f"Unknown sink_type: {sink_type}, falling back to file")
+            await cls._dump_to_file(thread_id, payload, extracted_data)
+
+    @classmethod
+    async def _dump_to_file(cls, thread_id: str, payload: dict, extracted_data: dict):
+        """Dump extracted data to local file."""
         sink_path = payload.get("path", f"/tmp/macro_results_{thread_id}.json")
         await activity_monitor.log_event("macro_thought", {"text": f"Dump extracted data to {sink_path}"}, thread_id)
         try:
             with open(sink_path, "w", encoding="utf-8") as f:
                 json.dump(extracted_data, f, ensure_ascii=False, indent=2)
+            logger.info(f"[MacroEngine] Data dumped to file: {sink_path}")
         except Exception as e:
-            logger.warning(f"Failed to dump data: {e}")
+            logger.warning(f"Failed to dump data to file: {e}")
+
+    @classmethod
+    async def _dump_to_mcp(cls, thread_id: str, payload: dict, extracted_data: dict):
+        """Push extracted data to an MCP server."""
+        from app.core.tools.mcp.client import mcp_client_manager
+
+        mcp_server = payload.get("mcp_server", "supabase")
+        table = payload.get("table", "extracted_data")
+        operation = payload.get("operation", "insert")
+
+        await activity_monitor.log_event(
+            "macro_thought",
+            {"text": f"Pushing data to MCP server '{mcp_server}', table: {table}"},
+            thread_id
+        )
+
+        try:
+            # Get tools from MCP server
+            tools = await mcp_client_manager.get_tools_for(mcp_server)
+            if not tools:
+                logger.error(f"[MacroEngine] MCP server '{mcp_server}' not available")
+                return
+
+            # Find appropriate tool (insert/store/push)
+            target_tool = None
+            for tool in tools:
+                tool_name = tool.name.lower()
+                if operation in tool_name or "insert" in tool_name or "store" in tool_name:
+                    target_tool = tool
+                    break
+
+            if not target_tool:
+                # Try to find any tool that might work
+                target_tool = tools[0]
+                logger.warning(f"[MacroEngine] Using fallback MCP tool: {target_tool.name}")
+
+            # Prepare data payload
+            data_payload = {
+                "table": table,
+                "data": extracted_data,
+                "thread_id": thread_id,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+
+            # Call MCP tool
+            result = await target_tool.ainvoke(data_payload)
+            logger.info(f"[MacroEngine] Data pushed to MCP '{mcp_server}': {result}")
+
+        except Exception as e:
+            logger.error(f"[MacroEngine] Failed to push data to MCP: {e}", exc_info=True)
+
+    @classmethod
+    async def _dump_to_webhook(cls, thread_id: str, payload: dict, extracted_data: dict):
+        """Push extracted data to a webhook URL."""
+        import httpx
+
+        webhook_url = payload.get("webhook_url")
+        if not webhook_url:
+            logger.error("[MacroEngine] webhook_url required for webhook sink_type")
+            return
+
+        headers = payload.get("headers", {})
+        method = payload.get("method", "POST").upper()
+
+        await activity_monitor.log_event(
+            "macro_thought",
+            {"text": f"Pushing data to webhook: {webhook_url}"},
+            thread_id
+        )
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                request_data = {
+                    "thread_id": thread_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "data": extracted_data
+                }
+
+                if method == "POST":
+                    response = await client.post(webhook_url, json=request_data, headers=headers)
+                elif method == "PUT":
+                    response = await client.put(webhook_url, json=request_data, headers=headers)
+                else:
+                    logger.error(f"[MacroEngine] Unsupported HTTP method: {method}")
+                    return
+
+                response.raise_for_status()
+                logger.info(f"[MacroEngine] Data pushed to webhook: {response.status_code}")
+
+        except Exception as e:
+            logger.error(f"[MacroEngine] Failed to push data to webhook: {e}", exc_info=True)
 
     # --- Tool Invocation Wrappers (Browser/Mobile/Desktop) ---
 

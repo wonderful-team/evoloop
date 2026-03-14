@@ -28,10 +28,12 @@ class VerificationWorker:
     def __init__(
         self,
         environment_config: EnvironmentConfig,
-        agent_config: AgentConfig
+        agent_config: AgentConfig,
+        thread_id: Optional[str] = None
     ):
         self.config = environment_config
         self.agent_config = agent_config
+        self.thread_id = thread_id or f"verify_{id(self)}"
 
         # Platform-specific controllers (initialized lazily)
         self._browser_controller: Optional[Any] = None
@@ -562,44 +564,79 @@ class VerificationWorker:
         """
         Execute an extract step (GUI data extraction)
 
+        Reuses MacroEngine._handle_extraction for consistent extraction logic.
+
         Args:
             step: Extract step dictionary with 'key', 'extract_type', 'payload'
 
         Returns:
             Extraction result
         """
-        from app.core.environment.controllers.mobile_controller import MobileController
+        from app.core.execution.macro.engine import MacroEngine
+        from app.core.execution.macro.schema import MacroStep, MacroStepType, MacroSource
 
         key = step.get("key", "unknown")
         extract_type = step.get("extract_type", "gui_extract")
         payload = step.get("payload", {})
-        extraction_method = payload.get("extraction_method", "ocr_nearby")
-        device_id = self.config.device_id
+        source = step.get("source", "mobile")
 
-        logger.info(f"[Worker] Extracting data: key={key}, method={extraction_method}")
+        logger.info(f"[Worker] Extracting data: key={key}, type={extract_type}, source={source}")
 
-        # For verification, take a screenshot and return placeholder data
+        # Convert dict to MacroStep for MacroEngine compatibility
+        macro_step = MacroStep(
+            step_number=step.get("step_number", 0),
+            type=MacroStepType.EXTRACT,
+            source=source if source in ["dom", "mobile", "desktop", "global"] else "mobile",
+            event_type=step.get("event_type"),
+            target_selector=step.get("target_selector"),
+            payload=payload,
+            condition=step.get("condition"),
+            then_steps=[],
+            else_steps=[],
+            steps=[],
+            max_iterations=100,
+            extract_type=extract_type,
+            key=key
+        )
+
+        # Prepare extraction context
+        selector = macro_step.target_selector or ""
+        params = {}  # No parameter injection during verification
+        extracted_data = {}  # Local storage for this extraction
+
+        # Use thread_id from worker
+        thread_id = self.thread_id
+
         try:
-            result = await MobileController.execute(
-                action='screenshot',
-                device_id=device_id,
-                disable_trace_screenshot=True,
-                disable_atlas=True
+            # Reuse MacroEngine's extraction logic
+            await MacroEngine._handle_extraction(
+                thread_id=thread_id,
+                step=macro_step,
+                selector=selector,
+                payload=payload,
+                params=params,
+                extracted_data=extracted_data
             )
-            # Parse screenshot path from result
-            screenshot_path = None
-            if isinstance(result, str) and result.startswith("Screenshot: "):
-                screenshot_path = result.replace("Screenshot: ", "").strip()
+
+            # Return the extracted data
+            extracted_value = extracted_data.get(key)
+            logger.info(f"[Worker] Extraction successful: key={key}, data_type={type(extracted_value).__name__}")
+
             return {
                 "status": "extracted",
                 "key": key,
-                "method": extraction_method,
-                "screenshot": screenshot_path,
-                "data": f"Extracted data for {key} using {extraction_method}"
+                "extract_type": extract_type,
+                "data": extracted_value,
+                "extracted_data": extracted_data  # Include all extracted data
             }
+
         except Exception as e:
-            logger.warning(f"[Worker] Extract failed: {e}")
-            return {"status": "skipped", "reason": f"extract failed: {e}"}
+            logger.error(f"[Worker] Extraction failed: {e}", exc_info=True)
+            return {
+                "status": "failed",
+                "key": key,
+                "error": str(e)
+            }
 
     async def capture_state(self) -> Dict[str, Any]:
         """

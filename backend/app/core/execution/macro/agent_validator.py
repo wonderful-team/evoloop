@@ -180,7 +180,8 @@ class AgentMacroValidator:
         """Create and initialize verification worker"""
         worker = VerificationWorker(
             environment_config=self.request.target_environment,
-            agent_config=self.agent_config
+            agent_config=self.agent_config,
+            thread_id=self.request.thread_id
         )
         await worker.initialize()
         return worker
@@ -767,10 +768,19 @@ class AgentMacroValidator:
         """Calculate basic statistics for the summary"""
         total_steps = sum(r.total_steps for r in self.round_reports)
         passed_steps = sum(r.passed_steps for r in self.round_reports)
-        
+
+        # Calculate average execution time from all step results
+        total_time_ms = 0
+        step_count = 0
+        for round_report in self.round_reports:
+            for step_result in round_report.step_results:
+                total_time_ms += step_result.execution_time_ms
+                step_count += 1
+        average_time = int(total_time_ms / max(step_count, 1))
+
         return ReportSummary(
             overall_success_rate=passed_steps / max(total_steps, 1),
-            average_execution_time_ms=0 # TODO: Calculate average
+            average_execution_time_ms=average_time
         )
 
     def _build_evolved_macro(self) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
