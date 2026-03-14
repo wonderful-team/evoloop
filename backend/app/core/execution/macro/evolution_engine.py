@@ -71,16 +71,17 @@ class StepTransformer(ABC):
         pass
 
 
-class CoordinateDriftTransformer(StepTransformer):
+class AgenticTransformer(StepTransformer):
     """
-    Transform coordinate-based steps with corrected coordinates.
-
-    Simple evolution: Update coordinates to corrected values.
-    Preserves original coordinates for reference (in payload only).
+    General purpose transformer for Agent-derived evolution.
+    
+    Directly uses the evolved_step and additional_steps provided by the Agent
+    in the MacroEvolutionRecord.
     """
 
     def can_transform(self, step: Dict[str, Any], record: MacroEvolutionRecord) -> bool:
-        return record.evolution_reason and "coordinate" in record.evolution_reason.lower()
+        # This transformer handles any record that has an evolved step or additional steps
+        return record.evolved_step is not None or (record.additional_steps and len(record.additional_steps) > 0)
 
     def transform(
         self,
@@ -88,177 +89,23 @@ class CoordinateDriftTransformer(StepTransformer):
         record: MacroEvolutionRecord,
         context: EvolutionContext
     ) -> List[Dict[str, Any]]:
-        """Transform: Use corrected coordinates from adaptation"""
-        evolved = copy.deepcopy(step)
-
-        # Get the evolved step from record (contains corrected coordinates)
-        if record.evolved_step:
-            evolved_step = copy.deepcopy(record.evolved_step)
-            # Only update coordinates in payload, preserve all other fields
-            original_payload = evolved.get("payload", {})
-            evolved_payload = evolved_step.get("payload", {})
-
-            # Log coordinate transformation
-            step_num = step.get("step_number", "N/A")
-            orig_x = original_payload.get("x")
-            orig_y = original_payload.get("y")
-            new_x = evolved_payload.get("x")
-            new_y = evolved_payload.get("y")
-            if orig_x != new_x or orig_y != new_y:
-                logger.info(f"[CoordinateDriftTransformer] Step {step_num}: ({orig_x}, {orig_y}) -> ({new_x}, {new_y})")
-
-            # Update x, y coordinates if corrected
-            if "x" in evolved_payload:
-                original_payload["x"] = evolved_payload["x"]
-            if "y" in evolved_payload:
-                original_payload["y"] = evolved_payload["y"]
-
-            # Preserve correction metadata in payload (engine will ignore unknown fields)
-            if "original_x" in evolved_payload:
-                original_payload["original_x"] = evolved_payload["original_x"]
-            if "original_y" in evolved_payload:
-                original_payload["original_y"] = evolved_payload["original_y"]
-
-            evolved["payload"] = original_payload
-
-        return [evolved]
-
-
-class ElementNotFoundTransformer(StepTransformer):
-    """
-    Transform steps with element not found issues.
-
-    Simple evolution: Update to corrected selector if available.
-    Engine-compatible: Only modifies target_selector, no extra fields.
-    """
-
-    def can_transform(self, step: Dict[str, Any], record: MacroEvolutionRecord) -> bool:
-        return record.evolution_reason and "element" in record.evolution_reason.lower()
-
-    def transform(
-        self,
-        step: Dict[str, Any],
-        record: MacroEvolutionRecord,
-        context: EvolutionContext
-    ) -> List[Dict[str, Any]]:
-        """Transform: Use corrected selector from adaptation"""
-        evolved = copy.deepcopy(step)
-
-        # Get the evolved step from record (contains corrected selector)
-        if record.evolved_step:
-            evolved_step = copy.deepcopy(record.evolved_step)
-
-            # Update target_selector if corrected
-            if evolved_step.get("target_selector"):
-                evolved["target_selector"] = evolved_step["target_selector"]
-
-            # Also check payload for selector
-            evolved_payload = evolved_step.get("payload", {})
-            if evolved_payload.get("selector"):
-                original_payload = evolved.get("payload", {})
-                original_payload["selector"] = evolved_payload["selector"]
-                evolved["payload"] = original_payload
-
-        return [evolved]
-
-
-class ElementObscuredTransformer(StepTransformer):
-    """
-    Transform steps where elements are obscured by popups/overlays.
-
-    Simple evolution: Add a brief wait before the action to allow UI to stabilize.
-    Engine-compatible: Uses standard 'wait' event_type.
-    """
-
-    def can_transform(self, step: Dict[str, Any], record: MacroEvolutionRecord) -> bool:
-        return record.evolution_reason and "obscured" in record.evolution_reason.lower()
-
-    def transform(
-        self,
-        step: Dict[str, Any],
-        record: MacroEvolutionRecord,
-        context: EvolutionContext
-    ) -> List[Dict[str, Any]]:
-        """Transform: Add a wait step before the action"""
+        """
+        Transform: Use the Agent's decided output directly.
+        """
         evolved_steps = []
-
-        # Step 1: Wait for UI to stabilize (using standard wait event)
-        wait_step = {
-            "step_number": step.get("step_number", 0),
-            "type": "action",
-            "event_type": "wait",
-            "source": step.get("source", "dom"),
-            "payload": {"duration_ms": 800, "reason": "wait_for_obstruction_clear"}
-        }
-        evolved_steps.append(wait_step)
-
-        # Step 2: Original (evolved) action
-        evolved = copy.deepcopy(step)
+        
+        # 1. Add any additional steps the agent decided were necessary (e.g., recovery actions)
+        if record.additional_steps:
+            evolved_steps.extend(record.additional_steps)
+            
+        # 2. Use the evolved version of the original step
         if record.evolved_step:
-            evolved_step = copy.deepcopy(record.evolved_step)
-            # Preserve step number and basic structure
-            evolved["payload"] = evolved_step.get("payload", evolved.get("payload", {}))
-
-        evolved_steps.append(evolved)
-
+            evolved_steps.append(record.evolved_step)
+        else:
+            # Fallback to original if no evolved version provided
+            evolved_steps.append(copy.deepcopy(step))
+            
         return evolved_steps
-
-
-class LoadingTimeoutTransformer(StepTransformer):
-    """
-    Transform steps that timeout due to slow loading
-
-    Evolution rules:
-    - Change fixed wait to conditional wait
-    - Add loading indicator detection
-    - Increase timeout with exponential backoff
-    """
-
-    def can_transform(self, step: Dict[str, Any], record: MacroEvolutionRecord) -> bool:
-        return record.evolution_reason and "timeout" in record.evolution_reason.lower()
-
-    def transform(
-        self,
-        step: Dict[str, Any],
-        record: MacroEvolutionRecord,
-        context: EvolutionContext
-    ) -> List[Dict[str, Any]]:
-        """Transform: Increase wait duration for timeout issues."""
-        evolved = copy.deepcopy(step)
-        payload = evolved.get("payload", {})
-
-        # Simply increase the wait duration (engine-compatible)
-        current_duration = payload.get("duration_ms", 5000)
-        payload["duration_ms"] = min(int(current_duration * 1.5), 30000)  # Max 30s
-
-        evolved["payload"] = payload
-        return [evolved]
-
-
-class StateMismatchTransformer(StepTransformer):
-    """
-    Transform steps with state mismatch issues
-
-    Evolution rules:
-    - Add state verification before action
-    - Add navigation recovery
-    - Add conditional logic
-    """
-
-    def can_transform(self, step: Dict[str, Any], record: MacroEvolutionRecord) -> bool:
-        return record.evolution_reason and "state_mismatch" in record.evolution_reason.lower()
-
-    def transform(
-        self,
-        step: Dict[str, Any],
-        record: MacroEvolutionRecord,
-        context: EvolutionContext
-    ) -> List[Dict[str, Any]]:
-        """Transform to add state verification - simplified, no extra fields"""
-        evolved = copy.deepcopy(step)
-        if record.evolved_step:
-            evolved = copy.deepcopy(record.evolved_step)
-        return [evolved]
 
     def _extract_navigation(
         self,
@@ -286,11 +133,7 @@ class MacroEvolutionEngine:
 
     def __init__(self):
         self.transformers: List[StepTransformer] = [
-            CoordinateDriftTransformer(),
-            ElementNotFoundTransformer(),
-            ElementObscuredTransformer(),
-            LoadingTimeoutTransformer(),
-            StateMismatchTransformer(),
+            AgenticTransformer(),
         ]
 
     def evolve(
@@ -364,7 +207,7 @@ class MacroEvolutionEngine:
                 evolved_macro.extend(evolved_steps)
                 step_offset += len(evolved_steps) - 1
 
-                logger.debug(
+                logger.info(
                     f"[EvolutionEngine] Step {step_number}: {len(step_records)} records, "
                     f"expanded to {len(evolved_steps)} steps"
                 )
@@ -522,7 +365,7 @@ class MacroEvolutionEngine:
                     sub_step, sub_records, context
                 )
                 evolved_sub_steps.extend(transformed)
-                logger.debug(
+                logger.info(
                     f"[EvolutionEngine] Loop sub-step {sub_step_num}: "
                     f"{len(sub_records)} records applied"
                 )
@@ -558,14 +401,11 @@ class MacroEvolutionEngine:
         return counts
 
     def _extract_anomaly_type(self, record: MacroEvolutionRecord) -> str:
-        """Extract anomaly type from evolution record"""
-        reason = record.evolution_reason.lower()
-
-        for anomaly_type in AnomalyType:
-            if anomaly_type.value.lower().replace("_", " ") in reason:
-                return anomaly_type.value
-
-        return "unknown"
+        """Extract anomaly type from evolution record or reasoning"""
+        # If the record has an anomaly_type set (from legacy logic), use it
+        # Otherwise, the record from ReasoningEngine might not have a formal anomaly_type
+        # mapping yet, so we just return 'agent_correction'
+        return "agent_correction"
 
     def generate_fallback_chain(
         self,

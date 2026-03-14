@@ -11,9 +11,8 @@ import logging
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from app.core.execution.macro.adaptation_library import AdaptationStrategyLibrary
-from app.core.execution.macro.anomaly_detector import AnomalyDetector, AnomalyDetectionResult
 from app.core.execution.macro.evolution_engine import MacroEvolutionEngine
+from app.core.execution.macro.reasoning_engine import AgentReasoningEngine
 from app.core.execution.macro.optimizer import MacroOptimizer
 from app.core.execution.macro.round_orchestrator import (
     BaselineStrategy,
@@ -61,8 +60,11 @@ class AgentMacroValidator:
     def __init__(self, request: VerificationRequest):
         self.request = request
         self.agent_config = request.agent_config or AgentConfig()
-        self.anomaly_detector = AnomalyDetector()
-        self.adaptation_library = AdaptationStrategyLibrary(use_llm=self.agent_config.allow_strategy_adaptation)
+        # Phase 4: Perception-First Reasoning Engine
+        self.reasoning_engine = AgentReasoningEngine(
+            mental_model=request.instructions or "Execute the macro faithfully and handle UI anomalies proactively."
+        )
+        
         self.worker: Optional[VerificationWorker] = None
 
         # Phase 4: Round orchestration
@@ -82,10 +84,9 @@ class AgentMacroValidator:
         self.total_adaptations = 0
         self.start_time: Optional[float] = None
 
-        # Redundancy detection
-        self._executed_steps: List[StepResult] = []  # 用于检测重复
-        self._redundant_step_numbers: set = set()  # 被标记为冗余的步骤编号
-        self._low_value_actions = {"mouse_move", "cursor_move", "hover"}
+        # Redundancy detection state
+        self._executed_steps: List[StepResult] = []
+        self._redundant_step_numbers: set = set()
 
     def _create_orchestrator(self) -> RoundOrchestrator:
         """Create round orchestrator based on request configuration"""
@@ -165,7 +166,7 @@ class AgentMacroValidator:
                 round_num += 1
 
             # Generate final response
-            return self._build_response()
+            return await self._build_response()
 
         except Exception as e:
             logger.error(f"[Validator] Verification failed: {e}")
@@ -270,101 +271,58 @@ class AgentMacroValidator:
 
         return report
 
-    def _check_step_redundancy(
+    async def _check_step_redundancy(
         self,
         step: Dict[str, Any],
-        step_number: int
+        ui_state: Dict[str, Any],
+        step_number: int = None
     ) -> RedundancyCheckResult:
         """
-        检查步骤是否为冗余步骤
-
-        检测类型：
-        1. 低价值动作: mouse_move, cursor_move, hover
-        2. 重复动作: 在短时间内重复执行相同目标+坐标的点击/输入
-        3. 无效等待: duration_ms <= 0
+        Check if a step is redundant using Agentic perception.
         """
-        event_type = step.get("event_type", "")
-        payload = step.get("payload", {})
+        step_num = step_number or step.get('step_number', '?')
 
-        # 1. 检查低价值动作
-        if event_type in self._low_value_actions:
-            return RedundancyCheckResult(
-                is_redundant=True,
-                redundancy_type=RedundancyType.LOW_VALUE_ACTION,
-                reason=f"Low-value action '{event_type}' provides minimal functional value",
-                suggested_action="remove"
-            )
+        # Quick rule-based checks first
+        event_type = step.get('event_type', '')
 
-        # 2. 检查无效等待 (支持 duration_ms 和 seconds)
-        if event_type == "wait":
-            duration_ms = payload.get("duration_ms", 0)
-            seconds = payload.get("seconds", 0)
-            # 转换为毫秒比较
-            total_duration_ms = duration_ms + (seconds * 1000)
-            if total_duration_ms <= 0:
-                return RedundancyCheckResult(
-                    is_redundant=True,
-                    redundancy_type=RedundancyType.UNNECESSARY_WAIT,
-                    reason="Wait with zero or negative duration",
-                    suggested_action="remove"
-                )
+        # Never mark critical actions as redundant
+        if event_type in ('open_app', 'launch_app', 'goto', 'navigate'):
+            logger.debug(f"[Redundancy:{step_num}] {event_type} is critical, not redundant")
+            return RedundancyCheckResult(is_redundant=False)
 
-        # 3. 检查重复动作 (仅针对 WAIT 步骤进行冗余判定，点击输入等状态改变动作不建议自动跳过)
-        if event_type == "wait" and self._executed_steps:
-            prev_result = self._executed_steps[-1]
-            prev_step = prev_result.original_step
-            if prev_step.get("event_type") == "wait":
-                return RedundancyCheckResult(
-                    is_redundant=True,
-                    redundancy_type=RedundancyType.DUPLICATE_ACTION,
-                    reason=f"Duplicate consecutive WAIT of step {prev_result.step_number}.",
-                    similar_to_step=prev_result.step_number,
-                    suggested_action="merge"
-                )
+        if not self.agent_config.allow_strategy_adaptation:
+            return RedundancyCheckResult(is_redundant=False)
 
-        return RedundancyCheckResult(is_redundant=False)
+        logger.info(f"[Redundancy:{step_num}] Checking with Vision LLM")
 
-    def _steps_are_duplicate(
-        self,
-        step1: Dict[str, Any],
-        step2: Dict[str, Any]
-    ) -> bool:
-        """检查两个步骤是否为重复"""
-        # 不同类型不算重复
-        if step1.get("event_type") != step2.get("event_type"):
-            return False
+        result = await self.reasoning_engine.check_redundancy(
+            step=step,
+            ui_state=ui_state,
+            history=self.execution_history
+        )
 
-        event_type = step1.get("event_type", "")
-        p1, p2 = step1.get("payload", {}), step2.get("payload", {})
+        if result.is_redundant:
+            logger.info(f"[Redundancy:{step_num}] Vision LLM marked as redundant: {result.redundancy_type.value}")
+        else:
+            logger.debug(f"[Redundancy:{step_num}] Not redundant")
 
-        # 点击/触摸：检查坐标
-        if event_type in ("click", "tap"):
-            x1, y1 = p1.get("x", 0), p1.get("y", 0)
-            x2, y2 = p2.get("x", 0), p2.get("y", 0)
-            coord_match = abs(x1 - x2) < 5 and abs(y1 - y2) < 5
-
-            # 也检查选择器
-            selector_match = step1.get("target_selector") == step2.get("target_selector")
-            return coord_match or selector_match
-
-        # 输入：检查文本内容
-        if event_type in ("input", "type_text"):
-            return p1.get("text") == p2.get("text")
-
-        # 等待：检查总时长
-        if event_type == "wait":
-            return True  # 连续等待可以合并
-
-        return False
+        return result
 
     async def _execute_step_with_adaptation(
         self,
         step: Dict[str, Any],
         step_number: int,
-        round_config: RoundConfig
+        round_config: RoundConfig,
+        is_loop_substep: bool = False
     ) -> StepResult:
         """
         Execute a single step with anomaly detection and adaptation
+
+        Args:
+            step: The step to execute
+            step_number: Step number for tracking
+            round_config: Round configuration
+            is_loop_substep: If True, this is a sub-step inside a loop (gets redundancy protection)
         """
         start_time = time.time()
 
@@ -373,64 +331,90 @@ class AgentMacroValidator:
             original_step=step.copy()
         )
 
-        # ===== 冗余检测 (新增) =====
-        redundancy_check = self._check_step_redundancy(step, step_number)
-        result.redundancy_check = redundancy_check
-
-        if redundancy_check.is_redundant:
-            logger.info(
-                f"[Validator] Step {step_number}: Detected as redundant "
-                f"({redundancy_check.redundancy_type.value}). Skipping execution for performance."
-            )
-            result.status = StepExecutionStatus.REDUNDANT
-            result.execution_time_ms = 0
-            self._redundant_step_numbers.add(step_number)
-
-            # Record result and return early to skip capture and execution
-            self._executed_steps.append(result)
-            return result
-
-        # Capture pre-execution state (skip for open_app/wait/scroll/extract - no coordinate validation needed)
+        # Capture pre-execution state
         event_type = step.get("event_type", "")
         extract_type = step.get("extract_type", "")
         if event_type in ("open_app", "launch_app"):
-            pre_state = {}  # Empty state for app launch
+            pre_state = {}
         elif event_type in ("wait", "wait_for", "scroll") or extract_type == "gui_extract":
-            pre_state = {"skip_capture": True}  # Minimal state for wait/scroll/extract steps
+            pre_state = {"skip_capture": True}
         else:
             pre_state = await self.worker.capture_state()
         result.execution = ExecutionDetail(pre_state=pre_state)
 
-        # Pre-execution anomaly detection
-        pre_anomaly = await self.anomaly_detector.detect_pre_execution_anomaly(
-            step=step,
-            current_ui_state=pre_state
+        # ===== Redundancy Detection (Agentic) =====
+        # Loop sub-steps get redundancy protection (they're usually critical for the workflow)
+        if is_loop_substep:
+            logger.debug(f"[Validator] Step {step_number}: Loop sub-step, skipping redundancy check")
+            redundancy_check = RedundancyCheckResult(is_redundant=False)
+        else:
+            redundancy_check = await self._check_step_redundancy(step, pre_state, step_number)
+
+        result.redundancy_check = redundancy_check
+
+        if redundancy_check.is_redundant:
+            logger.warning(
+                f"[Validator] Step {step_number}: Detected as redundant "
+                f"({redundancy_check.redundancy_type.value}). Skipping execution."
+            )
+            result.status = StepExecutionStatus.REDUNDANT
+            result.execution_time_ms = 0
+            self._redundant_step_numbers.add(step_number)
+            self._executed_steps.append(result)
+            return result
+
+        # ===== Agentic Reasoning (New Phase 4) =====
+        decision = await self.reasoning_engine.decide_next_step(
+            current_step=step,
+            ui_state=pre_state,
+            history=self.execution_history
         )
 
-        if pre_anomaly.is_anomaly:
+        logger.info(f"[Validator] Step {step_number} Decision: {decision.action} ({decision.confidence})")
+        logger.info(f"[Validator] Reasoning: {decision.reasoning}")
+
+        if decision.action == "skip":
+            result.status = StepExecutionStatus.SKIPPED
+            result.error_message = f"Agent decided to skip: {decision.reasoning}"
+            return result
+        
+        if decision.action == "abort":
+            result.status = StepExecutionStatus.FAILED
+            result.error_message = f"Agent decided to abort: {decision.reasoning}"
+            return result
+            
+        if decision.action == "correct" or (decision.additional_steps and decision.action != "execute"):
             self.total_anomalies += 1
-            logger.info(
-                f"[Validator] Step {step_number}: Pre-execution anomaly detected: "
-                f"{pre_anomaly.anomaly_type}"
+            # Handle additional steps (e.g., closing a popup)
+            for i, add_step in enumerate(decision.additional_steps):
+                logger.info(f"[Validator] Executing pre-step {i+1}: {add_step.get('event_type')}")
+                await self._execute_step(add_step, round_config)
+            
+            # Record adaptation
+            adaptation = AdaptationRecord(
+                anomaly_type=AnomalyType.UNEXPECTED_FLOW if decision.additional_steps else AnomalyType.COORDINATE_DRIFT,
+                original_strategy=step.copy(),
+                adapted_strategy=decision.suggested_step or step,
+                reasoning=decision.reasoning,
+                success=True,
+                additional_steps=decision.additional_steps
             )
+            result.adaptations.append(adaptation)
 
-            # Attempt adaptation
-            adapted = await self._attempt_adaptation(
-                step=step,
-                anomaly=pre_anomaly,
-                step_number=step_number
-            )
+            # Record for evolution (Phase 4)
+            evolved_step = self._sanitize_step_for_evolution(decision.suggested_step, step) if decision.suggested_step else step.copy()
+            sanitized_additional = [self._sanitize_step_for_evolution(s) for s in (decision.additional_steps or [])]
+            self.evolution_records.append(MacroEvolutionRecord(
+                original_step=step.copy(),
+                evolved_step=evolved_step,
+                evolution_reason=f"Agent Choice: {decision.reasoning}",
+                confidence=decision.confidence,
+                additional_steps=sanitized_additional
+            ))
 
-            if adapted.success:
-                result.adaptations.append(adapted)
-                result.effective_parameters = adapted.adapted_strategy
-                step = adapted.adapted_strategy  # Use adapted step
-                self.total_adaptations += 1
-            else:
-                result.status = StepExecutionStatus.FAILED
-                result.error_message = f"Pre-execution anomaly not resolved: {pre_anomaly.anomaly_type}"
-                result.execution_time_ms = int((time.time() - start_time) * 1000)
-                return result
+            result.effective_parameters = adaptation.adapted_strategy
+            step = adaptation.adapted_strategy  # Use corrected step
+            self.total_adaptations += 1
 
         # Execute the step (original or adapted)
         # Special handling for loop steps - validate sub-steps individually
@@ -455,53 +439,82 @@ class AgentMacroValidator:
             post_state = await self.worker.capture_state()
         result.execution.post_state = post_state
 
-        # Post-execution anomaly detection
-        post_anomaly = await self.anomaly_detector.detect_post_execution_anomaly(
-            step=step,
-            pre_state=pre_state,
-            post_state=post_state,
-            execution_result=execution_result
-        )
-
-        if post_anomaly.is_anomaly:
-            self.total_anomalies += 1
-            logger.info(
-                f"[Validator] Step {step_number}: Post-execution anomaly detected: "
-                f"{post_anomaly.anomaly_type}"
-            )
-
-            # Attempt post-execution adaptation
-            adapted = await self._attempt_adaptation(
-                step=step,
-                anomaly=post_anomaly,
-                step_number=step_number,
-                is_post_execution=True
-            )
-
-            if adapted.success:
-                result.adaptations.append(adapted)
-                self.total_adaptations += 1
-                # Retry the step with adapted strategy
-                retry_result = await self._execute_step(adapted.adapted_strategy, round_config)
-                if self._is_successful_execution(retry_result):
-                    result.status = StepExecutionStatus.ADAPTED
-                else:
-                    result.status = StepExecutionStatus.FAILED
-                    result.error_message = "Adaptation retry failed"
-            else:
-                # Check if execution was still successful despite anomaly warning
-                if self._is_successful_execution(execution_result):
-                    result.status = StepExecutionStatus.PASSED
-                else:
-                    result.status = StepExecutionStatus.FAILED
-                    result.error_message = f"Post-execution anomaly: {post_anomaly.anomaly_type}"
+        # ===== Visual Outcome Verification (New Phase 4) =====
+        # Skip visual verification for parent loop step (it's verified via sub-steps)
+        if step.get("type") == "loop":
+            is_verified, verification_reason = True, "Loop validated via sub-steps"
         else:
-            # No anomaly, check execution result
-            if self._is_successful_execution(execution_result):
+            is_verified, verification_reason = await self.reasoning_engine.verify_outcome(
+                step=step,
+                pre_state=pre_state,
+                post_state=post_state
+            )
+
+        logger.info(f"[Validator] Step {step_number} Verification: {'SUCCESS' if is_verified else 'FAILED'}")
+        logger.info(f"[Validator] Verification Reason: {verification_reason}")
+
+        if not is_verified:
+            # If visual verification fails, treat as an anomaly and attempt one agentic retry
+            self.total_anomalies += 1
+            logger.warning(f"[Validator] Step {step_number}: Visual verification failed. Attempting recovery.")
+
+            # Use reasoning engine for recovery decision
+            recovery_decision = await self.reasoning_engine.decide_next_step(
+                current_step=step,
+                ui_state=post_state,  # Use post-state for recovery context
+                history=self.execution_history,
+                is_recovery=True,
+                failure_reason=verification_reason
+            )
+
+            logger.info(f"[Validator] Step {step_number} Recovery Decision: action={recovery_decision.action}, confidence={recovery_decision.confidence}")
+            logger.info(f"[Validator] Recovery Reasoning: {recovery_decision.reasoning}")
+            if recovery_decision.additional_steps:
+                logger.info(f"[Validator] Recovery includes {len(recovery_decision.additional_steps)} additional steps")
+
+            if recovery_decision.action == "correct":
+                # Execute recovery steps
+                for i, add_step in enumerate(recovery_decision.additional_steps):
+                    await self._execute_step(add_step, round_config)
+
+                # Retry main step
+                retry_result = await self._execute_step(recovery_decision.suggested_step or step, round_config)
+                if not self._has_engine_error(retry_result):
+                    result.status = StepExecutionStatus.ADAPTED
+                    # Record adaptation
+                    adaptation = AdaptationRecord(
+                        anomaly_type=AnomalyType.STATE_MISMATCH,
+                        original_strategy=step.copy(),
+                        adapted_strategy=recovery_decision.suggested_step or step,
+                        reasoning=f"Recovery from verification failure: {verification_reason}. Agent reasoning: {recovery_decision.reasoning}",
+                        success=True
+                    )
+                    result.adaptations.append(adaptation)
+
+                    # Record for evolution
+                    evolved_step = self._sanitize_step_for_evolution(recovery_decision.suggested_step, step) if recovery_decision.suggested_step else step.copy()
+                    sanitized_additional = [self._sanitize_step_for_evolution(s) for s in (recovery_decision.additional_steps or [])]
+                    self.evolution_records.append(MacroEvolutionRecord(
+                        original_step=step.copy(),
+                        evolved_step=evolved_step,
+                        evolution_reason=f"Agent Recovery: {recovery_decision.reasoning}",
+                        confidence=recovery_decision.confidence,
+                        additional_steps=sanitized_additional
+                    ))
+                else:
+                    result.status = StepExecutionStatus.FAILED
+                    result.error_message = f"Recovery attempt failed: {recovery_decision.reasoning}"
+            else:
+                result.status = StepExecutionStatus.FAILED
+                result.error_message = f"Visual verification failed: {verification_reason}. Recovery action: {recovery_decision.action}"
+                logger.warning(f"[Validator] Step {step_number}: Recovery not attempted or failed. Action={recovery_decision.action}")
+        else:
+            # Visual verification passed or skipped
+            if not self._has_engine_error(execution_result):
                 result.status = StepExecutionStatus.PASSED
             else:
                 result.status = StepExecutionStatus.FAILED
-                result.error_message = str(execution_result) if execution_result else "Execution failed"
+                result.error_message = str(execution_result.get("error", "Engine execution failed"))
 
         result.execution_time_ms = int((time.time() - start_time) * 1000)
 
@@ -542,17 +555,18 @@ class AgentMacroValidator:
             for sub_idx, sub_step in enumerate(sub_steps):
                 # Use integer step number for sub-steps (e.g., 501 for step 5.1)
                 sub_step_num = step_number * 100 + sub_idx + 1
-                logger.debug(f"[Validator] Validating sub-step {step_number}.{sub_idx + 1} (id: {sub_step_num})")
+                logger.info(f"[Validator] Validating sub-step {step_number}.{sub_idx + 1} (id: {sub_step_num})")
 
                 # Add step_number to sub_step for evolution record matching
                 sub_step_copy = sub_step.copy()
                 sub_step_copy["step_number"] = sub_step_num
 
-                # Execute sub-step with adaptation
+                # Execute sub-step with adaptation (mark as loop sub-step for redundancy protection)
                 sub_result = await self._execute_step_with_adaptation(
                     step=sub_step_copy,
                     step_number=sub_step_num,
-                    round_config=round_config
+                    round_config=round_config,
+                    is_loop_substep=True
                 )
 
                 iteration_results.append({
@@ -639,301 +653,125 @@ class AgentMacroValidator:
         except Exception as e:
             return {"error": "execution_failed", "message": str(e)}
 
-    async def _attempt_adaptation(
-        self,
-        step: Dict[str, Any],
-        anomaly: AnomalyDetectionResult,
-        step_number: int,
-        is_post_execution: bool = False,
-        ui_state: Optional[Dict[str, Any]] = None
-    ) -> AdaptationRecord:
-        """
-        Attempt to adapt strategy based on detected anomaly using the adaptation library.
-
-        Implements two-tier adaptation:
-        1. Quick fix (heuristics-based)
-        2. LLM deep adaptation (if quick fix fails and config allows)
-        """
-        # Get current UI state if not provided
-        if ui_state is None and self.worker:
-            ui_state = await self.worker.capture_state()
-
-        # Use adaptation library with fallback
-        records = await self.adaptation_library.adapt_with_fallback(
-            step=step,
-            anomaly_type=anomaly.anomaly_type,
-            anomaly_details=anomaly.details,
-            ui_state=ui_state,
-            max_attempts=self.agent_config.max_retries_per_step
-        )
-
-        # Use the last (most evolved) record as the primary result
-        primary_record = records[-1] if records else AdaptationRecord(
-            anomaly_type=anomaly.anomaly_type,
-            original_strategy=step,
-            adapted_strategy=step,
-            reasoning="No adaptation attempts made",
-            success=False,
-            attempt_number=1
-        )
-
-        # Store all adaptation records
-        self.adaptation_records.extend(records)
-
-        # Record for evolution if successful
-        if primary_record.success:
-            self.evolution_records.append(MacroEvolutionRecord(
-                original_step=step,
-                evolved_step=primary_record.adapted_strategy,
-                evolution_reason=f"Phase 2: {primary_record.reasoning}",
-                confidence=anomaly.confidence,
-                additional_steps=primary_record.additional_steps
-            ))
-            self.total_adaptations += 1
-
-        return primary_record
-
-    def _is_successful_execution(self, result: Any) -> bool:
-        """Check if execution result indicates success"""
+    def _has_engine_error(self, result: Any) -> bool:
+        """Check if execution result indicates a low-level engine error"""
         if result is None:
-            return True  # Void operation
+            return False
 
         if isinstance(result, dict):
-            return "error" not in result and "failed" not in str(result).lower()
+            return "error" in result or "failed" in str(result).lower()
 
         if isinstance(result, str):
             error_keywords = ["error", "failed", "timeout", "not found", "exception"]
-            return not any(kw in result.lower() for kw in error_keywords)
-
-        return True
-
-    async def _should_continue_after_failure(self, step_result: StepResult) -> bool:
-        """Determine if verification should continue after step failure"""
-        # Continue if this is not a critical step (can be determined by step metadata)
-        original_step = step_result.original_step
-
-        # Critical steps are typically navigation or app transitions
-        event_type = original_step.get("event_type", "")
-        critical_types = ["goto", "navigate", "open_app", "launch_app"]
-
-        if event_type in critical_types:
-            return False
-
-        # Continue if configured to be lenient
-        if not self.agent_config.conservative_mode:
-            return True
+            return any(kw in result.lower() for kw in error_keywords)
 
         return False
 
-    def _build_response(self) -> VerificationResponse:
+    def _sanitize_step_for_evolution(self, step: Dict[str, Any], original_step: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Ensure step has all required fields for MacroScript validation.
+        Fixes None values for list fields that cause Pydantic validation errors.
+        """
+        if not step:
+            return step
+
+        sanitized = step.copy()
+
+        # Ensure list fields are lists (not None)
+        for key in ["then_steps", "else_steps", "steps"]:
+            if not sanitized.get(key):  # Handles None, missing, or empty
+                if original_step and original_step.get(key):
+                    sanitized[key] = original_step.get(key)
+                else:
+                    sanitized[key] = []
+
+        # Ensure max_iterations has a value
+        if not sanitized.get("max_iterations"):
+            if original_step and original_step.get("max_iterations"):
+                sanitized["max_iterations"] = original_step.get("max_iterations")
+            else:
+                sanitized["max_iterations"] = 50
+
+        return sanitized
+
+    async def _should_continue_after_failure(self, step_result: StepResult) -> bool:
+        """
+        Determine if verification should continue after step failure.
+        Delegates reasoning to the Agent to avoid hardcoded rules.
+        """
+        step_num = step_result.step_number
+
+        # If conservative mode is off, we generally try to continue
+        if not self.agent_config.conservative_mode:
+            logger.warning(f"[Validator] Step {step_num} FAILED but continuing (conservative_mode=False)")
+            return True
+
+        # Ask the reasoning engine if this failure is terminal
+        # This is a lightweight reasoning step
+        if self.worker:
+            is_terminal = await self.reasoning_engine.is_failure_terminal(
+                step=step_result.original_step,
+                error=step_result.error_message or "Unknown error"
+            )
+            should_continue = not is_terminal
+            logger.info(f"[Validator] Step {step_num} terminal analysis: is_terminal={is_terminal}, continue={should_continue}")
+            return should_continue
+
+        logger.warning(f"[Validator] Step {step_num} FAILED, no worker available, stopping")
+        return False
+
+    async def _build_response(self) -> VerificationResponse:
         """Build final verification response"""
-        processing_time = time.time() - (self.start_time or time.time())
-
-        # Determine execution mode
-        execution_mode = self._determine_execution_mode()
-
-        # Build evolved macro (also generates optimization stats)
+        # 1. Build evolved macro (also generates optimization stats implicitly)
         evolved_macro, optimization_stats = self._build_evolved_macro()
 
-        # Generate report with optimization stats
-        report = self._generate_report(optimization_stats)
-
-        # Calculate confidence score
-        confidence_score = self._calculate_confidence_score()
+        # 2. Generate agentic report (this also populates self._analysis_result)
+        report = await self._generate_agentic_report()
 
         return VerificationResponse(
-            success=report.summary.overall_success_rate >= 0.7,
+            success=self._determine_overall_status() == VerificationStatus.COMPLETED,
             status=self._determine_overall_status(),
             evolved_macro=evolved_macro,
-            execution_mode=execution_mode,
-            confidence_score=confidence_score,
+            execution_mode=self._analysis_result.recommended_execution_mode,
+            confidence_score=self._analysis_result.confidence_score,
             verification_report=report,
             evolution_records=self.evolution_records,
-            processing_time_seconds=processing_time,
+            processing_time_seconds=time.time() - (self.start_time or time.time()),
             rounds_completed=len(self.round_reports)
         )
 
-    def _generate_report(
-        self,
-        optimization_stats: Optional[Dict[str, Any]] = None
-    ) -> VerificationReport:
-        """Generate detailed verification report"""
-        # Calculate statistics
-        total_steps = sum(r.total_steps for r in self.round_reports)
-        passed_steps = sum(r.passed_steps for r in self.round_reports)
-        adapted_steps = sum(r.adapted_steps for r in self.round_reports)
-        failed_steps = sum(r.failed_steps for r in self.round_reports)
-
-        success_rate = passed_steps / max(total_steps, 1)
-        adaptation_rate = adapted_steps / max(total_steps, 1)
-
-        # Calculate round variance
-        round_success_rates = [
-            r.passed_steps / max(r.total_steps, 1)
-            for r in self.round_reports
-        ]
-        max_variance = max(round_success_rates) - min(round_success_rates) if len(round_success_rates) > 1 else 0
-
-        # Calculate redundancy statistics
-        redundancy_by_type: Dict[str, int] = {}
-        redundant_count = 0
-        estimated_time_saved = 0
-
-        for round_report in self.round_reports:
-            for step_result in round_report.step_results:
-                if step_result.redundancy_check and step_result.redundancy_check.is_redundant:
-                    redundant_count += 1
-                    rtype = step_result.redundancy_check.redundancy_type.value
-                    redundancy_by_type[rtype] = redundancy_by_type.get(rtype, 0) + 1
-                    # 估算节省的时间（冗余步骤不需要执行）
-                    estimated_time_saved += step_result.execution_time_ms
-
-        summary = ReportSummary(
-            overall_success_rate=success_rate,
-            adaptation_rate=adaptation_rate,
-            max_round_variance=max_variance,
-            average_execution_time_ms=sum(
-                sum(s.execution_time_ms for s in r.step_results)
-                for r in self.round_reports
-            ) // max(total_steps, 1),
-            total_anomalies_detected=self.total_anomalies,
-            total_adaptations_applied=self.total_adaptations,
-            total_steps_checked=total_steps,
-            redundant_steps_count=redundant_count,
-            redundant_steps_by_type=redundancy_by_type,
-            estimated_time_saved_ms=estimated_time_saved
+    async def _generate_agentic_report(self) -> VerificationReport:
+        """Generate a qualitative report using Agent reasoning"""
+        analysis = await self.reasoning_engine.analyze_results(
+            reports=self.round_reports,
+            macro_script=self.current_macro
         )
 
-        # Generate issues
-        issues = self._identify_issues()
-
-        # Generate recommendations
-        recommendations = self._generate_recommendations(summary, issues)
+        # Calculate quantitative summary for reference
+        summary = self._calculate_basic_summary()
+        summary.total_anomalies_detected = self.total_anomalies
+        summary.total_adaptations_applied = self.total_adaptations
+        
+        # Store for response
+        self._analysis_result = analysis
 
         return VerificationReport(
             summary=summary,
             rounds=self.round_reports,
-            issues=issues,
-            recommendations=recommendations,
-            optimization_stats=optimization_stats
+            issues=analysis.issues,
+            recommendations=analysis.recommendations,
+            qualitative_assessment=analysis.qualitative_assessment
         )
 
-    def _identify_issues(self) -> List[VerificationIssue]:
-        """Identify issues from verification results"""
-        issues = []
-
-        # Group failures by type
-        failure_patterns: Dict[str, List[int]] = {}
-
-        for round_report in self.round_reports:
-            for step_result in round_report.step_results:
-                if step_result.status == StepExecutionStatus.FAILED:
-                    error = step_result.error_message or "unknown"
-                    pattern = error.split(":")[0] if ":" in error else error
-
-                    if pattern not in failure_patterns:
-                        failure_patterns[pattern] = []
-                    failure_patterns[pattern].append(step_result.step_number)
-
-        # Create issues from patterns
-        for pattern, affected_steps in failure_patterns.items():
-            severity = "critical" if len(affected_steps) > 2 else "warning"
-            issues.append(VerificationIssue(
-                severity=severity,
-                category=pattern,
-                description=f"Recurring failure pattern: {pattern}",
-                affected_steps=affected_steps,
-                suggestion=f"Consider adding fallback strategy for {pattern}"
-            ))
-
-        # Check for redundant steps
-        redundant_steps = []
-        for round_report in self.round_reports:
-            for step_result in round_report.step_results:
-                if step_result.redundancy_check and step_result.redundancy_check.is_redundant:
-                    redundant_steps.append(step_result.step_number)
-
-        if redundant_steps:
-            issues.append(VerificationIssue(
-                severity="info",
-                category="redundancy",
-                description=f"Detected {len(redundant_steps)} redundant steps that can be removed",
-                affected_steps=redundant_steps,
-                suggestion="Consider removing low-value actions like mouse_move, duplicate clicks, or zero-duration waits"
-            ))
-
-        # Check for high variance between rounds
-        if len(self.round_reports) > 1:
-            rates = [r.passed_steps / max(r.total_steps, 1) for r in self.round_reports]
-            if max(rates) - min(rates) > 0.3:
-                issues.append(VerificationIssue(
-                    severity="warning",
-                    category="instability",
-                    description="High variance between verification rounds indicates instability",
-                    affected_steps=[],
-                    suggestion="Consider adding more robust waits or state verification"
-                ))
-
-        return issues
-
-    def _generate_recommendations(
-        self,
-        summary: ReportSummary,
-        issues: List[VerificationIssue]
-    ) -> List[str]:
-        """Generate recommendations based on verification results"""
-        recommendations = []
-
-        if summary.adaptation_rate > 0.3:
-            recommendations.append(
-                "High adaptation rate detected. Consider evolving the macro with the applied adaptations."
-            )
-
-        if summary.overall_success_rate < 0.8:
-            recommendations.append(
-                "Success rate below 80%. Recommend using Hybrid or Agentic execution mode."
-            )
-
-        if summary.total_anomalies_detected > len(self.current_macro) * 0.5:
-            recommendations.append(
-                "Many anomalies detected. The UI may be dynamic or unpredictable. "
-                "Consider using more robust selectors or Agentic execution."
-            )
-
-        if any(i.severity == "critical" for i in issues):
-            recommendations.append(
-                "Critical issues found. Manual review recommended before deployment."
-            )
-
-        return recommendations
-
-    def _determine_execution_mode(self) -> ExecutionMode:
-        """Determine recommended execution mode based on verification results"""
-        if not self.round_reports:
-            return ExecutionMode.AGENTIC
-
-        # Calculate metrics
-        total_adapted = sum(r.adapted_steps for r in self.round_reports)
-        total_failed = sum(r.failed_steps for r in self.round_reports)
+    def _calculate_basic_summary(self) -> ReportSummary:
+        """Calculate basic statistics for the summary"""
         total_steps = sum(r.total_steps for r in self.round_reports)
-
-        adaptation_rate = total_adapted / max(total_steps, 1)
-        failure_rate = total_failed / max(total_steps, 1)
-
-        # Determine mode
-        if failure_rate == 0 and adaptation_rate == 0:
-            # Perfect execution
-            return ExecutionMode.DETERMINISTIC
-
-        if adaptation_rate > 0.5 or failure_rate > 0.3:
-            # High instability - needs agent intervention
-            return ExecutionMode.AGENTIC
-
-        if adaptation_rate > 0 or failure_rate > 0:
-            # Some issues but manageable with hybrid approach
-            return ExecutionMode.HYBRID
-
-        return ExecutionMode.DETERMINISTIC
+        passed_steps = sum(r.passed_steps for r in self.round_reports)
+        
+        return ReportSummary(
+            overall_success_rate=passed_steps / max(total_steps, 1),
+            average_execution_time_ms=0 # TODO: Calculate average
+        )
 
     def _build_evolved_macro(self) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """
@@ -951,17 +789,15 @@ class AgentMacroValidator:
         # Phase 0: Filter out redundant steps identified during verification
         filtered_macro = self._filter_redundant_steps_from_macro(self.current_macro)
 
-        if not self.evolution_records:
-            logger.info("[Validator] No evolution records, returning optimized macro")
-            # Run optimizer on filtered macro
-            from app.core.execution.macro.schema import MacroScript
-            optimizer = MacroOptimizer(enable_all_strategies=True)
-            script = MacroScript(steps=filtered_macro)
-            optimized_script, stats = optimizer.optimize(script)
-            optimized_macro = [step.model_dump() if hasattr(step, 'model_dump') else step for step in optimized_script.steps]
-            return optimized_macro, stats.__dict__ if hasattr(stats, '__dict__') else None
-
-        logger.info(f"[Validator] Building evolved macro with {len(self.evolution_records)} records")
+        if not self.evolution_records and not self._redundant_step_numbers:
+            logger.info("[Validator] No evolution records or redundant steps found")
+            # Just optimize the filtered macro directly
+            evolved_macro = filtered_macro
+        else:
+            if self._redundant_step_numbers:
+                logger.info(f"[Validator] Building evolved macro with {len(self.evolution_records)} corrections and {len(self._redundant_step_numbers)} redundant steps removed")
+            else:
+                logger.info(f"[Validator] Building evolved macro with {len(self.evolution_records)} records")
 
         # Collect all step results from all rounds
         all_step_results: List[StepResult] = []
@@ -1033,9 +869,11 @@ class AgentMacroValidator:
                     filtered_sub_steps = []
                     for sub_idx, sub_step in enumerate(sub_steps):
                         # Calculate sub-step number (e.g., 501 for step 5, sub-step 0)
+                        # This MUST match the calculation in _execute_loop_with_adaptation
                         sub_step_num = idx * 100 + sub_idx + 1
+                        sub_step_original_num = sub_step.get('step_number', sub_idx + 1)
                         if sub_step_num in self._redundant_step_numbers:
-                            logger.info(f"[Evolution] Removing redundant sub-step {sub_step_num}: {sub_step.get('event_type', 'unknown')}")
+                            logger.info(f"[Evolution] Removing redundant sub-step {sub_step_num} (original: {sub_step_original_num}): {sub_step.get('event_type', 'unknown')}")
                             removed_count += 1
                             continue
                         filtered_sub_steps.append(sub_step)
@@ -1050,27 +888,6 @@ class AgentMacroValidator:
             logger.info(f"[Evolution] Filtered {removed_count} redundant steps from macro")
 
         return filtered
-
-    def _calculate_confidence_score(self) -> float:
-        """Calculate overall confidence score"""
-        if not self.round_reports:
-            return 0.0
-
-        # Base score from success rate
-        success_rates = [r.passed_steps / max(r.total_steps, 1) for r in self.round_reports]
-        base_score = sum(success_rates) / len(success_rates)
-
-        # Penalty for adaptations needed
-        adaptation_penalty = min(self.total_adaptations / max(len(self.current_macro), 1) * 0.1, 0.2)
-
-        # Penalty for anomalies
-        anomaly_penalty = min(self.total_anomalies / max(len(self.current_macro), 1) * 0.05, 0.1)
-
-        # Consistency bonus
-        consistency_bonus = 0.1 if len(success_rates) > 1 and max(success_rates) - min(success_rates) < 0.2 else 0
-
-        score = base_score - adaptation_penalty - anomaly_penalty + consistency_bonus
-        return max(0.0, min(1.0, score))
 
     def _determine_overall_status(self) -> VerificationStatus:
         """Determine overall verification status"""
@@ -1109,4 +926,3 @@ class AgentMacroValidator:
             rounds_completed=len(self.round_reports),
             error_message=error_message
         )
-

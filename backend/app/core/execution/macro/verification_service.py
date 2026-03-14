@@ -37,7 +37,8 @@ class VerificationService:
         platform: str = "web",
         max_rounds: int = 2,
         auto_evolve: bool = True,
-        thread_id: Optional[str] = None
+        thread_id: Optional[str] = None,
+        stop_on_failure: bool = True
     ) -> Dict[str, Any]:
         """
         Verify a macro script with optional evolution.
@@ -48,6 +49,8 @@ class VerificationService:
             max_rounds: Number of verification rounds
             auto_evolve: Whether to evolve the macro based on results
             thread_id: Optional thread ID for tracking
+            stop_on_failure: If True, stop verification when a step fails.
+                            If False, continue to next step after failure.
 
         Returns:
             Dictionary with verification results and evolved macro
@@ -66,12 +69,16 @@ class VerificationService:
                 "execution_mode": "agentic"
             }
 
-        # Build verification request
+        # Build verification request with agent config
+        from app.core.execution.macro.verification_models import AgentConfig
+        agent_config = AgentConfig(conservative_mode=stop_on_failure)
+
         request = VerificationRequest(
             macro_script=steps,
             target_environment=EnvironmentConfig(platform=platform),
             max_rounds=max_rounds,
-            output_mode="evolved" if auto_evolve else "report_only"
+            output_mode="evolved" if auto_evolve else "report_only",
+            agent_config=agent_config
         )
 
         if thread_id:

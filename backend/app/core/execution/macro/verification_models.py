@@ -36,6 +36,7 @@ class RedundancyType(str, Enum):
     DUPLICATE_ACTION = "duplicate_action"       # 重复动作
     UNNECESSARY_WAIT = "unnecessary_wait"       # 不必要的等待
     ORPHAN_ACTION = "orphan_action"             # 孤立的无效动作
+    NONE = "none"
     UNKNOWN = "unknown"
 
 
@@ -81,7 +82,7 @@ class AgentConfig(BaseModel):
     llm_model: str = "gpt-4o"
     max_retries_per_step: int = 3
     allow_strategy_adaptation: bool = True
-    conservative_mode: bool = False
+    conservative_mode: bool = True  # Default to True to stop on failure
     enable_screenshot_analysis: bool = True
 
 
@@ -195,7 +196,7 @@ class VerificationIssue(BaseModel):
     severity: str = "warning"  # critical / warning / info
     category: str = ""
     description: str = ""
-    affected_steps: List[int] = Field(default_factory=list)
+    affected_steps: List[Union[int, str]] = Field(default_factory=list)
     suggestion: Optional[str] = None
 
 
@@ -240,3 +241,12 @@ class VerificationResponse(BaseModel):
     rounds_completed: int = 0
 
     error_message: Optional[str] = None
+
+
+class AIAnalysisResult(BaseModel):
+    """Result of agentic analysis of verification data"""
+    issues: List[VerificationIssue] = Field(default_factory=list)
+    recommendations: List[str] = Field(default_factory=list)
+    recommended_execution_mode: ExecutionMode = ExecutionMode.AGENTIC
+    confidence_score: float = 0.5
+    qualitative_assessment: str = ""

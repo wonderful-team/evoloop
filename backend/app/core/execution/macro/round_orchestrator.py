@@ -574,12 +574,8 @@ class RoundOrchestrator:
                 if injector.can_apply(modified_step, context):
                     # Apply based on intensity
                     if random.random() < intensity:
-                        modified_step = injector.apply(
-                            modified_step, context, intensity
-                        )
-                        logger.debug(
-                            f"[Orchestrator] Applied {injector.get_name()} to step {step.get('step_number')}"
-                        )
+                        modified_step = injector.apply(modified_step, context, intensity)
+                        logger.info(f"[Orchestrator] Applied {injector.get_name()} to step {step.get('step_number')}")
 
             modified.append(modified_step)
 

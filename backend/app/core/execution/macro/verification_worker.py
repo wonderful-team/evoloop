@@ -120,7 +120,7 @@ class VerificationWorker:
         source = step.get("source", "dom")
         payload = step.get("payload", {})
 
-        logger.debug(f"[Worker] Executing step: {event_type} ({source}, type={step_type})")
+        logger.info(f"[Worker] Executing step: {event_type} ({source}, type={step_type})")
 
         try:
             # Handle loop type - execute all sub-steps
