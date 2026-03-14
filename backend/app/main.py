@@ -32,6 +32,7 @@ from app.core.learning.discovery import skill_discovery
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database.sql.database import Base, engine
 from app.initial_data import init as init_data, register_config_handlers, init_atlas_config, init_mcp
+from app.core.tools.sidecar_proxy import tool_request_manager
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -303,6 +304,14 @@ async def lifespan(_app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to start Device Watcher: {e}")
 
+    # 9. Sidecar Tool Request Manager
+    if settings.USE_SIDECAR_FOR_TOOLS:
+        try:
+            await tool_request_manager.start()
+            logger.info("[Sidecar] Tool request manager started")
+        except Exception as e:
+            logger.warning(f"[Sidecar] Failed to start tool request manager: {e}")
+
     yield
 
     # --- Shutdown ---
@@ -342,6 +351,14 @@ async def lifespan(_app: FastAPI):
             await evocloud_manager.link.stop()
     except Exception as e:
         logger.warning(f"Failed to stop EvoLoop Link: {e}")
+
+    # Stop Sidecar Tool Request Manager
+    if settings.USE_SIDECAR_FOR_TOOLS:
+        try:
+            await tool_request_manager.stop()
+            logger.info("[Sidecar] Tool request manager stopped")
+        except Exception as e:
+            logger.warning(f"[Sidecar] Failed to stop tool request manager: {e}")
 
     if db_pool:
         await db_pool.close()

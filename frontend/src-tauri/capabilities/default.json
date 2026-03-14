@@ -93,6 +93,11 @@
           "name": "uv",
           "cmd": "uv",
           "args": true
+        },
+        {
+          "sidecar": true,
+          "name": "binaries/evoloop-client",
+          "args": true
         }
       ]
     }

@@ -46,8 +46,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "resources": {
+      "../../client": "client"
+    },
     "externalBin": [
-      "binaries/evoloop-backend"
+      "binaries/evoloop-client"
     ]
   }
 }

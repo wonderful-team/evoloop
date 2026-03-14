@@ -1,0 +1,288 @@
+{
+    "tasks": {
+        "execution_instruction": "\n**目标**：实现以下任务。\n**标题**：{title}\n**描述**：{desc}\n\n**上下文与约束**：\n- **关键模块**：{key_modules}\n- **技术挑战**：{tech_challenges}\n- **交付成果**：{deliverables}\n- **实现复杂度**：{complexity}\n\n请分析需求，制定变更计划并执行实现。\n请务必遵循项目结构和代码规范。\n"
+    },
+    "documenter": {
+        "page_generation": "请撰写一份关于 {topic} 的详细技术文档。目标文件名为 {filename}。\n\n重要：请使用中文编写文档内容，确保专业、清晰。",
+        "approval_request": "根据您的项目结构，我设计了以下 Wiki 结构：\n\n{plan_summary}\n\n您希望我开始生成这些文件吗？",
+        "success": "Wiki 生成完成。\n已创建页面：\n{pages}",
+        "error": "文档规划出错：{error}",
+        "error_loading_plan": "加载待定计划出错。请重试。",
+        "plan_cancelled": "用户取消了文档规划。",
+        "hitl_action_description": "根据项目结构创建 Wiki 文档",
+        "hitl_details_label": "**建议的文件结构：**\n\n{plan_md}",
+        "hitl_consequences": "这将在 `docs/wiki/` 中创建 {count} 个新文件。同名现有文件将被覆盖。"
+    },
+    "finish": {
+        "brain_update": "\n\n🧠 **大脑更新**: 已保存 {count} 个新概念到记忆库: {concepts}",
+        "proactive_reminder": "\n\n📝 **主动提醒**: 已添加待办事项: '{title}'"
+    },
+    "chat": {
+        "lang_instruction": "\n用户语言偏好: {language}\n请使用该语言进行交流。"
+    },
+    "wiki": {
+        "doc_generation": "\n你是一位技术文档专家。请为以下代码实体编写详细的文档章节。\n\n实体: {entity_name} ({entity_type})\n文件: {file_path}\n\n代码:\n```{lang}\n{code_snippet}\n```\n\n格式要求:\n- **概述**: 这个实体的功能是什么？\n- **用法**: 如何使用它？\n- **细节**: 关键逻辑或算法说明。\n- 请使用 Markdown 格式。\n",
+        "fallback": {
+            "overview": "项目概览",
+            "architecture": "架构说明",
+            "setup": "安装与配置"
+        },
+        "generated_content": {
+            "relevant_files": "相关源文件",
+            "files_used": "生成此页面使用了以下文件作为上下文："
+        },
+        "error_generating_content": "生成内容错误：{error}",
+        "generation_queued": "Wiki 生成已排队 (Celery)"
+    },
+    "deep_research": {
+        "protocol": "\n<language_protocol>\nUser Language: {user_lang}\n请务必使用中文（{user_lang}）编写你的计划、更新和结论。\n</language_protocol>\n",
+        "error_no_topic": "错误：未提供研究主题。",
+        "error_failed": "深度研究过程中出错：{error}"
+    },
+    "supervisor": {
+        "status_analyzing": "正在分析上下文...",
+        "no_active_plan": "未找到活动计划。如果任务复杂，请创建一个计划。"
+    },
+    "tester": {
+        "report_header": "测试报告解析结果：\n失败：{failures}\n详情：\n{details}",
+        "report_pass": "测试报告：全部通过。",
+        "handoff_header": "### SUPERVISOR 交接上下文（注意力引导）",
+        "handoff_msg": "Supervisor 为您标识了 {count} 个重点文件。我已预读它们：",
+        "file_missing": "- [缺失] {path} (Supervisor 指向了不存在的文件)",
+        "file_skipped": "- [跳过] {path} (文件过大 {size}b - 如有需要请手动读取)"
+    },
+    "common": {
+        "tool_not_found": "错误：找不到工具 {name}。",
+        "tool_execution_error": "执行工具 {name} 时出错：{error}",
+        "pronouns": [
+            "它",
+            "这个",
+            "那个",
+            "它们"
+        ],
+        "risk_levels": {
+            "low": "低",
+            "medium": "中",
+            "high": "高",
+            "critical": "严重"
+        }
+    },
+    "optimizer": {
+        "task_name": "提示优化",
+        "status_correction": "已应用自我修正"
+    },
+    "skill_executor": {
+        "task_matching": "技能匹配",
+        "status_identified": "识别到技能：{name}",
+        "task_executing": "正在执行技能：{name}",
+        "skill_not_found": "未找到技能 {id}",
+        "parse_failed": "解析技能步骤失败",
+        "step_success": "步骤 {i} ({action})：成功\n输出：{output}",
+        "step_failed": "步骤 {i} ({action})：失败 - {error}",
+        "step_skipped": "步骤 {i} ({action})：跳过 - 未找到工具"
+    },
+    "learning": {
+        "synthesis_lang_constraint": "\n\n重要提示：用户的首选语言是 {lang}。请确保生成的 'description' 字段以及任何自然语言文本都使用 {lang} 撰写。"
+    },
+    "memory": {
+        "pruned_output": "[已修剪的工具输出：移除旧的工具执行结果以节省上下文]",
+        "summarizer_error": "无法生成摘要，请稍后重试。"
+    },
+    "adaptive_llm": {
+        "summarize_prompt": "请简要总结以下内容：\n{input}"
+    },
+    "core_utils": {
+        "orphaned_tool": "正在执行工具...",
+        "conversation_continuation": "...延续对话上下文..."
+    },
+    "orchestration": {
+        "skill_not_found": "未找到技能 '{name}'。可用技能：{available}",
+        "delegation_failed": "委派给 {name} 失败：{error}",
+        "available_skills": "可用代理技能：{skills}"
+    },
+    "trace_parser": {
+        "task_trace": "任务追踪：{name}",
+        "thread_id": "线程 ID",
+        "total_steps": "总步骤数",
+        "human_intervention": "人工干预",
+        "steps_header": "执行步骤",
+        "step_title": "步骤 {number} {icon} [{category}]",
+        "action": "动作",
+        "args": "参数",
+        "ui_element": "UI 元素",
+        "screenshot": "截图",
+        "user_feedback": "用户反馈",
+        "yes": "是",
+        "no": "否",
+        "header_template": "# 任务追踪：{name}\n\n**线程 ID**: {thread_id}\n**总步骤数**: {total_steps}\n**人工干预**: {has_human}\n\n## 执行步骤\n",
+        "step_template": "### 步骤 {number} {icon} [{category}]\n- **动作**: `{action_name}`\n{args_section}{ui_section}{feedback_section}\n"
+    },
+    "evoloop_logger": {
+        "thinking": "思考中...",
+        "unknown_tool": "未知工具",
+        "running_tool": "正在运行 {tool}...\n输入：{input}",
+        "file_output": "文件：{path} (行数：{count})",
+        "truncated_output": "{preview}\n...\n[已截断 {lines} 行 / {chars} 字符]",
+        "read_summary": "已读取 {path} ({count} 行)",
+        "list_summary": "已列出 {path} ({count} 项)"
+    },
+    "database_logger": {
+        "decision": "**决策：** 路由至 `{node}`",
+        "analysis": "\n**分析：** {analysis}",
+        "tool_summary": {
+            "read_file": "正在读取 '{path}'",
+            "read_file_result": "已读取 {lines} 行。",
+            "write_file": "正在写入 '{path}'",
+            "file_op_result": "文件操作成功。",
+            "plan_created": "计划已创建，包含 {count} 个步骤。",
+            "edit_file": "正在编辑 '{path}'",
+            "list_files": "正在列出 '{path}'",
+            "operate_file": "{action} '{path}'",
+            "search_code": "正在搜索代码 '{query}'",
+            "ask_user": "询问用户：{prompt}",
+            "bash": "正在运行命令 '{command}'",
+            "task_boundary": "任务状态更新：{TaskName}",
+            "run_macro": "正在执行宏：{skill_name}",
+            "manage_git": "Git 操作：{action}",
+            "manage_memory": "记忆管理：{action}",
+            "consult_architecture": "查看架构：{path}",
+            "use_mcp": "启用 MCP 服务：{server_name}",
+            "default": "正在运行 {tool}"
+        },
+        "ref_search": "搜索：{query}",
+        "ref_memory": "记忆项"
+    },
+    "actions": {
+        "navigate": {"label": "导航", "desc": "导航到指定 URL"},
+        "back": {"label": "后退", "desc": "返回上一页/屏幕"},
+        "forward": {"label": "前进", "desc": "前进到下一页"},
+        "reload": {"label": "刷新", "desc": "重新加载当前页面"},
+        "click": {"label": "点击", "desc": "点击目标元素或坐标"},
+        "double_click": {"label": "双击", "desc": "双击目标元素或坐标"},
+        "hover": {"label": "悬停", "desc": "悬停在元素上方"},
+        "input": {"label": "输入", "desc": "在字段中输入文本"},
+        "key_press": {"label": "按键", "desc": "按下特定键或组合键"},
+        "scroll": {"label": "滚动", "desc": "滚动页面或元素"},
+        "drag_drop": {"label": "拖拽", "desc": "拖拽元素到目标位置"},
+        "wait": {"label": "等待", "desc": "等待指定时长"},
+        "wait_for": {"label": "等待元素", "desc": "等待元素出现或页面加载"},
+        "get_text": {"label": "提取文本", "desc": "从元素提取文本内容"},
+        "get_elements": {"label": "提取元素列表", "desc": "提取匹配选择器的元素列表"},
+        "get_attribute": {"label": "提取属性", "desc": "从元素提取特定属性"},
+        "screenshot": {"label": "截图", "desc": "截取当前视图"},
+        "gui_extract": {"label": "智能提取", "desc": "使用 OCR 从 GUI 区域提取文本"},
+        "get_clipboard": {"label": "获取剪贴板", "desc": "读取系统剪贴板文本"},
+        "open_app": {"label": "打开应用", "desc": "按名称或包名打开应用"},
+        "close_app": {"label": "关闭应用", "desc": "关闭当前活动应用"},
+        "home": {"label": "主屏幕", "desc": "返回主屏幕"},
+        "back_key": {"label": "物理后退键", "desc": "按下物理后退按钮"},
+        "applescript": {"label": "AppleScript", "desc": "执行 AppleScript 代码片段"},
+        "get_active_app": {"label": "获取活动应用", "desc": "获取当前活动应用信息"},
+        "dump_ui": {"label": "转储 UI", "desc": "转储当前 UI 层级结构"},
+        "detect_pagination": {"label": "检测分页", "desc": "检测下一页按钮或指示器"},
+        "scroll_to_bottom": {"label": "滚动到底部", "desc": "滚动到页面底部"}
+    },
+    "domain_tools": {
+        "learning": {
+            "success": "成功从线程 {thread} 学习到技能 '{name}'。\n描述：{desc}\n触发器：{triggers}",
+            "failed": "学习技能失败：{error}",
+            "synthesis": {
+                "instruction": "分析此追踪记录并生成 Agent YAML：\n\n{trace_text}"
+            },
+            "skill_synthesis": {
+                "instruction": "请分析此追踪记录并生成技能 YAML。"
+            }
+        },
+        "learner": {
+            "no_git": "未找到 Git 仓库。跳过基于代码的知识挖掘。",
+            "no_changes": "未发现需要挖掘的未提交更改。",
+            "git_timeout": "Git diff 超时。",
+            "git_error": "读取 git diff 失败：{error}",
+            "extract_error": "提取概念错误：{error}",
+            "harvested_header": "已挖掘概念：",
+            "no_concepts": "未识别到新概念。"
+        },
+        "human_input": {
+            "header_input": "## ⏸️ 请求用户输入",
+            "header_approval": "## 🔐 需要批准",
+            "req_id": "**请求 ID**: `{id}`",
+            "type": "**类型**: {type}",
+            "prompt": "**提示**: {prompt}",
+            "context": "**上下文**: {context}",
+            "options": "**选项**: {options}",
+            "default": "**默认值**: {default}",
+            "paused_input": "⚠️ **工作流已暂停**。等待用户响应。\n前端将显示此请求并收集用户输入。",
+            "paused_approval": "⚠️ **工作流已暂停**。等待用户批准。\n请回复 APPROVE 或 REJECT。",
+            "risk_level": " **风险等级**: {level}",
+            "action": "**操作**: {action}",
+            "details": "**详情**:\n{details}",
+            "consequences": "**潜在后果**:\n{conseq}",
+            "error_options": "错误：当输入类型为 'choice' 时必须提供 'options'",
+            "request_template": "\n## ⏸️ 请求用户输入\n\n**请求 ID**: `{id}`\n**类型**: {type}\n**提示**: {prompt}{context_section}{options_section}{default_section}\n\n---\n⚠️ **工作流已暂停**。等待用户响应。\n前端将显示此请求并收集用户输入。\n",
+            "approval_template": "\n## 🔐 需要批准\n\n**请求 ID**: `{id}`\n{approval_context}\n---\n⚠️ **工作流已暂停**。等待用户批准。\n请回复 APPROVE 或 REJECT。\n"
+        },
+        "manage_todo": {
+            "error_title": "错误：添加待办事项必须提供 'title'。",
+            "error_due_date": "错误：无法解析 due_date '{date}'。请使用 ISO 格式、相对时间（如 '2小时'、'30分钟'）或 '待定'。",
+            "success_add": "待办事项已创建：[{priority}] {title} (ID: {id})",
+            "no_todos": "未找到待办事项。",
+            "error_id": "错误：{action} 操作必须提供 'todo_id'。",
+            "error_not_found": "错误：未找到待办事项 {id}。",
+            "success_update": "待办事项 {id} 已更新。",
+            "success_delete": "待办事项 {id} 已删除。",
+            "error_action": "错误：未知操作。"
+        },
+        "terminal": {
+            "cd_success": "已切换目录至 {path}",
+            "cd_error": "目录未找到：{path} (解析为 {resolved})",
+            "export_success": "已导出 {key}",
+            "export_error": "无效的 export 语法",
+            "timeout": "命令超时。"
+        },
+        "research_report": {
+            "title": "🧠 深度研究报告",
+            "topic": "**主题**: {topic}",
+            "date": "**日期**: {date}",
+            "summary_header": "## 📝 AI 提供的执行摘要",
+            "log_header": "## 🔬 研究过程日志",
+            "log_details": "<summary>点击查看研究步骤验证</summary>",
+            "footer": "*由 EvoLoop 深度研究引擎生成*",
+            "template": "# 🧠 深度研究报告\n**主题**: {topic}\n**日期**: {date}\n{meta_info}\n\n---\n\n## 📝 AI 提供的执行摘要\n{conclusion}\n\n---\n\n## 🔬 研究过程日志\n<details>\n<summary>点击查看研究步骤验证</summary>\n\n{logs_text}\n\n</details>\n\n---\n*由 EvoLoop 深度研究引擎生成*\n"
+        },
+        "wiki": {
+            "source_unavailable": "(源代码不可用)",
+            "system_prompt": "你生成清晰、简洁的技术文档。"
+        },
+        "files": {
+            "resolve_error": "错误：无法解析路径：{path}",
+            "security_violation": "错误：安全违规。路径 '{path}' 超出工作目录 '{root}'。请使用相对路径。",
+            "read_not_found_suggest": "错误：未找到文件 '{path}'。你的意思是该目录下的这些文件之一吗？[{siblings}]",
+            "read_not_found": "错误：未找到文件：{path}",
+            "read_error": "读取文件错误：{error}",
+            "write_content_required": "错误：{action} 操作需要 'content' 参数。",
+            "write_success": "成功写入 {path}",
+            "write_error": "写入文件错误：{error}",
+            "edit_args_required": "错误：update_block 需要 'target' 和 'content' (替换内容) 参数。",
+            "edit_target_short": "错误：目标块太短 (必须 > 2 个字符)。如果要替换非常短的字符串，请提供周围的上下文。",
+            "edit_not_found": "错误：未找到文件：{path}",
+            "edit_multiple_found": "错误：发现目标片段 {count} 次。请包含更多上下文使其唯一。",
+            "edit_success": "成功更新 {path}",
+            "edit_success_log": "成功更新 {path}\n(注: {log})",
+            "edit_fallback_failed": "错误：未找到目标片段 (严格模式)。鲁棒回退失败：{log}",
+            "edit_error": "更新期间错误：{error}",
+            "fs_create_dir_success": "成功创建目录：{path}",
+            "fs_create_dir_error": "创建目录错误：{error}",
+            "fs_not_found": "错误：路径未找到：{path}",
+            "fs_delete_dir_success": "成功删除目录：{path}",
+            "fs_delete_file_success": "成功删除文件：{path}",
+            "fs_delete_error": "删除路径错误：{error}",
+            "fs_move_content_required": "错误：移动操作需要 'content' (目标路径) 参数。",
+            "fs_move_resolve_error": "错误：无法解析目标：{path}",
+            "fs_move_security_error": "错误：安全违规。目标 '{path}' 超出工作目录。",
+            "fs_move_src_not_found": "错误：源路径未找到：{path}",
+            "fs_move_success": "成功将 '{src}' 移动到 '{dest}'",
+            "fs_move_error": "移动路径错误：{error}",
+            "fs_unknown_action": "错误：未知文件系统操作 {action}"
+        }
+    }
+}

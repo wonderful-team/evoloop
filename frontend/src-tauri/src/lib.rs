@@ -1,3 +1,4 @@
+use tauri::Emitter;
 use tauri::Manager;
 use tauri::menu::MenuItem;
 use tauri::tray::TrayIcon;
@@ -10,6 +11,9 @@ use std::sync::{Arc, Mutex};
 use tauri_plugin_shell::process::CommandChild;
 #[cfg(desktop)]
 use tauri_plugin_shell::ShellExt;
+
+use crate::sidecar::SidecarClient;
+use crate::proxy::ProxyState;
 
 // Marker overlay window management
 #[cfg(desktop)]
@@ -25,7 +29,9 @@ mod global_observer;
 use global_observer::GlobalObserver;
 
 mod commands;
+mod proxy;
 mod screen_recorder;
+mod sidecar;
 mod tray;
 
 // ===== App State =====
@@ -48,6 +54,10 @@ pub struct AppServiceState {
     pub countdown: Arc<AtomicI32>,
     // Event count from frontend (DOM + Global events)
     pub event_count: Arc<AtomicUsize>,
+    // Sidecar Client (Python process)
+    pub sidecar_client: Arc<Mutex<Option<SidecarClient>>>,
+    // Proxy State for Server-Client communication
+    pub proxy_state: Arc<ProxyState>,
 }
 
 // ===== Trivial Command =====
@@ -269,12 +279,15 @@ async fn update_android_marker_position(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(desktop)]
-    std::panic::set_hook(Box::new(|info| {
+    {
+        env_logger::init();
+        std::panic::set_hook(Box::new(|info| {
         let msg = format!("Panic occurred: {:?}", info);
         println!("{}", msg);
         // Try to write to a file in the current working directory
         let _ = std::fs::write("panic.log", msg);
     }));
+    }
 
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_http::init())
@@ -311,6 +324,8 @@ pub fn run() {
                 is_preparing: Arc::new(AtomicBool::new(false)),
                 countdown: Arc::new(AtomicI32::new(0)),
                 event_count: Arc::new(AtomicUsize::new(0)),
+                sidecar_client: Arc::new(Mutex::new(None)),
+                proxy_state: Arc::new(ProxyState::new()),
             };
             _app.manage(service_state);
 
@@ -320,73 +335,49 @@ pub fn run() {
             let state = _app.state::<AppServiceState>();
             *state.tray.lock().unwrap() = Some(tray);
 
-            let _shell = _app.shell();
+            // Start Sidecar Client (Python)
+            let mut sidecar_client = SidecarClient::new();
+            match sidecar_client.start(_app.handle(), None) {
+                Ok(_) => {
+                    log::info!("Sidecar Client started successfully");
+                    // Store the client
+                    *state.sidecar_client.lock().unwrap() = Some(sidecar_client);
 
-            // Start Web Server
-            // Sidecar: evoloop-backend api
-            /* COMMENTED OUT FOR DEBUGGING
-            let cmd = shell.sidecar("evoloop-backend")
-                .expect("failed to create sidecar command")
-                .args(["api"]);
-                
-            if let Ok((mut rx, child)) = cmd.spawn() {
-                state.children.lock().unwrap().push(child);
-                
-                let app_handle = _app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    use tauri_plugin_shell::process::CommandEvent;
-                    use tauri::Emitter;
+                    // Wait for Client ready and start proxy
+                    let client_arc = state.sidecar_client.clone();
+                    let app_handle = _app.handle().clone();
+                    let proxy_state = state.proxy_state.clone();
 
-                    while let Some(event) = rx.recv().await {
-                        match event {
-                            CommandEvent::Stdout(line) => {
-                                let text = String::from_utf8_lossy(&line).to_string();
-                                println!("[API] {}", text);
-                                let _ = app_handle.emit("backend-log", text);
+                    tauri::async_runtime::spawn(async move {
+                        let client_opt = {
+                            let lock = client_arc.lock().unwrap();
+                            lock.clone()
+                        };
+
+                        if let Some(client) = client_opt {
+                            match client.wait_for_ready(30).await {
+                                Ok(_) => {
+                                    log::info!("Client is ready for commands");
+                                    let _ = app_handle.emit("client-ready", ());
+
+                                    // Start proxy polling for Server requests
+                                    *proxy_state.is_running.lock().unwrap() = true;
+                                    proxy::start_proxy_polling(app_handle.clone());
+                                    log::info!("Server-Client proxy polling started");
+                                }
+                                Err(e) => {
+                                    log::error!("Client failed to become ready: {}", e);
+                                    let _ = tauri::Emitter::emit(&app_handle, "client-error", e);
+                                }
                             }
-                            CommandEvent::Stderr(line) => {
-                                let text = String::from_utf8_lossy(&line).to_string();
-                                eprintln!("[API ERR] {}", text);
-                                let _ = app_handle.emit("backend-log", text);
-                            }
-                            _ => {}
                         }
-                    }
-                });
+                    });
+                }
+                Err(e) => {
+                    log::error!("Failed to start Sidecar Client: {}", e);
+                    let _ = _app.emit("client-error", e);
+                }
             }
-
-            // Start Celery Worker
-            // Sidecar: evoloop-backend worker
-            let cmd_celery = shell.sidecar("evoloop-backend")
-                .expect("failed to create sidecar command")
-                .args(["worker"]);
-                
-            if let Ok((mut rx, child)) = cmd_celery.spawn() {
-                state.children.lock().unwrap().push(child);
-                
-                let app_handle = _app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    use tauri_plugin_shell::process::CommandEvent;
-                    use tauri::Emitter;
-                    
-                    while let Some(event) = rx.recv().await {
-                        match event {
-                            CommandEvent::Stdout(line) => {
-                                let text = String::from_utf8_lossy(&line).to_string();
-                                println!("[WORKER] {}", text);
-                                let _ = app_handle.emit("backend-log", text);
-                            }
-                            CommandEvent::Stderr(line) => {
-                                let text = String::from_utf8_lossy(&line).to_string();
-                                eprintln!("[WORKER ERR] {}", text);
-                                let _ = app_handle.emit("backend-log", text);
-                            }
-                            _ => {}
-                        }
-                    }
-                });
-            }
-            */
         }
         Ok(())
     });
@@ -439,6 +430,16 @@ pub fn run() {
             show_main_window,
             commands::window::get_window_bounds_by_title,
             commands::window::get_mirror_window_bounds,
+            // Sidecar commands
+            commands::sidecar::sidecar_execute_tool,
+            commands::sidecar::sidecar_is_ready,
+            commands::sidecar::sidecar_get_status,
+            commands::sidecar::sidecar_read_file,
+            commands::sidecar::sidecar_write_file,
+            commands::sidecar::sidecar_shell,
+            commands::sidecar::sidecar_list_dir,
+            commands::sidecar::sidecar_init,
+            commands::sidecar::sidecar_restart,
         ])
         .build(tauri::generate_context!())
         .expect("error while building tauri application");
@@ -458,6 +459,11 @@ pub fn run() {
             let state = app_handle.state::<AppServiceState>();
             // Stop global observer
             state.global_observer.stop();
+
+            // Stop sidecar client
+            if let Some(client) = state.sidecar_client.lock().unwrap().take() {
+                let _ = client.stop();
+            }
 
             let mut children = state.children.lock().unwrap();
             while let Some(child) = children.pop() {

@@ -108,7 +108,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='evoloop-backend',
+    name='evoloop-client',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

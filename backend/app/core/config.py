@@ -309,6 +309,15 @@ class Settings(BaseSettings):
     TREE_VIEW_MAX_LINES: int = 1500
     RECURSION_LIMIT: int = 100  # Default LangGraph recursion limit
 
+    # --- Sidecar Configuration ---
+    # When True, local tools (file, shell) are executed via Tauri -> Client sidecar
+    # When False, tools execute directly on Server (legacy mode)
+    USE_SIDECAR_FOR_TOOLS: bool = False
+    # Tauri HTTP callback URL (where Server sends tool request notifications)
+    TAURI_CALLBACK_URL: str = "http://localhost:3000"  # Default Tauri dev server
+    # Timeout for sidecar tool execution (seconds)
+    SIDECAR_TOOL_TIMEOUT: int = 300
+
     # Meta-Evolution
     # ENABLE_SELF_EVOLUTION removed
 

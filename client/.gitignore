@@ -1,0 +1,15 @@
+__pycache__
+app.egg-info
+*.pyc
+.mypy_cache
+.coverage
+htmlcov
+.cache
+.venv
+/build/
+*.db
+!*.db.example
+/.idea/
+/logs/
+/.claude/
+/storage/

@@ -1,0 +1,174 @@
+from typing import Any
+
+from sqlalchemy import select
+
+from app.domain.codebase.retrieval.rewriter import query_rewriter
+from app.infrastructure.database.sql.database import AsyncSessionLocal
+from app.infrastructure.embeddings.factory import EmbedderFactory
+from app.models import CodeChunk, Repository, SourceFile
+
+
+class HybridSearcher:
+    """
+    Combines Vector Search (Semantic) and Keyword Search (Lexical) using RRF.
+    """
+
+    def __init__(self, embedder=None):
+        self.session_factory = AsyncSessionLocal
+        self.embedder = embedder or EmbedderFactory.get_embedder()
+
+    async def search(
+        self, query: str, project_id: int = None, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        # 1. Expand Query (for Vector Search mainly, but keywords also useful)
+        # For keyword search, we might want the original term + synonyms, but 'rewritten' usually is a sentence.
+        # Let's use the rewritten query for Vector, and extract keywords from it or usage original?
+        # Better: Usage rewritten for Vector. Usage Original + extra keywords for Lexical?
+        # Simple start: Usage rewriten for Vector. Usage Original for Lexical.
+
+        expanded_query = await query_rewriter.rewrite(query)
+
+        # 2. Parallel Search (Simulated via sequential await for now)
+        vector_results = await self._vector_search(
+            expanded_query, project_id, limit=limit * 2
+        )
+        keyword_results = await self._keyword_search(query, project_id, limit=limit * 2)
+
+        # 3. RRF Fusion
+        fused = self._rrf_fusion(vector_results, keyword_results, k=60)
+
+        # 4. Format Output
+        return fused[:limit]
+
+    async def _vector_search(
+        self, query: str, project_id: int, limit: int
+    ) -> list[dict]:
+        """Vector search using LanceDB (client-only)."""
+        query_embedding = await self.embedder.embed_query(query)
+
+        # Use LanceDB (client-only)
+        try:
+            from app.infrastructure.vector.lance_store import get_vector_store
+
+            vector_store = get_vector_store()
+            lance_results = vector_store.search_code(
+                query_vector=query_embedding,
+                top_k=limit,
+                repository_id=str(project_id) if project_id else None
+            )
+
+            # Convert LanceDB results to expected format
+            results = []
+            for r in lance_results:
+                results.append({
+                    "id": r["id"],
+                    "file_path": r["file_path"],
+                    "identifier": r["identifier"],
+                    "content": r["content"],
+                    "chunk_type": r["chunk_type"],
+                    "score": r["score"],
+                })
+            return results
+        except Exception as e:
+            # Fallback to keyword search if LanceDB fails
+            return []
+
+    async def _keyword_search(
+        self, query: str, project_id: int, limit: int
+    ) -> list[dict]:
+        # Simple ILIKE or pg_trgm
+        # We assume pg_trgm is enabled for 'content' or we usage ILIKE for portability if not.
+        # Let's usage ILIKE for robustness if pg_trgm not strictly guaranteed yet.
+        # Split query into terms?
+        terms = [t for t in query.split() if len(t) > 2]  # Filter noise
+        if not terms:
+            terms = [query]
+
+        async with self.session_factory() as session:
+            stmt = (
+                select(CodeChunk, SourceFile)
+                .join(SourceFile)
+                .join(Repository, SourceFile.repository_id == Repository.id)
+            )
+
+            # Note: project_id can be 0 (global mode), skip filter in that case
+            if project_id is not None and project_id != 0:
+                stmt = stmt.where(Repository.project_id == project_id)
+
+            # Construct OR condition for terms
+            # usage 'op' for boolean logic?
+            # Basic: content ILIKE %term%
+            # For ranking, we can usage logic: exact match > partial match?
+            # PostgreSQL full text search (tsvector) is better but requires migration.
+            # Fallback: Just search for the full query string or main terms.
+
+            conditions = []
+            for term in terms:
+                conditions.append(CodeChunk.content.ilike(f"%{term}%"))
+
+            from sqlalchemy import or_
+
+            if conditions:
+                stmt = stmt.where(or_(*conditions))
+
+            stmt = stmt.limit(limit)
+
+            rows = (await session.execute(stmt)).all()
+
+            results = []
+            for chunk, file in rows:
+                results.append(
+                    {
+                        "id": chunk.id,
+                        "file_path": file.path,
+                        "identifier": chunk.identifier,
+                        "content": chunk.content,
+                        "chunk_type": chunk.chunk_type,
+                        "score": 1.0,  # Base score for keyword match
+                    }
+                )
+            return results
+
+    def _rrf_fusion(
+        self, vector_results: list[dict], keyword_results: list[dict], k: int = 60
+    ) -> list[dict]:
+        """
+        Reciprocal Rank Fusion.
+        score = sum(1 / (k + rank_i))
+        """
+        scores = {}
+        # metadata = {}
+        # Map ID to item
+        items_map = {}
+
+        # 1. Process Vector Ranks
+        for rank, item in enumerate(vector_results):
+            doc_id = item["id"]
+            if doc_id not in items_map:
+                items_map[doc_id] = item
+
+            scores[doc_id] = scores.get(doc_id, 0) + (1 / (k + rank + 1))
+
+        # 2. Process Keyword Ranks
+        for rank, item in enumerate(keyword_results):
+            doc_id = item["id"]
+            if doc_id not in items_map:
+                items_map[doc_id] = item
+
+            scores[doc_id] = scores.get(doc_id, 0) + (1 / (k + rank + 1))
+
+        # 3. Sort by fused score
+        sorted_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+
+        results = []
+        for doc_id in sorted_ids:
+            item = items_map[doc_id]
+            # Optionally attach score metadata
+            # item["rrf_score"] = scores[doc_id]
+            results.append(item)
+
+        return results
+
+
+# Global Instance
+hybrid_searcher = HybridSearcher()

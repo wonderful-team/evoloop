@@ -1,0 +1,53 @@
+import json
+import logging
+
+from app.core.context.manager import ContextManager
+from app.core.evocloud import evocloud_manager
+from app.core.tools import evoloop_tool
+
+logger = logging.getLogger(__name__)
+
+
+@evoloop_tool(is_state_mutating=True)
+async def create_project_task(project_id: int | None = None, task_data: str = "") -> str:
+    """
+    Create a task in the remote project management system via EvoCloud.
+
+    Args:
+        project_id (int): The ID of the project to add the task to. Optional.
+        task_data (str): JSON string representation of the task data (title, desc, priority, etc.).
+    """
+    # Resolve project_id: explicit > context > default
+    # Note: project_id can be 0 (global mode), so check for None explicitly
+    ctx_pid = ContextManager.current().project_id
+    if project_id is not None:
+        pid = project_id
+    elif ctx_pid is not None:
+        pid = ctx_pid
+    else:
+        pid = 1  # Default fallback
+
+    try:
+        # Parse task data if it's a string
+        if isinstance(task_data, str):
+            try:
+                task_dict = json.loads(task_data)
+            except json.JSONDecodeError:
+                return "Error: task_data is not valid JSON."
+        else:
+            task_dict = task_data  # Should ideally be str per type hint, but safe fallback
+
+        # Ensure project_id is set
+        task_dict["project_id"] = pid
+
+        # Call EvoCloud Client (Business Logic) - Async
+        response = await evocloud_manager.api.create_task(data=task_dict)
+
+        if response.get("code") == 0:
+            return f"Success: Task created with ID {response.get('data', {}).get('task_id')}"
+        else:
+            return f"Failed: {response.get('message')}"
+
+    except Exception as e:
+        logger.error(f"Task creation failed: {e}")
+        return f"Error preparing task creation: {str(e)}"

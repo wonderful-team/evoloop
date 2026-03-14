@@ -1,0 +1,42 @@
+
+# Base image: Python 3.11 (Debian Bookworm)
+FROM python:3.11-bookworm
+
+# Prevent writing pyc files and buffering stdout
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install common development tools
+# - build-essential: for compiling C extensions
+# - git, curl, wget, unzip, zip: basic utils
+# - nodejs, npm: for frontend tasks
+# - procps: ps command
+# - iputils-ping, net-tools: networking
+# - vim, nano: editors (optional for agent but good for debug)
+# - jq: JSON processing
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    curl \
+    wget \
+    unzip \
+    zip \
+    nodejs \
+    npm \
+    procps \
+    iputils-ping \
+    net-tools \
+    vim \
+    nano \
+    jq \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install common python tools
+RUN pip install --no-cache-dir pip setuptools wheel \
+    && pip install --no-cache-dir uv ruff pytest black isort mypy pandas numpy requests
+
+# Set workspace
+WORKDIR /workspace
+
+# Default command: keep container alive
+CMD ["tail", "-f", "/dev/null"]
