@@ -208,7 +208,6 @@ class MobileController:
                         if any(normalize_text(k) in txt for k in INTERCEPT_TARGETS):
                             logger.info(f"[Reactor] Intercepted artifact: '{el.text}' at ({el.x}, {el.y})")
                             await asyncio.to_thread(adb_driver.tap, el.x, el.y, device_id=device_id)
-                            await asyncio.sleep(0.5)
                             return True
                 return False
 
@@ -308,7 +307,6 @@ class MobileController:
 
             async def validate_outcome(before_pkg: str, expected_pkg: str | None = None) -> bool:
                 """Phase 4: Post-Action Validation."""
-                await asyncio.sleep(0.8)
                 curr = await cls.get_current_app_cached(device_id=device_id)
                 curr_pkg = curr.get("package")
                 if curr_pkg != before_pkg and expected_pkg and curr_pkg != expected_pkg:
@@ -327,7 +325,6 @@ class MobileController:
                 await flash_intercept(initial_a11y_result)
                 is_h5 = await probe_hybrid(initial_a11y_result)
 
-                retry_delay = 0.2
                 ocr_attempts = 0
                 max_ocr_attempts = 0 if disable_ocr else 2  # Disable OCR if flag is set
                 last_sentinel_check = start_time
@@ -424,9 +421,6 @@ class MobileController:
                         except Exception as e:
                             logger.debug(f"[Mobile] OCR attempt {ocr_attempts} failed: {e}")
 
-                    await asyncio.sleep(retry_delay)
-                    retry_delay = min(retry_delay * 1.5, 1.0)
-
                 return f"ERR_ELEMENT_NOT_FOUND: Could not find element '{name}' on device."
 
             # ── Action dispatch ─────────────────────────────────────────────
@@ -443,7 +437,7 @@ class MobileController:
 
             elif action == "screenshot":
                 filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
-                
+
                 # [Phase 15] Handle Region Cropping (Align with Desktop)
                 if region and filepath and os.path.exists(filepath):
                     try:
@@ -592,7 +586,6 @@ class MobileController:
                     if isinstance(resolved, str):
                         return resolved
                     await asyncio.to_thread(adb_driver.tap, resolved["x"], resolved["y"], device_id=device_id)
-                    await asyncio.sleep(0.5)
                 await asyncio.to_thread(adb_driver.input_text, text, device_id=device_id)
                 return await _post_action_cleanup(
                     "input_text",
@@ -605,7 +598,7 @@ class MobileController:
                 # [Phase 20] Incremental Scrolling for Infinite lists
                 max_scrolls = int(kwargs.get("max_scrolls", 5))
                 scroll_amount = kwargs.get("scroll_amount", "medium")
-                delay_ms = int(kwargs.get("delay_ms", 1000))
+                # Scroll delay removed for faster macro execution
                 
                 # Mapping distance
                 size = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
@@ -644,7 +637,6 @@ class MobileController:
                     # 2. Perform Swipe
                     await asyncio.to_thread(adb_driver.swipe, start_x, start_y, end_x, end_y, duration_ms=400, device_id=device_id)
                     scroll_count += 1
-                    await asyncio.sleep(delay_ms / 1000.0)
                 
                 return await finish_action(f"Scrolled {scroll_count} times.")
 
@@ -669,7 +661,6 @@ class MobileController:
                 # Check for force_stop flag (useful for clean macro starts)
                 if kwargs.get("force_stop") or kwargs.get("restart", False):
                     await asyncio.to_thread(adb_driver.force_stop, text, device_id=device_id)
-                    await asyncio.sleep(0.5)
 
                 is_dynamic = await atlas_engine.is_dynamic_app(text, "android")
                 icon = "🔄" if is_dynamic else "📍"
@@ -742,7 +733,6 @@ class MobileController:
                             if isinstance(resolved, str):
                                 return resolved
                             await asyncio.to_thread(adb_driver.tap, resolved["x"], resolved["y"], device_id=device_id)
-                            await asyncio.sleep(0.3)
                         await asyncio.to_thread(adb_driver.input_text, it["text"], device_id=device_id)
                     return None
 
@@ -750,7 +740,6 @@ class MobileController:
                     if error := await _execute_intent_step(it):
                         return error
                     steps_done += 1
-                    await asyncio.sleep(0.5)
 
                 asyncio.create_task(trigger_atlas_harvest(bundle_id=base_pkg))
                 return await finish_action(f"Successfully executed intent flow with {steps_done} steps.")

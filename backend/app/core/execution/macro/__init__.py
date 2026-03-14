@@ -44,7 +44,6 @@ from app.core.execution.macro.evolution_engine import (
     CoordinateDriftTransformer,
     ElementNotFoundTransformer,
     ElementObscuredTransformer,
-    EvolutionOptimizer,
     EvolutionRule,
     LoadingTimeoutTransformer,
     MacroEvolutionEngine,
@@ -117,7 +116,6 @@ __all__ = [
     "LLMDeepStrategy",
     # Evolution engine (Phase 3)
     "MacroEvolutionEngine",
-    "EvolutionOptimizer",
     "EvolutionRule",
     "StepTransformer",
     "CoordinateDriftTransformer",

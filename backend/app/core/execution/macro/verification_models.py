@@ -27,6 +27,16 @@ class StepExecutionStatus(str, Enum):
     FAILED = "failed"           # 执行失败
     SKIPPED = "skipped"         # 被跳过
     TIMEOUT = "timeout"         # 超时
+    REDUNDANT = "redundant"     # 被识别为冗余
+
+
+class RedundancyType(str, Enum):
+    """冗余类型"""
+    LOW_VALUE_ACTION = "low_value_action"       # 低价值动作（如 mouse_move）
+    DUPLICATE_ACTION = "duplicate_action"       # 重复动作
+    UNNECESSARY_WAIT = "unnecessary_wait"       # 不必要的等待
+    ORPHAN_ACTION = "orphan_action"             # 孤立的无效动作
+    UNKNOWN = "unknown"
 
 
 class AnomalyType(str, Enum):
@@ -90,6 +100,15 @@ class VerificationRequest(BaseModel):
     output_mode: str = "evolved"  # evolved / report_only
 
 
+class RedundancyCheckResult(BaseModel):
+    """冗余检查结果"""
+    is_redundant: bool = False
+    redundancy_type: RedundancyType = RedundancyType.UNKNOWN
+    reason: str = ""
+    similar_to_step: Optional[int] = None  # 如果是重复的，指向哪个步骤
+    suggested_action: str = "keep"  # keep / skip / merge / remove
+
+
 class AdaptationRecord(BaseModel):
     """修正记录"""
     anomaly_type: AnomalyType = AnomalyType.UNKNOWN
@@ -124,6 +143,9 @@ class StepResult(BaseModel):
     # 修正后的实际执行参数（用于宏进化）
     effective_parameters: Optional[Dict[str, Any]] = None
 
+    # 冗余检查信息
+    redundancy_check: Optional[RedundancyCheckResult] = None
+
 
 class RoundReport(BaseModel):
     """单轮验证报告"""
@@ -153,6 +175,12 @@ class ReportSummary(BaseModel):
     total_anomalies_detected: int = 0
     total_adaptations_applied: int = 0
 
+    # 冗余检测统计
+    total_steps_checked: int = 0
+    redundant_steps_count: int = 0
+    redundant_steps_by_type: Dict[str, int] = Field(default_factory=dict)
+    estimated_time_saved_ms: int = 0  # 跳过冗余步骤节省的时间
+
 
 class VerificationIssue(BaseModel):
     """验证问题"""
@@ -169,6 +197,7 @@ class VerificationReport(BaseModel):
     rounds: List[RoundReport] = Field(default_factory=list)
     issues: List[VerificationIssue] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
+    optimization_stats: Optional[Dict[str, Any]] = None  # MacroOptimizer 统计信息
 
 
 class MacroEvolutionRecord(BaseModel):

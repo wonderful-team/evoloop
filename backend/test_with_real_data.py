@@ -558,7 +558,6 @@ async def test_evolution_engine(macro_script: list):
 
     try:
         MacroEvolutionEngine = evolution_module.__dict__.get('MacroEvolutionEngine')
-        EvolutionOptimizer = evolution_module.__dict__.get('EvolutionOptimizer')
 
         if MacroEvolutionEngine is None:
             print("⚠️ MacroEvolutionEngine class not found")
@@ -587,19 +586,24 @@ async def test_evolution_engine(macro_script: list):
         print(f"   - Evolved steps: {metadata['evolved_step_count']}")
         print(f"   - Expansion ratio: {metadata['expansion_ratio']:.2f}x")
 
-        if EvolutionOptimizer:
-            optimizer = EvolutionOptimizer()
-            test_macro = [
-                {"step_number": 1, "event_type": "goto"},
-                {"step_number": 2, "event_type": "wait", "payload": {"duration_ms": 1000}},
-                {"step_number": 3, "event_type": "wait", "payload": {"duration_ms": 500}},
-                {"step_number": 4, "event_type": "click"},
-            ]
-            optimized = optimizer.optimize(test_macro)
+        # Test MacroOptimizer (replaces EvolutionOptimizer)
+        from app.core.execution.macro.optimizer import MacroOptimizer
+        from app.core.execution.macro.schema import MacroScript, MacroStep
 
-            print(f"✅ Evolution optimizer works")
-            print(f"   - Before: {len(test_macro)} steps")
-            print(f"   - After: {len(optimized)} steps")
+        optimizer = MacroOptimizer(enable_all_strategies=True)
+        test_steps = [
+            MacroStep(step_number=1, type="action", event_type="goto", source="dom", payload={}),
+            MacroStep(step_number=2, type="action", event_type="wait", source="dom", payload={"duration_ms": 1000}),
+            MacroStep(step_number=3, type="action", event_type="wait", source="dom", payload={"duration_ms": 500}),
+            MacroStep(step_number=4, type="action", event_type="click", source="dom", payload={}),
+        ]
+        script = MacroScript(steps=test_steps)
+        optimized_script, stats = optimizer.optimize(script)
+
+        print(f"✅ Macro optimizer works")
+        print(f"   - Before: {len(test_steps)} steps")
+        print(f"   - After: {len(optimized_script.steps)} steps")
+        print(f"   - Merged: {stats.merged_steps} steps")
 
         return True
 

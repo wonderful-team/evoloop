@@ -6,7 +6,6 @@ import pytest
 
 from app.core.execution.macro import (
     MacroEvolutionEngine,
-    EvolutionOptimizer,
     CoordinateDriftTransformer,
     ElementNotFoundTransformer,
     ElementObscuredTransformer,
@@ -16,6 +15,8 @@ from app.core.execution.macro import (
     MacroEvolutionRecord,
     AnomalyType,
 )
+from app.core.execution.macro.optimizer import MacroOptimizer
+from app.core.execution.macro.schema import MacroScript
 
 
 class TestMacroEvolutionEngine:
@@ -236,62 +237,68 @@ class TestStepTransformers:
         assert any(s.get("type") == "verify" for s in evolved_steps)
 
 
-class TestEvolutionOptimizer:
-    """Test evolution optimizer"""
+class TestMacroOptimizer:
+    """Test macro optimizer (replaces EvolutionOptimizer)"""
 
     def test_merge_consecutive_waits(self):
         """Test merging consecutive wait steps"""
-        optimizer = EvolutionOptimizer()
+        optimizer = MacroOptimizer(enable_all_strategies=True)
 
-        macro = [
-            {"step_number": 1, "event_type": "goto", "payload": {}},
-            {"step_number": 2, "event_type": "wait", "payload": {"duration_ms": 1000}},
-            {"step_number": 3, "event_type": "wait", "payload": {"duration_ms": 500}},
-            {"step_number": 4, "event_type": "wait", "payload": {"duration_ms": 500}},
-            {"step_number": 5, "event_type": "click", "payload": {}},
+        steps = [
+            {"step_number": 1, "type": "action", "event_type": "goto", "payload": {}},
+            {"step_number": 2, "type": "action", "event_type": "wait", "payload": {"duration_ms": 1000}},
+            {"step_number": 3, "type": "action", "event_type": "wait", "payload": {"duration_ms": 500}},
+            {"step_number": 4, "type": "action", "event_type": "wait", "payload": {"duration_ms": 500}},
+            {"step_number": 5, "type": "action", "event_type": "click", "payload": {}},
         ]
+        script = MacroScript(steps=steps)
 
-        optimized = optimizer.optimize(macro)
+        optimized_script, stats = optimizer.optimize(script)
 
         # Should merge waits 2,3,4 into one
-        assert len(optimized) < len(macro)
+        assert stats.merged_steps >= 2
 
         # Find merged wait
-        wait_steps = [s for s in optimized if s.get("event_type") == "wait"]
+        wait_steps = [s for s in optimized_script.steps if s.event_type == "wait"]
         assert len(wait_steps) == 1
-        assert wait_steps[0]["payload"]["duration_ms"] == 2000  # 1000 + 500 + 500
+        assert wait_steps[0].payload["duration_ms"] == 2000  # 1000 + 500 + 500
 
-    def test_remove_duplicate_verifications(self):
-        """Test removing duplicate verification steps"""
-        optimizer = EvolutionOptimizer()
+    def test_filter_redundant_actions(self):
+        """Test filtering redundant/low-value actions"""
+        optimizer = MacroOptimizer(enable_all_strategies=True)
 
-        macro = [
-            {"step_number": 1, "type": "action", "payload": {}},
-            {"step_number": 2, "type": "verify", "payload": {"expected_state": {"page": "loaded"}}},
-            {"step_number": 3, "type": "verify", "payload": {"expected_state": {"page": "loaded"}}},
-            {"step_number": 4, "type": "action", "payload": {}},
+        steps = [
+            {"step_number": 1, "type": "action", "event_type": "goto", "payload": {}},
+            {"step_number": 2, "type": "action", "event_type": "mouse_move", "payload": {}},
+            {"step_number": 3, "type": "action", "event_type": "hover", "payload": {}},
+            {"step_number": 4, "type": "action", "event_type": "click", "payload": {}},
         ]
+        script = MacroScript(steps=steps)
 
-        optimized = optimizer.optimize(macro)
+        optimized_script, stats = optimizer.optimize(script)
 
-        verify_steps = [s for s in optimized if s.get("type") == "verify"]
-        assert len(verify_steps) == 1
+        # Should remove mouse_move and hover
+        event_types = [s.event_type for s in optimized_script.steps]
+        assert "mouse_move" not in event_types
+        assert "hover" not in event_types
+        assert stats.removed_steps >= 2
 
     def test_renumbering_after_optimization(self):
         """Test that steps are renumbered after optimization"""
-        optimizer = EvolutionOptimizer()
+        optimizer = MacroOptimizer(enable_all_strategies=True)
 
-        macro = [
-            {"step_number": 1, "event_type": "goto"},
-            {"step_number": 2, "event_type": "wait"},
-            {"step_number": 3, "event_type": "wait"},
-            {"step_number": 4, "event_type": "click"},
+        steps = [
+            {"step_number": 1, "type": "action", "event_type": "goto", "payload": {}},
+            {"step_number": 2, "type": "action", "event_type": "wait", "payload": {"duration_ms": 100}},
+            {"step_number": 3, "type": "action", "event_type": "wait", "payload": {"duration_ms": 100}},
+            {"step_number": 4, "type": "action", "event_type": "click", "payload": {}},
         ]
+        script = MacroScript(steps=steps)
 
-        optimized = optimizer.optimize(macro)
+        optimized_script, _ = optimizer.optimize(script)
 
-        for i, step in enumerate(optimized, 1):
-            assert step["step_number"] == i
+        for i, step in enumerate(optimized_script.steps, 1):
+            assert step.step_number == i
 
 
 class TestFallbackChain:

@@ -199,9 +199,16 @@ class VerificationWorker:
             amount = payload.get("amount", 500)
             return await controller.scroll(direction, amount)
 
-        # Wait
+        # Wait (支持 duration_ms 和 seconds)
         elif event_type in ("wait", "wait_for"):
-            duration = payload.get("duration_ms", 1000)
+            duration_ms = payload.get("duration_ms")
+            seconds = payload.get("seconds")
+            if duration_ms is not None:
+                duration = duration_ms
+            elif seconds is not None:
+                duration = seconds * 1000
+            else:
+                duration = 1000  # 默认 1 秒
             condition = payload.get("condition")
 
             if condition:
@@ -209,7 +216,7 @@ class VerificationWorker:
             else:
                 import asyncio
                 await asyncio.sleep(duration / 1000)
-                return {"status": "waited", "duration_ms": duration}
+                return {"status": "waited", "duration_ms": int(duration)}
 
         # Extract/Get text
         elif event_type in ("get_text", "extract"):
@@ -264,10 +271,12 @@ class VerificationWorker:
         # App launch
         if event_type == "open_app":
             package = payload.get("package") or payload.get("package_name")
+            force_stop = payload.get("force_stop", False)
             return await MobileController.execute(
                 action='open_app',
                 text=package,
-                device_id=device_id
+                device_id=device_id,
+                force_stop=force_stop
             )
 
         # Tap/Click
@@ -333,21 +342,30 @@ class VerificationWorker:
                 device_id=device_id
             )
 
-        # Wait
+        # Wait (支持 duration_ms 和 seconds)
         elif event_type == "wait":
-            duration = payload.get("duration_ms", 1000)
+            duration_ms = payload.get("duration_ms")
+            seconds = payload.get("seconds")
+            if duration_ms is not None:
+                duration = duration_ms
+            elif seconds is not None:
+                duration = seconds * 1000
+            else:
+                duration = 1000  # 默认 1 秒
             import asyncio
             await asyncio.sleep(duration / 1000)
-            return {"status": "waited", "duration_ms": duration}
+            return {"status": "waited", "duration_ms": int(duration)}
 
         # Screenshot
         elif event_type == "screenshot":
-            screenshot_path = f"/tmp/screenshot_{int(time.time())}.png"
-            return await MobileController.execute(
+            result = await MobileController.execute(
                 action='screenshot',
-                local_path=screenshot_path,
                 device_id=device_id
             )
+            # Parse screenshot path from result
+            if isinstance(result, str) and result.startswith("Screenshot: "):
+                return {"status": "success", "screenshot_path": result.replace("Screenshot: ", "").strip()}
+            return {"status": "success", "result": result}
 
         # Dump UI
         elif event_type == "dump_ui":
@@ -433,12 +451,19 @@ class VerificationWorker:
             y2 = payload.get("y2") or payload.get("end_y")
             return await controller.drag_drop(x1, y1, x2, y2)
 
-        # Wait
+        # Wait (支持 duration_ms 和 seconds)
         elif event_type == "wait":
-            duration = payload.get("duration_ms", 1000)
+            duration_ms = payload.get("duration_ms")
+            seconds = payload.get("seconds")
+            if duration_ms is not None:
+                duration = duration_ms
+            elif seconds is not None:
+                duration = seconds * 1000
+            else:
+                duration = 1000  # 默认 1 秒
             import asyncio
             await asyncio.sleep(duration / 1000)
-            return {"status": "waited", "duration_ms": duration}
+            return {"status": "waited", "duration_ms": int(duration)}
 
         # Screenshot
         elif event_type == "screenshot":
@@ -536,13 +561,15 @@ class VerificationWorker:
         logger.info(f"[Worker] Extracting data: key={key}, method={extraction_method}")
 
         # For verification, take a screenshot and return placeholder data
-        screenshot_path = f"/tmp/extract_{key}_{int(time.time())}.png"
         try:
-            await MobileController.execute(
+            result = await MobileController.execute(
                 action='screenshot',
-                local_path=screenshot_path,
                 device_id=device_id
             )
+            # Parse screenshot path from result
+            screenshot_path = None
+            if isinstance(result, str) and result.startswith("Screenshot: "):
+                screenshot_path = result.replace("Screenshot: ", "").strip()
             return {
                 "status": "extracted",
                 "key": key,
@@ -601,13 +628,16 @@ class VerificationWorker:
 
                 # Screenshot if enabled
                 if self.agent_config.enable_screenshot_analysis:
-                    screenshot_path = f"/tmp/screenshot_{int(time.time())}.png"
-                    await MobileController.execute(
+                    result = await MobileController.execute(
                         action='screenshot',
-                        local_path=screenshot_path,
                         device_id=self.config.device_id
                     )
-                    state["screenshot"] = screenshot_path
+                    # Parse screenshot path from result message
+                    if isinstance(result, str) and result.startswith("Screenshot: "):
+                        screenshot_path = result.replace("Screenshot: ", "").strip()
+                        state["screenshot"] = screenshot_path
+                    elif isinstance(result, dict) and result.get("screenshot"):
+                        state["screenshot"] = result["screenshot"]
 
             elif self._current_platform == "desktop" and self._desktop_controller:
                 # Get active window info

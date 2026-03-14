@@ -8,14 +8,12 @@ Manages multi-round verification, anomaly detection, and macro evolution.
 import asyncio
 import logging
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.execution.macro.adaptation_library import AdaptationStrategyLibrary
 from app.core.execution.macro.anomaly_detector import AnomalyDetector, AnomalyDetectionResult
-from app.core.execution.macro.evolution_engine import (
-    EvolutionOptimizer,
-    MacroEvolutionEngine,
-)
+from app.core.execution.macro.evolution_engine import MacroEvolutionEngine
+from app.core.execution.macro.optimizer import MacroOptimizer
 from app.core.execution.macro.round_orchestrator import (
     BaselineStrategy,
     ChaosStrategy,
@@ -28,6 +26,8 @@ from app.core.execution.macro.verification_models import (
     AnomalyType,
     ExecutionDetail,
     ExecutionMode,
+    RedundancyCheckResult,
+    RedundancyType,
     RoundConfig,
     RoundReport,
     StepExecutionStatus,
@@ -80,6 +80,11 @@ class AgentMacroValidator:
         self.total_anomalies = 0
         self.total_adaptations = 0
         self.start_time: Optional[float] = None
+
+        # Redundancy detection
+        self._executed_steps: List[StepResult] = []  # 用于检测重复
+        self._redundant_step_numbers: set = set()  # 被标记为冗余的步骤编号
+        self._low_value_actions = {"mouse_move", "cursor_move", "hover"}
 
     def _create_orchestrator(self) -> RoundOrchestrator:
         """Create round orchestrator based on request configuration"""
@@ -264,6 +269,92 @@ class AgentMacroValidator:
 
         return report
 
+    def _check_step_redundancy(
+        self,
+        step: Dict[str, Any],
+        step_number: int
+    ) -> RedundancyCheckResult:
+        """
+        检查步骤是否为冗余步骤
+
+        检测类型：
+        1. 低价值动作: mouse_move, cursor_move, hover
+        2. 重复动作: 在短时间内重复执行相同目标+坐标的点击/输入
+        3. 无效等待: duration_ms <= 0
+        """
+        event_type = step.get("event_type", "")
+        payload = step.get("payload", {})
+
+        # 1. 检查低价值动作
+        if event_type in self._low_value_actions:
+            return RedundancyCheckResult(
+                is_redundant=True,
+                redundancy_type=RedundancyType.LOW_VALUE_ACTION,
+                reason=f"Low-value action '{event_type}' provides minimal functional value",
+                suggested_action="remove"
+            )
+
+        # 2. 检查无效等待 (支持 duration_ms 和 seconds)
+        if event_type == "wait":
+            duration_ms = payload.get("duration_ms", 0)
+            seconds = payload.get("seconds", 0)
+            # 转换为毫秒比较
+            total_duration_ms = duration_ms + (seconds * 1000)
+            if total_duration_ms <= 0:
+                return RedundancyCheckResult(
+                    is_redundant=True,
+                    redundancy_type=RedundancyType.UNNECESSARY_WAIT,
+                    reason="Wait with zero or negative duration",
+                    suggested_action="remove"
+                )
+
+        # 3. 检查重复动作 (检查最近3步)
+        for prev_result in self._executed_steps[-3:]:
+            prev_step = prev_result.original_step
+            if self._steps_are_duplicate(step, prev_step):
+                return RedundancyCheckResult(
+                    is_redundant=True,
+                    redundancy_type=RedundancyType.DUPLICATE_ACTION,
+                    reason=f"Duplicate of step {prev_result.step_number}: same target and action",
+                    similar_to_step=prev_result.step_number,
+                    suggested_action="merge" if event_type == "wait" else "remove"
+                )
+
+        return RedundancyCheckResult(is_redundant=False)
+
+    def _steps_are_duplicate(
+        self,
+        step1: Dict[str, Any],
+        step2: Dict[str, Any]
+    ) -> bool:
+        """检查两个步骤是否为重复"""
+        # 不同类型不算重复
+        if step1.get("event_type") != step2.get("event_type"):
+            return False
+
+        event_type = step1.get("event_type", "")
+        p1, p2 = step1.get("payload", {}), step2.get("payload", {})
+
+        # 点击/触摸：检查坐标
+        if event_type in ("click", "tap"):
+            x1, y1 = p1.get("x", 0), p1.get("y", 0)
+            x2, y2 = p2.get("x", 0), p2.get("y", 0)
+            coord_match = abs(x1 - x2) < 5 and abs(y1 - y2) < 5
+
+            # 也检查选择器
+            selector_match = step1.get("target_selector") == step2.get("target_selector")
+            return coord_match or selector_match
+
+        # 输入：检查文本内容
+        if event_type in ("input", "type_text"):
+            return p1.get("text") == p2.get("text")
+
+        # 等待：检查总时长
+        if event_type == "wait":
+            return True  # 连续等待可以合并
+
+        return False
+
     async def _execute_step_with_adaptation(
         self,
         step: Dict[str, Any],
@@ -280,8 +371,31 @@ class AgentMacroValidator:
             original_step=step.copy()
         )
 
-        # Capture pre-execution state
-        pre_state = await self.worker.capture_state()
+        # ===== 冗余检测 (新增) =====
+        redundancy_check = self._check_step_redundancy(step, step_number)
+        result.redundancy_check = redundancy_check
+
+        if redundancy_check.is_redundant:
+            logger.info(
+                f"[Validator] Step {step_number}: Detected as redundant "
+                f"({redundancy_check.redundancy_type.value})"
+            )
+            result.status = StepExecutionStatus.REDUNDANT
+            result.execution_time_ms = 0
+            self._redundant_step_numbers.add(step_number)
+
+            # 对于冗余步骤，仍然记录但不执行
+            # (可根据配置选择是否跳过，这里选择执行以确保兼容性)
+
+        # Capture pre-execution state (skip for open_app/wait/scroll/extract - no coordinate validation needed)
+        event_type = step.get("event_type", "")
+        extract_type = step.get("extract_type", "")
+        if event_type in ("open_app", "launch_app"):
+            pre_state = {}  # Empty state for app launch
+        elif event_type in ("wait", "wait_for", "scroll") or extract_type == "gui_extract":
+            pre_state = {"skip_capture": True}  # Minimal state for wait/scroll/extract steps
+        else:
+            pre_state = await self.worker.capture_state()
         result.execution = ExecutionDetail(pre_state=pre_state)
 
         # Pre-execution anomaly detection
@@ -328,8 +442,14 @@ class AgentMacroValidator:
             execution_result = await self._execute_step(step, round_config)
         result.execution.action_taken = step
 
-        # Capture post-execution state
-        post_state = await self.worker.capture_state()
+        # Capture post-execution state (skip for wait/scroll/extract, lightweight for open_app)
+        extract_type = step.get("extract_type", "")
+        if event_type in ("wait", "wait_for", "scroll") or extract_type == "gui_extract":
+            post_state = {"skip_capture": True}  # No need to capture
+        elif event_type in ("open_app", "launch_app"):
+            post_state = await self._capture_app_state_only()
+        else:
+            post_state = await self.worker.capture_state()
         result.execution.post_state = post_state
 
         # Post-execution anomaly detection
@@ -381,6 +501,10 @@ class AgentMacroValidator:
                 result.error_message = str(execution_result) if execution_result else "Execution failed"
 
         result.execution_time_ms = int((time.time() - start_time) * 1000)
+
+        # 记录已执行的步骤，用于后续冗余检测
+        self._executed_steps.append(result)
+
         return result
 
     async def _execute_loop_with_adaptation(
@@ -460,6 +584,33 @@ class AgentMacroValidator:
             "results": loop_results,
             "sub_step_adaptations": len(sub_step_adaptations)
         }
+
+    async def _capture_app_state_only(self) -> Dict[str, Any]:
+        """
+        Lightweight state capture for app launch - only package name, no UI dump or screenshot.
+        Much faster than full capture_state().
+        """
+        state = {
+            "platform": self.worker.config.platform if self.worker else None,
+            "timestamp": time.time(),
+            "elements": [],
+            "screenshot": None,
+            "current_activity": None,
+            "package_name": None,
+        }
+
+        try:
+            if self.worker.config.platform == "android":
+                from app.core.environment.controllers.mobile_controller import MobileController
+                current_app = await MobileController.get_current_app_cached(
+                    self.worker.config.device_id
+                )
+                state["current_activity"] = current_app.get("activity")
+                state["package_name"] = current_app.get("package")
+        except Exception as e:
+            logger.warning(f"[Validator] Failed to capture app state: {e}")
+
+        return state
 
     async def _execute_step(
         self,
@@ -574,14 +725,14 @@ class AgentMacroValidator:
         """Build final verification response"""
         processing_time = time.time() - (self.start_time or time.time())
 
-        # Generate report
-        report = self._generate_report()
-
         # Determine execution mode
         execution_mode = self._determine_execution_mode()
 
-        # Build evolved macro
-        evolved_macro = self._build_evolved_macro()
+        # Build evolved macro (also generates optimization stats)
+        evolved_macro, optimization_stats = self._build_evolved_macro()
+
+        # Generate report with optimization stats
+        report = self._generate_report(optimization_stats)
 
         # Calculate confidence score
         confidence_score = self._calculate_confidence_score()
@@ -598,7 +749,10 @@ class AgentMacroValidator:
             rounds_completed=len(self.round_reports)
         )
 
-    def _generate_report(self) -> VerificationReport:
+    def _generate_report(
+        self,
+        optimization_stats: Optional[Dict[str, Any]] = None
+    ) -> VerificationReport:
         """Generate detailed verification report"""
         # Calculate statistics
         total_steps = sum(r.total_steps for r in self.round_reports)
@@ -616,6 +770,20 @@ class AgentMacroValidator:
         ]
         max_variance = max(round_success_rates) - min(round_success_rates) if len(round_success_rates) > 1 else 0
 
+        # Calculate redundancy statistics
+        redundancy_by_type: Dict[str, int] = {}
+        redundant_count = 0
+        estimated_time_saved = 0
+
+        for round_report in self.round_reports:
+            for step_result in round_report.step_results:
+                if step_result.redundancy_check and step_result.redundancy_check.is_redundant:
+                    redundant_count += 1
+                    rtype = step_result.redundancy_check.redundancy_type.value
+                    redundancy_by_type[rtype] = redundancy_by_type.get(rtype, 0) + 1
+                    # 估算节省的时间（冗余步骤不需要执行）
+                    estimated_time_saved += step_result.execution_time_ms
+
         summary = ReportSummary(
             overall_success_rate=success_rate,
             adaptation_rate=adaptation_rate,
@@ -625,7 +793,11 @@ class AgentMacroValidator:
                 for r in self.round_reports
             ) // max(total_steps, 1),
             total_anomalies_detected=self.total_anomalies,
-            total_adaptations_applied=self.total_adaptations
+            total_adaptations_applied=self.total_adaptations,
+            total_steps_checked=total_steps,
+            redundant_steps_count=redundant_count,
+            redundant_steps_by_type=redundancy_by_type,
+            estimated_time_saved_ms=estimated_time_saved
         )
 
         # Generate issues
@@ -638,7 +810,8 @@ class AgentMacroValidator:
             summary=summary,
             rounds=self.round_reports,
             issues=issues,
-            recommendations=recommendations
+            recommendations=recommendations,
+            optimization_stats=optimization_stats
         )
 
     def _identify_issues(self) -> List[VerificationIssue]:
@@ -667,6 +840,22 @@ class AgentMacroValidator:
                 description=f"Recurring failure pattern: {pattern}",
                 affected_steps=affected_steps,
                 suggestion=f"Consider adding fallback strategy for {pattern}"
+            ))
+
+        # Check for redundant steps
+        redundant_steps = []
+        for round_report in self.round_reports:
+            for step_result in round_report.step_results:
+                if step_result.redundancy_check and step_result.redundancy_check.is_redundant:
+                    redundant_steps.append(step_result.step_number)
+
+        if redundant_steps:
+            issues.append(VerificationIssue(
+                severity="info",
+                category="redundancy",
+                description=f"Detected {len(redundant_steps)} redundant steps that can be removed",
+                affected_steps=redundant_steps,
+                suggestion="Consider removing low-value actions like mouse_move, duplicate clicks, or zero-duration waits"
             ))
 
         # Check for high variance between rounds
@@ -742,7 +931,7 @@ class AgentMacroValidator:
 
         return ExecutionMode.DETERMINISTIC
 
-    def _build_evolved_macro(self) -> List[Dict[str, Any]]:
+    def _build_evolved_macro(self) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
         """
         Build evolved macro using MacroEvolutionEngine (Phase 3)
 
@@ -750,10 +939,23 @@ class AgentMacroValidator:
         - Fallback mechanisms
         - Error handling
         - Optimization
+        - Redundancy removal
+
+        Returns:
+            Tuple of (evolved_macro, optimization_stats)
         """
+        # Phase 0: Filter out redundant steps identified during verification
+        filtered_macro = self._filter_redundant_steps_from_macro(self.current_macro)
+
         if not self.evolution_records:
-            logger.info("[Validator] No evolution records, returning original macro")
-            return self.current_macro
+            logger.info("[Validator] No evolution records, returning optimized macro")
+            # Run optimizer on filtered macro
+            from app.core.execution.macro.schema import MacroScript
+            optimizer = MacroOptimizer(enable_all_strategies=True)
+            script = MacroScript(steps=filtered_macro)
+            optimized_script, stats = optimizer.optimize(script)
+            optimized_macro = [step.model_dump() if hasattr(step, 'model_dump') else step for step in optimized_script.steps]
+            return optimized_macro, stats.__dict__ if hasattr(stats, '__dict__') else None
 
         logger.info(f"[Validator] Building evolved macro with {len(self.evolution_records)} records")
 
@@ -765,10 +967,10 @@ class AgentMacroValidator:
         # Determine target platform
         target_platform = self.request.target_environment.platform
 
-        # Phase 3: Use MacroEvolutionEngine
+        # Phase 3: Use MacroEvolutionEngine on filtered macro
         engine = MacroEvolutionEngine()
         evolved_macro, metadata = engine.evolve(
-            original_macro=self.current_macro,
+            original_macro=filtered_macro,
             evolution_records=self.evolution_records,
             step_results=all_step_results,
             target_platform=target_platform
@@ -780,16 +982,70 @@ class AgentMacroValidator:
             f"({metadata['expansion_ratio']:.2f}x expansion)"
         )
 
-        # Phase 3b: Optimize the evolved macro
-        optimizer = EvolutionOptimizer()
-        optimized_macro = optimizer.optimize(evolved_macro)
+        # Phase 3b: Optimize the evolved macro using full MacroOptimizer
+        from app.core.execution.macro.schema import MacroScript
+        optimizer = MacroOptimizer(enable_all_strategies=True)
+        script = MacroScript(steps=evolved_macro)
+        optimized_script, stats = optimizer.optimize(script)
 
-        if len(optimized_macro) < len(evolved_macro):
+        if stats.reduction_ratio > 0:
             logger.info(
-                f"[Validator] Optimization reduced steps: {len(evolved_macro)} -> {len(optimized_macro)}"
+                f"[Validator] MacroOptimizer reduced steps: {stats.original_steps} -> {stats.optimized_steps} "
+                f"({stats.reduction_ratio*100:.1f}% reduction, saved {stats.time_saved_ms}ms)"
             )
+            if stats.removed_steps > 0:
+                logger.info(f"[Validator] Removed {stats.removed_steps} redundant steps")
+            if stats.merged_steps > 0:
+                logger.info(f"[Validator] Merged {stats.merged_steps} steps")
 
-        return optimized_macro
+        # Convert back to list format
+        optimized_macro = [step.model_dump() if hasattr(step, 'model_dump') else step for step in optimized_script.steps]
+
+        return optimized_macro, stats.__dict__ if hasattr(stats, '__dict__') else None
+
+    def _filter_redundant_steps_from_macro(
+        self,
+        macro: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        """
+        从宏中过滤掉被标记为冗余的步骤（包括 loop 内的子步骤）
+        """
+        if not self._redundant_step_numbers:
+            return macro
+
+        filtered = []
+        removed_count = 0
+
+        for idx, step in enumerate(macro, 1):
+            if idx in self._redundant_step_numbers:
+                logger.info(f"[Evolution] Removing redundant step {idx}: {step.get('event_type', 'unknown')}")
+                removed_count += 1
+                continue
+
+            # Handle loop steps - filter redundant sub-steps
+            if step.get("type") == "loop":
+                sub_steps = step.get("steps", [])
+                if sub_steps:
+                    filtered_sub_steps = []
+                    for sub_idx, sub_step in enumerate(sub_steps):
+                        # Calculate sub-step number (e.g., 501 for step 5, sub-step 0)
+                        sub_step_num = idx * 100 + sub_idx + 1
+                        if sub_step_num in self._redundant_step_numbers:
+                            logger.info(f"[Evolution] Removing redundant sub-step {sub_step_num}: {sub_step.get('event_type', 'unknown')}")
+                            removed_count += 1
+                            continue
+                        filtered_sub_steps.append(sub_step)
+
+                    # Update step with filtered sub-steps
+                    step = copy.deepcopy(step)
+                    step["steps"] = filtered_sub_steps
+
+            filtered.append(step)
+
+        if removed_count > 0:
+            logger.info(f"[Evolution] Filtered {removed_count} redundant steps from macro")
+
+        return filtered
 
     def _calculate_confidence_score(self) -> float:
         """Calculate overall confidence score"""

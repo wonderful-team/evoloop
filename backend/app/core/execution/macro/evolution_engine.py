@@ -73,16 +73,14 @@ class StepTransformer(ABC):
 
 class CoordinateDriftTransformer(StepTransformer):
     """
-    Transform coordinate-based steps to be more robust
+    Transform coordinate-based steps with corrected coordinates.
 
-    Evolution rules:
-    - Add selector-based fallback
-    - Convert to relative coordinates
-    - Add element existence check
+    Simple evolution: Update coordinates to corrected values.
+    Preserves original coordinates for reference (in payload only).
     """
 
     def can_transform(self, step: Dict[str, Any], record: MacroEvolutionRecord) -> bool:
-        return record.evolution_reason and "coordinate_drift" in record.evolution_reason.lower()
+        return record.evolution_reason and "coordinate" in record.evolution_reason.lower()
 
     def transform(
         self,
@@ -90,28 +88,43 @@ class CoordinateDriftTransformer(StepTransformer):
         record: MacroEvolutionRecord,
         context: EvolutionContext
     ) -> List[Dict[str, Any]]:
-        """Transform coordinate step to hybrid approach"""
+        """Transform: Use corrected coordinates from adaptation"""
         evolved = copy.deepcopy(step)
 
-        # Get the evolved step from record if available
+        # Get the evolved step from record (contains corrected coordinates)
         if record.evolved_step:
-            evolved = copy.deepcopy(record.evolved_step)
+            evolved_step = copy.deepcopy(record.evolved_step)
+            # Only update coordinates in payload, preserve all other fields
+            original_payload = evolved.get("payload", {})
+            evolved_payload = evolved_step.get("payload", {})
+
+            # Update x, y coordinates if corrected
+            if "x" in evolved_payload:
+                original_payload["x"] = evolved_payload["x"]
+            if "y" in evolved_payload:
+                original_payload["y"] = evolved_payload["y"]
+
+            # Preserve correction metadata in payload (engine will ignore unknown fields)
+            if "original_x" in evolved_payload:
+                original_payload["original_x"] = evolved_payload["original_x"]
+            if "original_y" in evolved_payload:
+                original_payload["original_y"] = evolved_payload["original_y"]
+
+            evolved["payload"] = original_payload
 
         return [evolved]
 
 
 class ElementNotFoundTransformer(StepTransformer):
     """
-    Transform steps with element not found issues
+    Transform steps with element not found issues.
 
-    Evolution rules:
-    - Add alternative selector chain
-    - Add scroll-to-find behavior
-    - Add fallback coordinates
+    Simple evolution: Update to corrected selector if available.
+    Engine-compatible: Only modifies target_selector, no extra fields.
     """
 
     def can_transform(self, step: Dict[str, Any], record: MacroEvolutionRecord) -> bool:
-        return record.evolution_reason and "element_not_found" in record.evolution_reason.lower()
+        return record.evolution_reason and "element" in record.evolution_reason.lower()
 
     def transform(
         self,
@@ -119,89 +132,33 @@ class ElementNotFoundTransformer(StepTransformer):
         record: MacroEvolutionRecord,
         context: EvolutionContext
     ) -> List[Dict[str, Any]]:
-        """Transform to use selector chain with fallbacks"""
+        """Transform: Use corrected selector from adaptation"""
         evolved = copy.deepcopy(step)
 
-        # Build selector chain from adaptation history
-        selector_chain = self._build_selector_chain(step, record, context)
+        # Get the evolved step from record (contains corrected selector)
+        if record.evolved_step:
+            evolved_step = copy.deepcopy(record.evolved_step)
 
-        payload = evolved.get("payload", {})
-        payload["selector_chain"] = selector_chain
-        payload["selector_strategy"] = "first_match"  # Try until one works
+            # Update target_selector if corrected
+            if evolved_step.get("target_selector"):
+                evolved["target_selector"] = evolved_step["target_selector"]
 
-        # Add scroll behavior for dynamic content
-        payload["scroll_to_find"] = {
-            "enabled": True,
-            "max_scrolls": 5,
-            "direction": "down"
-        }
-
-        evolved["payload"] = payload
+            # Also check payload for selector
+            evolved_payload = evolved_step.get("payload", {})
+            if evolved_payload.get("selector"):
+                original_payload = evolved.get("payload", {})
+                original_payload["selector"] = evolved_payload["selector"]
+                evolved["payload"] = original_payload
 
         return [evolved]
-
-    def _build_selector_chain(
-        self,
-        step: Dict[str, Any],
-        record: MacroEvolutionRecord,
-        context: EvolutionContext
-    ) -> List[str]:
-        """Build chain of alternative selectors"""
-        chain = []
-
-        # Original selector
-        original = step.get("target_selector") or step.get("payload", {}).get("selector")
-        if original:
-            chain.append(original)
-
-        # From evolved step
-        if record.evolved_step:
-            evolved_selector = record.evolved_step.get("target_selector") \
-                or record.evolved_step.get("payload", {}).get("selector")
-            if evolved_selector and evolved_selector not in chain:
-                chain.append(evolved_selector)
-
-        # Generate variations
-        if original:
-            variations = self._generate_selector_variations(original)
-            for v in variations:
-                if v not in chain:
-                    chain.append(v)
-
-        return chain
-
-    def _generate_selector_variations(self, selector: str) -> List[str]:
-        """Generate variations of a selector"""
-        variations = []
-
-        # Text-based variations
-        if "id=" in selector or "#" in selector:
-            # Try partial id match
-            base_id = selector.replace("#", "").replace("//*[@id='", "").replace("']", "")
-            variations.append(f"//*[contains(@id, '{base_id}')]")
-
-        # Class-based variations
-        if "class=" in selector or "." in selector:
-            base_class = selector.replace(".", "").replace("//*[@class='", "").replace("']", "")
-            variations.append(f"//*[contains(@class, '{base_class}')]")
-
-        # Text content variations
-        if "text=" in selector:
-            text = selector.replace("//*[@text='", "").replace("']", "")
-            variations.append(f"//*[contains(@text, '{text}')]")
-            variations.append(f"//*[contains(., '{text}')]")
-
-        return variations
 
 
 class ElementObscuredTransformer(StepTransformer):
     """
-    Transform steps where elements are obscured by popups/overlays
+    Transform steps where elements are obscured by popups/overlays.
 
-    Evolution rules:
-    - Add popup detection before action
-    - Add dismissal sequence
-    - Add retry after dismissal
+    Simple evolution: Add a brief wait before the action to allow UI to stabilize.
+    Engine-compatible: Uses standard 'wait' event_type.
     """
 
     def can_transform(self, step: Dict[str, Any], record: MacroEvolutionRecord) -> bool:
@@ -213,87 +170,29 @@ class ElementObscuredTransformer(StepTransformer):
         record: MacroEvolutionRecord,
         context: EvolutionContext
     ) -> List[Dict[str, Any]]:
-        """Transform to include popup handling"""
+        """Transform: Add a wait step before the action"""
         evolved_steps = []
 
-        # Step 1: Check and dismiss obstruction
-        platform = context.target_platform
-        if platform in ("android", "mobile"):
-            dismissal_step = self._create_mobile_dismissal_step(step)
-        elif platform == "desktop":
-            dismissal_step = self._create_desktop_dismissal_step(step)
-        else:
-            dismissal_step = self._create_web_dismissal_step(step)
-
-        evolved_steps.append(dismissal_step)
-
-        # Step 2: Wait for UI to stabilize
-        evolved_steps.append({
-            "step_number": f"{step.get('step_number', 0)}-wait",
+        # Step 1: Wait for UI to stabilize (using standard wait event)
+        wait_step = {
+            "step_number": step.get("step_number", 0),
             "type": "action",
             "event_type": "wait",
             "source": step.get("source", "dom"),
-            "payload": {"duration_ms": 500}
-        })
+            "payload": {"duration_ms": 800, "reason": "wait_for_obstruction_clear"}
+        }
+        evolved_steps.append(wait_step)
 
-        # Step 3: Original (evolved) action
+        # Step 2: Original (evolved) action
         evolved = copy.deepcopy(step)
         if record.evolved_step:
-            evolved = copy.deepcopy(record.evolved_step)
+            evolved_step = copy.deepcopy(record.evolved_step)
+            # Preserve step number and basic structure
+            evolved["payload"] = evolved_step.get("payload", evolved.get("payload", {}))
 
         evolved_steps.append(evolved)
 
         return evolved_steps
-
-    def _create_web_dismissal_step(self, original_step: Dict[str, Any]) -> Dict[str, Any]:
-        """Create popup dismissal step for web"""
-        return {
-            "step_number": f"{original_step.get('step_number', 0)}-dismiss",
-            "type": "action",
-            "event_type": "dismiss_obstruction",
-            "source": "dom",
-            "payload": {
-                "strategies": [
-                    {"type": "key", "key": "Escape"},
-                    {"type": "click", "target": "//button[contains(@class, 'close')]"},
-                    {"type": "click", "target": "//div[contains(@class, 'modal')]//button[1]"},
-                    {"type": "click", "target": "body", "offset_x": 0.95, "offset_y": 0.05}  # Corner click
-                ],
-                "condition": "//div[contains(@class, 'modal')] | //div[contains(@class, 'popup')] | //div[contains(@class, 'overlay')]"
-            }
-        }
-
-    def _create_mobile_dismissal_step(self, original_step: Dict[str, Any]) -> Dict[str, Any]:
-        """Create popup dismissal step for mobile"""
-        return {
-            "step_number": f"{original_step.get('step_number', 0)}-dismiss",
-            "type": "action",
-            "event_type": "dismiss_obstruction",
-            "source": "mobile",
-            "payload": {
-                "strategies": [
-                    {"type": "back"},
-                    {"type": "tap", "x": 100, "y": 200},  # Common close button area
-                    {"type": "tap", "x": 950, "y": 150},  # Top-right corner (1080p)
-                ],
-                "condition": "//android.widget.FrameLayout[contains(@resource-id, 'dialog')]"
-            }
-        }
-
-    def _create_desktop_dismissal_step(self, original_step: Dict[str, Any]) -> Dict[str, Any]:
-        """Create popup dismissal step for desktop"""
-        return {
-            "step_number": f"{original_step.get('step_number', 0)}-dismiss",
-            "type": "action",
-            "event_type": "dismiss_obstruction",
-            "source": "desktop",
-            "payload": {
-                "strategies": [
-                    {"type": "key", "key": "Escape"},
-                    {"type": "applescript", "script": 'tell application "System Events" to key code 53'}
-                ]
-            }
-        }
 
 
 class LoadingTimeoutTransformer(StepTransformer):
@@ -315,27 +214,13 @@ class LoadingTimeoutTransformer(StepTransformer):
         record: MacroEvolutionRecord,
         context: EvolutionContext
     ) -> List[Dict[str, Any]]:
-        """Transform to use smart waiting"""
+        """Transform: Increase wait duration for timeout issues."""
         evolved = copy.deepcopy(step)
-
         payload = evolved.get("payload", {})
 
-        # Convert fixed wait to conditional wait
-        if evolved.get("event_type") == "wait":
-            evolved["event_type"] = "wait_for"
-            payload["condition"] = {
-                "type": "element_present",
-                "selector": "//body"  # Wait for any content
-            }
-            payload["timeout_ms"] = max(payload.get("duration_ms", 5000) * 2, 10000)
-            payload["poll_interval_ms"] = 100
-        else:
-            # Add smart wait before action
-            payload["pre_wait"] = {
-                "type": "stability",
-                "timeout_ms": 10000,
-                "check_interval_ms": 200
-            }
+        # Simply increase the wait duration (engine-compatible)
+        current_duration = payload.get("duration_ms", 5000)
+        payload["duration_ms"] = min(int(current_duration * 1.5), 30000)  # Max 30s
 
         evolved["payload"] = payload
         return [evolved]
@@ -608,63 +493,3 @@ class MacroEvolutionEngine:
         chain.append(copy.deepcopy(step))
 
         return chain[:max_fallbacks]
-
-
-class EvolutionOptimizer:
-    """
-    Optimize evolved macros by removing redundancies and consolidating steps
-    """
-
-    def optimize(self, macro: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Optimize macro after evolution
-
-        Rules:
-        - Merge consecutive waits
-        - Remove redundant checks
-        - Consolidate similar selectors
-        """
-        optimized = []
-
-        i = 0
-        while i < len(macro):
-            step = macro[i]
-
-            # Rule 1: Merge consecutive waits
-            if step.get("event_type") == "wait":
-                total_wait = step.get("payload", {}).get("duration_ms", 0)
-                j = i + 1
-                while j < len(macro) and macro[j].get("event_type") == "wait":
-                    total_wait += macro[j].get("payload", {}).get("duration_ms", 0)
-                    j += 1
-
-                if j > i + 1:
-                    merged = copy.deepcopy(step)
-                    merged["payload"]["duration_ms"] = total_wait
-                    merged["payload"]["merged_from"] = j - i
-                    optimized.append(merged)
-                    i = j
-                    continue
-
-            # Rule 2: Remove duplicate verification steps
-            if step.get("type") == "verify":
-                # Check if previous step was similar verification
-                if optimized and optimized[-1].get("type") == "verify":
-                    if self._verifications_similar(optimized[-1], step):
-                        i += 1
-                        continue
-
-            optimized.append(step)
-            i += 1
-
-        # Renumber steps
-        for idx, step in enumerate(optimized, 1):
-            step["step_number"] = idx
-
-        return optimized
-
-    def _verifications_similar(self, v1: Dict[str, Any], v2: Dict[str, Any]) -> bool:
-        """Check if two verification steps are similar"""
-        p1 = v1.get("payload", {})
-        p2 = v2.get("payload", {})
-        return p1.get("expected_state") == p2.get("expected_state")

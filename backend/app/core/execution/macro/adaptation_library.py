@@ -111,11 +111,28 @@ class QuickFixStrategy(AdaptationStrategy):
         """
         Fix coordinate drift by using actual detected position
         or switching to selector-based approach
+
+        优化：支持 Vision LLM 提供的 correct_coords
         """
         adapted = step.copy()
         payload = adapted.get("payload", {}).copy()
 
-        # Use actual position if available
+        # ========== 优化：优先使用 Vision LLM 提供的正确坐标 ==========
+        correct_coords = details.get("correct_coords")
+        if correct_coords and "x" in correct_coords and "y" in correct_coords:
+            recorded_x = payload.get("x", 0)
+            recorded_y = payload.get("y", 0)
+            payload["x"] = correct_coords["x"]
+            payload["y"] = correct_coords["y"]
+            # 保留原始坐标信息用于追踪
+            payload["original_x"] = recorded_x
+            payload["original_y"] = recorded_y
+            payload["vision_corrected"] = True
+            adapted["payload"] = payload
+            drift_distance = details.get("drift_distance", 0.0)
+            return adapted, f"Vision LLM corrected coordinates: ({recorded_x:.3f}, {recorded_y:.3f}) -> ({correct_coords['x']:.3f}, {correct_coords['y']:.3f}), distance={drift_distance:.3f}"
+
+        # 原有逻辑：使用启发式检测提供的 actual position
         actual_pos = details.get("actual")
         if actual_pos and "x" in actual_pos and "y" in actual_pos:
             payload["x"] = actual_pos["x"]
@@ -136,12 +153,6 @@ class QuickFixStrategy(AdaptationStrategy):
                         adapted["payload"] = payload
                         return adapted, f"Switched to element center coordinates from UI dump"
 
-        # Add increased wait before action
-        if "wait_before" not in payload:
-            payload["wait_before"] = 500  # ms
-            adapted["payload"] = payload
-            return adapted, "Added wait_before to allow UI to stabilize"
-
         return adapted, "No specific coordinate fix applied"
 
     async def _fix_element_not_found(
@@ -153,9 +164,24 @@ class QuickFixStrategy(AdaptationStrategy):
         """
         Fix element not found by trying alternative selectors
         or switching to coordinate-based approach
+
+        优化：支持使用 Vision LLM 提供的最近元素坐标
         """
         adapted = step.copy()
         payload = adapted.get("payload", {}).copy()
+
+        # ========== 优化：优先使用 Vision LLM 提供的最近元素坐标 ==========
+        nearest_coords = details.get("nearest_element_coords")
+        if nearest_coords and "x" in nearest_coords and "y" in nearest_coords:
+            recorded_x = payload.get("x", 0)
+            recorded_y = payload.get("y", 0)
+            payload["x"] = nearest_coords["x"]
+            payload["y"] = nearest_coords["y"]
+            payload["original_x"] = recorded_x
+            payload["original_y"] = recorded_y
+            payload["vision_corrected"] = True
+            adapted["payload"] = payload
+            return adapted, f"Vision LLM relocated to nearest element: ({nearest_coords['x']:.3f}, {nearest_coords['y']:.3f})"
 
         original_selector = details.get("selector", step.get("target_selector"))
 
@@ -185,26 +211,9 @@ class QuickFixStrategy(AdaptationStrategy):
     ) -> Tuple[Dict[str, Any], str]:
         """
         Fix element obscured by dismissing obstruction (popup, dialog, etc.)
+        Element obscured issue should be handled by Agent at execution time
         """
         adapted = step.copy()
-
-        # Add pre-action to dismiss common obstructions
-        dismissal_action = {
-            "step_number": f"{adapted.get('step_number', 0)}-pre",
-            "type": "action",
-            "event_type": "dismiss_obstruction",
-            "source": adapted.get("source", "dom"),
-            "payload": {
-                "strategies": [
-                    {"type": "click", "target": "//button[contains(text(),'关闭') or contains(text(),'×') or contains(text(),'Close')]"},
-                    {"type": "key", "key": "Escape"},
-                    {"type": "click", "target": "//div[@role='dialog']//button[1]"},
-                    {"type": "back"},  # For mobile
-                ]
-            }
-        }
-
-        # Return original step (element obscured issue should be handled by Agent at execution time)
         return adapted, "Element obscured - will be handled during execution"
 
     async def _fix_loading_timeout(
@@ -215,17 +224,19 @@ class QuickFixStrategy(AdaptationStrategy):
     ) -> Tuple[Dict[str, Any], str]:
         """
         Fix loading timeout by increasing wait duration
+        Engine-compatible: uses duration_ms (not timeout_ms)
         """
         adapted = step.copy()
         payload = adapted.get("payload", {}).copy()
 
-        current_timeout = payload.get("timeout_ms", 5000)
-        new_timeout = min(current_timeout * 2, 30000)  # Cap at 30s
+        # Engine uses duration_ms for wait steps
+        current_duration = payload.get("duration_ms", 5000)
+        new_duration = min(current_duration * 2, 30000)  # Cap at 30s
 
-        payload["timeout_ms"] = new_timeout
+        payload["duration_ms"] = new_duration
         adapted["payload"] = payload
 
-        return adapted, f"Increased timeout from {current_timeout}ms to {new_timeout}ms"
+        return adapted, f"Increased wait duration from {current_duration}ms to {new_duration}ms"
 
     async def _fix_state_mismatch(
         self,
@@ -238,6 +249,16 @@ class QuickFixStrategy(AdaptationStrategy):
         """
         adapted = step.copy()
         payload = adapted.get("payload", {}).copy()
+
+        # Case 0: App launch failed (package name mismatch)
+        expected_package = details.get("expected_package")
+        actual_package = details.get("actual_package")
+        if expected_package and actual_package:
+            # Add delay and retry flag for app launch
+            payload["retry_launch"] = True
+            payload["force_stop"] = True  # Force stop before relaunch
+            adapted["payload"] = payload
+            return adapted, f"App launch failed: expected {expected_package}, got {actual_package}. Will retry with force_stop."
 
         # Check if Vision LLM detected wrong page and suggested fix
         vision_analysis = details.get("vision_analysis", False)

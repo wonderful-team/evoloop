@@ -135,11 +135,17 @@ class NetworkDegradationInjector(InterferenceInjector):
         payload = modified.get("payload", {})
 
         # Increase timeout to account for slow network
-        current_timeout = payload.get("timeout_ms", 5000)
+        # Support both timeout_ms (browser) and duration_ms (mobile/wait steps)
         multiplier = 1 + (intensity * 2)  # 1x to 3x
-        new_timeout = int(current_timeout * multiplier)
 
+        current_timeout = payload.get("timeout_ms", 5000)
+        new_timeout = int(current_timeout * multiplier)
         payload["timeout_ms"] = new_timeout
+
+        current_duration = payload.get("duration_ms", 5000)
+        new_duration = int(current_duration * multiplier)
+        payload["duration_ms"] = new_duration
+
         payload["simulated_network_speed"] = "slow-3g" if intensity > 0.7 else "fast-3g" if intensity > 0.3 else "4g"
         payload["injected_interference"] = {
             "type": "network_degradation",
