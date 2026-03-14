@@ -2,9 +2,9 @@
 set -e
 
 # Configuration
-BACKEND_DIR="backend"
+CLIENT_DIR="client"
 TAURI_BIN_DIR="frontend/src-tauri/binaries"
-BINARY_NAME="evoloop-backend"
+BINARY_NAME="evoloop-client"
 
 # Detect Architecture
 ARCH=$(uname -m)
@@ -22,23 +22,23 @@ TARGET_BINARY="${BINARY_NAME}-${TRIPLE}"
 echo "🚀 Building Sidecar for ${TRIPLE}..."
 
 # 1. Clean previous build
-rm -rf "$BACKEND_DIR/dist" "$BACKEND_DIR/build"
+rm -rf "$CLIENT_DIR/dist" "$CLIENT_DIR/build"
 
 # 2. Build with PyInstaller
 echo "📦 Running PyInstaller..."
-cd "$BACKEND_DIR"
-uv run pyinstaller evoloop-backend.spec
+cd "$CLIENT_DIR"
+uv run pyinstaller evoloop-client.spec
 cd ..
 
 # 3. Prepare Tauri Binaries Directory
 mkdir -p "$TAURI_BIN_DIR"
 
 # 4. Move and Rename Binary
-if [ -f "$BACKEND_DIR/dist/$BINARY_NAME" ]; then
-  mv "$BACKEND_DIR/dist/$BINARY_NAME" "$TAURI_BIN_DIR/$TARGET_BINARY"
+if [ -f "$CLIENT_DIR/dist/$BINARY_NAME" ]; then
+  mv "$CLIENT_DIR/dist/$BINARY_NAME" "$TAURI_BIN_DIR/$TARGET_BINARY"
   echo "✅ Sidecar built and placed at: $TAURI_BIN_DIR/$TARGET_BINARY"
 else
-  echo "❌ Error: Binary not found at $BACKEND_DIR/dist/$BINARY_NAME"
+  echo "❌ Error: Binary not found at $CLIENT_DIR/dist/$BINARY_NAME"
   exit 1
 fi
 
