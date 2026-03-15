@@ -397,7 +397,7 @@ class MacroEngine:
                 logger.warning(f"[{thread_id}] Failed to load state file, starting fresh: {e}")
 
         # Phase 1: LIST - Collect items from screens
-        if collect_mode in ("list", "auto") and state["phase"] == "list":
+        if (collect_mode in ("list", "auto")) and (state["phase"] == "list" or collect_mode == "list"):
             logger.info(f"[{thread_id}] Starting LIST phase for batch collection")
             await activity_monitor.log_event("macro_thought", {"text": "📋 Starting list collection phase"}, thread_id)
 
@@ -446,17 +446,26 @@ class MacroEngine:
                 if screen_num >= max_screens - 1:
                     break
 
-                # Swipe to next screen
+                # Scroll to next screen
                 try:
-                    await MobileController.execute(
-                        action="swipe",
-                        direction="up",
-                        distance=swipe_distance,
+                    # Map swipe_distance to a ratio for the 'scroll' action
+                    # Standard height is ~2400. 1200 is 0.5
+                    scroll_ratio = min(0.9, max(0.1, swipe_distance / 2400.0 if swipe_distance > 1 else 0.5))
+
+                    res = await MobileController.execute(
+                        action="scroll",
+                        direction="down",  # 'swipe up' is 'scroll down'
+                        scroll_amount=scroll_ratio,
                         device_id=params.get("device_id")
                     )
+
+                    if isinstance(res, str) and (res.startswith("Error") or res.startswith("ERR_")):
+                        logger.error(f"[{thread_id}] Scroll failed: {res}")
+                        break
+
                     await asyncio.sleep(wait_ms / 1000)
                 except Exception as e:
-                    logger.error(f"[{thread_id}] Swipe failed: {e}")
+                    logger.error(f"[{thread_id}] Scroll action exception: {e}")
                     break
 
             state["phase"] = "detail"
@@ -836,16 +845,30 @@ class MacroEngine:
     async def _handle_dump(cls, thread_id: str, payload: dict, extracted_data: dict):
         """Handle data persistence - supports file, MCP, and webhook sinks."""
         sink_type = payload.get("sink_type", "file")
+        
+        # Enrich data if requested from state file (for two-phase batch collection)
+        data_to_dump = dict(extracted_data)
+        if payload.get("include_state_items"):
+            state_file = extracted_data.get("collect_results", {}).get("state_file")
+            if state_file and os.path.exists(state_file):
+                try:
+                    with open(state_file, 'r', encoding='utf-8') as f:
+                        state_data = json.load(f)
+                        # We use 'items' for MCP batch tools
+                        data_to_dump["batch_items"] = state_data.get("items", [])
+                        logger.info(f"[{thread_id}] Enriched dump with {len(data_to_dump['batch_items'])} items from state file")
+                except Exception as e:
+                    logger.warning(f"[{thread_id}] Failed to load state file for enriched dump: {e}")
 
         if sink_type == "file":
-            await cls._dump_to_file(thread_id, payload, extracted_data)
+            await cls._dump_to_file(thread_id, payload, data_to_dump)
         elif sink_type == "mcp":
-            await cls._dump_to_mcp(thread_id, payload, extracted_data)
+            await cls._dump_to_mcp(thread_id, payload, data_to_dump)
         elif sink_type == "webhook":
-            await cls._dump_to_webhook(thread_id, payload, extracted_data)
+            await cls._dump_to_webhook(thread_id, payload, data_to_dump)
         else:
             logger.warning(f"Unknown sink_type: {sink_type}, falling back to file")
-            await cls._dump_to_file(thread_id, payload, extracted_data)
+            await cls._dump_to_file(thread_id, payload, data_to_dump)
 
     @classmethod
     async def _dump_to_file(cls, thread_id: str, payload: dict, extracted_data: dict):
@@ -865,12 +888,13 @@ class MacroEngine:
         from app.core.tools.mcp.client import mcp_client_manager
 
         mcp_server = payload.get("mcp_server", "supabase")
+        mcp_tool_name = payload.get("mcp_tool")
         table = payload.get("table", "extracted_data")
         operation = payload.get("operation", "insert")
 
         await activity_monitor.log_event(
             "macro_thought",
-            {"text": f"Pushing data to MCP server '{mcp_server}', table: {table}"},
+            {"text": f"Pushing data to MCP server '{mcp_server}' using {mcp_tool_name or operation}"},
             thread_id
         )
 
@@ -881,18 +905,28 @@ class MacroEngine:
                 logger.error(f"[MacroEngine] MCP server '{mcp_server}' not available")
                 return
 
-            # Find appropriate tool (insert/store/push)
+            # Find appropriate tool
             target_tool = None
             for tool in tools:
-                tool_name = tool.name.lower()
-                if operation in tool_name or "insert" in tool_name or "store" in tool_name:
+                # 1. Exact match by mcp_tool name
+                if mcp_tool_name and tool.name == mcp_tool_name:
                     target_tool = tool
                     break
+                
+                # 2. Fuzzy match by operation (fallback)
+                if not mcp_tool_name:
+                    tool_name = tool.name.lower()
+                    if operation in tool_name or "insert" in tool_name or "store" in tool_name:
+                        target_tool = tool
+                        break
 
             if not target_tool:
-                # Try to find any tool that might work
+                if mcp_tool_name:
+                    logger.error(f"[MacroEngine] MCP tool '{mcp_tool_name}' not found on server '{mcp_server}'")
+                    return
+                # Extreme fallback
                 target_tool = tools[0]
-                logger.warning(f"[MacroEngine] Using fallback MCP tool: {target_tool.name}")
+                logger.warning(f"[MacroEngine] Using total fallback MCP tool: {target_tool.name}")
 
             # Prepare data payload
             data_payload = {
