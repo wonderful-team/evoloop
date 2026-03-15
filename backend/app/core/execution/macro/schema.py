@@ -89,6 +89,14 @@ class ExtractType(str, Enum):
     BATCH = "batch"  # Internal: batched extract operations
 
 
+class CollectMode(str, Enum):
+    """Collect mode for LOOP steps - enables two-phase batch collection."""
+    NORMAL = "normal"  # Standard loop execution
+    LIST = "list"      # Phase 1: List collection - gather items without executing steps
+    DETAIL = "detail"  # Phase 2: Detail execution - process collected items
+    AUTO = "auto"      # Automatic: collect list first, then execute detail steps
+
+
 class MacroCondition(BaseModel):
     type: str = "element_exists"
     target_selector: Optional[str] = None
@@ -114,6 +122,10 @@ class MacroStep(BaseModel):
     steps: List["MacroStep"] = Field(default_factory=list)
     max_iterations: Union[int, str] = 100
 
+    # Batch Collection Mode (for LOOP steps)
+    # Enables two-phase collection: LIST (gather) -> DETAIL (execute)
+    collect_mode: CollectMode = CollectMode.NORMAL
+
     @model_validator(mode='before')
     @classmethod
     def migrate_legacy_fields(cls, values):
@@ -121,12 +133,12 @@ class MacroStep(BaseModel):
         step_type = values.get("type")
         if step_type in ("while", "batch_loop"):
             values["type"] = "loop"
-        
+
         # 2. Migrate Steps (then/else/do/do_steps -> standardized field names)
         # Handle 'then' -> 'then_steps'
         if values.get("then") and not values.get("then_steps"):
             values["then_steps"] = values.pop("then")
-            
+
         # Handle 'else' -> 'else_steps'
         if values.get("else") and not values.get("else_steps"):
             values["else_steps"] = values.pop("else")
@@ -150,6 +162,10 @@ class MacroStep(BaseModel):
             # Pull 'steps' if it's buried in payload (some LLMs do this)
             if payload.get("steps") and not values.get("steps"):
                 values["steps"] = payload.get("steps")
+
+            # Pull 'collect_mode' for batch collection
+            if payload.get("collect_mode"):
+                values["collect_mode"] = payload.get("collect_mode")
 
         return values
     

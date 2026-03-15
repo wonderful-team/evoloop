@@ -186,6 +186,13 @@ class MacroEngine:
                 return await cls.execute_steps(thread_id, branch, params, extracted_data, disable_ocr)
 
         elif step.type == MacroStepType.LOOP:
+            # Check for collect_mode (two-phase batch collection)
+            collect_mode = payload.get("collect_mode", "normal")
+            if collect_mode in ("list", "detail", "auto"):
+                return await cls._handle_collect_loop(
+                    thread_id, step, payload, params, extracted_data, disable_ocr, collect_mode
+                )
+
             # 1. Batch Loop Mode (if payload contains items_key)
             if payload.get("items_key"):
                 return await cls._handle_loop(thread_id, step, payload, params, extracted_data, disable_ocr)
@@ -349,6 +356,316 @@ class MacroEngine:
             return True, f"Completed with {len(dlq)} items in DLQ", {"dlq": dlq}
 
         return True, "", None
+
+    @classmethod
+    async def _handle_collect_loop(
+        cls,
+        thread_id: str,
+        step: MacroStep,
+        payload: dict,
+        params: dict,
+        extracted_data: dict,
+        disable_ocr: bool,
+        collect_mode: str
+    ) -> Tuple[bool, str, Optional[Dict]]:
+        """
+        Handle two-phase batch collection loop.
+
+        Phases:
+        - LIST: Collect items from multiple screens without executing nested steps
+        - DETAIL: Execute nested steps for each collected item
+        - AUTO: Run LIST then DETAIL automatically
+
+        State is persisted to a JSON file for resumability.
+        """
+        import json
+        import os
+        from datetime import datetime
+
+        # Configuration
+        state_file = payload.get("state_file", f"/tmp/macro_collect_{thread_id}.json")
+        list_config = payload.get("list_config", {})
+        detail_config = payload.get("detail_config", {})
+
+        # Load or initialize state
+        state = {"items": [], "phase": "list", "created_at": datetime.now().isoformat()}
+        if os.path.exists(state_file):
+            try:
+                with open(state_file, 'r', encoding='utf-8') as f:
+                    state = json.load(f)
+            except Exception as e:
+                logger.warning(f"[{thread_id}] Failed to load state file, starting fresh: {e}")
+
+        # Phase 1: LIST - Collect items from screens
+        if collect_mode in ("list", "auto") and state["phase"] == "list":
+            logger.info(f"[{thread_id}] Starting LIST phase for batch collection")
+            await activity_monitor.log_event("macro_thought", {"text": "📋 Starting list collection phase"}, thread_id)
+
+            max_screens = list_config.get("max_screens", 10)
+            swipe_distance = list_config.get("swipe_distance", 1200)
+            wait_ms = list_config.get("wait_after_swipe_ms", 1500)
+
+            # Extract rules
+            anchor_rule = list_config.get("anchor_element", {"type": "price", "pattern": "￥[0-9,.]+"})
+            feature_config = list_config.get("feature_region", {"offset_y": -200, "height": 200, "max_features": 4})
+
+            seen_signatures = {item["signature"] for item in state["items"]}
+            new_items_count = 0
+
+            for screen_num in range(max_screens):
+                logger.info(f"[{thread_id}] Collecting screen {screen_num + 1}/{max_screens}")
+
+                # Get UI dump
+                try:
+                    if step.source == MacroSource.MOBILE:
+                        from app.infrastructure.drivers.adb import adb_driver
+                        device_id = params.get("device_id")
+                        xml = await asyncio.to_thread(adb_driver.dump_ui, device_id)
+                    else:
+                        raise NotImplementedError(f"Collect mode not implemented for source: {step.source}")
+                except Exception as e:
+                    logger.error(f"[{thread_id}] Failed to get UI dump: {e}")
+                    break
+
+                # Parse and extract items
+                items = cls._extract_collect_items_from_xml(xml, anchor_rule, feature_config)
+
+                # Deduplicate and add to state
+                for item in items:
+                    if item["signature"] not in seen_signatures:
+                        seen_signatures.add(item["signature"])
+                        item["status"] = "pending"
+                        item["collected_at"] = datetime.now().isoformat()
+                        item["screen_num"] = screen_num + 1
+                        state["items"].append(item)
+                        new_items_count += 1
+
+                logger.info(f"[{thread_id}] Screen {screen_num + 1}: found {len(items)}, new {new_items_count}")
+
+                # Check if we should continue
+                if screen_num >= max_screens - 1:
+                    break
+
+                # Swipe to next screen
+                try:
+                    await MobileController.execute(
+                        action="swipe",
+                        direction="up",
+                        distance=swipe_distance,
+                        device_id=params.get("device_id")
+                    )
+                    await asyncio.sleep(wait_ms / 1000)
+                except Exception as e:
+                    logger.error(f"[{thread_id}] Swipe failed: {e}")
+                    break
+
+            state["phase"] = "detail"
+            state["updated_at"] = datetime.now().isoformat()
+            with open(state_file, 'w', encoding='utf-8') as f:
+                json.dump(state, f, ensure_ascii=False, indent=2)
+
+            logger.info(f"[{thread_id}] LIST phase complete: {len(state['items'])} items collected")
+            await activity_monitor.log_event("macro_thought", {"text": f"✅ List collection complete: {len(state['items'])} items"}, thread_id)
+
+            if collect_mode == "list":
+                # Only list mode, return success
+                extracted_data["collected_items"] = state["items"]
+                extracted_data["collect_state_file"] = state_file
+                return True, f"List collection complete: {len(state['items'])} items", {"state_file": state_file}
+
+        # Phase 2: DETAIL - Execute steps for each collected item
+        if collect_mode in ("detail", "auto") and state["phase"] in ("detail", "completed"):
+            logger.info(f"[{thread_id}] Starting DETAIL phase for batch collection")
+            await activity_monitor.log_event("macro_thought", {"text": "🔍 Starting detail execution phase"}, thread_id)
+
+            pending_items = [item for item in state["items"] if item.get("status") == "pending"]
+
+            if not pending_items:
+                logger.info(f"[{thread_id}] No pending items to process")
+                return True, "No pending items", None
+
+            limit = detail_config.get("limit")
+            if limit:
+                pending_items = pending_items[:limit]
+
+            success_count = 0
+            fail_count = 0
+
+            for i, item in enumerate(pending_items):
+                logger.info(f"[{thread_id}] Processing item {i+1}/{len(pending_items)}: {item['signature'][:50]}")
+
+                try:
+                    # Tap to open detail
+                    tap_x = item.get("tap_x", 540)
+                    tap_y = item.get("tap_y", item.get("anchor_y", 500))
+
+                    await MobileController.execute(
+                        action="click",
+                        x=tap_x,
+                        y=tap_y,
+                        device_id=params.get("device_id")
+                    )
+                    await asyncio.sleep(detail_config.get("wait_after_tap_ms", 2000) / 1000)
+
+                    # Execute nested steps for detail collection
+                    if step.steps:
+                        iter_params = dict(params)
+                        iter_params["item"] = item
+                        iter_params["item_index"] = i
+                        iter_params["collected_signature"] = item["signature"]
+
+                        success, msg, fallback = await cls.execute_steps(
+                            thread_id, step.steps, iter_params, extracted_data, disable_ocr
+                        )
+
+                        if not success:
+                            logger.warning(f"[{thread_id}] Detail steps failed for item {i}: {msg}")
+                            item["status"] = "failed"
+                            item["error"] = msg
+                            fail_count += 1
+                        else:
+                            item["status"] = "done"
+                            item["completed_at"] = datetime.now().isoformat()
+                            success_count += 1
+                    else:
+                        # No nested steps, just mark as done
+                        item["status"] = "done"
+                        item["completed_at"] = datetime.now().isoformat()
+                        success_count += 1
+
+                    # Go back to list
+                    await MobileController.execute(
+                        action="press_key",
+                        keycode=4,  # BACK
+                        device_id=params.get("device_id")
+                    )
+                    await asyncio.sleep(0.8)
+
+                except Exception as e:
+                    logger.error(f"[{thread_id}] Error processing item {i}: {e}")
+                    item["status"] = "failed"
+                    item["error"] = str(e)
+                    fail_count += 1
+
+                # Save progress every 5 items
+                if i % 5 == 0:
+                    with open(state_file, 'w', encoding='utf-8') as f:
+                        json.dump(state, f, ensure_ascii=False, indent=2)
+
+            # Final save
+            state["phase"] = "completed"
+            state["updated_at"] = datetime.now().isoformat()
+            with open(state_file, 'w', encoding='utf-8') as f:
+                json.dump(state, f, ensure_ascii=False, indent=2)
+
+            result_msg = f"Detail phase complete: {success_count} succeeded, {fail_count} failed"
+            logger.info(f"[{thread_id}] {result_msg}")
+            await activity_monitor.log_event("macro_thought", {"text": f"✅ {result_msg}"}, thread_id)
+
+            extracted_data["collect_results"] = {
+                "total": len(state["items"]),
+                "success": success_count,
+                "failed": fail_count,
+                "state_file": state_file
+            }
+            return True, result_msg, {"state_file": state_file}
+
+        return True, "Collect loop processed", None
+
+    @staticmethod
+    def _extract_collect_items_from_xml(xml_content: str, anchor_rule: dict, feature_config: dict) -> List[Dict]:
+        """Extract collectible items from UI dump XML."""
+        import xml.etree.ElementTree as ET
+        import re
+
+        def parse_bounds(bounds_str: str):
+            match = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", bounds_str)
+            if match:
+                return tuple(map(int, match.groups()))
+            return (0, 0, 0, 0)
+
+        def is_anchor_match(text: str, rule: dict) -> bool:
+            if not text:
+                return False
+            pattern = rule.get("pattern", "")
+            if pattern and re.search(pattern, text):
+                return True
+            return False
+
+        # Clean XML
+        xml_start = xml_content.find("<?xml")
+        if xml_start == -1:
+            xml_start = xml_content.find("<hierarchy")
+        if xml_start == -1:
+            return []
+
+        xml_content = xml_content[xml_start:]
+        hierarchy_end = xml_content.rfind("</hierarchy>")
+        if hierarchy_end != -1:
+            xml_content = xml_content[:hierarchy_end + len("</hierarchy>")]
+
+        xml_content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', xml_content)
+
+        try:
+            root = ET.fromstring(xml_content)
+        except:
+            return []
+
+        items = []
+
+        # Find all anchor elements
+        for node in root.iter():
+            text = node.get("text", "")
+            if is_anchor_match(text, anchor_rule):
+                bounds = parse_bounds(node.get("bounds", ""))
+                if bounds == (0, 0, 0, 0):
+                    continue
+
+                x1, y1, x2, y2 = bounds
+                anchor_y = (y1 + y2) // 2
+                anchor_x = (x1 + x2) // 2
+
+                # Find feature elements near the anchor
+                offset_y = feature_config.get("offset_y", -200)
+                height = feature_config.get("height", 200)
+                max_features = feature_config.get("max_features", 4)
+
+                feature_y_min = anchor_y + offset_y
+                feature_y_max = feature_y_min + height
+
+                features = []
+                for elem in root.iter():
+                    elem_bounds = parse_bounds(elem.get("bounds", ""))
+                    if elem_bounds == (0, 0, 0, 0):
+                        continue
+
+                    ex1, ey1, ex2, ey2 = elem_bounds
+                    elem_center_y = (ey1 + ey2) // 2
+
+                    if feature_y_min <= elem_center_y <= feature_y_max:
+                        elem_text = elem.get("text", "")
+                        if elem_text and not is_anchor_match(elem_text, anchor_rule):
+                            features.append(elem_text[:30])  # Truncate long text
+                            if len(features) >= max_features:
+                                break
+
+                # Generate signature
+                sig_parts = [text] + features[:2]
+                signature = "|".join(sig_parts)
+
+                items.append({
+                    "anchor_text": text,
+                    "anchor_y": anchor_y,
+                    "anchor_x": anchor_x,
+                    "tap_x": 540,  # Center of screen
+                    "tap_y": anchor_y - 80,  # Slightly above anchor
+                    "features": features,
+                    "signature": signature
+                })
+
+        # Sort by Y position
+        items.sort(key=lambda x: x["anchor_y"])
+        return items
 
     @classmethod
     async def _evaluate_condition(cls, cond_type: str, selector: str, source: str) -> bool:
