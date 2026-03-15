@@ -379,15 +379,15 @@ class ADBDriver:
             logger.debug(f"Failed to read clipboard: {e}")
             return ""
 
-    def dump_ui(self, device_id: str | None = None) -> str:
+    def dump_ui(self, device_id: str | None = None, compressed: bool = True) -> str:
         """
         Dump the current UI hierarchy as XML.
-        Uses --compressed to bypass 'idle state' issues common on real devices.
+        Uses --compressed to bypass 'idle state' issues common on real devices by default.
         """
         import time
         start = time.time()
 
-        # Method 1: Try direct exec-out with --compressed (fastest)
+        # Method 1: Try direct exec-out with optional --compressed (fastest)
         cmd = [self._adb_path]
         if device_id:
             cmd.extend(["-s", device_id])
@@ -395,18 +395,20 @@ class ADBDriver:
         # Use /dev/tty as output to get direct streaming
         # Some devices support this, some don't
         try:
-            # Note: Not all devices support --compressed for dump, but it's worth a try 
-            # as it solves the "could not get idle state" error.
-            # We try with --compressed first.
+            dump_args = ["exec-out", "uiautomator", "dump"]
+            if compressed:
+                dump_args.append("--compressed")
+            dump_args.append("/dev/tty")
+
             result = subprocess.run(
-                cmd + ["exec-out", "uiautomator", "dump", "--compressed", "/dev/tty"],
+                cmd + dump_args,
                 capture_output=True,
                 text=True,
                 timeout=10
             )
 
-            # If it failed or returns empty, try without --compressed
-            if result.returncode != 0 or not result.stdout.strip():
+            # If it failed or returns empty (and we used compressed), try without --compressed as final fallback
+            if (result.returncode != 0 or not result.stdout.strip()) and compressed:
                  result = subprocess.run(
                     cmd + ["exec-out", "uiautomator", "dump", "/dev/tty"],
                     capture_output=True,
@@ -429,11 +431,15 @@ class ADBDriver:
         except Exception as e:
             logger.debug(f"exec-out method failed: {e}")
 
-        # Method 2: Fallback to file-based approach with --compressed
+        # Method 2: Fallback to file-based approach
         remote_path = "/data/local/tmp/window_dump.xml"
         try:
-            # Try with --compressed first to avoid "idle" error
-            self._run_adb(["shell", "uiautomator", "dump", "--compressed", remote_path], device_id=device_id)
+            dump_cmd = ["shell", "uiautomator", "dump"]
+            if compressed:
+                dump_cmd.append("--compressed")
+            dump_cmd.append(remote_path)
+            
+            self._run_adb(dump_cmd, device_id=device_id)
         except ADBError:
             # Final fallback: standard dump
             self._run_adb(["shell", "uiautomator", "dump", remote_path], device_id=device_id)

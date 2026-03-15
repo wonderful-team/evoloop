@@ -134,6 +134,9 @@ class MobileController:
         after_timestamp: int | None = None,
         region: str | None = None,
         disable_ocr: bool = False,
+        fast_probe: bool = False,
+        passive_safety: bool = False,
+        compressed_dump: bool = True,
         **kwargs: Any
     ) -> str:
         """Execute a mobile action. All business logic lives here."""
@@ -207,6 +210,9 @@ class MobileController:
                         txt = normalize_text(el.text)
                         if any(normalize_text(k) in txt for k in INTERCEPT_TARGETS):
                             logger.info(f"[Reactor] Intercepted artifact: '{el.text}' at ({el.x}, {el.y})")
+                            if passive_safety:
+                                logger.info("[Reactor] Passive Safety enabled: Skipping auto-intercept click.")
+                                return False
                             await asyncio.to_thread(adb_driver.tap, el.x, el.y, device_id=device_id)
                             return True
                 return False
@@ -225,6 +231,9 @@ class MobileController:
                 curr_pkg = curr.get("package")
                 if curr_pkg != expected_pkg and curr_pkg != "com.android.systemui":
                     logger.warning(f"[Sentinel] Drift! Current: {curr_pkg}, Expected: {expected_pkg}. Recovering...")
+                    if passive_safety:
+                        logger.info("[Sentinel] Passive Safety enabled: Skipping auto-recovery actions.")
+                        return False
                     await asyncio.to_thread(adb_driver.press_key, "back", device_id=device_id)
                     await asyncio.sleep(1.2)
                     curr = await cls.get_current_app_cached(device_id=device_id)
@@ -283,10 +292,17 @@ class MobileController:
                 fallback_x: int | None,
                 fallback_y: int | None,
                 timeout_val: float = 8.0,
-                expected_pkg: str | None = None
+                expected_pkg: str | None = None,
+                fast_probe_enabled: bool = False
             ) -> tuple[int, int] | str:
                 """Resolve element with coordinate fallback."""
-                resolved = await resolve_element(name, role, timeout_val=timeout_val, expected_pkg=expected_pkg)
+                resolved = await resolve_element(
+                    name, role, 
+                    timeout_val=timeout_val, 
+                    expected_pkg=expected_pkg, 
+                    fast_probe=fast_probe_enabled,
+                    has_fallback=(fallback_x is not None and fallback_y is not None)
+                )
                 if isinstance(resolved, str):
                     if fallback_x is not None and fallback_y is not None:
                         return fallback_x, fallback_y
@@ -314,13 +330,29 @@ class MobileController:
                     return False
                 return True
 
-            async def resolve_element(name: str, role: str | None = None, timeout_val: float = 8.0, expected_pkg: str | None = None) -> dict | str:
+            async def resolve_element(
+                name: str, 
+                role: str | None = None, 
+                timeout_val: float = 8.0, 
+                expected_pkg: str | None = None,
+                fast_probe: bool = False,
+                has_fallback: bool = False
+            ) -> dict | str:
                 """Reactor: High-frequency poll for element with fallback."""
                 start_time = time.time()
                 target_norm = normalize_text(name)
 
+                # Adaptive Timeout: If coordinates provide a fallback and fast_probe is on,
+                # we only spend 1/8 of the timeout on A11y.
+                effective_timeout = timeout_val
+                if fast_probe and has_fallback:
+                    effective_timeout = min(1.5, timeout_val / 4.0)
+                    logger.info(f"[Reactor] Fast Probe enabled with fallback. Adaptive timeout: {effective_timeout:.2f}s")
+
                 # Fetch A11y ONCE per resolve_element start
-                initial_a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
+                initial_a11y_result = await android_a11y_provider.process(
+                    VisionTask.DETECT, "", device_id=device_id, compressed=compressed_dump
+                )
 
                 await flash_intercept(initial_a11y_result)
                 is_h5 = await probe_hybrid(initial_a11y_result)
@@ -330,7 +362,7 @@ class MobileController:
                 last_sentinel_check = start_time
                 used_initial_a11y = False
 
-                while time.time() - start_time < timeout_val:
+                while time.time() - start_time < effective_timeout:
                     loop_start = time.time()
                     if expected_pkg and (loop_start - last_sentinel_check >= 1.0):
                         await check_sentinel(expected_pkg)
@@ -341,7 +373,9 @@ class MobileController:
                         a11y_result = initial_a11y_result
                         used_initial_a11y = True
                     else:
-                        a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
+                        a11y_result = await android_a11y_provider.process(
+                            VisionTask.DETECT, "", device_id=device_id, compressed=compressed_dump
+                        )
                         
                     if a11y_result.success and a11y_result.elements:
                         candidates = []
@@ -479,7 +513,7 @@ class MobileController:
                 base_pkg = await _get_current_package()
                 tx, ty = await _normalize_coordinates(x, y)
                 if element_name:
-                    result = await _resolve_with_fallback(element_name, element_role, tx, ty, timeout, base_pkg)
+                    result = await _resolve_with_fallback(element_name, element_role, tx, ty, timeout, base_pkg, fast_probe_enabled=fast_probe)
                     if isinstance(result, str):
                         return result
                     tx, ty = result
@@ -499,7 +533,7 @@ class MobileController:
                 base_pkg = await _get_current_package()
                 tx, ty = await _normalize_coordinates(x, y)
                 if element_name:
-                    result = await _resolve_with_fallback(element_name, element_role, tx, ty, timeout, base_pkg)
+                    result = await _resolve_with_fallback(element_name, element_role, tx, ty, timeout, base_pkg, fast_probe_enabled=fast_probe)
                     if isinstance(result, str):
                         return result
                     tx, ty = result

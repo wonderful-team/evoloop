@@ -187,7 +187,7 @@ class MacroEngine:
 
         elif step.type == MacroStepType.LOOP:
             # Check for collect_mode (two-phase batch collection)
-            collect_mode = payload.get("collect_mode", "normal")
+            collect_mode = step.collect_mode
             if collect_mode in ("list", "detail", "auto"):
                 return await cls._handle_collect_loop(
                     thread_id, step, payload, params, extracted_data, disable_ocr, collect_mode
@@ -420,7 +420,7 @@ class MacroEngine:
                     if step.source == MacroSource.MOBILE:
                         from app.infrastructure.drivers.adb import adb_driver
                         device_id = params.get("device_id")
-                        xml = await asyncio.to_thread(adb_driver.dump_ui, device_id)
+                        xml = await asyncio.to_thread(adb_driver.dump_ui, device_id, compressed=False)
                     else:
                         raise NotImplementedError(f"Collect mode not implemented for source: {step.source}")
                 except Exception as e:
@@ -1111,19 +1111,19 @@ class MacroEngine:
             x, y = _get_coords(payload, "x"), _get_coords(payload, "y")
             # If coordinates provided, use them directly without element resolution
             if x is not None and y is not None:
-                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=None, timeout=payload.get("timeout", 8.0), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=None, timeout=payload.get("timeout", 8.0), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
             else:
-                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=selector or payload.get("element_name") or payload.get("target"), timeout=payload.get("timeout", 8.0), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
         elif event_type == "long_press":
             logger.info(f"[_execute_mobile_step] Branch: long_press")
             x, y = _get_coords(payload, "x"), _get_coords(payload, "y")
             # If coordinates provided, use them directly without element resolution
             if x is not None and y is not None:
-                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=None, duration_ms=payload.get("duration_ms", 800), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=None, duration_ms=payload.get("duration_ms", 800), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
             else:
-                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=selector or payload.get("element_name"), duration_ms=payload.get("duration_ms", 800), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+                handle_res(await MobileController.execute(action=tool_action, x=x, y=y, element_name=selector or payload.get("element_name"), duration_ms=payload.get("duration_ms", 800), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
         elif event_type in ("input", "type_text"):
-            handle_res(await MobileController.execute(action="input_text", text=payload.get("text") or payload.get("value", ""), element_name=selector or payload.get("element_name"), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            handle_res(await MobileController.execute(action="input_text", text=payload.get("text") or payload.get("value", ""), element_name=selector or payload.get("element_name"), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
         elif event_type in ("swipe", "scroll"):
             actual_action = tool_action
             # If it's a swipe but we only have direction/distance (no coords), redirect to scroll
@@ -1141,16 +1141,18 @@ class MacroEngine:
                 duration_ms=payload.get("duration_ms", 500),
                 disable_atlas=True,
                 disable_trace_screenshot=True,
-                disable_ocr=disable_ocr
+                disable_ocr=disable_ocr,
+                fast_probe=True,
+                passive_safety=True
             ))
         elif event_type == "back":
-            handle_res(await MobileController.execute(action="press_key", keycode="back", disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            handle_res(await MobileController.execute(action="press_key", keycode="back", disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
         elif event_type == "back_key":
-            handle_res(await MobileController.execute(action="press_key", keycode=payload.get("keycode", "back"), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            handle_res(await MobileController.execute(action="press_key", keycode=payload.get("keycode", "back"), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
         elif event_type == "home":
-            handle_res(await MobileController.execute(action="press_key", keycode="home", disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            handle_res(await MobileController.execute(action="press_key", keycode="home", disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
         elif event_type == "key_press":
-            handle_res(await MobileController.execute(action=tool_action, keycode=payload.get("key") or payload.get("keycode"), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            handle_res(await MobileController.execute(action=tool_action, keycode=payload.get("key") or payload.get("keycode"), disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
         elif event_type == "open_app":
             handle_res(await MobileController.execute(
                 action=tool_action,
@@ -1158,17 +1160,19 @@ class MacroEngine:
                 force_stop=payload.get("force_stop", True),
                 disable_atlas=True,
                 disable_trace_screenshot=True,
-                disable_ocr=disable_ocr
+                disable_ocr=disable_ocr,
+                fast_probe=True,
+                passive_safety=True
             ))
         elif event_type == "screenshot":
-            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
         elif event_type == "dump_ui":
-            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            handle_res(await MobileController.execute(action=tool_action, disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True, compressed_dump=False))
         elif event_type == "wait":
             duration = payload.get("seconds") or (payload.get("duration_ms", 1000) / 1000.0)
             await asyncio.sleep(float(duration))
         elif event_type == "get_clipboard":
-            handle_res(await MobileController.execute(action="get_clipboard", disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr))
+            handle_res(await MobileController.execute(action="get_clipboard", disable_atlas=True, disable_trace_screenshot=True, disable_ocr=disable_ocr, fast_probe=True, passive_safety=True))
         elif event_type == "scroll_to_bottom":
             handle_res(await MobileController.execute(
                 action="scroll_to_bottom",
@@ -1177,7 +1181,10 @@ class MacroEngine:
                 delay_ms=payload.get("delay_ms", 1000),
                 disable_atlas=True,
                 disable_trace_screenshot=True,
-                disable_ocr=disable_ocr
+                disable_ocr=disable_ocr,
+                fast_probe=True,
+                passive_safety=True,
+                compressed_dump=False
             ))
 
     # --- Utils ---

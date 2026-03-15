@@ -105,7 +105,8 @@ class AndroidA11yProvider(VisionProvider):
         device_id = kwargs.get("device_id")
 
         try:
-            xml_content = adb_driver.dump_ui(device_id=device_id)
+            compressed = kwargs.get("compressed", True)
+            xml_content = adb_driver.dump_ui(device_id=device_id, compressed=compressed)
         except ADBError as e:
             logger.error(f"UI dump failed: {e}")
             return VisionResult(
