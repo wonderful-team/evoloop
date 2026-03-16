@@ -69,7 +69,6 @@ const useAuth = () => {
   const logout = async () => {
     try {
       // Call backend to cleanup EvoLoop connection
-      // Note: MemberService must be imported
       await MemberService.logout()
     } catch (e) {
       console.error("Logout cleanup failed:", e)

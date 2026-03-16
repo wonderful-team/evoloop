@@ -4,7 +4,6 @@ from app.api.routes import (
     agent,
     auth_proxy,
     brain,
-    cloud,
     conversations,
     devices,
     files,
@@ -18,9 +17,7 @@ from app.api.routes import (
     project_modules,
     project_requirements,
     projects,
-    proxy,
     resources,
-    sidecar_tools,
     stream,
     symbols,
     system,
@@ -74,12 +71,3 @@ api_router.include_router(wiki.router, prefix="/wiki", tags=["wiki"])
 
 # Cognitive Brain (Flash Mode)
 api_router.include_router(brain.router, prefix="/brain", tags=["brain"])
-
-# Cloud API (for client devices)
-api_router.include_router(cloud.router, tags=["cloud"])
-
-# AI Service Proxy (Client delegates LLM/Vision/Embedding to Server)
-api_router.include_router(proxy.router, prefix="/proxy", tags=["proxy"])
-
-# Sidecar Tool Execution (Server -> Tauri -> Client)
-api_router.include_router(sidecar_tools.router, tags=["sidecar"])

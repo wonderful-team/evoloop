@@ -47,10 +47,10 @@
       "icons/icon.ico"
     ],
     "resources": {
-      "../../client": "client"
+      "../../backend": "backend-source"
     },
     "externalBin": [
-      "binaries/evoloop-client"
+      "binaries/evoloop-backend"
     ]
   }
 }

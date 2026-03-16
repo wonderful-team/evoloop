@@ -1,11 +1,13 @@
 """
-Sidecar Tool Proxy - Server-side proxy for Client tool execution.
+HTTP Client Communication - Server-side HTTP proxy for Client tool execution.
 
 When Agent needs to execute a local tool (file, shell, MCP), this proxy:
 1. Creates a pending tool request
-2. Notifies Tauri via HTTP (or waits for Tauri to poll)
-3. Waits for Tauri to execute via Client and return result
+2. Waits for Client to poll via HTTP
+3. Client executes and returns result via HTTP
 4. Returns result to Agent
+
+This is the fallback mechanism when WebSocket is not available.
 """
 
 import asyncio
@@ -41,7 +43,7 @@ class ToolRequest:
 
 class ToolRequestManager:
     """
-    Manages pending tool requests for Sidecar execution.
+    Manages pending tool requests for Client execution.
     Singleton pattern for global access.
     """
     _instance = None
@@ -92,7 +94,7 @@ class ToolRequestManager:
                 self._thread_requests[thread_id] = []
             self._thread_requests[thread_id].append(request_id)
 
-        logger.info(f"[Sidecar] Created tool request {request_id} for thread {thread_id}: {tool}")
+        logger.info(f"[Client] Created tool request {request_id} for thread {thread_id}: {tool}")
         return request
 
     async def get_request(self, request_id: str) -> Optional[ToolRequest]:
@@ -127,7 +129,7 @@ class ToolRequestManager:
         async with self._lock:
             request = self._requests.get(request_id)
             if not request:
-                logger.warning(f"[Sidecar] Request {request_id} not found for completion")
+                logger.warning(f"[Client] Request {request_id} not found for completion")
                 return False
 
             request.status = "failed" if error else "completed"
@@ -136,7 +138,7 @@ class ToolRequestManager:
             request.completed_at = datetime.utcnow()
             request._event.set()
 
-        logger.info(f"[Sidecar] Request {request_id} completed")
+        logger.info(f"[Client] Request {request_id} completed")
         return True
 
     async def wait_for_result(
@@ -153,7 +155,7 @@ class ToolRequestManager:
             await asyncio.wait_for(request._event.wait(), timeout=timeout)
             return request
         except asyncio.TimeoutError:
-            logger.error(f"[Sidecar] Timeout waiting for request {request_id}")
+            logger.error(f"[Client] Timeout waiting for request {request_id}")
             request.status = "failed"
             request.error = "Timeout waiting for tool execution"
             return request
@@ -179,7 +181,7 @@ class ToolRequestManager:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"[Sidecar] Cleanup error: {e}")
+                logger.error(f"[Client] Cleanup error: {e}")
 
     async def _cleanup_old_requests(self):
         """Remove completed requests older than 1 hour."""
@@ -204,20 +206,90 @@ class ToolRequestManager:
 tool_request_manager = ToolRequestManager()
 
 
-class SidecarToolExecutor:
+class ClientCapabilitiesManager:
     """
-    Executes tools through the Sidecar (Tauri -> Client).
+    Manages Client-reported capabilities for HTTP mode.
+
+    In HTTP mode, Client reports its capabilities via REST API.
+    This is a simpler alternative to WebSocket capability reporting.
+    """
+
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance._tools: set[str] = set()
+            cls._instance._prefixes: set[str] = set()
+            cls._instance._version: str = ""
+            cls._instance._last_reported: Optional[datetime] = None
+        return cls._instance
+
+    def update_capabilities(
+        self,
+        tools: list[str],
+        version: str = "1.0",
+        patterns: dict[str, list[str]] | None = None
+    ):
+        """Update Client capabilities."""
+        self._tools = set(tools)
+        if patterns:
+            self._prefixes = set(patterns.get("prefixes", []))
+        self._version = version
+        self._last_reported = datetime.utcnow()
+        logger.info(f"[HTTP Capabilities] Updated: {len(tools)} tools, {len(self._prefixes)} prefixes, version {version}")
+
+    def supports_tool(self, tool_name: str) -> bool:
+        """Check if Client supports a specific tool."""
+        if not self._tools and not self._prefixes:
+            # No capabilities reported yet, assume support for common tools
+            return True
+
+        # Check exact match
+        if tool_name in self._tools:
+            return True
+
+        # Check prefix patterns (e.g., "adb_", "browser_", "desktop_")
+        for prefix in self._prefixes:
+            if tool_name.startswith(prefix):
+                return True
+
+        # Check for MCP tools (mcp__server__tool format)
+        if tool_name.startswith("mcp__"):
+            return True
+
+        return False
+
+    def get_supported_tools(self) -> set[str]:
+        """Get the set of supported tools."""
+        return self._tools.copy()
+
+    def get_prefixes(self) -> set[str]:
+        """Get the set of supported tool prefixes."""
+        return self._prefixes.copy()
+
+    def is_reported(self) -> bool:
+        """Check if capabilities have been reported."""
+        return self._last_reported is not None
+
+
+# Global instance for HTTP mode capabilities
+client_capabilities = ClientCapabilitiesManager()
+
+
+class ClientToolExecutor:
+    """
+    Executes tools through the Client (Python sidecar process).
 
     This is used by the Agent when it needs to execute a local tool.
     The execution flow:
     1. Create a pending tool request
-    2. Notify Tauri (via HTTP callback or wait for polling)
-    3. Wait for Tauri to execute via Client and return result
-    4. Return result to Agent
+    2. Wait for Client to poll and execute
+    3. Return result to Agent
     """
 
-    def __init__(self, tauri_callback_url: Optional[str] = None):
-        self.tauri_callback_url = tauri_callback_url or settings.TAURI_CALLBACK_URL
+    def __init__(self, client_callback_url: Optional[str] = None):
+        self.client_callback_url = client_callback_url or settings.CLIENT_CALLBACK_URL
         self._http_client = httpx.AsyncClient(timeout=30.0)
 
     async def execute(
@@ -228,7 +300,7 @@ class SidecarToolExecutor:
         timeout: float = 300.0
     ) -> Any:
         """
-        Execute a tool through Sidecar.
+        Execute a tool through Client.
 
         Args:
             thread_id: The conversation thread ID
@@ -249,11 +321,7 @@ class SidecarToolExecutor:
             params=params
         )
 
-        # 2. Notify Tauri (if callback URL is configured)
-        if self.tauri_callback_url:
-            await self._notify_tauri(request)
-
-        # 3. Wait for result
+        # 2. Wait for result (Client will poll via HTTP)
         completed = await tool_request_manager.wait_for_result(
             request.request_id,
             timeout=timeout
@@ -267,39 +335,17 @@ class SidecarToolExecutor:
 
         return completed.result
 
-    async def _notify_tauri(self, request: ToolRequest):
-        """Notify Tauri that a tool request is pending."""
-        try:
-            payload = {
-                "request_id": request.request_id,
-                "thread_id": request.thread_id,
-                "tool": request.tool,
-                "params": request.params,
-            }
-
-            response = await self._http_client.post(
-                f"{self.tauri_callback_url}/tool_request",
-                json=payload
-            )
-
-            if response.status_code >= 400:
-                logger.warning(f"[Sidecar] Failed to notify Tauri: {response.status_code}")
-
-        except Exception as e:
-            # Don't fail if notification fails - Tauri can also poll
-            logger.warning(f"[Sidecar] Error notifying Tauri: {e}")
-
     async def close(self):
         """Close HTTP client."""
         await self._http_client.aclose()
 
 
 class ToolExecutionError(Exception):
-    """Error executing tool through Sidecar."""
+    """Error executing tool through Client."""
     pass
 
 
 # Convenience function for Agent
-def get_sidecar_executor() -> SidecarToolExecutor:
-    """Get the Sidecar tool executor instance."""
-    return SidecarToolExecutor()
+def get_client_executor() -> ClientToolExecutor:
+    """Get the Client tool executor instance."""
+    return ClientToolExecutor()

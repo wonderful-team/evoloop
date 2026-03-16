@@ -9,11 +9,9 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, AtomicI32};
 use std::sync::{Arc, Mutex};
 #[cfg(desktop)]
 use tauri_plugin_shell::process::CommandChild;
-#[cfg(desktop)]
-use tauri_plugin_shell::ShellExt;
+// ShellExt removed - no longer needed for sidecar management
 
 use crate::sidecar::SidecarClient;
-use crate::proxy::ProxyState;
 
 // Marker overlay window management
 #[cfg(desktop)]
@@ -29,7 +27,6 @@ mod global_observer;
 use global_observer::GlobalObserver;
 
 mod commands;
-mod proxy;
 mod screen_recorder;
 mod sidecar;
 mod tray;
@@ -54,10 +51,8 @@ pub struct AppServiceState {
     pub countdown: Arc<AtomicI32>,
     // Event count from frontend (DOM + Global events)
     pub event_count: Arc<AtomicUsize>,
-    // Sidecar Client (Python process)
+    // Sidecar Client (Backend HTTP process)
     pub sidecar_client: Arc<Mutex<Option<SidecarClient>>>,
-    // Proxy State for Server-Client communication
-    pub proxy_state: Arc<ProxyState>,
 }
 
 // ===== Trivial Command =====
@@ -317,15 +312,18 @@ pub fn run() {
                 show_item: Arc::new(Mutex::new(Some(show_i.clone()))),
                 quit_item: Arc::new(Mutex::new(Some(quit_i.clone()))),
                 global_observer: Arc::new(GlobalObserver::new()),
+                // Screen recording (Two-Track Architecture)
                 recording_process: Arc::new(Mutex::new(None)),
                 recording_path: Arc::new(Mutex::new(None)),
                 is_blinking: Arc::new(AtomicBool::new(false)),
+                // Timer: stores the Instant when recording started (None when not recording)
                 recording_start_time: Arc::new(Mutex::new(None)),
                 is_preparing: Arc::new(AtomicBool::new(false)),
                 countdown: Arc::new(AtomicI32::new(0)),
+                // Event count from frontend (DOM + Global events)
                 event_count: Arc::new(AtomicUsize::new(0)),
+                // Backend Sidecar (HTTP Server)
                 sidecar_client: Arc::new(Mutex::new(None)),
-                proxy_state: Arc::new(ProxyState::new()),
             };
             _app.manage(service_state);
 
@@ -335,47 +333,20 @@ pub fn run() {
             let state = _app.state::<AppServiceState>();
             *state.tray.lock().unwrap() = Some(tray);
 
-            // Start Sidecar Client (Python)
+            // Start Backend Sidecar (HTTP Server)
             let mut sidecar_client = SidecarClient::new();
             match sidecar_client.start(_app.handle(), None) {
-                Ok(_) => {
-                    log::info!("Sidecar Client started successfully");
+                Ok(()) => {
+                    use crate::sidecar::BACKEND_PORT;
+                    log::info!("Backend started successfully on port {}", BACKEND_PORT);
                     // Store the client
                     *state.sidecar_client.lock().unwrap() = Some(sidecar_client);
 
-                    // Wait for Client ready and start proxy
-                    let client_arc = state.sidecar_client.clone();
-                    let app_handle = _app.handle().clone();
-                    let proxy_state = state.proxy_state.clone();
-
-                    tauri::async_runtime::spawn(async move {
-                        let client_opt = {
-                            let lock = client_arc.lock().unwrap();
-                            lock.clone()
-                        };
-
-                        if let Some(client) = client_opt {
-                            match client.wait_for_ready(30).await {
-                                Ok(_) => {
-                                    log::info!("Client is ready for commands");
-                                    let _ = app_handle.emit("client-ready", ());
-
-                                    // Start proxy polling for Server requests
-                                    *proxy_state.is_running.lock().unwrap() = true;
-                                    proxy::start_proxy_polling(app_handle.clone());
-                                    log::info!("Server-Client proxy polling started");
-                                }
-                                Err(e) => {
-                                    log::error!("Client failed to become ready: {}", e);
-                                    let _ = tauri::Emitter::emit(&app_handle, "client-error", e);
-                                }
-                            }
-                        }
-                    });
+                    // Backend will emit "backend-ready" event via HTTP polling
                 }
                 Err(e) => {
-                    log::error!("Failed to start Sidecar Client: {}", e);
-                    let _ = _app.emit("client-error", e);
+                    log::error!("Failed to start Backend: {}", e);
+                    let _ = _app.emit("backend-error", e);
                 }
             }
         }
@@ -430,15 +401,10 @@ pub fn run() {
             show_main_window,
             commands::window::get_window_bounds_by_title,
             commands::window::get_mirror_window_bounds,
-            // Sidecar commands
-            commands::sidecar::sidecar_execute_tool,
+            // Backend commands
+            commands::sidecar::backend_get_url,
             commands::sidecar::sidecar_is_ready,
             commands::sidecar::sidecar_get_status,
-            commands::sidecar::sidecar_read_file,
-            commands::sidecar::sidecar_write_file,
-            commands::sidecar::sidecar_shell,
-            commands::sidecar::sidecar_list_dir,
-            commands::sidecar::sidecar_init,
             commands::sidecar::sidecar_restart,
         ])
         .build(tauri::generate_context!())
