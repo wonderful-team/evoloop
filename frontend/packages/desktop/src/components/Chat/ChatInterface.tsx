@@ -32,6 +32,7 @@ import { MessageList } from "./MessageList"
 import { ChatSidebar, type Thread } from "./ChatSidebar"
 import { ContextPanel } from "./ContextPanel"
 import { BreadcrumbStatus } from "./BreadcrumbStatus"
+import { SessionOutcomeBanner } from "./SessionOutcomeBanner"
 
 import { DiffDrawer } from "./DiffDrawer"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
@@ -55,6 +56,7 @@ export function ChatInterface() {
   // --- Store State (Granular Selectors to avoid full re-renders) ---
   const activeThreadId = useChatStore((s) => s.threadId)
   const messages = useChatStore((s) => s.messages)
+  const finalOutcome = useChatStore((s) => s.finalOutcome)
   const status = useChatStore((s) => s.status)
   const steps = useChatStore((s) => s.steps)
   const streamedContent = useChatStore((s) => s.streamedContent)
@@ -450,7 +452,8 @@ export function ChatInterface() {
               onScroll={handleScroll}
               data-tour="chat-messages"
             >
-              <div className="space-y-6 max-w-4xl mx-auto pb-1">
+              <div className="space-y-6 max-w-4xl mx-auto pb-1 pt-4">
+                {status === "idle" && <SessionOutcomeBanner outcome={finalOutcome} />}
                 <MessageList
                   messages={messages}
                   isAgentWorking={status === "running" || status === "interrupted" || status === "SUMMARIZING"}
