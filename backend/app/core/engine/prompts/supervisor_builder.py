@@ -39,10 +39,25 @@ class SupervisorPromptBuilder:
         cwd = ctx.metadata.get("cwd", "")
         project_concepts = ctx.metadata.get("project_concepts", "")
 
-        # 2. Extract raw data for template
-        scratchpad = self.context.get("scratchpad", {})
-        visited_nodes = scratchpad.get("visited_nodes", [])
-        last_route = scratchpad.get("last_supervisor_route")
+        # Get the current awakened state early for blackboard access
+        state = get_awakened_state()
+
+        # 2. Extract raw data for template (Phase 1: Unified Blackboard)
+        # Phase 4: Blackboard Integration
+        blackboard = state.get("blackboard", {}) if state else {}
+        visited_nodes = blackboard.get("visited_nodes", [])
+        last_route = blackboard.get("route_reason")
+        
+        context = {
+            "current_plan": state.get("current_plan") if state else None,
+            "execution_ticket": blackboard.get("ticket"),
+            "verification_status": blackboard.get("verification"),
+            "visited_nodes": visited_nodes,
+            "last_route": last_route,
+            "subtask_results": blackboard.get("subtask_results", []),
+            "plan_approved": blackboard.get("plan_approved", False),
+        }
+
         last_human_msg = self.context.get("last_human_msg", "")
         
         active_plan_data = self.context.get("structured_plan")
@@ -65,8 +80,6 @@ class SupervisorPromptBuilder:
         # 3.1 Fetch Telemetry (Sensors)
         telemetry_data = {}
         try:
-            from app.core.environment import get_awakened_state
-            state = get_awakened_state()
             if state:
                 # Raw status (not pre-rendered text)
                 telemetry_data = {
@@ -84,9 +97,9 @@ class SupervisorPromptBuilder:
             "user_lang": user_lang,
             "telemetry": telemetry_data,  # <--- NEW: Raw Sensors
             "blackboard": {
-                "ticket": self.context.get("execution_ticket"),
-                "verification": self.context.get("verification_status"),
-                "route_reason": scratchpad.get("route_reason"),
+                "ticket": blackboard.get("ticket"),
+                "verification": blackboard.get("verification"),
+                "route_reason": blackboard.get("route_reason"),
             },
             "memory": {
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),
@@ -94,7 +107,7 @@ class SupervisorPromptBuilder:
                 "use_neo4j": settings.USE_NEO4J_MEMORY,
             },
             "plan": active_plan_data,
-            "plan_approved": scratchpad.get("plan_approved", False),
+            "plan_approved": blackboard.get("plan_approved", False),
             "warnings": {
                 "visited_nodes": visited_nodes,
                 "last_route": last_route,

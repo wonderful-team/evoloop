@@ -32,10 +32,18 @@ def _extract_final_summary(messages: list) -> str:
     for msg in reversed(messages):
         if isinstance(msg, AIMessage) and msg.content:
             content = str(msg.content)
-            # Remove technical markers defined in FinishPromptBuilder
-            content = content.replace("✅ SESSION COMPLETE", "").replace("❌ SESSION COMPLETE", "")
-            content = re.sub(r"^Outcome:.*$", "", content, flags=re.MULTILINE)
-            return content.strip()[:2000]
+            
+            # 1. Strip XML-based audit tags (Phase 6)
+            content = re.sub(r"<audit>.*?</audit>", "", content, flags=re.DOTALL | re.IGNORECASE)
+            
+            # 2. Hard Cleanup of common technical legacy markers
+            # Matches "Outcome: ...", "Summary: ...", "✅ SESSION COMPLETE", etc.
+            content = re.sub(r"(Outcome|Summary|Reason|Evidence|Partial Results|✅|❌|SESSION COMPLETE):?\s*", "", content, flags=re.IGNORECASE)
+            
+            # 3. Strip backticks or code blocks if the LLM wrapped the whole thing
+            content = content.replace("```", "").strip()
+            
+            return content[:2000]
     return "Session concluded."
 
 
@@ -94,62 +102,67 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, origin
 
 async def finish_node(state: AgentState, config: RunnableConfig):
     """
-    Session Reviewer — Terminal Quality Gate (v5).
-
-    finish is a one-way terminal node: once reached, the session ALWAYS ends.
-    The LLM writes a structured conclusion (success or failure) and exits.
-    Backtracking is NOT possible — the Supervisor decides when to route here.
-
-    Side effects triggered unconditionally on exit:
-      - record_episode_task (Celery async)
-      - consolidate_memory (Celery async)
+    Session Reviewer — Shadow Observer / Terminal Gate (Phase 3).
     """
     # 1. Resolve Context
     ctx = ContextManager.current()
-    cwd = ctx.working_directory or config.get("configurable", {}).get("working_directory")
-
-    if not cwd:
-        logger.warning("Finish: No working_directory found in context (Global Mode?).")
-        cwd = "GLOBAL"
-
-    # 2. Collect context for prompt
-    current_plan = state.get("current_plan", "")
-    execution_ticket = state.get("execution_ticket")
-    verification_status = state.get("verification_status", {})
     messages = state.get("messages", [])
-    action_context = _extract_tool_usage(messages)
-
-    # 3. Build Prompt
-    builder = FinishPromptBuilder(
-        current_plan=current_plan,
-        execution_ticket=execution_ticket,
-        verification_status=verification_status,
-        action_context=action_context
-    )
-    system_prompt = builder.build()
-
-    # 4. Define Toolset (read/audit tools only — no route_to)
-    tools = tool_manager.get_node_tools("finish", state)
-
-    # 5. Run Reviewer Agent
-    logger.info(f"Finish: Starting Session Reviewer (cwd={cwd})")
-    result = await AgentEngine.run_node(
-        state=state,
-        config=config,
-        system_prompt=system_prompt,
-        tools=tools,
-        name="Session Reviewer",
-        max_steps=settings.FINISH_AGENT_MAX_STEPS,
-    )
-
-    # 6. Always END — trigger recording unconditionally
-    last_msgs = result.get("messages", [])
-    summary = _extract_final_summary(last_msgs)
     
+    # Check if we should skip the LLM auditor (Shadow Mode)
+    # This is enabled when the LLM concludes naturally with text.
+    blackboard = state.get("blackboard", {})
+    is_shadow_mode = blackboard.get("metadata", {}).get("shadow_audit", False)
+    
+    summary = ""
+    if is_shadow_mode:
+        logger.info("[Finish] 👻 Running in Shadow Mode (Natural Termination)")
+        summary = _extract_final_summary(messages)
+    else:
+        # Legacy/Explicit Audit Path
+        current_plan = state.get("current_plan", "")
+        execution_ticket = blackboard.get("ticket") or state.get("execution_ticket")
+        verification_status = blackboard.get("verification") or state.get("verification_status", {})
+        action_context = _extract_tool_usage(messages)
+
+        builder = FinishPromptBuilder(
+            current_plan=current_plan,
+            execution_ticket=execution_ticket,
+            verification_status=verification_status,
+            action_context=action_context
+        )
+        system_prompt = builder.build()
+        tools = tool_manager.get_node_tools("finish", state)
+
+        logger.info("[Finish] 🕵️ Starting Explicit Session Audit")
+        result = await AgentEngine.run_node(
+            state=state,
+            config=config,
+            system_prompt=system_prompt,
+            tools=tools,
+            name="Session Reviewer",
+            max_steps=settings.FINISH_AGENT_MAX_STEPS,
+        )
+        messages = result.get("messages", [])
+        blackboard = result.get("blackboard", blackboard)
+        summary = _extract_final_summary(messages)
+
+    # Phase 6: Sync Structured Outcome to Blackboard for UI/Analytics
+    # This outcome is used by the frontend to show success/failure indicators.
+    full_text = "".join([str(m.content) for m in messages if isinstance(m, AIMessage)])
+    outcome_match = re.search(r"<outcome>(.*?)</outcome>", full_text, re.IGNORECASE | re.DOTALL)
+    if outcome_match:
+        final_outcome = outcome_match.group(1).strip()
+        blackboard.setdefault("metadata", {})["final_outcome"] = final_outcome
+        logger.info(f"[Finish] 🎯 Detected structured outcome: {final_outcome}")
+
+    # 2. Trigger Recording
     metadata = config.get("metadata", {})
     original_skill_id = metadata.get("original_skill_id")
-    
     _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id)
 
-    logger.info("Finish: ✅ Session concluded. Recording triggered. Routing to END.")
-    return {**result, "next_node": "END"}
+    logger.info("Finish: ✅ Session concluded. Routing to END.")
+    return {
+        "messages": messages, 
+        "next_node": "END",
+        "blackboard": blackboard
+    }

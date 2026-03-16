@@ -79,6 +79,30 @@ class HITLState(TypedDict):
     created_at: str | None  # ISO timestamp
 
 
+class BlackboardState(TypedDict):
+    """
+    Unified task and state management (Phase 4).
+    Consolidates Ticket, Scratchpad, and Verification.
+    """
+    ticket: ExecutionTicket | None
+    verification: dict[str, Any] | None
+    route_reason: str | None
+    
+    # [NEW] Unified Dynamic Fields
+    metadata: dict[str, Any]
+    clipboard: list[ClipboardItem]
+    visited_nodes: list[str]
+    working_directory: str | None
+    
+    # [NEW] Parallel Execution State
+    spawn_plan: dict[str, Any] | None
+    pending_aggregation: dict[str, Any] | None
+    subtask_results: list[dict[str, Any]]
+    
+    # [NEW] Planning State
+    plan_approved: bool
+
+
 class AgentState(TypedDict):
     # Conversation history (append-only)
     messages: Annotated[list[BaseMessage], add_messages]
@@ -99,10 +123,8 @@ class AgentState(TypedDict):
     # Execution artifacts (e.g. documents, code snippets)
     execution_artifact: str | None
 
-    # [NEW] Structured Execution & Verification
-    execution_ticket: ExecutionTicket | None
-    raw_verification_logs: str | None  # RAW logs (kept for backward compatibility)
-    verification_status: dict[str, Any] | None  # Aggregated status from verification tools
+    # [NEW Phase 4] Unified Blackboard
+    blackboard: Annotated[BlackboardState | None, operator.ior]
 
     # Loop Control
     iteration_count: int
@@ -115,8 +137,8 @@ class AgentState(TypedDict):
     # Kept for LangGraph checkpoint schema compatibility — do NOT add new usages.
     research_loop_count: Annotated[int | None, lambda a, b: b]  # deprecated
     research_logs: Annotated[list[str] | None, operator.add]  # deprecated
-    research_topic: str | None  # deprecated → use ExecutionTicket.topic
-    max_research_iterations: int | None  # deprecated → use AgentEngine.max_steps
+    research_topic: str | None  # deprecated
+    max_research_iterations: int | None  # deprecated
 
     # Memory
     user_preferences: str | None
@@ -124,11 +146,6 @@ class AgentState(TypedDict):
     # Planning
     situation_analysis: str | None
     action_plan: str | None
-
-    # [NEW] Dynamic State Store
-    # A dictionary to hold arbitrary variables (e.g. "loop_index", "api_status", "summary_draft")
-    # Also houses the 'workspace_clipboard' (List[ClipboardItem])
-    scratchpad: Annotated[dict[str, Any], operator.ior]
 
     # Skill Execution (Imitation Learning Phase 3/4)
     skill_execution_attempted: bool | None

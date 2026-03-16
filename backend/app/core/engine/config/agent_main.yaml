@@ -9,6 +9,11 @@ nodes:
     path: "app.core.engine.nodes.supervisor.supervisor_node"
     tools:
       - "route_to"
+      - "update_blackboard"
+      - "manage_session_metadata"
+      - "spawn_agents"
+      - "decompose_task"
+      - "aggregate_results"
       - "get_environment_telemetry"
       - "search_native_tools"
       - "search_skills"
@@ -19,8 +24,6 @@ nodes:
       - "request_human_input"
       - "get_workspace_tree"
       - "list_autonomous_tasks"
-      - "decompose_task"
-      - "aggregate_results"
 
   - id: "worker"
     path: "app.core.engine.nodes.worker.worker_node"
@@ -32,6 +35,10 @@ nodes:
       # explicitly authorizes a subset of these tools via the `route_to` call
       # based on the current mission and environment telemetry.
       # =====================================================================
+      # Orchestration & State (Unified Engine Controls)
+      - "update_blackboard"
+      - "manage_session_metadata"
+      - "spawn_agents"
       # Desktop & Mobile Automation
       - "desktop_control"
       - "mobile_control"

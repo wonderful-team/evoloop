@@ -9,8 +9,21 @@
   - {{ c }}
 {% endfor %}{% endif %}
 {% endif %}
+
+{% if blackboard.metadata %}
+### 📊 DYNAMIC METADATA
+{% for k, v in blackboard.metadata.items() -%}
+- **{{ k }}**: {{ v }}
+{% endfor %}
+{% endif %}
+
+{% if blackboard.visited_nodes %}
+### 🗺️ TRAVERSAL HISTORY
+- **History**: {{ blackboard.visited_nodes|join(' → ') }}
+{% endif %}
+
 {% if blackboard.verification %}
-### VERIFICATION STATUS: {{ blackboard.verification.status|upper }}
+### 🔍 VERIFICATION STATUS: {{ blackboard.verification.status|upper }}
 {% if blackboard.verification.status == 'verified' %}
 - Worker has attempted verification. Check history for pass/fail details.
 {% endif %}{% endif %}

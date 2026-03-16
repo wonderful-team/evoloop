@@ -78,6 +78,19 @@ def extract_code_blocks(text: str) -> list[tuple[str, str]]:
     return results
 
 
+def extract_json_from_markdown(content: str) -> str:
+    """Extract JSON from markdown code blocks or return raw content."""
+    patterns = [
+        r'```json\s*(.*?)\s*```',
+        r'```\s*(.*?)\s*```',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, content, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+    return content.strip()
+
+
 def html_to_markdown(html: str, base_url: str = "") -> str:
     """
     Convert HTML content to Markdown format.

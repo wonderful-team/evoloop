@@ -59,27 +59,10 @@ class AgentEngine:
         # 2. Config & Context
         config = AgentEngine._setup_callbacks(config)
 
-        # 2.1 Hydrate ContextManager
-        from app.core.context import ContextManager, EvoContext
-        ctx = ContextManager.current()
-
-        # Only hydrate if the context is the global fallback (meaning ContextVar is lost)
-        # We must respect project_id=0 (Global Mode) if it is explicitly in state/config
-        if ctx.request_id == "global-fallback":
-            project_id = state.get("project_id")
-            if project_id is None:
-                project_id = config.get("configurable", {}).get("project_id", 1)
-
-            working_directory = state.get("scratchpad", {}).get("working_directory") or config.get("configurable", {}).get("working_directory")
-
-            new_ctx = EvoContext(
-                project_id=project_id,
-                working_directory=working_directory,
-                thread_id=config.get("configurable", {}).get("thread_id"),
-                request_id=f"run-{gen_uuid()[:8]}"
-            )
-            ContextManager.set(new_ctx)
-            logger.info(f"[{name}] 🧪 Context Hydrated: project_id={project_id}, wd={working_directory}")
+        # 2.1 Unified Hydration (Phase 1 Optimization)
+        from app.core.engine.middleware import EvoContextMiddleware
+        state = await EvoContextMiddleware.hydrate(state, config)
+        logger.info(f"[{name}] 🧪 Context Hydrated via Middleware")
 
         # 3. Message Handling & Repair
         raw_messages = list(state.get("messages", []))
@@ -107,6 +90,7 @@ class AgentEngine:
             config=config,
             max_steps=max_steps,
             name=name,
+            state=state,
         )
 
     @staticmethod
@@ -155,6 +139,7 @@ class AgentEngine:
         config: RunnableConfig,
         max_steps: int,
         name: str,
+        state: dict,
     ) -> dict[str, Any]:
         """Core ReAct Loop Logic."""
 
@@ -221,25 +206,25 @@ class AgentEngine:
                             context = {}
                             break
 
-                    logger.info(f"[{name}] 🚀 Routing Signal: → {target} ({reason}) | Auth: {len(authorized_tools) if isinstance(authorized_tools, list) else 'None'}")
+                    from app.core.engine.signals import RouteToSignal
+                    logger.info(f"[{name}] 🚀 Routing Signal: → {target} ({reason})")
                     
-                    # 🏅 Fix: Anthropic requirement - Every tool call MUST be followed by a ToolMessage
-                    # We add the ToolMessage to new_messages so it persists in state
-                    routing_tool_msg = ToolMessage(
+                    # Anthropic requirement: ToolMessage follow-up
+                    new_messages.append(ToolMessage(
                         content=f"Routing to {target}. Reason: {reason}",
                         tool_call_id=tc["id"],
                         name="route_to",
                         id=gen_uuid(),
-                    )
-                    new_messages.append(routing_tool_msg)
+                    ))
 
-                    # Return immediately with routing information
                     return {
                         "messages": new_messages,
-                        "_routing_target": target,
-                        "_routing_reason": reason,
-                        "_routing_context": context,
-                        "_authorized_tools": authorized_tools,
+                        "signal": RouteToSignal(
+                            target=target,
+                            reason=reason,
+                            context=context,
+                            authorized_tools=authorized_tools
+                        )
                     }
 
             # ★ Phase 1: Dynamic Subtask Spawning: Check for decompose_task tool call
@@ -255,22 +240,20 @@ class AgentEngine:
 
                         # Check if decomposition was successful and returned a spawn plan
                         if isinstance(result, dict) and result.get("_spawn_plan"):
+                            from app.core.engine.signals import SpawnSubtasksSignal
                             spawn_plan = result["_spawn_plan"]
                             logger.info(f"[{name}] 🚀 Spawn Signal: {len(spawn_plan.get('subtasks', []))} subtasks")
 
-                            # 🏅 Fix: Add ToolMessage for decompose_task to satisfy LLM sequence requirement
-                            spawn_tool_msg = ToolMessage(
-                                content=f"Task decomposed into {len(spawn_plan.get('subtasks', []))} subtasks. Executing in parallel...",
+                            new_messages.append(ToolMessage(
+                                content=f"Task decomposed into {len(spawn_plan.get('subtasks', []))} subtasks. Parallel execution triggered.",
                                 tool_call_id=tc["id"],
                                 name="decompose_task",
                                 id=gen_uuid(),
-                            )
-                            new_messages.append(spawn_tool_msg)
+                            ))
 
                             return {
                                 "messages": new_messages,
-                                "_routing_target": "spawn_subtasks",
-                                "_spawn_plan": spawn_plan,
+                                "signal": SpawnSubtasksSignal(plan=spawn_plan)
                             }
 
             # Execute Tools
@@ -359,14 +342,29 @@ class AgentEngine:
                     try:
                         metadata_json = str(tool_msg.content).split("Session metadata set:")[1].strip()
                         updates = json.loads(metadata_json)
-                        # We update the scratchpad which correctly propagates to the graph state
-                        scratchpad = state.get("scratchpad", {})
-                        if "metadata" not in scratchpad:
-                            scratchpad["metadata"] = {}
-                        scratchpad["metadata"].update(updates)
+                        
+                        blackboard = state.get("blackboard", {})
+                        if "metadata" not in blackboard:
+                            blackboard["metadata"] = {}
+                        blackboard["metadata"].update(updates)
                         logger.info(f"[{name}] 🧬 Session Metadata Updated: {updates}")
                     except Exception as e:
                         logger.warning(f"[{name}] Failed to parse session metadata signal: {e}")
+
+                # 1.5 Dynamic Blackboard Update (update_blackboard tool)
+                if "State updated:" in str(tool_msg.content):
+                    try:
+                        # Extract key=value from "State updated: key=value"
+                        kv_part = str(tool_msg.content).split("State updated:")[1].strip()
+                        if "=" in kv_part:
+                            key, val = kv_part.split("=", 1)
+                            blackboard = state.get("blackboard", {})
+                            if "metadata" not in blackboard:
+                                blackboard["metadata"] = {}
+                            blackboard["metadata"][key.strip()] = val.strip()
+                            logger.info(f"[{name}] 🖊️ Blackboard field '{key.strip()}' updated: {val.strip()}")
+                    except Exception as e:
+                        logger.warning(f"[{name}] Failed to parse state update signal: {e}")
 
                 # 2. History Compression Signal
                 if "[HISTORY_COMPRESSION_SIGNAL]" in str(tool_msg.content):
@@ -416,5 +414,6 @@ class AgentEngine:
 
         return {
             "messages": new_messages,
-            "tool_history": local_tool_history,  # For finish node knowledge harvesting
+            "tool_history": local_tool_history,
+            "blackboard": state.get("blackboard"),
         }

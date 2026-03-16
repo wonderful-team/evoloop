@@ -10,67 +10,57 @@ from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
 from app.core.engine.state import AgentState
-from app.core.engine.tools.planning import aggregate_results
+from app.core.engine.tools.orchestration import aggregate_results
 
 logger = logging.getLogger(__name__)
 
 
 async def aggregator_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     """
-    Aggregates results from completed subtasks.
-
-    Triggered when all parallel subtasks have completed.
-    Uses the aggregation strategy specified in the original plan.
+    Subtask Aggregator — Joins parallel results (Phase 4).
     """
-    scratchpad = state.get("scratchpad", {})
-    subtask_results = scratchpad.get("subtask_results", [])
-    pending_agg = scratchpad.get("_pending_aggregation", {})
+    blackboard = state.get("blackboard", {})
+    subtask_results = blackboard.get("subtask_results", [])
+    pending_agg = blackboard.get("pending_aggregation", {})
 
-    if not subtask_results:
-        logger.warning("[Aggregator] No subtask results found")
-        return {
-            "messages": [AIMessage(content="⚠️ No subtask results to aggregate")],
-            "next_node": "supervisor"
-        }
+    if not pending_agg:
+        logger.warning("[Aggregator] No pending aggregation found")
+        return {"next_node": "supervisor"}
 
     strategy = pending_agg.get("strategy", "merge")
-    parent_task = pending_agg.get("parent_task", "Unknown task")
-
-    logger.info(f"[Aggregator] Aggregating {len(subtask_results)} subtask results with strategy '{strategy}'")
+    logger.info(f"[Aggregator] 🧩 Aggregating {len(subtask_results)} results with strategy '{strategy}'")
 
     try:
         # Call the aggregation tool
         agg_result = await aggregate_results(
             aggregation_strategy=strategy,
             results=subtask_results,
-            original_task=parent_task
+            original_task=pending_agg.get("parent_task", "")
         )
 
-        aggregated = agg_result.get("aggregated", "")
-
-        # Clear aggregation state
-        new_scratchpad = {
-            **scratchpad,
-            "subtask_results": [],  # Clear collected results
-            "_pending_aggregation": None,  # Clear pending state
-            "_last_aggregation": {
-                "strategy": strategy,
-                "subtask_count": len(subtask_results),
-                "result_preview": str(aggregated)[:200] if aggregated else ""
-            }
-        }
-
-        logger.info(f"[Aggregator] Aggregation complete. Result length: {len(str(aggregated))}")
+        # 4. Success Signal
+        result_text = agg_result.get("aggregated", "Aggregation failed")
+        
+        # 5. Update Blackboard (Clear recursion blocker + Save result)
+        # We clear subtask_results and pending_aggregation to allow next plan
+        blackboard["subtask_results"] = []
+        blackboard["pending_aggregation"] = None
+        blackboard.setdefault("metadata", {})["last_aggregation_result"] = result_text
 
         return {
-            "messages": [AIMessage(content=f"📊 **Task Aggregation Complete**\n\n{aggregated}")],
-            "scratchpad": new_scratchpad,
-            "next_node": "supervisor"
+            "messages": [AIMessage(content=f"✅ Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.")],
+            "next_node": "supervisor",
+            "blackboard": blackboard
         }
 
     except Exception as e:
         logger.error(f"[Aggregator] Aggregation failed: {e}")
+        # Ensure blackboard is returned even on error, potentially clearing pending state
+        blackboard["subtask_results"] = []
+        blackboard["pending_aggregation"] = None
+        blackboard.setdefault("metadata", {})["last_aggregation_result"] = f"❌ Aggregation failed: {e}"
         return {
             "messages": [AIMessage(content=f"❌ Aggregation failed: {e}")],
-            "next_node": "supervisor"
+            "next_node": "supervisor",
+            "blackboard": blackboard
         }

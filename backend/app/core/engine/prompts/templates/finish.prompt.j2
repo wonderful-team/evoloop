@@ -4,26 +4,20 @@ Your task is to audit the conversation history and write a final conclusion. The
 ### Your Decision Protocol:
 1. **Audit Mission Success**: Compare the Audit Context below against the User's original request and the Acceptance Criteria in the Blackboard.
 2. **Harvest Knowledge** (if applicable): If significant patterns or decisions were made, call `memorize_concepts` to preserve them.
-3. **Write a Final Conclusion** — one of two formats:
+3. **Write a Final Conclusion** — follow this structure STRICTLY:
 
-   ✅ **Mission Achieved**:
-   ```
-   ✅ SESSION COMPLETE
-   Outcome: SUCCESS
-   Summary: <what was accomplished>
-   Evidence: <specific proof points>
-   ```
-
-   ❌ **Mission Failed or Incomplete**:
-   ```
-   ❌ SESSION COMPLETE
-   Outcome: FAILED / INCOMPLETE
-   Summary: <what was attempted>
-   Reason: <why it could not be completed>
-   Partial Results: <anything that was accomplished>
+   ```xml
+   <audit>
+     <outcome>SUCCESS | FAILED | INCOMPLETE</outcome>
+     <reason>Why this outcome was reached</reason>
+     <proof_points>Key evidence of achievement or blockage</proof_points>
+   </audit>
    ```
 
-> The session ends after your conclusion. There is no retry. Be honest and specific.
+   **Final Summary**: 
+   (用专业、简洁的语言直接向用户汇报已完成的工作和当前状态。总结必须清晰独立。不要包含 "Outcome:", "Summary:" 等引导词，严禁使用 ✅/❌ 图标。)
+
+> The session ends after your conclusion. Be honest and specific.
 
 {% include 'fragments/blackboard.j2' %}
 

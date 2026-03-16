@@ -87,30 +87,17 @@ class WorkerNode:
             except Exception as e:
                 logger.error(f"[Worker] Failed to fetch fallback skill instructions: {e}")
 
-        # 2b. Generic Context Enrichment from Awakening System
+        # 2b. Context already enriched via EvoContextMiddleware
         ctx = ContextManager.current()
-        awakened_env = get_awakened_state()
-        has_android = ctx.metadata.get("has_android", False)
+        logger.info(f"[Worker] 🧠 Utilizing enriched context for role '{role_name}'")
 
-        if awakened_env and awakened_env.relevant_concepts:
-            if isinstance(ctx.spatial_awareness, dict):
-                insights = ctx.spatial_awareness.setdefault("insights", [])
-                for concept in awakened_env.relevant_concepts:
-                    insights.append(f"💡 {concept.name}: {concept.description}")
-            else:
-                for concept in awakened_env.relevant_concepts:
-                    ctx.spatial_awareness.append(f"💡 {concept.name}: {concept.description}")
-            logger.info(f"[Worker] 🧠 Enriched context with {len(awakened_env.relevant_concepts)} relevant concepts from Brain.")
-
-        # 3. Construct Prompts (Using Builder)
-        scratchpad = state.get("scratchpad", {})
-        clipboard = scratchpad.get("workspace_clipboard", [])
+        # 3. Construct Prompts (Using Builder & Phase 1 Blackboard)
+        blackboard = state.get("blackboard", {})
 
         prompt_builder = WorkerPromptBuilder(
             agent_config,
-            execution_ticket,
-            skills=relevant_sops,
-            clipboard=clipboard
+            blackboard,
+            skills=relevant_sops
         )
         system_prompt = prompt_builder.build(config)
 
@@ -135,7 +122,13 @@ class WorkerNode:
                 max_steps=settings.WORKER_AGENT_MAX_STEPS,
             )
 
-            # 5. Post-Processing (Absorbed from Operator)
+            # 5. Unified Dispatching (Phase 2)
+            signal = engine_result.get("signal")
+            if signal:
+                from app.core.engine.dispatcher import SignalDispatcher
+                return await SignalDispatcher.dispatch(state, signal, config)
+
+            # Standard post-processing (Absorbed logic)
             return self._post_process_result(state, engine_result, execution_ticket, role_name)
 
         except Exception as e:
@@ -144,8 +137,6 @@ class WorkerNode:
                 "messages": [AIMessage(content=f"Worker '{role_name}' failed: {e}")],
                 "next_node": "supervisor"
             }
-
-        return return_state
 
     def _post_process_result(
         self,
@@ -188,24 +179,24 @@ class WorkerNode:
                 "timestamp": asyncio.get_event_loop().time(),
             }
 
-            # Store in scratchpad for aggregation
-            scratchpad = state.get("scratchpad", {})
-            if "subtask_results" not in scratchpad:
-                scratchpad["subtask_results"] = []
-            scratchpad["subtask_results"].append(subtask_result)
-
+            # Store in blackboard for aggregation
+            blackboard = state.get("blackboard", {})
+            if "subtask_results" not in blackboard or blackboard["subtask_results"] is None:
+                blackboard["subtask_results"] = []
+            
+            blackboard["subtask_results"].append(subtask_result)
+            
             # Check if all subtasks are complete
-            pending_agg = scratchpad.get("_pending_aggregation", {})
+            pending_agg = blackboard.get("pending_aggregation", {})
             if pending_agg:
                 expected_count = pending_agg.get("expected_count", 0)
-                current_count = len(scratchpad["subtask_results"])
+                current_count = len(blackboard["subtask_results"])
+                logger.debug(f"[Worker] 📊 Subtask completion progress: {current_count}/{expected_count}")
 
-                logger.info(f"[Worker] Subtask {subtask_id} completed ({current_count}/{expected_count})")
-
-                # Note: Aggregation is handled by Supervisor checking scratchpad
+                # Note: Aggregation is handled by Supervisor checking blackboard
                 # Worker always returns to Supervisor for centralized control
 
-            return_state["scratchpad"] = scratchpad
+            return_state["blackboard"] = blackboard
 
         # 5a. Cache Invalidation (Universal via Metadata)
         # Instead of a hardcoded list, we use the tool registry's metadata.
