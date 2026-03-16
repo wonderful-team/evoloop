@@ -367,10 +367,17 @@ class McpClientManager:
 
     async def cleanup(self):
         """Disconnect all servers."""
-        for stack in self.server_stacks.values():
-            await stack.aclose()
+        for name, stack in list(self.server_stacks.items()):
+            try:
+                logger.info(f"Cleaning up MCP server: {name}")
+                await stack.aclose()
+            except Exception as e:
+                # Catch anyio/sse closure errors which are common during shutdown
+                logger.debug(f"Error during MCP server '{name}' cleanup (ignoring): {e}")
+        
         self.server_stacks.clear()
         self.sessions.clear()
+        self._tools_cache.clear()
 
     async def add_server(self, name: str, details: dict[str, Any]):
         """Add a new server to DB and connect."""

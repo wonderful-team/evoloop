@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 import time
@@ -15,7 +16,6 @@ from app.models.schemas.events import MessageEvent
 from app.core.tools.registry import get_tool_metadata
 
 logger = logging.getLogger(__name__)
-
 
 
 class DatabaseCallbackHandler(AsyncCallbackHandler):

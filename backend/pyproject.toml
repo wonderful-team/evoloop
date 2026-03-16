@@ -81,6 +81,7 @@ dependencies = [
     "pyobjc>=12.1",
     "playwright>=1.40.0",
     "croniter>=6.0.0",
+    "googlesearch-python>=1.2.3",
 ]
 
 [tool.uv]

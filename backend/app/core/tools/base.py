@@ -51,6 +51,8 @@ def evoloop_tool(
     affected_path_keys: list[str] | None = None,
     summary_template: str | None = None,
     result_summary_template: str | None = None,
+    is_memory_tool: bool = False,
+    is_multimodal: bool = False,
     **kwargs,
 ):
     """
@@ -98,6 +100,8 @@ def evoloop_tool(
         tool_instance.metadata["affected_path_keys"] = affected_path_keys or []
         tool_instance.metadata["summary_template"] = summary_template
         tool_instance.metadata["result_summary_template"] = result_summary_template
+        tool_instance.metadata["is_memory_tool"] = is_memory_tool
+        tool_instance.metadata["is_multimodal"] = is_multimodal
 
         # Enable error handling to return validation errors as text to the Agent
         tool_instance.handle_tool_error = True
