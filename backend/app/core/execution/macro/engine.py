@@ -42,7 +42,8 @@ class MacroEngine:
             steps=script.steps,
             params=params,
             extracted_data=extracted_data,
-            disable_ocr=disable_ocr
+            disable_ocr=disable_ocr,
+            active_bundle_id=params.get("package_name") or params.get("bundle_id") if params else None
         )
 
     @classmethod
@@ -52,7 +53,8 @@ class MacroEngine:
         steps: List[MacroStep],
         params: Optional[Dict[str, Any]] = None,
         extracted_data: Optional[Dict[str, Any]] = None,
-        disable_ocr: bool = True
+        disable_ocr: bool = True,
+        active_bundle_id: Optional[str] = None
     ) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
         """
         Internal recursive execution of macro steps.
@@ -100,7 +102,7 @@ class MacroEngine:
             # 2. Handle Control Flow
             if step.type in (MacroStepType.CONTROL, MacroStepType.IF, MacroStepType.LOOP):
                 success, msg, fallback = await cls._handle_control_flow(
-                    thread_id, step, payload, params, extracted_data, disable_ocr
+                    thread_id, step, payload, params, extracted_data, disable_ocr, active_bundle_id
                 )
                 if not success:
                     return False, msg, fallback
@@ -116,16 +118,28 @@ class MacroEngine:
                 await cls._handle_dump(thread_id, payload, extracted_data)
                 continue
 
+            # 5. Handle Native Script (Bridge)
+            if step.type == MacroStepType.NATIVE:
+                await cls._handle_native(thread_id, payload, extracted_data)
+                continue
+
             # 5. Handle UI Action
             if step.type == MacroStepType.ACTION:
                 event_type = step.event_type
                 source = step.source
 
+                # Update active_bundle_id if this is an open_app step
+                if event_type == "open_app": # Assuming MacroActionType.OPEN_APP is "open_app"
+                    new_pkg = payload.get("package_name") or payload.get("package") or payload.get("text") or payload.get("app_name")
+                    if new_pkg:
+                        active_bundle_id = new_pkg
+                        logger.info(f"[{thread_id}] Active package updated to: {active_bundle_id}")
+
                 try:
                     if source == MacroSource.DOM:
                         await cls._execute_browser_step(event_type, target_selector, payload)
                     elif source == MacroSource.MOBILE:
-                        await cls._execute_mobile_step(event_type, target_selector, payload, disable_ocr)
+                        await cls._execute_mobile_step(event_type, target_selector, payload, disable_ocr, expected_pkg=active_bundle_id)
                     elif source == MacroSource.DESKTOP:
                         await cls._execute_desktop_step(event_type, target_selector, payload)
                     else:
@@ -168,7 +182,7 @@ class MacroEngine:
         return True, "", None
 
     @classmethod
-    async def _handle_control_flow(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict, disable_ocr: bool = True):
+    async def _handle_control_flow(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict, disable_ocr: bool = True, active_bundle_id: Optional[str] = None):
         if params is None:
             params = {}
         # Implementation of If/While/Loop logic
@@ -183,19 +197,19 @@ class MacroEngine:
             is_true = await cls._evaluate_condition(cond_type, selector, step.source)
             branch = step.then_steps if is_true else step.else_steps
             if branch:
-                return await cls.execute_steps(thread_id, branch, params, extracted_data, disable_ocr)
+                return await cls.execute_steps(thread_id, branch, params, extracted_data, disable_ocr, active_bundle_id)
 
         elif step.type == MacroStepType.LOOP:
             # Check for collect_mode (two-phase batch collection)
             collect_mode = step.collect_mode
             if collect_mode in ("list", "detail", "auto"):
                 return await cls._handle_collect_loop(
-                    thread_id, step, payload, params, extracted_data, disable_ocr, collect_mode
+                    thread_id, step, payload, params, extracted_data, disable_ocr, collect_mode, active_bundle_id
                 )
 
             # 1. Batch Loop Mode (if payload contains items_key)
             if payload.get("items_key"):
-                return await cls._handle_loop(thread_id, step, payload, params, extracted_data, disable_ocr)
+                return await cls._handle_loop(thread_id, step, payload, params, extracted_data, disable_ocr, active_bundle_id)
 
             # 2. Conditional Loop Mode (Standard While)
             iterations = 0
@@ -220,7 +234,7 @@ class MacroEngine:
                 loop_params["loop_index"] = iterations
 
                 # Execute nested steps
-                success, msg, fallback = await cls.execute_steps(thread_id, step.steps, loop_params, extracted_data, disable_ocr)
+                success, msg, fallback = await cls.execute_steps(thread_id, step.steps, loop_params, extracted_data, disable_ocr, active_bundle_id)
 
                 if not success:
                     # Enrich fallback with loop progress
@@ -243,7 +257,7 @@ class MacroEngine:
         return True, "", None
 
     @classmethod
-    async def _handle_loop(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict, disable_ocr: bool = True):
+    async def _handle_loop(cls, thread_id: str, step: MacroStep, payload: dict, params: dict, extracted_data: dict, disable_ocr: bool = True, active_bundle_id: Optional[str] = None):
         """
         Handle a batch loop by iterating over a list of items and executing nested steps.
         Includes exponential backoff for network errors and DLQ support.
@@ -311,7 +325,7 @@ class MacroEngine:
                     iter_params["batch_index"] = index
 
                     # 2. Execute nested steps (unified)
-                    success, msg, fallback = await cls.execute_steps(thread_id, step.steps, iter_params, extracted_data, disable_ocr)
+                    success, msg, fallback = await cls.execute_steps(thread_id, step.steps, iter_params, extracted_data, disable_ocr, active_bundle_id)
                     
                     if success:
                         break
@@ -366,7 +380,8 @@ class MacroEngine:
         params: dict,
         extracted_data: dict,
         disable_ocr: bool,
-        collect_mode: str
+        collect_mode: str,
+        active_bundle_id: Optional[str] = None
     ) -> Tuple[bool, str, Optional[Dict]]:
         """
         Handle two-phase batch collection loop.
@@ -378,10 +393,6 @@ class MacroEngine:
 
         State is persisted to a JSON file for resumability.
         """
-        import json
-        import os
-        from datetime import datetime
-
         # Configuration
         state_file = payload.get("state_file", f"/tmp/macro_collect_{thread_id}.json")
         list_config = payload.get("list_config", {})
@@ -401,9 +412,9 @@ class MacroEngine:
             logger.info(f"[{thread_id}] Starting LIST phase for batch collection")
             await activity_monitor.log_event("macro_thought", {"text": "📋 Starting list collection phase"}, thread_id)
 
-            max_screens = list_config.get("max_screens", 10)
-            swipe_distance = list_config.get("swipe_distance", 1200)
-            wait_ms = list_config.get("wait_after_swipe_ms", 1500)
+            max_screens = int(list_config.get("max_screens", 10))
+            swipe_distance = int(list_config.get("swipe_distance", 1200))
+            wait_ms = int(list_config.get("wait_after_swipe_ms", 1500))
 
             # Extract rules
             anchor_rule = list_config.get("anchor_element", {"type": "price", "pattern": "￥[0-9,.]+"})
@@ -456,7 +467,10 @@ class MacroEngine:
                         action="scroll",
                         direction="down",  # 'swipe up' is 'scroll down'
                         scroll_amount=scroll_ratio,
-                        device_id=params.get("device_id")
+                        device_id=params.get("device_id"),
+                        disable_atlas=True,
+                        disable_trace_screenshot=True,
+                        expected_pkg=active_bundle_id
                     )
 
                     if isinstance(res, str) and (res.startswith("Error") or res.startswith("ERR_")):
@@ -488,12 +502,11 @@ class MacroEngine:
             await activity_monitor.log_event("macro_thought", {"text": "🔍 Starting detail execution phase"}, thread_id)
 
             pending_items = [item for item in state["items"] if item.get("status") == "pending"]
-
             if not pending_items:
                 logger.info(f"[{thread_id}] No pending items to process")
                 return True, "No pending items", None
 
-            limit = detail_config.get("limit")
+            limit = int(detail_config.get("limit"))
             if limit:
                 pending_items = pending_items[:limit]
 
@@ -512,7 +525,10 @@ class MacroEngine:
                         action="click",
                         x=tap_x,
                         y=tap_y,
-                        device_id=params.get("device_id")
+                        device_id=params.get("device_id"),
+                        disable_atlas=True,
+                        disable_trace_screenshot=True,
+                        expected_pkg=active_bundle_id
                     )
                     await asyncio.sleep(detail_config.get("wait_after_tap_ms", 2000) / 1000)
 
@@ -524,7 +540,7 @@ class MacroEngine:
                         iter_params["collected_signature"] = item["signature"]
 
                         success, msg, fallback = await cls.execute_steps(
-                            thread_id, step.steps, iter_params, extracted_data, disable_ocr
+                            thread_id, step.steps, iter_params, extracted_data, disable_ocr, active_bundle_id
                         )
 
                         if not success:
@@ -535,6 +551,16 @@ class MacroEngine:
                         else:
                             item["status"] = "done"
                             item["completed_at"] = datetime.now().isoformat()
+                            
+                            # NEW: Capture extraction results into the item for persistence/dumping
+                            capture_config = detail_config.get("data_capture")
+                            if capture_config:
+                                for target_key, source_key in capture_config.items():
+                                    val = extracted_data.get(source_key)
+                                    if val is not None:
+                                        item[target_key] = val
+                                logger.info(f"[{thread_id}] Captured {len(capture_config)} fields into item {i}")
+                            
                             success_count += 1
                     else:
                         # No nested steps, just mark as done
@@ -546,7 +572,10 @@ class MacroEngine:
                     await MobileController.execute(
                         action="press_key",
                         keycode=4,  # BACK
-                        device_id=params.get("device_id")
+                        device_id=params.get("device_id"),
+                        disable_atlas=True,
+                        disable_trace_screenshot=True,
+                        expected_pkg=active_bundle_id
                     )
                     await asyncio.sleep(0.8)
 
@@ -585,7 +614,6 @@ class MacroEngine:
     def _extract_collect_items_from_xml(xml_content: str, anchor_rule: dict, feature_config: dict) -> List[Dict]:
         """Extract collectible items from UI dump XML."""
         import xml.etree.ElementTree as ET
-        import re
 
         def parse_bounds(bounds_str: str):
             match = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", bounds_str)
@@ -908,10 +936,12 @@ class MacroEngine:
             # Find appropriate tool
             target_tool = None
             for tool in tools:
-                # 1. Exact match by mcp_tool name
-                if mcp_tool_name and tool.name == mcp_tool_name:
-                    target_tool = tool
-                    break
+                # 1. Exact match OR formatted match (mcp__server__tool)
+                if mcp_tool_name:
+                    formatted_name = f"mcp__{mcp_server.replace(' ', '_').replace('-', '_')}__{mcp_tool_name.replace(' ', '_').replace('-', '_')}"
+                    if tool.name == mcp_tool_name or tool.name == formatted_name:
+                        target_tool = tool
+                        break
                 
                 # 2. Fuzzy match by operation (fallback)
                 if not mcp_tool_name:
@@ -929,12 +959,30 @@ class MacroEngine:
                 logger.warning(f"[MacroEngine] Using total fallback MCP tool: {target_tool.name}")
 
             # Prepare data payload
-            data_payload = {
-                "table": table,
-                "data": extracted_data,
-                "thread_id": thread_id,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
+            # Support generic data mapping if provided in the step payload
+            mapping = payload.get("data_mapping")
+            if mapping:
+                data_payload = {}
+                for target_key, source_key in mapping.items():
+                    if source_key == "$thread_id":
+                        data_payload[target_key] = thread_id
+                    elif source_key == "$timestamp":
+                        data_payload[target_key] = datetime.now(timezone.utc).isoformat()
+                    else:
+                        # Get value from extracted_data (could be simple key or batch_items)
+                        data_payload[target_key] = extracted_data.get(source_key)
+                
+                # Check for empty payload
+                if not data_payload:
+                    logger.warning(f"[{thread_id}] MCP data_mapping resulted in empty payload")
+            else:
+                # Default behavior (backward compatible)
+                data_payload = {
+                    "table": table,
+                    "data": extracted_data,
+                    "thread_id": thread_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
 
             # Call MCP tool
             result = await target_tool.ainvoke(data_payload)
@@ -983,6 +1031,62 @@ class MacroEngine:
 
         except Exception as e:
             logger.error(f"[MacroEngine] Failed to push data to webhook: {e}", exc_info=True)
+
+    @classmethod
+    async def _handle_native(cls, thread_id: str, payload: dict, extracted_data: dict):
+        """Execute an external script as a native step."""
+        script_path = payload.get("script_path")
+        command = payload.get("command", "python3")
+        args = payload.get("args", [])
+        sync_state = payload.get("sync_state")
+
+        if not script_path:
+            logger.error(f"[{thread_id}] No script_path provided for native step")
+            return
+
+        # Build full command
+        cmd_list = [command, script_path] + [str(a) for a in args]
+        cmd_str = " ".join(cmd_list)
+
+        logger.info(f"[{thread_id}] Executing native script: {cmd_str}")
+        await activity_monitor.log_event(
+            "macro_thought",
+            {"text": f"Running native script: {cmd_str}"},
+            thread_id
+        )
+
+        try:
+            # Run subprocess
+            process = await asyncio.create_subprocess_shell(
+                cmd_str,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                err_msg = stderr.decode().strip()
+                logger.error(f"[{thread_id}] Native script failed with code {process.returncode}: {err_msg}")
+            else:
+                logger.info(f"[{thread_id}] Native script completed successfully")
+
+            # Handle sync_state if provided
+            if sync_state and os.path.exists(sync_state):
+                try:
+                    with open(sync_state, 'r', encoding='utf-8') as f:
+                        state_data = json.load(f)
+                    
+                    # Merge items into batch_items for dumping
+                    items = state_data.get('items', [])
+                    if items:
+                        extracted_data["batch_items"] = items
+                        logger.info(f"[{thread_id}] Synced {len(items)} items from {sync_state} to extracted_data")
+                except Exception as sync_err:
+                    logger.error(f"[{thread_id}] Failed to sync state from {sync_state}: {sync_err}")
+
+        except Exception as e:
+            logger.error(f"[{thread_id}] Failed to execute native script: {e}", exc_info=True)
 
     # --- Tool Invocation Wrappers (Browser/Mobile/Desktop) ---
 
@@ -1085,7 +1189,7 @@ class MacroEngine:
             handle_res(await DesktopController.execute(action=tool_action))
 
     @classmethod
-    async def _execute_mobile_step(cls, event_type: str, selector: str, payload: dict, disable_ocr: bool = True):
+    async def _execute_mobile_step(cls, event_type: str, selector: str, payload: dict, disable_ocr: bool = True, expected_pkg: Optional[str] = None):
         """Execute a mobile step directly via MobileController (no @evoloop_tool overhead)."""
         # Normalize event_type to lowercase for case-insensitive comparison
         event_type = event_type.lower() if event_type else event_type

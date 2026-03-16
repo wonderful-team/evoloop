@@ -17,6 +17,7 @@ class MacroStepType(str, Enum):
     DUMP = "dump"
     IF = "if"
     LOOP = "loop"
+    NATIVE = "native"
 
 
 class MacroActionType(str, Enum):
