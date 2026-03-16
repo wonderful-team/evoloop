@@ -43,6 +43,7 @@ class ActivityMonitor:
             "steps": json.dumps([]),
             "artifacts": json.dumps([]),
             "active_memories": json.dumps([]),  # Phase 7: Track active memory references
+            "final_outcome": "", # Phase 6: Final result signal
             "updated_at": now,
         }
         # Use HSET
@@ -50,7 +51,7 @@ class ActivityMonitor:
         # Expiry 24h
         await redis_client.expire(key, 86400)
 
-    async def end_run(self, thread_id: str, status="done"):
+    async def end_run(self, thread_id: str, status="done", final_outcome: str = None):
         key = f"activity:{thread_id}"
         # Check current status first to handle stopping->cancelled
         current_status = await redis_client.hget(key, "status")
@@ -59,9 +60,11 @@ class ActivityMonitor:
         if current_status == "stopping":
             final_status = "cancelled"
 
-        await redis_client.hset(
-            key, mapping={"status": final_status, "updated_at": time.time()}
-        )
+        mapping = {"status": final_status, "updated_at": time.time()}
+        if final_outcome:
+            mapping["final_outcome"] = final_outcome
+
+        await redis_client.hset(key, mapping=mapping)
 
         # Mark running steps as done/cancelled
         steps_json = await redis_client.hget(key, "steps")
@@ -487,6 +490,7 @@ class ActivityMonitor:
             "verification": verification,
             "active_memories": active_memories,  # Phase 7
             "human_request": human_request,
+            "final_outcome": data.get("final_outcome", ""), # Phase 6
         }
 
     async def get_statuses(self, thread_ids: list[str]) -> dict[str, str]:

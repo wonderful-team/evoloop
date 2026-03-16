@@ -150,17 +150,21 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     # This outcome is used by the frontend to show success/failure indicators.
     full_text = "".join([str(m.content) for m in messages if isinstance(m, AIMessage)])
     outcome_match = re.search(r"<outcome>(.*?)</outcome>", full_text, re.IGNORECASE | re.DOTALL)
+    final_outcome = ""
     if outcome_match:
         final_outcome = outcome_match.group(1).strip()
         blackboard.setdefault("metadata", {})["final_outcome"] = final_outcome
         logger.info(f"[Finish] 🎯 Detected structured outcome: {final_outcome}")
 
-    # 2. Trigger Recording
+    # 2. Finalize Run State
+    await activity_monitor.end_run(ctx.thread_id, status="done", final_outcome=final_outcome)
+
+    # 3. Trigger Recording
     metadata = config.get("metadata", {})
     original_skill_id = metadata.get("original_skill_id")
     _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id)
 
-    logger.info("Finish: ✅ Session concluded. Routing to END.")
+    logger.info(f"Finish: ✅ Session concluded with outcome {final_outcome or 'DONE'}. Routing to END.")
     return {
         "messages": messages, 
         "next_node": "END",

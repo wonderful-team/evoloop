@@ -47,6 +47,7 @@ async def stream_chat(thread_id: str):
                     "verification": activity.get("verification", {}),
                     "status": activity.get("status", "unknown"),
                     "human_request": activity.get("human_request"),
+                    "final_outcome": activity.get("final_outcome", ""),
                 }
                 yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
 
@@ -128,6 +129,7 @@ async def stream_chat(thread_id: str):
                                 "verification": current.get("verification", {}),
                                 "status": current.get("status", "unknown"),
                                 "human_request": current.get("human_request"),
+                                "final_outcome": current.get("final_outcome", ""),
                             }
                             yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
 

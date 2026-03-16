@@ -24,6 +24,7 @@ interface ChatState {
     | "INDEXING"
     | "unknown"
     steps: StepItem[]
+    finalOutcome: string | null // Phase 6: SUCCESS | FAILED | INCOMPLETE
     streamedContent: string // The currently streaming token buffer (for the specific AI task)
     activeMemories: Array<{ id: string; name: string }> // Phase 7: Active memory highlights
     artifacts: Array<{ id: number; name: string; type: string; status: string; path?: string }> // Phase 8: Artifacts
@@ -65,6 +66,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     status: "idle",
     steps: [],
+    finalOutcome: null,
     streamedContent: "",
 
     activeMemories: [],
@@ -93,6 +95,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     steps: [],
                     streamedContent: "",
                     status: "idle",
+                    finalOutcome: null,
                     humanRequest: null,
                 }
                 : {}),
@@ -256,7 +259,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     clearContent: () => {
-        set({ messages: [], steps: [], streamedContent: "", humanRequest: null })
+        set({ messages: [], steps: [], finalOutcome: null, streamedContent: "", humanRequest: null })
     },
 
     // --- Internal Handlers ---
@@ -358,6 +361,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             status: normalizedStatus,
             steps: data.steps || data.tasks || [],
             artifacts: data.artifacts || [], // Phase 8: Automatically Map Artifacts
+            finalOutcome: data.final_outcome || null, // Phase 6: Session Outcome Signal
             activeMemories: data.active_memories || [], // Phase 7
             agentState: data.agent_state || null, // Phase 9
         })
