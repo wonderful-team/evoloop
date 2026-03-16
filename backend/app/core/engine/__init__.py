@@ -222,6 +222,16 @@ class AgentEngine:
                             break
 
                     logger.info(f"[{name}] 🚀 Routing Signal: → {target} ({reason}) | Auth: {len(authorized_tools) if isinstance(authorized_tools, list) else 'None'}")
+                    
+                    # 🏅 Fix: Anthropic requirement - Every tool call MUST be followed by a ToolMessage
+                    # We add the ToolMessage to new_messages so it persists in state
+                    routing_tool_msg = ToolMessage(
+                        content=f"Routing to {target}. Reason: {reason}",
+                        tool_call_id=tc["id"],
+                        name="route_to",
+                        id=gen_uuid(),
+                    )
+                    new_messages.append(routing_tool_msg)
 
                     # Return immediately with routing information
                     return {
@@ -248,11 +258,17 @@ class AgentEngine:
                             spawn_plan = result["_spawn_plan"]
                             logger.info(f"[{name}] 🚀 Spawn Signal: {len(spawn_plan.get('subtasks', []))} subtasks")
 
+                            # 🏅 Fix: Add ToolMessage for decompose_task to satisfy LLM sequence requirement
+                            spawn_tool_msg = ToolMessage(
+                                content=f"Task decomposed into {len(spawn_plan.get('subtasks', []))} subtasks. Executing in parallel...",
+                                tool_call_id=tc["id"],
+                                name="decompose_task",
+                                id=gen_uuid(),
+                            )
+                            new_messages.append(spawn_tool_msg)
+
                             return {
-                                "messages": new_messages + [{
-                                    "role": "tool",
-                                    "content": f"Task decomposed into {len(spawn_plan.get('subtasks', []))} subtasks. Executing in parallel..."
-                                }],
+                                "messages": new_messages,
                                 "_routing_target": "spawn_subtasks",
                                 "_spawn_plan": spawn_plan,
                             }

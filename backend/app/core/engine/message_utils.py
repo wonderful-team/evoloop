@@ -173,7 +173,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
         if isinstance(msg, HumanMessage | AIMessage) and open_tool_calls:
             for tcid, tname in list(open_tool_calls.items()):
                 final_repaired.append(ToolMessage(
-                    content="[System: Result omitted or context interrupted. Respond to remaining context.]",
+                    content=i18n.get("core_utils.interrupted_tool_response", default="[System: Result omitted or context interrupted. Respond to remaining context.]"),
                     tool_call_id=tcid,
                     name=tname
                 ))
@@ -192,14 +192,13 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
 
     # Phase 3: Final check for trailing tool calls (history cannot end with AIMessage(tool_calls))
     if open_tool_calls and final_repaired:
-        # If the very last message has dangling calls, we scrub them from that message
-        # rather than appending dummy ToolMessages (better for model continuation).
-        last = final_repaired[-1]
-        if isinstance(last, AIMessage) and last.tool_calls:
-            # Only keep tool calls that matched ToolMessages (which should be none if they are in open_tool_calls)
-            last.tool_calls = [tc for tc in last.tool_calls if tc["id"] not in open_tool_calls]
-            if not last.content and not last.tool_calls:
-                final_repaired.pop()
+        logger.warning(f"🔧 [Repair] History ends with dangling tool calls. Injecting dummy responses.")
+        for tcid, tname in list(open_tool_calls.items()):
+            final_repaired.append(ToolMessage(
+                content=i18n.get("core_utils.interrupted_tool_response", default="[System: Result omitted or context interrupted. Respond to remaining context.]"),
+                tool_call_id=tcid,
+                name=tname
+            ))
 
     # Phase 4: Start with Human
     non_system_indices = [idx for idx, m in enumerate(final_repaired) if not isinstance(m, SystemMessage)]
