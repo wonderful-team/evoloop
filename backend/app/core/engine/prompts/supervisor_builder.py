@@ -12,6 +12,7 @@ import os
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
+from app.core.environment import get_awakened_state
 from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
