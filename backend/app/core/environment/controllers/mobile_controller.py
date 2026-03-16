@@ -45,6 +45,10 @@ class MobileController:
     # Used to avoid repeated ADB queries within a single operation (500ms TTL)
     _package_cache: Dict[str, tuple[str, float]] = {}
     _package_cache_ttl_ms: float = 500.0
+    
+    # Screenshot cache: {device_id: (path, timestamp)}
+    _screenshot_cache: Dict[str, tuple[str, float]] = {}
+    _screenshot_cache_ttl_ms: float = 1000.0 # 1 second TTL
 
     @classmethod
     def _get_cached_package(cls, device_id: str | None) -> str | None:
@@ -137,6 +141,7 @@ class MobileController:
         fast_probe: bool = False,
         passive_safety: bool = False,
         compressed_dump: bool = True,
+        expected_pkg: Optional[str] = None,
         **kwargs: Any
     ) -> str:
         """Execute a mobile action. All business logic lives here."""
@@ -157,15 +162,15 @@ class MobileController:
 
         async def _record(action_type: str, params: dict):
             async def screenshot_fn():
-                return await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
+                # Pass expected_pkg down to driver, which flows into screenshot_storage
+                pkg = await _get_effective_package()
+                return await asyncio.to_thread(adb_driver.screenshot, device_id=device_id, bundle_id=pkg)
 
-            def context_fn():
-                # Use cached package if available (sync path - recording context)
-                pkg = cls._get_cached_package(device_id)
-                if pkg:
-                    return {"package": pkg, "activity": ""}
-                curr = adb_driver.get_current_app(device_id=device_id)
-                return {"package": curr.get("package"), "activity": curr.get("activity")}
+            async def context_fn():
+                # Asynchronous context fetcher for recording
+                pkg = await _get_effective_package()
+                curr = await cls.get_current_app_cached(device_id=device_id)
+                return {"package": pkg, "activity": curr.get("activity")}
 
             await recording_ctx.record(action_type, params, screenshot_fn, context_fn)
 
@@ -284,7 +289,45 @@ class MobileController:
                 """Get current app package name."""
                 curr = await cls.get_current_app_cached(device_id=device_id)
                 pkg = curr.get("package")
-                return None if pkg in ("com.android.launcher3",) else pkg
+                return None if pkg in ("com.android.launcher3", "com.android.systemui") else pkg
+
+            async def _get_effective_package() -> str | None:
+                """
+                Get the most reliable package name for context.
+                Logic:
+                1. If expected_pkg is provided:
+                   - Detect current package.
+                   - If detected is 'noisy' (WeChat, etc.), stick to expected_pkg.
+                   - If detected is a valid different App, follow it (cross-app support).
+                2. If no expected_pkg, use detected.
+                """
+                detected_pkg = await _get_current_package()
+                
+                if not expected_pkg:
+                    return detected_pkg
+                    
+                if not detected_pkg or detected_pkg == "unknown":
+                    return expected_pkg
+                    
+                # Noisy packages that we should NOT follow if they appear during a macro
+                # unless they are the expected target.
+                NOISY_PACKAGES = {
+                    "com.tencent.mm",         # WeChat
+                    "com.android.systemui",   # System UI
+                    "com.android.launcher3",  # Launcher
+                    "com.google.android.inputmethod.latin", # Keyboard
+                    "android",                # System
+                }
+                
+                if detected_pkg in NOISY_PACKAGES and detected_pkg != expected_pkg:
+                    logger.debug(f"[Mobile] Detected noisy package '{detected_pkg}', sticking to expected '{expected_pkg}'")
+                    return expected_pkg
+                    
+                # If it's a different but legitimate App, we follow it
+                if detected_pkg != expected_pkg:
+                    logger.info(f"[Mobile] Legitimate cross-app switch detected: {expected_pkg} -> {detected_pkg}")
+                
+                return detected_pkg
 
             async def _resolve_with_fallback(
                 name: str,
@@ -316,9 +359,11 @@ class MobileController:
                 message: str
             ) -> str:
                 """Common cleanup: record, trigger atlas harvest, finish."""
+                # Use effective package for recording/atlas to ensure consistency
+                effective_pkg = await _get_effective_package()
                 await _record(action_type, params)
-                if package:
-                    asyncio.create_task(trigger_atlas_harvest(bundle_id=package))
+                if effective_pkg and not disable_atlas:
+                    asyncio.create_task(trigger_atlas_harvest(bundle_id=effective_pkg))
                 return await finish_action(message)
 
             async def validate_outcome(before_pkg: str, expected_pkg: str | None = None) -> bool:
@@ -470,7 +515,8 @@ class MobileController:
                 return await finish_action("\n".join(lines))
 
             elif action == "screenshot":
-                filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
+                package = await _get_effective_package()
+                filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id, bundle_id=package)
 
                 # [Phase 15] Handle Region Cropping (Align with Desktop)
                 if region and filepath and os.path.exists(filepath):
@@ -510,7 +556,7 @@ class MobileController:
             elif action in ["tap", "click"]:
                 if risk_error := await check_risk_confirmation(name=element_name):
                     return risk_error
-                base_pkg = await _get_current_package()
+                base_pkg = await _get_effective_package()
                 tx, ty = await _normalize_coordinates(x, y)
                 if element_name:
                     result = await _resolve_with_fallback(element_name, element_role, tx, ty, timeout, base_pkg, fast_probe_enabled=fast_probe)
@@ -530,7 +576,7 @@ class MobileController:
             elif action == "long_press":
                 if risk_error := await check_risk_confirmation(name=element_name):
                     return risk_error
-                base_pkg = await _get_current_package()
+                base_pkg = await _get_effective_package()
                 tx, ty = await _normalize_coordinates(x, y)
                 if element_name:
                     result = await _resolve_with_fallback(element_name, element_role, tx, ty, timeout, base_pkg, fast_probe_enabled=fast_probe)
@@ -601,7 +647,7 @@ class MobileController:
                 end_x, end_y = max(0, min(sw, end_x)), max(0, min(sh, end_y))
 
                 await asyncio.to_thread(adb_driver.swipe, start_x, start_y, end_x, end_y, duration_ms=duration_ms, device_id=device_id)
-                base_pkg = await _get_current_package()
+                base_pkg = await _get_effective_package()
                 return await _post_action_cleanup(
                     "scroll",
                     {"direction": direction, "amount": scroll_amount, "element_name": element_name},
@@ -614,7 +660,7 @@ class MobileController:
                     return "Error: 'text' required."
                 if risk_error := await check_risk_confirmation(name=element_name, input_val=text):
                     return risk_error
-                base_pkg = await _get_current_package()
+                base_pkg = await _get_effective_package()
                 if element_name:
                     resolved = await resolve_element(element_name, element_role, timeout_val=timeout, expected_pkg=base_pkg)
                     if isinstance(resolved, str):
@@ -745,7 +791,7 @@ class MobileController:
                 if not intents:
                     return "Error: 'intents' list is required for intent_flow."
                 steps_done = 0
-                base_pkg = await _get_current_package()
+                base_pkg = await _get_effective_package()
 
                 async def _execute_intent_step(it: dict) -> str | None:
                     """Execute a single intent step. Returns error message or None on success."""
@@ -839,8 +885,19 @@ class MobileController:
                         })
                     return rows
 
-                # 1. Capture Screenshot
-                filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
+                # 1. Capture Screenshot (with 1s caching for sequential extractions)
+                cache_key = device_id or "default"
+                now = time.time()
+                cached_path, ts = cls._screenshot_cache.get(cache_key, (None, 0))
+                
+                if cached_path and os.path.exists(cached_path) and (now - ts < cls._screenshot_cache_ttl_ms / 1000.0):
+                    filepath = cached_path
+                    logger.debug(f"[Mobile] Reusing cached screenshot for GUI extraction: {filepath}")
+                else:
+                    filepath = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
+                    if filepath:
+                        cls._screenshot_cache[cache_key] = (filepath, now)
+                        
                 if region and filepath:
                     _crop_screenshot(filepath, region)
 
@@ -877,7 +934,10 @@ class MobileController:
 
                     return best_match or ""
                 finally:
-                    cleanup_file(filepath)
+                    # Clean up only if not in cache for future use
+                    current_cache_path, _ = cls._screenshot_cache.get(cache_key, (None, 0))
+                    if filepath and filepath != current_cache_path:
+                        cleanup_file(filepath)
 
             return f"Error: Unknown action '{action}'."
 
