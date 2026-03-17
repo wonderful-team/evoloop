@@ -33,10 +33,18 @@ class GraphBuilder:
         logger.info(f"Building Agent Graph from {config_path}")
 
         # 1. Load Config
-        with open(config_path) as f:
-            raw_config = yaml.safe_load(f)
+        try:
+            with open(config_path) as f:
+                raw_config = yaml.safe_load(f)
+        except Exception as e:
+            logger.error(f"Failed to read YAML config at {config_path}: {e}")
+            raise
 
-        agent_config = AgentConfig(**raw_config)
+        try:
+            agent_config = AgentConfig(**raw_config)
+        except Exception as e:
+            logger.error(f"Schema validation failed for {config_path}: {e}")
+            raise ValueError(f"Invalid Agent Configuration in {config_path}: {e}") from e
 
         # 2. Load State Schema
         StateClass = self._import_obj(agent_config.state_schema)

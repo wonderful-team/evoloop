@@ -138,7 +138,10 @@ JSON Format:
 }}"""
 
     try:
-        response = await llm.ainvoke([{"role": "user", "content": prompt}])
+        response = await llm.ainvoke(
+            [{"role": "user", "content": prompt}],
+            config={"callbacks": []}
+        )
         json_content = extract_json_from_markdown(response.content)
         plan = json.loads(json_content)
 
@@ -200,5 +203,8 @@ async def aggregate_results(
     llm = LLMFactory.create_llm(temperature=0.3)
     prompt = f"Original Task: {original_task}\nStrategy: {aggregation_strategy}\nResults: {json.dumps(results, ensure_ascii=False)}\n\nAggregate these findings into a concise summary."
     
-    response = await llm.ainvoke([{"role": "user", "content": prompt}])
+    response = await llm.ainvoke(
+        [{"role": "user", "content": prompt}],
+        config={"callbacks": []}
+    )
     return {"status": "success", "aggregated": response.content}

@@ -1,0 +1,47 @@
+import logging
+from typing import Any, Dict, List
+
+from app.core.vision.providers.native.android_a11y import android_a11y_provider
+
+logger = logging.getLogger(__name__)
+
+
+class AndroidService:
+    """
+    High-level services for Android environment awareness.
+    """
+
+    @staticmethod
+    async def dehydrate_layout(xml_content: str) -> List[Dict[str, Any]]:
+        """
+        Processes raw Android XML layout into a dehydrated list of interactive elements.
+        Uses AndroidA11yProvider for robust XML parsing and element extraction.
+        """
+        if not xml_content or not xml_content.strip():
+            return []
+
+        # Use the provider's internal parse method to avoid re-implementing 
+        # bounds parsing and coordinate calculation.
+        elements = android_a11y_provider._parse_xml(xml_content)
+        
+        dehydrated = []
+        for el in elements:
+            # Map UIElement to the dehydrated dictionary format used by harvesting tasks
+            dehydrated.append({
+                "id": el.id,
+                "text": el.text,
+                "x": el.x,
+                "y": el.y,
+                "width": el.width,
+                "height": el.height,
+                "clickable": el.clickable,
+                "scrollable": el.metadata.get("scrollable", False),
+                "package": el.metadata.get("package", ""),
+                "class": el.metadata.get("class", ""),
+                "resource_id": el.metadata.get("resource_id", ""),
+            })
+            
+        return dehydrated
+
+
+android_service = AndroidService()

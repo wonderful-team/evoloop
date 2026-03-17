@@ -35,14 +35,29 @@ def _extract_final_summary(messages: list) -> str:
         if isinstance(msg, AIMessage) and msg.content:
             content = str(msg.content)
             
-            # 1. Strip XML-based audit tags (Phase 6)
-            content = re.sub(r"<audit>.*?</audit>", "", content, flags=re.DOTALL | re.IGNORECASE)
+            # 1. Structural Extraction (Phase 6b Systematic)
+            # Prioritize content within <report> tags
+            report_match = re.search(r"<report>(.*?)</report>", content, flags=re.DOTALL | re.IGNORECASE)
+            if report_match:
+                return report_match.group(1).strip()
+
+            # 2. Fallback: Strip XML-based audit tags
+            content = re.sub(r"<(audit|outcome|reason|proof_points)>.*?</\1>", "", content, flags=re.DOTALL | re.IGNORECASE)
+            # Remove any orphan/leftover XML tags
+            content = re.sub(r"<[^>]+>", "", content)
             
-            # 2. Hard Cleanup of common technical legacy markers
-            # Matches "Outcome: ...", "Summary: ...", "✅ SESSION COMPLETE", etc.
-            content = re.sub(r"(Outcome|Summary|Reason|Evidence|Partial Results|✅|❌|SESSION COMPLETE):?\s*", "", content, flags=re.IGNORECASE)
+            # 3. Language-Agnostic Header Peeling
+            # Instead of a hardcoded list, we strip lines that look like "Header: " 
+            # (e.g., "Summary: ", "最终总结: ", "结论: ")
+            # regex: start of line, 1-20 chars (excluding newline/tags), followed by colon and optional space
+            content = re.sub(r"^\s*[^:\n]{1,20}:\s*", "", content, flags=re.MULTILINE)
             
-            # 3. Strip backticks or code blocks if the LLM wrapped the whole thing
+            # 4. Icon & Delimiter Cleanup
+            # Matches ✅, ❌, and multiple completion markers
+            content = re.sub(r"[✅❌]", "", content)
+            content = re.sub(r"(SESSION COMPLETE|任务结束|MISSION END):?\s*", "", content, flags=re.IGNORECASE)
+            
+            # 5. Clean backticks/code blocks and trim
             content = content.replace("```", "").strip()
             
             return content[:2000]
@@ -150,6 +165,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
 
     # Phase 6: Sync Structured Outcome to Blackboard for UI/Analytics
     # This outcome is used by the frontend to show success/failure indicators.
+    # MUST extract before message cleaning below
     full_text = "".join([str(m.content) for m in messages if isinstance(m, AIMessage)])
     outcome_match = re.search(r"<outcome>(.*?)</outcome>", full_text, re.IGNORECASE | re.DOTALL)
     final_outcome = ""
@@ -157,6 +173,14 @@ async def finish_node(state: AgentState, config: RunnableConfig):
         final_outcome = outcome_match.group(1).strip()
         blackboard.setdefault("metadata", {})["final_outcome"] = final_outcome
         logger.info(f"[Finish] 🎯 Detected structured outcome: {final_outcome}")
+
+    # [PHASE 6 REPAIR] Deep Cleaning — apply summary cleanup to the returned message
+    # This ensures the user UI sees the "peeled" pure summary, not the raw XML tags.
+    # We do this AFTER outcome extraction to preserve the tags for analysis
+    for m in reversed(messages):
+        if isinstance(m, AIMessage) and m.content:
+            m.content = summary
+            break
 
     # 2. Finalize Run State
     await activity_monitor.end_run(ctx.thread_id, status="done", final_outcome=final_outcome)

@@ -145,79 +145,6 @@ def snapshot_steps_task(
     asyncio.run(_run_with_flush())
 
 
-def _parse_android_bounds(bounds_str: str) -> tuple[int, int, int, int] | None:
-    """Parse bounds string like '[100,200][300,400]' to (x1, y1, x2, y2)."""
-    match = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", bounds_str)
-    if match:
-        return tuple(map(int, match.groups()))
-    return None
-
-
-def _dehydrate_android_layout(xml_content: str) -> tuple[list[dict], str]:
-    """Extract key UI elements and generate a concise summary from raw Android XML."""
-    if not xml_content or not xml_content.strip():
-        return [], "Empty layout."
-
-    # Clean up XML: handle typical ADB dump noise
-    xml_start = xml_content.find("<?xml")
-    if xml_start == -1:
-        xml_start = xml_content.find("<hierarchy")
-    if xml_start >= 0:
-        xml_end = xml_content.rfind(">")
-        if xml_end > xml_start:
-            xml_content = xml_content[xml_start: xml_end + 1]
-
-    try:
-        root = ET.fromstring(xml_content.strip())
-    except Exception as e:
-        return [], f"XML Parse Error: {str(e)}"
-
-    elements = []
-    summary_parts = []
-    package_name = ""
-    unique_labels = set()
-
-    for node in root.iter():
-        text = node.get("text", "") or node.get("content-desc", "")
-        res_id = node.get("resource-id", "")
-        clickable = node.get("clickable") == "true"
-        focusable = node.get("focusable") == "true"
-        pkg = node.get("package", "")
-        if pkg:
-            package_name = pkg
-
-        # Dehydration rule: only keep interactive or labeled elements
-        if not (text or res_id or clickable or (focusable and node.get("class", "").endswith("WebView"))):
-            continue
-
-        bounds_str = node.get("bounds", "")
-        bounds = _parse_android_bounds(bounds_str)
-        if not bounds:
-            continue
-
-        x1, y1, x2, y2 = bounds
-        role = node.get("class", "").split('.')[-1]
-        
-        element = {
-            "role": role,
-            "label": text,
-            "os_identifier": res_id,
-            "bounds": {"x": x1, "y": y1, "width": x2 - x1, "height": y2 - y1},
-            "clickable": clickable
-        }
-        elements.append(element)
-
-        if text and text not in unique_labels and len(summary_parts) < 5:
-            summary_parts.append(f"'{text}'")
-            unique_labels.add(text)
-
-    summary = f"Android Layout for {package_name}. Total {len(elements)} key elements."
-    if summary_parts:
-        summary += f" Contains: {', '.join(summary_parts)}."
-
-    return elements, summary
-
-
 @shared_task(name="engine_harvest_concepts")
 def harvest_concepts_task(concepts_data: list[dict], project_id: int):
     """
@@ -228,6 +155,7 @@ def harvest_concepts_task(concepts_data: list[dict], project_id: int):
         return
 
     async def _run():
+        from app.core.environment.android import android_service
         logger.info(f"[Celery] Harvesting {len(concepts_data)} concepts...")
         for c in concepts_data:
             name = c["name"]
@@ -237,7 +165,7 @@ def harvest_concepts_task(concepts_data: list[dict], project_id: int):
                 # Optimized logic for Android layouts
                 if name.startswith("android_layout:"):
                     logger.info(f"Optimizing layout concept: {name}")
-                    elements, summary = _dehydrate_android_layout(description)
+                    elements, summary = android_service.dehydrate_layout(description)
                     
                     if elements:
                         # 1. Trigger App Atlas mapping (Structured Storage)

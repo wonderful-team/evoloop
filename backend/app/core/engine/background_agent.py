@@ -283,8 +283,21 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             logger.info(f"[BackgroundAgent] Task {thread_id} interrupted for human input. Run status: interrupted")
             # No need to call end_run - the tool already set status via activity_monitor.set_human_request
 
+        except Exception as e:
+            # Catch recursion limit errors or other graph execution failures
+            err_msg = str(e)
+            if "recursion limit" in err_msg.lower():
+                logger.error(f"Thread {thread_id} hit recursion limit: {e}")
+                await activity_monitor.end_run(thread_id, "failed")
+                await _persist_system_error(thread_id, project_id, "Recursion limit exceeded. The agent may be stuck in a loop.")
+            else:
+                await _handle_task_exception(thread_id, project_id, e)
+
     except Exception as e:
-        await _handle_task_exception(thread_id, project_id, e)
+        # Preparation failures (DB, Context, etc.)
+        logger.error(f"Fatal error during agent preparation for {thread_id}: {e}", exc_info=True)
+        await activity_monitor.end_run(thread_id, "failed")
+        await _persist_system_error(thread_id, project_id, f"Preparation failed: {str(e)}")
 
 
 async def _upload_final_log(graph, config, thread_id, command_id, project_id):
@@ -310,49 +323,63 @@ async def _upload_final_log(graph, config, thread_id, command_id, project_id):
 
 
 async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
+    """Handle exceptions during graph execution (Phase 5: Global Error Boundaries)."""
     from app.core.exceptions import AgentHumanInterruptException
 
-    # Check for Interrupt
+    # Check for context
     exc_name = type(e).__name__
+    error_str = str(e).lower()
 
-    # [HITL Fix] Explicitly catch our custom interrupt exception
     if isinstance(e, AgentHumanInterruptException) or "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
         logger.info(f"Task {thread_id} interrupted for human input: {e}")
-
-        # If it's our custom exception, we might have the request ID
-        # req_id = getattr(e, "request_id", gen_uuid())
-
-        # We don't need to create a NEW request if the exception came from tool execution
-        # The tool already created it. We just set status.
-        # But `set_human_request` updates Redis status.
-
-        # If it is AgentHumanInterruptException, the tool already called activity_monitor.set_human_request
-        # So we just need to ensure we don't overwrite it or fail.
-        # However, the tool call might be inside a node. If we catch it here, the node failed.
-        # Actually, LangGraph might handle exceptions differently.
-        # If we raise BaseException, LangGraph usually stops.
-        # We just need to mark run as "interrupted" in Redis (which the tool already did!)
-        # So we simply return and DO NOT mark as failed.
         return
 
     logger.error(f"Error running thread {thread_id}: {e}", exc_info=True)
     await activity_monitor.end_run(thread_id, "failed")
 
-    # Persist Error
+    # 1. Distinguish between Retryable and Fatal Errors
+    is_retryable = any(kw in error_str for kw in [
+        "timeout", "rate limit", "connection error", "api_error", 
+        "unavailable", "overloaded", "socket", "httpx"
+    ])
+    
+    if is_retryable:
+        user_message = (
+            f"⚠️ **{i18n.get('core_engine.retryable_error_title', default='API Connectivity Issue')}**: "
+            f"{i18n.get('core_engine.retryable_error_desc', default='I encountered a transient error while communicating with the LLM.')}\n\n"
+            f"> {str(e)}\n\n"
+            f"I have paused execution to prevent state corruption. You can try to **Resume** this task."
+        )
+        action_type = "warning"
+    else:
+        user_message = (
+            f"❌ **{i18n.get('core_engine.system_error_title', default='System Error')}**: "
+            f"{i18n.get('core_engine.execution_failed', default='Agent execution failed due to a logic or configuration error.')}\n\n"
+            f"{i18n.get('core_engine.error_details', default='Error Details')}:\n> {str(e)}\n\n"
+            f"{i18n.get('core_engine.retry_prompt', default='Please try again or contact support.')}"
+        )
+        action_type = "system"
+
+    # 2. Persist to DB
+    await _persist_system_error(thread_id, project_id, user_message, action_type=action_type)
+
+
+async def _persist_system_error(thread_id: str, project_id: int, error_details: str, action_type: str = "system"):
+    """Save a system error message to the database."""
     try:
         async with session_scope() as session:
             # Get next sequence
             stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
-            max_seq = (await session.execute(stmt)).scalar() or 0
+            res = await session.execute(stmt)
+            max_seq = res.scalar() or 0
 
             error_msg = Message(
                 thread_id=thread_id,
                 project_id=project_id,
                 role="ai",
-                action_type="system",
-                content=f"❌ **{i18n.get('core_engine.system_error_title', default='System Error')}**: {i18n.get('core_engine.execution_failed', default='Agent execution failed.')}\n\n"
-                        f"{i18n.get('core_engine.error_details', default='Error Details')}:\n> {str(e)}\n\n"
-                        f"{i18n.get('core_engine.retry_prompt', default='Please try again or contact support.')}",
+                action_type=action_type,
+                content=error_details,
+                sequence_number=max_seq + 1
             )
             session.add(error_msg)
     except Exception as db_e:

@@ -1,14 +1,11 @@
-from typing import Any
-
-from pydantic import BaseModel, Field
+from typing import Any, Literal
+from pydantic import BaseModel, Field, model_validator
 
 
 class NodeConfig(BaseModel):
     id: str
     xpath: str | None = Field(alias="path", default=None)  # e.g. "app.core.engine.nodes.worker.worker_node"
-    # Subgraph Support
-    type: str = "function"  # "function" | "generic" | "subgraph"
-    # Note: We rely on 'path' being present for function/generic, or 'subgraph_config' for subgraph.
+    type: Literal["function", "generic", "subgraph"] = "function"
     subgraph_config: str | None = None  # Path to YAML file for subgraph
 
     @property
@@ -16,19 +13,34 @@ class NodeConfig(BaseModel):
         return self.xpath
 
     config: dict[str, Any] | None = Field(default_factory=dict)
-    # Phase PD: Tool declarations for each node (replaces hardcoded RBAC in get_node_tools)
     tools: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_node_type(self) -> 'NodeConfig':
+        if self.type == "subgraph":
+            if not self.subgraph_config:
+                raise ValueError(f"Node '{self.id}' is of type 'subgraph' but missing 'subgraph_config'")
+        elif not self.xpath:
+            raise ValueError(f"Node '{self.id}' is of type '{self.type}' but missing 'path'")
+        return self
 
 
 class EdgeConfig(BaseModel):
     from_node: str = Field(alias="from")
     to_node: str | None = Field(alias="to", default=None)
-    type: str = "simple"  # simple | conditional
+    type: Literal["simple", "conditional"] = "simple"
     router: str | None = None  # Path to router function
     map: dict[str, str] | None = None  # Mapping for conditional
-    # Dynamic Router Support
     conditions: list[dict[str, str]] | None = None  # [{"expr": "...", "to": "..."}]
     default: str | None = None  # Fallback node
+
+    @model_validator(mode="after")
+    def validate_edge_type(self) -> 'EdgeConfig':
+        if self.type == "simple" and not self.to_node:
+            raise ValueError(f"Simple edge from '{self.from_node}' is missing 'to' field")
+        if self.type == "conditional" and not (self.router or self.conditions):
+            raise ValueError(f"Conditional edge from '{self.from_node}' must have either 'router' or 'conditions'")
+        return self
 
 
 class AgentConfig(BaseModel):
@@ -37,6 +49,33 @@ class AgentConfig(BaseModel):
     state_schema: str = "app.core.engine.state.AgentState"
     nodes: list[NodeConfig]
     edges: list[EdgeConfig]
-    # Human-in-the-Loop Support
-    interrupt_before: list[str] = []  # Node IDs to interrupt BEFORE execution
-    interrupt_after: list[str] = []  # Node IDs to interrupt AFTER execution
+    interrupt_before: list[str] = Field(default_factory=list)
+    interrupt_after: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_graph_connectivity(self) -> 'AgentConfig':
+        """Ensure all nodes referenced in edges exist in the node list."""
+        node_ids = {node.id for node in self.nodes}
+        node_ids.add("END")
+        
+        for edge in self.edges:
+            if edge.from_node not in node_ids:
+                raise ValueError(f"Edge starts from unknown node '{edge.from_node}'")
+            
+            if edge.to_node and edge.to_node not in node_ids:
+                raise ValueError(f"Edge to unknown node '{edge.to_node}'")
+                
+            if edge.conditions:
+                for cond in edge.conditions:
+                    if cond.get("to") not in node_ids:
+                        raise ValueError(f"Conditional edge branch lead to unknown node '{cond.get('to')}'")
+            
+            if edge.map:
+                for target_node in edge.map.values():
+                    if target_node not in node_ids:
+                        raise ValueError(f"Router map target '{target_node}' is an unknown node")
+            
+            if edge.default and edge.default not in node_ids:
+                raise ValueError(f"Default edge target '{edge.default}' is an unknown node")
+        
+        return self

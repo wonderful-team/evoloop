@@ -9,6 +9,7 @@ from collections.abc import Callable
 from langgraph.types import Send
 
 from app.constants import DEFAULT_PROJECT_ID, RoutingTarget
+from app.core.config import settings
 from app.core.engine.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,12 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     """
     next_node = state.get("next_node")
     blackboard = state.get("blackboard", {})
+
+    # --- Phase 5: Resource Constraints Enforcement ---
+    iteration_count = state.get("iteration_count", 0)
+    if iteration_count >= settings.SUPERVISOR_AGENT_MAX_STEPS:
+        logger.warning(f"[Router] Hard limit reached ({iteration_count}/{settings.SUPERVISOR_AGENT_MAX_STEPS}). Forcing termination.")
+        return RoutingTarget.FINISH
 
     # --- 🏅 Phase 4: Dynamic Subtask Spawning (Blackboard Driven) ---
     spawn_plan = blackboard.get("spawn_plan")

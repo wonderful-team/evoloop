@@ -97,15 +97,22 @@ class SupervisorNode:
             config=config,
             system_prompt=dynamic_prompt,
             tools=tools,
-            max_steps=settings.SUPERVISOR_AGENT_MAX_STEPS,  # Increased since routing is now part of the loop
+            max_steps=settings.SUPERVISOR_AGENT_MAX_STEPS,
             name="Supervisor",
         )
+
+        # Increment logical iteration counter
+        current_iterations = state.get("iteration_count", 0)
+        new_iter_count = current_iterations + 1
 
         # Phase 4: Unified Dispatching (Phase 2)
         signal = engine_result.get("signal")
         if signal:
             from app.core.engine.dispatcher import SignalDispatcher
-            return await SignalDispatcher.dispatch(state, signal, config)
+            dispatch_result = await SignalDispatcher.dispatch(state, signal, config)
+            if isinstance(dispatch_result, dict):
+                dispatch_result["iteration_count"] = new_iter_count
+            return dispatch_result
 
         # Legacy/Fallback Handling
         new_messages = engine_result.get("messages", [])
@@ -119,7 +126,8 @@ class SupervisorNode:
                 return {
                     "messages": new_messages,
                     "next_node": RoutingTarget.FINISH,
-                    "blackboard": blackboard
+                    "blackboard": blackboard,
+                    "iteration_count": new_iter_count
                 }
 
         # Ultimate fallback: default to Worker
@@ -127,7 +135,8 @@ class SupervisorNode:
         return {
             "messages": new_messages,
             "next_node": RoutingTarget.WORKER,
-            "blackboard": blackboard
+            "blackboard": blackboard,
+            "iteration_count": new_iter_count
         }
 
     async def _emit_status(self, config: RunnableConfig, status: str):

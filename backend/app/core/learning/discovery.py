@@ -228,7 +228,10 @@ OUTPUT FORMAT (JSON ONLY):
             messages.append(HumanMessage(content=f"CURRENT_USER_QUERY: {query}"))
 
             logger.info(f"[Discovery] Invoking LLM for intent matching: {query[:50]}...")
-            response = await llm.ainvoke(messages)
+            response = await llm.ainvoke(
+                messages,
+                config={"callbacks": []}
+            )
 
             # Simple brain-style JSON parser
             content = response.content.strip()

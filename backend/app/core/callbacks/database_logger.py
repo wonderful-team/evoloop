@@ -114,6 +114,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                         # Case B: Other JSON
                         # Convert to nicely formatted text
                         content = i18n.get("database_logger.decision", node=node)
+                    
+                    # Case C: Internal Structured data (Skill Discovery, Decomposition, etc.)
+                    # If it's JSON but not a recognized UI-friendly format, SILENTLY ignore it
+                    elif any(key in data for key in ["match_found", "skill_id", "subtasks", "can_parallelize"]):
+                        logger.info(f"[DatabaseCallbackHandler] Suppressing internal JSON leakage: {list(data.keys())}")
+                        return
+
                 except Exception:
                     pass
 
