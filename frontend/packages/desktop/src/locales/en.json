@@ -521,6 +521,16 @@
     },
     "resourceRemoved": "Resource removed",
     "agentStopped": "Chat stopped",
+    "status": {
+      "resuming": "Agent resuming..."
+    },
+    "errors": {
+      "loadHistory": "Failed to load chat history",
+      "sendMessage": "Failed to send message",
+      "stopAgent": "Failed to stop agent",
+      "resumeAgent": "Failed to resume agent",
+      "connection": "Connection Error: {{error}}"
+    },
     "context": {
       "starter": {
         "analyzeDesc": "Explore architecture & files",

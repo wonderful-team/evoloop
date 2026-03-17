@@ -521,6 +521,16 @@
     },
     "resourceRemoved": "资源已移除",
     "agentStopped": "对话已停止",
+    "status": {
+      "resuming": "智能体正在恢复..."
+    },
+    "errors": {
+      "loadHistory": "加载对话历史失败",
+      "sendMessage": "发送消息失败",
+      "stopAgent": "停止智能体失败",
+      "resumeAgent": "恢复智能体失败",
+      "connection": "连接错误: {{error}}"
+    },
     "context": {
       "starter": {
         "analyzeDesc": "探索架构与文件",

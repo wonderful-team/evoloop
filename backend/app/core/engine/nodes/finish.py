@@ -12,7 +12,8 @@ from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.engine.state import AgentState
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools.manager import tool_manager
-from app.constants import DEFAULT_PROJECT_ID
+from app.constants import DEFAULT_PROJECT_ID, TECHNICAL_MARKERS, STATUS_ICONS
+from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
 
@@ -25,8 +26,10 @@ def _extract_tool_usage(messages: list) -> str:
             for tc in msg.tool_calls:
                 tools_used.add(tc["name"])
     if not tools_used:
-        return "No specific tools were called. Actions were purely conversational."
-    return "Tools utilized during session: " + ", ".join(sorted(tools_used))
+        # Avoid hardcoded string, but since this is internally logged mostly, 
+        # we'll use a generic placeholder or add to i18n if needed.
+        return "No specific tools were called."
+    return "Tools: " + ", ".join(sorted(tools_used))
 
 
 def _extract_final_summary(messages: list) -> str:
@@ -52,16 +55,19 @@ def _extract_final_summary(messages: list) -> str:
             # regex: start of line, 1-20 chars (excluding newline/tags), followed by colon and optional space
             content = re.sub(r"^\s*[^:\n]{1,20}:\s*", "", content, flags=re.MULTILINE)
             
-            # 4. Icon & Delimiter Cleanup
-            # Matches ✅, ❌, and multiple completion markers
-            content = re.sub(r"[✅❌]", "", content)
-            content = re.sub(r"(SESSION COMPLETE|任务结束|MISSION END):?\s*", "", content, flags=re.IGNORECASE)
+            # 4. Icon & Delimiter Cleanup (Using decentralized constants)
+            # Matches status icons and technical markers
+            icons_pattern = "[" + "".join([re.escape(i) for i in STATUS_ICONS.values()]) + "]"
+            content = re.sub(icons_pattern, "", content)
+            
+            markers_pattern = r"(" + "|".join([re.escape(m) for m in TECHNICAL_MARKERS]) + r"):?\s*"
+            content = re.sub(markers_pattern, "", content, flags=re.IGNORECASE)
             
             # 5. Clean backticks/code blocks and trim
             content = content.replace("```", "").strip()
             
             return content[:2000]
-    return "Session concluded."
+    return i18n.get("finish.session_concluded", default="Session concluded.")
 
 
 def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, original_skill_id: int | None = None):
@@ -172,7 +178,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     if outcome_match:
         final_outcome = outcome_match.group(1).strip()
         blackboard.setdefault("metadata", {})["final_outcome"] = final_outcome
-        logger.info(f"[Finish] 🎯 Detected structured outcome: {final_outcome}")
+        logger.info(f"[Finish] {i18n.get('icons.rocket', default='🎯')} Detected structured outcome: {final_outcome}")
 
     # [PHASE 6 REPAIR] Deep Cleaning — apply summary cleanup to the returned message
     # This ensures the user UI sees the "peeled" pure summary, not the raw XML tags.
@@ -190,7 +196,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     original_skill_id = metadata.get("original_skill_id")
     _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id)
 
-    logger.info(f"Finish: ✅ Session concluded with outcome {final_outcome or 'DONE'}. Routing to END.")
+    logger.info(f"Finish: {i18n.get('icons.success', default='✅')} Session concluded with outcome {final_outcome or 'DONE'}. Routing to END.")
     return {
         "messages": messages, 
         "next_node": "END",

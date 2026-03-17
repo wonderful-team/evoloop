@@ -13,6 +13,20 @@ DEFAULT_PROJECT_ID = 1
 DEFAULT_WINDOW_SIZE = 30
 DEFAULT_HISTORY_RETAIN_COUNT = 5  # Number of messages to retain during compression
 
+# Technical Markers for Session Cleanup (Phase 6)
+TECHNICAL_MARKERS = [
+    "SESSION COMPLETE", "MISSION END", "MISSION COMPLETE",
+    "任务结束", "会话结束", "任务完成", "结论", "总结", "结果"
+]
+
+STATUS_ICONS = {
+    "success": "✅",
+    "failed": "❌",
+    "warning": "⚠️",
+    "thinking": "🧠",
+    "routing": "🎯"
+}
+
 
 # ====================== Document Type Enum ======================
 class DocumentType(Enum):

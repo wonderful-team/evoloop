@@ -2,6 +2,7 @@ import os
 import logging
 from jinja2 import Environment, FileSystemLoader
 from app.infrastructure.config.service import SystemConfigService
+from app.constants import TECHNICAL_MARKERS, STATUS_ICONS
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,11 @@ class FinishPromptBuilder:
                 "verification": self.verification_status,
             },
             "audit_context": self.action_context,
+            "technical_markers": ", ".join(TECHNICAL_MARKERS),
+            "icons": {
+                "success": STATUS_ICONS["success"],
+                "failed": STATUS_ICONS["failed"]
+            }
         }
 
         try:

@@ -15,7 +15,9 @@
     },
     "finish": {
         "brain_update": "\n\n🧠 **Brain Update**: Saved {count} concept(s) to memory: {concepts}",
-        "proactive_reminder": "\n\n📝 **Proactive Reminder**: I've added a todo: '{title}'"
+        "proactive_reminder": "\n\n📝 **Proactive Reminder**: I've added a todo: '{title}'",
+        "conclusion_fallback": "Session concluded.",
+        "session_complete": "✅ SESSION COMPLETE"
     },
     "chat": {
         "lang_instruction": "\nUser Language Preference: {language}\nCommunicate in this language."
@@ -284,5 +286,24 @@
             "fs_move_error": "Error moving path: {error}",
             "fs_unknown_action": "Error: Unknown filesystem action {action}"
         }
+    },
+    "core_engine": {
+        "system_error_title": "System Error",
+        "execution_failed": "Agent execution failed.",
+        "error_details": "Error Details",
+        "retry_prompt": "Please try again or contact support.",
+        "technical_markers": [
+            "SESSION COMPLETE",
+            "MISSION END",
+            "Final Summary"
+        ]
+    },
+    "icons": {
+        "success": "✅",
+        "failed": "❌",
+        "warning": "⚠️",
+        "info": "ℹ️",
+        "thinking": "🧠",
+        "rocket": "🚀"
     }
 }

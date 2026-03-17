@@ -15,7 +15,10 @@
     },
     "finish": {
         "brain_update": "\n\n🧠 **大脑更新**: 已保存 {count} 个新概念到记忆库: {concepts}",
-        "proactive_reminder": "\n\n📝 **主动提醒**: 已添加待办事项: '{title}'"
+        "proactive_reminder": "\n\n📝 **主动提醒**: 已添加待办事项: '{title}'",
+        "session_concluded": "会话已结束。",
+        "conclusion_fallback": "会话已结束。",
+        "session_complete": "✅ 任务已完成"
     },
     "chat": {
         "lang_instruction": "\n用户语言偏好: {language}\n请使用该语言进行交流。"
@@ -284,5 +287,26 @@
             "fs_move_error": "移动路径错误：{error}",
             "fs_unknown_action": "错误：未知文件系统操作 {action}"
         }
+    },
+    "core_engine": {
+        "system_error_title": "系统错误",
+        "execution_failed": "Agent 执行失败。",
+        "error_details": "错误详情",
+        "retry_prompt": "请重试或联系支持。",
+        "technical_markers": [
+            "SESSION COMPLETE",
+            "任务结束",
+            "MISSION END",
+            "最终总结",
+            "任务总结"
+        ]
+    },
+    "icons": {
+        "success": "✅",
+        "failed": "❌",
+        "warning": "⚠️",
+        "info": "ℹ️",
+        "thinking": "🧠",
+        "rocket": "🚀"
     }
 }

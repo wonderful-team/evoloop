@@ -178,7 +178,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         } catch (e) {
             console.error("Failed to fetch history", e)
             if (get().messages.length === 0) {
-                toast.error("Failed to load chat history")
+                toast.error(i18n.t("chat.errors.loadHistory"))
             }
         }
     },
@@ -227,7 +227,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // But we keep status running just in case SSE is slow
         } catch (e) {
             console.error(e)
-            toast.error("Failed to send message")
+            toast.error(i18n.t("chat.errors.sendMessage"))
             set((state) => ({
                 messages: state.messages.filter((m) => m.id !== tempId), // Revert
                 status: "error",
@@ -246,7 +246,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
             toast.info(i18n.t("chat.agentStopped"))
             set({ status: "stopped", humanRequest: null })
         } catch (_e) {
-            toast.error("Failed to stop agent")
+            toast.error(i18n.t("chat.errors.stopAgent"))
         }
     },
 
@@ -258,10 +258,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
             await AgentService.resumeChat({
                 requestBody: { thread_id: threadId, user_input: userInput },
             })
-            toast.info("Agent resuming...")
+            toast.info(i18n.t("chat.status.resuming"))
             set({ status: "running", humanRequest: null }) // Optimistic clear
         } catch (_e) {
-            toast.error("Failed to resume agent")
+            toast.error(i18n.t("chat.errors.resumeAgent"))
         }
     },
 
@@ -501,6 +501,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     _setError: (error: string) => {
-        toast.error(`Connection Error: ${error}`)
+        toast.error(i18n.t("chat.errors.connection", { error }))
     },
 }))
