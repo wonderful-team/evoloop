@@ -8,14 +8,35 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+def create_db_engine():
+    """Create database engine based on configuration (SQLite or PostgreSQL)."""
+    db_uri = settings.SQLALCHEMY_DATABASE_URI
+
+    if settings.EMBEDDED_MODE or db_uri.startswith("sqlite"):
+        # SQLite configuration (embedded mode)
+        logger.info(f"[Database] Using SQLite at {settings.SQLITE_PATH}")
+        return create_async_engine(
+            db_uri,
+            echo=settings.DB_ECHO,
+            future=True,
+            # SQLite-specific: disable pool for single-file access
+            connect_args={"check_same_thread": False},
+        )
+    else:
+        # PostgreSQL configuration (full mode)
+        logger.info(f"[Database] Using PostgreSQL at {settings.POSTGRES_SERVER}")
+        return create_async_engine(
+            db_uri,
+            echo=settings.DB_ECHO,
+            future=True,
+            pool_size=50,  # Increased for concurrent indexing
+            max_overflow=100,  # Increased for burst capacity
+        )
+
+
 # Create Async Engine
-engine = create_async_engine(
-    str(settings.SQLALCHEMY_DATABASE_URI),
-    echo=settings.DB_ECHO,
-    future=True,
-    pool_size=50,  # Increased for concurrent indexing (was 20)
-    max_overflow=100,  # Increased for burst capacity (was 10)
-)
+engine = create_db_engine()
 
 # Create Session Factory
 AsyncSessionLocal = async_sessionmaker(

@@ -12,12 +12,14 @@ from app.core.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
 
 # Callbacks
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.callbacks.transparent import TransparentCallbackHandler
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
 from app.core.context.thread_store import thread_context_store
 from app.core.evocloud import evocloud_manager
 from app.core.exceptions import AgentCancelledException, AgentHumanInterruptException
+from app.i18n.service import i18n
 
 # Graph
 from app.core.globals import get_graph
@@ -116,7 +118,7 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         # Note: project_id can be 0 (global mode), so use get() without default
         project_id = inputs.get("project_id")
         if project_id is None:
-            project_id = 1
+            project_id = DEFAULT_PROJECT_ID
 
         # 2. Context & DB Preparation (Parallelized)
         evoloop_command_id = inputs.get("command_id")
@@ -167,7 +169,10 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         )
 
         # 5. Execution
-        await activity_monitor.start_run(thread_id)
+        # Start run with appropriate goal
+        main_goal = inputs.get("goal", "处理用户请求")
+        await activity_monitor.start_run(thread_id, main_goal)
+        logger.info(f"[BackgroundAgent] Started run for thread {thread_id} with goal: {main_goal}")
 
         # Memory Injection (Parallelized)
         from app.core.memory import memory_manager
@@ -242,8 +247,9 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             if steps_snapshot:
                 await db_callback.snapshot_steps_to_last_message(steps_snapshot)
 
-            # Phase 6: Give Celery tasks a moment to commit before frontend re-fetches history
-            # This prevents a race condition where the 'finish' message is missing during re-fetch.
+            # Phase 6: Give file persistence tasks a moment to commit before frontend re-fetches history.
+            # This prevents a race condition where the 'finish' message is missing during initial re-fetch.
+            # 1.0s is a conservative buffer for local I/O and DB flushes.
             await asyncio.sleep(1.0)
             await activity_monitor.end_run(thread_id, "done")
 
@@ -343,9 +349,10 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
                 thread_id=thread_id,
                 project_id=project_id,
                 role="ai",
-                content=f"❌ **System Error**: Agent execution failed.\n\nError Details:\n> {str(e)}\n\nPlease try again or contact support.",
-                thinking="",
-                sequence_number=max_seq + 1,
+                action_type="system",
+                content=f"❌ **{i18n.get('core_engine.system_error_title', default='System Error')}**: {i18n.get('core_engine.execution_failed', default='Agent execution failed.')}\n\n"
+                        f"{i18n.get('core_engine.error_details', default='Error Details')}:\n> {str(e)}\n\n"
+                        f"{i18n.get('core_engine.retry_prompt', default='Please try again or contact support.')}",
             )
             session.add(error_msg)
     except Exception as db_e:

@@ -16,12 +16,14 @@ class WorkerPromptBuilder:
         self,
         agent_config: dict,
         blackboard: dict,
-        skills: list = None
+        skills: list = None,
+        ticket: dict = None
     ):
         self.agent_config = agent_config
         self.blackboard = blackboard
         self.skills = skills or []
         self.clipboard = blackboard.get("clipboard", [])
+        self.ticket = ticket or {}
 
         template_dir = os.path.join(os.path.dirname(__file__), "templates")
         self.env = Environment(loader=FileSystemLoader(template_dir))

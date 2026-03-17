@@ -131,15 +131,6 @@ class AgentState(TypedDict):
     error: str | None
     next_node: Annotated[str | None, lambda a, b: b]
 
-    # [DEPRECATED v5] Deep Research State
-    # These fields were used by the standalone DeepResearchEngine (now removed).
-    # Worker uses ExecutionTicket.topic + max_steps instead.
-    # Kept for LangGraph checkpoint schema compatibility — do NOT add new usages.
-    research_loop_count: Annotated[int | None, lambda a, b: b]  # deprecated
-    research_logs: Annotated[list[str] | None, operator.add]  # deprecated
-    research_topic: str | None  # deprecated
-    max_research_iterations: int | None  # deprecated
-
     # Memory
     user_preferences: str | None
 

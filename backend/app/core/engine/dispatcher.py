@@ -5,6 +5,7 @@ from typing import Any
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableConfig
 
+from app.constants import RoutingTarget
 from app.core.engine.signals import RouteToSignal, SpawnSubtasksSignal, TerminateSignal
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class SignalDispatcher:
             return await SignalDispatcher._handle_terminate(state, signal, config)
         
         logger.warning(f"[Dispatcher] Unknown signal type: {type(signal)}")
-        return {"next_node": "supervisor"}
+        return {"next_node": RoutingTarget.SUPERVISOR}
 
     @staticmethod
     async def _handle_route_to(state: dict, signal: RouteToSignal, config: RunnableConfig) -> dict:
@@ -96,7 +97,7 @@ class SignalDispatcher:
             }
 
         return {
-            "next_node": "spawn_subtasks",
+            "next_node": RoutingTarget.SPAWN_SUBTASKS,
             "blackboard": blackboard
         }
 
@@ -111,6 +112,6 @@ class SignalDispatcher:
         blackboard["metadata"] = metadata
 
         return {
-            "next_node": "finish",
+            "next_node": RoutingTarget.FINISH,
             "blackboard": blackboard
         }

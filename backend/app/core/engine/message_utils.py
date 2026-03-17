@@ -14,14 +14,8 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
-from app.constants import MAX_OUTPUT_LENGTH
+from app.constants import DEFAULT_WINDOW_SIZE, MAX_OUTPUT_LENGTH
 from app.i18n.service import i18n
-from app.infrastructure.llm.model_profile import get_profile
-
-logger = logging.getLogger(__name__)
-
-# Legacy fallback constant
-_DEFAULT_WINDOW_SIZE = 30
 
 
 def _get_truncate_limit(model: str | None = None) -> int:
@@ -43,7 +37,7 @@ def _get_window_size(model: str | None = None) -> int:
             return profile.window_size
     except ImportError:
         pass
-    return _DEFAULT_WINDOW_SIZE
+    return DEFAULT_WINDOW_SIZE
 
 
 def truncate_message_content(

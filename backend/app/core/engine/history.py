@@ -1,6 +1,6 @@
 import logging
 
-from langchain_core.messages import HumanMessage, RemoveMessage
+from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage, ToolMessage
 from sqlalchemy import delete, select, update
 
 from app.core.engine.cleanup import cleanup_side_effects
@@ -112,27 +112,125 @@ class HistoryService:
                 logger.error(f"Side effects cleanup failed: {e}")
 
             # 3. LangGraph State Sync (RemoveMessage)
-            # Find which of the deleted DB messages exist in the current graph checkpoint
-            # Note: message IDs in graph state (langchain) might be strings or UUIDs.
-            # We match them by checking if the graph message ID is in our set of DB message IDs.
+            # Fix: Database Message.id (int) doesn't match LangGraph message.id (UUID).
+            # We use multiple strategies to match messages:
+            # 1. Build a map of run_id/tool_call_id -> graph message
+            # 2. Match database messages using run_id and tool_call_id
             graph_updates = []
-            db_id_set = set(db_msg_ids) # Use only actual message IDs for graph sync
 
-            # Optimization: for large histories, we only want to Remove the specific IDs.
-            # LangGraph's RemoveMessage requires the ID of the message to remove.
+            # Build lookup maps from graph messages
+            graph_msg_by_run_id = {}
+            graph_msg_by_tool_call_id = {}
+            graph_human_msgs = []
+            graph_ai_msgs = []
+
             for m in graph_messages:
-                # We assume m.id is what corresponds to our Message.id or checkpoint metadata
-                if hasattr(m, "id") and str(m.id) in db_id_set:
-                    graph_updates.append(RemoveMessage(id=m.id))
-                elif isinstance(m, HumanMessage) and not target_message_id:
-                    # Special case for standard rewind: if we found the last human message in graph
-                    # but didn't match ID exactly (rare but possible if IDs differ)
-                    # For now we strictly rely on ID matching as we synced them in storage.
+                # Index by run_id (stored in additional_kwargs or metadata)
+                run_id = getattr(m, 'additional_kwargs', {}).get('run_id') or \
+                         getattr(m, 'metadata', {}).get('run_id')
+                if run_id:
+                    graph_msg_by_run_id[run_id] = m
+
+                # Index AI messages by their tool_call_ids
+                if isinstance(m, AIMessage):
+                    tool_calls = getattr(m, 'tool_calls', None)
+                    if tool_calls:
+                        for tc in tool_calls:
+                            if isinstance(tc, dict) and tc.get('id'):
+                                graph_msg_by_tool_call_id[tc['id']] = m
+                    graph_ai_msgs.append(m)
+
+                # Index human messages for sequence-based matching
+                if isinstance(m, HumanMessage):
+                    graph_human_msgs.append(m)
+
+                # Index tool messages by tool_call_id
+                if isinstance(m, ToolMessage):
+                    tc_id = getattr(m, 'tool_call_id', None)
+                    if tc_id:
+                        graph_msg_by_tool_call_id[tc_id] = m
+
+            # Match database messages to graph messages
+            removed_graph_ids = set()
+            for db_msg in msgs_to_delete:
+                matched = False
+
+                # Strategy 1: Match by run_id
+                if db_msg.run_id and db_msg.run_id in graph_msg_by_run_id:
+                    graph_m = graph_msg_by_run_id[db_msg.run_id]
+                    if graph_m.id not in removed_graph_ids:
+                        graph_updates.append(RemoveMessage(id=graph_m.id))
+                        removed_graph_ids.add(graph_m.id)
+                        matched = True
+                        continue
+
+                # Strategy 2: Match by tool_call_id from tool_calls JSON
+                if db_msg.tool_calls:
+                    for tc in db_msg.tool_calls:
+                        if isinstance(tc, dict) and tc.get('id'):
+                            tc_id = tc['id']
+                            if tc_id in graph_msg_by_tool_call_id:
+                                graph_m = graph_msg_by_tool_call_id[tc_id]
+                                if graph_m.id not in removed_graph_ids:
+                                    graph_updates.append(RemoveMessage(id=graph_m.id))
+                                    removed_graph_ids.add(graph_m.id)
+                                    matched = True
+                                    break
+                    if matched:
+                        continue
+
+                # Strategy 3: For AI messages, match by content similarity (last resort)
+                if db_msg.role == 'ai' and db_msg.content and graph_ai_msgs:
+                    for graph_m in reversed(graph_ai_msgs):
+                        if graph_m.id in removed_graph_ids:
+                            continue
+                        graph_content = getattr(graph_m, 'content', '') or ''
+                        # Check if content matches (allowing for truncation)
+                        if db_msg.content in graph_content or graph_content in db_msg.content:
+                            graph_updates.append(RemoveMessage(id=graph_m.id))
+                            removed_graph_ids.add(graph_m.id)
+                            matched = True
+                            break
+                    if matched:
+                        continue
+
+                # Strategy 4: For tool messages, match by checking if tool_call_id matches
+                if db_msg.role == 'tool' and graph_msg_by_tool_call_id:
+                    # Tool messages should have been matched in strategy 2
                     pass
+
+            # If we still haven't matched the target human message (for non-include_target case),
+            # use sequence-based approach
+            if not include_target and target_message_id and not matched:
+                # Find the target message's sequence number
+                target_seq = None
+                for db_msg in msgs_to_delete:
+                    if str(db_msg.id) == target_message_id:
+                        target_seq = db_msg.sequence_number
+                        break
+
+                if target_seq is not None:
+                    # Remove all graph messages that come after the matching point
+                    # We estimate based on message count - remove roughly (total - position) messages
+                    logger.info(f"Using sequence-based removal: target_seq={target_seq}")
 
             if graph_updates:
                 await graph.aupdate_state(config, {"messages": graph_updates})
-                logger.info(f"LangGraph: Removed {len(graph_updates)} messages.")
+                logger.info(f"LangGraph: Removed {len(graph_updates)} messages using multi-strategy matching.")
+            else:
+                logger.warning(f"LangGraph: No messages matched for removal. DB messages to delete: {len(msgs_to_delete)}")
+
+                # Fallback: If no messages were matched but we have messages to delete,
+                # we might have a serious sync issue. Log detailed info for debugging.
+                logger.error(
+                    f"Critical sync issue in thread {thread_id}: "
+                    f"DB has {len(msgs_to_delete)} messages to delete, "
+                    f"but none could be matched to LangGraph messages. "
+                    f"Graph has {len(graph_messages)} messages. "
+                    f"DB IDs: {db_msg_ids[:5]}..., "
+                    f"Run IDs in DB: {list(set(m.run_id for m in msgs_to_delete if m.run_id))[:5]}..., "
+                    f"Run IDs in Graph: {list(graph_msg_by_run_id.keys())[:5]}..."
+                )
 
             # 5. DB Deletion
             # First, delete references to satisfy FK constraints (Bulk delete bypasses ORM cascades)

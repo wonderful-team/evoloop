@@ -49,8 +49,5 @@ async def chat_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]
 
     return {
         "messages": [response],
-        # Chat node usually ends the turn, waiting for user input.
-        # So we don't set next_node, or we set it to something that means "wait".
-        # In LangGraph, returning from a node usually goes to the next node defined in edge.
-        # We will route Chat -> END.
+        "next_node": "END"
     }

@@ -71,8 +71,10 @@
       "success_updated": "Embedding 模型已更新并触发重建索引",
       "description": "配置用于代码搜索和记忆的 Embedding 模型。",
       "warning": "警告",
-      "title": "模型设置",
-      "selectProvider": "选择提供商"
+      "title": "向量模型设置",
+      "selectProvider": "选择提供商",
+      "select_model": "选择模型",
+      "select_model_placeholder": "请选择模型..."
     },
     "intro": "管理您的账户和 EvoLoop 配置。",
     "llm": {
@@ -85,7 +87,9 @@
       "apply_btn": "应用更改",
       "title": "LLM 模型设置",
       "connection_failed": "连接失败",
-      "description": "配置智能体使用的大语言模型。"
+      "description": "配置智能体使用的大语言模型。",
+      "select_model": "选择模型",
+      "select_model_placeholder": "请选择模型..."
     },
     "tabs": {
       "password": "密码",
@@ -446,14 +450,24 @@
       "baseUrl": "API 地址",
       "provider": "服务提供商",
       "testRequired": "请先测试连接以确保配置正确",
-      "selectProvider": "选择提供商"
+      "selectProvider": "选择提供商",
+      "providers": {
+        "openai": "OpenAI",
+        "qwen": "通义千问",
+        "deepseek": "DeepSeek",
+        "ollama": "Ollama (本地)",
+        "generic": "通用 OpenAI 兼容"
+      }
     },
     "saveSuccess": "配置已保存",
     "title": "初始配置",
     "completion": {
       "subtitle": "您已准备好使用 EvoLoop。接下来，让我们快速浏览一下产品功能。",
       "start": "开始使用 EvoLoop",
-      "title": "配置完成！"
+      "title": "配置完成！",
+      "chat": "智能对话",
+      "projects": "项目管理",
+      "ai": "AI 助手"
     },
     "projects": {
       "suggestions": "常用路径",
@@ -473,7 +487,10 @@
     "welcome": {
       "subtitle": "您的智能开发助手即将就绪！只需 2 分钟完成以下配置，即可开始使用。",
       "start": "开始配置",
-      "title": "欢迎使用 EvoLoop"
+      "title": "欢迎使用 EvoLoop",
+      "feature1": "配置 AI 模型服务",
+      "feature2": "设置项目工作目录",
+      "feature3": "立即开始使用 EvoLoop"
     },
     "next": "下一步"
   },
@@ -710,6 +727,8 @@
     "keep": "保留",
     "discard": "放弃",
     "deleting": "删除中...",
+    "simple": "简单",
+    "advanced": "高级",
     "search": "搜索",
     "scanning": "扫描中...",
     "global": "全局",
@@ -1194,7 +1213,46 @@
   "tour": {
     "replayDesc": "再次查看产品功能介绍",
     "replayTitle": "重新播放引导",
-    "skipAriaLabel": "跳过引导"
+    "skipAriaLabel": "跳过引导",
+    "prev": "上一步",
+    "next": "下一步",
+    "finish": "完成",
+    "step1": {
+      "title": "欢迎使用 EvoLoop",
+      "content": "EvoLoop 是您的智能编程助手，帮助您高效完成代码编写、项目管理和自动化任务。点击 LOGO 可展开或收起侧边栏。"
+    },
+    "step2": {
+      "title": "智能对话",
+      "content": "与 AI 助手进行自然语言对话，获取编程帮助、代码审查、问题解答等服务。支持多轮对话和上下文理解。"
+    },
+    "step3": {
+      "title": "项目管理",
+      "content": "集中管理您的所有代码项目。支持项目创建、文件浏览、代码搜索和版本控制集成。"
+    },
+    "step4": {
+      "title": "知识库",
+      "content": "管理您的代码知识库和学习资源。存储常用代码片段、文档和最佳实践，方便随时查阅。"
+    },
+    "step5": {
+      "title": "系统设置",
+      "content": "配置 LLM 模型、界面主题、语言偏好等系统选项。根据您的工作习惯定制 EvoLoop。"
+    },
+    "step6": {
+      "title": "会话列表",
+      "content": "查看和管理所有对话会话。可以快速切换不同主题的对话，或创建新的聊天会话。"
+    },
+    "step7": {
+      "title": "对话区域",
+      "content": "查看与 AI 的完整对话历史。支持代码高亮、文件预览和消息引用功能。"
+    },
+    "step8": {
+      "title": "上下文面板",
+      "content": "管理当前对话的上下文信息，包括相关文件、引用内容和执行状态。帮助 AI 更好理解您的需求。"
+    },
+    "step9": {
+      "title": "输入区域",
+      "content": "输入消息与 AI 对话。支持附件上传、文件引用、语音输入和快捷指令，让沟通更加高效。"
+    }
   },
   "system": {
     "initializationDesc": "请配置以下系统设置以继续。",

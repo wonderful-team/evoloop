@@ -15,6 +15,7 @@ from app.core.engine.state import AgentState
 from app.core.environment import get_awakened_state
 from app.core.tools.manager import tool_manager
 from app.core.tools.registry import get_tool_metadata
+from app.constants import DEFAULT_PROJECT_ID, RoutingTarget
 
 logger = logging.getLogger(__name__)
 
@@ -36,10 +37,18 @@ class WorkerNode:
         execution_ticket = state.get("execution_ticket")
 
         if not execution_ticket or not execution_ticket.get("agent_config"):
-            logger.error("[Worker] No AgentConfig found in ticket! Aborting.")
-            return {
-                "messages": [AIMessage(content="Error: I was summoned but given no instructions (missing AgentConfig).")],
-                "next_node": "supervisor"
+            # Create a default agent_config for backward compatibility
+            # This handles cases where router maps directly to worker without full ticket
+            logger.warning("[Worker] No AgentConfig found in ticket! Using default configuration.")
+            blackboard = state.get("blackboard") or {}
+            route_reason = blackboard.get("route_reason", "Execute task")
+            execution_ticket = {
+                "ticket_type": "task",
+                "topic": route_reason,
+                "agent_config": {
+                    "role_name": "Worker",
+                    "system_instructions": "You are a helpful assistant. Execute the user's request to the best of your ability.",
+                }
             }
 
         agent_config = execution_ticket["agent_config"]
@@ -92,12 +101,13 @@ class WorkerNode:
         logger.info(f"[Worker] 🧠 Utilizing enriched context for role '{role_name}'")
 
         # 3. Construct Prompts (Using Builder & Phase 1 Blackboard)
-        blackboard = state.get("blackboard", {})
+        blackboard = state.get("blackboard") or {}
 
         prompt_builder = WorkerPromptBuilder(
             agent_config,
             blackboard,
-            skills=relevant_sops
+            skills=relevant_sops,
+            ticket=execution_ticket
         )
         system_prompt = prompt_builder.build(config)
 
@@ -135,7 +145,7 @@ class WorkerNode:
             logger.error(f"[Worker] 💥 '{role_name}' failed: {e}")
             return {
                 "messages": [AIMessage(content=f"Worker '{role_name}' failed: {e}")],
-                "next_node": "supervisor"
+                "next_node": RoutingTarget.SUPERVISOR
             }
 
     def _post_process_result(
@@ -161,7 +171,7 @@ class WorkerNode:
 
         return_state: dict[str, Any] = {
             "messages": [AIMessage(content=summary)],
-            "next_node": routing_target or "supervisor",
+            "next_node": routing_target or RoutingTarget.SUPERVISOR,
         }
 
         # --- 🏅 Phase 1: Subtask Result Collection ---
@@ -180,7 +190,7 @@ class WorkerNode:
             }
 
             # Store in blackboard for aggregation
-            blackboard = state.get("blackboard", {})
+            blackboard = state.get("blackboard") or {}
             if "subtask_results" not in blackboard or blackboard["subtask_results"] is None:
                 blackboard["subtask_results"] = []
             

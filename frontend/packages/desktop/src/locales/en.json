@@ -71,8 +71,10 @@
       "success_updated": "Embedding Model Updated & Re-indexing Triggered",
       "description": "Configure the embedding model used for Code Search and Memory.",
       "warning": "Warning",
-      "title": "Model Settings",
-      "selectProvider": "Select a provider"
+      "title": "Embedding Model Settings",
+      "selectProvider": "Select a provider",
+      "select_model": "Select Model",
+      "select_model_placeholder": "Choose a model..."
     },
     "intro": "Manage your account and EvoLoop configurations.",
     "llm": {
@@ -85,7 +87,9 @@
       "apply_btn": "Apply Changes",
       "title": "LLM Model Settings",
       "connection_failed": "Connection Failed",
-      "description": "Configure the Language Model used by the Agent."
+      "description": "Configure the Language Model used by the Agent.",
+      "select_model": "Select Model",
+      "select_model_placeholder": "Choose a model..."
     },
     "tabs": {
       "password": "Password",
@@ -446,14 +450,24 @@
       "baseUrl": "API URL",
       "provider": "Service Provider",
       "testRequired": "Please test the connection to ensure correct configuration",
-      "selectProvider": "Select a provider"
+      "selectProvider": "Select a provider",
+      "providers": {
+        "openai": "OpenAI",
+        "qwen": "Qwen (Alibaba)",
+        "deepseek": "DeepSeek",
+        "ollama": "Ollama (Local)",
+        "generic": "Generic OpenAI Compatible"
+      }
     },
     "saveSuccess": "Configuration saved",
     "title": "Initial Setup",
     "completion": {
       "subtitle": "You're all set to use EvoLoop. Next, let's take a quick tour of the features.",
       "start": "Start Using EvoLoop",
-      "title": "Setup Complete!"
+      "title": "Setup Complete!",
+      "chat": "Smart Chat",
+      "projects": "Projects",
+      "ai": "AI Assistant"
     },
     "projects": {
       "suggestions": "Common paths",
@@ -473,7 +487,10 @@
     "welcome": {
       "subtitle": "Your intelligent development assistant is almost ready! Just 2 minutes to complete the setup.",
       "start": "Get Started",
-      "title": "Welcome to EvoLoop"
+      "title": "Welcome to EvoLoop",
+      "feature1": "Configure AI model service",
+      "feature2": "Set up project workspace",
+      "feature3": "Start using EvoLoop right away"
     },
     "next": "Next"
   },
@@ -717,6 +734,8 @@
     "import": "Import",
     "restore": "Restore",
     "refresh": "Refresh",
+    "simple": "Simple",
+    "advanced": "Advanced",
     "later": "Later",
     "openMenu": "Open menu",
     "none": "None",
@@ -1194,7 +1213,46 @@
   "tour": {
     "replayDesc": "View the product feature introduction again",
     "replayTitle": "Replay Tour",
-    "skipAriaLabel": "Skip tour"
+    "skipAriaLabel": "Skip tour",
+    "prev": "Previous",
+    "next": "Next",
+    "finish": "Finish",
+    "step1": {
+      "title": "Welcome to EvoLoop",
+      "content": "EvoLoop is your intelligent coding assistant, helping you efficiently complete code writing, project management, and automation tasks. Click the LOGO to expand or collapse the sidebar."
+    },
+    "step2": {
+      "title": "Smart Chat",
+      "content": "Engage in natural language conversations with the AI assistant. Get programming help, code reviews, and answers to your questions. Supports multi-turn conversations with context awareness."
+    },
+    "step3": {
+      "title": "Projects",
+      "content": "Centralized management for all your code projects. Supports project creation, file browsing, code search, and version control integration."
+    },
+    "step4": {
+      "title": "Library",
+      "content": "Manage your code knowledge base and learning resources. Store frequently used code snippets, documentation, and best practices for quick reference."
+    },
+    "step5": {
+      "title": "Settings",
+      "content": "Configure LLM models, interface themes, language preferences, and other system options. Customize EvoLoop to match your workflow."
+    },
+    "step6": {
+      "title": "Chat Sidebar",
+      "content": "View and manage all conversation sessions. Quickly switch between different topics or create new chat sessions."
+    },
+    "step7": {
+      "title": "Message Area",
+      "content": "View your complete conversation history with the AI. Supports code highlighting, file previews, and message quoting."
+    },
+    "step8": {
+      "title": "Context Panel",
+      "content": "Manage context information for the current conversation, including relevant files, references, and execution status. Helps the AI better understand your needs."
+    },
+    "step9": {
+      "title": "Input Area",
+      "content": "Type messages to chat with the AI. Supports file attachments, file references, voice input, and quick commands for more efficient communication."
+    }
   },
   "system": {
     "initializationDesc": "Please configure the following system settings to proceed.",

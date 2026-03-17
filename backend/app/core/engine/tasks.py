@@ -10,6 +10,7 @@ from langchain_core.messages import SystemMessage
 from sqlalchemy import text, select, desc, func
 
 from app.core.config import settings
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.learning.trace_recorder import sync_thread_to_graph
 from app.core.memory import memory_manager
 from app.core.memory.interfaces.long_term import Concept as MemConcept
@@ -648,7 +649,7 @@ def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
                 
                 inputs = {
                     "messages": [{"type": "human", "content": prompt}],
-                    "project_id": project_id or 1,
+                    "project_id": project_id or DEFAULT_PROJECT_ID,
                     "task_title": f"Autonomous: {task.intent_description[:30]}...",
                     "metadata": {
                         "autonomous_task_id": task_id,

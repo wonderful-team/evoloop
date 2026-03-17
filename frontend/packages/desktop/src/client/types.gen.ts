@@ -1603,6 +1603,10 @@ export type SystemResetKnowledgeBaseResponse = (unknown);
 
 export type SystemGetCloudStatusResponse = (unknown);
 
+export type SystemGetAvailableLlmModelsResponse = (unknown);
+
+export type SystemGetAvailableEmbeddingModelsResponse = (unknown);
+
 export type TasksGetProjectTasksData = {
     page?: number;
     pageSize?: number;

@@ -8,13 +8,18 @@ import sentry_sdk
 from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from fastapi.staticfiles import StaticFiles
-from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-from psycopg_pool import AsyncConnectionPool
 from sqlalchemy import text
 from starlette.middleware.cors import CORSMiddleware
 
 from app.api.main import api_router
 from app.core.config import settings
+
+# Checkpointer imports - PostgreSQL for full mode, SQLite for embedded mode
+if settings.EMBEDDED_MODE:
+    from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver as Checkpointer
+else:
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver as Checkpointer
+    from psycopg_pool import AsyncConnectionPool
 
 # EvoLoop Imports
 from app.core.context import thread_context_store
@@ -32,8 +37,9 @@ from app.core.learning.discovery import skill_discovery
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.database.sql.database import Base, engine
 from app.initial_data import init as init_data, register_config_handlers, init_atlas_config, init_mcp
+from sqlmodel import SQLModel
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -43,9 +49,26 @@ async def lifespan(_app: FastAPI):
     logger.info("Initializing EvoLoop resources...")
 
     # 1. DB Init
-    async with engine.begin() as conn:
-        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
-        await conn.run_sync(Base.metadata.create_all)
+    if settings.EMBEDDED_MODE:
+        # Embedded Mode (SQLite): Auto-create all tables
+        logger.info("[lifespan] Embedded mode detected. Creating SQLite tables...")
+        # Import all models to ensure they're registered with SQLModel metadata
+        from app import models  # noqa: F401
+        # Also import SQLAlchemy ORM models (requirements models use Base, not SQLModel)
+        from app.domain.project.requirements import models as _req_models  # noqa: F401
+
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(SQLModel.metadata.create_all)
+        logger.info("[lifespan] SQLite tables created successfully")
+    else:
+        # Full Mode (PostgreSQL): Create extension and tables
+        logger.info("[lifespan] Full mode detected. Initializing PostgreSQL...")
+        async with engine.begin() as conn:
+            await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(SQLModel.metadata.create_all)
+        logger.info("[lifespan] PostgreSQL initialized")
 
     # 1.5 Seed Initial Data (System Config)
     # This runs sychronously, so we offload to thread
@@ -115,14 +138,30 @@ async def lifespan(_app: FastAPI):
 
     # 3. Persistence (Checkpointer)
     db_uri = settings.CHECKPOINTER_DATABASE_URI
-    # kwargs={"autocommit": True} is required for CREATE INDEX CONCURRENTLY in setup()
-    db_pool = AsyncConnectionPool(conninfo=db_uri, max_size=20, kwargs={"autocommit": True}, open=False)
-    await db_pool.open()
-    checkpointer = AsyncPostgresSaver(db_pool)
-    await checkpointer.setup()
+    db_pool = None  # Initialize for cleanup in shutdown
+    _sqlite_conn = None  # Keep reference for cleanup
 
-    # Set globals
-    set_db_pool(cast(Any, db_pool))
+    if settings.EMBEDDED_MODE:
+        # Embedded Mode: Use AsyncSqliteSaver (no connection pool needed)
+        logger.info("[lifespan] Initializing SQLite checkpointer for embedded mode...")
+        import aiosqlite
+        # Extract path from sqlite+aiosqlite:///path
+        sqlite_path = db_uri.replace("sqlite+aiosqlite:///", "").replace("sqlite://", "")
+        _sqlite_conn = await aiosqlite.connect(sqlite_path)
+        checkpointer = Checkpointer(conn=_sqlite_conn)
+        await checkpointer.setup()
+        logger.info("[lifespan] SQLite checkpointer initialized")
+    else:
+        # Full Mode: Use PostgreSQL connection pool
+        # kwargs={"autocommit": True} is required for CREATE INDEX CONCURRENTLY in setup()
+        db_pool = AsyncConnectionPool(conninfo=db_uri, max_size=20, kwargs={"autocommit": True}, open=False)
+        await db_pool.open()
+        checkpointer = Checkpointer(db_pool)
+        await checkpointer.setup()
+
+        # Set globals (PostgreSQL pool for cleanup)
+        set_db_pool(cast(Any, db_pool))
+
     set_checkpointer(checkpointer)
 
     # 3. Graph (Dynamic Build)
@@ -343,8 +382,12 @@ async def lifespan(_app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to stop EvoLoop Link: {e}")
 
+    # Close database connections
     if db_pool:
         await db_pool.close()
+    if _sqlite_conn:
+        await _sqlite_conn.close()
+        logger.info("SQLite checkpointer connection closed")
 
 
 def custom_generate_unique_id(route: APIRoute) -> str:

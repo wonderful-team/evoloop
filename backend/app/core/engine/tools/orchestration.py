@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 # ===== 1. State Management Tools (v1 Evolution) =====
 
 @evoloop_tool(is_state_mutating=True)
-def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> str:
+def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> dict[str, Any]:
     """
     Updates the agent's dynamic state center (blackboard) with a key-value pair.
     Useful for passing information between nodes or controlling autonomous flow.
@@ -32,11 +32,16 @@ def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> str:
         key: The variable name to set (e.g., "complexity", "status").
         value: The value to assign (can be string, number, boolean, etc.).
     """
-    return f"State updated: {key}={value}"
+    return {
+        "status": "success",
+        "message": f"State field '{key}' updated successfully.",
+        "_signal": "update_blackboard",
+        "data": {"key": key, "value": value}
+    }
 
 
 @evoloop_tool(is_state_mutating=True)
-def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> str:
+def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> dict[str, Any]:
     """
     Updates session-level metadata to guide the agent's behavior and context resolution.
     
@@ -49,7 +54,12 @@ def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> st
         key: The metadata key to set.
         value: The value to assign.
     """
-    return f"Session metadata set: {key}={value}"
+    return {
+        "status": "success",
+        "message": f"Session metadata '{key}' updated successfully.",
+        "_signal": "update_session_metadata",
+        "data": {"key": key, "value": value}
+    }
 
 
 # ===== 2. Routing Tools (v2 Evolution) =====
@@ -100,16 +110,16 @@ async def decompose_task(
     """
     llm = LLMFactory.create_llm(temperature=0.3)
 
-    prompt = f"""你是一个任务规划专家。请将以下任务分解为可并行执行的子任务。
+    prompt = f"""You are a Task Planning Expert. Please decompose the following task into sub-tasks that can be executed in parallel.
 
-原始任务: {task_description}
-上下文: {context}
-最大并行度: {max_parallel}
+Original Task: {task_description}
+Context: {context}
+Max Parallelism: {max_parallel}
 
-输出规格:
-1. 识别独立实体或可并行化路径。
-2. 为每个子任务配合明确的 intent 和所需工具建议。
-3. 产出严格 JSON。
+Output Specification:
+1. Identify independent entities or parallelizable paths.
+2. Provide a clear intent and suggested tools for each sub-task.
+3. Output strictly valid JSON.
 
 JSON Format:
 {{

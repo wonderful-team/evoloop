@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
 from app.api.deps import get_current_user
+from app.constants import PRESET_EMBEDDING_MODELS, PRESET_LLM_MODELS
 from app.infrastructure.config import EmbeddingConfigService, LLMConfigService
 from app.infrastructure.config.service import SystemConfigService
 from app.models.config import SystemConfig
@@ -132,4 +133,26 @@ async def get_cloud_status():
         "is_linked": evocloud_manager.link.is_connected() if evocloud_manager.link else False,
         "device_name": evocloud_manager.link.device_name if evocloud_manager.link else "Unknown",
         "api_url": evocloud_manager.api.base_url if evocloud_manager.api else "Unknown"
+    }
+
+
+@router.get("/llm/models")
+async def get_available_llm_models():
+    """
+    获取可用的 LLM 模型列表（简化选择模式）
+    """
+    return {
+        "models": PRESET_LLM_MODELS,
+        "last_updated": "2024-03-17"
+    }
+
+
+@router.get("/embedding/models")
+async def get_available_embedding_models():
+    """
+    获取可用的 Embedding 模型列表（简化选择模式）
+    """
+    return {
+        "models": PRESET_EMBEDDING_MODELS,
+        "last_updated": "2024-03-17"
     }

@@ -37,7 +37,13 @@ class ThreadContextStore:
         self._thread_temp_projects: dict[str, int] = {}
 
         # Default fallback directory (from Settings/DB)
-        db_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        # Handle case where database tables don't exist yet (first startup)
+        try:
+            db_root = SystemConfigService.get_value("WORKSPACE_ROOT")
+        except Exception as e:
+            logger.debug(f"Could not read WORKSPACE_ROOT from DB (tables may not exist yet): {e}")
+            db_root = None
+
         fallback_root = db_root if db_root else settings.WORKSPACE_ROOT
 
         if fallback_root:

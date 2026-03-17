@@ -58,19 +58,159 @@ class ResumeRequest(BaseModel):
     command_id: int | None = None  # Explicit command_id for resumption trace
 
 
+# =============================================================================
+# Unified Dispatch Helpers
+# =============================================================================
+
+async def _prepare_and_dispatch(
+    thread_id: str,
+    project_id: int,
+    bg_tasks: BackgroundTasks,
+    message_content: str,
+    attachments: list[dict[str, Any]] | None = None,
+    command_id: int | None = None,
+    checkpoint_id: str | None = None,
+    goal_prefix: str = "",
+    is_retry: bool = False,
+    skip_message_persistence: bool = False,
+) -> dict:
+    """
+    Unified dispatcher for Agent runs (Chat & Retry).
+
+    Args:
+        skip_message_persistence: For Retry, when message already exists in DB.
+
+    Returns: {"status": "queued", "thread_id": thread_id, ...}
+    """
+    # --- 1. Process References (Phase 9) ---
+    from app.domain.project.reference_service import reference_service
+
+    async with session_scope() as session:
+        ref_context = await reference_service.process_references(
+            message_text=message_content,
+            attachments=attachments or [],
+            session=session,
+            project_id=project_id
+        )
+
+    content_blocks = ref_context.content_blocks
+
+    # --- 2. Build Goal for Activity Monitor ---
+    goal = message_content[:50] + "..." if len(message_content) > 50 else message_content
+    if attachments:
+        goal = f"[Image] {goal}"
+    if goal_prefix:
+        goal = f"{goal_prefix}{goal}"
+
+    await activity_monitor.start_run(thread_id, goal)
+
+    # --- 3. DB Persistence & EvoCloud Sync ---
+    try:
+        async with session_scope() as session:
+            # Upsert Conversation (always update timestamp)
+            conversation = await session.get(Conversation, thread_id)
+            if not conversation:
+                conversation = Conversation(
+                    id=thread_id,
+                    project_id=project_id,
+                    title=message_content[:50],
+                )
+                session.add(conversation)
+            else:
+                conversation.updated_at = datetime.now(timezone.utc)
+
+            if not skip_message_persistence:
+                # New message: persist to DB
+                stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
+                max_seq = (await session.execute(stmt)).scalar() or 0
+
+                user_msg = Message(
+                    thread_id=thread_id,
+                    project_id=project_id,
+                    role="human",
+                    content=message_content,
+                    thinking=None,
+                    sequence_number=max_seq + 1,
+                )
+                session.add(user_msg)
+                await session.flush()
+
+                logger.info(f"[Dispatch] Persisted user message for {thread_id} (seq={user_msg.sequence_number})")
+
+                # Persist References
+                if attachments:
+                    for att in attachments:
+                        ref_type = att.get("type", "file")
+                        target_id = att.get("url") or att.get("id") or "unknown"
+                        target_name = att.get("name") or target_id
+
+                        ref = MessageReference(
+                            id=str(uuid.uuid4()),
+                            message_id=user_msg.id,
+                            type=ref_type,
+                            target_id=str(target_id),
+                            target_name=str(target_name),
+                        )
+                        session.add(ref)
+
+                    logger.info(f"[Dispatch] Persisted {len(attachments)} references for msg {user_msg.id}")
+            else:
+                logger.info(f"[Dispatch] Skipped persistence for retry (message already exists)")
+
+        # Sync to EvoCloud (outside transaction)
+        try:
+            await evocloud_manager.upload_log(
+                thread_id=thread_id,
+                log_type="user",
+                content=message_content,
+                project_id=project_id,
+                command_id=command_id
+            )
+        except Exception as sync_e:
+            logger.warning(f"[Dispatch] Failed to sync to EvoCloud: {sync_e}")
+
+    except Exception as e:
+        logger.error(f"[Dispatch] Failed to persist: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save message: {str(e)}")
+
+    # --- 4. Build Inputs & Dispatch ---
+    if is_retry:
+        # Retry: Don't include messages in inputs, checkpoint already has them
+        inputs = {
+            "project_id": project_id,
+            "checkpoint_id": checkpoint_id,
+            "is_retry": True,
+            "goal": goal,
+        }
+    else:
+        # New chat: Include messages for LangGraph
+        messages = [{"type": "human", "content": content_blocks}]
+        inputs = {
+            "messages": messages,
+            "project_id": project_id,
+            "checkpoint_id": checkpoint_id,
+            "is_retry": False,
+            "goal": goal,
+        }
+
+    bg_tasks.add_task(run_agent_background, thread_id, inputs)
+
+    result = {"status": "queued", "thread_id": thread_id}
+    if is_retry:
+        result["action"] = "retry"
+    return result
+
+
 @router.post("/chat", dependencies=[Depends(verify_guest_access)])
 async def chat_endpoint(
     req: ChatRequest,
-    bg_tasks: BackgroundTasks,  # Injected
-    _current_user: CurrentUserOptional,  # Used for context if needed, though verified by deps
+    bg_tasks: BackgroundTasks,
+    _current_user: CurrentUserOptional,
 ):
     """
     Unified entry point for User Chat (Local Background Task).
-    Guest Verification is handled by 'verify_guest_access' dependency.
     """
-    # Initialize Context for Request (so reference service can use it if needed, though mostly for background task)
-    # Background task will re-initialize its own context.
-    # But we might need it here for logging or sync operations.
+    # Initialize Context for Request
     ctx = EvoContext(
         request_id=f"req-{req.thread_id}-{int(time.time())}",
         thread_id=req.thread_id,
@@ -79,110 +219,17 @@ async def chat_endpoint(
     )
     ContextManager.set(ctx)
 
-    # --- Context Injection & Message Construction (Phase 9) ---
-    from app.domain.project.reference_service import reference_service
-
-    async with session_scope() as session:
-        ref_context = await reference_service.process_references(
-            message_text=req.message,
-            attachments=req.attachments or [],
-            session=session,
-            project_id=req.project_id
-        )
-
-    content_blocks = ref_context.content_blocks
-    # reference_notes = ref_context.reference_notes
-
-    # Final LangChain message format
-    messages = [{"type": "human", "content": content_blocks}]
-
-    inputs = {
-        "messages": messages,
-        "project_id": req.project_id,
-        "checkpoint_id": req.checkpoint_id,
-    }
-
-    # Enable monitor
-    goal = req.message[:50] + "..." if len(req.message) > 50 else req.message
-    if req.attachments:
-        goal = f"[Image] {goal}"
-    await activity_monitor.start_run(req.thread_id, goal)
-
-    # 3. Upsert Conversation Record
-    try:
-        async with session_scope() as session:
-            conversation = await session.get(Conversation, req.thread_id)
-            if not conversation:
-                conversation = Conversation(
-                    id=req.thread_id,
-                    project_id=req.project_id,
-                    title=req.message[:50],
-                )
-                session.add(conversation)
-            else:
-                conversation.updated_at = datetime.now(timezone.utc)
-
-            # 4. Upsert User Message with Correct Sequence
-            # We need to find the next sequence number (max + 1) to maintain order
-            stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == req.thread_id)
-            max_seq = (await session.execute(stmt)).scalar() or 0
-
-            user_msg = Message(
-                thread_id=req.thread_id,
-                project_id=req.project_id,
-                role="human",
-                content=req.message,
-                thinking=None,
-                sequence_number=max_seq + 1,
-            )
-            session.add(user_msg)
-            await session.flush()  # Ensure FK consistency
-            logger.info(f"Persisted user message for thread {req.thread_id} (seq={user_msg.sequence_number})")
-
-            # 4.5 Sync to EvoCloud (Device Logs + Chat Stream)
-            try:
-                await evocloud_manager.upload_log(
-                    thread_id=req.thread_id,
-                    log_type="user",
-                    content=req.message,
-                    project_id=req.project_id,
-                    command_id=req.command_id
-                )
-            except Exception as sync_e:
-                logger.warning(f"Failed to sync human message to cloud: {sync_e}")
-
-            # 5. Upsert References (Phase 9)
-            if req.attachments:
-                for att in req.attachments:
-                    # att structure: {type: 'file'|'image'|'message', url?: string, id?: string, name?: string}
-                    ref_type = att.get("type", "file")
-                    target_id = att.get("url") or att.get("id") or "unknown"
-                    target_name = att.get("name") or target_id
-
-                    # Special handling for message references
-                    if ref_type == "message":
-                        pass
-
-                    ref = MessageReference(
-                        id=str(uuid.uuid4()),
-                        message_id=user_msg.id,
-                        type=ref_type,
-                        target_id=str(target_id),
-                        target_name=str(target_name),
-                    )
-                    session.add(ref)
-
-                logger.info(f"Persisted {len(req.attachments)} references for msg {user_msg.id}")
-
-    except Exception as e:
-        logger.error(f"Failed to upsert logic: {e}")
-        # Phase 18 Fix: Do not silence DB errors. If persistence fails, the user needs to know.
-        raise HTTPException(status_code=500, detail=f"Failed to save message: {str(e)}")
-
-    # 2. Dispatch Background Task (Local)
-    bg_tasks.add_task(run_agent_background, req.thread_id, inputs)
-
-    return {"status": "queued", "thread_id": req.thread_id}
+    # Use Unified Dispatcher
+    return await _prepare_and_dispatch(
+        thread_id=req.thread_id,
+        project_id=req.project_id,
+        bg_tasks=bg_tasks,
+        message_content=req.message,
+        attachments=req.attachments,
+        command_id=req.command_id,
+        checkpoint_id=req.checkpoint_id,
+        is_retry=False,
+    )
 
 
 @router.post("/chat/stop")
@@ -199,16 +246,21 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
     """
     Retry the last user message.
     Rolls back history (deletes AI messages after last human msg) and restarts generation.
+
+    Refactored to use unified dispatch logic after rewind.
     """
     from app.core.engine.history import history_service
-    from app.infrastructure.database.sql.database import session_scope
 
-    retry_message_content = None
+    # =============================================================================
+    # Phase 1: Rewind (Retry-Specific)
+    # =============================================================================
+    from sqlalchemy.orm import selectinload
 
     async with session_scope() as session:
-        # 1. Find last human message BEFORE rewinding
+        # Find last human message BEFORE rewinding (eager load references)
         stmt = (
             select(Message)
+            .options(selectinload(Message.references))
             .where(Message.thread_id == req.thread_id)
             .where(Message.role == "human")
             .order_by(Message.id.desc())
@@ -220,9 +272,22 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
         if not last_human_msg:
             raise HTTPException(status_code=404, detail="No human message found to retry")
 
+        # Load attachments for reconstruction (inside session)
+        attachments = None
+        if last_human_msg.references:
+            attachments = [
+                {
+                    "type": ref.type,
+                    "id": ref.target_id,
+                    "name": ref.target_name,
+                    "url": ref.target_id if ref.type in ("file", "image") else None,
+                }
+                for ref in last_human_msg.references
+            ]
+
         retry_message_content = last_human_msg.content
 
-    # 2. Perform Rewind (HistoryService handles DB, LangGraph and Files)
+    # Perform Rewind (HistoryService handles DB, LangGraph and Files)
     try:
         rewind_result = await history_service.perform_rewind(
             thread_id=req.thread_id,
@@ -235,29 +300,30 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
         logger.error(f"History rewind failed during retry: {e}")
         raise HTTPException(500, f"History rollback failed: {e}")
 
-    # 3. Setup Context
+    # =============================================================================
+    # Phase 2: Unified Dispatch (Shared with Chat)
+    # =============================================================================
+    # Setup Context
     ctx = EvoContext(thread_id=req.thread_id, project_id=req.project_id)
     ContextManager.set(ctx)
-    await activity_monitor.start_run(
-        req.thread_id, f"Retry: {retry_message_content[:50]}..."
+
+    # Use unified dispatcher
+    # Retry should NOT pass checkpoint_id - it must start from the latest state after rewind
+    result = await _prepare_and_dispatch(
+        thread_id=req.thread_id,
+        project_id=req.project_id,
+        bg_tasks=bg_tasks,
+        message_content=retry_message_content,
+        attachments=attachments,
+        command_id=req.command_id,
+        checkpoint_id=None,  # Retry always starts from latest checkpoint after rewind
+        goal_prefix="Retry: ",
+        is_retry=True,
+        skip_message_persistence=True,
     )
 
-    # 4. Dispatch
-    # We do NOT include the message in inputs to avoid re-inserting it into DB.
-    # The message is already in the LangGraph state (checkpoint) because we didn't remove it.
-    inputs = {
-        "project_id": req.project_id,
-        "is_retry": True,
-    }
-
-    bg_tasks.add_task(run_agent_background, req.thread_id, inputs)
-
-    return {
-        "status": "queued",
-        "thread_id": req.thread_id,
-        "action": "retry",
-        "files_reverted": files_reverted
-    }
+    result["files_reverted"] = files_reverted
+    return result
 
 
 @router.post("/chat/resume")

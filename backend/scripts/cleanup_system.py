@@ -59,8 +59,10 @@ class CleanupStats:
 
     def __init__(self):
         self.redis_keys_deleted = 0
+        self.filecache_entries_deleted = 0
         self.neo4j_nodes_deleted = 0
         self.postgres_rows_deleted = 0
+        self.sqlite_rows_deleted = 0
         self.files_deleted = 0
         self.directories_removed = 0
         self.storage_freed_mb = 0.0
@@ -72,8 +74,10 @@ class CleanupStats:
         print("📊 清理摘要")
         print("=" * 60)
         print(f"  已删除 Redis 键:      {self.redis_keys_deleted}")
+        print(f"  已删除 FileCache 项:  {self.filecache_entries_deleted}")
         print(f"  已删除 Neo4j 节点:    {self.neo4j_nodes_deleted}")
-        print(f"  已删除 PostgreSQL 行:  {self.postgres_rows_deleted}")
+        print(f"  已删除 PostgreSQL 行: {self.postgres_rows_deleted}")
+        print(f"  已删除 SQLite 行:     {self.sqlite_rows_deleted}")
         print(f"  已删除文件:           {self.files_deleted}")
         print(f"  已删除目录:           {self.directories_removed}")
         print(f"  已释放存储空间:       {self.storage_freed_mb:.2f} MB")
@@ -171,6 +175,67 @@ class CleanupManager:
             self.stats.errors.append(f"Redis: {e}")
             return False
 
+    async def cleanup_filecache(self) -> bool:
+        """
+        清理 FileCache 缓存（Embedded Mode 替代 Redis）。
+
+        缓存目录：
+        - ~/.evoloop/cache/strings/* - 字符串缓存
+        - ~/.evoloop/cache/hashes/* - Hash 缓存
+        - ~/.evoloop/cache/sets/* - 集合缓存
+        - ~/.evoloop/cache/lists/* - 列表缓存
+        """
+        print("\n📁 FILECACHE 清理 (Embedded Mode)")
+        print("-" * 40)
+
+        try:
+            from app.infrastructure.cache.file_cache import get_file_cache
+
+            cache_dir = Path.home() / ".evoloop" / "cache"
+            if not cache_dir.exists():
+                print("  ℹ️  FileCache 目录不存在")
+                return True
+
+            categories = ["strings", "hashes", "sets", "lists"]
+            total_entries = 0
+
+            for category in categories:
+                cat_dir = cache_dir / category
+                if not cat_dir.exists():
+                    continue
+
+                files = list(cat_dir.glob("*.json"))
+                count = len(files)
+                total_entries += count
+
+                if not self.dry_run and count > 0:
+                    for f in files:
+                        try:
+                            f.unlink()
+                        except Exception as e:
+                            logger.warning(f"  删除 {f.name} 失败: {e}")
+
+                logger.info(f"  {category}: {count} 个文件")
+
+            self.stats.filecache_entries_deleted = total_entries
+
+            # 计算释放的空间
+            if total_entries > 0:
+                total_size = sum(f.stat().st_size for f in cache_dir.rglob("*") if f.is_file())
+                self.stats.storage_freed_mb += total_size / (1024 * 1024)
+
+            action = "将删除" if self.dry_run else "已删除"
+            print(f"  ✅ {action} {total_entries} 个 FileCache 项")
+            return True
+
+        except ImportError as e:
+            logger.warning(f"  ⚠️  FileCache 不可用：{e}")
+            return False
+        except Exception as e:
+            logger.error(f"  ❌ FileCache 清理失败：{e}")
+            self.stats.errors.append(f"FileCache: {e}")
+            return False
+
     async def cleanup_neo4j_index(self, keep_apps: bool = False) -> bool:
         """
         清理 Neo4j 文件索引节点（代码库索引数据）。
@@ -184,6 +249,12 @@ class CleanupManager:
         """
         print("\n🟣 NEO4J 文件索引清理")
         print("-" * 40)
+
+        # 检查是否在 Embedded Mode（使用 NoOp 图数据库）
+        from app.core.config import settings
+        if settings.EMBEDDED_MODE:
+            print("  ℹ️  Embedded Mode: Neo4j 已禁用（使用 NoOp）")
+            return True
 
         try:
             from app.infrastructure.database.graph.driver import get_graph_db
@@ -278,6 +349,12 @@ class CleanupManager:
         """
         print("\n🟣 NEO4J 记忆清理")
         print("-" * 40)
+
+        # 检查是否在 Embedded Mode（使用 NoOp 图数据库）
+        from app.core.config import settings
+        if settings.EMBEDDED_MODE:
+            print("  ℹ️  Embedded Mode: Neo4j 已禁用（使用 NoOp）")
+            return True
 
         try:
             from app.infrastructure.database.graph.driver import get_graph_db
@@ -596,6 +673,80 @@ class CleanupManager:
         except Exception as e:
             logger.error(f"  ❌ PostgreSQL 任务清理失败：{e}")
             self.stats.errors.append(f"PostgreSQL 任务: {e}")
+            return False
+
+    async def cleanup_sqlite_tables(self) -> bool:
+        """
+        清理 SQLite 数据库表（Embedded Mode 替代 PostgreSQL）。
+
+        表：
+        - messages, conversations - 消息和对话
+        - todos - 待办事项
+        - jobs - 任务队列
+        - learned_skills, trace_events - 技能相关
+        - repositories, source_files, code_entities - 代码索引
+        - checkpoints, checkpoint_writes - LangGraph 检查点
+        """
+        print("\n🟡 SQLITE 表清理 (Embedded Mode)")
+        print("-" * 40)
+
+        try:
+            from sqlalchemy import text
+            from app.infrastructure.database.sql.database import AsyncSessionLocal
+            from app.core.config import settings
+
+            if not settings.EMBEDDED_MODE:
+                print("  ℹ️  当前不是 Embedded Mode，跳过 SQLite 清理")
+                return True
+
+            async with AsyncSessionLocal() as session:
+                # 要清理的表列表
+                tables = [
+                    ("messages", "消息"),
+                    ("conversations", "对话"),
+                    ("todos", "待办事项"),
+                    ("jobs", "任务队列"),
+                    ("learned_skills", "学习技能"),
+                    ("trace_events", "跟踪事件"),
+                    ("repositories", "代码仓库"),
+                    ("source_files", "源文件"),
+                    ("code_entities", "代码实体"),
+                    ("code_relations", "代码关系"),
+                    ("code_chunks", "代码块"),
+                    ("checkpoints", "检查点"),
+                    ("checkpoint_writes", "检查点写入"),
+                    ("plans", "计划"),
+                    ("plan_steps", "计划步骤"),
+                ]
+
+                total_rows = 0
+                for table_name, description in tables:
+                    try:
+                        result = await session.execute(text(f"SELECT COUNT(*) FROM {table_name}"))
+                        count = result.scalar() or 0
+                        if count > 0:
+                            logger.info(f"  {table_name} ({description}): {count} 行")
+                            if not self.dry_run:
+                                await session.execute(text(f"DELETE FROM {table_name}"))
+                            total_rows += count
+                    except Exception as e:
+                        logger.debug(f"  表 {table_name} 不存在或无法访问: {e}")
+
+                if not self.dry_run:
+                    await session.commit()
+
+                self.stats.sqlite_rows_deleted += total_rows
+
+                action = "将删除" if self.dry_run else "已删除"
+                print(f"  ✅ {action} {total_rows} 行 SQLite 数据")
+                return True
+
+        except ImportError as e:
+            logger.warning(f"  ⚠️  SQLite 不可用：{e}")
+            return False
+        except Exception as e:
+            logger.error(f"  ❌ SQLite 清理失败：{e}")
+            self.stats.errors.append(f"SQLite: {e}")
             return False
 
     def cleanup_screenshots(self, expired_only: bool = False) -> bool:
@@ -1208,18 +1359,37 @@ class CleanupManager:
 
     async def run_all(self, args):
         """根据命令行参数运行清理。"""
+        # 检测运行模式
+        from app.core.config import settings
+        is_embedded = settings.EMBEDDED_MODE
+
         print("=" * 60)
         print("🧹 EVOLOOP 系统清理")
         print("=" * 60)
 
+        # 显示当前模式
+        if is_embedded:
+            print("\n📦 当前模式: Embedded Mode (SQLite + FileCache)")
+        else:
+            print("\n🌐 当前模式: Full Mode (PostgreSQL + Redis + Neo4j)")
+
         if self.dry_run:
-            print("\n⚠️  试运行模式 - 不会进行实际更改\n")
+            print("⚠️  试运行模式 - 不会进行实际更改")
+        print()
 
         if args.all or args.keychain:
             self.cleanup_keychain()
 
-        if args.all or args.redis:
+        # 根据模式自动选择缓存清理方式
+        if args.all:
+            if is_embedded:
+                await self.cleanup_filecache()
+            else:
+                await self.cleanup_redis()
+        elif args.redis:
             await self.cleanup_redis()
+        elif args.cache:
+            await self.cleanup_filecache()
 
         if args.all or args.neo4j:
             await self.cleanup_neo4j_index(keep_apps=args.keep_apps)
@@ -1230,14 +1400,23 @@ class CleanupManager:
         if args.all or args.skills:
             await self.cleanup_skills()
 
-        if args.all or args.index:
-            await self.cleanup_postgres_index()
-
-        if args.all or args.messages:
-            await self.cleanup_postgres_messages()
-
-        if args.all or args.jobs:
-            await self.cleanup_postgres_jobs()
+        # 根据模式自动选择数据库表清理方式
+        if args.all:
+            if is_embedded:
+                await self.cleanup_sqlite_tables()
+            else:
+                await self.cleanup_postgres_index()
+                await self.cleanup_postgres_messages()
+                await self.cleanup_postgres_jobs()
+        else:
+            if args.index:
+                await self.cleanup_postgres_index()
+            if args.messages:
+                await self.cleanup_postgres_messages()
+            if args.jobs:
+                await self.cleanup_postgres_jobs()
+            if args.sqlite:
+                await self.cleanup_sqlite_tables()
 
         if args.all or args.screenshots:
             self.cleanup_screenshots(expired_only=args.expired_only)
@@ -1301,6 +1480,9 @@ async def main():
         "--redis", action="store_true", help="清理 Redis 缓存"
     )
     parser.add_argument(
+        "--cache", action="store_true", help="清理 FileCache 缓存（Embedded Mode）"
+    )
+    parser.add_argument(
         "--neo4j", action="store_true", help="清理 Neo4j 文件索引（文件、目录、代码实体、代码块、应用、状态）"
     )
     parser.add_argument(
@@ -1317,6 +1499,9 @@ async def main():
     )
     parser.add_argument(
         "--jobs", action="store_true", help="清理 PostgreSQL 任务队列"
+    )
+    parser.add_argument(
+        "--sqlite", action="store_true", help="清理 SQLite 表（Embedded Mode）"
     )
     parser.add_argument(
         "--screenshots", action="store_true", help="清理截图存储"
@@ -1361,8 +1546,8 @@ async def main():
 
     # 如果未指定组件，显示帮助
     if not any([
-        args.all, args.redis, args.neo4j, args.memory, args.skills, args.index,
-        args.messages, args.jobs, args.screenshots, args.recordings,
+        args.all, args.redis, args.cache, args.neo4j, args.memory, args.skills, args.index,
+        args.messages, args.jobs, args.sqlite, args.screenshots, args.recordings,
         args.knowledge, args.brain, args.keychain, args.todos, args.conversations
     ]):
         parser.print_help()

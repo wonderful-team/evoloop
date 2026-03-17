@@ -8,6 +8,7 @@ from collections.abc import Callable
 
 from langgraph.types import Send
 
+from app.constants import DEFAULT_PROJECT_ID, RoutingTarget
 from app.core.engine.state import AgentState
 
 logger = logging.getLogger(__name__)
@@ -24,7 +25,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
     spawn_plan = blackboard.get("spawn_plan")
     if spawn_plan and spawn_plan.get("subtasks"):
         subtasks = spawn_plan["subtasks"]
-        project_id = state.get("project_id", 1)
+        project_id = state.get("project_id", DEFAULT_PROJECT_ID)
         parent_thread_id = state.get("thread_id", "unknown")
 
         logger.info(f"[Router] Spawning {len(subtasks)} parallel subtasks")
@@ -51,7 +52,7 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
                 }
             }
 
-            sends.append(Send("worker", {
+            sends.append(Send(RoutingTarget.WORKER, {
                 "project_id": project_id,
                 "execution_ticket": ticket,
                 "is_subtask": True,
@@ -60,19 +61,41 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
         return sends
 
     # ... Standard cognitive routing follows
-    terminal_nodes = ("chat", "finish", "flash_brain", "supervisor")
+    terminal_nodes = (RoutingTarget.CHAT, RoutingTarget.FINISH, RoutingTarget.FLASH_BRAIN, RoutingTarget.SUPERVISOR)
     if next_node in terminal_nodes:
         return next_node
 
     if next_node:
         logger.info(f"[Router] Remapping intelligent target '{next_node}' -> 'worker'")
-        return "worker"
+
+        # Extract execution_ticket from blackboard (set by SignalDispatcher)
+        # and place it at state root for WorkerNode to access
+        execution_ticket = blackboard.get("ticket")
+        if execution_ticket:
+            # Use Send to pass execution_ticket to worker
+            return Send(RoutingTarget.WORKER, {
+                "project_id": state.get("project_id", DEFAULT_PROJECT_ID),
+                "execution_ticket": execution_ticket,
+            })
+
+        # Fallback: route without ticket (Worker will handle gracefully)
+        return Send(RoutingTarget.WORKER, {
+            "project_id": state.get("project_id", DEFAULT_PROJECT_ID),
+            "execution_ticket": {
+                "ticket_type": "task",
+                "topic": "General execution",
+                "agent_config": {
+                    "role_name": next_node.replace("_", " ").title(),
+                    "system_instructions": f"Execute as {next_node}",
+                }
+            },
+        })
 
     return "finish"
 
 
 def route_by_next_node_field(state: AgentState):
-    return state.get("next_node", "supervisor")
+    return state.get("next_node", RoutingTarget.SUPERVISOR)
 
 
 def make_expression_router(conditions: list[dict[str, str]], default: str) -> Callable[[AgentState], str]:

@@ -12,6 +12,7 @@ from langchain_core.messages import (
 )
 from langchain_core.runnables import RunnableConfig
 
+from app.constants import DEFAULT_PROJECT_ID, DEFAULT_WINDOW_SIZE
 from app.core.engine.message_utils import (
     repair_message_history,
     smart_window_slice,
@@ -76,7 +77,7 @@ class AgentEngine:
             pass
 
         # 3.1 Smart Windowing (Delegated to utils)
-        windowed_messages = smart_window_slice(raw_messages, window_size=30)
+        windowed_messages = smart_window_slice(raw_messages, window_size=DEFAULT_WINDOW_SIZE)
 
         # 3.2 Repair Orphaned Tool Messages (Delegated to utils)
         repaired_messages = repair_message_history(windowed_messages)
@@ -121,14 +122,6 @@ class AgentEngine:
             logger.warning(f"Failed to inject TraceCallbackHandler: {e}")
 
         return config
-
-    @staticmethod
-    def _inject_system_context(system_prompt: str) -> str:
-        """Inject language preference if missing."""
-        user_lang = SystemConfigService.get_language_preference()
-        if "User Language Preference:" not in system_prompt:
-            return system_prompt + f"\n\nUser Language Preference: {user_lang}\nCommunicate in this language."
-        return system_prompt
 
     @staticmethod
     async def _execute_react_loop(
@@ -336,35 +329,44 @@ class AgentEngine:
                 new_messages.append(tool_msg)
 
                 # --- 🏅 Cognitive Evolution Path: Signal Handling ---
+                # Check for structured signals in tool messages
+                content_raw = tool_msg.content
+                signal_data = None
                 
-                # 1. Session Metadata Signal
-                if "Session metadata set:" in str(tool_msg.content):
-                    try:
-                        metadata_json = str(tool_msg.content).split("Session metadata set:")[1].strip()
-                        updates = json.loads(metadata_json)
-                        
-                        blackboard = state.get("blackboard", {})
-                        if "metadata" not in blackboard:
-                            blackboard["metadata"] = {}
-                        blackboard["metadata"].update(updates)
-                        logger.info(f"[{name}] 🧬 Session Metadata Updated: {updates}")
-                    except Exception as e:
-                        logger.warning(f"[{name}] Failed to parse session metadata signal: {e}")
+                try:
+                    # Attempt to parse as JSON if it's a string from a tool
+                    if isinstance(content_raw, str) and (content_raw.startswith("{") or content_raw.startswith("[")):
+                        signal_data = json.loads(content_raw)
+                    elif isinstance(content_raw, dict):
+                        signal_data = content_raw
+                except Exception:
+                    pass
 
-                # 1.5 Dynamic Blackboard Update (update_blackboard tool)
-                if "State updated:" in str(tool_msg.content):
-                    try:
-                        # Extract key=value from "State updated: key=value"
-                        kv_part = str(tool_msg.content).split("State updated:")[1].strip()
-                        if "=" in kv_part:
-                            key, val = kv_part.split("=", 1)
+                if isinstance(signal_data, dict) and "_signal" in signal_data:
+                    sig_type = signal_data["_signal"]
+                    sig_payload = signal_data.get("data", {})
+                    
+                    # 1. Session Metadata Signal
+                    if sig_type == "update_session_metadata":
+                        key = sig_payload.get("key")
+                        val = sig_payload.get("value")
+                        if key:
                             blackboard = state.get("blackboard", {})
                             if "metadata" not in blackboard:
                                 blackboard["metadata"] = {}
-                            blackboard["metadata"][key.strip()] = val.strip()
-                            logger.info(f"[{name}] 🖊️ Blackboard field '{key.strip()}' updated: {val.strip()}")
-                    except Exception as e:
-                        logger.warning(f"[{name}] Failed to parse state update signal: {e}")
+                            blackboard["metadata"][key] = val
+                            logger.info(f"[{name}] 🧬 Session Metadata Updated via Signal: {key}={val}")
+
+                    # 2. Blackboard Update Signal (update_blackboard tool)
+                    elif sig_type == "update_blackboard":
+                        key = sig_payload.get("key")
+                        val = sig_payload.get("value")
+                        if key:
+                            blackboard = state.get("blackboard", {})
+                            if "metadata" not in blackboard:
+                                blackboard["metadata"] = {}
+                            blackboard["metadata"][key] = val
+                            logger.info(f"[{name}] 🖊️ Blackboard field '{key}' updated via Signal: {val}")
 
                 # 2. History Compression Signal
                 if "[HISTORY_COMPRESSION_SIGNAL]" in str(tool_msg.content):

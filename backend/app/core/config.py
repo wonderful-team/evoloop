@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     EXECUTION_MODE: Literal["local", "docker"] = "local"
     SANDBOX_IMAGE: str = "evoloop-sandbox"
 
+    # Embedded Mode (No external dependencies)
+    EMBEDDED_MODE: bool = False  # True: Use SQLite + LanceDB + LocalCelery, False: Use Postgres + Neo4j + Redis
+
     BACKEND_CORS_ORIGINS: Annotated[list[AnyUrl] | str, BeforeValidator(parse_cors)] = []
 
     @computed_field  # type: ignore[prop-decorator]
@@ -57,24 +60,38 @@ class Settings(BaseSettings):
 
     PROJECT_NAME: str
     SENTRY_DSN: HttpUrl | None = None
-    POSTGRES_SERVER: str
+
+    # --- Database Configuration (Postgres or SQLite) ---
+    POSTGRES_SERVER: str | None = None
     POSTGRES_PORT: int = 5432
-    POSTGRES_USER: str
+    POSTGRES_USER: str | None = None
     POSTGRES_PASSWORD: str = ""
     POSTGRES_DB: str = ""
     DB_ECHO: bool = False  # Added for EvoLoop compatibility
 
+    # SQLite (for embedded mode)
+    SQLITE_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
+        default_factory=lambda: os.path.expanduser("~/.evoloop/backend.db"),
+    )
+
+    # LanceDB (for embedded vector storage)
+    LANCEDB_PATH: Annotated[str, BeforeValidator(expand_path)] = Field(
+        default_factory=lambda: os.path.expanduser("~/.evoloop/lancedb"),
+    )
+
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def SQLALCHEMY_DATABASE_URI(self) -> PostgresDsn:
-        return PostgresDsn.build(
+    def SQLALCHEMY_DATABASE_URI(self) -> str:
+        if self.EMBEDDED_MODE or not self.POSTGRES_SERVER:
+            return f"sqlite+aiosqlite:///{self.SQLITE_PATH}"
+        return str(PostgresDsn.build(
             scheme="postgresql+psycopg",
-            username=self.POSTGRES_USER,
+            username=self.POSTGRES_USER or "",
             password=self.POSTGRES_PASSWORD,
             host=self.POSTGRES_SERVER,
             port=self.POSTGRES_PORT,
             path=self.POSTGRES_DB,
-        )
+        ))
 
     SMTP_TLS: bool = True
     SMTP_SSL: bool = False
@@ -104,13 +121,15 @@ class Settings(BaseSettings):
     # File Upload
     UPLOAD_DIR: str | None = None  # Directory for uploaded files (defaults to /tmp/evoloop/uploads)
 
-    # Graph (Neo4j)
-    NEO4J_URI: str = "bolt://localhost:7687"
-    NEO4J_USER: str = "neo4j"
+    # Graph (Neo4j) - Optional, disabled in embedded mode
+    NEO4J_URI: str | None = "bolt://localhost:7687"
+    NEO4J_USER: str | None = "neo4j"
     NEO4J_PASSWORD: str | None = None
+    USE_NEO4J: bool = True  # Set to False to disable Neo4j
 
-    # Cache (Redis)
-    REDIS_URL: str = "redis://localhost:6379/0"
+    # Cache (Redis) - Optional, disabled in embedded mode
+    REDIS_URL: str | None = "redis://localhost:6379/0"
+    USE_REDIS: bool = True  # Set to False to disable Redis
 
     # LLM Providers
     OPENAI_API_KEY: str = "sk-dummy-key-for-local-dev"
@@ -332,15 +351,8 @@ class Settings(BaseSettings):
     @computed_field  # type: ignore[prop-decorator]
     @property
     def CHECKPOINTER_DATABASE_URI(self) -> str:
-        # Re-use Postgres DSN for Checkpointer
-        return str(PostgresDsn.build(
-            scheme="postgresql",
-            username=self.POSTGRES_USER,
-            password=self.POSTGRES_PASSWORD,
-            host=self.POSTGRES_SERVER,
-            port=self.POSTGRES_PORT,
-            path=self.POSTGRES_DB,
-        ))
+        # Use same database as main app
+        return self.SQLALCHEMY_DATABASE_URI
 
     def _check_default_secret(self, var_name: str, value: str | None) -> None:
         if value == "changethis":
@@ -356,8 +368,20 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _enforce_non_default_secrets(self) -> Self:
         self._check_default_secret("SECRET_KEY", self.SECRET_KEY)
-        self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
+        # Only check Postgres password in non-embedded mode
+        if not self.EMBEDDED_MODE and self.POSTGRES_PASSWORD:
+            self._check_default_secret("POSTGRES_PASSWORD", self.POSTGRES_PASSWORD)
 
+        return self
+
+    @model_validator(mode="after")
+    def _configure_embedded_mode(self) -> Self:
+        """Auto-disable external services when EMBEDDED_MODE is enabled."""
+        if self.EMBEDDED_MODE:
+            self.USE_NEO4J = False
+            self.USE_REDIS = False
+            self.NEO4J_URI = None
+            self.REDIS_URL = None
         return self
 
 

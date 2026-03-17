@@ -298,12 +298,17 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
                 # Fire and forget
                 if activity_monitor and hasattr(activity_monitor, "client"):
-                    await activity_monitor.client.publish(
-                        f"chat:{self.thread_id}:events",
-                        MessageEvent(data=msg_data).json(),
-                    )
-            except Exception:
-                pass
+                    try:
+                        client = activity_monitor.client
+                        channel = f"chat:{self.thread_id}:events"
+                        message = MessageEvent(data=msg_data).json()
+                        logger.debug(f"[DatabaseCallback] Publishing to {channel}: {message[:200]}...")
+                        result = await client.publish(channel, message)
+                        logger.debug(f"[DatabaseCallback] Publish result: {result}")
+                    except Exception as e:
+                        logger.warning(f"[DatabaseCallback] Failed to publish message event: {e}", exc_info=True)
+            except Exception as e:
+                logger.warning(f"[DatabaseCallback] Failed in realtime sync setup: {e}", exc_info=True)
 
         except Exception as e:
             import logging

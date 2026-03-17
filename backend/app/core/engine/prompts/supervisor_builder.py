@@ -40,17 +40,18 @@ class SupervisorPromptBuilder:
         cwd = ctx.metadata.get("cwd", "")
         project_concepts = ctx.metadata.get("project_concepts", "")
 
-        # Get the current awakened state early for blackboard access
+        # Get the current awakened state for telemetry access
         state = get_awakened_state()
 
         # 2. Extract raw data for template (Phase 1: Unified Blackboard)
         # Phase 4: Blackboard Integration
-        blackboard = state.get("blackboard", {}) if state else {}
+        # Blackboard comes from graph context, not awakened state
+        blackboard = self.context.get("blackboard", {}) if self.context else {}
         visited_nodes = blackboard.get("visited_nodes", [])
         last_route = blackboard.get("route_reason")
-        
+
         context = {
-            "current_plan": state.get("current_plan") if state else None,
+            "current_plan": self.context.get("current_plan") if self.context else None,
             "execution_ticket": blackboard.get("ticket"),
             "verification_status": blackboard.get("verification"),
             "visited_nodes": visited_nodes,

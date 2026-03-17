@@ -460,6 +460,14 @@ case "${1:-help}" in
                 info "清理 Redis 缓存..."
                 uv run python scripts/cleanup_system.py --redis
                 ;;
+            cache)
+                info "清理 FileCache 缓存 (Embedded Mode)..."
+                uv run python scripts/cleanup_system.py --cache
+                ;;
+            sqlite)
+                info "清理 SQLite 表 (Embedded Mode)..."
+                uv run python scripts/cleanup_system.py --sqlite
+                ;;
             neo4j)
                 info "清理 Neo4j 文件索引..."
                 uv run python scripts/cleanup_system.py --neo4j
@@ -536,7 +544,7 @@ case "${1:-help}" in
                 ;;
             runtime|"")
                 info "清理运行时缓存..."
-                uv run python scripts/cleanup_runtime.py 2>/dev/null || uv run python scripts/cleanup_system.py --redis
+                uv run python scripts/cleanup_runtime.py 2>/dev/null || uv run python scripts/cleanup_system.py --cache
                 ;;
             help|-h|--help)
                 echo "╔══════════════════════════════════════════════════════════════╗"
@@ -548,7 +556,9 @@ case "${1:-help}" in
                 echo "║    evo clean dry              预览将被清理的内容             ║"
                 echo "║                                                              ║"
                 echo "║  【数据库】                                                   ║"
-                echo "║    evo clean redis            清理 Redis 缓存                ║"
+                echo "║    evo clean redis            清理 Redis 缓存 (Full Mode)    ║"
+                echo "║    evo clean cache            清理 FileCache (Embedded Mode) ║"
+                echo "║    evo clean sqlite           清理 SQLite 表 (Embedded Mode) ║"
                 echo "║    evo clean neo4j            清理 Neo4j 文件索引            ║"
                 echo "║    evo clean memory           清理记忆数据(概念/历史/偏好)   ║"
                 echo "║    evo clean keychain         清理 Keychain 登录凭据         ║"

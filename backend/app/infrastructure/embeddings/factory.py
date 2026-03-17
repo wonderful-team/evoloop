@@ -1,8 +1,12 @@
+import logging
+
 from app.core.config import settings
 from app.infrastructure.config import SystemConfigService
 from app.infrastructure.embeddings.base import BaseEmbedder
 from app.infrastructure.embeddings.ollama import OllamaEmbedder
 from app.infrastructure.embeddings.openai import GenericOpenAIEmbedder
+
+logger = logging.getLogger(__name__)
 
 
 class EmbedderFactory:
@@ -14,8 +18,12 @@ class EmbedderFactory:
         1. System Config (DB)
         2. Environment Variables (Settings)
         """
-        # 1. Try DB Config
-        provider = SystemConfigService.get_value("EMBEDDING_PROVIDER")
+        # 1. Try DB Config (handle case where DB tables don't exist yet)
+        try:
+            provider = SystemConfigService.get_value("EMBEDDING_PROVIDER")
+        except Exception as e:
+            logger.debug(f"Could not read EMBEDDING_PROVIDER from DB (tables may not exist yet): {e}")
+            provider = None
 
         if not provider:
             # Fallback to config.py defaults

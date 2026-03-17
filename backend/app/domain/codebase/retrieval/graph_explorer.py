@@ -1,7 +1,6 @@
 import logging
 
 from langchain_core.prompts.prompt import PromptTemplate
-from langchain_neo4j import GraphCypherQAChain, Neo4jGraph
 
 from app.core.config import settings
 from app.infrastructure.llm.factory import LLMFactory
@@ -15,9 +14,16 @@ class GraphExplorer:
     """
 
     def __init__(self):
+        # Skip initialization in Embedded Mode (no Neo4j)
+        if settings.EMBEDDED_MODE:
+            logger.debug("GraphExplorer: Disabled in Embedded Mode (Neo4j not available)")
+            self.graph = None
+            return
+
         # We need a synchronous Neo4j connection for LangChain.
         # PROBLEM: Default Neo4jGraph requires APOC plugin for schema retrieval.
         # FIX: We manually define the schema to avoid APOC dependency.
+        from langchain_neo4j import Neo4jGraph
 
         try:
             self.graph = Neo4jGraph(
@@ -81,7 +87,9 @@ The relationships:
             project_id: Optional context to restrict search (not strictly enforced by Chain unless prompted)
         """
         if not self.graph:
-            return "Graph Explorer is not available (Connection failed)."
+            return "Graph Explorer is not available (Neo4j not connected)."
+
+        from langchain_neo4j import GraphCypherQAChain
 
         llm = LLMFactory.create_llm(temperature=0)  # Low temp for code generation
 

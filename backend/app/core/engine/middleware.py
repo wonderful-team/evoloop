@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from langchain_core.runnables import RunnableConfig
 
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.config import settings
 from app.core.context import ContextManager, EvoContext
 from app.infrastructure.config.service import SystemConfigService
@@ -25,16 +26,16 @@ class EvoContextMiddleware:
         """
         # 1. Resolve or Create Context
         ctx = ContextManager.current()
+        blackboard = state.get("blackboard") or {}
         
         # If we are in a fresh run or context was lost, initialize it
         if ctx.request_id == "global-fallback":
             project_id = state.get("project_id")
             if project_id is None:
-                project_id = config.get("configurable", {}).get("project_id", 1)
+                project_id = config.get("configurable", {}).get("project_id", DEFAULT_PROJECT_ID)
 
             working_directory = (
-                state.get("blackboard", {}).get("working_directory") or 
-                state.get("scratchpad", {}).get("working_directory") or 
+                blackboard.get("working_directory") or 
                 config.get("configurable", {}).get("working_directory")
             )
             thread_id = config.get("configurable", {}).get("thread_id")
@@ -79,55 +80,6 @@ class EvoContextMiddleware:
                 logger.warning(f"[Middleware] Memory hydration failed: {e}")
 
         # 4. State Harmonization (Blackboard Pattern - Phase 4 Consolidation)
-        scratchpad = state.pop("scratchpad", {})  # Force migration by removing it
-        ticket = state.get("execution_ticket")
-        
-        blackboard = state.get("blackboard") or {
-            "ticket": None,
-            "verification": None,
-            "route_reason": None,
-            "metadata": {},
-            "clipboard": [],
-            "visited_nodes": [],
-            "working_directory": None,
-            "spawn_plan": None,
-            "pending_aggregation": None,
-            "subtask_results": [],
-            "plan_approved": False
-        }
-
-        # Sync legacy ticket
-        if not blackboard.get("ticket") and ticket:
-            blackboard["ticket"] = ticket
-
-        # Deep Migration from former scratchpad
-        if scratchpad:
-            blackboard["metadata"].update(scratchpad.get("metadata", {}))
-            
-            if "workspace_clipboard" in scratchpad:
-                blackboard["clipboard"] = scratchpad["workspace_clipboard"]
-            
-            if "visited_nodes" in scratchpad:
-                blackboard["visited_nodes"] = scratchpad["visited_nodes"]
-                
-            if "working_directory" in scratchpad:
-                blackboard["working_directory"] = scratchpad["working_directory"]
-                
-            if "_spawn_plan" in scratchpad:
-                blackboard["spawn_plan"] = scratchpad["_spawn_plan"]
-                
-            if "_pending_aggregation" in scratchpad:
-                blackboard["pending_aggregation"] = scratchpad["_pending_aggregation"]
-                
-            if "subtask_results" in scratchpad:
-                blackboard["subtask_results"] = scratchpad["subtask_results"]
-                
-            if "plan_approved" in scratchpad:
-                blackboard["plan_approved"] = scratchpad["plan_approved"]
-
-            if "route_reason" in scratchpad:
-                blackboard["route_reason"] = scratchpad["route_reason"]
-
         if not blackboard.get("verification") and state.get("verification_status"):
             blackboard["verification"] = state.get("verification_status")
 

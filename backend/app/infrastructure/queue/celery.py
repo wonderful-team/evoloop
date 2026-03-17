@@ -1,51 +1,413 @@
-from pathlib import Path
+"""
+Task queue for EvoLoop Backend.
 
-from celery import Celery
+Supports two modes:
+- Full mode: Celery + Redis (traditional)
+- Embedded mode: LocalCelery (in-process, no broker)
+"""
+
+import asyncio
+import functools
+import logging
+from pathlib import Path
+from typing import Any, Callable, Coroutine
 
 from app.core.config import settings
 
-# Ensure database directory exists for Celery beat schedule
-db_dir = Path.home() / ".evoloop" / "database"
-db_dir.mkdir(parents=True, exist_ok=True)
+logger = logging.getLogger(__name__)
 
-celery_app = Celery(
-    "evoloop_worker",
-    broker=settings.REDIS_URL,
-    backend=settings.REDIS_URL,
-    include=[
-        "app.domain.codebase.indexing.tasks",
-        "app.domain.project.summarizer",
-        "app.domain.project.sync_tasks",
-        "app.domain.wiki.tasks",
-        "app.core.brain.tasks",
-        "app.core.engine.tasks",
-        "app.core.atlas.tasks",
-        "app.core.vision.cleanup",
-    ],
-)
 
-celery_app.conf.update(
-    task_serializer="json",
-    accept_content=["json"],
-    result_serializer="json",
-    timezone="UTC",
-    enable_utc=True,
-    beat_schedule_filename=str(db_dir / "celerybeat-schedule.db"),
-    beat_schedule={
-        # Storage cleanup tasks - run daily at low-traffic hours
-        "cleanup-screenshots-daily": {
-            "task": "app.core.vision.cleanup_screenshots",
-            "schedule": 86400.0,  # 24 hours
-            "args": (False,),     # dry_run=False
+# =============================================================================
+# LocalCelery Implementation (for Embedded Mode)
+# =============================================================================
+
+class LocalTask:
+    """
+    Local task implementation for embedded mode.
+    Mimics Celery Task API but runs in-process.
+    """
+
+    def __init__(self, func: Callable, name: str = None, bind: bool = False):
+        self.func = func
+        self.name = name or func.__module__ + "." + func.__name__
+        self.bind = bind
+        self.__doc__ = func.__doc__
+        self.__module__ = func.__module__
+
+    async def run(self, *args, **kwargs):
+        """Execute the task immediately."""
+        try:
+            if self.bind:
+                if asyncio.iscoroutinefunction(self.func):
+                    result = await self.func(self, *args, **kwargs)
+                else:
+                    # Sync function - run in thread pool to avoid blocking
+                    loop = asyncio.get_running_loop()
+                    result = await loop.run_in_executor(None, functools.partial(self.func, self, *args, **kwargs))
+            else:
+                if asyncio.iscoroutinefunction(self.func):
+                    result = await self.func(*args, **kwargs)
+                else:
+                    # Sync function - run in thread pool to avoid blocking
+                    loop = asyncio.get_running_loop()
+                    result = await loop.run_in_executor(None, functools.partial(self.func, *args, **kwargs))
+            return result
+        except Exception as e:
+            logger.error(f"[LocalTask] Error in {self.name}: {e}")
+            raise
+
+    def apply_async(self, args: tuple = None, kwargs: dict = None, **options) -> Any:
+        """Queue task for async execution (embedded mode: just schedule)."""
+        args = args or ()
+        kwargs = kwargs or {}
+        return LocalAsyncResult(self, args, kwargs)
+
+    def delay(self, *args, **kwargs) -> Any:
+        """Shortcut for apply_async."""
+        return self.apply_async(args=args, kwargs=kwargs)
+
+    def __call__(self, *args, **kwargs):
+        """Allow direct calling of the task."""
+        if asyncio.iscoroutinefunction(self.func):
+            return self.run(*args, **kwargs)
+        else:
+            return self.func(*args, **kwargs)
+
+
+class LocalAsyncResult:
+    """Mock Celery AsyncResult for local tasks."""
+
+    def __init__(self, task: LocalTask, args: tuple, kwargs: dict):
+        self.task = task
+        self.args = args
+        self.kwargs = kwargs
+        self._result = None
+        self._ready = False
+        self._exception = None
+        # Generate a unique ID for compatibility with Celery AsyncResult
+        import uuid
+        self.id = str(uuid.uuid4())
+        # Immediately schedule the task in background (embedded mode: fire and forget)
+        self._schedule_task()
+
+    def _schedule_task(self):
+        """Schedule the task to run in the background event loop."""
+        try:
+            # Try to get the running event loop
+            loop = asyncio.get_running_loop()
+            # Schedule the task as a background job
+            self._async_task = loop.create_task(self._run_task())
+        except RuntimeError:
+            # No event loop running, log warning - task won't execute
+            logger.warning(f"[LocalAsyncResult] No event loop running, task {self.task.name} may not execute")
+
+    async def _run_task(self):
+        """Internal method to execute the task."""
+        try:
+            self._result = await self.task.run(*self.args, **self.kwargs)
+            self._ready = True
+        except Exception as e:
+            self._exception = e
+            self._ready = True
+            logger.error(f"[LocalAsyncResult] Task {self.task.name} failed: {e}")
+
+    async def get(self, timeout: float = None, propagate: bool = True):
+        """Execute and return result."""
+        if not self._ready:
+            try:
+                self._result = await self.task.run(*self.args, **self.kwargs)
+                self._ready = True
+            except Exception as e:
+                self._exception = e
+                self._ready = True
+                if propagate:
+                    raise
+
+        if self._exception and propagate:
+            raise self._exception
+
+        return self._result
+
+    def ready(self) -> bool:
+        return self._ready
+
+    def successful(self) -> bool:
+        return self._ready and self._exception is None
+
+
+class LocalCelery:
+    """
+    Mock Celery app for embedded mode.
+    Provides @app.task decorator and basic API.
+    """
+
+    def __init__(self, name: str = "evoloop_local"):
+        self.name = name
+        self.tasks: dict[str, LocalTask] = {}
+
+    def task(self, func: Callable = None, *, bind: bool = False, name: str = None, **options):
+        """Decorator to register a task."""
+        def decorator(f: Callable) -> LocalTask:
+            task_name = name or f.__module__ + "." + f.__name__
+            task = LocalTask(f, name=task_name, bind=bind)
+            self.tasks[task_name] = task
+            logger.debug(f"[LocalCelery] Registered task: {task_name}")
+            return task
+
+        if func is not None:
+            return decorator(func)
+        return decorator
+
+    def _load_task_module(self, task_name: str) -> bool:
+        """Load the module containing a specific task. Returns True if loaded."""
+        # Check if we have a mapping for this task
+        if task_name in TASK_MODULE_MAP:
+            module_path = TASK_MODULE_MAP[task_name]
+            try:
+                __import__(module_path)
+                logger.debug(f"[LocalCelery] Loaded module for {task_name}: {module_path}")
+                return True
+            except Exception as e:
+                logger.warning(f"[LocalCelery] Failed to load {module_path}: {e}")
+                return False
+
+        # Try to infer module from task name (for tasks like app.module.func)
+        if "." in task_name:
+            parts = task_name.rsplit(".", 1)
+            if len(parts) == 2:
+                module_path, func_name = parts
+                # Handle both 'app.module.func' and 'app.module.tasks.func'
+                try:
+                    __import__(module_path)
+                    logger.debug(f"[LocalCelery] Loaded module: {module_path}")
+                    return True
+                except Exception:
+                    pass
+        return False
+
+    def send_task(self, name: str, args: tuple = None, kwargs: dict = None, **options) -> LocalAsyncResult:
+        """Send a task by name."""
+        args = args or ()
+        kwargs = kwargs or {}
+
+        # Load the task module if not already loaded
+        if name not in self.tasks:
+            loaded = self._load_task_module(name)
+            if not loaded:
+                logger.error(f"[LocalCelery] Unknown task: {name}")
+                raise ValueError(f"Unknown task: {name}")
+
+        if name not in self.tasks:
+            raise ValueError(f"Unknown task: {name}")
+
+        return self.tasks[name].apply_async(args=args, kwargs=kwargs)
+
+    def conf(self):
+        """Mock config."""
+        return {}
+
+    def start(self, **kwargs):
+        logger.info("[LocalCelery] Start called (no-op in embedded mode)")
+
+    def worker_main(self, **kwargs):
+        logger.info("[LocalCelery] Worker main called (no-op in embedded mode)")
+
+
+# Task name to module mapping for dynamic loading
+TASK_MODULE_MAP = {
+    # Engine tasks
+    "engine_persist_file_operation": "app.core.engine.tasks",
+    "engine_upload_cloud_log": "app.core.engine.tasks",
+    "engine_snapshot_steps": "app.core.engine.tasks",
+    "engine_harvest_concepts": "app.core.engine.tasks",
+    "engine_record_episode": "app.core.engine.tasks",
+    "engine_prune_checkpoints": "app.core.engine.tasks",
+    "engine_persist_message": "app.core.engine.tasks",
+    "engine_cleanup_artifacts": "app.core.engine.tasks",
+    "engine_git_harvest": "app.core.engine.tasks",
+    "engine_reconcile_skill_macro": "app.core.engine.tasks",
+    "engine_scheduler_tick": "app.core.engine.tasks",
+    "run_autonomous_task_execution": "app.core.engine.tasks",
+    # Brain tasks
+    "brain_consolidate_memory": "app.core.brain.tasks",
+    "brain_summarize_thread": "app.core.brain.tasks",
+    # Atlas tasks
+    "atlas_explore_app": "app.core.atlas.tasks",
+    "atlas_execute_exploration": "app.core.atlas.tasks",
+    # Vision tasks
+    "cleanup_screenshots": "app.core.vision.cleanup",
+    "cleanup_screen_recordings": "app.core.vision.cleanup",
+    # Indexing tasks
+    "index_repository": "app.domain.codebase.indexing.tasks",
+    "incremental_index": "app.domain.codebase.indexing.tasks",
+    # Project tasks
+    "summarize_project": "app.domain.project.summarizer",
+    "sync_project": "app.domain.project.sync_tasks",
+    # Wiki tasks
+    "sync_wiki_page": "app.domain.wiki.tasks",
+}
+
+
+# Compatibility: shared_task decorator
+def shared_task(func=None, *, name=None, bind=False, **options):
+    """
+    Compatible shared_task decorator for LocalCelery.
+    Works with both Celery and LocalCelery.
+    """
+    def decorator(f):
+        task_name = name or f.__module__ + "." + f.__name__
+        task = LocalTask(f, name=task_name, bind=bind)
+        # Register with celery_app if it's LocalCelery
+        if isinstance(celery_app, LocalCelery):
+            celery_app.tasks[task_name] = task
+            logger.debug(f"[shared_task] Registered: {task_name}")
+        return task
+
+    if func is not None:
+        return decorator(func)
+    return decorator
+
+
+# =============================================================================
+# Celery / LocalCelery Factory
+# =============================================================================
+
+def _register_local_tasks(app: LocalCelery):
+    """Manually register all task functions for Embedded Mode.
+
+    This is needed because task modules use 'from celery import shared_task'
+    which doesn't automatically register with our LocalCelery.
+    """
+    # Import task functions and wrap them as LocalTasks
+    try:
+        # Engine tasks
+        from app.core.engine.tasks import (
+            persist_file_operation_task,
+            upload_cloud_log_task,
+            snapshot_steps_task,
+            harvest_concepts_task,
+            record_episode_task,
+            prune_checkpoints_task,
+            persist_message_task,
+            cleanup_artifacts_task,
+            git_harvest_task,
+            reconcile_skill_macro_task,
+            engine_scheduler_tick,
+            run_autonomous_task_execution,
+        )
+
+        tasks_to_register = [
+            ("engine_persist_file_operation", persist_file_operation_task, False),
+            ("engine_upload_cloud_log", upload_cloud_log_task, False),
+            ("engine_snapshot_steps", snapshot_steps_task, False),
+            ("engine_harvest_concepts", harvest_concepts_task, False),
+            ("engine_record_episode", record_episode_task, False),
+            ("engine_prune_checkpoints", prune_checkpoints_task, False),
+            ("engine_persist_message", persist_message_task, False),
+            ("engine_cleanup_artifacts", cleanup_artifacts_task, False),
+            ("engine_git_harvest", git_harvest_task, False),
+            ("engine_reconcile_skill_macro", reconcile_skill_macro_task, False),
+            ("engine_scheduler_tick", engine_scheduler_tick, False),
+            ("run_autonomous_task_execution", run_autonomous_task_execution, False),
+        ]
+
+        for name, func, bind in tasks_to_register:
+            if name not in app.tasks:
+                app.tasks[name] = LocalTask(func, name=name, bind=bind)
+                logger.debug(f"[LocalCelery] Registered: {name}")
+
+        logger.info(f"[LocalCelery] Registered {len(tasks_to_register)} engine tasks")
+
+    except Exception as e:
+        logger.warning(f"[LocalCelery] Failed to register engine tasks: {e}")
+
+    try:
+        # Brain tasks
+        from app.core.brain.tasks import (
+            consolidate_memory,
+        )
+
+        name, func = "brain_consolidate_memory", consolidate_memory
+        if name not in app.tasks:
+            app.tasks[name] = LocalTask(func, name=name, bind=False)
+
+        logger.info("[LocalCelery] Registered brain tasks")
+    except Exception as e:
+        logger.warning(f"[LocalCelery] Failed to register brain tasks: {e}")
+
+    try:
+        # Vision cleanup tasks
+        from app.core.vision.cleanup import cleanup_screenshots, cleanup_screen_recordings
+
+        for name, func in [("cleanup_screenshots", cleanup_screenshots),
+                           ("cleanup_screen_recordings", cleanup_screen_recordings)]:
+            if name not in app.tasks:
+                app.tasks[name] = LocalTask(func, name=name, bind=False)
+
+        logger.info("[LocalCelery] Registered vision cleanup tasks")
+    except Exception as e:
+        logger.warning(f"[LocalCelery] Failed to register vision tasks: {e}")
+
+
+def create_celery_app():
+    """Create Celery app based on configuration."""
+    if settings.EMBEDDED_MODE:
+        logger.info("[Celery] Embedded mode enabled with LocalCelery (in-process tasks)")
+        app = LocalCelery("evoloop_embedded")
+        _register_local_tasks(app)
+        return app
+
+    # Full mode: Real Celery with Redis
+    from celery import Celery as RealCelery
+
+    # Ensure database directory exists for Celery beat schedule
+    db_dir = Path.home() / ".evoloop" / "database"
+    db_dir.mkdir(parents=True, exist_ok=True)
+
+    app = RealCelery(
+        "evoloop_worker",
+        broker=settings.REDIS_URL or "redis://localhost:6379/0",
+        backend=settings.REDIS_URL or "redis://localhost:6379/0",
+        include=[
+            "app.domain.codebase.indexing.tasks",
+            "app.domain.project.summarizer",
+            "app.domain.project.sync_tasks",
+            "app.domain.wiki.tasks",
+            "app.core.brain.tasks",
+            "app.core.engine.tasks",
+            "app.core.atlas.tasks",
+            "app.core.vision.cleanup",
+        ],
+    )
+
+    app.conf.update(
+        task_serializer="json",
+        accept_content=["json"],
+        result_serializer="json",
+        timezone="UTC",
+        enable_utc=True,
+        beat_schedule_filename=str(db_dir / "celerybeat-schedule.db"),
+        beat_schedule={
+            "cleanup-screenshots-daily": {
+                "task": "app.core.vision.cleanup_screenshots",
+                "schedule": 86400.0,
+                "args": (False,),
+            },
+            "cleanup-screen-recordings-daily": {
+                "task": "app.core.vision.cleanup_screen_recordings",
+                "schedule": 86400.0,
+                "args": (False,),
+            },
+            "autonomous-scheduler-tick": {
+                "task": "engine_scheduler_tick",
+                "schedule": 60.0,
+            },
         },
-        "cleanup-screen-recordings-daily": {
-            "task": "app.core.vision.cleanup_screen_recordings",
-            "schedule": 86400.0,  # 24 hours
-            "args": (False,),     # dry_run=False
-        },
-        "autonomous-scheduler-tick": {
-            "task": "engine_scheduler_tick",
-            "schedule": 60.0,  # Every 1 minute
-        },
-    },
-)
+    )
+
+    logger.info("[Celery] Full mode enabled with Redis broker")
+    return app
+
+
+# Global Celery/LocalCelery instance
+celery_app = create_celery_app()

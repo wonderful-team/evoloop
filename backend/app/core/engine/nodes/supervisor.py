@@ -17,6 +17,7 @@ from app.core.engine.message_utils import get_message_text, get_last_human_messa
 from app.core.engine.state import AgentState
 from app.core.memory import memory_manager
 from app.core.tools.manager import tool_manager
+from app.constants import DEFAULT_PROJECT_ID, RoutingTarget
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
@@ -44,11 +45,11 @@ class SupervisorNode:
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         """Main entry point for the Supervisor node (ReAct Architecture)."""
-        project_id = state.get("project_id", 1)
+        project_id = state.get("project_id", DEFAULT_PROJECT_ID)
         messages = list(state.get("messages", []))
         if not messages:
             logger.warning("[Supervisor] No messages found in state. Exiting.")
-            return {"next_node": "finish"}
+            return {"next_node": RoutingTarget.FINISH}
 
         # Phase 0: Ticket Cleanup (Blackboard Lifecycle)
         # We ensure any stale ticket from a previous specialist run is cleared
@@ -62,7 +63,7 @@ class SupervisorNode:
         await self._emit_status(config, i18n.get("supervisor.status_analyzing"))
 
         # Phase 1: Aggregate Parallel Results (New Blackboard Integration)
-        blackboard = state.get("blackboard", {})
+        blackboard = state.get("blackboard") or {}
         subtask_results = blackboard.get("subtask_results", [])
         pending_agg = blackboard.get("pending_aggregation", {})
 
@@ -71,7 +72,7 @@ class SupervisorNode:
             if len(subtask_results) >= expected:
                 logger.info(f"[Supervisor] 🧩 All {expected} subtasks done. Routing to Aggregator.")
                 return {
-                    "next_node": "aggregator",
+                    "next_node": RoutingTarget.AGGREGATOR,
                     "blackboard": blackboard
                 }
 
@@ -117,7 +118,7 @@ class SupervisorNode:
                 logger.info("[Supervisor] 🏁 Text response without routing - finishing.")
                 return {
                     "messages": new_messages,
-                    "next_node": "finish",
+                    "next_node": RoutingTarget.FINISH,
                     "blackboard": blackboard
                 }
 
@@ -125,7 +126,7 @@ class SupervisorNode:
         logger.warning("[Supervisor] ⚠️ No routing signal and no text response - defaulting to Worker")
         return {
             "messages": new_messages,
-            "next_node": "worker",
+            "next_node": RoutingTarget.WORKER,
             "blackboard": blackboard
         }
 
@@ -154,10 +155,15 @@ class SupervisorNode:
 
         logger.info(f"[Supervisor] 📂 Context utilized from unified Middleware.")
 
+        # Get blackboard from state for prompt builder
+        blackboard = state.get("blackboard") or {}
+
         return {
             "tools": core_tools,
             "iteration_count": state.get("iteration_count", 0),
             "last_human_msg": last_msg,
+            "blackboard": blackboard,
+            "current_plan": state.get("current_plan"),
         }
 
 

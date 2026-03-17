@@ -10,7 +10,9 @@ from app.core.context.manager import ContextManager
 from app.core.engine import AgentEngine
 from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.engine.state import AgentState
+from app.core.monitoring.activity import activity_monitor
 from app.core.tools.manager import tool_manager
+from app.constants import DEFAULT_PROJECT_ID
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +56,7 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, origin
     """
     try:
         thread_id = ctx.thread_id
-        project_id = ctx.project_id or 1
+        project_id = ctx.project_id or DEFAULT_PROJECT_ID
         if not thread_id:
             logger.warning("Finish: No thread_id in context, skipping episode recording.")
             return
@@ -110,7 +112,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     
     # Check if we should skip the LLM auditor (Shadow Mode)
     # This is enabled when the LLM concludes naturally with text.
-    blackboard = state.get("blackboard", {})
+    blackboard = state.get("blackboard") or {}
     is_shadow_mode = blackboard.get("metadata", {}).get("shadow_audit", False)
     
     summary = ""

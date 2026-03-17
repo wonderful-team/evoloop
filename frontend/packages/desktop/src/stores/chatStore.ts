@@ -60,7 +60,7 @@ interface ChatState {
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
-    threadId: null,
+    threadId: localStorage.getItem("evoloop_current_thread_id"),
     projectId: null,
     messages: [],
 
@@ -83,6 +83,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     setThread: async (threadId, projectId) => {
         const currentThreadId = get().threadId
+
+        // 0. Persist Thread ID
+        if (threadId) {
+            localStorage.setItem("evoloop_current_thread_id", threadId)
+        } else {
+            localStorage.removeItem("evoloop_current_thread_id")
+        }
 
         // 1. Switch Thread Metadata
         set({
@@ -160,7 +167,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     references: m.references || [], // Phase 9: Persistent References
                 }))
                 // Filter out empty messages AND 'tool' messages (which cause chat bubble explosion)
-                .filter((m: any) => (m.content || m.thinking) && m.originalType !== "tool")
+                .filter((m: any) => (m.content || m.thinking || (m.steps && m.steps.length > 0)) && m.originalType !== "tool")
 
             // Optimistic Swap:
             // If we are still on the same thread, update the messages.

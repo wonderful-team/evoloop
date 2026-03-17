@@ -8,6 +8,12 @@ from enum import Enum
 from app.core.config import settings
 
 
+# ====================== Engine Constants ======================
+DEFAULT_PROJECT_ID = 1
+DEFAULT_WINDOW_SIZE = 30
+DEFAULT_HISTORY_RETAIN_COUNT = 5  # Number of messages to retain during compression
+
+
 # ====================== Document Type Enum ======================
 class DocumentType(Enum):
     """Document type enumeration"""
@@ -490,6 +496,9 @@ class RoutingTarget(str, Enum):
     FINISH = "finish"
     WORKER = "worker"
     FLASH_BRAIN = "flash_brain"
+    SUPERVISOR = "supervisor"
+    AGGREGATOR = "aggregator"
+    SPAWN_SUBTASKS = "spawn_subtasks"
 
 
 TASK_TYPES = [
@@ -508,12 +517,186 @@ ROUTING_TARGETS = {
     RoutingTarget.FINISH: "Task completion.",
     RoutingTarget.WORKER: "Universal Worker — neutral executor that acquires expertise via Skills and ExecutionTicket.",
     RoutingTarget.FLASH_BRAIN: "Fast, low-cost reasoning or memory lookup.",
+    RoutingTarget.SUPERVISOR: "Decision-making hub of the agent system.",
+    RoutingTarget.AGGREGATOR: "Collects and joins results from parallel subtasks.",
+    RoutingTarget.SPAWN_SUBTASKS: "Internal state for launching parallel execution.",
 }
 
 WORKFLOW_STATUS = ["pending", "running", "completed", "failed", "cancelled"]
 
 
 # ====================== AI Model Capabilities ======================
+
+# Preset LLM Models for Simple Selection Mode
+# type: "platform" = 平台托管，用户只需选择
+# type: "custom" = 需要用户填写 API Key 的第三方模型
+PRESET_LLM_MODELS = [
+    {
+        "id": "openai-gpt-4o",
+        "name": "GPT-4o",
+        "type": "custom",
+        "provider": "openai",
+        "base_url": "https://api.openai.com/v1",
+        "model": "gpt-4o",
+        "vision_model": "gpt-4o",
+        "description": "使用您自己的 OpenAI API Key",
+        "icon": "openai",
+    },
+    {
+        "id": "openai-gpt-4o-mini",
+        "name": "GPT-4o Mini",
+        "type": "custom",
+        "provider": "openai",
+        "base_url": "https://api.openai.com/v1",
+        "model": "gpt-4o-mini",
+        "vision_model": "gpt-4o-mini",
+        "description": "使用您自己的 OpenAI API Key",
+        "icon": "openai",
+    },
+    {
+        "id": "anthropic-claude-3-5-sonnet",
+        "name": "Claude 3.5 Sonnet",
+        "type": "custom",
+        "provider": "anthropic",
+        "base_url": "https://api.anthropic.com/v1",
+        "model": "claude-3-5-sonnet-20241022",
+        "vision_model": "claude-3-5-sonnet-20241022",
+        "description": "使用您自己的 Anthropic API Key",
+        "icon": "anthropic",
+    },
+    {
+        "id": "anthropic-claude-3-opus",
+        "name": "Claude 3 Opus",
+        "type": "custom",
+        "provider": "anthropic",
+        "base_url": "https://api.anthropic.com/v1",
+        "model": "claude-3-opus-20240229",
+        "vision_model": "claude-3-opus-20240229",
+        "description": "使用您自己的 Anthropic API Key",
+        "icon": "anthropic",
+    },
+    {
+        "id": "zhipu-glm-4",
+        "name": "智谱 GLM-4",
+        "type": "custom",
+        "provider": "anthropic",  # 智谱使用 anthropic adapter
+        "base_url": "https://open.bigmodel.cn/api/paas/v4/",
+        "model": "glm-4",
+        "vision_model": "glm-4",
+        "description": "使用您自己的智谱 API Key",
+        "icon": "zhipu",
+    },
+    {
+        "id": "qwen-max",
+        "name": "通义千问 Qwen-Max",
+        "type": "custom",
+        "provider": "openai",  # 阿里云兼容 OpenAI 接口
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "model": "qwen-max",
+        "vision_model": "qwen-vl-max",
+        "description": "使用您自己的阿里云 DashScope API Key",
+        "icon": "qwen",
+    },
+    {
+        "id": "deepseek-chat",
+        "name": "DeepSeek V3",
+        "type": "custom",
+        "provider": "openai",
+        "base_url": "https://api.deepseek.com/v1",
+        "model": "deepseek-chat",
+        "vision_model": "",
+        "description": "使用您自己的 DeepSeek API Key",
+        "icon": "deepseek",
+    },
+    {
+        "id": "kimi-latest",
+        "name": "月之暗面 Kimi",
+        "type": "custom",
+        "provider": "anthropic",  # kimi 使用 anthropic 协议
+        "base_url": "https://api.moonshot.cn/v1",
+        "model": "kimi-latest",
+        "vision_model": "kimi-latest",
+        "description": "使用您自己的 Moonshot API Key",
+        "icon": "kimi",
+    },
+    {
+        "id": "ollama-local",
+        "name": "Ollama (本地)",
+        "type": "custom",
+        "provider": "ollama",
+        "base_url": "http://localhost:11434/v1",
+        "model": "llama3",
+        "vision_model": "llava",
+        "description": "本地运行的 Ollama 模型",
+        "icon": "ollama",
+    },
+    {
+        "id": "custom",
+        "name": "自定义...",
+        "type": "custom",
+        "provider": "",
+        "base_url": "",
+        "model": "",
+        "vision_model": "",
+        "description": "配置其他 OpenAI 兼容接口",
+        "icon": "settings",
+    },
+]
+
+# Preset Embedding Models
+PRESET_EMBEDDING_MODELS = [
+    {
+        "id": "openai-text-embedding-3-small",
+        "name": "OpenAI text-embedding-3-small",
+        "type": "custom",
+        "provider": "openai",
+        "base_url": "https://api.openai.com/v1",
+        "model": "text-embedding-3-small",
+        "dimensions": 1536,
+        "description": "使用您自己的 OpenAI API Key",
+    },
+    {
+        "id": "openai-text-embedding-3-large",
+        "name": "OpenAI text-embedding-3-large",
+        "type": "custom",
+        "provider": "openai",
+        "base_url": "https://api.openai.com/v1",
+        "model": "text-embedding-3-large",
+        "dimensions": 3072,
+        "description": "使用您自己的 OpenAI API Key",
+    },
+    {
+        "id": "qwen-text-embedding-v3",
+        "name": "阿里云 text-embedding-v3",
+        "type": "custom",
+        "provider": "openai",
+        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        "model": "text-embedding-v3",
+        "dimensions": 1024,
+        "description": "使用您自己的阿里云 DashScope API Key",
+    },
+    {
+        "id": "ollama-nomic",
+        "name": "Ollama nomic-embed-text (本地)",
+        "type": "custom",
+        "provider": "ollama",
+        "base_url": "http://localhost:11434/v1",
+        "model": "nomic-embed-text",
+        "dimensions": 768,
+        "description": "本地运行的 Ollama 嵌入模型",
+    },
+    {
+        "id": "custom",
+        "name": "自定义...",
+        "type": "custom",
+        "provider": "",
+        "base_url": "",
+        "model": "",
+        "dimensions": 768,
+        "description": "配置其他 OpenAI 兼容接口",
+    },
+]
+
 # Context Window Sizes (Tokens)
 CONTEXT_SIZES = {
     "openai": {
