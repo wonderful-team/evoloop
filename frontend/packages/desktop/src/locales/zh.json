@@ -496,13 +496,14 @@
   },
   "chat": {
     "process": {
-      "hide": "收起详情",
-      "query": "查询: {{query}}",
+      "hide": "收起",
+      "query": "搜索",
       "summary": "已执行 {{count}} 个步骤",
-      "command": "命令: {{command}}",
-      "path": "路径: {{path}}",
-      "show": "展开详情",
-      "executing": "执行中: {{tool}}..."
+      "command": "命令",
+      "path": "路径",
+      "show": "详情",
+      "executing": "执行中: {{tool}}...",
+      "target": "目标"
     },
     "sidebar": {
       "tabChats": "对话",
@@ -522,7 +523,8 @@
     "resourceRemoved": "资源已移除",
     "agentStopped": "对话已停止",
     "status": {
-      "resuming": "智能体正在恢复..."
+      "resuming": "智能体正在恢复...",
+      "working": "工作中..."
     },
     "errors": {
       "loadHistory": "加载对话历史失败",
@@ -629,9 +631,15 @@
     "toolsActive": "{{count}} 个活跃",
     "addLink": "添加链接",
     "steps": {
-      "execution": "执行",
+      "execution": "执行阶段",
+      "steps": "个步骤",
+      "tools": "个工具",
+      "executing": "正在执行",
+      "completed": "已完成",
+      "progress": "进度",
+      "failed": "失败",
       "initializingPhase": "正在初始化阶段...",
-      "steps": "步"
+      "thoughts": "个思考"
     },
     "reference": {
       "typeToSearch": "输入以搜索...",
@@ -642,9 +650,6 @@
     },
     "stateContext": "上下文",
     "toolsDynamic": "动态加载",
-    "status": {
-      "working": "工作中..."
-    },
     "messageList": {
       "copy": "复制"
     },

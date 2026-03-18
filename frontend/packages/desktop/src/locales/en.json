@@ -496,13 +496,14 @@
   },
   "chat": {
     "process": {
-      "hide": "Hide",
-      "query": "Query: {{query}}",
+      "hide": "Collapse",
+      "query": "Search",
       "summary": "Processed {{count}} Steps",
-      "command": "Cmd: {{command}}",
-      "path": "Path: {{path}}",
-      "show": "Show",
-      "executing": "Executing: {{tool}}..."
+      "command": "Command",
+      "path": "Path",
+      "show": "Details",
+      "executing": "Executing: {{tool}}...",
+      "target": "Target"
     },
     "sidebar": {
       "tabChats": "Chats",
@@ -522,7 +523,8 @@
     "resourceRemoved": "Resource removed",
     "agentStopped": "Chat stopped",
     "status": {
-      "resuming": "Agent resuming..."
+      "resuming": "Agent resuming...",
+      "working": "Working..."
     },
     "errors": {
       "loadHistory": "Failed to load chat history",
@@ -630,8 +632,14 @@
     "addLink": "Add Link",
     "steps": {
       "execution": "Execution",
+      "steps": "steps",
+      "tools": "tools",
+      "executing": "Executing",
+      "completed": "Completed",
+      "progress": "Progress",
+      "failed": "failed",
       "initializingPhase": "Initializing phase...",
-      "steps": "steps"
+      "thoughts": "thoughts"
     },
     "reference": {
       "typeToSearch": "Type to search...",
@@ -642,9 +650,6 @@
     },
     "stateContext": "Context",
     "toolsDynamic": "dynamic",
-    "status": {
-      "working": "Working..."
-    },
     "messageList": {
       "copy": "Copy"
     },

@@ -408,6 +408,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const { messages, threadId } = get()
         if (!rawMsg || !threadId) return
 
+        // Technical marker filter (Re-used across message types)
+        const isTechnicalMarker = (content: string) => {
+            if (!content) return false
+            const trimmed = content.trim()
+            return trimmed === "正在执行工具..." || 
+                   trimmed === "Thinking..." || 
+                   trimmed === "思考中..." ||
+                   trimmed.startsWith("✅ SESSION COMPLETE") ||
+                   trimmed.startsWith("任务总结")
+        }
+
         // Phase 24: Tool Message Folding (Real-Time)
         if (rawMsg.role === "tool" || rawMsg.type === "tool") {
             // 1. Find last AI message (scan backwards)
@@ -427,16 +438,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 // 2. Match with tool_calls (If available from AI message event)
                 let toolName = "Unknown Tool"
                 let toolInput = {}
+                let parentId: string | number | undefined = undefined
+                let stepType: any = "tool"
 
                 // FIFO Matching Logic
+                const stepIndex = existingSteps.length
                 if (aiMsg.tool_calls && Array.isArray(aiMsg.tool_calls)) {
-                    // The index of the new step corresponds to the number of existing steps
-                    // (Assuming 1-to-1 sequential execution)
-                    const stepIndex = existingSteps.length
                     if (stepIndex < aiMsg.tool_calls.length) {
                         const call = aiMsg.tool_calls[stepIndex]
                         toolName = call.name || "Tool"
                         toolInput = call.args || {}
+                    }
+                }
+
+                // 2.5 [Phase 26] Metadata Enrichment from Global Activity Snapshot
+                // Try to find a matching step in the global state to get parent_id/type
+                const globalSteps = get().steps
+                if (globalSteps && globalSteps.length > 0) {
+                    // Try to find the N-th tool step in the global list that matches this toolName
+                    // or just find the N-th tool step overall.
+                    const toolSteps = globalSteps.filter(s => s.type === 'tool' || s.type === 'skill')
+                    if (stepIndex < toolSteps.length) {
+                        const matchedStep = toolSteps[stepIndex]
+                        parentId = matchedStep.parent_id
+                        stepType = matchedStep.type
+                        // If we didn't have toolName/Input from tool_calls, fallback to snapshot
+                        if (toolName === "Unknown Tool" && matchedStep.name) {
+                            toolName = matchedStep.name
+                        }
                     }
                 }
 
@@ -446,7 +475,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     input: toolInput,
                     output: rawMsg.content || "",
                     status: "success",
-                    duration: 0
+                    duration: 0,
+                    parent_id: parentId,
+                    type: stepType
                 }
 
                 // 3. Update AI Message Immutably
@@ -484,6 +515,37 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // 2. Deduplicate
         if (messages.some(m => m.id === newMsg.id)) return
+
+        // 2. [Phase 26] Merge Consecutive AI Messages (Deduplication/Fragmentation Fix)
+        const lastMsg = messages[messages.length - 1]
+        
+        if (
+            lastMsg &&
+            lastMsg.role === "ai" &&
+            newMsg.role === "ai" &&
+            (lastMsg.run_id === rawMsg.run_id || true)
+        ) {
+            // Determine combined content, skipping technical markers for the newMsg if possible
+            let combinedContent = lastMsg.content || ""
+            if (newMsg.content && !isTechnicalMarker(newMsg.content)) {
+                combinedContent = combinedContent 
+                    ? `${combinedContent}\n\n${newMsg.content}` 
+                    : newMsg.content
+            }
+            
+            const mergedMsg: Message = {
+                ...lastMsg,
+                content: combinedContent,
+                thinking: lastMsg.thinking || newMsg.thinking,
+                steps: [...(lastMsg.steps || []), ...(newMsg.steps || [])],
+                tool_calls: [...(lastMsg.tool_calls || []), ...(newMsg.tool_calls || [])],
+            }
+            
+            const newMessages = [...messages]
+            newMessages[newMessages.length - 1] = mergedMsg
+            set({ messages: newMessages, streamedContent: "" })
+            return
+        }
 
         // 3. Append & Clear Stream
         // We assume that if a message event arrives, it replaces the current streaming content.

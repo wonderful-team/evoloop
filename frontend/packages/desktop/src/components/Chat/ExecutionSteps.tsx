@@ -1,19 +1,12 @@
 import {
   CheckCircle2,
-  ChevronDown,
-  ChevronRight,
   Cpu,
   Loader2,
   Sparkles,
   Terminal,
   XCircle,
 } from "lucide-react"
-import { memo, useEffect, useMemo, useState } from "react"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@evoloop/shared/components/ui/collapsible"
+import { memo, useMemo } from "react"
 import { useTranslation } from "react-i18next"
 
 export interface StepItem {
@@ -50,15 +43,19 @@ function groupSteps(steps: StepItem[], t: any): StepGroup[] {
 
   // First pass: Organize by parent_id
   steps.forEach(step => {
-    if (step.parent_id) {
-      if (!childrenMap.has(step.parent_id)) {
-        childrenMap.set(step.parent_id, [])
+    // Ensure parent_id is a number (JSON deserialization may convert to string)
+    const parentId = step.parent_id != null ? Number(step.parent_id) : null
+    const stepId = Number(step.id)
+
+    if (parentId) {
+      if (!childrenMap.has(parentId)) {
+        childrenMap.set(parentId, [])
       }
-      childrenMap.get(step.parent_id)?.push(step)
+      childrenMap.get(parentId)?.push(step)
     } else {
       // Potential Header (or Orphan)
       if (step.name.startsWith("►") || step.type === "node") {
-        headerMap.set(step.id, step)
+        headerMap.set(stepId, step)
       } else {
         orphans.push(step)
       }
@@ -67,7 +64,7 @@ function groupSteps(steps: StepItem[], t: any): StepGroup[] {
 
   // 2. Create Groups from Headers
   headerMap.forEach((header, id) => {
-    const children = childrenMap.get(id) || []
+    const children = childrenMap.get(Number(id)) || []
 
     // determine group status based on children + header
     let status = header.status
@@ -161,63 +158,45 @@ const StepNodeItem = memo(({ step }: { step: StepItem }) => {
 })
 StepNodeItem.displayName = "StepNodeItem"
 
+// Simplified StepGroupItem - no outer collapsible since parent handles it
 const StepGroupItem = memo(({ group }: { group: StepGroup }) => {
   const { t } = useTranslation()
-  const [isOpen, setIsOpen] = useState(group.status === "running")
-
-  useEffect(() => {
-    setIsOpen(group.status === "running")
-  }, [group.status])
 
   return (
-    <Collapsible
-      open={isOpen}
-      onOpenChange={setIsOpen}
-      className="w-full border rounded-lg bg-background/50 overflow-hidden mb-2 shadow-sm"
-    >
-      <div className={`p-2 px-3 flex items-center justify-between cursor-pointer hover:bg-muted/50 transition-colors ${group.status === "running" ? "bg-primary/5" : ""}`}>
-        <CollapsibleTrigger asChild>
-          <div className="flex items-center gap-2 flex-1 w-full">
-            {/* Header Icon */}
-            {group.status === "running" ? (
-              <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
-            ) : group.status === "failed" ? (
-              <XCircle className="w-4 h-4 text-destructive shrink-0" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
-            )}
+    <div className="w-full border rounded-lg bg-background/50 overflow-hidden mb-2 shadow-sm">
+      <div className={`p-2 px-3 flex items-center justify-between ${group.status === "running" ? "bg-primary/5" : ""}`}>
+        <div className="flex items-center gap-2 flex-1 w-full">
+          {/* Header Icon */}
+          {group.status === "running" ? (
+            <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />
+          ) : group.status === "failed" ? (
+            <XCircle className="w-4 h-4 text-destructive shrink-0" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />
+          )}
 
-            <span className={`text-sm font-semibold flex-1 ${group.status === "running" ? "text-primary" : "text-foreground"}`}>
-              {group.title}
-            </span>
+          <span className={`text-sm font-semibold flex-1 ${group.status === "running" ? "text-primary" : "text-foreground"}`}>
+            {group.title}
+          </span>
 
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">
-                {group.steps.length} {t("chat.steps.steps", "steps")}
-              </span>
-              {isOpen ? (
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              )}
-            </div>
-          </div>
-        </CollapsibleTrigger>
+          <span className="text-xs text-muted-foreground">
+            {group.steps.length} {t("chat.steps.steps", "steps")}
+          </span>
+        </div>
       </div>
 
-      <CollapsibleContent>
-        <div className="p-2 pt-0 flex flex-col gap-1 mt-1">
-          {group.steps.length === 0 && (
-            <div className="text-xs text-muted-foreground italic pl-8 py-2">
-              {t("chat.steps.initializingPhase", "Initializing phase...")}
-            </div>
-          )}
-          {group.steps.map(step => (
-            <StepNodeItem key={step.id} step={step} />
-          ))}
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+      {/* Always show steps since outer collapsible controls visibility */}
+      <div className="p-2 pt-0 flex flex-col gap-1 mt-1 border-t border-border/30">
+        {group.steps.length === 0 && (
+          <div className="text-xs text-muted-foreground italic pl-8 py-2">
+            {t("chat.steps.initializingPhase", "Initializing phase...")}
+          </div>
+        )}
+        {group.steps.map(step => (
+          <StepNodeItem key={step.id} step={step} />
+        ))}
+      </div>
+    </div>
   )
 })
 StepGroupItem.displayName = "StepGroupItem"

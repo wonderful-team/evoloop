@@ -2,14 +2,19 @@ import {
   Bot,
   Brain,
   ChevronDown,
+  ChevronRight,
   Copy,
   MoreHorizontal,
   RotateCcw,
   User,
   Quote,
   Undo,
+  Terminal,
+  CheckCircle2,
+  Loader2,
+  XCircle,
 } from "lucide-react"
-import { memo } from "react"
+import { memo, useState } from "react"
 import { useTranslation } from "react-i18next"
 import {
   Collapsible,
@@ -30,10 +35,77 @@ import { ExecutionSteps } from "./ExecutionSteps"
 import { SourcesFooter } from "./SourcesFooter"
 import { AgentProcess, AgentProcessStep } from "./AgentProcess"
 import { AnalysisResultMessage } from "./AnalysisResultMessage"
-import {
-  detectRequirementAnalysis,
-  parseRequirementAnalysis,
-} from "./requirementAnalysis"
+import { useShowThinking } from "../UserSettings/AppearanceSettings"
+
+// Unified Tool Execution Section - combines real-time steps and historical snapshot
+function ToolExecutionSection({ msg }: { msg: Message }) {
+  const { t } = useTranslation()
+  const [isOpen, setIsOpen] = useState(false)
+
+  // Combine real-time steps (from SSE) and historical snapshot
+  // Prefer real-time steps if available, otherwise use snapshot
+  const hasRealtimeSteps = msg.steps && msg.steps.length > 0
+  const hasSnapshot = msg.steps_snapshot && msg.steps_snapshot.length > 0
+
+  if (!hasRealtimeSteps && !hasSnapshot) return null
+
+  // Determine which steps to display
+  const displaySteps = hasRealtimeSteps ? msg.steps! : msg.steps_snapshot!
+  const isRealtime = hasRealtimeSteps
+
+  // Calculate status counts
+  const runningCount = displaySteps.filter((s) => s.status === "running").length
+  const completedCount = displaySteps.filter((s) => s.status === "done" || s.status === "success").length
+  const failedCount = displaySteps.filter((s) => s.status === "failed" || s.status === "failure").length
+  const totalCount = displaySteps.length
+
+  // Determine icon and text based on status
+  let icon = <Terminal className="h-3.5 w-3.5" />
+  let statusText = ""
+
+  if (runningCount > 0) {
+    icon = <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+    statusText = `${t("chat.steps.executing", "Executing")} ${runningCount}/${totalCount}...`
+  } else if (failedCount > 0) {
+    icon = <XCircle className="h-3.5 w-3.5 text-destructive" />
+    statusText = `${completedCount}/${totalCount} ${t("chat.steps.completed", "completed")}, ${failedCount} ${t("chat.steps.failed", "failed")}`
+  } else {
+    icon = <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+    statusText = `${t("chat.steps.completed", "Completed")} ${completedCount} ${t("chat.steps.steps", "steps")}`
+  }
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
+      <CollapsibleTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start"
+        >
+          {icon}
+          <span className="font-medium">{statusText}</span>
+          {isOpen ? (
+            <ChevronDown className="h-3.5 w-3.5 ml-auto" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 ml-auto" />
+          )}
+        </Button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="mt-1">
+        {isRealtime ? (
+          // Real-time steps use AgentProcess for richer display
+          <AgentProcess
+            steps={msg.steps!}
+            isStreaming={msg.steps!.some((s) => s.status === "running")}
+          />
+        ) : (
+          // Historical snapshot uses ExecutionSteps
+          <ExecutionSteps steps={msg.steps_snapshot as any} />
+        )}
+      </CollapsibleContent>
+    </Collapsible>
+  )
+}
 
 
 export interface Message {
@@ -58,6 +130,7 @@ export interface Message {
     name: string
     status: string
     type?: string
+    parent_id?: number // Phase 18: Link to phase
     time?: string
     details?: string
   }>
@@ -78,6 +151,7 @@ interface ChatMessageItemProps {
 const ChatMessageItem = memo(
   ({ msg, isGrouped, showAvatar, onAddToMemory, onRewind, onRetry, onQuote }: ChatMessageItemProps) => {
     const { t } = useTranslation()
+    const { showThinking } = useShowThinking()
 
     // Hide system prompts from main chat
     if (msg.role === "system") {
@@ -130,71 +204,8 @@ const ChatMessageItem = memo(
         <div className={`relative flex-1 max-w-full`}>
           <div className="flex flex-col gap-1">
 
-            {/* Reasoning/Thinking Block (Historical or Streaming) */}
-            {(() => {
-              // 1. Use persisted thinking if available
-              let thinkingContent = msg.thinking
-
-              // 2. Or fallback to parsing from content (for streaming)
-              if (!thinkingContent && msg.content && msg.content.includes("<think>")) {
-                const thinkMatch = msg.content.match(/<think>([\s\S]*?)<\/think>/)
-                if (thinkMatch) {
-                  thinkingContent = thinkMatch[1]
-                } else if (msg.content.includes("<think>")) {
-                  // Streaming incomplete tag? or open tag
-                  const parts = msg.content.split("<think>")
-                  if (parts.length > 1) {
-                    thinkingContent = parts[1] // Show incomplete thinking
-                  }
-                }
-              }
-
-              const isStreaming = !msg.thinking && !!msg.content && msg.content.includes("<think>")
-              if (!thinkingContent) return null
-
-              return (
-                <Collapsible defaultOpen={isStreaming} className="w-full">
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 p-0 text-muted-foreground hover:bg-transparent flex items-center gap-1 text-xs"
-                    >
-                      <Brain size={12} />
-                      <span className="italic">
-                        {t("chat.interface.thinkingProcess", "Reasoning Process")}
-                      </span>
-                      <ChevronDown size={12} className="opacity-50" />
-                    </Button>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-md mb-2 border-l-2 border-primary/20 whitespace-pre-wrap font-mono">
-                    {thinkingContent}
-                  </CollapsibleContent>
-                </Collapsible>
-              )
-            })()}
-
-            {/* Tool Execution Process (Collapsible) */}
-            {/* Historical Task Steps (Unified Component) */}
-            {msg.steps_snapshot && msg.steps_snapshot.length > 0 && (
-              <div className="mb-2 w-full">
-                <ExecutionSteps steps={msg.steps_snapshot as any} />
-              </div>
-            )}
-
-            {/* Sources Footer */}
-            {msg.role === "ai" && msg.references && msg.references.length > 0 && (
-              <SourcesFooter
-                references={msg.references.map(ref => ({
-                  type: ref.type,
-                  name: ref.target_name,
-                  path: ref.target_id
-                }))}
-              />
-            )}
-
-            {/* Main Content */}
-            {(msg.content || !msg.thinking || (msg.steps && msg.steps.length > 0)) && (
+            {/* 1. Main Content - AI FIRST */}
+            {msg.content && (
               <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
 
                 {(() => {
@@ -236,23 +247,67 @@ const ChatMessageItem = memo(
                   }
 
                   // Standard Markdown Render
-                  return (
-                    <div className="flex flex-col gap-2">
-                      <MessageContent content={cleanContent} />
-                      {/* Tool Execution Process (Collapsible) - Embedded at bottom */}
-                      {msg.steps && msg.steps.length > 0 && (
-                        <div className="mt-2">
-                          <AgentProcess
-                            steps={msg.steps}
-                            isStreaming={msg.steps.some((s) => s.status === "running")}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )
+                  return <MessageContent content={cleanContent} isUser={msg.role === "user"} />
                 })()}
               </div>
             )}
+
+            {/* 2. Sources Footer */}
+            {msg.role === "ai" && msg.references && msg.references.length > 0 && (
+              <SourcesFooter
+                references={msg.references.map(ref => ({
+                  type: ref.type,
+                  name: ref.target_name,
+                  path: ref.target_id
+                }))}
+              />
+            )}
+
+            {/* 3. Reasoning/Thinking Block - Collapsed by default */}
+            {showThinking && (() => {
+              // 1. Use persisted thinking if available
+              let thinkingContent = msg.thinking
+
+              // 2. Or fallback to parsing from content (for streaming)
+              if (!thinkingContent && msg.content && msg.content.includes("<think>")) {
+                const thinkMatch = msg.content.match(/<think>([\s\S]*?)<\/think>/)
+                if (thinkMatch) {
+                  thinkingContent = thinkMatch[1]
+                } else if (msg.content.includes("<think>")) {
+                  // Streaming incomplete tag? or open tag
+                  const parts = msg.content.split("<think>")
+                  if (parts.length > 1) {
+                    thinkingContent = parts[1] // Show incomplete thinking
+                  }
+                }
+              }
+
+              if (!thinkingContent) return null
+
+              return (
+                <Collapsible defaultOpen={false} className="w-full">
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start"
+                    >
+                      <Brain className="h-3.5 w-3.5" />
+                      <span className="font-medium">
+                        {t("chat.interface.thinkingProcess", "Reasoning Process")}
+                      </span>
+                      <ChevronRight className="h-3.5 w-3.5 ml-auto" />
+                    </Button>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="text-xs text-muted-foreground bg-muted/30 p-2 rounded-md border-l-2 border-primary/20 whitespace-pre-wrap font-mono">
+                    {thinkingContent}
+                  </CollapsibleContent>
+                </Collapsible>
+              )
+            })()}
+
+            {/* 4. Tool Execution Steps - Unified Display */}
+            <ToolExecutionSection msg={msg} />
           </div>
 
           {/* Message Actions */}

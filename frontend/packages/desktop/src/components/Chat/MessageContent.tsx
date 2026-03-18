@@ -7,6 +7,7 @@ import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 import remarkGfm from "remark-gfm"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@evoloop/shared/components/ui/dialog"
+import { Mermaid } from "@/components/Common/Mermaid"
 
 function ImageViewer({
   src,
@@ -45,7 +46,7 @@ function ImageViewer({
   )
 }
 
-export function MessageContent({ content }: { content: string }) {
+export function MessageContent({ content, isUser }: { content: string; isUser?: boolean }) {
   const { t } = useTranslation()
   const [viewerImage, setViewerImage] = useState<string | null>(null)
 
@@ -58,7 +59,6 @@ export function MessageContent({ content }: { content: string }) {
   }
 
   // Split by [Image: ...] or [File: ...]
-  // Fix: Regex now accepts any non-bracket characters as URL/Path to support local refs
   const parts = content.split(/(\[(?:Image|File):\s*[^\]]+\])/g)
 
   const handleFileClick = (url: string) => {
@@ -118,6 +118,9 @@ export function MessageContent({ content }: { content: string }) {
         // Render Markdown for text parts
         if (!part) return null
 
+        // Fix for aggressive auto-linking: Wrap URLs in < > if they are inside parentheses
+        const processedPart = part.replace(/(\()(https?:\/\/[^\s)]+)(\))/g, "$1<$2>$3")
+
         return (
           <ReactMarkdown
             key={index}
@@ -128,6 +131,11 @@ export function MessageContent({ content }: { content: string }) {
                 const codeString = String(children).replace(/\n$/, "")
                 const lineCount = codeString.split("\n").length
                 const isLong = lineCount > 15
+
+                // Support for Mermaid diagrams
+                if (!inline && match && match[1] === "mermaid") {
+                  return <Mermaid chart={codeString} />
+                }
 
                 if (!inline && match) {
                   const codeBlock = (
@@ -175,7 +183,6 @@ export function MessageContent({ content }: { content: string }) {
                   </code>
                 )
               },
-              // Style other elements
               p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
               ul: ({ children }) => (
                 <ul className="list-disc pl-4 mb-2 space-y-1">{children}</ul>
@@ -188,7 +195,7 @@ export function MessageContent({ content }: { content: string }) {
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-primary underline underline-offset-4 hover:opacity-80 break-all"
+                  className={`${isUser ? "text-inherit" : "text-primary"} underline underline-offset-4 hover:opacity-80 break-all`}
                 >
                   {children}
                 </a>
@@ -219,14 +226,9 @@ export function MessageContent({ content }: { content: string }) {
                 />
               ),
               li: ({ children }) => {
-                // Check if children (text) starts with our tool emojis
                 const text = String(children)
                 const isToolAction = /^(📄|📝|💻|📅|🔍|🔧|📁|📍)/.test(text)
-
                 if (isToolAction) {
-                  // Style as a chip/badge
-                  // Distinct colors for different actions could be nice, but uniform "Action" look is also clean.
-                  // Let's use a subtle border and background.
                   return (
                     <li className="list-none mb-1.5 last:mb-0">
                       <span className="inline-flex items-center px-2.5 py-1 rounded-md bg-muted/50 border border-border text-xs font-medium font-mono text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
@@ -235,12 +237,11 @@ export function MessageContent({ content }: { content: string }) {
                     </li>
                   )
                 }
-
                 return <li className="mb-0.5">{children}</li>
               },
             }}
           >
-            {part}
+            {processedPart}
           </ReactMarkdown>
         )
       })}
