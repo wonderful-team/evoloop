@@ -39,18 +39,23 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
         sends = []
         for i, subtask in enumerate(subtasks):
+            subtask_id = subtask.get("id", f"subtask_{i}")
+            # [CRITICAL Phase 5] Scoped Identity for concurrency safety
+            scoped_thread_id = f"{parent_thread_id}:sub:{subtask_id}"
+            
             skill_hint = subtask.get("skill_hint") or spawn_plan.get("suggested_skill")
-            system_instructions = f"Execute subtask: {subtask['intent']}"
+            # Refined professional instructions for subtasks
+            system_instructions = "Analyze the mission goal and execute the necessary tools effectively."
             if skill_hint:
-                system_instructions += f"\n\n💡 HINT: This subtask may be accomplished using the learned skill '{skill_hint}'."
+                system_instructions += f" Use learned skill: {skill_hint}."
 
             ticket = {
                 "ticket_type": "subtask",
                 "topic": subtask["intent"],
                 "parent_task_id": parent_thread_id,
-                "subtask_id": subtask.get("id", f"subtask_{i}"),
+                "subtask_id": subtask_id,
                 "agent_config": {
-                    "role_name": f"Subtask-{subtask.get('id', i)}",
+                    "role_name": "Field Specialist",
                     "system_instructions": system_instructions,
                     "tools": subtask.get("tools", []),
                     "is_subtask": True,
@@ -61,7 +66,9 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
 
             sends.append(Send(RoutingTarget.WORKER, {
                 "project_id": project_id,
+                "thread_id": scoped_thread_id, # Target isolation
                 "execution_ticket": ticket,
+                "blackboard": blackboard.copy(), # Context preservation (WD, Clipboard)
                 "is_subtask": True,
             }))
 

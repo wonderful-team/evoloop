@@ -325,6 +325,40 @@ class FileCache:
         data = self._read("lists", name)
         return len(data) if isinstance(data, list) else 0
 
+    async def ltrim(self, name: str, start: int, end: int) -> bool:
+        """Trim list to specified range."""
+        data = self._read("lists", name)
+        if not isinstance(data, list):
+            return True
+
+        if end < 0:
+            end = len(data) + end + 1
+        else:
+            end = end + 1
+
+        trimmed = data[start:end]
+
+        if trimmed:
+            self._write("lists", name, trimmed)
+        else:
+            self._delete("lists", name)
+        return True
+
+    async def incr(self, key: str, amount: int = 1) -> int:
+        """Increment key value (atomic operation simulation)."""
+        data = self._read("strings", key)
+        try:
+            current = int(data) if data is not None else 0
+        except (ValueError, TypeError):
+            current = 0
+        new_value = current + amount
+        self._write("strings", key, new_value)
+        return new_value
+
+    def lock(self, name: str, timeout: float = None, blocking: bool = True, blocking_timeout: float = None):
+        """Return a lock object (no-op for file cache, always succeeds)."""
+        return FileCacheLock(name)
+
     # Pub/Sub - use in-memory bus for real-time events
     async def publish(self, channel: str, message: Any) -> int:
         """Publish message to in-memory bus."""
@@ -480,6 +514,30 @@ class InMemoryPubSub:
         for ch, q in list(self.subscribed_channels.items()):
             await in_memory_bus.unsubscribe(ch, q)
         self.subscribed_channels.clear()
+
+
+class FileCacheLock:
+    """No-op lock for file cache (embedded mode doesn't need distributed locks)."""
+
+    def __init__(self, name: str):
+        self.name = name
+        self._locked = False
+
+    async def acquire(self, blocking: bool = True, blocking_timeout: float = None) -> bool:
+        """Acquire lock (always succeeds in embedded mode)."""
+        self._locked = True
+        return True
+
+    async def release(self):
+        """Release lock."""
+        self._locked = False
+
+    def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.release()
+        return False
 
 
 class NoOpPubSub:

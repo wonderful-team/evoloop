@@ -42,6 +42,7 @@ class WorkerPromptBuilder:
             "clipboard": self.clipboard,
             "has_macos": ctx.metadata.get("has_macos", False),
             "has_android": ctx.metadata.get("has_android", False),
+            "is_subtask": self.agent_config.get("is_subtask", False),
         }
 
         try:
@@ -57,6 +58,7 @@ class WorkerPromptBuilder:
             "topic": self.ticket.get("topic") or "General Task",
             "acceptance_criteria": self.ticket.get("acceptance_criteria", []),
             "parameters": self.ticket.get("parameters", {}),
+            "is_subtask": self.agent_config.get("is_subtask", False),
         }
         try:
             template = self.env.get_template("fragments/mission_ticket.j2")
@@ -74,7 +76,11 @@ class WorkerPromptBuilder:
             template = self.env.get_template("fragments/knowledge_block.j2")
             for i, skill in enumerate(self.skills):
                 is_primary = (i == 0)
-                block = template.render(skill=skill, is_primary=is_primary)
+                block = template.render(
+                    skill=skill,
+                    is_primary=is_primary,
+                    is_subtask=self.agent_config.get("is_subtask", False)
+                )
                 blocks.append(block)
         except Exception as e:
             logger.error(f"Error rendering Knowledge Blocks: {e}")

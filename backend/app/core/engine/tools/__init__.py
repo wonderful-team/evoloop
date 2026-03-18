@@ -10,6 +10,7 @@ from .orchestration import (
     spawn_agents,
     update_blackboard,
 )
+from .learning import synthesize_skill
 
 __all__ = [
     "update_blackboard",
@@ -18,4 +19,5 @@ __all__ = [
     "decompose_task",
     "spawn_agents",
     "aggregate_results",
+    "synthesize_skill",
 ]

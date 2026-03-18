@@ -293,7 +293,8 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
             thread_id=req.thread_id,
             target_message_id=str(last_human_msg.id),
             revert_files=req.revert_files,
-            include_target=False  # Keep the human message in DB and Graph
+            include_target=False,  # Keep the human message in DB and Graph
+            reset_state=True       # Reset blackboard/iter for retry
         )
         files_reverted = rewind_result.get("files_reverted", 0)
     except Exception as e:

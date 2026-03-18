@@ -1,3 +1,7 @@
+{% if is_subtask -%}
+### 🎯 SUB-TASK GOAL
+**{{ topic }}**
+{%- else -%}
 ### MISSION TICKET
 **Goal**: {{ topic }}
 
@@ -14,3 +18,4 @@
 {% endif %}
 
 Please execute this mission now. Use your tools.
+{%- endif %}

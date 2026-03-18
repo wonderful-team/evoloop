@@ -26,6 +26,7 @@ from app.core.globals import get_graph
 from app.core.monitoring.activity import activity_monitor
 from app.infrastructure.database.sql.database import session_scope
 from app.models import Conversation, Message
+from app.utils.id import gen_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -123,36 +124,37 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         # 2. Context & DB Preparation (Parallelized)
         evoloop_command_id = inputs.get("command_id")
 
-        async def get_max_seq():
-            try:
-                async with session_scope() as session:
-                    stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
-                    result = await session.execute(stmt)
-                    return result.scalar() or 0
-            except Exception as e:
-                logger.warning(f"Failed to fetch max sequence number: {e}")
-                return 0
+        # Fetch max sequence number
+        start_seq = 0
+        try:
+            async with session_scope() as session:
+                stmt = select(func.max(Message.sequence_number)).where(Message.thread_id == thread_id)
+                result = await session.execute(stmt)
+                start_seq = result.scalar() or 0
+        except Exception as e:
+            logger.warning(f"Failed to fetch max sequence number: {e}")
 
-        # Run project setup, DB conversation check, sequence lookup, and Redis context load in parallel
+        # Run project setup, DB conversation check, and Redis context load in parallel
         setup_results = await asyncio.gather(
             _ensure_conversation_in_db(thread_id, project_id, inputs),
-            get_max_seq(),
             ContextManager.load_from_redis(thread_id) # Phase 4 Parallel context load
         )
-        start_seq = setup_results[1]
-        loaded_ctx = setup_results[2]
+        loaded_ctx = setup_results[1]
 
         # Project setup (needs result of thread_context_store and potentially loaded_ctx)
         working_dir = await _setup_project_context(thread_id, project_id, evoloop_command_id, loaded_ctx=loaded_ctx)
 
         # 3. Config Construction
+        run_id = f"run-{gen_uuid()[:8]}"
         config = {
             "configurable": {
                 "thread_id": thread_id,
-                "working_directory": working_dir
+                "working_directory": working_dir,
+                "run_id": run_id, # Track the specific run attempt
             },
             "metadata": {
                 "project_id": project_id,
+                "is_retry": inputs.get("is_retry", False),
                 **(inputs.get("metadata", {}))
             }
         }
@@ -165,7 +167,7 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             thread_id=thread_id,
             project_id=project_id,
             start_sequence=start_seq,
-            run_id=thread_id,
+            run_id=run_id,
         )
 
         # 5. Execution
@@ -199,6 +201,32 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             graph_instance = get_graph()
             if not graph_instance:
                 raise ValueError("Global Graph not initialized")
+
+            # [CRITICAL FIX] For retry: Check if checkpoint has messages, if not, recover from DB
+            is_retry = inputs.get("is_retry", False)
+            if is_retry:
+                logger.info(f"[BackgroundAgent] Checking checkpoint with config: thread_id={config.get('configurable', {}).get('thread_id')}")
+                current_state = await graph_instance.aget_state(config)
+                checkpoint_messages = current_state.values.get("messages", []) if current_state and current_state.values else []
+                if not checkpoint_messages:
+                    logger.warning(f"[BackgroundAgent] Checkpoint empty for retry thread {thread_id}. Recovering from DB...")
+                    # Recover human message from database
+                    async with session_scope() as session:
+                        stmt = (
+                            select(Message)
+                            .where(Message.thread_id == thread_id)
+                            .where(Message.role == "human")
+                            .order_by(Message.id.desc())
+                            .limit(1)
+                        )
+                        result = await session.execute(stmt)
+                        last_human_msg = result.scalar_one_or_none()
+                        if last_human_msg:
+                            human_msg = HumanMessage(content=last_human_msg.content)
+                            await graph_instance.aupdate_state(config, {"messages": [human_msg]})
+                            # CRITICAL FIX: aupdate_state doesn't work reliably with AsyncSqliteSaver
+                            # We need to pass messages directly to astream as input
+                            inputs["messages"] = [human_msg]
 
             # [HITL Resume Logic]
             # Check if this is a resume request from Mobile/Background

@@ -308,7 +308,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                     try:
                         client = activity_monitor.client
                         channel = f"chat:{self.thread_id}:events"
-                        message = MessageEvent(data=msg_data).json()
+                        message = MessageEvent(data=msg_data).model_dump_json()
                         logger.debug(f"[DatabaseCallback] Publishing to {channel}: {message[:200]}...")
                         result = await client.publish(channel, message)
                         logger.debug(f"[DatabaseCallback] Publish result: {result}")

@@ -1,4 +1,4 @@
-{% if is_primary -%}
+{% if is_primary and not is_subtask -%}
 ### 🚨 [ACTIVE MISSION SOP]: {{ skill.name }}
 You MUST treat the following instructions as a strict state-machine. Read Phase 1. Execute. Verify. Only proceed to Phase 2 upon success.
 {%- else -%}

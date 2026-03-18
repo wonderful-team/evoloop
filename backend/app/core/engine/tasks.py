@@ -269,26 +269,31 @@ def prune_checkpoints_task(keep_days: int = 7):
     """
     async def _run():
         try:
+            is_sqlite = settings.EMBEDDED_MODE or "sqlite" in settings.SQLALCHEMY_DATABASE_URI
+
             async with session_scope() as session:
-                # Prune old checkpoints
-                # Note: LangGraph Postgres schema uses 'checkpoints', 'checkpoint_writes', 'checkpoint_blobs'
-                # We keep the most recent entries and prune based on timestamp.
-                
-                # 1. Prune checkpoint_writes (Execution history)
-                q1 = text("DELETE FROM checkpoint_writes WHERE timestamp < now() - interval ':days day'")
-                await session.execute(q1, {"days": keep_days})
-                
-                # 2. Prune checkpoints (State snapshots)
-                # We only delete checkpoints that no longer have associated writes or are very old
-                q2 = text("DELETE FROM checkpoints WHERE thread_id NOT IN (SELECT thread_id FROM checkpoint_writes)")
-                await session.execute(q2)
-                
-                # 3. Prune blobs (Large data)
-                q3 = text("DELETE FROM checkpoint_blobs WHERE thread_id NOT IN (SELECT thread_id FROM checkpoints)")
-                await session.execute(q3)
-                
+                if is_sqlite:
+                    # 1. Prune 'writes' table (LangGraph SQLite uses 'writes' instead of 'checkpoint_writes')
+                    # Since SQLite schema lacks a timestamp, we prune writes which are most volatile.
+                    # We keep writes for very recent checkpoints to avoid breaking active runs.
+                    await session.execute(text("DELETE FROM writes WHERE thread_id NOT IN (SELECT thread_id FROM checkpoints)"))
+                    logger.info("[Celery] Pruned orphaned LangGraph 'writes' in SQLite.")
+                else:
+                    # Postgres pruning (Original logic)
+                    # 1. Prune checkpoint_writes (Execution history)
+                    q1 = text("DELETE FROM checkpoint_writes WHERE timestamp < now() - interval ':days day'")
+                    await session.execute(q1, {"days": keep_days})
+                    
+                    # 2. Prune checkpoints (State snapshots)
+                    q2 = text("DELETE FROM checkpoints WHERE thread_id NOT IN (SELECT thread_id FROM checkpoint_writes)")
+                    await session.execute(q2)
+                    
+                    # 3. Prune blobs (Large data)
+                    q3 = text("DELETE FROM checkpoint_blobs WHERE thread_id NOT IN (SELECT thread_id FROM checkpoints)")
+                    await session.execute(q3)
+
                 await session.commit()
-            logger.info(f"[Celery] Pruned LangGraph checkpoints older than {keep_days} days.")
+            logger.info(f"[Celery] Pruned LangGraph checkpoints/writes (Keep: {keep_days} days).")
         except Exception as e:
             logger.error(f"[Celery] Failed to prune checkpoints: {e}")
 

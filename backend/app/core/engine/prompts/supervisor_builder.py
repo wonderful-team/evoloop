@@ -102,6 +102,8 @@ class SupervisorPromptBuilder:
                 "ticket": blackboard.get("ticket"),
                 "verification": blackboard.get("verification"),
                 "route_reason": blackboard.get("route_reason"),
+                "metadata": blackboard.get("metadata", {}),
+                "subtask_results": blackboard.get("subtask_results", []),
             },
             "memory": {
                 "episodic_raw": ctx.metadata.get("episodic_memory_raw", ""),

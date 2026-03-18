@@ -76,5 +76,5 @@ async def search_skills(query: str = "", namespace: str = None, index_mode: bool
 
     return {
         "result_type": "no_match",
-        "instruction": "No matching SOP found. Check your telemetry or try a different namespace."
+        "instruction": f"No SOP found for '{query}'. **Divergence Tip**: Try searching for your semantic goal (e.g., 'collect market price') instead of tool names. If you cannot find a skill after 1-2 attempts, proceed with manual tool calls."
     }

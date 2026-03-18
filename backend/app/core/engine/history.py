@@ -22,12 +22,15 @@ class HistoryService:
         thread_id: str,
         target_message_id: str | None = None,
         revert_files: bool = True,
-        include_target: bool = True
+        include_target: bool = True,
+        reset_state: bool = False
     ) -> dict:
         """
-        Rewinds history to a specific point.
+        rewinds history to a specific point.
         If target_message_id is provided, deletes that message and everything after it (unless include_target=False).
         If not provided, deletes everything after the last user message (Standard Rewind).
+        
+        If reset_state is True, also clears the blackboard and iteration_count in LangGraph state.
         """
         graph = get_graph()
         if not graph:
@@ -39,7 +42,8 @@ class HistoryService:
         # We need the list of messages from the graph state for RemoveMessage syncing
         graph_messages = state.values.get("messages", []) if state.values else []
         if not graph_messages:
-            return {"status": "empty", "removed_count": 0, "files_reverted": 0}
+            logger.warning(f"[perform_rewind] No messages in checkpoint for thread {thread_id}. Will attempt DB-based recovery.")
+            # Don't return early - we still need to process DB deletion and potentially reset state
 
         async with get_db_session() as session:
             # 1. Determine the range of messages to delete
@@ -83,8 +87,13 @@ class HistoryService:
             result = await session.execute(stmt)
             msgs_to_delete = result.scalars().all()
 
+            logger.info(f"[perform_rewind] Found {len(msgs_to_delete)} messages to delete. include_target={include_target}, reset_state={reset_state}")
+
             if not msgs_to_delete:
-                return {"status": "nothing_to_delete", "removed_count": 0, "files_reverted": 0}
+                logger.info(f"[perform_rewind] No DB messages to delete for thread {thread_id}. Proceeding with checkpoint recovery.")
+                # Don't return early for retry - we still need to recover checkpoint from DB
+                if not reset_state:
+                    return {"status": "nothing_to_delete", "removed_count": 0, "files_reverted": 0}
 
             # Collect various IDs for robust side-effect matching
             db_msg_ids = [] # Actual message IDs (int)
@@ -199,24 +208,125 @@ class HistoryService:
                     # Tool messages should have been matched in strategy 2
                     pass
 
-            # If we still haven't matched the target human message (for non-include_target case),
-            # use sequence-based approach
-            if not include_target and target_message_id and not matched:
-                # Find the target message's sequence number
-                target_seq = None
-                for db_msg in msgs_to_delete:
-                    if str(db_msg.id) == target_message_id:
-                        target_seq = db_msg.sequence_number
-                        break
+            # Strategy 5: Robust Fallback for Retry (Rewind after Human Message)
+            # CRITICAL: For retry/rewind, we ALWAYS want to delete everything after the last human message
+            if not include_target and target_message_id and graph_human_msgs:
+                # We are trying to keep the human message but delete everything after.
+                logger.info("LangGraph: Applying retry/rewind fallback - removing all messages after last human...")
 
-                if target_seq is not None:
-                    # Remove all graph messages that come after the matching point
-                    # We estimate based on message count - remove roughly (total - position) messages
-                    logger.info(f"Using sequence-based removal: target_seq={target_seq}")
+                # Find the last human message in graph_messages
+                last_human_index = -1
+                for idx, graph_m in enumerate(graph_messages):
+                    if isinstance(graph_m, HumanMessage):
+                        last_human_index = idx
 
-            if graph_updates:
-                await graph.aupdate_state(config, {"messages": graph_updates})
-                logger.info(f"LangGraph: Removed {len(graph_updates)} messages using multi-strategy matching.")
+                if last_human_index != -1:
+                    # Remove everything AFTER the last human message
+                    removed_count_before = len(graph_updates)
+                    for graph_m in graph_messages[last_human_index + 1:]:
+                        if graph_m.id not in removed_graph_ids:
+                            graph_updates.append(RemoveMessage(id=graph_m.id))
+                            removed_graph_ids.add(graph_m.id)
+
+                    new_removals = len(graph_updates) - removed_count_before
+                    if new_removals > 0:
+                        logger.info(f"LangGraph: Retry fallback added {new_removals} messages to remove after last human message.")
+
+            # Final fallback: If no messages matched but we have messages to delete,
+            # we might have a serious sync issue. Log detailed info for debugging.
+            if not graph_updates and not reset_state:
+                logger.warning(f"LangGraph: No messages matched for removal. DB messages to delete: {len(msgs_to_delete)}")
+                logger.error(
+                    f"Critical sync issue in thread {thread_id}: "
+                    f"DB has {len(msgs_to_delete)} messages to delete, "
+                    f"but none could be matched to LangGraph messages. "
+                    f"Graph has {len(graph_messages)} messages. "
+                    f"DB IDs: {db_msg_ids[:5]}..., "
+                    f"Run IDs in DB: {list(set(m.run_id for m in msgs_to_delete if m.run_id))[:5]}..., "
+                    f"Run IDs in Graph: {list(graph_msg_by_run_id.keys())[:5]}..."
+                )
+
+            if graph_updates or reset_state:
+                # [CRITICAL FIX] For retry/rewind, we must ensure messages are actually deleted.
+                # RemoveMessage only works during astream with reducer. For aupdate_state,
+                # we need to directly filter the messages list.
+                updates = {}
+
+                if graph_updates:
+                    # Build a set of IDs to remove
+                    ids_to_remove = set()
+                    for msg in graph_updates:
+                        if isinstance(msg, RemoveMessage):
+                            ids_to_remove.add(msg.id)
+
+                    # Filter messages directly - this is more reliable than RemoveMessage for aupdate_state
+                    current_messages = state.values.get("messages", [])
+                    filtered_messages = [m for m in current_messages if getattr(m, "id", None) not in ids_to_remove]
+
+                    removed_count = len(current_messages) - len(filtered_messages)
+                    if removed_count > 0:
+                        logger.info(f"LangGraph: Filtered {removed_count} messages from checkpoint.")
+
+                    # DEFENSE: Never set messages to empty list - keep at least the last human message
+                    if not filtered_messages and current_messages:
+                        # Find the last human message to preserve
+                        last_human = None
+                        for m in reversed(current_messages):
+                            if isinstance(m, HumanMessage):
+                                last_human = m
+                                break
+                        if last_human:
+                            logger.warning(f"LangGraph: Prevented empty messages - preserving last human message.")
+                            filtered_messages = [last_human]
+                        else:
+                            # No human message found, keep all messages to be safe
+                            logger.warning(f"LangGraph: No human message found, keeping all {len(current_messages)} messages.")
+                            filtered_messages = current_messages
+
+                    updates["messages"] = filtered_messages
+
+                # CRITICAL FIX: If messages is empty but we have a target human message in DB,
+                # recreate it in the checkpoint so Supervisor can work
+                if not state.values.get("messages") and target_message_id and not include_target:
+                    # Find the human message in DB and recreate it
+                    target_msg = await session.get(Message, int(target_message_id))
+                    if target_msg and target_msg.role == "human":
+                        human_msg = HumanMessage(content=target_msg.content)
+                        updates["messages"] = [human_msg]
+                        logger.info(f"LangGraph: Recreated human message from DB for retry.")
+
+                if reset_state:
+                    logger.info(f"LangGraph: Resetting Blackboard and Iteration Count for thread {thread_id}")
+                    # Construct a fresh blackboard state
+                    updates["blackboard"] = {
+                        "ticket": None,
+                        "verification": None,
+                        "route_reason": None,
+                        "metadata": {},
+                        "visited_nodes": [],
+                        "subtask_results": [],
+                        "clipboard": [],
+                        "spawn_plan": None,
+                        "pending_aggregation": None,
+                        "plan_approved": False,
+                        "working_directory": state.values.get("blackboard", {}).get("working_directory")
+                    }
+                    updates["iteration_count"] = 0
+                    updates["current_plan"] = None
+                    updates["structured_plan"] = None
+                    updates["next_node"] = None  # Force re-evaluation from start
+                    updates["situation_analysis"] = None
+                    updates["action_plan"] = None
+                    updates["error"] = None
+
+                await graph.aupdate_state(config, updates)
+                remaining_count = len(updates.get("messages", state.values.get("messages", [])))
+                logger.info(f"LangGraph: Updated state for rewind (reset={reset_state}). Messages remaining: {remaining_count}.")
+
+                # Verify the update was successful
+                verify_state = await graph.aget_state(config)
+                verify_msgs = verify_state.values.get("messages", []) if verify_state and verify_state.values else []
+                logger.info(f"LangGraph: Verified checkpoint has {len(verify_msgs)} messages after update.")
             else:
                 logger.warning(f"LangGraph: No messages matched for removal. DB messages to delete: {len(msgs_to_delete)}")
 

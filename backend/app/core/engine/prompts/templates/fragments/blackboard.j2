@@ -22,6 +22,13 @@
 - **History**: {{ blackboard.visited_nodes|join(' → ') }}
 {% endif %}
 
+{% if blackboard.subtask_results %}
+### 📊 PARALLEL SUBTASK RESULTS
+{% for res in blackboard.subtask_results -%}
+- **{{ res.subtask_id }}**: {{ (res.result[:200] + '...') if res.result|length > 200 else res.result }}
+{% endfor %}
+{% endif %}
+
 {% if blackboard.verification %}
 ### 🔍 VERIFICATION STATUS: {{ blackboard.verification.status|upper }}
 {% if blackboard.verification.status == 'verified' %}

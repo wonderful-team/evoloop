@@ -34,6 +34,11 @@ class WorkerNode:
     """
 
     async def __call__(self, state: AgentState, config: RunnableConfig) -> dict[str, Any]:
+        # Implementation of WorkerNode...
+        # Unified Hydration (Phase 1 Optimization)
+        from app.core.engine.middleware import EvoContextMiddleware
+        state = await EvoContextMiddleware.hydrate(state, config)
+        
         execution_ticket = state.get("execution_ticket")
 
         if not execution_ticket or not execution_ticket.get("agent_config"):
@@ -98,6 +103,10 @@ class WorkerNode:
 
         # 2b. Context already enriched via EvoContextMiddleware
         ctx = ContextManager.current()
+        # Phase 4: Inject is_subtask for downstream prompt fragments (Awakening)
+        if agent_config.get("is_subtask"):
+            ctx.metadata["is_subtask"] = True
+
         logger.info(f"[Worker] 🧠 Utilizing enriched context for role '{role_name}'")
 
         # 3. Construct Prompts (Using Builder & Phase 1 Blackboard)
@@ -123,8 +132,18 @@ class WorkerNode:
         try:
             logger.info(f"[Worker] 🚀 Launching '{role_name}' atomic loop...")
 
+            # [CRITICAL Phase 5] Pure Execution: 
+            # Subtasks should NOT inherit full message history to prevent "Echo Chamber" loops.
+            worker_state = state.copy()
+            if agent_config.get("is_subtask"):
+                worker_state["messages"] = messages
+                # Ensure the scoped thread_id from Router is used
+                worker_state["thread_id"] = state.get("thread_id") 
+            else:
+                worker_state["messages"] = messages
+
             engine_result = await AgentEngine.run_node(
-                state={**state, "messages": messages},
+                state=worker_state,
                 config=config,
                 system_prompt=system_prompt,
                 tools=tools,

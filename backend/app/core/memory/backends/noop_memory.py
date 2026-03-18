@@ -43,7 +43,8 @@ class NoOpLongTermMemory(ILongTermMemory):
 
     async def record_episode(self, episode: Episode) -> str | None:
         """No-op record episode."""
-        logger.debug(f"NoOpLongTermMemory: record_episode skipped for goal '{episode.goal[:50]}...'")
+        goal_display = (episode.goal[:50] + "...") if episode.goal else "None"
+        logger.debug(f"NoOpLongTermMemory: record_episode skipped for goal '{goal_display}'")
         return None
 
     async def retrieve_experience(self, goal: str, project_id: int, top_k: int = 3) -> str:

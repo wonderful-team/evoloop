@@ -87,7 +87,6 @@ class SynthesizedSkill:
         return asdict(self)
 
 
-
 class WorkflowSynthesizer:
     """
     Synthesizer that uses TraceParser and produces SynthesizedSkill.

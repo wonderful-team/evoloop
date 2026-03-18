@@ -91,12 +91,12 @@ class ActivityMonitor:
                                 action="update",
                                 id=t["id"],
                                 data={"status": t["status"]},
-                            ).json(),
+                            ).model_dump_json(),
                         )
 
         # Publish Status Change
         await redis_client.publish(
-            f"chat:{thread_id}:events", StatusEvent(status=final_status).json()
+            f"chat:{thread_id}:events", StatusEvent(status=final_status).model_dump_json()
         )
 
     async def stop_run(self, thread_id: str):
@@ -153,13 +153,13 @@ class ActivityMonitor:
             # Publish Event
             await redis_client.publish(
                 f"chat:{thread_id}:events",
-                HumanRequestEvent(action="create", data=request_data).json(),
+                HumanRequestEvent(action="create", data=request_data).model_dump_json(),
             )
 
             # [HITL FIX] Also publish StatusEvent so UI knows we are interrupted
             from app.models.schemas.events import StatusEvent
             await redis_client.publish(
-                f"chat:{thread_id}:events", StatusEvent(status="interrupted").json()
+                f"chat:{thread_id}:events", StatusEvent(status="interrupted").model_dump_json()
             )
 
     async def clear_human_request(self, thread_id: str):
@@ -180,7 +180,7 @@ class ActivityMonitor:
             # Publish Event
             await redis_client.publish(
                 f"chat:{thread_id}:events",
-                HumanRequestEvent(action="clear", data={}).json(),
+                HumanRequestEvent(action="clear", data={}).model_dump_json(),
             )
 
     async def request_human_interaction(
@@ -234,13 +234,13 @@ class ActivityMonitor:
             # Publish Event
             await redis_client.publish(
                 f"chat:{thread_id}:events",
-                HumanRequestEvent(action="create", data=request_data).json(),
+                HumanRequestEvent(action="create", data=request_data).model_dump_json(),
             )
 
             # [HITL FIX] Also publish StatusEvent
             from app.models.schemas.events import StatusEvent
             await redis_client.publish(
-                f"chat:{thread_id}:events", StatusEvent(status="interrupted").json()
+                f"chat:{thread_id}:events", StatusEvent(status="interrupted").model_dump_json()
             )
 
             logger.info(f"[ActivityMonitor] Requested '{request_type}' interaction for thread {thread_id}")
@@ -311,7 +311,7 @@ class ActivityMonitor:
                 # Publish Event
                 await redis_client.publish(
                     f"chat:{thread_id}:events",
-                    StepEvent(action="create", id=step_id, data=new_step).json(),
+                    StepEvent(action="create", id=step_id, data=new_step).model_dump_json(),
                 )
 
                 return step_id
@@ -359,7 +359,7 @@ class ActivityMonitor:
                         update_data["details"] = details
                     await redis_client.publish(
                         f"chat:{thread_id}:events",
-                        StepEvent(action="update", id=step_id, data=update_data).json(),
+                        StepEvent(action="update", id=step_id, data=update_data).model_dump_json(),
                     )
         except Exception:
             pass
@@ -381,7 +381,7 @@ class ActivityMonitor:
 
         # Publish Event
         await redis_client.publish(
-            f"chat:{thread_id}:events", AgentStateEvent(data=state).json()
+            f"chat:{thread_id}:events", AgentStateEvent(data=state).model_dump_json()
         )
 
     async def log_event(self, event_type: str, data: dict[str, Any], thread_id: str = "system"):
@@ -427,7 +427,7 @@ class ActivityMonitor:
                 # Publish Event for modification
                 await redis_client.publish(
                     f"chat:{thread_id}:events",
-                    ArtifactEvent(action="update", name=name, data=art).json(),
+                    ArtifactEvent(action="update", name=name, data=art).model_dump_json(),
                 )
                 return
 
@@ -453,7 +453,7 @@ class ActivityMonitor:
             action = "update" if status == "modified" else "create"
             await redis_client.publish(
                 f"chat:{thread_id}:events",
-                ArtifactEvent(action=action, name=name, data=target_art).json(),
+                ArtifactEvent(action=action, name=name, data=target_art).model_dump_json(),
             )
 
     async def get_activity(self, thread_id: str):

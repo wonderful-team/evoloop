@@ -206,7 +206,9 @@ class ContextManager:
         if ctx.request_id == "global-fallback":
             return
 
-        ctx.thread_id = thread_id
+        # [Phase 5] Use existing thread_id (e.g. from state) if available, 
+        # otherwise use the provided one (e.g. from config)
+        thread_id = ctx.thread_id or thread_id
         key = f"evo:context:{thread_id}"
 
         try:

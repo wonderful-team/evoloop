@@ -170,6 +170,17 @@ class AgentEngine:
             # Invoke LLM
             response = await llm_with_tools.ainvoke(loop_messages, config=config)
 
+            # [Sync Fix] Inject run_id and metadata for robust rewind/cleanup
+            run_id = config.get("configurable", {}).get("run_id")
+            if run_id:
+                if not hasattr(response, "metadata"):
+                    response.metadata = {}
+                response.metadata["run_id"] = run_id
+                # Ensure it's also in additional_kwargs for LangChain serialization consistency
+                if not hasattr(response, "additional_kwargs"):
+                    response.additional_kwargs = {}
+                response.additional_kwargs["run_id"] = run_id
+
             # OBSERVE: LLM Response (Thinking)
             if response.content:
                 logger.info(f"[{name}] 🧠 Thinking: {response.content}")
@@ -313,11 +324,17 @@ class AgentEngine:
                     else:
                         content = f"Error: Tool {tool_name} not found."
 
+                # [Sync Fix] Inject run_id for robust rewind
+                run_id = config.get("configurable", {}).get("run_id")
+                metadata = {"run_id": run_id} if run_id else {}
+
                 return ToolMessage(
                     content=truncate_message_content(str(content)),
                     tool_call_id=tool_id,
                     name=tool_name,
                     id=gen_uuid(),
+                    metadata=metadata,
+                    additional_kwargs=metadata
                 )
 
             # Gather all tool results for this step

@@ -74,9 +74,10 @@ dependencies = [
     "croniter>=6.0.0",
     "googlesearch-python>=1.2.3",
     # --- Embedded Mode Dependencies (No External Services) ---
-    "aiosqlite>=0.20.0",      # Async SQLite support
+    "aiosqlite>=0.20.0", # Async SQLite support
     "lancedb>=0.15.0,<0.26.0", # Embedded vector database
-    "pyarrow>=15.0.0",        # Required by LanceDB
+    "pyarrow>=15.0.0", # Required by LanceDB
+    "duckduckgo-search>=8.1.1",
 ]
 
 [project.optional-dependencies]

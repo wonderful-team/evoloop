@@ -29,26 +29,7 @@ class LearningOrchestrator:
             logger.info(f"[Learning] Skipping run {thread_id}: status is {event.status}")
             return
 
-        # 1. Check eligibility (to be expanded)
-        logger.info(f"[Learning] 🚀 Triggering automated episode recording for thread: {thread_id}")
-
-        try:
-            logger.debug(f"LearningOrchestrator dispatching via celery_app.send_task(engine_record_episode)")
-            from app.infrastructure.queue.celery import celery_app
-            
-            # Send task explicitly by name to ensure it reaches the correct broker/app
-            task_res = celery_app.send_task(
-                "engine_record_episode",
-                kwargs={
-                    "thread_id": thread_id,
-                    "project_id": project_id,
-                    "auto_synthesize": True
-                },
-                queue="default"
-            )
-            logger.debug(f"Task dispatched, task_id: {task_res.id}")
-        except Exception as e:
-            logger.error(f"[Learning] Failed to trigger recording task for {thread_id}: {e}")
+        return
 
 
 def register_learning_handlers() -> None:

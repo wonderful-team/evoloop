@@ -47,17 +47,14 @@ class SupervisorNode:
         """Main entry point for the Supervisor node (ReAct Architecture)."""
         project_id = state.get("project_id", DEFAULT_PROJECT_ID)
         messages = list(state.get("messages", []))
+        # Unified Hydration (Phase 1 Optimization)
+        from app.core.engine.middleware import EvoContextMiddleware
+        state = await EvoContextMiddleware.hydrate(state, config)
+        logger.info("[Supervisor] 📂 Context utilized from unified Middleware.")
+
         if not messages:
             logger.warning("[Supervisor] No messages found in state. Exiting.")
             return {"next_node": RoutingTarget.FINISH}
-
-        # Phase 0: Ticket Cleanup (Blackboard Lifecycle)
-        # We ensure any stale ticket from a previous specialist run is cleared
-        # so it doesn't pollute the Supervisor's prompt or next routing.
-        cleanup_state = {}
-        if state.get("execution_ticket"):
-            logger.info("[Supervisor] 🧹 Clearing stale ExecutionTicket")
-            cleanup_state["execution_ticket"] = None
 
         # Emit initial status
         await self._emit_status(config, i18n.get("supervisor.status_analyzing"))

@@ -89,6 +89,7 @@ nodes:
       - "list_files"
       - "manage_todo"
       - "memorize_concepts"
+      - "synthesize_skill"
 
   - id: "chat"
     path: "app.core.engine.nodes.chat.chat_node"

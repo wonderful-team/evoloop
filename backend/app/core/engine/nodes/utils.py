@@ -51,6 +51,12 @@ class SkillHydrator:
         namespace_context = execution_ticket.get("namespace_context")
 
         # In Unified Graph (v5), we default to 'eager' hydration for standard Workers.
+        # But for sub-tasks, we skip eager hydration to prevent cognitive overload
+        # unless a specific skill_hint is provided. 
+        if state.get("is_subtask") and not execution_ticket.get("agent_config", {}).get("skill_hint"):
+            logger.info(f"[Hydrator] Skipping eager hydration for subtask: {topic}")
+            return []
+
         # Future optimization: allow Supervisor to specify 'lazy' via Ticket parameters.
         is_lazy = execution_ticket.get("parameters", {}).get("lazy_hydration", False)
         mode = "lazy" if is_lazy else "eager"

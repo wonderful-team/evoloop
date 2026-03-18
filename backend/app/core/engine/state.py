@@ -103,9 +103,52 @@ class BlackboardState(TypedDict):
     plan_approved: bool
 
 
+
+def merge_blackboard(old: BlackboardState | None, new: BlackboardState | None) -> BlackboardState | None:
+    """
+    Custom reducer for BlackboardState to handle parallel results safely (Phase 5).
+    Performs a deep-ish merge of metadata and ensures subtask_results are appended.
+    """
+    if old is None:
+        return new
+    if new is None:
+        return old
+
+    merged = old.copy()
+    
+    # Standard field updates (overwrite)
+    for key in ["ticket", "verification", "route_reason", "spawn_plan", "pending_aggregation", "working_directory", "plan_approved"]:
+        if key in new:
+            merged[key] = new[key]
+
+    # [CRITICAL] Parallel List Concatenation
+    if "subtask_results" in new and new["subtask_results"]:
+        old_results = old.get("subtask_results") or []
+        new_results = new["subtask_results"]
+        # Concatenate results from parallel branches
+        merged["subtask_results"] = old_results + new_results
+
+    # Metadata & Clipboard Merges
+    if "metadata" in new:
+        old_meta = old.get("metadata") or {}
+        merged["metadata"] = {**old_meta, **new["metadata"]}
+    
+    if "visited_nodes" in new:
+        merged["visited_nodes"] = list(set((old.get("visited_nodes") or []) + new["visited_nodes"]))
+
+    if "clipboard" in new:
+        merged["clipboard"] = (old.get("clipboard") or []) + new["clipboard"]
+
+    return merged
+
+
 class AgentState(TypedDict):
-    # Conversation history (append-only)
+    # Conversation history (managed by LangGraph's add_messages reducer)
     messages: Annotated[list[BaseMessage], add_messages]
+
+    # [NEW Phase 5] Explicit thread tracking
+    thread_id: str | None
+    is_retry: bool | None
 
     # Project Scope
     project_id: int | None
@@ -123,8 +166,8 @@ class AgentState(TypedDict):
     # Execution artifacts (e.g. documents, code snippets)
     execution_artifact: str | None
 
-    # [NEW Phase 4] Unified Blackboard
-    blackboard: Annotated[BlackboardState | None, operator.ior]
+    # [REFINED Phase 5] Unified Blackboard with custom reducer
+    blackboard: Annotated[BlackboardState | None, merge_blackboard]
 
     # Loop Control
     iteration_count: int
