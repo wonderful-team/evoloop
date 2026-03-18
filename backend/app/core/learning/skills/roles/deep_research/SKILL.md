@@ -37,6 +37,29 @@ This SOP is dedicated to multi-step, in-depth information gathering and analysis
 3. **Gap Filling**: Identify information gaps (e.g., missing specific port inventory) and perform targeted follow-up searches.
 4. **Final Reporting**: Once mission criteria are met, provide a structured summary report in English.
 
+## 📊 Visual Expression (Mermaid Diagrams)
+
+When presenting research findings that involve system architecture, workflows, or relationships, you SHOULD use Mermaid diagrams to enhance clarity.
+
+Use Mermaid for:
+- **System Architecture** — Show component relationships and data flow
+- **Process Workflows** — Illustrate decision trees or step sequences
+- **State Transitions** — Visualize lifecycle or state machines
+- **Entity Relationships** — Map database schemas or domain models
+
+Example:
+```mermaid
+graph TD
+    A[User Input] --> B{Analysis Engine}
+    B -->|Pattern Match| C[Existing Knowledge]
+    B -->|No Match| D[Web Search]
+    C --> E[Synthesize Result]
+    D --> E
+    E --> F[Final Report]
+```
+
+Wrap diagram code in triple backticks with `mermaid` language identifier.
+
 ## 🧰 Required Tools
 - Web Research: `search_web`, `browser_control`, `crawl_url`
 - Support: `read_file`, `grep_files`, `manage_memory`

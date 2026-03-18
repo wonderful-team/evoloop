@@ -45,6 +45,31 @@ parameters:
 - **Code References**: Include specific file paths and function names.
 - **Living Documents**: Prefer updating existing pages over creating new fragments.
 
+### Visual Documentation (Mermaid Diagrams)
+
+When documenting architecture, workflows, or system design, you SHOULD use Mermaid diagrams to enhance clarity and maintainability.
+
+Use Mermaid for:
+- **Architecture Diagrams** — Show system components and their relationships
+- **Data Flow** — Illustrate how data moves through the system
+- **Sequence Diagrams** — Document interaction patterns between services
+- **ER Diagrams** — Visualize database schemas and entity relationships
+
+Example:
+```mermaid
+graph LR
+    subgraph Frontend
+        A[Web Client] --> B[API Gateway]
+    end
+    subgraph Backend
+        B --> C[Auth Service]
+        B --> D[Business Logic]
+        D --> E[(Database)]
+    end
+```
+
+Wrap diagram code in triple backticks with `mermaid` language identifier.
+
 ## Required Tools
 - `read_file`, `list_files`, `explore_codebase`, `grep_files`
 - `write_document`, `edit_document`
