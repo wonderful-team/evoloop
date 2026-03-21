@@ -138,25 +138,31 @@ class PipelineManager:
     def format_for_prompt(self, elements: list[UIElement], max_elements: int = 30) -> str:
         """
         Format elements for inclusion in LLM prompt.
+        Uses Jinja2 template for rendering.
         """
         if not elements:
             return "No UI elements detected."
 
+        from app.utils import render_template
+        
         # Sort by Y coordinate (top to bottom), then X (left to right)
         sorted_elements = sorted(elements, key=lambda e: (e.y, e.x))
-
+        
         # Limit to max_elements
         if len(sorted_elements) > max_elements:
-            sorted_elements = sorted_elements[:max_elements]
-
-        lines = ["屏幕元素列表 (Screen Elements):"]
-        for element in sorted_elements:
-            lines.append(element.to_prompt_line())
-
-        if len(elements) > max_elements:
-            lines.append(f"... and {len(elements) - max_elements} more elements")
-
-        return "\n".join(lines)
+            display_elements = sorted_elements[:max_elements]
+        else:
+            display_elements = sorted_elements
+        
+        # Prepare data for template
+        element_data = [{"line": el.to_prompt_line()} for el in display_elements]
+        
+        return render_template(
+            "vision/elements_list.prompt.j2",
+            elements=element_data,
+            has_more=len(elements) > max_elements,
+            more_count=len(elements) - max_elements
+        )
 
 
 # Singleton

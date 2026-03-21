@@ -226,7 +226,7 @@ function ProcessGroup({ group }: { group: StepGroup }) {
     const isFailed = group.status === "failed" || group.status === "failure"
 
     return (
-        <div className="w-full border rounded-lg bg-background/40 overflow-hidden mb-3 shadow-sm border-border/60">
+        <div className="w-full min-w-0 border rounded-lg bg-background/40 overflow-hidden mb-3 shadow-sm border-border/60">
             <div className={`p-2 px-3 flex items-center justify-between border-b border-border/30 ${isRunning ? "bg-primary/5" : ""}`}>
                 <div className="flex items-center gap-2 flex-1 w-full">
                     {/* Header Icon */}
@@ -267,7 +267,7 @@ export function AgentProcess({ steps }: AgentProcessProps) {
     if (!steps || steps.length === 0) return null
 
     return (
-        <div className="mt-3 space-y-2 pt-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="mt-3 space-y-2 pt-1 min-w-0 animate-in fade-in slide-in-from-bottom-2 duration-300">
             {groups.map(group => (
                 <ProcessGroup key={group.id} group={group} />
             ))}

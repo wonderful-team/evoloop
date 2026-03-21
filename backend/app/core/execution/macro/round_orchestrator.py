@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
-from app.utils.random_utils import (
+from app.utils.random import (
     random_delay_ms,
     random_drift,
     random_int_range,

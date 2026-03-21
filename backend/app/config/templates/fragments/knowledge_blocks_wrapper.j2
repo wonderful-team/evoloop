@@ -1,0 +1,15 @@
+{# Knowledge Blocks Wrapper Template
+   
+   Renders multiple knowledge blocks in a single template call.
+   This is more efficient than rendering each block individually.
+   
+   Variables:
+   - skills: List of skill objects
+   - is_subtask: Boolean indicating if this is a subtask
+#}
+{% if skills %}
+{% for skill in skills %}
+{% set is_primary = (loop.index0 == 0) %}
+{% include "fragments/knowledge_block.j2" %}
+{% endfor %}
+{% endif %}

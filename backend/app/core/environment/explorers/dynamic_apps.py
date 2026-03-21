@@ -97,27 +97,17 @@ class DynamicAppTriage(BaseExplorer):
 
         from langchain_core.messages import HumanMessage, SystemMessage
         from app.infrastructure.llm.factory import get_default_llm
+        from app.utils import render_template
 
         try:
             llm = get_default_llm()
-            # Set temperature to 0 for deterministic triage
             llm.temperature = 0
-            
-            prompt = (
-                "You are an expert in User Interface Analysis and Accessibility.\n"
-                "I will give you a list of application Bundle IDs (macOS) or Package Names (Android).\n"
-                "Determine if these apps have 'Coordinate-Unstable' interaction targets where buttons or list items frequently shift screen positions (typically due to scrolling).\n\n"
-                "CRITICAL DISTINCTION:\n"
-                "- is_dynamic: true -> Apps with scrolling message feeds, contact lists, or infinite-scrolling content. Interaction targets (like a specific chat or post) move when new items arrive or user scrolls. Examples: WeChat, WhatsApp, Telegram, Slack, Feishu, TikTok, News apps, Browsers.\n"
-                "- is_dynamic: false -> Apps with auto-refreshing data but STABLE layout. If the buttons, sidebars, and control items stay in fixed positions even when data updates, it is STATIC. Examples: Terminal, Activity Monitor, Docker (Dashboards), VPN clients, calculators.\n\n"
-                "For each app, provide a boolean 'is_dynamic' and a short 'reason'.\n"
-                "Respond ONLY with a JSON object in this format:\n"
-                "{\"results\": {\"com.example.app\": {\"is_dynamic\": true, \"reason\": \"...\"}}}\n\n"
-                f"Apps to analyze:\n{chr(10).join(app_ids)}"
-            )
+
+            prompt = render_template("planning/dynamic_app_triage.prompt.j2", app_ids=app_ids)
+            role_name = render_template("planning/expert_roles.prompt.j2", role="ui_dynamics").strip()
 
             response = await llm.ainvoke([
-                SystemMessage(content="You are a UI Dynamics Expert."),
+                SystemMessage(content=role_name),
                 HumanMessage(content=prompt)
             ])
 

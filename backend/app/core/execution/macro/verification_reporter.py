@@ -10,6 +10,8 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from app.utils import render_template
+
 from app.core.execution.macro.verification_models import (
     AdaptationRecord,
     ExecutionMode,
@@ -40,122 +42,35 @@ class VerificationReporter:
         self.report = response.verification_report
 
     def to_markdown(self) -> str:
-        """Generate Markdown report"""
-        lines = [
-            "# Macro Verification Report",
-            "",
-            f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            f"**Status:** {self._format_status(self.response.status)}",
-            f"**Execution Mode:** {self.response.execution_mode.value}",
-            f"**Confidence Score:** {self.response.confidence_score:.2%}",
-            "",
-            "## Summary",
-            "",
-            f"| Metric | Value |",
-            f"|--------|-------|",
-            f"| Overall Success Rate | {self.report.summary.overall_success_rate:.2%} |",
-            f"| Adaptation Rate | {self.report.summary.adaptation_rate:.2%} |",
-            f"| Max Round Variance | {self.report.summary.max_round_variance:.2%} |",
-            f"| Avg Execution Time | {self.report.summary.average_execution_time_ms}ms |",
-            f"| Anomalies Detected | {self.report.summary.total_anomalies_detected} |",
-            f"| Adaptations Applied | {self.report.summary.total_adaptations_applied} |",
-            "",
-        ]
+        """Generate Markdown report using template."""
+        try:
 
-        # Issues section
-        if self.report.issues:
-            lines.extend([
-                "## Issues",
-                "",
-            ])
-            for issue in self.report.issues:
-                severity_emoji = "🔴" if issue.severity == "critical" else "⚠️" if issue.severity == "warning" else "ℹ️"
-                lines.extend([
-                    f"### {severity_emoji} {issue.category}",
-                    "",
-                    f"**Severity:** {issue.severity}",
-                    f"**Description:** {issue.description}",
-                ])
-                if issue.affected_steps:
-                    lines.append(f"**Affected Steps:** {', '.join(map(str, issue.affected_steps))}")
-                if issue.suggestion:
-                    lines.append(f"**Suggestion:** {issue.suggestion}")
-                lines.append("")
+            # Prepare auxiliary data for template
+            round_status_displays = [self._format_status(r.status) for r in self.report.rounds]
+            step_emojis = []
+            for r in self.report.rounds:
+                step_emojis.append([self._status_emoji(s.status) for s in r.step_results])
 
-        # Round details
-        lines.extend([
-            "## Round Details",
-            "",
-        ])
+            evolved_macro_json = ""
+            if self.response.evolved_macro:
+                evolved_macro_json = json.dumps(self.response.evolved_macro[:3], indent=2, ensure_ascii=False) + "..."
 
-        for round_report in self.report.rounds:
-            lines.extend([
-                f"### {round_report.round_name} (Round {round_report.round_number})",
-                "",
-                f"**Status:** {self._format_status(round_report.status)}",
-                f"**Total Steps:** {round_report.total_steps}",
-                f"- ✅ Passed: {round_report.passed_steps}",
-                f"- 🔄 Adapted: {round_report.adapted_steps}",
-                f"- ❌ Failed: {round_report.failed_steps}",
-                f"- ⏭️ Skipped: {round_report.skipped_steps}",
-                "",
-            ])
-
-            # Step details table
-            if round_report.step_results:
-                lines.extend([
-                    "| Step | Status | Time (ms) | Adaptations |",
-                    "|------|--------|-----------|-------------|",
-                ])
-                for step in round_report.step_results:
-                    status_emoji = self._status_emoji(step.status)
-                    lines.append(
-                        f"| {step.step_number} | {status_emoji} {step.status.value} | "
-                        f"{step.execution_time_ms} | {len(step.adaptations)} |"
-                    )
-                lines.append("")
-
-        # Evolution records
-        if self.response.evolution_records:
-            lines.extend([
-                "## Macro Evolution",
-                "",
-                f"**Total Evolutions:** {len(self.response.evolution_records)}",
-                "",
-            ])
-            for i, evo in enumerate(self.response.evolution_records, 1):
-                lines.extend([
-                    f"### Evolution {i}",
-                    "",
-                    f"**Reason:** {evo.evolution_reason}",
-                    f"**Confidence:** {evo.confidence:.2%}",
-                    "",
-                ])
-
-        # Recommendations
-        if self.report.recommendations:
-            lines.extend([
-                "## Recommendations",
-                "",
-            ])
-            for rec in self.report.recommendations:
-                lines.append(f"- {rec}")
-            lines.append("")
-
-        # Evolved macro preview
-        if self.response.evolved_macro:
-            lines.extend([
-                "## Evolved Macro Preview",
-                "",
-                f"The macro has been evolved with {len(self.response.evolution_records)} improvements.",
-                "",
-                "```json",
-                json.dumps(self.response.evolved_macro[:3], indent=2) + "...",
-                "```",
-                "",
-            ])
-
-        return "\n".join(lines)
+            return render_template(
+                "report/verification.md.j2",
+                timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                status_display=self._format_status(self.response.status),
+                execution_mode=self.response.execution_mode.value,
+                confidence_score=self.response.confidence_score,
+                report=self.report,
+                evolution_records=self.response.evolution_records,
+                evolved_macro=self.response.evolved_macro,
+                evolved_macro_json=evolved_macro_json,
+                round_status_displays=round_status_displays,
+                step_emojis=step_emojis
+            )
+        except Exception as e:
+            logger.error(f"Failed to render Verification template: {e}")
+            return f"# Verification Report Error\n\nFailed to render report: {e}"
 
     def to_json(self) -> str:
         """Generate JSON report"""
@@ -329,36 +244,8 @@ def generate_comparison_report(
 
     Shows improvements made through the evolution process.
     """
-    lines = [
-        "# Macro Evolution Comparison",
-        "",
-        "## Before vs After",
-        "",
-        "| Metric | Original | Evolved | Improvement |",
-        "|--------|----------|---------|-------------|",
-        f"| Success Rate | {original_response.verification_report.summary.overall_success_rate:.2%} | "
-        f"{evolved_response.verification_report.summary.overall_success_rate:.2%} | "
-        f"+{(evolved_response.verification_report.summary.overall_success_rate - original_response.verification_report.summary.overall_success_rate):.2%} |",
-        f"| Adaptation Rate | {original_response.verification_report.summary.adaptation_rate:.2%} | "
-        f"{evolved_response.verification_report.summary.adaptation_rate:.2%} | "
-        f"{(original_response.verification_report.summary.adaptation_rate - evolved_response.verification_report.summary.adaptation_rate):+.2%} |",
-        f"| Confidence Score | {original_response.confidence_score:.2%} | "
-        f"{evolved_response.confidence_score:.2%} | "
-        f"+{(evolved_response.confidence_score - original_response.confidence_score):.2%} |",
-        f"| Anomalies | {original_response.verification_report.summary.total_anomalies_detected} | "
-        f"{evolved_response.verification_report.summary.total_anomalies_detected} | "
-        f"{(evolved_response.verification_report.summary.total_anomalies_detected - original_response.verification_report.summary.total_anomalies_detected):+d} |",
-        "",
-        "## Evolution Summary",
-        "",
-        f"The macro was evolved with **{len(evolved_response.evolution_records)}** improvements.",
-        "",
-        "### Key Changes:",
-    ]
-
-    for evo in evolved_response.evolution_records:
-        lines.append(f"- {evo.evolution_reason} (confidence: {evo.confidence:.2%})")
-
-    lines.append("")
-
-    return "\n".join(lines)
+    try:
+        return render_template("report/comparison.md.j2", original=original_response, evolved=evolved_response)
+    except Exception as e:
+        logger.error(f"Failed to render comparison report: {e}")
+        return f"Comparison complete. Improvements: {len(evolved_response.evolution_records)}"

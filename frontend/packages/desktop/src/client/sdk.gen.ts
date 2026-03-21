@@ -380,10 +380,20 @@ export class ConversationsService {
     /**
      * Get Conversation Messages
      * Get message history for a thread from the persistent SQL log.
-     * Includes steps_snapshot for historical task visualization.
+     * Supports pagination for infinite scroll.
+     *
+     * Args:
+     * thread_id: The conversation thread ID
+     * limit: Number of messages to return (default 50, max 100)
+     * before_id: Cursor for pagination - load messages before this ID
+     *
+     * Returns:
+     * MessageListResponse with items, has_more flag, and cursors
      * @param data The data for the request.
      * @param data.threadId
-     * @returns MessageItem Successful Response
+     * @param data.limit
+     * @param data.beforeId
+     * @returns MessageListResponse Successful Response
      * @throws ApiError
      */
     public static getConversationMessages(data: ConversationsGetConversationMessagesData): CancelablePromise<ConversationsGetConversationMessagesResponse> {
@@ -2791,7 +2801,17 @@ export class StreamService {
     /**
      * Stream Chat
      * SSE endpoint to stream chat updates for a thread.
-     * Uses Redis Pub/Sub for real-time event streaming.
+     * Uses cache Pub/Sub for real-time event streaming.
+     *
+     * Event Types:
+     * - activity: Initial full state snapshot (sent once on connect)
+     * - step: New step created/updated (incremental)
+     * - artifact: New artifact created/updated (incremental)
+     * - status: Status change (incremental)
+     * - token: Token stream for chat
+     * - message: New message (with tool folding)
+     * - human_request: HITL request
+     * - stream: Structured stream events (thinking, tool_progress, etc.)
      * @param data The data for the request.
      * @param data.threadId
      * @param data.guestId

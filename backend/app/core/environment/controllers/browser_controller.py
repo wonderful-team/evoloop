@@ -18,8 +18,13 @@ from app.core.context import ContextManager
 from app.core.learning.trace_recorder import get_recorder
 from app.core.vision import vision_engine, VisionTask
 from app.infrastructure.drivers.browser import browser_manager
-from app.core.environment.controllers.utils import (
+from app.utils import (
     cleanup_file,
+    ControllerResponse,
+    PerceptionsFormatter,
+    render_template,
+)
+from app.core.environment.controllers.utils import (
     RecordingContext,
     truncate_output,
     BatchExecutor,
@@ -53,12 +58,16 @@ async def _run_ocr(filepath: str) -> str:
         # Browser contexts don't benefit from Atlas learning (dynamic web pages)
         ocr_result = await vision_engine.process(VisionTask.OCR, filepath, enable_atlas_learning=False)
         if ocr_result.success and ocr_result.elements:
-            lines = [el.to_prompt_line() for el in ocr_result.elements]
-            return "\n\n### OCR Results (Detected Text & Coordinates):\n" + "\n".join(lines)
-        return "\n\n(OCR: no text detected)"
+            return "\n\n" + render_template(
+                "vision/ocr_results.prompt.j2",
+                platform="browser",
+                elements=[el.to_dict() for el in ocr_result.elements],
+                total_count=len(ocr_result.elements)
+            )
+        return "\n\n" + ControllerResponse.error("OCR: no text detected")
     except Exception as e:
         logger.error(f"[Browser] OCR failed: {e}")
-        return f"\n\n(OCR Error: {e})"
+        return "\n\n" + ControllerResponse.error("OCR Error.", details=str(e))
 
 
 def _resolve_selector(selector: str | None, text: str | None) -> str | None:
@@ -122,19 +131,19 @@ class BrowserController:
             # ── Lifecycle ──────────────────────────────────────────────────────
             if action == "close":
                 await browser_manager.close()
-                return "✅ Browser closed."
+                return ControllerResponse.success("Browser closed.")
 
             # ── Tab management without a page ─────────────────────────────────
             if action == "new_tab":
                 page = await browser_manager.new_tab(url)
                 count = browser_manager.tab_count
-                return f"✅ New tab opened (tab {count - 1}/{count - 1}). URL: {page.url}"
+                return ControllerResponse.success(f"New tab opened (tab {count - 1}/{count - 1}). URL: {page.url}")
 
             if action == "switch_tab":
                 if tab_index is None:
-                    return "Error: 'tab_index' is required for switch_tab."
+                    return ControllerResponse.missing_param("tab_index")
                 page = browser_manager.switch_tab(tab_index)
-                return f"✅ Switched to tab {tab_index}. URL: {page.url}"
+                return ControllerResponse.success(f"Switched to tab {tab_index}. URL: {page.url}")
 
             # ── All other actions need a live page ────────────────────────────
             page = await browser_manager.get_page()
@@ -167,32 +176,33 @@ class BrowserController:
             # ── Navigation ────────────────────────────────────────────────────
             if action == "navigate":
                 if not url:
-                    return "Error: 'url' is required for navigate."
+                    return ControllerResponse.missing_param("url")
                 await page.goto(url, wait_until="load", timeout=60_000)
                 await _record("navigate", {"url": url})
                 
                 post_url = page.url
                 post_title = await page.title()
-                res = f"✅ Navigated to: {post_url}\nTitle: {post_title}"
-                if post_url == pre_url and post_title == pre_title:
-                    res += "\nNote: The page URL and title remained unchanged after this action."
-                return res
+                note = "The page URL and title remained unchanged after this action." if (post_url == pre_url and post_title == pre_title) else None
+                return ControllerResponse.navigation_result(post_url, success=True, title=post_title)
 
             elif action == "back":
                 await page.go_back(wait_until="load", timeout=15_000)
                 await _record("back", {})
-                return f"✅ Navigated back. URL: {page.url}"
+                return ControllerResponse.success(f"Navigated back. URL: {page.url}")
 
             elif action == "forward":
                 await page.go_forward(wait_until="load", timeout=15_000)
-                return f"✅ Navigated forward. URL: {page.url}"
+                return ControllerResponse.success(f"Navigated forward. URL: {page.url}")
 
             elif action == "reload":
                 await page.reload(wait_until="load", timeout=20_000)
-                return f"✅ Page reloaded. URL: {page.url}"
+                return ControllerResponse.success(f"Page reloaded. URL: {page.url}")
 
             elif action == "get_url":
-                return f"URL: {page.url}\nTitle: {await page.title()}\nTabs open: {browser_manager.tab_count}"
+                return ControllerResponse.success(
+                    f"URL: {page.url}",
+                    details=f"Title: {await page.title()}\nTabs open: {browser_manager.tab_count}"
+                )
 
             # ── Interaction ───────────────────────────────────────────────────
             elif action in ("click", "double_click"):
@@ -222,10 +232,10 @@ class BrowserController:
                     
                     post_url = page.url
                     post_title = await page.title()
-                    res = f"✅ {verb}: {loc}"
-                    if post_url == pre_url and post_title == pre_title:
-                        res += "\nNote: The page URL and title remained unchanged after this click."
-                    return res
+                    note = "The page URL and title remained unchanged after this click." if (post_url == pre_url and post_title == pre_title) else None
+                    return ControllerResponse.action_result(
+                        action=action, target=loc, success=True
+                    )
                 elif x is not None and y is not None:
                     if action == "click":
                         await page.mouse.click(x, y)
@@ -236,26 +246,24 @@ class BrowserController:
                     
                     post_url = page.url
                     post_title = await page.title()
-                    res = f"✅ {verb} at ({x}, {y})."
-                    if post_url == pre_url and post_title == pre_title:
-                        res += "\nNote: The page URL and title remained unchanged after this click."
-                    return res
+                    note = "The page URL and title remained unchanged after this click." if (post_url == pre_url and post_title == pre_title) else None
+                    return ControllerResponse.tap_result(x, y, success=True)
                 else:
-                    return "Error: Provide 'selector', 'text', or (x, y) for click/double_click."
+                    return ControllerResponse.error("Provide 'selector', 'text', or (x, y) for click/double_click.")
 
             elif action == "hover":
                 loc = _resolve_selector(selector, text)
                 if not loc:
-                    return "Error: 'selector' or 'text' is required for hover."
+                    return ControllerResponse.missing_param("selector or text")
                 await page.locator(loc).first.hover(timeout=timeout_ms)
-                return f"✅ Hovered over: {loc}"
+                return ControllerResponse.success(f"Hovered over: {loc}")
 
             elif action == "type_text":
                 loc = _resolve_selector(selector, text)
                 if not loc:
-                    return "Error: 'selector' or 'text' is required for type_text."
+                    return ControllerResponse.missing_param("selector or text")
                 if value is None:
-                    return "Error: 'value' is required for type_text."
+                    return ControllerResponse.missing_param("value")
                 
                 # Prefer visible elements
                 target = page.locator(loc).first
@@ -291,33 +299,36 @@ class BrowserController:
                 await target.fill(value, timeout=timeout_ms)
                 await _record("type_text", {"selector": loc, "value": value})
                 preview = value[:60] + ("…" if len(value) > 60 else "")
-                return f"✅ Typed into {loc}: '{preview}'"
+                return ControllerResponse.input_result(
+                    field_name=loc,
+                    value=preview
+                )
 
             elif action == "select_option":
                 loc = _resolve_selector(selector, text)
                 if not loc:
-                    return "Error: 'selector' or 'text' is required for select_option."
+                    return ControllerResponse.missing_param("selector or text")
                 if value is None:
-                    return "Error: 'value' (option value or label) is required for select_option."
+                    return ControllerResponse.missing_param("value")
                 try:
                     await page.locator(loc).first.select_option(value=value, timeout=timeout_ms)
                 except Exception:
                     await page.locator(loc).first.select_option(label=value, timeout=timeout_ms)
-                return f"✅ Selected option '{value}' in {loc}."
+                return ControllerResponse.success(f"Selected option '{value}' in {loc}.")
 
             elif action == "key_press":
                 if not key:
-                    return "Error: 'key' is required for key_press."
+                    return ControllerResponse.missing_param("key")
                 # Standardize Enter/Return for Playwright
                 if key == "Return":
                     key = "Enter"
                 await page.keyboard.press(key)
                 await _record("key_press", {"key": key})
-                return f"✅ Key pressed: {key}"
+                return ControllerResponse.success(f"Key pressed: {key}")
 
             elif action == "scroll":
                 if not direction:
-                    return "Error: 'direction' (up/down/left/right) is required for scroll."
+                    return ControllerResponse.missing_param("direction")
                 delta_x = {"left": -amount, "right": amount}.get(direction, 0)
                 delta_y = {"up": -amount, "down": amount}.get(direction, 0)
                 if selector:
@@ -327,15 +338,15 @@ class BrowserController:
                 else:
                     await page.mouse.wheel(delta_x, delta_y)
                 await _record("scroll", {"direction": direction, "amount": amount, "selector": selector})
-                return f"✅ Scrolled {direction} by {amount}px."
+                return ControllerResponse.success(f"Scrolled {direction} by {amount}px.")
 
             elif action == "drag_drop":
                 if not source_selector or not target_selector:
-                    return "Error: 'source_selector' and 'target_selector' are required for drag_drop."
+                    return ControllerResponse.error("'source_selector' and 'target_selector' are required for drag_drop.")
                 src = page.locator(source_selector).first
                 tgt = page.locator(target_selector).first
                 await src.drag_to(tgt, timeout=timeout_ms)
-                return f"✅ Dragged '{source_selector}' → '{target_selector}'."
+                return ControllerResponse.success(f"Dragged '{source_selector}' → '{target_selector}'.")
 
             # ── Reading ───────────────────────────────────────────────────────
             elif action == "get_text":
@@ -355,35 +366,38 @@ class BrowserController:
 
             elif action == "get_attribute":
                 if not selector:
-                    return "Error: 'selector' is required for get_attribute."
+                    return ControllerResponse.missing_param("selector")
                 if not attribute:
-                    return "Error: 'attribute' is required for get_attribute."
+                    return ControllerResponse.missing_param("attribute")
                 val = await page.get_attribute(selector, attribute, timeout=timeout_ms)
                 if val is None:
                     try:
                         val = await page.locator(selector).first.evaluate(f"el => el['{attribute}']")
                         if val is not None:
-                            return f"Attribute (JS property) '{attribute}' of '{selector}': {str(val).strip()}"
+                            return ControllerResponse.success(
+                                f"Attribute (JS property) '{attribute}' of '{selector}'",
+                                details=str(val).strip()
+                            )
                     except Exception:
                         pass
                 if val is None:
-                    return f"Attribute '{attribute}' of '{selector}': (not found)"
-                return f"Attribute '{attribute}' of '{selector}': {val}"
+                    return ControllerResponse.not_found(attribute, item_type="attribute")
+                return ControllerResponse.success(
+                    f"Attribute '{attribute}' of '{selector}'",
+                    details=str(val)
+                )
 
             elif action == "get_links":
                 scope = page.locator(selector) if selector else page
                 links_raw = await scope.locator("a[href]").evaluate_all(
                     "els => els.map(e => ({text: e.innerText.trim(), href: e.href}))"
                 )
-                if not links_raw:
-                    return "(No links found)"
-                lines = [f"[{i}] {lnk['text'][:60]} → {lnk['href']}" for i, lnk in enumerate(links_raw)]
-                return f"Found {len(links_raw)} links:\n" + "\n".join(lines[:100])
+                return PerceptionsFormatter.links(links_raw)
 
             elif action == "find_element":
                 loc = _resolve_selector(selector, text)
                 if not loc:
-                    return "Error: 'selector' or 'text' is required for find_element."
+                    return ControllerResponse.missing_param("selector or text")
                 try:
                     elem = page.locator(loc).first
                     await elem.wait_for(state="attached", timeout=5_000)
@@ -391,10 +405,16 @@ class BrowserController:
                     if box:
                         cx = int(box["x"] + box["width"] / 2)
                         cy = int(box["y"] + box["height"] / 2)
-                        return f"✅ Element found: '{loc}' at ({cx}, {cy}), size {int(box['width'])}×{int(box['height'])}px."
-                    return f"✅ Element found: '{loc}' (not in viewport, no bounding box)."
+                        return ControllerResponse.success(
+                            f"Element found: '{loc}' at ({cx}, {cy})",
+                            details=f"Size: {int(box['width'])}×{int(box['height'])}px"
+                        )
+                    return ControllerResponse.success(
+                        f"Element found: '{loc}'",
+                        note="Not in viewport, no bounding box."
+                    )
                 except Exception:
-                    return f"❌ Element not found: '{loc}'."
+                    return ControllerResponse.not_found(loc, item_type="element")
 
             elif action == "get_elements":
                 loc = _resolve_selector(selector, text)
@@ -434,9 +454,12 @@ class BrowserController:
                         await page.screenshot(path=filepath, full_page=full_page, animations="disabled", timeout=timeout_ms)
                 except Exception as e:
                     logger.error(f"[Browser] Screenshot action failed: {e}")
-                    return f"Error: Screenshot failed (timeout={timeout_ms}ms). Details: {e}"
+                    return ControllerResponse.error(
+                        f"Screenshot failed (timeout={timeout_ms}ms).",
+                        details=str(e)
+                    )
 
-                result_msg = f"Screenshot saved to: {filepath}"
+                result_msg = ControllerResponse.screenshot_result(success=True, filename=filepath)
                 if ocr:
                     result_msg += await _run_ocr(filepath)
                 return result_msg
@@ -448,32 +471,38 @@ class BrowserController:
                         _re.compile(url_pattern) if not url_pattern.startswith("http") else url_pattern,
                         timeout=timeout_ms,
                     )
-                    return f"✅ URL matched pattern '{url_pattern}'. Current: {page.url}"
+                    return ControllerResponse.success(
+                        f"URL matched pattern '{url_pattern}'.",
+                        details=f"Current: {page.url}"
+                    )
                 loc = _resolve_selector(selector, text)
                 if not loc:
-                    return "Error: Provide 'selector', 'text', or 'url_pattern' for wait_for."
+                    return ControllerResponse.error("Provide 'selector', 'text', or 'url_pattern' for wait_for.")
                 await page.locator(loc).first.wait_for(state=state, timeout=timeout_ms)
-                return f"✅ Element '{loc}' reached state '{state}'."
+                return ControllerResponse.success(f"Element '{loc}' reached state '{state}'.")
 
             elif action == "check_element":
                 if not selector:
-                    return "Error: 'selector' is required for check_element."
+                    return ControllerResponse.missing_param("selector")
                 elem = page.locator(selector).first
                 try:
                     visible = await elem.is_visible()
                     enabled = await elem.is_enabled()
                     checked = await elem.is_checked() if await elem.get_attribute("type") in ("checkbox", "radio") else None
                 except Exception as e:
-                    return f"check_element error: {e}"
-                parts = [f"visible={visible}", f"enabled={enabled}"]
+                    return ControllerResponse.error(f"check_element error: {e}")
+                data = {"visible": visible, "enabled": enabled}
                 if checked is not None:
-                    parts.append(f"checked={checked}")
-                return f"Element '{selector}': " + ", ".join(parts)
+                    data["checked"] = checked
+                return ControllerResponse.success(
+                    f"Element status information for: {selector}",
+                    details=str(data)
+                )
 
             # ── Advanced ──────────────────────────────────────────────────────
             elif action == "run_js":
                 if not script:
-                    return "Error: 'script' is required for run_js."
+                    return ControllerResponse.missing_param("script")
                 if selector:
                     result = await page.locator(selector).first.evaluate(script)
                 else:
@@ -482,33 +511,35 @@ class BrowserController:
 
             elif action == "get_cookies":
                 cookies_list = await page.context.cookies()
-                lines = [f"[{i}] {c['name']}={c['value'][:40]} (domain: {c.get('domain','')})" for i, c in enumerate(cookies_list)]
-                return f"Cookies ({len(cookies_list)}):\n" + "\n".join(lines) if lines else "(No cookies)"
+                return PerceptionsFormatter.cookies(cookies_list)
 
             elif action == "set_cookies":
                 if not cookies:
-                    return "Error: 'cookies' list is required for set_cookies."
+                    return ControllerResponse.missing_param("cookies")
                 await page.context.add_cookies(cookies)
-                return f"✅ {len(cookies)} cookie(s) set."
+                return ControllerResponse.success(f"{len(cookies)} cookie(s) set.")
 
             elif action == "local_storage":
                 if storage_action == "get":
                     val_js = await page.evaluate(f"() => localStorage.getItem({repr(storage_key)})")
-                    return f"localStorage['{storage_key}'] = {val_js}"
+                    return ControllerResponse.success(
+                        f"localStorage['{storage_key}']",
+                        details=str(val_js)
+                    )
                 elif storage_action == "set":
                     if storage_key is None or value is None:
-                        return "Error: 'storage_key' and 'value' are required for local_storage set."
+                        return render_template("report/response.prompt.j2", success=False, message="'storage_key' and 'value' are required for local_storage set.")
                     await page.evaluate(f"() => localStorage.setItem({repr(storage_key)}, {repr(value)})")
-                    return f"✅ localStorage['{storage_key}'] set."
+                    return ControllerResponse.success(f"localStorage['{storage_key}'] set.")
                 elif storage_action == "clear":
                     await page.evaluate("() => localStorage.clear()")
-                    return "✅ localStorage cleared."
+                    return ControllerResponse.success("localStorage cleared.")
                 else:
-                    return "Error: 'storage_action' must be get / set / clear."
+                    return ControllerResponse.invalid_param("storage_action", "must be get / set / clear")
 
             elif action == "network_wait":
                 if not url_pattern:
-                    return "Error: 'url_pattern' is required for network_wait."
+                    return ControllerResponse.missing_param("url_pattern")
                 async with page.expect_response(
                     lambda r: url_pattern in r.url, timeout=timeout_ms
                 ) as response_info:
@@ -520,7 +551,16 @@ class BrowserController:
                     body_preview = str(body)[:500]
                 except Exception:
                     body_preview = (await resp.text())[:500]
-                return f"✅ Network response captured:\nURL: {resp.url}\nStatus: {status}\nBody (preview): {body_preview}"
+                
+                data = {
+                    "URL": resp.url,
+                    "Status": status,
+                    "Body (preview)": body_preview
+                }
+                return ControllerResponse.success(
+                    "Network response captured.",
+                    details=str(data)
+                )
 
             elif action == "wait_for_stability":
                 # Wait until DOM stops changing or max timeout
@@ -531,16 +571,19 @@ class BrowserController:
                     try:
                         curr_html = await page.content()
                         if curr_html == last_html:
-                            return "✅ Page stable (DOM matched)."
+                            return render_template("report/response.prompt.j2", success=True, message="Page stable (DOM matched).")
                         last_html = curr_html
                         await asyncio.sleep(check_interval)
                     except Exception:
                         break
-                return "Warning: Page stability timeout reached."
+                return ControllerResponse.success(
+                    "Stability check finished.",
+                    note="Page stability timeout reached."
+                )
 
             elif action == "dialog_handle":
                 if not dialog_action:
-                    return "Error: 'dialog_action' (accept/dismiss) is required for dialog_handle."
+                    return ControllerResponse.missing_param("dialog_action")
 
                 async def _handler(dialog):
                     if dialog_text and dialog.type == "prompt":
@@ -551,7 +594,7 @@ class BrowserController:
                         await dialog.dismiss()
 
                 page.once("dialog", _handler)
-                return f"✅ Dialog handler registered: will '{dialog_action}' next dialog."
+                return ControllerResponse.success(f"Dialog handler registered: will '{dialog_action}' next dialog.")
 
             elif action == "scroll_to_bottom":
                 # Get payload from kwargs (passed from macro engine)
@@ -588,7 +631,7 @@ class BrowserController:
                         break
                 
                 final_count = await page.locator(item_selector).count()
-                return f"✅ Scrolled to bottom. Final items: {final_count}"
+                return ControllerResponse.success(f"Scrolled to bottom. Final items: {final_count}")
 
             elif action == "detect_pagination":
                 # Returns a JSON string with pagination info
@@ -654,7 +697,7 @@ class BrowserController:
             # ── Batch & File ──────────────────────────────────────────────────
             elif action == "batch":
                 if not actions:
-                    return "Error: 'actions' list is required for batch."
+                    return ControllerResponse.missing_param("actions")
 
                 batch_start = time.time()
                 executor = BatchExecutor(continue_on_error=continue_on_error, delay_ms=delay_ms)
@@ -668,26 +711,26 @@ class BrowserController:
 
             elif action == "upload":
                 if not file_path:
-                    return "Error: 'file_path' is required for upload."
+                    return ControllerResponse.missing_param("file_path")
                 if not os.path.isfile(file_path):
-                    return f"Error: File not found: {file_path}"
+                    return ControllerResponse.not_found(file_path, item_type="file")
                 loc = _resolve_selector(selector, text)
                 if not loc:
-                    return "Error: 'selector' or 'text' is required for upload."
+                    return ControllerResponse.missing_param("selector or text")
                 try:
                     await page.locator(loc).first.set_input_files(file_path)
-                    return f"✅ Uploaded file '{os.path.basename(file_path)}' to {loc}"
+                    return ControllerResponse.success(f"Uploaded file '{os.path.basename(file_path)}' to {loc}")
                 except Exception as e:
                     logger.error(f"[Browser] Upload failed: {e}")
-                    return f"Error: Upload failed: {e}"
+                    return ControllerResponse.error("Upload failed.", details=str(e))
 
             else:
-                return f"Error: Unknown action '{action}'."
+                return ControllerResponse.error(f"Unknown action '{action}'.")
 
         except Exception as e:
             error_msg = f"[Browser] action='{action}' failed: {e}"
             if continue_on_error:
                 logger.warning(f"Optional {error_msg}. Continuing.")
-                return f"Warning: {e}"
+                return ControllerResponse.success("Optional action failed, continuing.", details=str(e))
             logger.error(error_msg, exc_info=True)
-            return f"Error: {e}"
+            return ControllerResponse.error(f"Action failed: {action}", details=str(e))

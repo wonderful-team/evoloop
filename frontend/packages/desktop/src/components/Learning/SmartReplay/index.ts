@@ -6,3 +6,4 @@
  */
 
 export { MacroEditor, MacroJsonEditor, type MacroStep } from "./MacroEditor"
+export { MacroYamlEditor } from "./MacroYamlEditor"

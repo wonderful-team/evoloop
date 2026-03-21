@@ -1,0 +1,13 @@
+{% if files %}
+### Knowledge Context (Files):
+{% for f in files %}
+--- FILE: {{ f.path }} ---
+{{ f.content }}
+
+{% endfor %}
+{% endif %}
+
+{% if tree %}
+### Wiki Directory Tree:
+{{ tree }}
+{% endif %}

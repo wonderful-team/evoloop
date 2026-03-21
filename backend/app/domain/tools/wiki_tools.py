@@ -11,6 +11,7 @@ from app.core.monitoring.ui_actions import get_global_mode_message, require_proj
 from app.core.tools import evoloop_tool
 from app.domain.wiki.service import wiki_service
 from app.models.wiki import WikiPage
+from app.utils import ControllerResponse, PerceptionsFormatter, render_template
 
 logger = logging.getLogger(__name__)
 
@@ -49,13 +50,9 @@ async def list_wiki_pages(
 
     pages = wiki_service.get_pages(project_id)
     if not pages:
-        return f"No Wiki pages found for project {project_id}."
+        return ControllerResponse.error(f"No Wiki pages found for project {project_id}.")
 
-    lines = [f"Found {len(pages)} Wiki pages:"]
-    for p in pages:
-        lines.append(f"- {p.title} (slug: {p.slug})")
-
-    return "\n".join(lines)
+    return PerceptionsFormatter.wiki_pages(pages)
 
 
 @evoloop_tool(
@@ -81,9 +78,13 @@ async def read_wiki_page(
         page = session.exec(stmt).first()
 
         if not page:
-            return f"Error: Wiki page with slug '{slug}' not found in project {project_id}."
+            return ControllerResponse.not_found(slug, item_type="Wiki page")
 
-        return f"--- Wiki Page: {page.title} ({page.slug}) ---\n\n{page.content}"
+        return ControllerResponse.success(
+            f"Wiki Page: {page.title}",
+            details=page.content,
+            note=f"Slug: {page.slug}"
+        )
 
 
 @evoloop_tool(
@@ -110,7 +111,10 @@ async def write_wiki_page(
     """
     project_id = await _resolve_wiki_project_id()
     if project_id is None:
-        return "📚 **Global Mode**: Wiki requires a project."
+        return render_template("report/response.prompt.j2", 
+                              success=False, 
+                              message="Wiki requires a project.", 
+                              note="Global Mode")
 
     # 1. Generate slug if needed
     if not slug:
@@ -161,4 +165,9 @@ async def write_wiki_page(
 
         session.commit()
 
-    return f"Successfully {action} Wiki page: {title} ({slug})"
+    return ControllerResponse.action_result(
+        action=action.lower(),
+        target=title,
+        success=True,
+        details=f"Slug: {slug}"
+    )

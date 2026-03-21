@@ -216,7 +216,7 @@ export const ChatInputArea = memo(
         className="shrink-0 p-4 pt-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60"
         data-tour="chat-input"
       >
-        <div className="w-full max-w-4xl mx-auto relative">
+        <div className="w-full px-4 sm:px-6 lg:px-8 relative">
           {/* Reference Picker Popover - Hidden in global mode */}
           {showPicker && currentProject && !isGlobalMode && (
             <div className="absolute bottom-full left-0 mb-2 z-50">

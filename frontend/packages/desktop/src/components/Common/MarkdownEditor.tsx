@@ -1,17 +1,17 @@
 /**
- * MarkdownEditor - A markdown editor with live preview
+ * MarkdownEditor - A markdown editor with live preview using Monaco Editor
  */
 
-import { useState, useCallback } from "react"
-import { Eye, Edit3, SplitSquareHorizontal, Bold, Italic, List, Link as LinkIcon, Code, Quote } from "lucide-react"
+import { useState } from "react"
+import { Eye, Edit3, SplitSquareHorizontal } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 import remarkGfm from "remark-gfm"
 import { Button } from "@evoloop/shared/components/ui/button"
-import { Textarea } from "@evoloop/shared/components/ui/textarea"
 import { cn } from "@evoloop/shared/lib/utils"
 import { useTranslation } from "react-i18next"
+import MonacoEditor from "./MonacoEditor"
 
 // Markdown Preview Component
 function MarkdownPreview({ content }: { content: string }) {
@@ -125,54 +125,13 @@ export function MarkdownEditor({ value, onChange, placeholder, className }: Mark
     const { t } = useTranslation()
     const [viewMode, setViewMode] = useState<ViewMode>("preview")
 
-    const insertText = useCallback(
-        (before: string, after: string = "") => {
-            const textarea = document.querySelector(".markdown-textarea") as HTMLTextAreaElement
-            if (!textarea) return
-
-            const start = textarea.selectionStart
-            const end = textarea.selectionEnd
-            const selectedText = value.substring(start, end)
-            const newText = value.substring(0, start) + before + selectedText + after + value.substring(end)
-
-            onChange(newText)
-
-            // Restore focus and selection
-            setTimeout(() => {
-                textarea.focus()
-                const newCursorPos = start + before.length + selectedText.length
-                textarea.setSelectionRange(newCursorPos, newCursorPos)
-            }, 0)
-        },
-        [value, onChange]
-    )
-
-    const toolbarItems = [
-        { icon: Bold, action: () => insertText("**", "**"), title: t("common.bold", "Bold") },
-        { icon: Italic, action: () => insertText("*", "*"), title: t("common.italic", "Italic") },
-        { icon: Quote, action: () => insertText("> "), title: t("common.quote", "Quote") },
-        { icon: List, action: () => insertText("- "), title: t("common.list", "List") },
-        { icon: LinkIcon, action: () => insertText("[", "](url)"), title: t("common.link", "Link") },
-        { icon: Code, action: () => insertText("```\n", "\n```"), title: t("common.code", "Code Block") },
-    ]
 
     return (
         <div className={cn("flex flex-col h-full border rounded-xl bg-background overflow-hidden", className)}>
             {/* Toolbar */}
-            <div className="flex items-center justify-between p-2 border-b bg-muted/30">
+            <div className="flex items-center justify-between p-2 border-b bg-muted/30 shrink-0">
                 <div className="flex items-center gap-1">
-                    {toolbarItems.map((item) => (
-                        <Button
-                            key={item.title}
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={item.action}
-                            title={item.title}
-                        >
-                            <item.icon className="h-4 w-4" />
-                        </Button>
-                    ))}
+                    {/* Placeholder for potential future toolbar items */}
                 </div>
 
                 <div className="flex items-center gap-1 bg-background rounded-lg p-0.5 border">
@@ -211,10 +170,10 @@ export function MarkdownEditor({ value, onChange, placeholder, className }: Mark
                 {/* Editor */}
                 {(viewMode === "edit" || viewMode === "split") && (
                     <div className={cn("flex flex-col", viewMode === "split" ? "w-1/2 border-r" : "w-full")}>
-                        <Textarea
-                            className="markdown-textarea flex-1 resize-none rounded-none border-0 font-mono text-sm leading-relaxed p-4 focus-visible:ring-0"
+                        <MonacoEditor
+                            language="markdown"
                             value={value}
-                            onChange={(e) => onChange(e.target.value)}
+                            onChange={onChange}
                             placeholder={placeholder}
                         />
                     </div>

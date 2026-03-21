@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, in_
 from sqlalchemy.orm import selectinload
 
 from app.core.monitoring.activity import activity_monitor
@@ -153,15 +153,19 @@ async def get_conversation_messages(
     Returns:
         MessageListResponse with items, has_more flag, and cursors
     """
-    # Validate limit
+    # Validate limit - this is the target number of VISIBLE messages (human + ai pairs)
+    # Tool messages will be fetched separately based on run_id association
     limit = min(max(limit, 1), 100)
     
     try:
         async with get_db_session() as session:
-            # Build base query - order by id DESC for pagination (newest first)
-            stmt = (
+            # Step 1: Query only human and ai messages (no tool messages)
+            visible_stmt = (
                 select(Message)
-                .where(Message.thread_id == thread_id)
+                .where(
+                    Message.thread_id == thread_id,
+                    Message.role.in_(["human", "ai"])
+                )
                 .options(selectinload(Message.references))
                 .order_by(Message.id.desc())
                 .limit(limit + 1)  # Fetch one extra to check has_more
@@ -169,18 +173,40 @@ async def get_conversation_messages(
             
             # Apply cursor pagination
             if before_id is not None:
-                stmt = stmt.where(Message.id < before_id)
+                visible_stmt = visible_stmt.where(Message.id < before_id)
             
-            result = await session.execute(stmt)
-            messages = result.scalars().all()
+            result = await session.execute(visible_stmt)
+            visible_messages = result.scalars().all()
             
-            # Check if there are more messages
-            has_more = len(messages) > limit
+            # Check if there are more visible messages
+            has_more = len(visible_messages) > limit
             if has_more:
-                messages = messages[:limit]  # Remove the extra item
+                visible_messages = visible_messages[:limit]
             
-            # Reverse to chronological order (oldest first) for display
-            messages = list(reversed(messages))
+            # Reverse to chronological order (oldest first)
+            visible_messages = list(reversed(visible_messages))
+            
+            # Step 2: Collect all run_ids from visible messages
+            run_ids = {m.run_id for m in visible_messages if m.run_id}
+            
+            # Step 3: Fetch all tool messages associated with these runs
+            tool_messages = []
+            if run_ids:
+                tool_stmt = (
+                    select(Message)
+                    .where(
+                        Message.thread_id == thread_id,
+                        Message.role == "tool",
+                        Message.run_id.in_(run_ids)
+                    )
+                    .order_by(Message.id.asc())  # Chronological order for tool sequence
+                )
+                tool_result = await session.execute(tool_stmt)
+                tool_messages = tool_result.scalars().all()
+            
+            # Step 4: Merge and sort all messages by id
+            all_messages = visible_messages + list(tool_messages)
+            all_messages.sort(key=lambda m: m.id)
             
             # Get total count on first load (when before_id is None)
             total_count = None
@@ -203,7 +229,7 @@ async def get_conversation_messages(
             last_ai_item: MessageItem | None = None
             pending_tool_calls = []  # FIFO queue of (id, name, args) derived from AI message
 
-            for m in messages:
+            for m in all_messages:
                 # 1. Parse References (Common)
                 refs = (
                     [
@@ -304,9 +330,9 @@ async def get_conversation_messages(
                         # If strict debugging is needed, valid tool messages should have a parent.
                         pass
 
-            # Build response with cursors
-            first_id = messages[0].id if messages else None
-            last_id = messages[-1].id if messages else None
+            # Build response with cursors (based on visible messages only)
+            first_id = visible_messages[0].id if visible_messages else None
+            last_id = visible_messages[-1].id if visible_messages else None
             
             return MessageListResponse(
                 items=final_items,

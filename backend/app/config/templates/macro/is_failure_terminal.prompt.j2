@@ -1,0 +1,22 @@
+You are a UI Automation Strategist.
+
+A macro step has failed. Analyze if this step is a "Critical Dependency" for the rest of the workflow.
+
+## Failed Step
+```json
+{{ step_json }}
+```
+
+## Error
+{{ error }}
+
+## Decision Criteria
+- IS TERMINAL if the step is a prerequisite (e.g., Login, Navigate to Page, Open App) and without it, subsequent steps WILL fail.
+- IS NOT TERMINAL if the step is optional, a side effect (e.g., clicking a close button that might already be closed), or a non-critical UI interaction.
+
+## Output Format
+Return ONLY a JSON object:
+{
+    "is_terminal": true|false,
+    "reasoning": "Briefly explain why this step is or isn't a hard prerequisite."
+}

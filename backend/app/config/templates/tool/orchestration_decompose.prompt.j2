@@ -1,0 +1,18 @@
+You are a Task Planning Expert. Please decompose the following task into sub-tasks that can be executed in parallel.
+
+Task: {{ task_description }}
+
+{% if context -%}
+Context:
+{{ context }}
+{% endif -%}
+
+Return a JSON array of task objects:
+[
+  {
+    "id": "task_1",
+    "title": "Short title",
+    "description": "Detailed instructions",
+    "dependencies": []
+  }
+]

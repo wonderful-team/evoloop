@@ -12,6 +12,8 @@ from pydantic import BaseModel
 from app.core.execution.macro.verification_models import AnomalyType, RedundancyCheckResult, RedundancyType, AIAnalysisResult, RoundReport, VerificationIssue
 from app.infrastructure.llm.vision import VisionLLMFactory
 from langchain_core.messages import HumanMessage, SystemMessage
+from app.utils import render_template
+from app.utils.yaml import safe_yaml_dumps
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,10 @@ class AgentReasoningEngine:
     def __init__(self, mental_model: str):
         self.mental_model = mental_model
         self.llm = VisionLLMFactory.create_vision_llm(temperature=0.1)
+
+    def _render_template(self, template_name: str, **kwargs) -> str:
+        """Render a Jinja2 template with the given context."""
+        return render_template(template_name, **kwargs)
 
     async def decide_next_step(
         self,
@@ -119,27 +125,13 @@ class AgentReasoningEngine:
             logger.info(f"[LLM:VERIFY:{step_number}] No post-execution screenshot, skipping visual verification")
             return True, "No post-execution screenshot for visual verification."
 
-        prompt = f"""You are an Expert UI Automation Auditor.
+        # Convert step to YAML for better readability
+        step_yaml = safe_yaml_dumps([step]) if isinstance(step, dict) else safe_yaml_dumps(step)
         
-Audit the result of this macro step based on the provided post-execution screenshot.
-
-## Macro Step
-```json
-{json.dumps(step, indent=2, ensure_ascii=False)}
-```
-
-## Task
-Look at the screen. Did the action above likely succeed in reaching its intended goal?
-For example, if it was a 'tap' on 'Login', do you see the next screen (Dashboard) or a successful state?
-If it was an 'input', is the text present?
-
-## Output Format
-Return ONLY a JSON object:
-{{
-    "success": true|false,
-    "reasoning": "Briefly explain what you see in the screenshot that confirms success or failure."
-}}
-"""
+        prompt = self._render_template(
+            "macro/verify_outcome.prompt.j2",
+            step_yaml=step_yaml
+        )
         
         logger.info(f"[LLM:VERIFY:{step_number}] Sending verification request")
         logger.info(f"[LLM:VERIFY:{step_number}] Prompt:\n{prompt}")
@@ -177,29 +169,14 @@ Return ONLY a JSON object:
         Avoids hardcoded 'critical' types.
         """
         step_number = step.get("step_number", "?")
-        prompt = f"""You are a UI Automation Strategist.
-
-A macro step has failed. Analyze if this step is a "Critical Dependency" for the rest of the workflow.
-
-## Failed Step
-```json
-{json.dumps(step, indent=2, ensure_ascii=False)}
-```
-
-## Error
-{error}
-
-## Decision Criteria
-- IS TERMINAL if the step is a prerequisite (e.g., Login, Navigate to Page, Open App) and without it, subsequent steps WILL fail.
-- IS NOT TERMINAL if the step is optional, a side effect (e.g., clicking a close button that might already be closed), or a non-critical UI interaction.
-
-## Output Format
-Return ONLY a JSON object:
-{{
-    "is_terminal": true|false,
-    "reasoning": "Briefly explain why this step is or isn't a hard prerequisite."
-}}
-"""
+        # Convert step to YAML for better readability
+        step_yaml = safe_yaml_dumps([step]) if isinstance(step, dict) else safe_yaml_dumps(step)
+        
+        prompt = self._render_template(
+            "macro/is_failure_terminal.prompt.j2",
+            step_yaml=step_yaml,
+            error=error
+        )
         logger.info(f"[LLM:TERMINAL:{step_number}] Checking if failure is terminal")
         logger.info(f"[LLM:TERMINAL:{step_number}] Error: {error}")
         logger.info(f"[LLM:TERMINAL:{step_number}] Prompt:\n{prompt}")
@@ -231,74 +208,22 @@ Return ONLY a JSON object:
     ) -> str:
         """Build the prompt for the Vision LLM"""
 
-        # Format history for context
-        history_context = ""
-        if history:
-            history_context = "\nRecent History:\n" + "\n".join([
-                f"- Step {h.get('step_number')}: {h.get('status')}"
-                for h in history[-3:]
-            ])
+        # Build history context
+        history_context = history[-3:] if history else []
 
-        # Recovery context - when previous execution failed
-        recovery_context = ""
-        if is_recovery:
-            recovery_context = f"""
-## ⚠️ RECOVERY MODE - PREVIOUS EXECUTION FAILED
-The previous execution of this step did NOT produce the expected result.
-Failure Reason: {failure_reason or "Visual verification failed"}
+        # Convert step to YAML for better readability
+        step_yaml = safe_yaml_dumps([step]) if isinstance(step, dict) else safe_yaml_dumps(step)
 
-Your task is to analyze WHY it failed and provide a CORRECTED approach.
-DO NOT simply return 'execute' again - that will likely fail too.
-
-Common recovery strategies:
-- If element not found: Try alternative selectors or coordinates
-- If wrong state: Add navigation steps to reach correct screen first
-- If timing issue: Add wait steps before the action
-- If popup blocking: Add steps to dismiss the popup first
-
-MUST return 'correct' with a fixed strategy, or 'abort' if unrecoverable.
-"""
-
-        return f"""You are an Expert UI Automation Agent. Your goal is to verify if a given macro step is appropriate for the current screen state and decide how to proceed.
-
-## Mental Model (心法)
-{self.mental_model}
-
-## Current Macro Step
-```json
-{json.dumps(step, indent=2, ensure_ascii=False)}
-```
-
-## UI Context
-- Platform: {ui_state.get('platform')}
-- URL/Activity: {ui_state.get('url') or ui_state.get('current_activity')}
-{history_context}
-{recovery_context}
-
-## Task
-Observe the attached screenshot and the macro step. Decide on the best action:
-1. 'execute': The state matches the macro step. Proceed as is.
-2. 'correct': The state is slightly different (e.g., coordinate shift, element found elsewhere). Suggest a modified version of the step.
-3. 'skip': The step is redundant (e.g., already on the target page).
-4. 'retry': The state is not ready (e.g., loading). Wait and try again.
-5. 'abort': A fundamental mismatch that cannot be recovered easily.
-
-## SCHEMA CONSTRAINTS (IMPORTANT)
-If you suggest a corrected step ('correct'), it MUST strictly follow the MacroStep schema:
-- Fields: step_number, type, description, source, event_type, target_selector, payload, condition, then_steps, else_steps, steps, max_iterations.
-- DO NOT add extra fields like 'reasoning' or 'analysis' to the step object itself.
-- Put any extra context in the `description` field.
-
-## Output Format
-Return ONLY a JSON object:
-{{
-    "action": "execute|correct|skip|retry|abort",
-    "reasoning": "Explain your visual observation and decision based on the Mental Model",
-    "suggested_step": {{ ... modified MacroStep if action is 'correct' ... }},
-    "additional_steps": [ ... any steps to execute BEFORE this one (e.g., closing a popup) ... ],
-    "confidence": 0.0-1.0
-}}
-"""
+        return self._render_template(
+            "macro/decide_next_step.prompt.j2",
+            mental_model=self.mental_model,
+            step_yaml=step_yaml,
+            platform=ui_state.get('platform'),
+            url_or_activity=ui_state.get('url') or ui_state.get('current_activity'),
+            history_context=history_context,
+            is_recovery=is_recovery,
+            failure_reason=failure_reason
+        )
 
     def _parse_reasoning_response(self, content: str, original_step: Dict[str, Any]) -> ActionDecision:
         """Parse LLM JSON response"""
@@ -354,32 +279,13 @@ Return ONLY a JSON object:
         screenshot_path = ui_state.get("screenshot")
         step_number = step.get("step_number", "?")
 
-        prompt = f"""You are a UI Automation Optimizer.
-
-Analyze the current screen and the intended macro step to see if it's redundant.
-
-## Macro Step
-```json
-{json.dumps(step, indent=2, ensure_ascii=False)}
-```
-
-## Task
-1. Look at the screenshot. Is this action still necessary?
-2. Redundancy Examples:
-   - Repeatedly clicking the same button that is already active/selected.
-   - Typing into a field that already contains the target text.
-   - Waiting for a state that is already reached.
-   - Low-value movement actions (e.g., hovering without effect).
-
-## Output Format
-Return ONLY a JSON object:
-{{
-    "is_redundant": true|false,
-    "type": "low_value_action|duplicate_action|unnecessary_wait|orphan_action|none",
-    "reason": "Explain why it is or isn't redundant",
-    "suggested_action": "keep|skip|merge|remove"
-}}
-"""
+        # Convert step to YAML for better readability
+        step_yaml = safe_yaml_dumps([step]) if isinstance(step, dict) else safe_yaml_dumps(step)
+        
+        prompt = self._render_template(
+            "macro/check_redundancy.prompt.j2",
+            step_yaml=step_yaml
+        )
         logger.info(f"[LLM:REDUNDANCY:{step_number}] Checking redundancy")
 
         try:
@@ -440,35 +346,11 @@ Return ONLY a JSON object:
                 ]
             })
 
-        prompt = f"""You are an Expert QA Architect. Analyze these macro verification results.
-
-## Macro Overview
-- Total Steps: {len(macro_script)}
-
-## Verification Reports
-```json
-{json.dumps(condensed_reports, indent=2, ensure_ascii=False)}
-```
-
-## Task
-Generate a comprehensive assessment:
-1. Identify Recurring Issues: Look for failure patterns across rounds.
-2. Recommendations: Suggest how to improve macro robustness.
-3. Execution Mode: Decide if this macro is ready for 'deterministic' execution, or needs 'hybrid'/'agentic' support.
-4. Qualitative Assessment: A brief executive summary of the macro's health.
-
-## Output Format
-Return ONLY a JSON object:
-{{
-    "issues": [
-        {{ "severity": "critical|warning|info", "category": "...", "description": "...", "affected_steps": [...], "suggestion": "..." }}
-    ],
-    "recommendations": ["...", "..." ],
-    "recommended_execution_mode": "deterministic|hybrid|agentic",
-    "confidence_score": 0.0-1.0,
-    "qualitative_assessment": "..."
-}}
-"""
+        prompt = self._render_template(
+            "macro/analyze_results.prompt.j2",
+            total_steps=len(macro_script),
+            reports_json=json.dumps(condensed_reports, indent=2, ensure_ascii=False)
+        )
         logger.info(f"[LLM:ANALYZE] Analyzing results from {len(reports)} rounds")
         logger.info(f"[LLM:ANALYZE] Prompt:\n{prompt}")
 

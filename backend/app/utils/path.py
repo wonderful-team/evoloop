@@ -270,3 +270,14 @@ def is_path_writable(path: str) -> bool:
     # Check if parent directory is writable
     parent = os.path.dirname(path) or '.'
     return os.path.isdir(parent) and os.access(parent, os.W_OK)
+
+
+def cleanup_file(filepath: str | None) -> None:
+    """
+    Safely remove a temporary file if it exists.
+    
+    Args:
+        filepath: Path to file to remove, or None
+    """
+    if filepath and os.path.exists(filepath):
+        os.remove(filepath)

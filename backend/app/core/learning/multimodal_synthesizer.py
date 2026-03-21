@@ -411,43 +411,35 @@ class MultimodalSkillSynthesizer:
         return str(output_path)
 
     def _build_event_context(self, events: List[TraceEvent], original_resolution: Tuple[int, int]) -> str:
-        """构建详细的事件内容上下文 (用于 Prompt)"""
+        """构建详细的事件内容上下文 (用于 Prompt) - 使用模板渲染"""
+        from app.utils import render_template
+        
         normalizer = CoordinateNormalizer(original_resolution[0], original_resolution[1])
-        lines = [
-            f"Total Events: {len(events)}",
-            f"Screen Resolution: {original_resolution[0]}x{original_resolution[1]}",
-            ""
-        ]
-
-        for i, event in enumerate(events, 1):
+        
+        # 准备原始数据，格式化逻辑移至模板
+        event_data = []
+        for event in events:
             if event.action_type in ("mouse_move", "cursor_move", "touch_up"):
                 continue
-
-            ts = getattr(event, 'timestamp', 0.0)
-            action_name = "tap" if event.action_type == "touch_down" else event.action_type
-            line = f"{i}. [{ts:.2f}s] {action_name}"
             
-            # 坐标描述
             norm_pos = normalizer.normalize(getattr(event, 'mouse_x', None), getattr(event, 'mouse_y', None))
-            if norm_pos:
-                desc = self._describe_position(norm_pos[0], norm_pos[1])
-                line += f" at ({norm_pos[0]:.3f}, {norm_pos[1]:.3f}) [{desc}]"
-
-            # 语义上下文
-            target = getattr(event, 'target_text', None)
-            if target: line += f' on "{target}"'
             
-            window = getattr(event, 'window_title', None)
-            app = getattr(event, 'app_name', None)
-            if window and app: line += f" in [{app} - {window}]"
-            elif app: line += f" in [{app}]"
-            
-            key = getattr(event, 'key_name', None)
-            if key: line += f" key='{key}'"
-
-            lines.append(line)
-
-        return "\n".join(lines)
+            event_data.append({
+                "action_name": "tap" if event.action_type == "touch_down" else event.action_type,
+                "timestamp": getattr(event, 'timestamp', 0.0),
+                "norm_pos": norm_pos,
+                "position_desc": self._describe_position(norm_pos[0], norm_pos[1]) if norm_pos else None,
+                "target": getattr(event, 'target_text', None),
+                "window": getattr(event, 'window_title', None),
+                "app": getattr(event, 'app_name', None),
+                "key": getattr(event, 'key_name', None),
+            })
+        
+        return render_template(
+            "events/event_context.prompt.j2",
+            events=event_data,
+            resolution=original_resolution
+        )
 
     def _associate_events_to_frames(
         self,
@@ -540,25 +532,33 @@ class MultimodalSkillSynthesizer:
             "text": task_context
         })
 
-        # 2. 关键帧详情 (附带图片)
-        content.append({"type": "text", "text": "## Screen Recording Keyframes\n"})
-        
-        for i, frame in enumerate(frames, 1):
-            # 帧文本描述
-            frame_desc = f"\n### Frame {i} [{frame.timestamp:.2f}s]\n"
-            frame_desc += f"**Visual Context**: {frame.description}\n"
-            
+        # 2. 关键帧详情 (附带图片) - 使用新模板
+        frame_vars = []
+        for frame in frames:
+            f_data = {
+                "timestamp": frame.timestamp,
+                "description": frame.description,
+                "norm_events": []
+            }
             if frame.norm_events:
-                frame_desc += "**User actions during this frame**:\n"
                 for evt in frame.norm_events:
                     pos = evt.get('position')
-                    if pos:
-                        desc = self._describe_position(pos[0], pos[1])
-                        frame_desc += f"  - {evt['action']} at ({pos[0]:.3f}, {pos[1]:.3f}) [{desc}]\n"
-                    if evt.get('target_text'):
-                        frame_desc += f"    Target: \"{evt['target_text']}\"\n"
-            
-            content.append({"type": "text", "text": frame_desc})
+                    pos_desc = self._describe_position(pos[0], pos[1]) if pos else ""
+                    f_data["norm_events"].append({
+                        "action": evt["action"],
+                        "position": pos,
+                        "position_desc": pos_desc,
+                        "target_text": evt.get("target_text")
+                    })
+            frame_vars.append(f_data)
+
+        try:
+            from app.utils import render_template
+            frames_narrative = render_template("vision/multimodal_frames.prompt.j2", frames=frame_vars)
+            content.append({"type": "text", "text": frames_narrative})
+        except Exception as e:
+            logger.error(f"Failed to render Multimodal Frames template: {e}")
+            content.append({"type": "text", "text": "## Keyframes Analysis\n(Error rendering frames detail)"})
             
             # 插入 Base64 图片
             base64_img = base64.b64encode(frame.data).decode('utf-8')
@@ -611,12 +611,12 @@ class MultimodalSkillSynthesizer:
 
     def _extract_instructions(self, text: str) -> Optional[str]:
         """从响应中提取 Markdown 文档部分"""
+        # [v4 Meta-Clean] 动态匹配预定义的标准化标记
         result = extract_instructions_section(text)
-        # 如果工具函数返回原文，说明没有找到标记，返回 None
-        if result == text and not any(m in text for m in [
-            "# 🧠 Expert Skill Guide",
-            "# Expert Skill Guide",
-            "## 1. Mental Model"
-        ]):
-            return None
+        # 如果工具函数返回原文且没有探测到预期的 Meta 标签，则返回 None 交由调用者回退到原文
+        # 这也是为了防止直接暴露纯文本响应而没有解析
+        if result == text:
+             # 再尝试寻找通用的 Expert 指导标记
+             if "# " not in text and "## " not in text:
+                 return None
         return result

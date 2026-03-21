@@ -14,6 +14,7 @@ from app.models.todo import (
     TodoPriority,
     TodoStatus,
 )
+from app.utils import ContentFormatter
 from app.utils.time import utcnow
 
 
@@ -134,7 +135,7 @@ async def manage_todo(
             if not todos:
                 return i18n.get("domain_tools.manage_todo.no_todos")
 
-            return "\n".join([f"- [{t.status.value}] {t.title} (ID: {t.id}, Due: {t.due_date})" for t in todos])
+            return ContentFormatter.todo_list(todos, title="Todo List")
 
         elif action == "update":
             if not todo_id:

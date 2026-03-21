@@ -379,13 +379,19 @@ export function ChatInterface() {
   // Auto-scroll logic
 
   // Handle User Scroll Interaction
-  const handleScroll = () => {
+  const handleScroll = useCallback(() => {
     if (!scrollRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
     // If user is not at the bottom (threshold 50px), mark as user scrolled
     const isAtBottom = scrollHeight - scrollTop - clientHeight < 100
     setIsUserScrolled(!isAtBottom)
-  }
+    
+    // Trigger load more history when near top
+    if (scrollTop < 100 && hasMoreHistory && !isLoadingHistory) {
+      console.log('[ChatInterface] Near top, triggering loadMoreHistory')
+      loadMoreHistory()
+    }
+  }, [hasMoreHistory, isLoadingHistory, loadMoreHistory])
 
   const scrollToBottom = useCallback((smooth = false) => {
     scrollRef.current?.scrollTo({
@@ -435,8 +441,8 @@ export function ChatInterface() {
         <ResizablePanel
           defaultSize={20}
           minSize={15}
-          maxSize={25}
-          className="hidden lg:block min-w-[250px]"
+          maxSize={40}
+          className="hidden lg:block min-w-[200px]"
         >
           <ChatSidebar
             threads={threads.map(t => ({
@@ -461,8 +467,8 @@ export function ChatInterface() {
         <ResizableHandle withHandle />
 
         {/* Center Chat Panel */}
-        <ResizablePanel defaultSize={showContextPanel ? 60 : 80} minSize={40}>
-          <div className="flex flex-col h-full relative min-h-0">
+        <ResizablePanel defaultSize={showContextPanel ? 60 : 80} minSize={20} className="min-w-0">
+          <div className="flex flex-col h-full relative min-h-0 min-w-0">
             {/* Top Right Controls */}
             <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
               {/* Toggle Context Panel Button */}
@@ -483,12 +489,12 @@ export function ChatInterface() {
             <HITLBanner />
 
             <div
-              className="flex-1 overflow-y-auto min-h-0 scroll-smooth"
+              className="flex-1 overflow-y-auto min-h-0 min-w-0 scroll-smooth"
               ref={scrollRef}
               onScroll={handleScroll}
               data-tour="chat-messages"
             >
-              <div className="space-y-6 max-w-4xl mx-auto pb-1 pt-4">
+              <div className="space-y-6 px-4 sm:px-6 lg:px-8 pb-1 pt-4 min-w-0">
                 {status === "idle" && <SessionOutcomeBanner outcome={finalOutcome} />}
                 <MessageList
                   messages={messages}
@@ -538,7 +544,6 @@ export function ChatInterface() {
                   }}
                   onQuote={(msg) => handleQuoteMessage(msg)}
                   onStarterClick={(text) => sendMessage(text)}
-                  onLoadMore={loadMoreHistory}
                 />
               </div>
             </div>
@@ -582,10 +587,10 @@ export function ChatInterface() {
           <>
             <ResizableHandle withHandle />
             <ResizablePanel
-              defaultSize={30}
-              minSize={25}
+              defaultSize={20}
+              minSize={15}
               maxSize={40}
-              className="min-w-[320px]"
+              className="min-w-[200px]"
             >
               <div data-tour="chat-context" className="h-full">
                 <ContextPanel

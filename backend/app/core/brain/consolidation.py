@@ -37,7 +37,11 @@ class MemoryConsolidator:
 
         # 2. Generate Summary
         logger.info("Generating summary via Reflective Brain...")
-        system_prompt = "You are the Reflective Brain. Your job is to summarize the following 'Working Memory' scratchpad into a concise knowledge entry."
+        from app.utils import render_template
+        try:
+            system_prompt = render_template("memory/memory_consolidation.prompt.j2")
+        except Exception:
+            system_prompt = "Summarize the following Working Memory scratchpad into a concise knowledge entry."
         summary = await self.llm.generate(
             context=task_content,
             user_input="Summarize key facts and decisions.",

@@ -1,0 +1,20 @@
+{# Spreadsheet Content Template
+   
+   Displays Excel/spreadsheet content with multiple sheets.
+   
+   Variables:
+   - filename: Name of the spreadsheet file
+   - sheets: List of sheet objects with 'name' and 'content' or 'is_empty' flag
+#}
+# Spreadsheet: {{ filename }}
+
+{% for sheet in sheets %}
+## Sheet: {{ sheet.name }}
+
+{%- if sheet.is_empty %}
+*Empty Sheet*
+{%- else %}
+{{ sheet.content }}
+{%- endif %}
+
+{% endfor %}

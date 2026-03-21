@@ -1,12 +1,13 @@
 import logging
 from typing import Any, Optional
 
-from app.core.tools.base import evoloop_tool
-from app.infrastructure.database.sql.database import session_scope
-from app.models.scheduler import AutonomousTask
-from app.models.learning import LearnedSkill
 from sqlalchemy import select
 
+from app.core.tools import evoloop_tool
+from app.infrastructure.database.sql.database import session_scope
+from app.models.learning import LearnedSkill
+from app.models.scheduler import AutonomousTask
+from app.utils import ControllerResponse, SystemToolsFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ async def delegate_periodic_intent(
             skill = result.scalar_one_or_none()
             
             if not skill:
-                return f"Error: Skill '{skill_name}' not found. Please ensure the skill exists before scheduling."
+                return ControllerResponse.not_found(skill_name, item_type="Skill")
 
             task_id = await SchedulerService.register_task(
                 intent_description=intent,
@@ -53,10 +54,14 @@ async def delegate_periodic_intent(
                 project_id=project_id
             )
             
-            return f"Successfully delegated periodic intent. Task ID: {task_id}. Trigger: {trigger}"
+            return ControllerResponse.success(
+                f"Delegated periodic intent: {intent}",
+                details=f"Task ID: {task_id}",
+                note=f"Trigger: {trigger}"
+            )
     except Exception as e:
         logger.error(f"Error in delegate_periodic_intent: {e}")
-        return f"Error: Failed to delegate intent. {str(e)}"
+        return ControllerResponse.error("Failed to delegate intent", details=str(e))
 
 
 @evoloop_tool(
@@ -77,21 +82,15 @@ async def inspect_task_health(task_id: int) -> str:
         async with session_scope() as session:
             task = await session.get(AutonomousTask, task_id)
             if not task:
-                return f"Error: Task ID {task_id} not found."
+                return ControllerResponse.not_found(f"Task ID {task_id}")
             
             status = "Dead Letter (Disabled)" if task.is_dead_letter else ("Active" if task.is_active else "Paused")
             
-            report = (
-                f"### Task Health Report: {task_id}\n"
-                f"- **Intent**: {task.intent_description}\n"
-                f"- **Status**: {status}\n"
-                f"- **Consecutive Failures**: {task.consecutive_failures}/{task.max_retries}\n"
-                f"- **Last Run**: {task.last_run_at}\n"
-                f"- **Next Run**: {task.next_run_at}\n"
-                f"- **Last Failure Reason**: {task.last_failure_reason or 'None'}\n"
-            )
-            
-            return report
+            try:
+                return SystemToolsFormatter.task_health(task)
+            except Exception as e:
+                logger.error(f"Failed to render task health: {e}")
+                return f"Task {task_id} health: {status}"
     except Exception as e:
         logger.error(f"Error in inspect_task_health: {e}")
         return f"Error: Failed to inspect task health. {str(e)}"
@@ -122,12 +121,11 @@ async def list_autonomous_tasks(project_id: Optional[int] = None) -> str:
             if not tasks:
                 return "No autonomous tasks found."
             
-            lines = ["### Autonomous Task List"]
-            for t in tasks:
-                status = "DLQ" if t.is_dead_letter else ("Active" if t.is_active else "Paused")
-                lines.append(f"- ID {t.id}: [{status}] {t.intent_description[:50]}... (Next: {t.next_run_at})")
-            
-            return "\n".join(lines)
+            try:
+                return SystemToolsFormatter.autonomous_tasks(tasks)
+            except Exception as e:
+                logger.error(f"Failed to render task list: {e}")
+                return f"Found {len(tasks)} tasks."
     except Exception as e:
         logger.error(f"Error in list_autonomous_tasks: {e}")
         return f"Error: Failed to list tasks. {str(e)}"

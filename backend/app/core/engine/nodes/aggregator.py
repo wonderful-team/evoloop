@@ -50,7 +50,7 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> dict[str
         blackboard.setdefault("metadata", {})["last_aggregation_result"] = result_text
 
         return {
-            "messages": [AIMessage(content=f"✅ Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.")],
+            "messages": [AIMessage(content=f"Aggregation complete. Strategy: {strategy}. Total results: {len(subtask_results)}.")],
             "next_node": RoutingTarget.SUPERVISOR,
             "blackboard": blackboard
         }
@@ -62,9 +62,9 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> dict[str
         blackboard["pending_aggregation"] = None
         blackboard["spawn_plan"] = None
         blackboard["worker_outcome"] = "failed"
-        blackboard.setdefault("metadata", {})["last_aggregation_result"] = f"❌ Aggregation failed: {e}"
+        blackboard.setdefault("metadata", {})["last_aggregation_result"] = f"Aggregation failed: {e}"
         return {
-            "messages": [AIMessage(content=f"❌ Aggregation failed: {e}")],
+            "messages": [AIMessage(content=f"Aggregation failed: {e}")],
             "next_node": RoutingTarget.SUPERVISOR,
             "blackboard": blackboard
         }

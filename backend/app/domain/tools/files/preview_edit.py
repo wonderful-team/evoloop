@@ -282,32 +282,42 @@ async def preview_edit(
     result = await preview_edit_internal(path, target, replacement, config)
     
     if not result.success:
-        return f"❌ Preview failed\n\n{result.message}\n\nTip: Try providing more context around the target text."
+        from app.utils import render_template
+        return render_template("report/response.prompt.j2", success=False, message="Preview failed", details=result.message, note="Try providing more context around the target text.")
     
     # Format output
-    confidence_emoji = {
-        MatchConfidence.HIGH: "✅",
-        MatchConfidence.MEDIUM: "⚠️",
-        MatchConfidence.LOW: "❓",
-        MatchConfidence.NONE: "❌"
-    }
+    # Format output using render_template
+    from app.utils import render_template
     
-    output = f"""{confidence_emoji[result.confidence]} Confidence: {result.confidence.value.upper()}
-   Strategy: {result.strategy_used or 'unknown'}
-   {result.message}
-
-"""
+    details_lines = [
+        f"Strategy: {result.strategy_used or 'unknown'}",
+        result.message,
+        "",
+        "--- Preview Diff ---",
+        "```diff",
+        result.diff if result.diff else "(No changes detected)",
+        "```"
+    ]
     
     if result.confidence == MatchConfidence.LOW:
-        output += "⚠️ Warning: Low confidence match. Please review carefully before applying.\n\n"
+        details_lines.insert(0, "⚠️ Warning: Low confidence match. Please review carefully before applying.")
+    # Metadata construction removed
+    # Cleanup: Hardcoded message removed
+
+    # Hint for the final response
+    hint = (
+        f"To apply this change, use:\n"
+        f"   edit_file(path='{path}', target='''{target[:50]}{'...' if len(target) > 50 else ''}''', replacement='''{replacement[:50]}{'...' if len(replacement) > 50 else ''}''')"
+    )
     
-    output += "--- Preview Diff ---\n"
-    output += "```diff\n"
-    output += result.diff if result.diff else "(No changes detected)"
-    output += "\n```\n"
+    # Output building removed, replaced by render_template below
     
-    # Action hint
-    output += f"\n💡 To apply this change, use:\n"
-    output += f"   edit_file(path='{path}', target='''{target[:50]}{'...' if len(target) > 50 else ''}''', replacement='''{replacement[:50]}{'...' if len(replacement) > 50 else ''}''')"
+    # Action hint logic moved up
     
-    return output
+    return render_template(
+        "report/response.prompt.j2",
+        success=True,
+        message=f"Edit Preview ({result.confidence.value.upper()})",
+        details="\n".join(details_lines),
+        note=hint
+    )

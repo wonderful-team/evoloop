@@ -1,8 +1,8 @@
 import logging
-
 from app.core.tools import evoloop_tool
 from app.core.vision import VisionTask, vision_engine
 from app.infrastructure.drivers.macos import macos_driver
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +43,8 @@ async def analyze_image(
                 tree_label = "macOS Accessibility (AX) Tree"
 
             if ax_tree and "Error" not in ax_tree:
-                final_prompt += f"\n\n### {tree_label} Context:\n{ax_tree}\n\nUse the element names and bounds above for better grounding."
-                logger.info(f"[Vision] Injected {tree_label} into prompt for grounding.")
+                final_prompt = render_template("vision/vision_context.prompt.j2", tree_label=tree_label, ax_tree=ax_tree)
+                logger.info(f"[Vision] Injected {tree_label} into prompt via template.")
         except Exception as e:
             logger.warning(f"[Vision] Failed to inject AX Tree: {e}")
 

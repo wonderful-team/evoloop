@@ -20,20 +20,7 @@ class ExtractionResult(BaseModel):
     concepts: list[Concept] = Field(description="List of extracted concepts")
 
 
-HARVEST_PROMPT = """You are a Knowledge Engineer.
-Analyze the following code changes (git diff) and extract new "Domain Concepts", "Architecture Patterns", or "Important Decisions".
-
-Criteria for a Concept:
-- It is a specific term, class, module, or pattern used in the code.
-- It is NOT a generic programming term (like "function", "array") unless used in a specific way.
-- It is worth remembering for future tasks (e.g. "PaymentGateway" logic, "RetryPolicy" configuration).
-
-Diff:
-{diff}
-
-Extract up to 5 most important concepts.
-Output a JSON object.
-"""
+# HARVEST_PROMPT has been moved to a Jinja2 template: [git_harvest.prompt.j2]
 
 
 @evoloop_tool(

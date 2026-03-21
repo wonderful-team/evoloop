@@ -1,10 +1,13 @@
 import json
-import logging
 import os
+import shutil
+import logging
 import re
 from datetime import datetime
+from typing import List, Dict, Any, Optional
 
 from langchain_core.messages import HumanMessage
+from app.utils import render_template
 from pydantic import BaseModel, Field
 from sqlmodel import Session, select
 
@@ -89,10 +92,14 @@ class WikiService:
     def _paths_to_tree_string(self, paths: list[str]) -> str:
         """
         Converts a list of file paths into a visual tree string.
+        Uses Jinja2 template for rendering.
         """
+        from app.utils import render_template
+        
         paths.sort()
-        tree_lines = []
+        lines = []
         prev_parts = []
+        truncated = False
 
         for path in paths:
             parts = path.split("/")  # paths are normalized
@@ -104,24 +111,25 @@ class WikiService:
                 else:
                     break
 
-            # Print new parts
+            # Prepare data for new parts
             for i in range(common_depth, len(parts)):
-                indent = "  " * i
-                name = parts[i]
-                if i < len(parts) - 1:
-                    # Directory
-                    tree_lines.append(f"{indent}{name}/")
-                else:
-                    # File
-                    tree_lines.append(f"{indent}{name}")
+                lines.append({
+                    "indent": "  " * i,
+                    "name": parts[i],
+                    "is_dir": i < len(parts) - 1,
+                })
 
             prev_parts = parts
 
-            if len(tree_lines) > 5000:
-                tree_lines.append("... (truncated)")
+            if len(lines) > 5000:
+                truncated = True
                 break
 
-        return "\n".join(tree_lines)
+        return render_template(
+            "wiki/file_tree.prompt.j2",
+            lines=lines,
+            truncated=truncated
+        )
 
     def _read_file_safe(self, path: str, max_chars: int = 50000) -> str:
         """
@@ -359,8 +367,7 @@ class WikiService:
                         return
 
             # Gather context
-            context_buffer = []
-            valid_paths = []
+            files_to_read_content: Dict[str, str] = {}
 
             # Helper to expand directories
             from app.core.file.service import filter_code_files, walk_tree
@@ -391,16 +398,35 @@ class WikiService:
                 full_path = os.path.join(project_path, rel_path)
                 content = self._read_file_safe(full_path, max_chars=50000)
                 if content:
-                    context_buffer.append(f"--- FILE: {rel_path} ---\n{content}\n")
-                    valid_paths.append(rel_path)
+                    files_to_read_content[rel_path] = content
 
-            if not context_buffer:
-                context_buffer.append(f"--- FILE: README.md ---\n{readme_content}\n")
-                valid_paths.append("README.md")
+            if not files_to_read_content and readme_content:
+                files_to_read_content["README.md"] = readme_content
 
-            joined_context = "\n".join(context_buffer)
-            builder = WikiBuilder()
-            content_prompt = builder.build_content_prompt(page_title, joined_context, valid_paths)
+            # Build prompt using Jinja2 template
+            try:
+                files_data = []
+                for rel_path, content in files_to_read_content.items():
+                    files_data.append({"path": rel_path, "content": content})
+
+                # Re-generate file tree for the prompt, potentially with only relevant files
+                # Or use the full file_tree generated earlier if it's deemed more useful
+                # For now, let's use the full file_tree
+                content_prompt = render_template(
+                    "wiki/wiki_context.prompt.j2",
+                    page_title=page_title,
+                    files=files_data,
+                    tree=file_tree # Using the full file_tree from earlier
+                )
+
+            except Exception as e:
+                logger.error(f"Failed to render Wiki context template for page '{page_title}': {e}")
+                # Fallback to old prompt generation if template fails
+                joined_context = "\n".join([f"--- FILE: {p} ---\n{c}\n" for p, c in files_to_read_content.items()])
+                valid_paths = list(files_to_read_content.keys())
+                builder = WikiBuilder()
+                content_prompt = builder.build_content_prompt(page_title, joined_context, valid_paths)
+
 
             try:
                 content_response = await llm.ainvoke([HumanMessage(content=content_prompt)])

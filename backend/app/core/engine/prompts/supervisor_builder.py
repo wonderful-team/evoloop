@@ -7,13 +7,13 @@ Allows for dynamic context injection and potential LLM-specific adaptations.
 
 import json
 import logging
-import os
 
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
 from app.core.environment import get_awakened_state
 from app.infrastructure.config.service import SystemConfigService
+from app.utils import ControllerResponse, render_template
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,6 @@ class SupervisorPromptBuilder:
 
     async def build(self, config: RunnableConfig) -> str:
         """Constructs the full system prompt using Jinja2 templating."""
-        from jinja2 import Environment, FileSystemLoader
         from app.core.context import ContextManager
 
         # 1. Prepare Environment & State
@@ -71,13 +70,6 @@ class SupervisorPromptBuilder:
 
         # 3. Protocol & Sys Info Prep
         is_global_mode = self.project_id == 0 or self.project_id is None
-        if cwd:
-            project_structure_stub = f"CWD: {cwd}\n(Use 'get_workspace_tree' to examine files if needed)"
-        else:
-            if is_global_mode:
-                project_structure_stub = "CWD: None (GLOBAL MODE ACTIVE)\n(You are NOT currently operating within a specific project. For security, standard file operations (read/write/edit) are DISABLED in this mode. If you need to manipulate local files, please use the 'chat' node to ask the user to switch to a target project.)"
-            else:
-                project_structure_stub = "CWD: None (No Local Workspace Attached)\n(You are operating in a universal context. Do NOT assume local files exist unless specified by the user.)"
 
         # 3.1 Fetch Telemetry (Sensors)
         telemetry_data = {}
@@ -97,7 +89,7 @@ class SupervisorPromptBuilder:
             "project_id": self.project_id,
             "iteration_count": self.iteration_count,
             "user_lang": user_lang,
-            "telemetry": telemetry_data,  # <--- NEW: Raw Sensors
+            "telemetry": telemetry_data,
             "blackboard": {
                 "ticket": blackboard.get("ticket"),
                 "verification": blackboard.get("verification"),
@@ -118,7 +110,8 @@ class SupervisorPromptBuilder:
                 "last_human_msg": last_human_msg,
             },
             "sys_info": {
-                "project_structure": project_structure_stub,
+                "cwd": cwd,
+                "is_global_mode": is_global_mode,
                 "project_concepts": project_concepts,
                 "active_skills": ctx.metadata.get("active_skills", []),
             },
@@ -130,10 +123,11 @@ class SupervisorPromptBuilder:
 
         # 5. Render Template
         try:
-            template_dir = os.path.join(os.path.dirname(__file__), "templates")
-            env = Environment(loader=FileSystemLoader(template_dir))
-            template = env.get_template("supervisor.prompt.j2")
-            return template.render(**template_vars)
+            return render_template("agents/supervisor.prompt.j2", **template_vars)
         except Exception as e:
             logger.error(f"Failed to render Supervisor template: {e}")
-            return f"You are the Supervisor. Error loading template: {e}\nProject ID: {self.project_id}"
+            return ControllerResponse.error(
+                "Supervisor Template Error",
+                details=str(e),
+                note=f"PID: {self.project_id}"
+            )

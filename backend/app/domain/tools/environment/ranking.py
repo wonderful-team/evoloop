@@ -7,6 +7,7 @@ from typing import Literal
 
 from app.core.environment.usage.ranker import UsageRanker
 from app.core.tools import evoloop_tool
+from app.utils import SystemToolsFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +51,11 @@ async def get_app_usage_ranker(
         if not records:
             return f"No usage data available for {platform}."
 
-        lines = [f"Top {len(records)} {platform} applications by usage:"]
-        for r in records:
-            status = " [RUNNING]" if r.is_running else ""
-            lines.append(f"- {r.app_name} ({r.bundle_id}): Score {r.priority_score:.2f}{status}")
-
-        return "\n".join(lines)
+        try:
+            return SystemToolsFormatter.app_rankings(records, platform)
+        except Exception as e:
+            logger.error(f"Failed to render ranking list: {e}")
+            return f"Found {len(records)} apps."
 
     except Exception as e:
         logger.error(f"[RankingTool] Failed to rank apps: {e}")

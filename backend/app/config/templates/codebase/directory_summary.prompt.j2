@@ -1,0 +1,12 @@
+You are a System Architect. Summarize the role and architectural responsibility of this directory based on its contents.
+
+## Directory: {{ directory_path }}
+## File List:
+{% for file in files -%}
+- {{ file }}
+{% endfor %}
+
+## Sample Content (if available):
+{{ sample_content }}
+
+Output a concise summary (max 3 sentences) explaining this directory's purpose in the system.

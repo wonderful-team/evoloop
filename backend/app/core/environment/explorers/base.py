@@ -4,6 +4,7 @@ import logging
 from abc import ABC, abstractmethod
 
 from app.infrastructure.llm.factory import get_default_llm
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -32,18 +33,17 @@ class BaseExplorer(ABC):
 
             llm = get_default_llm(temperature=0)
 
-            prompt = (
-                f"You are an expert at identifying high-value productivity/lifestyle {platform} apps from their names.\n"
-                f"Given this list of newly discovered {platform} apps/packages, identify which ones are important enough to warrant a 'Skill Probe'.\n"
-                "Prioritize: Banking, Shopping, Travel, Social, Work Tools, Development Tools.\n"
-                "Exclude: System services, drivers, small utilities, or low-utility settings.\n\n"
-                "Respond ONLY with a JSON object:\n"
-                "{\"selected\": {\"AppName\": {\"id\": \"identifier\", \"reason\": \"...\"}}}\n\n"
-                "Items:\n" + "\n".join(items)
+            prompt = render_template(
+                "planning/explorer_triage.prompt.j2",
+                system_role=f"You are an expert at identifying high-value productivity/lifestyle {platform} apps from their names.",
+                platform=platform,
+                items=items
             )
 
+            role_name = render_template("planning/expert_roles.prompt.j2", role="knowledge_triage", platform=platform).strip()
+
             response = await llm.ainvoke([
-                SystemMessage(content=f"You are a {platform.capitalize()} Knowledge Triage Agent."),
+                SystemMessage(content=role_name),
                 HumanMessage(content=prompt)
             ])
 

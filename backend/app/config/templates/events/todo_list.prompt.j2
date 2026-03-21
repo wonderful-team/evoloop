@@ -1,0 +1,19 @@
+{# Todo List Template
+   
+   Displays a list of todo items.
+   
+   Variables:
+   - todos: List of todo items with 'status', 'title', 'id', 'due_date' attributes
+   - title: Optional title for the list (default: "Todo List")
+#}
+{%- if title %}
+## {{ title }}
+
+{% endif -%}
+{%- if not todos %}
+No todos found.
+{%- else %}
+{%- for todo in todos %}
+- [{{ todo.status }}] {{ todo.title }} (ID: {{ todo.id }}{% if todo.due_date %}, Due: {{ todo.due_date }}{% endif %})
+{%- endfor %}
+{%- endif %}

@@ -1,6 +1,9 @@
 import asyncio
+import logging
+from typing import List, Dict, Any, Optional
 
 from app.core.context.manager import ContextManager
+from app.utils import render_template
 from app.core.monitoring.ui_actions import require_project_for_tool
 from app.core.tools import evoloop_tool
 from app.domain.codebase.retrieval.graph_service import graph_service
@@ -54,47 +57,39 @@ async def search_codebase(query: str, project_id: int | None = None) -> str:
 
     vector_task = asyncio.create_task(retriever.search(query, project_id=pid, limit=5))
 
-    # 1. Handle Graph / Structure Search
+    graph_data = None
     if graph_task:
         try:
             graph_result = await graph_task
             if graph_result and "error" not in graph_result:
                 relations = graph_result.get("relations", {})
-                outgoing = relations.get("outgoing", [])
-                incoming = relations.get("incoming", [])
-
-                graph_text = [
-                    f"### 🧩 Code Structure: {graph_result['symbol']} ({graph_result['type']})"
-                ]
-                graph_text.append(f"File: {graph_result['file']}")
-                if outgoing:
-                    graph_text.append("**Outgoing Relations:**")
-                    for r in outgoing:
-                        graph_text.append(f"- {r}")
-                if incoming:
-                    graph_text.append("**Incoming Relations (Usage):**")
-                    for r in incoming:
-                        graph_text.append(f"- {r}")
-
-                output_parts.append("\n".join(graph_text))
+                graph_data = {
+                    "symbol": graph_result.get("symbol", "Unknown"),
+                    "type": graph_result.get("type", "Unknown"),
+                    "file": graph_result.get("file", "Unknown"),
+                    "outgoing": relations.get("outgoing", []),
+                    "incoming": relations.get("incoming", [])
+                }
         except Exception as e:
-            output_parts.append(f"(Graph lookup failed: {e})")
+            logger.error(f"Graph lookup failed: {e}")
 
-    # 2. Handle Semantic Search (RAG)
+    rag_results = []
     try:
         results = await vector_task
         if results:
-            rag_text = ["### 📄 Semantic Matches:"]
-            for r in results:
-                rag_text.append(f"**File**: {r['file_path']} ({r['chunk_type']})\n```\n{r['content']}\n```")
-            output_parts.append("\n".join(rag_text))
-        elif not output_parts:  # If graph also empty
-            return "No relevant code or symbols found."
-
+            rag_results = results
     except Exception as e:
-        return f"Error searching codebase: {str(e)}"
+        logger.error(f"RAG search failed: {e}")
 
-    return "\n\n---\n\n".join(output_parts)
+    try:
+        return render_template(
+            "codebase/codebase_retrieval.prompt.j2",
+            graph_result=graph_data,
+            rag_results=rag_results
+        )
+    except Exception as e:
+        logger.error(f"Failed to render Codebase Retrieval template: {e}")
+        return "Search results processing error."
 
 
 @evoloop_tool(

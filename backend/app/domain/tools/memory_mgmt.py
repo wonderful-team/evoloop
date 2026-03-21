@@ -36,7 +36,7 @@ async def compress_history(
     # In a real implementation, the LLM wouldn't know the message IDs directly, 
     # so the engine will have to map these indices to IDs.
     
-    summary_block = f"### [HISTORY SUMMARY: {summary_title}]\n{summary_content}"
+    summary_block = f"[HISTORY SUMMARY: {summary_title}]\n{summary_content}"
     
     # This signal will be intercepted by SupervisorNode to yield RemoveMessage delta
-    return f"[HISTORY_COMPRESSION_SIGNAL] Range: {start_index}-{end_index} | Summary: {summary_title}"
+    return f"COMPRESSION_SIGNAL|{start_index}:{end_index}|{summary_title}"

@@ -1,5 +1,4 @@
 import logging
-import os
 import random
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -7,6 +6,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from app.core.memory import memory_manager
 from app.infrastructure.llm.factory import LLMFactory
 from app.utils.file import read_file_content
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -29,44 +29,30 @@ class ProjectStandardsAnalyst:
             logger.warning("[StandardsAnalyst] Not enough files to analyze.")
             return
 
-        # 2. Prepare Context
-        snippets = []
-        for fpath in sample_files:
-            try:
-                content, _ = read_file_content(fpath)
-                if content:
-                    # Truncate to avoid context overflow if files are huge
-                    snippets.append(f"--- File: {os.path.basename(fpath)} ---\n{content[:2000]}\n")
-            except Exception:
-                pass
-
-        combined_context = "\n".join(snippets)
+        # 2. Analysis Step handled below in Step 3
 
         # 3. LLM Analysis
         llm = LLMFactory.create_llm(temperature=0.1)  # Low temp for factual analysis
 
-        system_prompt = """You are a Lead Architect conducting a Code Audit.
-        Your goal is to extract the IMPLICIT CODING STANDARDS and PATTERNS from the provided code samples.
-        Do NOT critique the code. Describe the 'Way of Working'.
+        # Prepare file info for template
+        files_info = []
+        for fpath in sample_files:
+            try:
+                content, _ = read_file_content(fpath)
+                if content:
+                    files_info.append({"path": os.path.basename(fpath), "content": content[:2000]})
+            except Exception:
+                pass
 
-        Focus on:
-        1. Naming Conventions (Snake case? Camel case? Prefix rules?)
-        2. Typing (Strict type hints? No types? Pydantic?)
-        3. Documentation (Docstring style? Google/NumPy/Sphinx? Comments?)
-        4. Architectual Patterns (Repository pattern? Service layer? MVC?)
-        5. Error Handling (Exceptions? Return values?)
-        6. Libraries (Key libs used frequently?)
-
-        Output a concise List of Rules that a new developer should follow."""
-
-        user_prompt = f"Here are samples from the codebase:\n\n{combined_context}\n\nExtract the Coding Standards."
+        prompt_text = render_template(
+            "codebase/code_audit.prompt.j2",
+            standards="General implicit standards extraction",
+            files=files_info
+        )
 
         try:
-            response = await llm.ainvoke([
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_prompt),
-            ])
-            standards_report = response.content
+            response = await llm.ainvoke(prompt_text)
+            standards_report = response.content if hasattr(response, 'content') else str(response)
 
             logger.info("[StandardsAnalyst] Analysis Complete. Saving to Memory.")
 

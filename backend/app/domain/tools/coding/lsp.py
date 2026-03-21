@@ -244,25 +244,21 @@ async def consult_lsp(
             if not diagnostics:
                 return "No errors found."
 
-            result = []
+            from app.utils import render_template
+            
+            severity_map = {1: "Error", 2: "Warning", 3: "Info", 4: "Hint"}
+            diagnostic_data = []
             for d in diagnostics:
-                # d structure based on LSP Diagnostic spec
                 rng = d.get("range", {})
                 start = rng.get("start", {})
-                start_line = start.get("line", -1) + 1
-
-                severity = d.get("severity", 1)  # Default to Error
-                severity_map = {1: "Error", 2: "Warning", 3: "Info", 4: "Hint"}
-                severity_str = severity_map.get(severity, "Error")
-
-                message = d.get("message", "No message")
-                # Filter out "Analysis complete" style messages if any? No, diagnostics are errors.
-
-                source = d.get("source", "LSP")
-
-                result.append(f"Line {start_line}: [{severity_str}] {message} (Source: {source})")
-
-            return "\n".join(result)
+                diagnostic_data.append({
+                    "line": start.get("line", -1) + 1,
+                    "severity": severity_map.get(d.get("severity", 1), "Error"),
+                    "message": d.get("message", "No message"),
+                    "source": d.get("source", "LSP"),
+                })
+            
+            return render_template("lsp/diagnostics.prompt.j2", diagnostics=diagnostic_data)
 
         elif action == "find_definition":
             if line is None or character is None:
@@ -272,19 +268,21 @@ async def consult_lsp(
             if not locations:
                 return "No definitions found."
 
-            result = []
+            from app.utils import render_template
+            
+            location_data = []
             for loc in locations:
                 path = loc.get("absolutePath")
                 if not path and "uri" in loc:
-                    # simplistic uri to path
                     path = loc["uri"].replace("file://", "")
-
+                
                 rng = loc.get("range", {})
-                start_val = rng.get("start", {}).get("line", 0) + 1
-
-                result.append(f"{path}:{start_val}")
-
-            return "\n".join(result)
+                location_data.append({
+                    "path": path,
+                    "line": rng.get("start", {}).get("line", 0) + 1,
+                })
+            
+            return render_template("lsp/definitions.prompt.j2", locations=location_data)
 
         elif action == "hover":
             if line is None or character is None:

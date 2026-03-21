@@ -6,6 +6,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
 
 from app.core.tools import evoloop_tool
+from app.utils import ControllerResponse, SkillResponse, render_template
 
 logger = logging.getLogger(__name__)
 
@@ -38,20 +39,22 @@ async def bash(command: str) -> str:
 
         # Run via Sandbox (handles stateful CWD/ENV if using LocalSandbox)
         stdout, stderr, returncode = await asyncio.to_thread(sandbox.run_command, command)
-
-        output = ""
-        if stdout:
-            output += f"STDOUT:\n{stdout}\n"
-        if stderr:
-            output += f"STDERR:\n{stderr}\n"
-
+        
+        status_msg = "Command Succeeded." if returncode == 0 else f"Command Failed (Exit Code {returncode})."
+        output_details = render_template(
+            "report/tool_outputs.prompt.j2",
+            stdout=stdout,
+            stderr=stderr,
+            returncode=returncode
+        )
+        
         if returncode == 0:
-            return f"Command Succeeded.\n{output}"
+            return ControllerResponse.success(status_msg, details=output_details)
         else:
-            return f"Command Failed (Exit Code {returncode}).\n{output}"
+            return ControllerResponse.error(status_msg, details=output_details)
 
     except Exception as e:
-        return f"Execution Error: {str(e)}"
+        return ControllerResponse.error("Execution Error", details=str(e))
 
 
 @evoloop_tool(
@@ -73,12 +76,12 @@ async def run_macro(
     deterministically. This is more efficient and reliable than recreating steps
     from scratch using browser_control / desktop_control / mobile_control.
 
-    ## When to use
+    WHEN TO USE:
     - After `search_skills` returns a match with `execution_mode = "deterministic"`.
     - When the user explicitly asks you to replay a recorded skill.
     - When you want to repeat a previously successful multi-step automation.
 
-    ## When NOT to use
+    WHEN NOT TO USE:
     - For open-ended tasks where adaptive reasoning is required (use tools directly).
     - When the skill returns `execution_mode = "agentic"` (follow its `markdown_sop` instead).
 
@@ -126,32 +129,29 @@ async def run_macro(
                 result = await db.execute(stmt)
                 skill = result.scalar_one_or_none()
     except Exception as e:
-        logger.error(f"[run_macro] DB lookup failed: {e}")
-        return f"Error: Failed to look up skill — {e}"
+        return ControllerResponse.error(
+            f"Failed to look up skill '{skill_name or skill_id}'",
+            details=str(e)
+        )
 
     if not skill:
         identifier = f"id={skill_id}" if skill_id else f"name='{skill_name}'"
-        return (
-            f"Error: Skill not found ({identifier}). "
-            "Use `search_skills` first to discover the correct name or ID."
-        )
+        return ControllerResponse.not_found(identifier, item_type="skill")
 
     # 3. Validate macro script
-    macro_script = skill.macro_script
     if not macro_script or not isinstance(macro_script, list) or len(macro_script) == 0:
-        # Skill exists but has no compiled macro — fall back guidance
         mode = skill.execution_mode or "agentic"
-        return (
-            f"Skill '{skill.name}' found (mode={mode}), but has no compiled macro script.\n"
-            f"This skill is intended for **agentic** execution — follow its SOP instructions:\n\n"
-            f"{skill.instructions or '(No instructions available)'}"
+        return ControllerResponse.error(
+            f"Skill '{skill.name}' has no macro script.",
+            details=f"Mode: {mode}\nInstructions: {skill.instructions or 'None'}",
+            note="This skill requires agentic execution."
         )
 
     if skill.execution_mode != "deterministic":
-        return (
-            f"Skill '{skill.name}' is in '{skill.execution_mode}' mode, not 'deterministic'.\n"
-            f"Macro execution skipped. Follow the SOP instructions below instead:\n\n"
-            f"{skill.instructions or '(No instructions available)'}"
+        return ControllerResponse.error(
+            f"Skill '{skill.name}' is not in deterministic mode.",
+            details=f"Current mode: {skill.execution_mode}\nInstructions: {skill.instructions or 'None'}",
+            note="Follow the SOP instructions above instead."
         )
 
     logger.info(
@@ -170,30 +170,13 @@ async def run_macro(
         params=execution_params,
     )
 
-    # 5. Format result
+    # 5. Format result using SkillResponse for consistency
     if result.get("success"):
-        extracted = result.get("extracted_data", {})
-        summary = f"✅ Skill '{skill.name}' completed successfully."
-        if extracted:
-            lines = [f"  - {k}: {v}" for k, v in extracted.items() if v]
-            summary += "\n\nExtracted Data:\n" + "\n".join(lines)
-        return summary
+        return SkillResponse.success(skill.name, result.get("extracted_data"))
     else:
-        msg = result.get("message", "Unknown error")
-        fallback = result.get("fallback_context")
-        suggestions = result.get("suggestions", [])
-        
-        output = f"❌ Skill '{skill.name}' failed: {msg}"
-        if fallback:
-            failed_step = fallback.get("failed_step", {})
-            output += f"\n\nFailed step: {failed_step.get('description') or failed_step.get('event_type')}"
-            output += f"\nError: {fallback.get('error_message')}"
-
-            # Use suggestions injected by listeners (via MacroService)
-            if suggestions:
-                output += "\n\n" + "\n".join(suggestions)
-            else:
-                # Fallback if no advisor registered
-                output += "\n\n💡 Suggestion: Retry the failed step manually using the appropriate tool."
-
-        return output
+        return SkillResponse.error(
+            skill.name,
+            result.get("message", "Unknown error"),
+            fallback_context=result.get("fallback_context"),
+            suggestions=result.get("suggestions", [])
+        )

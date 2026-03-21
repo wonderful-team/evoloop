@@ -1,0 +1,13 @@
+{% if todos %}
+**Project TODOs:**
+{% for t in todos %}
+- [{{ t.status }}] {{ t.title }} (Priority: {{ t.priority }})
+{% endfor %}
+{% endif %}
+
+{% if steps %}
+**Active Plan Steps:**
+{% for s in steps %}
+{{ s.marker }} {{ s.title }}
+{% endfor %}
+{% endif %}

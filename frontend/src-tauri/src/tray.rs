@@ -268,7 +268,7 @@ pub fn setup_tray(
                     let _ = tray_handle.set_title(Some(""));
                     let lock = record_item_arc.lock().unwrap();
                     if let Some(item) = lock.as_ref() {
-                        let _ = item.set_text("开始录制");
+                        let _ = item.set_text("技能录制");
                     }
                     was_recording_or_preparing = false;
                 }

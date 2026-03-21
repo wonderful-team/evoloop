@@ -1,8 +1,7 @@
-import os
 import logging
-from jinja2 import Environment, FileSystemLoader
 from app.infrastructure.config.service import SystemConfigService
 from app.constants import TECHNICAL_MARKERS, STATUS_ICONS
+from app.utils import ControllerResponse, render_template
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +22,6 @@ class FinishPromptBuilder:
         self.verification_status = verification_status
         self.action_context = action_context
 
-        template_dir = os.path.join(os.path.dirname(__file__), "templates")
-        self.env = Environment(loader=FileSystemLoader(template_dir))
-
     def build(self) -> str:
         """
         Builds the final Reviewer system prompt via Jinja2.
@@ -45,8 +41,10 @@ class FinishPromptBuilder:
         }
 
         try:
-            template = self.env.get_template("finish.prompt.j2")
-            return template.render(**template_vars)
+            return render_template("agents/finish.prompt.j2", **template_vars)
         except Exception as e:
             logger.error(f"Error rendering Reviewer template: {e}")
-            return f"You are the Session Reviewer. Error loading template: {e}"
+            return ControllerResponse.error(
+                "Session Reviewer template error",
+                details=str(e)
+            )

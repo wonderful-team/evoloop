@@ -16,7 +16,59 @@ except ImportError:
     HAS_JINJA2 = False
 
 
-def render_template(template_str: str, context: dict[str, Any]) -> str:
+# Global environment for app/config/templates
+_CONFIG_TEMPLATE_DIR = os.path.join(
+    os.path.dirname(__file__), "..", "config", "templates"
+)
+_config_env: Environment | None = None
+
+
+def _truncate_list(items: list, max_items: int = 10) -> list:
+    """Truncate a list to a maximum number of items."""
+    return items[:max_items] if items else []
+
+
+def _get_config_env() -> Environment:
+    """Get or create the global config templates environment."""
+    global _config_env
+    if _config_env is None and HAS_JINJA2:
+        _config_env = Environment(loader=FileSystemLoader(_CONFIG_TEMPLATE_DIR))
+        # Register custom filters
+        _config_env.filters['truncate_list'] = _truncate_list
+    if _config_env is None:
+        raise ImportError("Jinja2 is required for template rendering")
+    return _config_env
+
+
+def render_template(template_name: str, **kwargs: Any) -> str:
+    """
+    Render a template from app/config/templates directory.
+
+    This is the primary method for rendering prompt templates used across
+    the application. Template paths are specified relative to 
+    app/config/templates (e.g., "report/response.prompt.j2").
+
+    Args:
+        template_name: Name/path of the template file (e.g., "report/response.prompt.j2")
+        **kwargs: Template context variables
+
+    Returns:
+        Rendered template string
+
+    Raises:
+        jinja2.TemplateNotFound: If the template does not exist
+        ImportError: If Jinja2 is not installed
+
+    Example:
+        >>> render_template("report/response.prompt.j2", success=True, message="Done")
+        '✅ Done'
+    """
+    env = _get_config_env()
+    template = env.get_template(template_name)
+    return template.render(**kwargs)
+
+
+def render_template_string(template_str: str, context: dict[str, Any]) -> str:
     """
     Render a Jinja2 template string with the given context.
     
@@ -32,7 +84,7 @@ def render_template(template_str: str, context: dict[str, Any]) -> str:
         Exception: If template rendering fails
     
     Example:
-        >>> render_template("Hello {{ name }}!", {"name": "World"})
+        >>> render_template_string("Hello {{ name }}!", {"name": "World"})
         'Hello World!'
     """
     if not HAS_JINJA2:
@@ -68,7 +120,7 @@ def render_template_file(template_path: str, context: dict[str, Any]) -> str:
     with open(template_path, 'r', encoding='utf-8') as f:
         template_str = f.read()
     
-    return render_template(template_str, context)
+    return render_template_string(template_str, context)
 
 
 def get_template_environment(template_dir: str, **kwargs: Any) -> "Environment | None":
@@ -95,7 +147,7 @@ def render_template_from_dir(
     context: dict[str, Any]
 ) -> str:
     """
-    Render a template from a directory.
+    Render a template from a specific directory.
     
     Args:
         template_name: Name of the template file
@@ -142,7 +194,7 @@ class TemplateRenderer:
     
     def render_string(self, template_str: str, **context: Any) -> str:
         """Render a template string."""
-        return render_template(template_str, context)
+        return render_template_string(template_str, context)
     
     def render_file(self, template_name: str, **context: Any) -> str:
         """Render a template file."""

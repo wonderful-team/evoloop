@@ -157,26 +157,17 @@ Relationships:
 
         llm = LLMFactory.create_llm(temperature=0)
 
-        CYPHER_GENERATION_TEMPLATE = """Task:Generate Cypher statement to query a graph database.
-Instructions:
-Use only the provided relationship types and properties in the schema.
-Do not use any other relationship types or properties that are not provided.
-Schema:
-{schema}
-
-Note: Do not include any explanations or apologies in your responses.
-Do not respond to any questions that might ask anything else than for you to construct a Cypher statement.
-Do not include any text except the generated Cypher statement.
-
-The question is:
-{question}
-"""
-        if project_id is not None and project_id != 0:
-            CYPHER_GENERATION_TEMPLATE += f"\nConstraint: ALWAYS filter by project_id = {project_id} in your query if nodes have that property."
+        from app.utils import render_template
+        prompt_text = render_template(
+            "tool/cypher_generation.prompt.j2",
+            schema="{schema}", # Keep LangChain placeholders {schema} and {question} or pass data directly?
+            question="{question}",
+            project_id=project_id if project_id and project_id != 0 else None
+        )
 
         CYPHER_GENERATION_PROMPT = PromptTemplate(
             input_variables=["schema", "question"],
-            template=CYPHER_GENERATION_TEMPLATE
+            template=prompt_text
         )
 
         chain = GraphCypherQAChain.from_llm(

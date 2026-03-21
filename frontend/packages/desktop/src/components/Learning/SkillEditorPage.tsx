@@ -9,7 +9,6 @@ import {
     Sparkles,
     Play,
     Zap,
-    FileJson,
     ArrowLeft,
     Trash2,
 } from "lucide-react"
@@ -24,7 +23,7 @@ import { EditorSidebar } from "./EditorSidebar"
 import { useChatStore } from "@/stores/chatStore"
 import type { LearnedSkill } from "@/types/skill"
 import type { ParamDef } from "./EditorSidebar"
-import { MacroEditor, MacroJsonEditor, type MacroStep } from "./SmartReplay/MacroEditor"
+import { MacroEditor, MacroYamlEditor, type MacroStep } from "./SmartReplay"
 import { MarkdownEditor } from "@/components/Common/MarkdownEditor"
 
 interface SkillEditorPageProps {
@@ -47,6 +46,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
     const [instructions, setInstructions] = useState("")
     const [executionMode, setExecutionMode] = useState<"agentic" | "deterministic">("agentic")
     const [macroScript, setMacroScript] = useState("[]")
+    const [editorMode, setEditorMode] = useState<"visual" | "yaml">("visual")
 
     // Fetch skill data
     const { data: skill, isLoading: isLoadingSkill } = useQuery({
@@ -206,14 +206,20 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
     const handleRun = async () => {
         try {
             const threadId = useChatStore.getState().threadId || "debug-" + Date.now()
-            await LearningService.executeSkill({
+            const response = await LearningService.executeSkill({
                 skillId,
                 requestBody: {
                     thread_id: threadId,
                     params: {},
+                    // Use current page execution mode (allows testing before saving)
+                    execution_mode: executionMode,
                 },
             })
-            toast.success(t("learning.executionStarted"))
+            // Show execution mode in toast for clarity
+            const modeLabel = response.execution_mode === "deterministic" 
+                ? t("learning.deterministic") 
+                : t("learning.agentic")
+            toast.success(`${t("learning.executionStarted")} (${modeLabel})`)
         } catch (e) {
             toast.error(t("learning.executionFailed"))
         }
@@ -246,7 +252,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
     return (
         <div className="flex flex-col h-full bg-background">
             {/* Header */}
-            <header className="flex items-center justify-between px-6 py-4 border-b bg-card">
+            <header className="flex items-center justify-between px-3 py-2 border-b bg-card shrink-0">
                 <div className="flex items-center gap-4">
                     <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
                         <ArrowLeft className="h-4 w-4" />
@@ -337,8 +343,8 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                     handleParamChange={handleParamChange}
                 />
 
-                <div className="flex-1 p-6 flex flex-col bg-muted/10 h-full min-h-0">
-                    <div className="flex flex-row items-center justify-between mb-4 shrink-0">
+                <div className="flex-1 p-3 flex flex-col bg-muted/10 h-full min-h-0">
+                    <div className="flex flex-row items-center justify-between mb-2 shrink-0">
                         <div className="flex items-center gap-2 text-sm font-bold text-amber-600">
                             {executionMode === "agentic" ? (
                                 <Sparkles className="h-4 w-4" />
@@ -353,15 +359,26 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                         </div>
                         <div className="flex items-center gap-2">
                             {executionMode === "deterministic" && (
-                                <MacroJsonEditor
-                                    steps={safeParseMacro(macroScript)}
-                                    onChange={(steps) => setMacroScript(JSON.stringify(steps, null, 2))}
-                                >
-                                    <Button variant="outline" size="sm" className="gap-1.5">
-                                        <FileJson className="h-3.5 w-3.5" />
-                                        {t("learning.editJson")}
-                                    </Button>
-                                </MacroJsonEditor>
+                                <div className="flex items-center gap-1 text-xs bg-muted p-1 rounded-md">
+                                    <button
+                                        onClick={() => setEditorMode("visual")}
+                                        className={`px-2 py-1 rounded-sm transition-colors ${editorMode === "visual"
+                                            ? "bg-background font-medium shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground"
+                                            }`}
+                                    >
+                                        {t("macroEditor.visual")}
+                                    </button>
+                                    <button
+                                        onClick={() => setEditorMode("yaml")}
+                                        className={`px-2 py-1 rounded-sm transition-colors ${editorMode === "yaml"
+                                            ? "bg-background font-medium shadow-sm"
+                                            : "text-muted-foreground hover:text-foreground"
+                                            }`}
+                                    >
+                                        YAML
+                                    </button>
+                                </div>
                             )}
                             <div className="flex items-center gap-2 text-xs bg-background p-1 rounded-md border shadow-sm">
                                 <button
@@ -396,14 +413,21 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                         />
                     ) : (
                         <div className="flex-1 min-h-0 border rounded-xl bg-background shadow-sm overflow-hidden">
-                            <MacroEditor
-                                steps={safeParseMacro(macroScript)}
-                                onChange={(steps) => setMacroScript(JSON.stringify(steps, null, 2))}
-                                onStepPreview={(step) => {
-                                    console.log("Preview step:", step)
-                                    toast.info(`Step ${step.step_number}: ${step.description || step.event_type}`)
-                                }}
-                            />
+                            {editorMode === "visual" ? (
+                                <MacroEditor
+                                    steps={safeParseMacro(macroScript)}
+                                    onChange={(steps) => setMacroScript(JSON.stringify(steps, null, 2))}
+                                    onStepPreview={(step) => {
+                                        console.log("Preview step:", step)
+                                        toast.info(`Step ${step.step_number}: ${step.description || step.event_type}`)
+                                    }}
+                                />
+                            ) : (
+                                <MacroYamlEditor
+                                    steps={safeParseMacro(macroScript)}
+                                    onChange={(steps) => setMacroScript(JSON.stringify(steps, null, 2))}
+                                />
+                            )}
                         </div>
                     )}
                 </div>

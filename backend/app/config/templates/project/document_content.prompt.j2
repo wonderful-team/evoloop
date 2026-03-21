@@ -1,0 +1,17 @@
+# {{ type|title }}: {{ filename }}
+{% if metadata %}
+*Metadata: {{ metadata }}*
+{% endif %}
+{% if page_info %}
+*{{ page_info }}*
+{% endif %}
+
+{% if content_blocks %}
+{% for block in content_blocks %}
+## {{ block.title }}
+{{ block.content }}
+
+{% endfor %}
+{% else %}
+{{ raw_content }}
+{% endif %}

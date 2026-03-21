@@ -1,0 +1,13 @@
+### OCR Results ({{ platform|upper }})
+
+{% for el in elements %}
+[{{ loop.index }}] {{ el.role }}: {{ ("'" + el.name + "'") if el.name else "Unnamed" }} {{ el.bounds }} {{ ("path=" + el.path) if el.path else "" }}
+{% endfor %}
+
+{% if total_count > elements|length %}
+... (and {{ total_count - elements|length }} more elements)
+{% endif %}
+
+{% if not elements %}
+No interactive elements detected on the current screen.
+{% endif %}

@@ -85,11 +85,9 @@ class DirectorySummarizer:
             for subdir in direct_subdirs:
                 # Recurse
                 sub_summary = await self.summarize_directory(project_id, subdir, recursive=True)
-                child_summaries.append(f"Directory {subdir}: {sub_summary}")
+                child_summaries.append({"type": "directory", "name": subdir, "summary": sub_summary})
 
         # 3. Process Files
-        # We need their summaries.
-        # Querying DB for 'whole_file' chunks for these files.
         if direct_files:
             file_summaries_query = """
             MATCH (f:File {project_id: $pid})
@@ -102,13 +100,10 @@ class DirectorySummarizer:
                 f_records = await result.data()
 
             for fr in f_records:
-                # Use the 'whole_file' chunk content as a proxy for summary.
-                # In the future (Phase 2), we should store a generated summary on the File node itself.
-                # For now, we take the first 1000 characters to give the context window enough signal.
-                content_preview = (fr["content"] or "")[:1000].replace("\n", " ")
+                content_preview = (fr["content"] or "")[:1000]
                 if len(fr["content"] or "") > 1000:
                     content_preview += "..."
-                child_summaries.append(f"File {fr['path']}: {content_preview}")
+                child_summaries.append({"type": "file", "name": fr["path"], "content": content_preview})
 
         if not child_summaries:
             return "Empty Directory"
@@ -149,23 +144,19 @@ class DirectorySummarizer:
         return summary_text
 
     async def generate_summary(self, dir_path: str, child_summaries: list[str]) -> str:
-        from langchain_core.messages import HumanMessage, SystemMessage
-
+        from app.utils import render_template
+        
         llm = get_default_llm()
 
-        # Context Management: If too many children, sample or hierarchically summarize?
-        # V1: Just join.
-        context = "\n".join(child_summaries)
-
-        system_prompt = "You are a System Architect. Summarize the role and architectural responsibility of this directory based on its contents."
-        user_prompt = f"Directory: {dir_path}\n\nContents:\n{context}\n\nProvide a concise, high-level summary (1-2 sentences) of what this module does."
+        prompt_text = render_template(
+            "codebase/directory_summary.prompt.j2",
+            directory_path=dir_path,
+            child_summaries=child_summaries
+        )
 
         try:
-            response = await llm.ainvoke([
-                SystemMessage(content=system_prompt),
-                HumanMessage(content=user_prompt),
-            ])
-            return response.content
+            response = await llm.ainvoke(prompt_text)
+            return response.content if hasattr(response, 'content') else str(response)
         except Exception:
             # Fallback for LLM failure or invocation error (invoked vs invoke)
             # invoke is standard

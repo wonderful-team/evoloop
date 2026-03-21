@@ -269,24 +269,26 @@ async def sync_thread_to_graph(
             logger.info(f"No trace events for thread '{thread_id}'. Skipping.")
             return
 
-        # Build a compact action summary from the recorded events
-        action_lines = []
-        for ev in events:
+        # Build a compact action summary from the recorded events using template
+        from app.utils import render_template
+        
+        action_data = []
+        for ev in events[:50]:  # cap at 50 events
             try:
                 payload = json.loads(ev.action_payload) if ev.action_payload else {}
             except Exception:
                 payload = {}
-
-            if ev.action_type == "tool_call":
-                action_lines.append(f"→ tool:{payload.get('name', '?')}({json.dumps(payload.get('args', {}))[:120]})")
-            elif ev.action_type == "tool_result":
-                out = (payload.get("output") or "")[:80]
-                action_lines.append(f"  ✔ result:{out}")
-            elif ev.action_type == "llm_output":
-                content = (payload.get("content") or "")[:200]
-                action_lines.append(f"  💬 {content}")
-
-        actions_text = "\n".join(action_lines[:50])  # cap at 50 lines
+            
+            action_info = {
+                "type": ev.action_type,
+                "name": payload.get('name', '?') if ev.action_type == "tool_call" else None,
+                "args": json.dumps(payload.get('args', {})) if ev.action_type == "tool_call" else None,
+                "output": payload.get("output") if ev.action_type == "tool_result" else None,
+                "content": payload.get("content") if ev.action_type == "llm_output" else None,
+            }
+            action_data.append(action_info)
+        
+        actions_text = render_template("events/action_summary.prompt.j2", actions=action_data)
 
         episode_result = result_summary or (
             f"Completed {len(events)} actions for goal: {goal}"

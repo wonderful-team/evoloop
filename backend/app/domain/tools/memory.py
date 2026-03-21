@@ -1,6 +1,11 @@
+import logging
+
 from app.core.context.manager import ContextManager
 from app.core.memory import memory_manager
 from app.core.tools import evoloop_tool
+from app.utils import ProjectManagementFormatter, render_template
+
+logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
@@ -73,15 +78,11 @@ async def search_concepts(query: str, project_id: int = None):
     results = await memory_manager.long_term.search_concepts(query, pid)
     if not results:
         return "No relevant concepts found."
-    lines = []
-    for r in results:
-        scope = "[Global]" if r.score == 0 else ""
-        files_str = ""
-        if r.files:
-            basenames = [f.split("/")[-1] for f in r.files]
-            files_str = f"\n  Related Files: {', '.join(basenames)}"
-        lines.append(f"- **{r.name}** {scope} (Score: {r.score:.2f}): {r.description}{files_str}")
-    return "\n".join(lines)
+    try:
+        return ProjectManagementFormatter.concepts(results)
+    except Exception as e:
+        logger.error(f"Failed to render concepts: {e}")
+        return f"Found {len(results)} concepts."
 
 
 @evoloop_tool(

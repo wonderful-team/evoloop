@@ -1,0 +1,23 @@
+{% if checkpoints %}
+### 📑 System Checkpoints
+{% for cp in checkpoints %}
+- ID {{ cp.id }}: [{{ cp.status }}] {{ cp.name }} ({{ cp.time }})
+{% endfor %}
+{% endif %}
+
+{% if rollback_preview %}
+📋 **Rollback Preview**: Rollback to checkpoint #{{ rollback_preview.id }} '{{ rollback_preview.name }}'
+{% endif %}
+
+{% if diagnostics %}
+### 🚨 Diagnostics
+{% for d in diagnostics %}
+Line {{ d.line }}: [{{ d.severity }}] {{ d.message }} (Source: {{ d.source }})
+{% endfor %}
+{% endif %}
+
+{% if signals %}
+{% for s in signals %}
+🔔 **System Signal**: {{ s.message }}
+{% endfor %}
+{% endif %}

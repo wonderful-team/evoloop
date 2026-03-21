@@ -46,7 +46,7 @@ class SkillDiscovery:
         Sync system skills to the DB.
 
         Workflow:
-        1. Copy built-in skills from app/core/learning/skills to ~/.evoloop/skills
+        1. Copy built-in skills from app/config/skills to ~/.evoloop/skills
         2. Scan ~/.evoloop/skills directory and import/update skills in DB
         """
         if self._system_skills_synced:
@@ -56,8 +56,9 @@ class SkillDiscovery:
             from app.core.learning.skill_importer import SkillImporter
 
             # Step 1: Copy built-in skills to user skills directory
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            builtin_skills_path = os.path.join(base_dir, "skills")
+            # Built-in skills are now located in app/config/skills
+            base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            builtin_skills_path = os.path.join(base_dir, "config", "skills")
             user_skills_path = settings.SKILLS_DIR
 
             if os.path.exists(builtin_skills_path):
@@ -254,11 +255,11 @@ class SkillDiscovery:
                     role = msg.get("role", "human")
                     content = msg.get("content", "")
                     if role == "human":
-                        messages.append(HumanMessage(content=f"PREVIOUS_QUERY: {content}"))
+                        messages.append(HumanMessage(content=content))
                     elif role == "ai":
-                        messages.append(AIMessage(content=f"PREVIOUS_RESPONSE: {content}"))
+                        messages.append(AIMessage(content=content))
 
-            messages.append(HumanMessage(content=f"CURRENT_USER_QUERY: {query}"))
+            messages.append(HumanMessage(content=query))
 
             logger.info(f"[Discovery] Invoking LLM for intent matching: {query[:50]}...")
             response = await llm.ainvoke(

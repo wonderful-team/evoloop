@@ -1,5 +1,9 @@
+import json
 import logging
-from typing import Any
+import os
+from typing import Any, Dict, List, Optional
+
+from app.utils import render_template
 
 from app.core.atlas.adapters.neo4j_store import Neo4jAtlasStore
 from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState
@@ -152,18 +156,18 @@ class AtlasEngine:
             if not detail:
                 return f"No details found for state '{state_id}' in app '{target_bundle}'."
 
-            output = [
-                f"### 🖼️ UI State Detail: {detail['window_title']} (ID: {state_id})",
-                f"App: {target_bundle}",
-                "\n**Key Elements:**"
-            ]
-            for el in detail["elements"]:
-                # Format: [Role] Label (resource_id) @ [Bounds]
-                label_str = f"'{el['label']}'" if el.get("label") else "No Label"
-                id_str = f"({el['resource_id']})" if el.get("resource_id") else ""
-                output.append(f"- [{el['role']}] {label_str} {id_str} | Bounds: {el['bounds']}")
-
-            return "\n".join(output)
+            try:
+                return render_template(
+                    "memory/atlas_detail.prompt.j2",
+                    window_title=detail.get('window_title', 'Unknown'),
+                    state_id=state_id,
+                    bundle_id=target_bundle,
+                    elements=detail.get('elements', [])
+                )
+            except Exception as e:
+                logger.error(f"Failed to render Atlas detail template: {e}")
+                # Minimal fallback
+                return f"UI State Detail: {detail.get('window_title')} (ID: {state_id})"
 
         if not bundle_ids:
             return "Please provide bundle_id(s) or a state_id."
@@ -200,7 +204,7 @@ class AtlasEngine:
             transitions = await self.store.get_transitions_summary(bundle_id, platform=platform)
 
             output = [
-                f"### 🗺️ App UI Atlas: {summary['app_name']} ({bundle_id})",
+                f"App UI Atlas: {summary['app_name']} ({bundle_id})",
             ]
             
             if is_stale:
@@ -251,7 +255,7 @@ class AtlasEngine:
         if not apps:
             return "No applications have UI Maps (Atlas) recorded yet. Atlas is built automatically as you perform tasks."
 
-        output = ["### 📚 App Atlas Directory", "The following applications have structural UI maps available:"]
+        output = ["App Atlas Directory", "The following applications have structural UI maps available:"]
         for app in apps:
             output.append(f"- **{app['app_name']}** (Bundle ID: `{app['bundle_id']}`, Platform: {app['platform']})")
 

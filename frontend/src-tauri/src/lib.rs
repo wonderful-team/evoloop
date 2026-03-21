@@ -303,7 +303,7 @@ pub fn run() {
         {
             let quit_i = MenuItem::with_id(_app, "quit", "退出", true, Some("CmdOrCtrl+Q"))?;
             let show_i = MenuItem::with_id(_app, "show", "显示主界面", true, None::<&str>)?;
-            let record_i = MenuItem::with_id(_app, "record", "开始录制", true, Some("CmdOrCtrl+R"))?;
+            let record_i = MenuItem::with_id(_app, "record", "技能录制", true, Some("CmdOrCtrl+R"))?;
 
             let service_state = AppServiceState {
                 children: Arc::new(Mutex::new(Vec::new())),

@@ -7,12 +7,16 @@ hierarchy. Uses composition over inheritance for better flexibility.
 """
 import asyncio
 import logging
-import os
-from abc import ABC, abstractmethod
+import time
 from typing import Any, Callable
 
-from app.utils.text import normalize_text as _normalize_text, truncate_output
-from app.utils.geometry import normalize_coordinates as _normalize_coordinates
+from app.utils import (
+    cleanup_file,
+    normalize_coordinates,
+    normalize_text,
+    render_template,
+)
+from app.utils.text import truncate_output
 
 logger = logging.getLogger(__name__)
 
@@ -84,17 +88,6 @@ class RecordingContext:
         )
 
 
-def normalize_text(t: str | None) -> str:
-    """
-    Normalize text for comparison: NFC unicode, lowercase, no spaces.
-
-    Used for element name matching across different platforms.
-    
-    Note: Delegates to app.utils.text.normalize_text for the actual implementation.
-    """
-    return _normalize_text(t)
-
-
 def resolve_element_alias(target: str | None, element_name: str | None) -> str | None:
     """
     Resolve parameter alias: prefer element_name, fall back to target.
@@ -103,29 +96,6 @@ def resolve_element_alias(target: str | None, element_name: str | None) -> str |
     This function ensures consistent handling of the alias.
     """
     return element_name if element_name else target
-
-
-def normalize_coordinates(
-    x: int | float | None,
-    y: int | float | None,
-    screen_w: int,
-    screen_h: int
-) -> tuple[int | None, int | None]:
-    """
-    Convert relative coordinates (0.0-1.0) to pixel coordinates.
-    
-    Note: Delegates to app.utils.geometry.normalize_coordinates for the actual implementation.
-    """
-    return _normalize_coordinates(x, y, screen_w, screen_h)
-
-
-def cleanup_file(filepath: str | None) -> None:
-    """Safely remove a temporary file."""
-    if filepath and os.path.exists(filepath):
-        os.remove(filepath)
-
-
-# truncate_output is now imported from app.utils.text
 
 
 async def run_with_timeout(
@@ -162,8 +132,6 @@ class BatchExecutor:
             executor_func: Async function to execute each action
             total: Optional total count (for progress)
         """
-        import time
-
         total = total or len(actions)
         for i, action_dict in enumerate(actions, 1):
             step_start = time.time()
@@ -197,16 +165,28 @@ class BatchExecutor:
         return self.results
 
     def format_summary(self, elapsed_time: float) -> str:
-        """Format batch execution summary."""
+        """Format batch execution summary using template."""
         total = len(self.results)
         ok = sum(1 for r in self.results if r["status"] == "success")
         fail = total - ok
+        return render_template(
+            "report/batch_summary.prompt.j2",
+            results=self.results,
+            total=total,
+            ok=ok,
+            fail=fail,
+            elapsed_time=round(elapsed_time, 2)
+        )
 
-        lines = [f"✅ Batch Complete: {ok}/{total} succeeded, {fail} failed ({elapsed_time:.2f}s)", ""]
-        for r in self.results:
-            icon = "✅" if r["status"] == "success" else "❌"
-            lines.append(f"  {icon} Step {r['step']}: {r['action']} ({r['latency_ms']}ms)")
-            if r["status"] == "error":
-                lines.append(f"      Error: {str(r['result'])[:100]}")
 
-        return "\n".join(lines)
+__all__ = [
+    "BatchExecutor",
+    "RecordingContext",
+    "cleanup_file",
+    "normalize_coordinates",
+    "normalize_text",
+    "render_template",
+    "resolve_element_alias",
+    "run_with_timeout",
+    "truncate_output",
+]

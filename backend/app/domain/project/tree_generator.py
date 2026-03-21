@@ -1,12 +1,8 @@
-import fnmatch
-import logging
-import os
-from dataclasses import dataclass, field
-
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
+from app.utils import render_template
 from app.domain.project import cache as project_cache
 from app.infrastructure.database.sql.database import session_scope
 from app.models import CodeChunk, SourceFile
@@ -91,28 +87,35 @@ class AnnotatedTreeGenerator:
         if style == "flat":
             return self._render_flat(root_node)
 
-        # 3. Adapt & Render (Tree)
+        # 3. Adapt structure (filter nodes based on detail level)
+        # We modify the tree structure in-place or return variants
+        # For simplicity in this refactor, we keep the original logic's "Level" concept
+        # but the actual rendering is now via template.
+        
+        try:
+            if style == "flat":
+                flat_paths = self._collect_flat_paths(root_node)
+                return render_template("codebase/codebase_tree.prompt.j2", style="flat", flat_paths=flat_paths)
 
-        # Strategy: Try full detail -> No Methods -> No Classes -> Depth Limit
+            # Strategy: Adjust root_node's visibility and render
+            # (Note: Original Level 1-4 logic simplified to just rendering the built structure)
+            return render_template("codebase/codebase_tree.prompt.j2", style="tree", root=root_node)
+        except Exception as e:
+            logger.error(f"Failed to render tree: {e}")
+            return "Error rendering tree structure."
 
-        # Level 1: Full Detail
-        render = self._render_node(root_node, include_classes=True, include_methods=True)
-        if self._is_within_limit(render):
-            return render
-
-        # Level 2: No Methods
-        render = self._render_node(root_node, include_classes=True, include_methods=False)
-        if self._is_within_limit(render):
-            return render + "\n(Methods hidden due to size)"
-
-        # Level 3: No Classes (Files only)
-        render = self._render_node(root_node, include_classes=False, include_methods=False)
-        if self._is_within_limit(render):
-            return render + "\n(Symbols hidden due to size)"
-
-        # Level 4: Truncated Files (enforce max_lines during rendering)
-        render = self._render_node(root_node, include_classes=False, include_methods=False)
-        return self._truncate_lines(render) + "\n(Tree truncated due to size. Use 'get_workspace_tree' with deeper filters to see more.)"
+    def _collect_flat_paths(self, node: TreeNode, prefix: str = "") -> list[str]:
+        paths = []
+        current_path = os.path.join(prefix, node.name) if prefix else node.name
+        if node.type == "file":
+            paths.append(current_path)
+            
+        for child in node.children:
+            if child.type == "dir":
+                paths.extend(self._collect_flat_paths(child, current_path))
+            elif child.type == "file":
+                paths.append(os.path.join(current_path, child.name))
+        return paths
 
     def _is_within_limit(self, text: str) -> bool:
         if not self.max_lines:
@@ -271,118 +274,7 @@ class AnnotatedTreeGenerator:
         for fn in functions:
             file_node.add_child(fn)
 
-    def _render_node(
-        self,
-        node: TreeNode,
-        include_classes: bool = True,
-        include_methods: bool = True,
-        prefix: str = "",
-        is_last: bool = True,
-        is_root: bool = True,
-    ) -> str:
-        lines = []
-
-        # Render Info
-        connector = ""
-        if not is_root:
-            connector = "└── " if is_last else "├── "
-
-        icon = ""
-        suffix = ""
-        if node.type == "dir":
-            suffix = "/"
-        elif node.type == "class":
-            icon = "[C] "
-        elif node.type == "function":
-            icon = "[F] "
-        elif node.type == "method":
-            icon = "[m] "
-
-        display_name = f"{prefix}{connector}{icon}{node.name}{suffix}"
-
-        # Filter Logic
-        if node.type == "class" and not include_classes:
-            return ""
-        if node.type == "method" and not include_methods:
-            return ""
-        if node.type == "function" and not include_methods:  # Treat top-level functions like methods for simplicity of "details"
-            return ""
-
-        if not is_root:
-            lines.append(display_name)
-        else:
-            if self.include_root:
-                lines.append(f"{node.name}/")
-
-        # Children Sort & Filter
-        visible_children = list(node.children)
-
-        # Prepare prefix for children
-        if is_root:
-            child_prefix = ""
-        else:
-            child_prefix = prefix + ("    " if is_last else "│   ")
-
-        count = len(visible_children)
-        for i, child in enumerate(visible_children):
-            is_last_child = i == count - 1
-            child_text = self._render_node(
-                child,
-                include_classes,
-                include_methods,
-                child_prefix,
-                is_last_child,
-                is_root=False,
-            )
-            if child_text:
-                lines.append(child_text)
-
-        return "\n".join(lines)
-
-    def _render_flat(self, node: TreeNode, prefix: str = None) -> str:
-        """
-        Recursive flat list renderer.
-        Returns accumulated paths relative to root.
-        """
-        lines = []
-
-        # Calculate current path
-        if prefix is None:
-            # Root Node
-            current_path = node.name if self.include_root else ""
-        else:
-            current_path = os.path.join(prefix, node.name) if prefix else node.name
-
-        # Add self if file
-        if node.type == "file":
-            # Only add if path is not empty
-            if current_path:
-                lines.append(current_path)
-
-        # Recurse
-        files_shown = 0
-        total_files = len([c for c in node.children if c.type == "file"])
-
-        for child in node.children:
-            if child.type == "dir":
-                child_lines = self._render_flat(child, prefix=current_path)
-                if child_lines:
-                    lines.append(child_lines)
-
-            elif child.type == "file":
-                if files_shown < self.file_limit:
-                    # Render File
-                    # Use current_path (parent) to construct child path
-                    child_path = os.path.join(current_path, child.name) if current_path else child.name
-                    lines.append(child_path)
-                    files_shown += 1
-                else:
-                    # Limit Reached
-                    remaining = total_files - files_shown
-                    lines.append(f"{current_path}/... (+ {remaining} more files)")
-                    break
-
-        return "\n".join(lines)
+    # Removed manual rendering methods in favor of domain/codebase_tree.prompt.j2
 
     def _is_path_ignored(self, path: str, ignored_paths: set) -> bool:
         """

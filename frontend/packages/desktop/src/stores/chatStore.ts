@@ -192,7 +192,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const formatted: Message[] = rawMessages
                 .map((m: any, idx: number) => ({
                     id: m.id || idx,
-                    role: m.role === "human" ? "human" : "ai",
+                    // Normalize role: user->human, assistant->ai
+                    role: m.role === "human" || m.role === "user" ? "human" : "ai",
                     originalRole: m.role,
                     content: m.content || "",
                     thinking: m.thinking,
@@ -201,14 +202,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     steps: m.steps || [],
                     references: m.references || [],
                 }))
-                .filter((m: any) => (m.content || m.thinking || (m.steps && m.steps.length > 0)) && m.originalRole !== "tool")
+                // Filter: only show human/ai messages (tool messages are folded server-side)
+                // Accept both "human" and "user" roles for backward compatibility
+                .filter((m: any) => m.originalRole === "human" || m.originalRole === "user" || m.originalRole === "ai" || m.originalRole === "assistant")
 
             // Update state with pagination info
             if (get().threadId === threadId) {
+                // Use the first message's ID from the formatted array as firstMessageId
+                // (API might not return first_id field)
+                const firstMsgId = formatted.length > 0 ? formatted[0].id : null
+                console.log('[ChatStore] fetchHistory loaded:', { 
+                    count: formatted.length, 
+                    firstMsgId, 
+                    lastMsgId: formatted.length > 0 ? formatted[formatted.length - 1].id : null,
+                    hasMore: response?.has_more 
+                })
                 set({
                     messages: formatted,
                     hasMoreHistory: response?.has_more ?? false,
-                    firstMessageId: response?.first_id ?? null,
+                    firstMessageId: firstMsgId,
                     totalMessageCount: response?.total_count ?? null,
                     isLoadingHistory: false,
                 })
@@ -224,7 +236,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
     loadMoreHistory: async () => {
         const { threadId, firstMessageId, isLoadingHistory, hasMoreHistory } = get()
         
-        if (!threadId || isLoadingHistory || !hasMoreHistory || !firstMessageId) return
+        console.log('[ChatStore] loadMoreHistory check:', { threadId, firstMessageId, isLoadingHistory, hasMoreHistory })
+        
+        if (!threadId || isLoadingHistory || !hasMoreHistory || !firstMessageId) {
+            console.log('[ChatStore] loadMoreHistory skipped due to:', { noThreadId: !threadId, isLoadingHistory, noHasMoreHistory: !hasMoreHistory, noFirstMessageId: !firstMessageId })
+            return
+        }
         
         set({ isLoadingHistory: true })
         
@@ -246,7 +263,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
             const formatted: Message[] = rawMessages
                 .map((m: any, idx: number) => ({
                     id: m.id || idx,
-                    role: m.role === "human" ? "human" : "ai",
+                    // Normalize role: user->human, assistant->ai
+                    role: m.role === "human" || m.role === "user" ? "human" : "ai",
                     originalRole: m.role,
                     content: m.content || "",
                     thinking: m.thinking,
@@ -255,15 +273,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     steps: m.steps || [],
                     references: m.references || [],
                 }))
-                .filter((m: any) => (m.content || m.thinking || (m.steps && m.steps.length > 0)) && m.originalRole !== "tool")
+                // Filter: only show human/ai messages (tool messages are folded server-side)
+                // Accept both "human" and "user" roles for backward compatibility
+                .filter((m: any) => m.originalRole === "human" || m.originalRole === "user" || m.originalRole === "ai" || m.originalRole === "assistant")
             
             // Prepend new messages to existing list
-            set((state) => ({
-                messages: [...formatted, ...state.messages],
-                hasMoreHistory: response?.has_more ?? false,
-                firstMessageId: response?.first_id ?? state.firstMessageId,
-                isLoadingHistory: false,
-            }))
+            // Update firstMessageId to the first message of the newly loaded batch
+            set((state) => {
+                const newFirstMsgId = formatted.length > 0 ? formatted[0].id : state.firstMessageId
+                console.log('[ChatStore] loadMoreHistory loaded:', { 
+                    newCount: formatted.length, 
+                    newFirstMsgId, 
+                    totalMessages: state.messages.length + formatted.length,
+                    hasMore: response?.has_more 
+                })
+                return {
+                    messages: [...formatted, ...state.messages],
+                    hasMoreHistory: response?.has_more ?? false,
+                    firstMessageId: newFirstMsgId,
+                    isLoadingHistory: false,
+                }
+            })
         } catch (e) {
             console.error("Failed to load more history", e)
             set({ isLoadingHistory: false })
@@ -605,9 +635,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // 1. Format
         // Use pre-folded steps from backend
+        // Normalize role: user->human, assistant->ai
+        const normalizedRole = rawMsg.role === "human" || rawMsg.role === "user" ? "human" : "ai"
         const newMsg: Message = {
             id: rawMsg.id,
-            role: rawMsg.role === "human" ? "human" : "ai",
+            role: normalizedRole,
             originalRole: rawMsg.role,
             content: rawMsg.content || "",
             thinking: rawMsg.thinking,

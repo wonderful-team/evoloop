@@ -539,6 +539,8 @@
       "cancelHitl": "Failed to cancel request",
       "connection": "Connection Error: {{error}}"
     },
+    "loadingHistory": "Loading history...",
+    "scrollToLoadMore": "Scroll up to load more history",
     "context": {
       "starter": {
         "analyzeDesc": "Explore architecture & files",
@@ -1178,10 +1180,21 @@
   },
   "startup": {
     "systemCheckPassed": "✓ System checks passed. Ready.",
-    "backendReady": "Backend Ready! Launching...",
+    "backendReady": "Launching...",
     "waitingLogs": "Waiting for backend logs...",
     "initializing": "Initializing System Services...",
-    "logTitle": "system.log"
+    "logTitle": "system.log",
+    "loading": "Loading",
+    "hint": "First launch may take a while, please be patient...",
+    "devMode": "Development Mode",
+    "status": {
+      "connecting": "Connecting to service...",
+      "initializing": "Initializing system...",
+      "loadingModules": "Loading core modules...",
+      "preparingAI": "Preparing AI engine...",
+      "finalizing": "Almost there...",
+      "ready": "Ready!"
+    }
   },
   "app": {
     "name": "EvoLoop"
@@ -1310,6 +1323,21 @@
     "cancel": "Cancel",
     "saveChanges": "Save Changes",
     "previewStep": "Preview this step",
+    "visual": "Visual",
+    "yamlMode": "YAML Mode",
+    "format": "Format",
+    "apply": "Apply",
+    "autoSync": "Auto-sync",
+    "valid": "Valid",
+    "invalid": "Invalid",
+    "unsavedChanges": "Unsaved changes",
+    "template": "Template",
+    "loadTemplate": "Load Template",
+    "yamlConvertError": "YAML conversion error",
+    "yamlRootObject": "YAML root must be an object",
+    "yamlStepsArray": "steps must be an array",
+    "yamlStepObject": "Step {{index}} must be an object",
+    "yamlStepTypeMissing": "Step {{index}} missing type field",
     "newStep": "New step",
     "noDescription": "No description",
     "stepTypes": {

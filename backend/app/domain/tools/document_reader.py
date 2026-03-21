@@ -1,7 +1,9 @@
 import logging
 import os
 import sqlite3
-from typing import Any
+from typing import Any, List, Dict, Optional
+
+from app.utils import ContentFormatter, ControllerResponse, render_template
 
 from app.core.context.manager import ContextManager
 from app.core.file.document_reader import document_reader_service
@@ -158,14 +160,11 @@ async def read_document(file_path: str, start_page: int | None = None, end_page:
         if content.strip().startswith("# "): # Already has a header
             return content
 
-        if lang in ["python", "javascript", "typescript", "c", "cpp", "go", "rust"]:
-            return f"# File: {filename}\n\n```{lang}\n{content}\n```"
-
-        return f"# File: {filename}\n\n{content}"
+        return ContentFormatter.file_content(filename, content, lang)
 
     except Exception as e:
         logger.error(f"Read failed: {e}")
-        return f"Error reading file {file_path}: {str(e)}"
+        return ControllerResponse.error(f"Error reading file {file_path}", details=str(e))
 
 
 # --- core Logic Helpers ---
@@ -233,7 +232,7 @@ def _list_directory(real_path: str) -> str:
 
         listing_str = "\n".join(formatted_items[:50]) + ("\n... (truncated)" if len(formatted_items) > 50 else "")
         return (
-            f"### SYSTEM NOTICE: Target is a directory ###\n"
+            f"SYSTEM NOTICE: Target is a directory\n"
             f"Path: {os.path.basename(real_path)}/\n"
             f"The path you requested is a directory, not a file. I have listed its contents below for your convenience:\n\n"
             f"{listing_str}"
@@ -264,12 +263,7 @@ def _read_file_content(real_path: str, start: int | None, end: int | None) -> st
 def _wrap_code_block(path: str, content: str, lang: str) -> str:
     """Reads a text file and returns it wrapped in a markdown code block."""
     filename = os.path.basename(path)
-    # Special case: if lang is empty or txt, maybe use 'text' or nothing
-    if not lang:
-        lang = "text"
-
-    # Return with markdown code block
-    return f"# File: {filename}\n\n```{lang}\n{content}\n```"
+    return ContentFormatter.file_content(filename, content, lang)
 
 
 # --- Inspection Helpers ---
@@ -314,45 +308,80 @@ def _read_pdf(path: str, start: int | None, end: int | None) -> str:
     start_idx = max(0, start_idx)
     end_idx = min(total_pages, end_idx)
 
-    text = []
-    text.append(f"# Document: {os.path.basename(path)}")
-    text.append(f"*Metadata: {reader.metadata}*")
-    text.append(f"*Pages: {start_idx+1} to {end_idx} (Total {total_pages})*")
-    text.append("---")
+    try:
+        content_blocks = []
+        for i in range(start_idx, end_idx):
+            content_blocks.append({
+                "title": f"Page {i+1}",
+                "content": reader.pages[i].extract_text()
+            })
 
-    for i in range(start_idx, end_idx):
-        page_text = reader.pages[i].extract_text()
-        text.append(f"## Page {i+1}")
-        text.append(page_text)
-        text.append("---")
-
-    return "\n\n".join(text)
+        return render_template(
+            "project/document_content.prompt.j2",
+            type="document",
+            filename=os.path.basename(path),
+            metadata=reader.metadata,
+            page_info=f"Pages: {start_idx+1} to {end_idx} (Total {total_pages})",
+            content_blocks=content_blocks
+        )
+    except Exception as e:
+        logger.error(f"Failed to render Document template for PDF: {e}")
+        # Fallback to simple template
+        content_blocks = []
+        for i in range(start_idx, end_idx):
+            content_blocks.append({
+                "title": f"Page {i+1}",
+                "content": reader.pages[i].extract_text()
+            })
+        return render_template(
+            "project/document_content.prompt.j2",
+            type="document",
+            filename=os.path.basename(path),
+            metadata=reader.metadata,
+            page_info=f"Pages: {start_idx+1} to {end_idx} (Total {total_pages})",
+            content_blocks=content_blocks
+        )
 
 
 def _read_docx(path: str) -> str:
     with open(path, "rb") as docx_file:
         result = mammoth.convert_to_markdown(docx_file)
-        return f"# Document: {os.path.basename(path)}\n\n" + result.value
+        return ContentFormatter.file_content(os.path.basename(path), result.value, lang="markdown")
 
 
 def _read_excel(path: str) -> str:
     xl = pd.ExcelFile(path)
-    text = []
-    text.append(f"# Spreadsheet: {os.path.basename(path)}")
+    sheet_names = xl.sheet_names # Get sheet names once
+    try:
+        content_blocks = []
+        for sheet_name in sheet_names:
+            df = pd.read_excel(path, sheet_name=sheet_name)
+            content_blocks.append({
+                "title": f"Sheet: {sheet_name}",
+                "content": df.to_markdown(index=False) if not df.empty else "*Empty Sheet*"
+            })
 
-    for sheet_name in xl.sheet_names:
-        df = pd.read_excel(path, sheet_name=sheet_name)
-        text.append(f"## Sheet: {sheet_name}")
-        if not df.empty:
-            text.append(df.to_markdown(index=False))
-        else:
-            text.append("*Empty Sheet*")
-        text.append("\n")
-
-    return "\n".join(text)
+        return render_template(
+            "project/document_content.prompt.j2",
+            type="spreadsheet",
+            filename=os.path.basename(path),
+            content_blocks=content_blocks
+        )
+    except Exception as e:
+        logger.error(f"Failed to render Spreadsheet template: {e}")
+        # Fallback to spreadsheet formatter
+        sheets = []
+        for sheet_name in sheet_names:
+            df = pd.read_excel(path, sheet_name=sheet_name)
+            sheets.append({
+                "name": sheet_name,
+                "content": df.to_markdown(index=False) if not df.empty else "*Empty Sheet*",
+                "is_empty": df.empty
+            })
+        return ContentFormatter.spreadsheet(os.path.basename(path), sheets)
 
 
 def _read_html(path: str) -> str:
     with open(path, encoding="utf-8") as f:
         html_content = f.read()
-    return f"# Document: {os.path.basename(path)}\n\n" + md(html_content)
+    return ContentFormatter.file_content(os.path.basename(path), md(html_content), lang="markdown")

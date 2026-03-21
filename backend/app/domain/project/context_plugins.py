@@ -1,4 +1,5 @@
 import logging
+from typing import List, Dict, Any
 
 from sqlalchemy import or_, select
 
@@ -23,7 +24,7 @@ class ProjectContextPlugin(ContextPlugin):
 
         try:
             with session_scope() as session:
-                active_todos = session.execute(
+                todos = session.execute(
                     select(TodoItem).where(
                         TodoItem.project_id == ctx.project_id,
                         or_(
@@ -33,22 +34,8 @@ class ProjectContextPlugin(ContextPlugin):
                     )
                 ).scalars().all()
 
-                if active_todos:
-                    todo_summary = "Active Project Tasks (Todo List):\n"
-                    # Sort by priority (High first), then by status
-                    # Enums are string-based, so custom sort if needed, or rely on order
-                    sorted_todos = sorted(
-                        active_todos,
-                        key=lambda x: (x.priority.value, x.status.value),
-                        reverse=True
-                    )
-                    for t in sorted_todos:
-                        todo_summary += f"- [{t.status.value}] {t.title} (Priority: {t.priority.value})\n"
-
-                    # Inject as an environment summary
-                    ctx.environment_summaries.append(todo_summary)
-
                 # Fetch Active Plan if thread exists
+                active_plan = None
                 if ctx.thread_id:
                     from app.models.planning import Plan, PlanStep
                     stmt = select(Plan).where(Plan.thread_id == ctx.thread_id, Plan.status == "active")

@@ -1,0 +1,3 @@
+{% from "fragments/common/list_items.j2" import file_tree_item %}
+{% for line in lines %}{{ file_tree_item(line.name, line.indent, line.is_dir) }}{% endfor %}
+{% if truncated %}... (truncated){% endif %}

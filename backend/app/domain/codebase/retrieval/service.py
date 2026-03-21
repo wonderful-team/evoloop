@@ -88,7 +88,7 @@ class RetrievalService:
             outgoing = []
             for rel, target_ent in out_rows:
                 target_name = target_ent.full_name if target_ent else rel.target_name
-                outgoing.append(f"{rel.relation_type} -> {target_name}")
+                outgoing.append({"type": rel.relation_type, "target": target_name})
 
             # 3. Find Incoming Relations (Others mention me)
             # target_entity_id == entity.id
@@ -103,7 +103,7 @@ class RetrievalService:
             incoming = []
             for rel, source_ent in in_rows:
                 source_name = source_ent.full_name
-                incoming.append(f"{source_name} -> {rel.relation_type}")
+                incoming.append({"source": source_name, "type": rel.relation_type})
 
             return {
                 "symbol": entity.full_name,

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo, useCallback, useState } from "react"
+import { useMemo } from "react"
 import { useTranslation } from "react-i18next"
 import { Bot, HelpCircle, FileText, ListTodo, Search, Loader2 } from "lucide-react"
 import { Button } from "@evoloop/shared/components/ui/button"
@@ -15,7 +15,7 @@ interface MessageListProps {
     onRetry?: (msg: Message) => void
     onQuote?: (msg: Message) => void
     onStarterClick?: (text: string) => void
-    onLoadMore?: () => void
+
 }
 
 export function MessageList({
@@ -28,12 +28,9 @@ export function MessageList({
     onRetry,
     onQuote,
     onStarterClick,
-    onLoadMore,
 }: MessageListProps) {
     const { t } = useTranslation()
-    const scrollRef = useRef<HTMLDivElement>(null)
-    const [isNearTop, setIsNearTop] = useState(false)
-    const [scrollHeightBeforeLoad, setScrollHeightBeforeLoad] = useState<number | null>(null)
+    // Note: Scroll state is now managed by the parent ChatInterface component
 
     // Grouping Logic
     const groupedMessages = useMemo(() => {
@@ -72,62 +69,13 @@ export function MessageList({
         return groups
     }, [messages])
 
-    // Handle scroll for infinite scroll
-    const handleScroll = useCallback(() => {
-        const container = scrollRef.current
-        if (!container) return
-
-        const { scrollTop, scrollHeight, clientHeight } = container
-        
-        // Check if near top (within 100px)
-        const nearTop = scrollTop < 100
-        setIsNearTop(nearTop)
-
-        // Trigger load more when near top and has more history
-        if (nearTop && hasMoreHistory && !isLoadingHistory && onLoadMore) {
-            // Save scroll height before loading to maintain position
-            setScrollHeightBeforeLoad(scrollHeight)
-            onLoadMore()
-        }
-    }, [hasMoreHistory, isLoadingHistory, onLoadMore])
-
-    // Maintain scroll position after loading more messages
-    useEffect(() => {
-        if (scrollHeightBeforeLoad !== null && scrollRef.current) {
-            const newScrollHeight = scrollRef.current.scrollHeight
-            const heightDiff = newScrollHeight - scrollHeightBeforeLoad
-            
-            // Adjust scroll position to compensate for new content at top
-            if (heightDiff > 0) {
-                scrollRef.current.scrollTop = heightDiff + 100 // Keep some buffer
-            }
-            
-            setScrollHeightBeforeLoad(null)
-        }
-    }, [messages.length, scrollHeightBeforeLoad])
-
-    // Auto-scroll to bottom on initial load and new messages (only if user is near bottom)
-    useEffect(() => {
-        const container = scrollRef.current
-        if (!container) return
-
-        // Only auto-scroll if:
-        // 1. It's initial load (messages.length <= 50)
-        // 2. User is near bottom (within 200px)
-        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200
-        
-        if (messages.length <= 50 || isNearBottom) {
-            container.scrollTo({ top: container.scrollHeight, behavior: "smooth" })
-        }
-    }, [messages.length, isAgentWorking])
+    // Note: Scroll handling (infinite scroll & auto-scroll) is now managed by the parent ChatInterface component
 
     return (
         <div 
-            className="flex-1 overflow-y-auto min-h-0 scroll-smooth relative" 
-            ref={scrollRef}
-            onScroll={handleScroll}
+            className="min-h-0 min-w-0 relative" 
         >
-            <div className="space-y-2 max-w-4xl mx-auto pb-4">
+            <div className="space-y-2 px-4 sm:px-6 lg:px-8 pb-4 min-w-0">
                 
                 {/* Loading Indicator at Top */}
                 {isLoadingHistory && (
@@ -137,10 +85,10 @@ export function MessageList({
                     </div>
                 )}
 
-                {/* No More History Indicator */}
-                {!hasMoreHistory && messages.length > 0 && (
-                    <div className="py-4 text-center text-muted-foreground/60 border-b border-border/30 mb-4">
-                        <span className="text-xs">{t("chat.noMoreHistory", "No more history")}</span>
+                {/* Load More Hint - shown when there are more messages to load */}
+                {hasMoreHistory && !isLoadingHistory && (
+                    <div className="py-3 text-center text-muted-foreground/50 text-xs">
+                        {t("chat.scrollToLoadMore", "向上滚动加载更多历史消息")}
                     </div>
                 )}
 

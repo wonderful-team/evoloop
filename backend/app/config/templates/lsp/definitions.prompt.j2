@@ -1,0 +1,2 @@
+{% from "fragments/common/list_items.j2" import lsp_location_item %}
+{% for loc in locations %}{{ lsp_location_item(loc.path, loc.line) }}{% endfor %}

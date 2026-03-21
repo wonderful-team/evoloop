@@ -1,0 +1,34 @@
+# Task Trace: {{ task_name|default('Untitled') }}
+
+**Thread ID**: {{ thread_id }}
+**Total Steps**: {{ steps|length }}
+**Human Intervention**: {{ 'Yes' if has_human_intervention else 'No' }}
+
+## Steps
+
+{% for step in steps %}
+### Step {{ step.step_number }} {{"👤" if step.source.value == 'human' else "🤖"}} [{{ step.category.value }}]
+- **Action**: `{{ step.action_name }}`
+{% if step.action_args %}
+- **Args**: `{{ step.action_args|tojson }}`
+{% endif %}
+{% if step.state_context %}
+{% set app = step.state_context.get('app_name') %}
+{% set title = step.state_context.get('window_title') %}
+{% if app or title %}
+- **Context**: `{{ app|default('Unknown App') }}` - `{{ title|default('No Title') }}`
+{% endif %}
+{% endif %}
+{% if step.ui_context %}
+{% if step.ui_context.element_text %}
+- **UI Element**: "{{ step.ui_context.element_text[:50] }}"
+{% endif %}
+{% if step.ui_context.screenshot_path %}
+- **Screenshot**: `{{ step.ui_context.screenshot_path }}`
+{% endif %}
+{% endif %}
+{% if step.user_feedback %}
+- **User Feedback**: "{{ step.user_feedback }}"
+{% endif %}
+
+{% endfor %}

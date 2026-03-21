@@ -1,0 +1,8 @@
+### ✅ Batch Complete: {{ ok }}/{{ total }} succeeded, {{ fail }} failed ({{ elapsed_time }}s)
+
+{% for r in results %}
+{{ "✅" if r.status == "success" else "❌" }} Step {{ r.step }}: **{{ r.action }}** ({{ r.latency_ms }}ms)
+{% if r.status == "error" %}
+  - Error: {{ r.result|truncate(100) }}
+{% endif %}
+{% endfor %}

@@ -1,0 +1,27 @@
+{% macro render_node(node, prefix="", is_last=True, is_root=False) -%}
+{%- if not is_root -%}
+{%- set connector = "└── " if is_last else "├── " -%}
+{%- else -%}
+{%- set connector = "" -%}
+{%- endif -%}
+{%- set icon = "" -%}
+{%- set suffix = "" -%}
+{%- if node.type == 'dir' -%}{%- set suffix = "/" -%}
+{%- elif node.type == 'class' -%}{%- set icon = "[C] " -%}
+{%- elif node.type == 'function' -%}{%- set icon = "[F] " -%}
+{%- elif node.type == 'method' -%}{%- set icon = "[m] " -%}
+{%- endif -%}
+{{ prefix }}{{ connector }}{{ icon }}{{ node.name }}{{ suffix }}
+{%- set child_prefix = prefix + ("    " if is_last else "│   ") if not is_root else "" -%}
+{%- for child in node.children -%}
+{{ render_node(child, child_prefix, loop.last, False) }}
+{%- endfor -%}
+{%- endmacro -%}
+
+{% if style == 'tree' %}
+{{ render_node(root, "", True, True) }}
+{% elif style == 'flat' %}
+{% for path in flat_paths %}
+{{ path }}
+{% endfor %}
+{% endif %}

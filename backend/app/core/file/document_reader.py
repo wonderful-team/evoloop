@@ -76,7 +76,7 @@ class DocumentReaderService:
             # OPTIMIZATION: Use the already opened 'xl' object instead of re-reading file Path
             df = pd.read_excel(xl, sheet_name=sheet_name)
             if not df.empty:
-                text.append(f"### Sheet: {sheet_name}\n")
+                text.append(f"Sheet: {sheet_name}\n")
                 try:
                     text.append(df.to_markdown(index=False))
                 except ImportError:

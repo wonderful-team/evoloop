@@ -1,0 +1,90 @@
+# Macro Verification Report
+
+**Generated:** {{ timestamp }}
+**Status:** {{ status_display }}
+**Execution Mode:** {{ execution_mode }}
+**Confidence Score:** {{ (confidence_score * 100)|round(2) }}%
+
+## Summary
+
+| Metric | Value |
+|--------|-------|
+| Overall Success Rate | {{ (report.summary.overall_success_rate * 100)|round(2) }}% |
+| Adaptation Rate | {{ (report.summary.adaptation_rate * 100)|round(2) }}% |
+| Max Round Variance | {{ (report.summary.max_round_variance * 100)|round(2) }}% |
+| Avg Execution Time | {{ report.summary.average_execution_time_ms }}ms |
+| Anomalies Detected | {{ report.summary.total_anomalies_detected }} |
+| Adaptations Applied | {{ report.summary.total_adaptations_applied }} |
+
+{% if report.issues %}
+## Issues
+
+{% for issue in report.issues %}
+{% set severity_emoji = "🔴" if issue.severity == "critical" else "⚠️" if issue.severity == "warning" else "ℹ️" %}
+### {{ severity_emoji }} {{ issue.category }}
+
+**Severity:** {{ issue.severity }}
+**Description:** {{ issue.description }}
+{% if issue.affected_steps %}
+**Affected Steps:** {{ issue.affected_steps|join(', ') }}
+{% endif %}
+{% if issue.suggestion %}
+**Suggestion:** {{ issue.suggestion }}
+{% endif %}
+
+{% endfor %}
+{% endif %}
+
+## Round Details
+
+{% for round_report in report.rounds %}
+### {{ round_report.round_name }} (Round {{ round_report.round_number }})
+
+**Status:** {{ round_status_displays[loop.index0] }}
+**Total Steps:** {{ round_report.total_steps }}
+- ✅ Passed: {{ round_report.passed_steps }}
+- 🔄 Adapted: {{ round_report.adapted_steps }}
+- ❌ Failed: {{ round_report.failed_steps }}
+- ⏭️ Skipped: {{ round_report.skipped_steps }}
+
+{% if round_report.step_results %}
+| Step | Status | Time (ms) | Adaptations |
+|------|--------|-----------|-------------|
+{% for step in round_report.step_results %}
+| {{ step.step_number }} | {{ step_emojis[loop.index0][loop.parent.index0] }} {{ step.status.value }} | {{ step.execution_time_ms }} | {{ step.adaptations|length }} |
+{% endfor %}
+
+{% endif %}
+{% endfor %}
+
+{% if evolution_records %}
+## Macro Evolution
+
+**Total Evolutions:** {{ evolution_records|length }}
+
+{% for evo in evolution_records %}
+### Evolution {{ loop.index }}
+
+**Reason:** {{ evo.evolution_reason }}
+**Confidence:** {{ (evo.confidence * 100)|round(2) }}%
+
+{% endfor %}
+{% endif %}
+
+{% if report.recommendations %}
+## Recommendations
+
+{% for rec in report.recommendations %}
+- {{ rec }}
+{% endfor %}
+
+{% endif %}
+{% if evolved_macro %}
+## Evolved Macro Preview
+
+The macro has been evolved with {{ evolution_records|length }} improvements.
+
+```json
+{{ evolved_macro_json }}
+```
+{% endif %}

@@ -1,0 +1,106 @@
+Generate a macro script for the following automation task.
+
+Task Goal: {{ task_goal }}
+
+Target URL: {{ url or "Not specified in goal" }}
+
+User Annotations (marked regions of interest on video):
+```json
+{{ annotation_context_json }}
+```
+
+Task Phases:
+```json
+{{ phase_context_json }}
+```
+
+## Available Features: Logical Control Blocks
+You can now generate non-linear macro scripts using the following types:
+
+### 1. Conditional Logic (`if`)
+Use when an action should only happen if an element state is met.
+- **condition**: { type: "element_exists" | "element_visible" | "text_contains", target_selector: "..." }
+- **then**: [ MacroStep ]
+- **else**: [ MacroStep ] (Optional)
+
+### 2. Loop Logic (`loop`)
+Use for repetitive tasks (e.g., clicking 'Next' button until it disappears, or iterating over a list).
+- **condition**: { type: "element_exists" | "element_visible" | "text_contains", target_selector: "..." } (Optional for batch loops)
+- **payload**: { "items_key": "..." } (Required for batch loops)
+- **steps**: [ MacroStep ]
+- **max_iterations**: Limit the loop (default 20).
+
+## Step Properties
+Each step MUST have:
+- type: "action" | "extract" | "dump" | "if" | "loop"
+- description: Brief explanation of the step
+
+### Type-specific Requirements:
+**For "action" steps:**
+- `event_type`: One of the available actions listed below
+- `target_selector`: CSS/XPath selector for the target element (if applicable)
+
+**For "extract" steps:**
+- `extract_type`: MUST be one of: "get_text", "get_attribute", "get_html", "get_links", "get_elements", "screenshot", "gui_extract", "dump_ui", "run_js"
+- `key`: The key name to store extracted data (e.g., "product_title", "page_content")
+- `target_selector`: Element to extract from (not needed for "screenshot", "dump_ui")
+
+**For "gui_extract" (Coordinate-based GUI extraction with OCR):**
+- `payload.relative_position`: {"x": 0.0-1.0, "y": 0.0-1.0} - Center point for nearby text search (if no region specified)
+- `payload.region`: {"x": 0.0-1.0, "y": 0.0-1.0, "width": 0.0-1.0, "height": 0.0-1.0} - Optional: Specific region for area-based OCR extraction
+- When `region` is provided, OCR will be performed ONLY on that region, which is more accurate for extracting structured data like prices, dates, or IDs
+- Use region when the user annotation indicates an area (width/height > 0.02), use relative_position only for single point clicks
+
+**IMPORTANT DISTINCTION:**
+- "detect_pagination" and "scroll_to_bottom" are `event_type` values for ACTION steps, NOT extract_type values
+- For pagination detection, use: `{ "type": "action", "event_type": "detect_pagination" }`
+- For scrolling, use: `{ "type": "action", "event_type": "scroll_to_bottom" }`
+
+{% from "fragments/common/action_docs.j2" import action_docs_full %}
+Action Types (By Platform):
+{{ action_docs_full(actions) }}
+
+Control Flow:
+- "if": Use for conditional execution. Requires "condition" (element_exists, element_visible, text_contains).
+- "loop": Use for loops. Requires "steps" and optionally "condition" or "payload.items_key".
+
+## Logic Requirements
+1. **Navigation**: Usually start with "navigate" to the target URL.
+2. **Page Load**: Add "wait" steps after navigation or clicks that trigger new pages.
+3. **Complex Interaction**: Use "hover" before clicking elements that require a mouse-over to be interactable.
+4. **Resilience**: Use `if` blocks for optional elements like "Close Ad", "Accept Cookies", or "Newsletter Popup".
+5. **Loop Identification**: If the task involves "multiple results", "all items", or "pagination", use a `loop`.
+6. **Automation Primitives**:
+   - For **Infinite Scroll**: Use `scroll_to_bottom` with `max_scrolls` and `delay_ms` before extraction.
+   - For **Multi-page (Pagination)**: 
+     a. Use `extract` with `extract_type: "detect_pagination"` and `key: "pagination"`.
+     b. Use a `loop` with `condition: { type: "element_exists", target_selector: "{{pagination.next_selector}}" }`.
+     c. Inside the loop, perform extraction, then `click` on `{{pagination.next_selector}}`.
+
+Respond with ONLY a YAML array:
+
+```yaml
+version: "1.0"
+metadata:
+  format: evoloop-macro
+steps:
+  - type: action
+    event_type: navigate
+    source: dom
+    payload:
+      url: "https://example.com"
+    description: Navigate to target
+  
+  - type: action
+    event_type: click
+    source: dom
+    target_selector: ".submit-btn"
+    description: Click submit button
+```
+
+IMPORTANT YAML RULES:
+1. Use 2-space indentation (NOT tabs)
+2. Quote strings containing special characters or spaces
+3. Use |- or > for multi-line strings
+4. Do NOT include comments in the output
+5. Ensure proper nesting for nested steps (if/loop)

@@ -54,7 +54,7 @@ class WorkerNode:
                 "topic": route_reason,
                 "agent_config": {
                     "role_name": "Worker",
-                    "system_instructions": "You are a helpful assistant. Execute the user's request to the best of your ability.",
+                    "system_instructions": "Execute the following task steps accurately and provide the result.",
                 }
             }
 
@@ -112,18 +112,17 @@ class WorkerNode:
         # 3. Construct Prompts (Using Builder & Phase 1 Blackboard)
         blackboard = state.get("blackboard") or {}
 
+        # 3b. Focus-File Data Retrieval (data only, rendering handled by template)
+        focus_files = await self._hydrate_focus_files(execution_ticket, ctx)
+
         prompt_builder = WorkerPromptBuilder(
             agent_config,
             blackboard,
             skills=relevant_sops,
-            ticket=execution_ticket
+            ticket=execution_ticket,
+            focus_files=focus_files
         )
         system_prompt = prompt_builder.build(config)
-
-        # 3b. Focus-File Injection (Absorbed from Operator)
-        focus_prompt = await self._hydrate_focus_files(execution_ticket, ctx)
-        if focus_prompt:
-            system_prompt += f"\n\n{focus_prompt}"
 
         mission_msg = prompt_builder.build_mission_message()
         messages = [HumanMessage(content=mission_msg)]
@@ -191,7 +190,14 @@ class WorkerNode:
         else:
             worker_outcome = "success"
 
-        summary = f"**{role_name} Report**:\n{content}\n\n(Tools used: {len(tool_history)})"
+        from app.utils import render_template
+        summary = render_template(
+            "report/response.prompt.j2",
+            success=(worker_outcome == "success"),
+            message=f"{role_name} Report",
+            details=content,
+            note=f"Tools used: {len(tool_history)}"
+        )
 
         return_state: dict[str, Any] = {
             "messages": [AIMessage(content=summary)],
@@ -270,40 +276,38 @@ class WorkerNode:
         return_state["verification_status"] = verification_summary
         return return_state
 
-    async def _hydrate_focus_files(self, ticket: dict, ctx) -> str:
+    async def _hydrate_focus_files(self, ticket: dict, ctx) -> list[dict]:
         """
-        Inject focus-file contents into the prompt (absorbed from OperatorNode._hydrate_context).
-        Reads files specified in ExecutionTicket.focus_paths.
+        Retrieve focus-file data as structured objects.
+        Returns a list of dicts with keys: rel_path, status, content/detail.
+        Rendering is handled by the Jinja2 template.
         """
         focus_paths = ticket.get("focus_paths", [])
         if not focus_paths:
-            return ""
+            return []
 
         cwd = ctx.working_directory or ""
-        output = [
-            "### ATTENTION GUIDANCE (Focus Files)",
-            f"The Supervisor has identified {len(focus_paths)} focus files for this mission:"
-        ]
+        results = []
 
         for rel_path in focus_paths:
             try:
                 full_path = os.path.join(cwd, rel_path) if cwd else rel_path
                 if not os.path.exists(full_path):
-                    output.append(f"- [MISSING] {rel_path}")
+                    results.append({"rel_path": rel_path, "status": "missing"})
                     continue
 
                 size = os.path.getsize(full_path)
                 if size > 30_000:
-                    output.append(f"- [SKIPPED] {rel_path} (Too large: {size}b)")
+                    results.append({"rel_path": rel_path, "status": "skipped", "detail": f"Too large: {size}b"})
                     continue
 
                 with open(full_path, encoding="utf-8") as f:
                     file_content = f.read()
-                output.append(f"\n--- FILE: {rel_path} ---\n{file_content}\n--- END OF FILE ---\n")
+                results.append({"rel_path": rel_path, "status": "ok", "content": file_content})
             except Exception as e:
-                output.append(f"- [ERROR] {rel_path}: {e}")
+                results.append({"rel_path": rel_path, "status": "error", "detail": str(e)})
 
-        return "\n".join(output) + "\n"
+        return results
 
 
 # Singleton

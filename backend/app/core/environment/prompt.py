@@ -5,8 +5,7 @@ Centralizes the logic for generating the "Awakening" section of the system promp
 This ensures both the Supervisor and Skills share the same understanding of the environment.
 """
 import logging
-import os
-from jinja2 import Environment, FileSystemLoader
+from app.utils import render_template
 from langchain_core.messages import BaseMessage
 
 from app.core.context.manager import ContextManager
@@ -39,9 +38,6 @@ class AppEnvironmentPrompt:
             if not skip_hydrate and not ctx.environment_summaries:
                 plugin_registry.hydrate_context(ctx)
 
-            template_dir = os.path.join(os.path.dirname(__file__), "templates")
-            env = Environment(loader=FileSystemLoader(template_dir))
-
             template_vars = {
                 "environment": ctx.environment_summaries, # Now contains raw data
                 "memory_replay": ctx.memory_replay,
@@ -56,8 +52,7 @@ class AppEnvironmentPrompt:
                 "tips": tips
             }
 
-            template = env.get_template("awakening.prompt.j2")
-            return template.render(**template_vars)
+            return render_template("agents/awakening.prompt.j2", **template_vars)
 
         except Exception as e:
             logger.error(f"Failed to render environment block: {e}")

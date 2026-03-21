@@ -61,7 +61,7 @@ async def flash_brain_node(state: AgentState, config: RunnableConfig) -> dict[st
         # 3. Format Response for Graph
         # We return an AIMessage so it looks like a normal agent response
         ai_msg = AIMessage(
-            content=f"**[Flash Brain]**: {response_text}",
+            content=response_text,
             name="flash_brain"
         )
 
@@ -74,6 +74,6 @@ async def flash_brain_node(state: AgentState, config: RunnableConfig) -> dict[st
     except Exception as e:
         logger.error(f"[FlashBrain] Error: {e}")
         return {
-            "messages": [AIMessage(content=f"Error in Flash Brain: {e}")],
+            "messages": [AIMessage(content=f"Flash Brain error: {e}")],
             "next_node": "supervisor"
         }

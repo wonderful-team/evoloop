@@ -1,9 +1,9 @@
 import os
 import logging
 from typing import Any
-from jinja2 import Environment, FileSystemLoader
 
 from app.core.context import ContextManager, plugin_registry
+from app.utils import ControllerResponse, render_template
 
 logger = logging.getLogger(__name__)
 
@@ -17,16 +17,15 @@ class WorkerPromptBuilder:
         agent_config: dict,
         blackboard: dict,
         skills: list = None,
-        ticket: dict = None
+        ticket: dict = None,
+        focus_files: list = None
     ):
         self.agent_config = agent_config
         self.blackboard = blackboard
         self.skills = skills or []
         self.clipboard = blackboard.get("clipboard", [])
         self.ticket = ticket or {}
-
-        template_dir = os.path.join(os.path.dirname(__file__), "templates")
-        self.env = Environment(loader=FileSystemLoader(template_dir))
+        self.focus_files = focus_files or []
 
     def build(self, config: Any = None) -> str:
         ctx = ContextManager.current()
@@ -36,21 +35,21 @@ class WorkerPromptBuilder:
 
         template_vars = {
             "role_name": self.agent_config.get("role_name", "Specialist"),
-            "instructions": self.agent_config.get("system_instructions", "You are a helpful assistant."),
+            "instructions": self.agent_config.get("system_instructions", "Execute the assigned task accurately."),
             "environment_block": ctx.environment_block,
             "knowledge_blocks": knowledge_blocks,
             "clipboard": self.clipboard,
+            "focus_files": self.focus_files,
             "has_macos": ctx.metadata.get("has_macos", False),
             "has_android": ctx.metadata.get("has_android", False),
             "is_subtask": self.agent_config.get("is_subtask", False),
         }
 
         try:
-            template = self.env.get_template("worker.prompt.j2")
-            return template.render(**template_vars)
+            return render_template("agents/worker.prompt.j2", **template_vars)
         except Exception as e:
             logger.error(f"Error rendering Worker template: {e}")
-            return f"You are a Specialist. Error loading template: {e}"
+            return ControllerResponse.error("Worker Instruction Error", details=str(e))
 
     def build_mission_message(self) -> str:
         """Constructs the user message that initiates the task via Jinja2."""
@@ -61,31 +60,51 @@ class WorkerPromptBuilder:
             "is_subtask": self.agent_config.get("is_subtask", False),
         }
         try:
-            template = self.env.get_template("fragments/mission_ticket.j2")
-            return template.render(**template_vars)
+            return render_template("fragments/mission_ticket.j2", **template_vars)
         except Exception as e:
             logger.error(f"Error rendering Mission Ticket: {e}")
-            return f"### MISSION TICKET\nGoal: {template_vars['topic']}\nPlease execute this mission now."
+            return ControllerResponse.error("Mission Ticket Error", details=str(e), note=template_vars['topic'])
 
     def _prepare_knowledge_blocks(self) -> list[str]:
+        """
+        Prepare knowledge blocks for all skills.
+        
+        Uses a single template render with the knowledge_blocks_wrapper.j2
+        template for efficiency, then splits the result into individual blocks.
+        
+        Returns:
+            List of rendered knowledge block strings
+        """
         if not self.skills:
             return []
 
-        blocks = []
         try:
-            template = self.env.get_template("fragments/knowledge_block.j2")
-            for i, skill in enumerate(self.skills):
-                is_primary = (i == 0)
-                block = template.render(
-                    skill=skill,
-                    is_primary=is_primary,
-                    is_subtask=self.agent_config.get("is_subtask", False)
-                )
-                blocks.append(block)
+            # Render all blocks in a single template call for efficiency
+            rendered = render_template(
+                "fragments/knowledge_blocks_wrapper.j2",
+                skills=self.skills,
+                is_subtask=self.agent_config.get("is_subtask", False)
+            )
+            
+            # Split by double newline to get individual blocks
+            # (Each knowledge_block.j2 ends with a newline)
+            blocks = [b.strip() for b in rendered.split('\n\n') if b.strip()]
+            return blocks
+            
         except Exception as e:
             logger.error(f"Error rendering Knowledge Blocks: {e}")
-            # Fallback to simple format if template fails
-            for skill in self.skills:
-                blocks.append(f"### Skill: {getattr(skill, 'name', 'Unknown')}\n{getattr(skill, 'instructions', '')}")
-        
-        return blocks
+            # Fallback: render each skill individually
+            blocks = []
+            for i, skill in enumerate(self.skills):
+                try:
+                    block = render_template(
+                        "fragments/knowledge_block.j2",
+                        skill=skill,
+                        is_primary=(i == 0),
+                        is_subtask=self.agent_config.get("is_subtask", False)
+                    )
+                    blocks.append(block)
+                except Exception as inner_e:
+                    logger.error(f"Error rendering individual skill block: {inner_e}")
+                    blocks.append(f"SOP: {getattr(skill, 'name', 'Skill')}")
+            return blocks

@@ -1,0 +1,13 @@
+{% from "fragments/common/macros.j2" import format_timestamp, format_position %}
+Total Events: {{ events | length }}
+Screen Resolution: {{ resolution[0] }}x{{ resolution[1] }}
+
+{% for event in events %}
+{% if event.action_name != "mouse_move" and event.action_name != "cursor_move" and event.action_name != "touch_up" %}
+{{ loop.index }}. {{ format_timestamp(event.timestamp, 2) }} {{ event.action_name }}
+{%- if event.norm_pos %} at {{ format_position(event.norm_pos, 3) }} [{{ event.position_desc }}]{% endif %}
+{%- if event.target %} on "{{ event.target }}"{% endif %}
+{%- if event.app %} in [{{ event.app }}{% if event.window %} - {{ event.window }}{% endif %}]{% endif %}
+{%- if event.key %} key='{{ event.key }}'{% endif %}
+{% endif %}
+{% endfor %}

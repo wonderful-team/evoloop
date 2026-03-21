@@ -96,19 +96,21 @@ async def search_web(query: str) -> str:
     Searches the web for the given query using DuckDuckGo or Baidu.
     Returns a list of search results with titles and URLs.
     """
+    from app.utils import ContentFormatter, ControllerResponse
+    
     # 首先尝试 DuckDuckGo
     results = await _search_duckduckgo(query)
     if results:
-        return "\n---\n".join(results)
+        return ContentFormatter.web_search_results(query, results)
 
     # 回退到百度搜索
     results = await _search_baidu(query)
     if results:
-        return "\n---\n".join(results)
+        return ContentFormatter.web_search_results(query, results)
 
     # 两个都失败了
-    return (
-        "Error: Unable to search the web.\n\n"
-        "[REASONING_TIP] Search services are currently unavailable. "
-        "Please USE 'browser_control' to navigate to target sites directly for higher reliability."
+    return ControllerResponse.error(
+        "Unable to search the web",
+        details="Search services are currently unavailable",
+        note="Use 'browser_control' to navigate to target sites directly for higher reliability"
     )

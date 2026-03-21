@@ -1,6 +1,9 @@
+import json
 from enum import Enum
 from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.utils.yaml import macro_from_yaml, macro_to_yaml, YAMLError
 
 
 class MacroSource(str, Enum):
@@ -245,6 +248,60 @@ class MacroScript(BaseModel):
                 seen.add(num)
 
         return values
+
+    @classmethod
+    def from_yaml(cls, yaml_content: str) -> "MacroScript":
+        """Parse macro from YAML string."""
+        steps = macro_from_yaml(yaml_content)
+        return cls(steps=steps)
+    
+    def to_yaml(self) -> str:
+        """Export macro to YAML string."""
+        steps_data = []
+        for step in self.steps:
+            if hasattr(step, 'model_dump'):
+                steps_data.append(step.model_dump())
+            elif hasattr(step, 'dict'):
+                steps_data.append(step.dict())
+            else:
+                steps_data.append(dict(step))
+        return macro_to_yaml(steps_data)
+    
+    @classmethod
+    def parse(cls, content: str, format: str = "auto") -> "MacroScript":
+        """
+        Parse macro from string (auto-detect or specified format).
+        
+        Args:
+            content: String content (JSON or YAML)
+            format: "auto", "json", or "yaml"
+            
+        Raises:
+            ValueError: If parsing fails
+            YAMLError: If YAML parsing fails
+        """
+        if format == "auto":
+            # Auto-detect based on first non-whitespace char
+            stripped = content.strip()
+            if stripped.startswith(("{", "[")):
+                format = "json"
+            else:
+                format = "yaml"
+        
+        if format == "yaml":
+            return cls.from_yaml(content)
+        else:
+            # JSON parsing
+            try:
+                data = json.loads(content)
+                if isinstance(data, list):
+                    return cls(steps=data)
+                elif isinstance(data, dict) and "steps" in data:
+                    return cls(steps=data["steps"])
+                else:
+                    return cls(**data)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON: {e}")
 
 
 # Resolve forward references

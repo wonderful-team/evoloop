@@ -12,6 +12,9 @@ import logging
 import math
 import os
 import time
+import base64
+from typing import Any, Dict, List, Optional, Tuple
+
 
 import markdownify
 
@@ -21,9 +24,14 @@ from app.core.vision import vision_engine, VisionTask, get_vision_router
 from app.infrastructure.drivers.macos import macos_driver
 from app.core.learning.trace_recorder import get_recorder
 from app.core.context.manager import ContextManager
-from app.core.environment.controllers.utils import (
+from app.utils import (
     cleanup_file,
+    ControllerResponse,
     normalize_text,
+    PerceptionsFormatter,
+    render_template,
+)
+from app.core.environment.controllers.utils import (
     RecordingContext,
     resolve_element_alias,
     truncate_output,
@@ -89,13 +97,13 @@ class DesktopController:
         # 1. Try Live Accessibility Tree (Fastest and Native)
         raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
         if not raw_tree or "Error" in raw_tree:
-            return f"Error: Failed to dump Accessibility Tree: {raw_tree}"
+            return ControllerResponse.error(f"Failed to dump Accessibility Tree: {raw_tree}")
 
         try:
             elements = ast.literal_eval(raw_tree.replace("missing value", "None"))
         except Exception as e:
             logger.error(f"[Desktop] Failed to parse AX Tree: {e}")
-            return f"Error: AX Tree parsing failed: {e}"
+            return ControllerResponse.error(f"AX Tree parsing failed: {e}")
 
         target_norm = normalize_text(name)
         candidates = []
@@ -185,7 +193,7 @@ class DesktopController:
             logger.debug(f"[Desktop] Vision OCR fallback failed: {e}")
 
         logger.error(f"[Desktop] Failed to resolve '{name}'.")
-        return f"Error: Could not find element with name '{name}' in live AX tree, Atlas memory, or via local OCR."
+        return ControllerResponse.not_found(name, item_type="element")
 
     @classmethod
     async def execute(
@@ -248,18 +256,21 @@ class DesktopController:
                 app_info = await asyncio.to_thread(macos_driver.get_current_app)
                 bundle_id = app_info.get("bundle_id")
                 filepath = await asyncio.to_thread(macos_driver.screenshot, region=region, purpose="temp", bundle_id=bundle_id)
-                result_msg = f"Screenshot saved to: {filepath}"
+                result_msg = ControllerResponse.screenshot_result(success=True, filename=filepath)
                 if ocr:
                     try:
                         ocr_result = await vision_engine.process(VisionTask.OCR, filepath)
                         if ocr_result.success and ocr_result.elements:
-                            texts = [el.to_prompt_line() for el in ocr_result.elements]
-                            if texts:
-                                result_msg += "\n\n### OCR Results (Detected Text & Coordinates):\n" + "\n".join(texts)
+                            result_msg += "\n\n" + render_template(
+                                "vision/ocr_results.prompt.j2",
+                                platform="macos",
+                                elements=[el.to_dict() for el in ocr_result.elements],
+                                total_count=len(ocr_result.elements)
+                            )
                         else:
-                            result_msg += "\n\n(OCR requested but no text detected)"
+                            result_msg += "\n\n" + ControllerResponse.error("OCR requested but no text detected.")
                     except Exception as e:
-                        result_msg += f"\n\n(OCR Error: {e})"
+                        result_msg += "\n\n" + ControllerResponse.error("OCR Error.", details=str(e))
                 return result_msg
 
             elif action in ["click", "double_click"]:
@@ -276,10 +287,9 @@ class DesktopController:
                         strategy_type = resolved.get("strategy")
                         params = resolved.get("parameters", {})
                         if strategy_type == "search_then_click":
-                            return (
-                                f"[Strategy Required] '{element_name}' is in a dynamic app. "
-                                f"Use search approach: {params.get('description', 'Search for the element')}. "
-                                f"Direct coordinates are unreliable for this target."
+                            return ControllerResponse.error(
+                                f"'{element_name}' is in a dynamic app. Strategy required.",
+                                details=f"Use search approach: {params.get('description', 'Search for the element')}. Direct coordinates are unreliable."
                             )
                         elif strategy_type == "static_click" and params.get("resource_id"):
                             element_path = params.get("resource_id")
@@ -292,28 +302,30 @@ class DesktopController:
                 if element_path:
                     res = macos_driver.perform_ax_action(element_path, "AXPress")
                     if "Error" not in res:
-                        return f"Natively clicked '{element_name}' without moving the mouse."
+                        return ControllerResponse.success(f"Natively clicked '{element_name}' without moving the mouse.")
                     logger.warning(f"[Desktop] Native AX action failed: {res}. Falling back to physical click.")
 
                 if target_x is None or target_y is None:
-                    return f"Error: 'x' and 'y' coordinates OR 'element_name' are required for {action} action."
+                    return ControllerResponse.error(f"'x' and 'y' coordinates OR 'element_name' are required for {action} action.")
 
                 screen_w, screen_h = macos_driver.get_screen_size()
                 if not (0 <= target_x <= screen_w and 0 <= target_y <= screen_h):
-                    return f"Error: Coordinates ({target_x}, {target_y}) are out of screen bounds ({screen_w}x{screen_h})."
+                    return ControllerResponse.error(f"Coordinates ({target_x}, {target_y}) are out of screen bounds ({screen_w}x{screen_h}).")
 
-                if action == "click":
                     macos_driver.click(target_x, target_y)
                     await _record("click", {"x": target_x, "y": target_y, "element_name": element_name})
-                    return f"Visually clicked at ({target_x}, {target_y})" + (f" (resolved from '{element_name}')" if element_name else ".")
+                    return ControllerResponse.tap_result(target_x, target_y, element_name=element_name, success=True)
                 else:
                     macos_driver.double_click(target_x, target_y)
                     await _record("double_click", {"x": target_x, "y": target_y, "element_name": element_name})
-                    return f"Visually double-clicked at ({target_x}, {target_y})" + (f" (resolved from '{element_name}')" if element_name else ".")
+                    return ControllerResponse.success(
+                        f"Visually double-clicked at ({target_x}, {target_y})" +
+                        (f" (resolved from '{element_name}')" if element_name else ".")
+                    )
 
             elif action == "type_text":
                 if not text:
-                    return "Error: 'text' is required for type_text action."
+                    return ControllerResponse.missing_param("text")
                 macos_driver.type_text(text, force_keystroke=force_keystroke)
                 await _record("type_text", {"text": text, "force_keystroke": force_keystroke})
                 return f"Typed: {text[:50]}{'...' if len(text) > 50 else ''} (via {'keystroke' if force_keystroke else 'clipboard'})"
@@ -332,7 +344,7 @@ class DesktopController:
 
             elif action == "key_press":
                 if not key:
-                    return "Error: 'key' is required for key_press action."
+                    return ControllerResponse.missing_param("key")
                 
                 # [Phase 14] Normalize OS-prefixed keys (e.g. 'keyg' -> 'g')
                 if key.lower().startswith("key") and len(key) == 4:
@@ -340,11 +352,11 @@ class DesktopController:
                 
                 macos_driver.key_press(key)
                 await _record("key_press", {"key": key})
-                return f"Pressed key: {key}"
+                return ControllerResponse.success(f"Pressed key: {key}")
 
             elif action == "open_app":
                 if not app_name:
-                    return "Error: 'app_name' is required for open_app action."
+                    return ControllerResponse.missing_param("app_name")
                 bundle_id = await get_bundle_id(app_name)
                 is_dynamic = await atlas_engine.is_dynamic_app(bundle_id, "macos") if bundle_id else False
                 app_type_str = "DYNAMIC" if is_dynamic else "STATIC"
@@ -358,12 +370,12 @@ class DesktopController:
                     asyncio.create_task(_trigger_atlas_harvest_macos(bundle_id))
                 await _record("open_app", {"app_name": app_name, "bundle_id": bundle_id})
                 if "Error" not in result:
-                    return f"{icon} {result} [{app_type_str}]"
-                return result
+                    return ControllerResponse.success(result, note=f"App Type: {app_type_str}")
+                return ControllerResponse.error(result)
 
             elif action == "applescript":
                 if not script:
-                    return "Error: 'script' is required for applescript action."
+                    return ControllerResponse.missing_param("script")
                 output = macos_driver.run_applescript(script)
                 if output:
                     if "</div>" in output or "</body>" in output or "<br>" in output:
@@ -374,11 +386,13 @@ class DesktopController:
                         except Exception as e:
                             logger.warning(f"Markdown conversion failed: {e}")
                     output = truncate_output(output, MAX_OUTPUT_LENGTH)
-                return f"AppleScript executed.\nOutput: {output}" if output else "AppleScript executed successfully."
+                if output:
+                    return ControllerResponse.success("AppleScript executed.", details=f"Output: {output}")
+                return ControllerResponse.success("AppleScript executed successfully.")
 
             elif action == "batch":
                 if not actions:
-                    return "Error: 'actions' list is required for batch action."
+                    return ControllerResponse.missing_param("actions")
                 batch_start = time.time()
                 executor = BatchExecutor(continue_on_error=continue_on_error, delay_ms=delay_ms)
 
@@ -391,7 +405,7 @@ class DesktopController:
 
             elif action == "scroll":
                 if not direction:
-                    return "Error: 'direction' (up/down/left/right) is required for scroll."
+                    return ControllerResponse.missing_param("direction")
                 try:
                     from Quartz import CGEventCreateScrollWheelEvent, CGEventPost, kCGHIDEventTap
                     if direction == "up":
@@ -405,7 +419,7 @@ class DesktopController:
                     event = CGEventCreateScrollWheelEvent(None, 0, 2, delta_y, delta_x)
                     CGEventPost(kCGHIDEventTap, event)
                     await _record("scroll", {"direction": direction, "amount": amount})
-                    return f"✅ Scrolled {direction} by {amount}px"
+                    return ControllerResponse.success(f"Scrolled {direction} by {amount}px.")
                 except ImportError:
                     key_map = {"up": "pageup", "down": "pagedown", "left": "left", "right": "right"}
                     k = key_map.get(direction)
@@ -415,8 +429,8 @@ class DesktopController:
                             macos_driver.key_press(k)
                             await asyncio.sleep(0.1)
                         await _record("scroll", {"direction": direction, "amount": amount, "method": "key"})
-                        return f"✅ Scrolled {direction} (~{amount}px) via key_press"
-                    return f"Error: Unable to scroll {direction}"
+                        return ControllerResponse.success(f"Scrolled {direction} (~{amount}px) via key_press.")
+                    return ControllerResponse.error(f"Unable to scroll {direction}.")
 
             elif action == "drag_drop":
                 source_x, source_y = x, y
@@ -428,7 +442,7 @@ class DesktopController:
                     if "x" in resolved:
                         source_x, source_y = resolved["x"], resolved["y"]
                     else:
-                        return f"Error: Could not resolve source element '{source_element}' to coordinates"
+                        return ControllerResponse.not_found(source_element, item_type="source element")
                 if target_element:
                     resolved = await cls._resolve_element(target_element)
                     if isinstance(resolved, str):
@@ -436,9 +450,9 @@ class DesktopController:
                     if "x" in resolved:
                         target_x, target_y = resolved["x"], resolved["y"]
                     else:
-                        return f"Error: Could not resolve target element '{target_element}' to coordinates"
+                        return ControllerResponse.not_found(target_element, item_type="target element")
                 if source_x is None or source_y is None or target_x is None or target_y is None:
-                    return "Error: Drag-drop requires source and target coordinates, or element names."
+                    return ControllerResponse.error("Drag-drop requires source and target coordinates, or element names.")
                 try:
                     from Quartz import (CGEventCreateMouseEvent, CGEventPost, CGPointMake,
                                         kCGEventLeftMouseDown, kCGEventLeftMouseUp,
@@ -456,51 +470,50 @@ class DesktopController:
                         CGEventPost(kCGHIDEventTap, CGEventCreateMouseEvent(None, kCGEventLeftMouseDragged, point, 0))
                         await asyncio.sleep(duration_ms / 1000 / steps)
                     CGEventPost(kCGHIDEventTap, CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, target_point, 0))
-                    return f"✅ Dragged from ({source_x}, {source_y}) to ({target_x}, {target_y}) in {duration_ms}ms"
+                    return ControllerResponse.success(
+                        f"Dragged from ({source_x}, {source_y}) to ({target_x}, {target_y}) in {duration_ms}ms."
+                    )
                 except ImportError:
-                    return "Error: Drag-drop requires pyobjc-framework-Quartz or cliclick"
+                    return ControllerResponse.error("Drag-drop requires Quartz/pyobjc components.")
 
             elif action == "dump_ui":
                 try:
                     raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
                     if not raw_tree or "Error" in raw_tree:
-                        return f"Error: Failed to dump Accessibility Tree: {raw_tree}"
+                        return ControllerResponse.error(f"Failed to dump Accessibility Tree: {raw_tree}")
                     elements = ast.literal_eval(raw_tree.replace("missing value", "None"))
                     if not isinstance(elements, list):
-                        return "Error: AX Tree format unexpected"
+                        return ControllerResponse.error("AX Tree format unexpected.")
                     filtered_elements = elements
                     if role_filter:
                         filtered_elements = [el for el in filtered_elements if role_filter.lower() in str(el.get("role", "")).lower()]
                     if name_filter:
                         filtered_elements = [el for el in filtered_elements if name_filter.lower() in str(el.get("name", "")).lower()]
-                    total = len(elements)
-                    filtered = len(filtered_elements)
-                    output_lines = [f"UI Hierarchy ({filtered}/{total} elements):", ""]
-                    for i, el in enumerate(filtered_elements[:100]):
-                        name_val = el.get("name", "") or "(unnamed)"
-                        role_val = el.get("role", "Unknown")
-                        bounds = el.get("bounds", [])
-                        bounds_str = f"[{bounds[0]},{bounds[1]},{bounds[2]},{bounds[3]}]" if len(bounds) == 4 else "[]"
-                        output_lines.append(f"[{i}] {role_val}: '{name_val}' {bounds_str} path={el.get('path', '')}")
-                        if len("\n".join(output_lines)) > 5000:
-                            output_lines.append(f"\n... ({len(filtered_elements) - i - 1} more elements)")
-                            break
-                    if len(filtered_elements) > 100:
-                        output_lines.append(f"\n... ({len(filtered_elements) - 100} more elements)")
-                    return "\n".join(output_lines)
+                    
+                    try:
+                        return "\n\n" + render_template(
+                            "vision/ocr_results.prompt.j2",
+                            platform="macos",
+                            elements=[{**el, "bounds": el.get("bounds", [])} for el in filtered_elements[:100]],
+                            total_count=len(filtered_elements)
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to render OCR results template: {e}")
+                        return PerceptionsFormatter.ui_elements(filtered_elements, max_items=50)
+
                 except Exception as e:
-                    return f"Error: dump_ui failed: {e}"
+                    return ControllerResponse.error("dump_ui failed.", details=str(e))
 
             elif action == "gui_extract":
                 filepath = await asyncio.to_thread(macos_driver.screenshot, region=region)
                 if not filepath or not os.path.exists(filepath):
-                    return "Error: Failed to capture screenshot for GUI extraction."
+                    return ControllerResponse.error("Failed to capture screenshot for GUI extraction.")
 
                 try:
                     router = get_vision_router()
                     provider = await router.get_provider(VisionTask.OCR)
                     if not provider:
-                        return "Error: No OCR provider available for desktop GUI extraction."
+                        return ControllerResponse.error("No OCR provider available for desktop GUI extraction.")
 
                     result = await provider.process(VisionTask.OCR, filepath)
                     if not result.success or not result.elements:
@@ -521,13 +534,17 @@ class DesktopController:
                     cleanup_file(filepath)
 
             else:
-                return f"Error: Unknown action '{action}'."
+                return ControllerResponse.error(f"Unknown action '{action}'.")
 
         except PermissionError as e:
-            return f"⚠️ PERMISSION ERROR: {e}\n\nPlease grant Accessibility access to the terminal/application running this backend."
+            return ControllerResponse.error(
+                "PERMISSION ERROR",
+                details=str(e),
+                note="Please grant Accessibility access to the terminal/application running this backend."
+            )
         except Exception as e:
             logger.error(f"Desktop control error: {e}")
-            return f"Error: {str(e)}"
+            return ControllerResponse.error("Desktop action failed.", details=str(e))
 
     @classmethod
     async def verify_ui_state(
@@ -541,7 +558,7 @@ class DesktopController:
         try:
             raw_tree = await asyncio.to_thread(macos_driver.dump_ax_tree)
             if not raw_tree or "Error" in raw_tree:
-                return f"Verification Failed: Could not dump AX Tree. {raw_tree}"
+                return ControllerResponse.error("Verification Failed: Could not dump AX Tree.", details=str(raw_tree))
             elements = ast.literal_eval(raw_tree)
             found_element = False
             found_text = False
@@ -555,12 +572,16 @@ class DesktopController:
                 if expected_text and (expected_text.lower() in name or expected_text.lower() in value):
                     found_text = True
             if expected_element and not found_element:
-                return f"Verification FAILED: Element '{expected_element}'" + (f" with role '{expected_role}'" if expected_role else "") + " not found."
+                return ControllerResponse.error(
+                    f"Verification FAILED: Element '{expected_element}'" +
+                    (f" (role: {expected_role})" if expected_role else "") +
+                    " not found."
+                )
             if expected_text and not found_text:
-                return f"Verification FAILED: Text '{expected_text}' not found in any UI elements."
-            return "Verification SUCCESS: UI state matches expectations."
+                return ControllerResponse.error(f"Verification FAILED: Text '{expected_text}' not found.")
+            return ControllerResponse.success("Verification SUCCESS: UI state matches expectations.")
         except Exception as e:
-            return f"Verification Error: {str(e)}"
+            return ControllerResponse.error("Verification Error.", details=str(e))
 
     @classmethod
     async def quick_check_screen(
@@ -586,12 +607,18 @@ class DesktopController:
                 if check_type == "is_loaded":
                     if len(elements) > 3:
                         elapsed = time.time() - start_time
-                        return f"✅ Screen appears loaded ({len(elements)} UI elements detected in {elapsed:.2f}s)"
+                        return ControllerResponse.success(
+                            f"Screen appears loaded ({len(elements)} elements)",
+                            details=f"Elapsed: {elapsed:.2f}s"
+                        )
                 elif check_type == "has_text" and target:
                     target_lower = target.lower()
                     for el in elements:
                         if target_lower in str(el.get("name", "")).lower() or target_lower in str(el.get("value", "")).lower():
-                            return f"✅ Found text '{target}' on screen (in {time.time() - start_time:.2f}s)"
+                            return ControllerResponse.success(
+                                f"Found text '{target}' on screen",
+                                details=f"Elapsed: {time.time() - start_time:.2f}s"
+                            )
                 elif check_type == "has_element" and target:
                     target_lower = target.lower()
                     for el in elements:
@@ -599,13 +626,19 @@ class DesktopController:
                             bounds = el.get("bounds", [])
                             if len(bounds) == 4:
                                 ex, ey = int(bounds[0] + bounds[2] / 2), int(bounds[1] + bounds[3] / 2)
-                                return f"✅ Found element '{target}' at ({ex}, {ey}) (in {time.time() - start_time:.2f}s)"
-                            return f"✅ Found element '{target}' (in {time.time() - start_time:.2f}s)"
+                                return ControllerResponse.success(
+                                    f"Found element '{target}' at ({ex}, {ey})",
+                                    details=f"Elapsed: {time.time() - start_time:.2f}s"
+                                )
+                            return ControllerResponse.success(
+                                f"Found element '{target}'",
+                                details=f"Elapsed: {time.time() - start_time:.2f}s"
+                            )
                 await asyncio.sleep(0.5)
             except Exception as e:
                 logger.debug(f"[QuickCheck] Error: {e}")
                 await asyncio.sleep(0.5)
         elapsed = time.time() - start_time
         if check_type == "is_loaded":
-            return f"❌ Screen may not be fully loaded after {elapsed:.1f}s"
-        return f"❌ Did not find '{target}' after {elapsed:.1f}s"
+            return ControllerResponse.error(f"Screen may not be fully loaded after {elapsed:.1f}s")
+        return ControllerResponse.error(f"Did not find '{target}' after {elapsed:.1f}s")

@@ -1,0 +1,54 @@
+{# Search Results Template
+   
+   Displays search results for various search operations.
+   
+   Variables:
+   - query: Search query string
+   - results: List of result items (strings)
+   - result_type: Type of search ("web", "chat", "code", etc.)
+   - total_count: Optional total count of results
+   - has_more: Optional flag indicating if there are more results
+#}
+{%- if result_type == "web" %}
+## Web Search Results
+
+Query: {{ query }}
+
+{%- if not results %}
+No results found for '{{ query }}'.
+{%- else %}
+{{ results | join('\n\n---\n\n') }}
+{%- endif %}
+
+{%- elif result_type == "chat" %}
+## Chat History Search
+
+Query: {{ query }}
+
+{%- if not results %}
+No results found for '{{ query }}' in the conversation history.
+{%- else %}
+{%- for msg in results %}
+**[{{ msg.role }}]:** {{ msg.content }}
+
+{%- endfor %}
+{%- endif %}
+
+{%- else %}
+## Search Results
+
+Query: {{ query }}
+
+{%- if not results %}
+No results found.
+{%- else %}
+{%- for item in results %}
+{{ item }}
+{%- endfor %}
+{%- endif %}
+{%- endif %}
+
+{%- if has_more %}
+
+*(Showing {{ results | length }} of {{ total_count }} results)*
+{%- endif %}

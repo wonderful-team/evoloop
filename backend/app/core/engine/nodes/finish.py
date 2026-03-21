@@ -26,11 +26,8 @@ def _extract_tool_usage(messages: list) -> str:
         if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls"):
             for tc in msg.tool_calls:
                 tools_used.add(tc["name"])
-    if not tools_used:
-        # Avoid hardcoded string, but since this is internally logged mostly, 
-        # we'll use a generic placeholder or add to i18n if needed.
-        return "No specific tools were called."
-    return "Tools: " + ", ".join(sorted(tools_used))
+    from app.utils import PerceptionsFormatter
+    return PerceptionsFormatter.tools_used(tools_used)
 
 
 def _extract_final_summary(messages: list) -> str:

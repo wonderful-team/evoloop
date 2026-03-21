@@ -1,0 +1,21 @@
+{% if checklist %}
+### 📋 Task Checklist
+{% for item in checklist %}
+- {{ item }}
+{% endfor %}
+{% endif %}
+
+{% if references %}
+### 🔗 Linked Requirements
+{% for ref in references %}
+- **关联需求**: {{ ref }}
+{% endfor %}
+{% endif %}
+
+{% if quotes %}
+{% for q in quotes %}
+> [!NOTE]
+> **Quoted {{ q.type }} ({{ q.name }}):**
+> {{ q.content|replace('\n', '\n> ') }}
+{% endfor %}
+{% endif %}

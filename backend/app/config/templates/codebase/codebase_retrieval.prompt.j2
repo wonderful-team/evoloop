@@ -1,0 +1,30 @@
+{% if graph_result %}
+Code Structure: {{ graph_result.symbol }} ({{ graph_result.type }})
+File: {{ graph_result.file }}
+{% if graph_result.outgoing %}
+**Outgoing Relations:**
+{% for r in graph_result.outgoing %}
+- {{ r }}
+{% endfor %}
+{% endif %}
+{% if graph_result.incoming %}
+**Incoming Relations (Usage):**
+{% for r in graph_result.incoming %}
+- {{ r }}
+{% endfor %}
+{% endif %}
+{% endif %}
+
+{% if rag_results %}
+Semantic Matches:
+{% for r in rag_results %}
+**File**: {{ r.file_path }} ({{ r.chunk_type }})
+```
+{{ r.content }}
+```
+{% endfor %}
+{% endif %}
+
+{% if not graph_result and not rag_results %}
+No relevant code or symbols found.
+{% endif %}

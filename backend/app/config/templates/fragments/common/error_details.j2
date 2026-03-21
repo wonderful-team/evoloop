@@ -1,0 +1,41 @@
+{#
+  Error Details Components
+  
+  错误详情展示的常用组件。
+#}
+
+{# 通用错误详情 #}
+{% macro error_block(title="Error", message=none, details=none, suggestions=[]) %}
+{% if title %}**{{ title }}**{% endif %}
+{% if message %}
+{{ message }}
+{% endif %}
+{% if details %}
+{{ details }}
+{% endif %}
+{% if suggestions %}
+{% for suggestion in suggestions %}
+💡 {{ suggestion }}
+{% endfor %}
+{% endif %}
+{% endmacro %}
+
+{# Skill 执行错误 #}
+{% macro skill_error(skill_name, step_description, error_message, suggestions=[]) %}
+Failed step: {{ step_description }}
+Error: {{ error_message }}
+{% if suggestions %}{% for suggestion in suggestions %}{{ suggestion }}
+{% endfor %}{% else %}💡 Suggestion: Retry the failed step manually using the appropriate tool.{% endif %}
+{% endmacro %}
+
+{# 工具调用错误 #}
+{% macro tool_error(tool_name, error, args=none) %}
+Tool "{{ tool_name }}" failed: {{ error }}
+{% if args %}Arguments: {{ args }}{% endif %}
+{% endmacro %}
+
+{# 验证错误列表 #}
+{% macro validation_errors(errors) %}
+{% for error in errors %}- {{ error.field }}: {{ error.message }}
+{% endfor %}
+{% endmacro %}

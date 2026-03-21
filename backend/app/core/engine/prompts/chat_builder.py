@@ -1,7 +1,6 @@
-import os
 import logging
-from jinja2 import Environment, FileSystemLoader
 from app.infrastructure.config.service import SystemConfigService
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -10,9 +9,6 @@ class ChatPromptBuilder:
     """
     Builder for Chat node prompts via Jinja2.
     """
-    def __init__(self):
-        template_dir = os.path.join(os.path.dirname(__file__), "templates")
-        self.env = Environment(loader=FileSystemLoader(template_dir))
 
     def build(self) -> str:
         from app.core.context.manager import ContextManager
@@ -27,8 +23,7 @@ class ChatPromptBuilder:
         }
 
         try:
-            template = self.env.get_template("chat.prompt.j2")
-            return template.render(**template_vars)
+            return render_template("agents/chat.prompt.j2", **template_vars)
         except Exception as e:
             logger.error(f"Error rendering Chat template: {e}")
             return "You are EvoLoop, a helpful AI assistant. (Error loading full template)"

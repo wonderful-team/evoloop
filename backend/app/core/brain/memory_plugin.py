@@ -21,9 +21,8 @@ class MemoryContextPlugin(ContextPlugin):
                 with open(journal_path, encoding="utf-8") as f:
                     content = f.read().strip()
                     if content:
-                        # Keep last 20 lines as raw context
-                        lines = content.splitlines()[-20:]
-                        ctx.metadata["episodic_memory_raw"] = "\n".join(lines)
+                        # Keep last 20 lines as raw context for the template
+                        ctx.metadata["episodic_memory_raw"] = "\n".join(content.splitlines()[-20:])
 
             # 2. Load Core Memory (Focus)
             focus_path = os.path.join(settings.BRAIN_MEMORY_ROOT, "working", "focus.md")

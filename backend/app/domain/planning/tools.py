@@ -15,37 +15,16 @@ from .models import Plan, Step
 
 logger = logging.getLogger(__name__)
 
-FEASIBILITY_ANALYSIS_PROMPT = ChatPromptTemplate.from_template("""
-You are a Technical Architect ensuring the feasibility of a development plan.
-
-Proposed Plan:
-{plan}
-
-Codebase Context (Retrieved Symbols):
-{context}
-
-Project Structure (Tree):
-{tree}
-
-Analyze the plan for the following risks:
-1. **Hallucination**: Does the plan modify files or classes that do not exist?
-2. **Dependency Issues**: Will imports break (e.g. circular imports, missing modules)?
-3. **API Contracts**: Does it change a public method signature used elsewhere without updating callers?
-4. **Complexity**: Is the plan too vague or too complex for a single iteration?
-
-Return a strict analysis report in Markdown:
-- **Status**: [FEASIBLE / RISKY / BLOCKER]
-- **Risk Score**: (0-10, 10 is impossible)
-- **Validation Details**:
-    - Confirmed Symbols: (List symbols found)
-    - Missing Symbols: (List symbols not found)
-    - Impact Analysis: (Briefly describe impact)
-- **Recommendations**: (Specific actions to fix the plan)
-
-LANGUAGE PROTOCOL (STRICT):
-User Language: {user_lang}
-You MUST write the analysis report (Risk Score, Validation Details, Recommendations) in {user_lang}.
-""")
+def _render_analysis_prompt(plan: str, context: str, tree: str, user_lang: str) -> str:
+    """Render the feasibility analysis prompt from Jinja2 template."""
+    from app.utils import render_template
+    return render_template(
+        "planning/feasibility_analysis.prompt.j2",
+        plan=plan,
+        context=context,
+        tree=tree,
+        user_lang=user_lang
+    )
 
 
 class CreatePlanInput(BaseModel):
@@ -266,13 +245,16 @@ async def analyze_feasibility(proposed_plan: str, config: RunnableConfig) -> str
         llm = get_default_llm()
         user_lang = SystemConfigService.get_language_preference()
 
-        chain = FEASIBILITY_ANALYSIS_PROMPT | llm | StrOutputParser()
-        report = await chain.ainvoke({
-            "plan": proposed_plan,
-            "context": context_str,
-            "tree": tree,
-            "user_lang": user_lang
-        }, config=config)
+        prompt_text = _render_analysis_prompt(
+            plan=proposed_plan,
+            context=context_str,
+            tree=tree,
+            user_lang=user_lang
+        )
+        
+        # Use simple invoke with prepared text
+        response = await llm.ainvoke(prompt_text, config=config)
+        report = response.content if hasattr(response, 'content') else str(response)
 
         return report
 

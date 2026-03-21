@@ -1004,6 +1004,18 @@ export const ExecuteSkillRequestSchema = {
             ],
             title: 'Project Id',
             default: 1
+        },
+        execution_mode: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Execution Mode',
+            description: 'Optional: override skill\'s execution mode (agentic or deterministic)'
         }
     },
     type: 'object',
@@ -1569,9 +1581,9 @@ export const MessageItemSchema = {
             type: 'string',
             title: 'Id'
         },
-        type: {
+        role: {
             type: 'string',
-            title: 'Type'
+            title: 'Role'
         },
         content: {
             type: 'string',
@@ -1659,8 +1671,61 @@ export const MessageItemSchema = {
         }
     },
     type: 'object',
-    required: ['id', 'type', 'content', 'thinking', 'created_at'],
+    required: ['id', 'role', 'content', 'thinking', 'created_at'],
     title: 'MessageItem'
+} as const;
+
+export const MessageListResponseSchema = {
+    properties: {
+        items: {
+            items: {
+                '$ref': '#/components/schemas/MessageItem'
+            },
+            type: 'array',
+            title: 'Items'
+        },
+        has_more: {
+            type: 'boolean',
+            title: 'Has More'
+        },
+        first_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'First Id'
+        },
+        last_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Last Id'
+        },
+        total_count: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Total Count'
+        }
+    },
+    type: 'object',
+    required: ['items', 'has_more'],
+    title: 'MessageListResponse',
+    description: 'Response model for paginated message list.'
 } as const;
 
 export const MessageResponseSchema = {

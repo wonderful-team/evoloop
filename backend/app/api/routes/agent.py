@@ -386,7 +386,10 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
                 # Store temporary project for this thread
                 thread_context_store.set_temp_project(req.thread_id, temp_project_id)
                 # Use empty input for actual resume (the project is now in context)
-                inputs = {"messages": [HumanMessage(content=f"Selected project: {parsed.get('project_name', temp_project_id)}")]}
+                # Use system_tools template for selection message
+                from app.utils import SystemToolsFormatter
+                sel_msg = SystemToolsFormatter.signals([f"Selected project: {parsed.get('project_name', temp_project_id)}"])
+                inputs = {"messages": [HumanMessage(content=sel_msg)]}
             else:
                 inputs = {"messages": [HumanMessage(content=req.user_input)]}
         except json.JSONDecodeError:
@@ -566,22 +569,13 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
                     last_tool_call = last_msg.tool_calls[-1]
                     if last_tool_call["name"] in ["request_approval", "request_human_input"]:
                         logger.info(f"Sending CANCELLED response for tool call {last_tool_call['name']}")
-                        tool_msg = ToolMessage(
-                            tool_call_id=last_tool_call["id"],
-                            content=f"CANCELLED: {cancel_reason}",
-                        )
-                        inputs = {"messages": [tool_msg]}
-                    else:
-                        inputs = {"messages": [HumanMessage(content=f"[Cancelled: {cancel_reason}]")]}
-                else:
-                    inputs = {"messages": [HumanMessage(content=f"[Cancelled: {cancel_reason}]")]}
-            else:
-                inputs = {"messages": [HumanMessage(content=f"[Cancelled: {cancel_reason}]")]}
-        else:
-            inputs = {"messages": [HumanMessage(content=f"[Cancelled: {cancel_reason}]")]}
+                # Use system_tools template for cancellation message
+                from app.utils import SystemToolsFormatter
+                cancel_msg = SystemToolsFormatter.signals([f"Request cancelled: {cancel_reason}"])
+                inputs = {"messages": [HumanMessage(content=cancel_msg)]}
     except Exception as state_e:
         logger.warning(f"Failed to inspect state for cancel: {state_e}")
-        inputs = {"messages": [HumanMessage(content=f"[Cancelled: {cancel_reason}]")]}
+        inputs = {"messages": [HumanMessage(content=f"Request cancelled: {cancel_reason}")]}
 
     # Resume in background with cancellation signal
     async def _cancel_and_resume():

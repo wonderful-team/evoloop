@@ -128,7 +128,7 @@ class SupervisorNode:
 
         logger.error("[Supervisor] 🛑 Protocol violation: No route_to signal in response")
         error_msg = AIMessage(
-            content="[ERROR: Supervisor failed to call route_to. This is a protocol violation.]"
+            content="Error: Supervisor failed to determine next action."
         )
         return {
             "messages": new_messages + [error_msg],

@@ -1,16 +1,11 @@
 import json
 import logging
-import os
-
-from jinja2 import Environment, FileSystemLoader
 
 from app.i18n.service import i18n
 from app.infrastructure.config.service import SystemConfigService
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
-
-# Template directory is co-located in app/domain/wiki/
-_TEMPLATE_DIR = os.path.join(os.path.dirname(__file__), "templates")
 
 
 class WikiBuilder:
@@ -18,9 +13,6 @@ class WikiBuilder:
     Builder for Wiki Generation prompts via Jinja2.
     Co-located with WikiService in app/domain/wiki/.
     """
-
-    def __init__(self):
-        self.env = Environment(loader=FileSystemLoader(_TEMPLATE_DIR))
 
     def _get_target_lang(self) -> str:
         return SystemConfigService.get_language_preference()
@@ -39,7 +31,7 @@ class WikiBuilder:
             "mode": "content",
             "page_title": page_title,
             "relevant_files_content": relevant_files_content,
-            "files_list_md": "\n".join([f"- {path}" for path in relevant_file_paths]),
+            "relevant_file_paths": relevant_file_paths,
             "i18n_relevant_files": i18n.get("wiki.generated_content.relevant_files"),
             "i18n_files_used": i18n.get("wiki.generated_content.files_used"),
             "target_lang": self._get_target_lang()
@@ -66,8 +58,7 @@ class WikiBuilder:
 
     def _render(self, template_vars: dict) -> str:
         try:
-            template = self.env.get_template("wiki.prompt.j2")
-            return template.render(**template_vars)
+            return render_template("wiki/wiki.prompt.j2", **template_vars)
         except Exception as e:
             logger.error(f"Error rendering Wiki template: {e}")
-            return f"You are a Tech Writer. Error loading template: {e}"
+            return f"Wiki template error: {e}"

@@ -1,13 +1,10 @@
 from typing import Any
 
-from langchain_core.messages import SystemMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.runnables import RunnableConfig
 
-from app.core.engine.message_utils import repair_message_history
+from app.core.engine import AgentEngine
 from app.core.engine.prompts import ChatPromptBuilder
 from app.core.engine.state import AgentState
-from app.infrastructure.llm.factory import LLMFactory
 
 
 async def chat_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
@@ -16,38 +13,26 @@ async def chat_node(state: AgentState, config: RunnableConfig) -> dict[str, Any]
     Does NOT use tools.
     Does NOT use Supervisor planning prompts.
     Does NOT consume large project context.
+    
+    Uses AgentEngine for unified context management and trace recording.
     """
 
-    # Initialize lightweight LLM
-    llm = LLMFactory.create_llm(temperature=0.7)
-
-    # Detect Platform Relevance
-    # Filter out existing System Messages from history + Repair
-    raw_messages = list(state.get("messages", []))
-    history_messages = [m for m in raw_messages if not isinstance(m, SystemMessage)]
-    cleaned_messages = repair_message_history(history_messages)
-
-    # Use Builder for Jinja2 prompt
+    # Use Builder for Jinja2 system prompt
     prompt_builder = ChatPromptBuilder()
     system_prompt = prompt_builder.build()
 
-    # Define a simple prompt template for history
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        MessagesPlaceholder(variable_name="messages"),
-    ])
-
-    chain = prompt | llm
-
-    # Invoke with ONLY cleaned history
-    response = await chain.ainvoke(
-        {
-            "messages": cleaned_messages,
-        },
+    # Use AgentEngine for unified execution (single-shot mode, no tools)
+    result = await AgentEngine.run_node(
+        state=state,
         config=config,
+        system_prompt=system_prompt,
+        tools=[],  # Chat node does not use tools
+        temperature=0.7,
+        name="Chat",
+        is_subtask=True,  # Single-turn execution, no ReAct loop
     )
 
     return {
-        "messages": [response],
+        "messages": result.get("messages", []),
         "next_node": "END"
     }

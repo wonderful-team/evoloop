@@ -12,3 +12,4 @@ node_modules/
 /backend/logs/
 /frontend/.tanstack/
 /frontend/src-tauri/binaries/
+/frontend/src-tauri/.evoloop/

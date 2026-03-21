@@ -86,9 +86,9 @@ async def browser_control(
     (OS-level). Use browser_control when you need precise DOM interaction,
     content extraction, or browser state management inside a web page.
 
-    ## Action Groups
-
-    ### 🧭 Navigation
+    Action Groups:
+    
+    NAVIGATION:
     - navigate: Go to `url`, waits for networkidle.
     - back / forward: Browser history.
     - reload: Refresh current page.
@@ -96,7 +96,7 @@ async def browser_control(
     - new_tab: Open a new tab (optionally at `url`); switches to it.
     - switch_tab: Switch active tab by `tab_index` (0-based).
 
-    ### 🖱️ Interaction
+    INTERACTION:
     - click: Click `selector` or `text`. Falls back to (x, y) coordinates.
     - double_click: Double-click `selector` or `text`.
     - hover: Mouse-hover over `selector` (reveals tooltips / dropdowns).
@@ -106,25 +106,25 @@ async def browser_control(
     - scroll: Scroll page or `selector` element by `amount` px in `direction`.
     - drag_drop: Drag `source_selector` and drop onto `target_selector`.
 
-    ### 📖 Reading
+    READING:
     - get_text: Extract visible text from page or `selector`.
     - get_html: Get outerHTML of page or `selector`.
     - get_attribute: Get `attribute` value from `selector`.
     - get_links: Return all href links (optionally scoped to `selector`).
     - find_element: Check if `selector` / `text` exists, return position.
 
-    ### 📷 Perception
+    PERCEPTION:
     - screenshot: Capture page (`full_page=True` for full scroll). Immediately
       runs OCR and returns: image path + OCR text/coordinates (same format as
       desktop_control).
     - wait_for: Wait until `selector` / `text` / `url_pattern` matches `state`.
     - check_element: Return visible/checked/enabled status of `selector`.
 
-    ### 📦 Batch & File Operations
+    BATCH & FILE OPERATIONS:
     - batch: Execute multiple actions in sequence. Provide `actions` list.
     - upload: Upload a file to a file input element. Provide `file_path`.
 
-    ### 🔧 Advanced
+    ADVANCED:
     - run_js: Execute `script` in page context. Returns JSON-serialisable result.
     - get_cookies: List all cookies for current domain.
     - set_cookies: Inject `cookies` list (for pre-authenticated sessions).
@@ -132,7 +132,7 @@ async def browser_control(
     - network_wait: Wait for a network request matching `url_pattern` to complete.
     - dialog_handle: Accept or dismiss the next alert/confirm/prompt.
 
-    ### ⚡ Lifecycle
+    LIFECYCLE:
     - close: Gracefully close the browser.
 
     Args:

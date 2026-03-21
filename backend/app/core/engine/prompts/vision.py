@@ -1,7 +1,6 @@
-import os
 import logging
-from jinja2 import Environment, FileSystemLoader
 from app.infrastructure.config.service import SystemConfigService
+from app.utils import render_template
 
 logger = logging.getLogger(__name__)
 
@@ -10,9 +9,6 @@ class VisionPromptBuilder:
     """
     Builder for Vision-related prompts via Jinja2.
     """
-    def __init__(self):
-        template_dir = os.path.join(os.path.dirname(__file__), "templates")
-        self.env = Environment(loader=FileSystemLoader(template_dir))
 
     def build_ui_analysis_prompt(self) -> str:
         template_vars = {
@@ -46,8 +42,7 @@ class VisionPromptBuilder:
 
     def _render(self, template_vars: dict) -> str:
         try:
-            template = self.env.get_template("vision.prompt.j2")
-            return template.render(**template_vars)
+            return render_template("vision/vision.prompt.j2", **template_vars)
         except Exception as e:
             logger.error(f"Error rendering Vision template: {e}")
             return f"Error loading vision analysis prompt: {e}"

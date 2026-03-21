@@ -1,6 +1,7 @@
 from langchain_core.runnables import RunnableConfig
 
 from app.constants import DEFAULT_EXCLUDED_DIRS
+from app.utils import render_template
 from app.core.tools import evoloop_tool, get_working_directory
 from app.domain.codebase.retrieval.graph_service import graph_retrieval_service
 from app.utils.process import run_command
@@ -26,10 +27,8 @@ async def find_definition(symbol_name: str, file_pattern: str | None = None, con
     try:
         results = await graph_retrieval_service.find_symbol_definition(symbol_name, project_id)
         if results:
-            lines = [f"Found {len(results)} definitions in Knowledge Graph:"]
-            for r in results:
-                lines.append(f"- {r['full_name']} ({r['type']}) in {r['file_path']}")
-            return "\n".join(lines)
+            summaries = [f"{r['full_name']} ({r['type']}) in {r['file_path']}" for r in results]
+            return render_template("codebase/codebase_indexing.prompt.j2", summaries=summaries)
     except Exception:
         # Log but continue to fallback
         pass
@@ -78,23 +77,12 @@ async def analyze_impact(symbol_name: str, config: RunnableConfig | None = None)
         if not usages:
             return f"No usages found for symbol '{symbol_name}' in the Knowledge Graph."
 
-        lines = [f"Impact Analysis for '{symbol_name}':"]
-        lines.append(f"Found {len(usages)} dependants:")
-
-        # Group by file
-        by_file = {}
-        for use in usages:
-            fp = use.get("file_path", "unknown")
-            if fp not in by_file:
-                by_file[fp] = []
-            by_file[fp].append(f"{use.get('source')} ({use.get('relation')})")
-
+        relations_data = []
         for fp, items in by_file.items():
-            lines.append(f"\nIn File: {fp}")
             for item in items:
-                lines.append(f"  - {item}")
-
-        return "\n".join(lines)
+                relations_data.append({"source": item, "direction": "used by File", "target": fp})
+        
+        return render_template("codebase/codebase_indexing.prompt.j2", relations=relations_data)
 
     except Exception as e:
         return f"Error searching graph: {e}"

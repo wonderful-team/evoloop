@@ -341,22 +341,25 @@ class Neo4jLongTermMemory(ILongTermMemory):
         if not records:
             return ""
 
-        lines = ["**Relevant Past Experiences:**"]
+        # Prepare data for template rendering
+        from app.utils import render_template
+        
+        episodes = []
         for r in records:
-            status = "FAILED" if r["error"] else "SUCCESS"
             if r["score"] < 0.75:
                 continue
-
-            lines.append(f"- [{status}] Goal: {r['goal']}")
-            if r["error"]:
-                lines.append(f"  Error: {r['error']}")
-            lines.append(f"  Plan: {r['plan']}")
-            lines.append("---")
-
-        if len(lines) == 1:
+            episodes.append({
+                "status": "FAILED" if r["error"] else "SUCCESS",
+                "goal": r["goal"],
+                "error": r["error"],
+                "plan": r["plan"],
+                "score": r["score"],
+            })
+        
+        if not episodes:
             return ""
-
-        return "\n".join(lines)
+        
+        return render_template("memory/episodes_summary.prompt.j2", episodes=episodes)
 
     async def link_episode_to_concepts(
         self, episode_id: str, concept_names: list[str], project_id: int

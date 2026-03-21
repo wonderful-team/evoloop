@@ -12,7 +12,8 @@ import logging
 import math
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
+
 
 from app.constants import INTERCEPT_TARGETS, RISK_KEYWORDS
 from app.core.atlas import atlas_engine
@@ -22,9 +23,14 @@ from app.core.vision import vision_engine, VisionTask
 from app.core.vision.providers.native.android_a11y import android_a11y_provider
 from app.infrastructure.drivers.adb import ADBError, adb_driver
 from app.core.learning.trace_recorder import get_recorder
-from app.core.environment.controllers.utils import (
+from app.utils import (
     cleanup_file,
+    ControllerResponse,
     normalize_text,
+    PerceptionsFormatter,
+    render_template,
+)
+from app.core.environment.controllers.utils import (
     RecordingContext,
     resolve_element_alias,
 )
@@ -180,12 +186,14 @@ class MobileController:
 
             # ── Internal helpers (closures capturing context) ──────────────
 
-            async def finish_action(msg: str) -> str:
-                """Phase 4/6: wait_after_ms logic."""
+            async def finish_action(msg: str | dict, success: bool = True) -> str:
+                """Phase 4/6: wait_after_ms logic and standardized rendering."""
                 if wait_after_ms > 0:
                     await asyncio.sleep(wait_after_ms / 1000.0)
-                    return f"{msg} (waited {wait_after_ms}ms)"
-                return msg
+                
+                if isinstance(msg, str):
+                    return render_template("report/response.prompt.j2", success=success, message=msg, note=f"Wait: {wait_after_ms}ms" if wait_after_ms > 0 else None)
+                return str(msg)
 
             async def probe_hybrid(a11y_result=None) -> bool:
                 """Four-Dimensional H5 Detection."""
@@ -501,19 +509,18 @@ class MobileController:
                         except Exception as e:
                             logger.debug(f"[Mobile] OCR attempt {ocr_attempts} failed: {e}")
 
-                return f"ERR_ELEMENT_NOT_FOUND: Could not find element '{name}' on device."
+                return render_template("report/response.prompt.j2", success=False, message=f"Could not find element '{name}' on device.")
 
             # ── Action dispatch ─────────────────────────────────────────────
 
             if action == "list_devices":
                 devices = await asyncio.to_thread(adb_driver.list_devices)
                 if not devices:
-                    return "No Android devices connected.\n\nTo connect a device:\n1. Enable Developer Options on your Android device\n2. Enable USB Debugging\n3. Connect via USB and accept the prompt"
-                lines = ["Connected devices:"]
-                for d in devices:
-                    status_emoji = "✅" if d["status"] == "device" else "⚠️"
-                    lines.append(f"  {status_emoji} {d['serial']} ({d['status']}) {d['info']}")
-                return await finish_action("\n".join(lines))
+                    return ControllerResponse.error(
+                        "No Android devices connected.",
+                        note="Please enable USB debugging and accept the authorization prompt."
+                    )
+                return PerceptionsFormatter.android_devices(devices)
 
             elif action == "screenshot":
                 package = await _get_effective_package()
@@ -542,18 +549,22 @@ class MobileController:
                     except Exception as e:
                         logger.warning(f"[Mobile] Region cropping failed: {e}")
 
-                msg = f"Screenshot: {filepath}"
+                result_msg = ControllerResponse.screenshot_result(success=True, filename=filepath)
                 if ocr:
                     try:
-                        # Mobile H5/WebView contexts don't benefit from Atlas learning
-                        ocr_res = await vision_engine.process(VisionTask.OCR, filepath, on_android=True, device_id=device_id, enable_atlas_learning=False)
+                        ocr_res = await vision_engine.process(VisionTask.OCR, filepath, on_android=True, device_id=device_id)
                         if ocr_res.success and ocr_res.elements:
-                            msg += "\n\n### OCR Results (Detected Text & Coordinates):\n" + "\n".join([el.to_prompt_line() for el in ocr_res.elements])
+                            result_msg += "\n\n" + render_template(
+                                "vision/ocr_results.prompt.j2",
+                                platform="android",
+                                elements=[{"role": el.metadata.get("class", "Unknown"), "name": el.text, "bounds": f"({el.x}, {el.y})", "path": el.metadata.get("resource_id", "")} for el in ocr_res.elements],
+                                total_count=len(ocr_res.elements)
+                            )
                         else:
-                            msg += "\n\n(OCR requested but no text detected)"
+                            result_msg += "\n\n" + ControllerResponse.error("OCR requested but no text detected.")
                     except Exception as e:
-                        msg += f"\n\n(OCR Error: {e})"
-                return await finish_action(msg)
+                        result_msg += "\n\n" + ControllerResponse.error("OCR Error.", details=str(e))
+                return await finish_action(result_msg)
 
             elif action in ["tap", "click"]:
                 if risk_error := await check_risk_confirmation(name=element_name):
@@ -568,11 +579,12 @@ class MobileController:
                 if tx is None or ty is None:
                     return "Error: Coordinates or element_name required."
                 await asyncio.to_thread(adb_driver.tap, tx, ty, device_id=device_id)
+                msg = ControllerResponse.tap_result(tx, ty, element_name=element_name)
                 return await _post_action_cleanup(
                     "click",
                     {"x": tx, "y": ty, "element_name": element_name},
                     base_pkg,
-                    f"Tapped at ({tx}, {ty})" + (f" (resolved from '{element_name}')" if element_name else "")
+                    msg
                 )
 
             elif action == "long_press":
@@ -593,14 +605,17 @@ class MobileController:
                     "long_press",
                     {"x": tx, "y": ty, "element_name": element_name, "duration": press_duration},
                     base_pkg,
-                    f"Long-pressed at ({tx}, {ty}) for {press_duration}ms" + (f" (resolved from '{element_name}')" if element_name else "")
+                    ControllerResponse.success(
+                        f"Long-pressed at ({tx}, {ty}) for {press_duration}ms" +
+                        (f" (resolved from '{element_name}')" if element_name else "")
+                    )
                 )
 
             elif action == "swipe":
                 if risk_error := await check_risk_confirmation(name=element_name):
                     return risk_error
                 if any(v is None for v in [x, y, x2, y2]):
-                    return "Error: Need x, y, x2, y2."
+                    return ControllerResponse.error("Swipe requires x, y, x2, y2.")
                 rx, ry = await _normalize_coordinates(x, y)
                 rx2, ry2 = await _normalize_coordinates(x2, y2)
                 await asyncio.to_thread(adb_driver.swipe, rx, ry, rx2, ry2, duration_ms=duration_ms, device_id=device_id)
@@ -609,12 +624,16 @@ class MobileController:
                     "swipe",
                     {"x1": rx, "y1": ry, "x2": rx2, "y2": ry2, "duration": duration_ms},
                     base_pkg,
-                    f"Swiped from ({rx}, {ry}) to ({rx2}, {ry2})"
+                    ControllerResponse.swipe_result(
+                        direction="custom",
+                        start=(rx, ry),
+                        end=(rx2, ry2)
+                    )
                 )
 
             elif action == "scroll":
                 if not direction:
-                    return "Error: 'direction' (up/down/left/right) is required for scroll."
+                    return ControllerResponse.missing_param("direction")
                 sw, sh = await asyncio.to_thread(adb_driver.get_screen_size, device_id=device_id)
                 if isinstance(scroll_amount, (int, float)):
                     scroll_ratio = min(1.0, max(0.1, float(scroll_amount)))
@@ -654,12 +673,15 @@ class MobileController:
                     "scroll",
                     {"direction": direction, "amount": scroll_amount, "element_name": element_name},
                     base_pkg,
-                    f"Scrolled {direction} by {scroll_amount}" + (f" (in '{element_name}')" if element_name else "")
+                    ControllerResponse.success(
+                        f"Scrolled {direction} by {scroll_amount}" +
+                        (f" (in '{element_name}')" if element_name else "")
+                    )
                 )
 
             elif action == "input_text":
                 if not text:
-                    return "Error: 'text' required."
+                    return ControllerResponse.missing_param("text")
                 if risk_error := await check_risk_confirmation(name=element_name, input_val=text):
                     return risk_error
                 base_pkg = await _get_effective_package()
@@ -673,7 +695,10 @@ class MobileController:
                     "input_text",
                     {"text": text, "element_name": element_name},
                     base_pkg,
-                    f"Input text: {text[:50]}..." + (f" (focused on '{element_name}')" if element_name else "")
+                    ControllerResponse.input_result(
+                        field_name=element_name or "unknown",
+                        value=text[:50] if len(text) > 50 else text
+                    )
                 )
 
             elif action == "scroll_to_bottom":
@@ -720,25 +745,28 @@ class MobileController:
                     await asyncio.to_thread(adb_driver.swipe, start_x, start_y, end_x, end_y, duration_ms=400, device_id=device_id)
                     scroll_count += 1
                 
-                return await finish_action(f"Scrolled {scroll_count} times.")
+                return ControllerResponse.success(
+                    "Scrolled to bottom.",
+                    note=f"Completed {scroll_count} iterations."
+                )
 
             elif action == "press_key":
                 if keycode is None:
-                    return "Error: 'keycode' required."
+                    return ControllerResponse.missing_param("keycode")
                 await asyncio.to_thread(adb_driver.press_key, keycode, device_id=device_id)
-                return await finish_action(f"Pressed: {keycode}")
+                return ControllerResponse.success(f"Pressed: {keycode}")
 
             elif action == "get_info":
                 info = await asyncio.to_thread(adb_driver.get_system_info, device_id=device_id)
-                return await finish_action(str(info))
+                return ControllerResponse.success("System Info", details=str(info))
 
             elif action == "list_apps":
                 apps = await asyncio.to_thread(adb_driver.list_installed_apps, device_id=device_id)
-                return await finish_action(str(apps))
+                return ControllerResponse.success("Installed Apps", details=str(apps))
 
             elif action == "open_app":
                 if not text:
-                    return "Error: package name in 'text' required."
+                    return ControllerResponse.missing_param("text")
 
                 # Check for force_stop flag (useful for clean macro starts)
                 if kwargs.get("force_stop") or kwargs.get("restart", False):
@@ -769,25 +797,23 @@ class MobileController:
                 asyncio.create_task(_preload_atlas_data())
 
                 await _record("open_app", {"package": text, "type": app_type_str})
-                return await finish_action(f"{icon} Opened: {text} [{app_type_str}]")
+                return ControllerResponse.success(f"Opened: {text}", note=f"App Type: {app_type_str}")
 
             elif action == "push":
                 if not local_path or not remote_path:
-                    return "Error: 'local_path' and 'remote_path' are required for push."
+                    return ControllerResponse.error("'local_path' and 'remote_path' are required for push.")
                 await asyncio.to_thread(adb_driver.push, local_path, remote_path, device_id=device_id)
-                return await finish_action("Pushed")
+                return ControllerResponse.success("Pushed file.", details=f"{local_path} -> {remote_path}")
 
             elif action == "pull":
                 if not local_path or not remote_path:
-                    return "Error: 'local_path' and 'remote_path' are required for pull."
+                    return ControllerResponse.error("'local_path' and 'remote_path' are required for pull.")
                 await asyncio.to_thread(adb_driver.pull, remote_path, local_path, device_id=device_id)
-                return await finish_action("Pulled")
+                return ControllerResponse.success("Pulled file.", details=f"{remote_path} -> {local_path}")
 
             elif action == "dump_ui":
                 xml = await asyncio.to_thread(adb_driver.dump_ui, device_id=device_id)
-                if len(xml) > 200000:
-                    xml = xml[:200000] + "\n...(truncated)"
-                return await finish_action(f"UI Hierarchy:\n{xml}")
+                return ControllerResponse.success("UI Hierarchy Dump", details=xml)
 
             elif action == "intent_flow":
                 if not intents:
@@ -833,15 +859,15 @@ class MobileController:
                 logger.info(f"Polling SMS inbox for pattern '{pattern}' up to {wait_time}s..." + (f" (after timestamp: {after_timestamp})" if after_timestamp else ""))
                 messages = await asyncio.to_thread(adb_driver.read_sms, regex_pattern=pattern, timeout=wait_time, device_id=device_id, after_timestamp=after_timestamp)
                 if not messages:
-                    return await finish_action(f"No SMS matching pattern '{pattern}' received within {wait_time} seconds.")
+                    return await finish_action(f"No SMS matching pattern '{pattern}' received within {wait_time} seconds.", success=False)
                 latest = messages[0]
                 if latest.get("extract"):
-                    return await finish_action(f"SMS Received! Extracted Match: {latest['extract']}\nFull Body: {latest['body']}")
+                    return await finish_action(f"SMS Received! Match: {latest['extract']}", note=f"Full Body: {latest['body']}")
                 return await finish_action(f"SMS Received: {latest['body']}")
 
             elif action == "get_clipboard":
                 text = await asyncio.to_thread(adb_driver.get_clipboard, device_id=device_id)
-                return await finish_action(text or "")
+                return await finish_action(f"Clipboard content: {text}" if text else "Clipboard is empty.")
 
             elif action == "gui_extract":
                 from app.core.vision import get_vision_router
@@ -904,13 +930,13 @@ class MobileController:
                     _crop_screenshot(filepath, region)
 
                 if not filepath or not os.path.exists(filepath):
-                    return "Error: Failed to capture screenshot for GUI extraction."
+                    return ControllerResponse.error("Failed to capture screenshot for GUI extraction.")
 
                 try:
                     router = get_vision_router()
                     provider = await router.get_provider(VisionTask.OCR, on_android=True, device_id=device_id)
                     if not provider:
-                        return "Error: No OCR provider available for mobile GUI extraction."
+                        return ControllerResponse.error("No OCR provider available for mobile GUI extraction.")
 
                     result = await provider.process(VisionTask.OCR, filepath)
                     if not result.success or not result.elements:
@@ -941,10 +967,10 @@ class MobileController:
                     if filepath and filepath != current_cache_path:
                         cleanup_file(filepath)
 
-            return f"Error: Unknown action '{action}'."
+            return ControllerResponse.error(f"Unknown action '{action}'.")
 
         except ADBError as e:
-            return f"⚠️ ADB ERROR: {e}"
+            return ControllerResponse.error("ADB ERROR", details=str(e))
         except Exception as e:
             logger.error(f"Mobile control error: {e}")
-            return f"Error: {str(e)}"
+            return ControllerResponse.error("Mobile action failed.", details=str(e))

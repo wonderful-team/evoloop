@@ -30,20 +30,12 @@ class QueryRewriter:
             return query
 
         try:
-            prompt = (
-                "You are a query expansion assistant for a code search engine.\n"
-                "The user will provide a query (likely in Chinese) about a codebase.\n"
-                "Your task is to:\n"
-                "1. Translate the query intention to English.\n"
-                "2. Extract 3-5 technical keywords/synonyms relevant to the code implementation.\n"
-                "3. Output ONLY the rewritten query string combining original and new keywords. Do not explain.\n\n"
-                f"Original Query: {query}\n"
-                "Rewritten Query:"
-            )
+            from app.utils import render_template
+            prompt_text = render_template("planning/query_rewrite.prompt.j2", query=query)
 
             # Using invoke for simple non-streaming call
-            response = await self.llm.ainvoke([HumanMessage(content=prompt)])
-            rewritten = response.content.strip()
+            response = await self.llm.ainvoke(prompt_text)
+            rewritten = response.content.strip() if hasattr(response, 'content') else str(response).strip()
 
             # Remove quotes if model added them
             rewritten = rewritten.strip('"').strip("'")

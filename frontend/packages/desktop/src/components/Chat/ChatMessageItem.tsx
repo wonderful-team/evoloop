@@ -75,7 +75,7 @@ function ToolExecutionSection({ msg }: { msg: Message }) {
   }
 
   return (
-    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
+    <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full min-w-0">
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
@@ -91,7 +91,7 @@ function ToolExecutionSection({ msg }: { msg: Message }) {
           )}
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="mt-1">
+      <CollapsibleContent className="mt-1 min-w-0">
         {isRealtime ? (
           // Real-time steps use AgentProcess for richer display
           <AgentProcess
@@ -163,7 +163,7 @@ const ChatMessageItem = memo(
     if (msg.role === "tool") {
       return (
         <div className="flex justify-start mb-2 px-4">
-          <Collapsible className="w-full max-w-3xl">
+          <Collapsible className="w-full max-w-[85%] sm:max-w-[75%]">
             <CollapsibleTrigger asChild>
               <Button
                 variant="ghost"
@@ -202,12 +202,12 @@ const ChatMessageItem = memo(
           </div>
         )}
 
-        <div className={`relative flex-1 max-w-full`}>
-          <div className="flex flex-col gap-1">
+        <div className={`relative flex-1 max-w-full min-w-0`}>
+          <div className="flex flex-col gap-1 min-w-0">
 
             {/* 1. Main Content - AI FIRST */}
             {msg.content && (
-              <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed ${msg.role === "human" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+              <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed min-w-0 overflow-hidden ${msg.role === "human" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
 
                 {(() => {
                   // Artifact Detection

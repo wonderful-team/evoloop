@@ -402,8 +402,8 @@ class AgentEngine:
                             blackboard["metadata"][key] = val
                             logger.info(f"[{name}] 🖊️ Blackboard field '{key}' updated via Signal: {val}")
 
-                # 2. History Compression Signal
-                if "[HISTORY_COMPRESSION_SIGNAL]" in str(tool_msg.content):
+                # 2. History Compression Signal (Formalized)
+                if "COMPRESSION_SIGNAL|" in str(tool_msg.content):
                     try:
                         from langchain_core.messages import RemoveMessage
                         # To keep context light, we remove everything except the last 3 messages 
@@ -430,7 +430,7 @@ class AgentEngine:
             logger.error(f"[{name}] 🔴 Hit max_steps ({max_steps}) with open tool calls. Forcing termination.")
             # Phase 4 Autonomy: Provide a clear signal that it was forcefully truncated
             truncation_msg = AIMessage(
-                content="[System: Node execution reached maximum allowed steps. Execution was forcefully paused. The Supervisor should review progress and consider resuming.]"
+                content="Execution reached maximum step limit and was paused."
             )
             new_messages.append(truncation_msg)
 
@@ -481,7 +481,7 @@ class AgentEngine:
         except Exception as e:
             logger.error(f"[{name}] Single-shot LLM invocation failed: {e}")
             return {
-                "messages": [AIMessage(content=f"[ERROR: Failed to invoke LLM: {e}]")],
+                "messages": [AIMessage(content="Failed to invoke LLM due to system error.")],
                 "tool_history": [],
                 "blackboard": state.get("blackboard"),
             }
@@ -503,7 +503,7 @@ class AgentEngine:
         if not response.tool_calls:
             logger.error(f"[{name}] 🛑 SINGLE-SHOT VIOLATION: Subtask did not call any tool!")
             error_msg = AIMessage(
-                content="[ERROR: Subtask failed - no tool was invoked. Subtasks must execute tools immediately.]")
+                content="Subtask failed: No tool was invoked.")
             new_messages.append(error_msg)
             return {
                 "messages": new_messages,

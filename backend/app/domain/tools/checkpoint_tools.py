@@ -5,7 +5,8 @@ Checkpoint Tools
 User-facing tools for checkpoint management.
 """
 
-from typing import Annotated, Any
+import logging
+from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import InjectedToolArg
@@ -13,6 +14,9 @@ from langchain_core.tools import InjectedToolArg
 from app.core.context.manager import ContextManager
 from app.core.tools import evoloop_tool
 from app.core.checkpoint.manager import checkpoint_manager
+from app.utils import SystemToolsFormatter
+
+logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(
@@ -70,14 +74,11 @@ async def create_checkpoint(
         total_size = sum(f.file_size for f in checkpoint.files)
         total_lines = sum(f.line_count for f in checkpoint.files)
         
-        return (
-            f"✅ Created checkpoint #{checkpoint.id}: '{name}'\n"
-            f"   Files: {len(checkpoint.files)}\n"
-            f"   Size: {total_size:,} bytes\n"
-            f"   Lines: {total_lines:,}\n"
-            f"\n💡 To rollback later:\n"
-            f"   rollback_checkpoint(checkpoint_id={checkpoint.id})"
-        )
+        try:
+            return SystemToolsFormatter.checkpoint_creation(checkpoint, total_size, total_lines)
+        except Exception as e:
+            logger.error(f"Failed to render checkpoint creation: {e}")
+            return f"✅ Created checkpoint #{checkpoint.id}: '{name}'"
         
     except Exception as e:
         return f"❌ Failed to create checkpoint: {e}"
@@ -120,23 +121,11 @@ async def list_checkpoints(
         if not checkpoints:
             return "No checkpoints found. Create one with create_checkpoint()."
         
-        lines = [f"📋 Checkpoints ({len(checkpoints)} total):\n"]
-        
-        for cp in checkpoints:
-            auto_tag = " [AUTO]" if cp.created_by == "auto" else ""
-            desc = f" - {cp.description[:50]}..." if cp.description else ""
-            
-            lines.append(
-                f"  #{cp.id}: {cp.name}{auto_tag}"
-            )
-            lines.append(
-                f"      Files: {len(cp.files)} | "
-                f"Created: {cp.created_at.strftime('%Y-%m-%d %H:%M')}{desc}"
-            )
-        
-        lines.append(f"\n💡 To rollback: rollback_checkpoint(checkpoint_id=<id>)")
-        
-        return "\n".join(lines)
+        try:
+            return SystemToolsFormatter.checkpoints(checkpoints)
+        except Exception as e:
+            logger.error(f"Failed to render checkpoints list: {e}")
+            return "Error listing checkpoints."
         
     except Exception as e:
         return f"❌ Failed to list checkpoints: {e}"
@@ -182,36 +171,14 @@ async def rollback_checkpoint(
             dry_run=dry_run
         )
         
-        lines = []
-        
-        if dry_run:
-            lines.append(f"📋 Preview: Rollback to checkpoint #{checkpoint_id} '{checkpoint.name}'\n")
-        else:
-            lines.append(f"✅ Rolled back to checkpoint #{checkpoint_id} '{checkpoint.name}'\n")
-        
-        # Restored files
-        if results["restored"]:
-            lines.append(f"📝 Files to restore ({len(results['restored'])}):")
-            for f in results["restored"]:
-                lines.append(f"  + {f['path']} ({f['lines']} lines)")
-        
-        # Skipped files
-        if results["skipped"]:
-            lines.append(f"\n⏭️  Unchanged ({len(results['skipped'])}):")
-            for f in results["skipped"]:
-                lines.append(f"  = {f['path']}")
-        
-        # Failed files
-        if results["failed"]:
-            lines.append(f"\n❌ Failed ({len(results['failed'])}):")
-            for f in results["failed"]:
-                lines.append(f"  ✗ {f['path']}: {f['error']}")
-        
-        if dry_run:
-            lines.append(f"\n💡 To apply this rollback, run:\n")
-            lines.append(f"   rollback_checkpoint(checkpoint_id={checkpoint_id}, dry_run=False)")
-        
-        return "\n".join(lines)
+        try:
+            if dry_run:
+                return SystemToolsFormatter.rollback_preview(checkpoint_id, checkpoint.name)
+            else:
+                return SystemToolsFormatter.signals([f"Rolled back to checkpoint #{checkpoint_id} '{checkpoint.name}'"])
+        except Exception as e:
+            logger.error(f"Failed to render rollback report: {e}")
+            return f"Rollback to #{checkpoint_id} complete."
         
     except Exception as e:
         return f"❌ Failed to rollback: {e}"

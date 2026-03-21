@@ -39,7 +39,7 @@ export function TestReportCard({ data }: TestReportCardProps) {
   return (
     <div
       className={cn(
-        "rounded-xl border overflow-hidden my-2 max-w-2xl bg-card shadow-sm transition-all duration-300",
+        "rounded-xl border overflow-hidden my-2 max-w-[90%] sm:max-w-[80%] bg-card shadow-sm transition-all duration-300",
         isPass ? "border-green-500/20" : "border-red-500/20",
       )}
     >

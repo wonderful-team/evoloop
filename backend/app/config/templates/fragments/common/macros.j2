@@ -1,0 +1,116 @@
+{#
+  Common Macros Library
+  
+  提供可复用的 Jinja2 宏，用于列表渲染、格式化、条件显示等常见模式。
+#}
+
+{# 
+  通用列表渲染宏
+  
+  参数:
+    items: 要渲染的列表
+    item_template: 每项的格式字符串，使用 {key} 占位符
+    filter_condition: 可选的过滤条件（如 item.active）
+    empty_msg: 空列表时显示的消息
+    prefix: 每项前缀（如 "- "、"  "）
+#}
+{% macro render_list(items, item_template="{name}", filter_condition=none, empty_msg="", prefix="") %}
+{% set filtered = items | select(filter_condition) | list if filter_condition else items %}
+{% if filtered %}
+{% for item in filtered %}{{ prefix }}{{ item_template.format(**item) }}
+{% endfor %}
+{% elif empty_msg %}{{ empty_msg }}
+{% endif %}
+{% endmacro %}
+
+{# 
+  带类型的动作列表渲染（用于事件、trace、action summary）
+  
+  参数:
+    items: 动作列表，每项应有 type, icon, content 字段
+    type_icons: 类型到图标的映射字典
+    type_templates: 类型到格式模板的映射
+#}
+{% macro render_action_list(items, type_icons={}, type_templates={}) %}
+{% for item in items %}
+{% set icon = type_icons.get(item.type, "•") %}
+{% set template = type_templates.get(item.type, "{content}") %}
+{{ icon }} {{ template.format(**item) }}
+{% endfor %}
+{% endmacro %}
+
+{# 
+  带截断提示的列表渲染
+  
+  参数:
+    items: 完整列表
+    max_items: 最大显示数量
+    item_template: 每项模板
+    more_template: 截断提示模板，默认 "... and {count} more"
+#}
+{% macro render_truncated_list(items, max_items=50, item_template="{name}", more_template="... and {count} more") %}
+{% set display = items[:max_items] %}
+{% for item in display %}{{ item_template.format(**item) }}
+{% endfor %}
+{% if items | length > max_items %}{{ more_template.format(count=items|length - max_items) }}
+{% endif %}
+{% endmacro %}
+
+{# 
+  带元数据的对象列表
+  
+  参数:
+    items: 对象列表
+    primary_field: 主显示字段
+    meta_fields: 元数据字段列表，每项为 (字段名, 标签, 条件)
+#}
+{% macro render_object_list(items, primary_field="name", meta_fields=[]) %}
+{% for item in items %}- {{ item[primary_field] }}
+{% for field, label, condition in meta_fields %}{% if item.get(condition, true) %}  {{ label }}: {{ item[field] }}
+{% endif %}{% endfor %}
+{% endfor %}
+{% endmacro %}
+
+{# 
+  键值对渲染
+#}
+{% macro render_kv(key, value, format="{key}: {value}") %}
+{% if value is not none and value != "" %}{{ format.format(key=key, value=value) }}
+{% endif %}
+{% endmacro %}
+
+{# 
+  带前缀的键值对列表
+#}
+{% macro render_kv_list(data, prefix="  ", separator=": ") %}
+{% for k, v in data.items() %}{% if v is not none and v != "" %}{{ prefix }}{{ k }}{{ separator }}{{ v }}
+{% endif %}{% endfor %}
+{% endmacro %}
+
+{# 
+  时间戳格式化显示
+#}
+{% macro format_timestamp(ts, decimals=2, suffix="s") %}
+[{{ ts | round(decimals) }}{{ suffix }}]
+{% endmacro %}
+
+{# 
+  位置坐标格式化
+#}
+{% macro format_position(pos, decimals=3) %}
+{% if pos %}({{ pos[0] | round(decimals) }}, {{ pos[1] | round(decimals) }}){% endif %}
+{% endmacro %}
+
+{# 
+  状态标签渲染
+#}
+{% macro status_badge(status, success="SUCCESS", failed="FAILED") %}
+{% if status == success %}[✓ {{ status }}]{% elif status == failed %}[✗ {{ status }}]{% else %}[{{ status }}]{% endif %}
+{% endmacro %}
+
+{# 
+  缩进辅助
+#}
+{% macro indent(level=1, spaces=2) %}
+{% for i in range(level) %}{% for j in range(spaces) %} {% endfor %}{% endfor %}
+{% endmacro %}

@@ -80,37 +80,6 @@ async def _summarize_project_logic(name: str, path: str):
         except Exception as e:
             logger.warning(f"[ProjectSummarizer] Failed to fetch graph summary: {e}")
 
-        # Re-initialize LLM chain here because this runs in a separate process
-        llm = LLMFactory.create_llm(temperature=0.3)
-
-        prompt = ChatPromptTemplate.from_template("""
-        You are a Technical Project Analyst. Analyze the following project information and generate a concise summary.
-
-        Project Name: {name}
-
-        --- Context 1: File Structure ---
-        Top Level Files: {files}
-
-        --- Context 2: Documentation (README) ---
-        {readme}
-
-        --- Context 3: Deep Architectural Analysis (from Codebase Index) ---
-        {arch_summary}
-
-        Instruction: Combine the high-level intent from the README with the actual implementation details from the Architectural Analysis.
-        If the Architecture Analysis contradicts the README (e.g. README says "Part 1" but Code says "Part 1 & 2"), prioritize the Code Analysis.
-
-        Return a JSON object with:
-        - "description": A concise, one-sentence description of what the project does.
-        - "tags": A list of 3-5 technical tags (e.g. "FastAPI", "React", "Tool").
-        - "framework": The main framework used (if identifiable, else "Unknown").
-        - "concepts": A list of 3-5 core domain concepts/terms found in the project (e.g., specific protocols, architecture components). List of objects {{"name": "...", "description": "..."}}.
-
-        JSON Only.
-        """)
-        parser = JsonOutputParser()
-        chain = prompt | llm | parser
-
         # Update Status
         await activity_monitor.update_agent_state(
             sys_tid, "Summarizing", "Project Analysis", "Reading Files & Context..."
@@ -121,7 +90,6 @@ async def _summarize_project_logic(name: str, path: str):
 
         files = []
         try:
-            # files = [f for f in os.listdir(path) if not f.startswith(".")]
             for f in os.listdir(path):
                 if f.startswith("."):
                     continue
@@ -131,8 +99,6 @@ async def _summarize_project_logic(name: str, path: str):
         except Exception:
             pass
 
-        # Note: project_context_manager needs to be safe to use here.
-        # It usually is just file reading.
         readme_content = project_context_manager.extract_description_from_readme(path)
 
         # Update Status
@@ -141,12 +107,21 @@ async def _summarize_project_logic(name: str, path: str):
         )
 
         # 2. Call LLM
-        result = await chain.ainvoke({
-            "name": name,
-            "files": ", ".join(files[:20]),
-            "readme": readme_content[:2000],  # Give more context than the simple snippet
-            "arch_summary": arch_summary[:5000]  # Inject the deep summary
-        })
+        from app.utils import render_template
+        prompt_text = render_template(
+            "project/project_summary.prompt.j2",
+            project_name=name,
+            files=files,
+            readme_content=readme_content,
+            arch_summary=arch_summary
+        )
+
+        llm = LLMFactory.create_llm(temperature=0.3)
+        response = await llm.ainvoke(prompt_text)
+        
+        from app.core.output.parsers import JsonOutputParser
+        parser = JsonOutputParser()
+        result = parser.parse(response.content if hasattr(response, 'content') else str(response))
 
         # 3. Save Result
         meta_dir = os.path.join(path, ".evoloop")

@@ -67,13 +67,13 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
 
     return (
         <div className="w-[360px] border-r flex flex-col bg-muted/5">
-            <div className="h-[52px] px-4 border-b bg-muted/10 flex items-center gap-2 shrink-0">
+            <div className="h-[44px] px-3 border-b bg-muted/10 flex items-center gap-2 shrink-0">
                 <Settings2 className="h-4 w-4 text-primary" />
                 <span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/80">{t("learning.editor.configSidebar")}</span>
             </div>
             <ScrollArea className="flex-1">
-                <div className="p-6 space-y-8 pb-12">
-                    <section className="space-y-4">
+                <div className="p-3 space-y-4 pb-6">
+                    <section className="space-y-2">
                         <div className="flex items-center gap-2 mb-2">
                             <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70">{t("learning.editor.skillName")}</h3>
                             <TooltipProvider>
@@ -93,7 +93,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                             className="h-10 text-base font-medium bg-background border-muted focus-visible:ring-primary/30"
                         />
 
-                        <div className="flex items-center gap-2 mb-2 pt-2">
+                        <div className="flex items-center gap-2 mb-1 pt-1">
                             <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70">{t("learning.editor.skillDescription")}</h3>
                             <TooltipProvider>
                                 <Tooltip>
@@ -109,12 +109,12 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                         <Textarea
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            rows={6}
-                            className="bg-background border-muted focus-visible:ring-primary/30 min-h-[120px]"
+                            rows={2}
+                            className="bg-background border-muted focus-visible:ring-primary/30 min-h-[60px]"
                         />
                     </section>
 
-                    <section className="space-y-4 p-5 bg-background/50 rounded-xl border border-muted-foreground/10">
+                    <section className="space-y-2 p-3 bg-background/50 rounded-xl border border-muted-foreground/10">
                         <div className="flex items-center justify-between gap-2">
                             <h3 className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground/70 flex items-center gap-2">
                                 <Terminal className="h-4 w-4 text-primary" />
@@ -173,9 +173,9 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                                 {t("learning.editor.addParameter")}
                             </Button>
                         </div>
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             {params.length === 0 && (
-                                <div className="py-8 px-4 border rounded-xl border-dashed bg-muted/5 flex flex-col items-center justify-center gap-2 opacity-50">
+                                <div className="py-6 px-3 border rounded-xl border-dashed bg-muted/5 flex flex-col items-center justify-center gap-2 opacity-50">
                                     <Type className="h-6 w-6 text-muted-foreground" />
                                     <span className="text-[11px] uppercase font-bold tracking-widest">{t("learning.execution.noParams")}</span>
                                 </div>
@@ -191,7 +191,7 @@ export const EditorSidebar: React.FC<EditorSidebarProps> = ({
                                         </div>
                                         <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10" onClick={() => handleRemoveParam(i)}><Trash2 className="h-3.5 w-3.5" /></Button>
                                     </div>
-                                    <div className="p-4 space-y-4">
+                                    <div className="p-3 space-y-3">
                                         <div className="space-y-2">
                                             <Label className="text-[11px] font-bold uppercase text-muted-foreground/80 flex items-center gap-1">
                                                 {t("learning.editor.paramDesc")}

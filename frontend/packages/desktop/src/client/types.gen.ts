@@ -260,6 +260,7 @@ export type ExecuteSkillRequest = {
         [key: string]: unknown;
     };
     project_id?: (number | null);
+    execution_mode?: (string | null);
 };
 
 export type FileContent = {
@@ -441,7 +442,7 @@ export type McpServerCreate = {
 
 export type MessageItem = {
     id: string;
-    type: string;
+    role: string;
     content: string;
     thinking: (string | null);
     created_at: (string | null);
@@ -455,12 +456,15 @@ export type MessageItem = {
     has_file_operations?: boolean;
 };
 
+/**
+ * Response model for paginated message list.
+ */
 export type MessageListResponse = {
     items: Array<MessageItem>;
     has_more: boolean;
-    total_count?: number;
-    first_id?: number;
-    last_id?: number;
+    first_id?: (number | null);
+    last_id?: (number | null);
+    total_count?: (number | null);
 };
 
 export type MessageResponse = {
@@ -1028,9 +1032,9 @@ export type ConversationsListConversationsData = {
 export type ConversationsListConversationsResponse = (Array<ConversationListItem>);
 
 export type ConversationsGetConversationMessagesData = {
-    threadId: string;
+    beforeId?: (number | null);
     limit?: number;
-    beforeId?: number | null;
+    threadId: string;
 };
 
 export type ConversationsGetConversationMessagesResponse = (MessageListResponse);

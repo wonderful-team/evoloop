@@ -112,7 +112,7 @@ def route_to(
     skill_info = f" | Skill ID: {skill_id}" if skill_id else ""
     tool_info = f" | Tools: {authorized_tools}" if authorized_tools else ""
     
-    return f"[ROUTE_SIGNAL] → {target_val}: {reason} | Context: {context_str}{skill_info}{tool_info}"
+    return f"ROUTE_SIGNAL|{target_val}|{reason}|{context_str}{skill_info}{tool_info}"
 
 
 # ===== 3. Coordination & Planning Tools (v3/4 Evolution) =====
@@ -134,47 +134,16 @@ async def decompose_task(
     """
     llm = LLMFactory.create_llm(temperature=0.3)
 
-    prompt = f"""You are a Task Planning Expert. Please decompose the following task into sub-tasks that can be executed in parallel.
-
-Original Task: {task_description}
-Context: {context}
-Max Parallelism: {max_parallel}
-
-Output Specification:
-1. Identify independent entities or parallelizable paths.
-2. Provide a clear intent and suggested tools for each sub-task.
-3. Output strictly valid JSON.
-
-JSON Format:
-{{
-    "can_parallelize": true,
-    "strategy": "parallel",
-    "reasoning": "...",
-    "subtasks": [
-        {{
-            "id": "task_1",
-            "intent": "...",
-            "tools": ["browser_control", "search_web"],
-            "estimated_complexity": "low"
-        }}
-    ],
-    "aggregation_strategy": "merge" | "concatenate" | "analyze"
-}}
-
-IMPORTANT: Each subtask MUST have a non-empty "tools" array with specific tool names relevant to that subtask's goal. Available tools include:
-- "browser_control" - for web browsing and data collection
-- "search_web" - for web search
-- "desktop_control" - for desktop automation
-- "mobile_control" - for mobile device automation
-- "read_file", "write_file", "edit_file" - for file operations
-- "bash" - for command execution
-- "analyze_image" - for image analysis"""
+    # 2. Call LLM
+    from app.utils import render_template
+    prompt = render_template(
+        "tool/orchestration_decompose.prompt.j2",
+        task_description=task_description,
+        context=f"Context: {context}\nMax Parallelism: {max_parallel}"
+    )
 
     try:
-        response = await llm.ainvoke(
-            [{"role": "user", "content": prompt}],
-            config={"callbacks": []}
-        )
+        response = await llm.ainvoke([{"role": "user", "content": prompt}])
         json_content = extract_json_from_markdown(response.content)
         plan = json.loads(json_content)
 
@@ -238,10 +207,14 @@ async def aggregate_results(
         return {"status": "success", "aggregated": "\n\n---\n\n".join([str(r.get("result", r)) for r in results])}
 
     llm = LLMFactory.create_llm(temperature=0.3)
-    prompt = f"Original Task: {original_task}\nStrategy: {aggregation_strategy}\nResults: {json.dumps(results, ensure_ascii=False)}\n\nAggregate these findings into a concise summary."
-    
-    response = await llm.ainvoke(
-        [{"role": "user", "content": prompt}],
-        config={"callbacks": []}
+
+    from app.utils import render_template
+    prompt = render_template(
+        "tool/orchestration_aggregate.prompt.j2",
+        original_task=original_task,
+        aggregation_strategy=aggregation_strategy,
+        results_json=json.dumps(results, ensure_ascii=False)
     )
+    
+    response = await llm.ainvoke([{"role": "user", "content": prompt}])
     return {"status": "success", "aggregated": response.content}

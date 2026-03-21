@@ -437,15 +437,20 @@ def git_harvest_task(cwd: str, project_id: int):
             logger.error(f"[Celery] Git diff failed: {e}")
             return
 
-        # 2. Extract
-        try:
+            # 2. Extract
             llm = LLMFactory.create_llm(temperature=0.0)
             structured_llm = llm.with_structured_output(ExtractionResult)
             user_lang = SystemConfigService.get_language_preference()
-            lang_directive = f"\n\nLANGUAGE PROTOCOL:\nUser Language: {user_lang}\nDescription MUST be in {user_lang}."
+
+            from app.utils import render_template
+            prompt_text = render_template(
+                "tool/git_harvest.prompt.j2",
+                diff_content=diff_text,
+                user_language=user_lang
+            )
 
             result = await structured_llm.ainvoke([
-                SystemMessage(content=HARVEST_PROMPT.format(diff=diff_text) + lang_directive)
+                SystemMessage(content=prompt_text)
             ])
 
             if result and result.concepts:
@@ -576,14 +581,14 @@ def run_autonomous_task_execution(task_id: int, project_id: int | None = None):
                 # Construct execution context
                 thread_id = f"auton-{task_id}-{int(time.time())}"
                 
-                # Instruction to the Agent
-                prompt = (
-                    f"### Autonomous Task Execution\n"
-                    f"**Goal**: {task.intent_description}\n"
-                    f"**Method**: Use skill '{skill.name}' (ID: {skill.id})\n"
-                    f"**Device**: Assigned to {device_id}\n\n"
-                    f"Execute this task now. If the deterministic path fails, use your reasoning "
-                    f"to complete the goal or analyze the failure."
+                # Instruction to the Agent (rendered from template)
+                from app.utils import render_template
+                prompt = render_template(
+                    "autonomous/autonomous_task.prompt.j2",
+                    intent_description=task.intent_description,
+                    skill_name=skill.name,
+                    skill_id=skill.id,
+                    device_id=device_id
                 )
                 
                 inputs = {

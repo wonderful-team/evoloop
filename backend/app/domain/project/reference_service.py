@@ -1,8 +1,8 @@
 import logging
-import os
 from typing import Any
 
 from pydantic import BaseModel
+from app.utils import render_template
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import BINARY_EXTENSIONS
@@ -47,6 +47,7 @@ class ReferenceService:
             if project:
                 root_path = project.get("path")
 
+        quotes_data = []
         for att in attachments:
             att_type = att.get("type", "file")
             att_id = att.get("id") or att.get("url")
@@ -59,7 +60,7 @@ class ReferenceService:
             if att_type == "message":
                 snippet, note = await self._handle_message_reference(att_id, att_name, session)
                 if snippet:
-                    updated_message += f"\n\n> Quoted Message ({att_name}):\n{snippet}\n"
+                    quotes_data.append({"type": "Message", "name": att_name, "content": snippet})
                 if note:
                     reference_notes.append(note)
 
@@ -67,7 +68,7 @@ class ReferenceService:
             elif att_type == "file":
                 content, note = await self._handle_file_reference(att_id, att_name, root_path)
                 if content:
-                    updated_message += f"\n\n> Quoted File Context ({att_name}):\n{content}\n"
+                    quotes_data.append({"type": "File", "name": att_name, "content": content})
                 if note:
                     reference_notes.append(note)
 
@@ -81,6 +82,17 @@ class ReferenceService:
 
             else:
                 reference_notes.append(f"Attachment ({att_type}): {att_name}")
+        
+        # Render quotes using template
+        if quotes_data:
+            try:
+                quoted_block = render_template("project/project_management.prompt.j2", quotes=quotes_data)
+                updated_message = f"{message_text}\n\n{quoted_block}"
+            except Exception as e:
+                logger.error(f"Failed to render reference quotes: {e}")
+                updated_message = message_text
+        else:
+            updated_message = message_text
 
         # Final assembly of the text block
         final_text = updated_message

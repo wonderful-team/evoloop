@@ -1,0 +1,21 @@
+{# File Content Template
+   
+   Displays file content with optional syntax highlighting.
+   
+   Variables:
+   - filename: Name of the file
+   - content: File content string
+   - lang: Language for syntax highlighting (optional)
+   - has_header: Whether content already has a markdown header (optional)
+#}
+{%- if not has_header %}
+# File: {{ filename }}
+
+{% endif -%}
+{%- if lang and lang in ["python", "javascript", "typescript", "c", "cpp", "go", "rust", "java", "ruby", "php", "shell", "bash", "sql", "yaml", "json", "xml", "html", "css"] %}
+```{{ lang }}
+{{ content }}
+```
+{%- else %}
+{{ content }}
+{%- endif %}

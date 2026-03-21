@@ -2,6 +2,7 @@ import logging
 from typing import Annotated
 
 from langchain_core.runnables import RunnableConfig
+from app.utils import render_template
 from langchain_core.tools import InjectedToolArg
 from sqlmodel import Session, select
 
@@ -32,11 +33,12 @@ async def list_wiki_pages(
     if not pages:
         return f"No Wiki pages found for project {project_id}."
 
-    lines = [f"Found {len(pages)} Wiki pages:"]
-    for p in pages:
-        lines.append(f"- {p.title} (slug: {p.slug})")
-
-    return "\n".join(lines)
+    try:
+        pages_data = [{"path": p.slug, "content": f"(Title: {p.title})"} for p in pages]
+        return render_template("wiki/wiki_context.prompt.j2", files=pages_data)
+    except Exception as e:
+        logger.error(f"Failed to render wiki page list: {e}")
+        return "\n".join([f"- {p.title} (slug: {p.slug})" for p in pages])
 
 
 @evoloop_tool

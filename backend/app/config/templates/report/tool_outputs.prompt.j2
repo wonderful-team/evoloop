@@ -1,0 +1,17 @@
+{% if stdout %}
+**STDOUT**:
+```
+{{ stdout }}
+```
+{% endif %}
+
+{% if stderr %}
+**STDERR**:
+```
+{{ stderr }}
+```
+{% endif %}
+
+{% if returncode is not none %}
+Exit Code: {{ returncode }}
+{% endif %}

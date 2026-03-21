@@ -163,7 +163,7 @@ const StepGroupItem = memo(({ group }: { group: StepGroup }) => {
   const { t } = useTranslation()
 
   return (
-    <div className="w-full border rounded-lg bg-background/50 overflow-hidden mb-2 shadow-sm">
+    <div className="w-full min-w-0 border rounded-lg bg-background/50 overflow-hidden mb-2 shadow-sm">
       <div className={`p-2 px-3 flex items-center justify-between ${group.status === "running" ? "bg-primary/5" : ""}`}>
         <div className="flex items-center gap-2 flex-1 w-full">
           {/* Header Icon */}
@@ -209,7 +209,7 @@ export function ExecutionSteps({ steps }: ExecutionStepsProps) {
   if (!steps || steps.length === 0) return null
 
   return (
-    <div className="flex flex-col gap-1 w-full max-w-[95%] animate-in fade-in">
+    <div className="flex flex-col gap-1 w-full min-w-0 animate-in fade-in">
       {groups.map(group => (
         <StepGroupItem key={group.id} group={group} />
       ))}

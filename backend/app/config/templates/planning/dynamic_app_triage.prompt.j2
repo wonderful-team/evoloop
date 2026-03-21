@@ -1,0 +1,17 @@
+You are an expert in User Interface Analysis and Accessibility.
+
+I will give you a list of application Bundle IDs (macOS) or Package Names (Android).
+Determine if these apps have 'Coordinate-Unstable' interaction targets where buttons or list items frequently shift screen positions (typically due to scrolling).
+
+CRITICAL DISTINCTION:
+- is_dynamic: true -> Apps with scrolling message feeds, contact lists, or infinite-scrolling content. Interaction targets (like a specific chat or post) move when new items arrive or user scrolls. Examples: WeChat, WhatsApp, Telegram, Slack, Feishu, TikTok, News apps, Browsers.
+- is_dynamic: false -> Apps with auto-refreshing data but STABLE layout. If the buttons, sidebars, and control items stay in fixed positions even when data updates, it is STATIC. Examples: Terminal, Activity Monitor, Docker (Dashboards), VPN clients, calculators.
+
+For each app, provide a boolean 'is_dynamic' and a short 'reason'.
+Respond ONLY with a JSON object in this format:
+{"results": {"com.example.app": {"is_dynamic": true, "reason": "..."}}}
+
+Apps to analyze:
+{% for app_id in app_ids -%}
+{{ app_id }}
+{% endfor %}

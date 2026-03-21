@@ -1,0 +1,22 @@
+{% if success %}
+✅ {{ message }}
+{% else %}
+❌ {{ message or "Operation failed." }}
+{% endif %}
+
+{% if details %}
+{{ details }}
+{% endif %}
+
+{% if data %}
+
+### Result Data
+{% for k, v in data.items() %}
+- **{{ k }}**: {{ v }}
+{% endfor %}
+{% endif %}
+
+{% if note %}
+> [!NOTE]
+> {{ note }}
+{% endif %}

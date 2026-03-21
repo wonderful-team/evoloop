@@ -14,9 +14,11 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel
 from sqlalchemy import or_, func, select, update
+
+from app.utils.yaml import macro_from_yaml, macro_to_yaml, YAMLError, validate_macro_yaml
 
 from app.core.engine.background_agent import run_agent_background
 from app.core.execution.macro.service import MacroService
@@ -72,6 +74,7 @@ class ExecuteSkillRequest(BaseModel):
     thread_id: str
     params: dict[str, Any]
     project_id: int | None = 1
+    execution_mode: str | None = None  # Optional: override skill's execution mode
 
 
 class RespondRequest(BaseModel):
@@ -852,7 +855,10 @@ async def execute_skill(
         await db.commit()
 
     # 4. Trigger the desired execution mode
-    if skill.execution_mode == "deterministic" and skill.macro_script:
+    # Use provided execution_mode from request, fallback to skill's execution_mode
+    execution_mode = body.execution_mode or skill.execution_mode
+    
+    if execution_mode == "deterministic" and skill.macro_script:
         import copy
         
         # Deepcopy to avoid mutating the skill model in cache
@@ -867,7 +873,7 @@ async def execute_skill(
             body.params,
             skill.allow_self_healing  # Pass the skill-level switch
         )
-        return {"success": True, "message": f"Deterministic Macro execution queued for '{skill_name}'"}
+        return {"success": True, "message": f"Deterministic Macro execution queued for '{skill_name}'", "execution_mode": execution_mode}
     else:
         # Fallback to Agentic mode
         inputs = {
@@ -876,7 +882,7 @@ async def execute_skill(
         }
         bg_tasks.add_task(run_agent_background, body.thread_id, inputs)
     
-        return {"success": True, "message": f"Agentic execution queued for '{skill_name}'"}
+        return {"success": True, "message": f"Agentic execution queued for '{skill_name}'", "execution_mode": execution_mode}
 
 
 # ============ Mirror Control API (Phase 4) ============
@@ -2041,3 +2047,202 @@ async def confirm_learned_skill(skill_id: int):
             success=True, 
             message=f"Skill '{skill.name}' confirmed and activated."
         )
+
+
+
+# ============ YAML Macro Support (NEW) ============
+
+
+class CreateSkillFromYamlRequest(BaseModel):
+    """Request to create a skill from YAML macro definition."""
+    name: str
+    description: str | None = None
+    namespace: str | None = None
+    yaml_content: str
+
+
+class ValidateYamlRequest(BaseModel):
+    """Request to validate YAML macro format."""
+    yaml_content: str
+
+
+class ValidateYamlResponse(BaseModel):
+    """Response from YAML validation."""
+    valid: bool
+    errors: list[str]
+    step_count: int = 0
+
+
+@router.post("/skills/from-yaml")
+async def create_skill_from_yaml(
+    body: CreateSkillFromYamlRequest,
+    bg_tasks: BackgroundTasks
+):
+    """
+    Create a new skill from YAML macro definition.
+    
+    The YAML should follow the EvoLoop macro format:
+    ```yaml
+    version: "1.0"
+    metadata:
+      format: evoloop-macro
+    steps:
+      - type: action
+        event_type: navigate
+        source: dom
+        payload:
+          url: "https://example.com"
+    ```
+    """
+    try:
+        # Validate YAML format first
+        is_valid, errors = validate_macro_yaml(body.yaml_content)
+        if not is_valid:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid YAML format: {'; '.join(errors)}"
+            )
+        
+        macro_script = macro_from_yaml(body.yaml_content)
+        
+        async with session_scope() as db:
+            # Check name uniqueness
+            base_name = body.name
+            unique_name = base_name
+            counter = 1
+            
+            while True:
+                stmt = select(LearnedSkill).where(LearnedSkill.name == unique_name)
+                existing = (await db.execute(stmt)).scalar_one_or_none()
+                if not existing:
+                    break
+                unique_name = f"{base_name}_{counter}"
+                counter += 1
+            
+            skill = LearnedSkill(
+                name=unique_name,
+                description=body.description or f"Created from YAML ({len(macro_script)} steps)",
+                namespace=body.namespace,
+                macro_script=macro_script,
+                execution_mode="deterministic",
+                is_active=False,
+                status="pending_review",
+                trigger_patterns=json.dumps([unique_name.lower().replace(" ", "_")]),
+                parameters=json.dumps([]),
+                tools_used=json.dumps([]),
+            )
+            db.add(skill)
+            await db.flush()
+            
+            return {
+                "success": True, 
+                "skill_id": skill.id,
+                "skill_name": unique_name,
+                "step_count": len(macro_script)
+            }
+            
+    except YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"YAML error: {str(e)}")
+    except Exception as e:
+        logger.exception(f"Failed to create skill from YAML: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create skill: {str(e)}")
+
+
+@router.post("/skills/validate-yaml", response_model=ValidateYamlResponse)
+async def validate_skill_yaml(body: ValidateYamlRequest):
+    """
+    Validate YAML macro format without creating a skill.
+    Useful for frontend validation before saving.
+    """
+    try:
+        is_valid, errors = validate_macro_yaml(body.yaml_content)
+        
+        step_count = 0
+        if is_valid:
+            steps = macro_from_yaml(body.yaml_content)
+            step_count = len(steps)
+        
+        return ValidateYamlResponse(
+            valid=is_valid,
+            errors=errors,
+            step_count=step_count
+        )
+    except Exception as e:
+        return ValidateYamlResponse(
+            valid=False,
+            errors=[str(e)],
+            step_count=0
+        )
+
+
+@router.get("/skills/{skill_id}/yaml")
+async def get_skill_yaml(skill_id: int):
+    """
+    Get skill macro as YAML format.
+    
+    Returns the macro_script in human-friendly YAML format.
+    """
+    async with session_scope() as db:
+        skill = await db.get(LearnedSkill, skill_id)
+        if not skill:
+            raise HTTPException(status_code=404, detail="Skill not found")
+        
+        if not skill.macro_script:
+            return Response(
+                content="# No macro script defined for this skill\n",
+                media_type="text/yaml"
+            )
+        
+        try:
+            yaml_content = macro_to_yaml(skill.macro_script)
+            return Response(
+                content=yaml_content,
+                media_type="text/yaml"
+            )
+        except Exception as e:
+            logger.error(f"Failed to convert macro to YAML: {e}")
+            raise HTTPException(status_code=500, detail="Failed to generate YAML")
+
+
+@router.put("/skills/{skill_id}/yaml")
+async def update_skill_yaml(
+    skill_id: int,
+    yaml_content: str = Body(..., media_type="text/yaml"),
+):
+    """
+    Update skill macro from YAML content.
+    
+    Accepts raw YAML body (not JSON).
+    """
+    try:
+        # Validate first
+        is_valid, errors = validate_macro_yaml(yaml_content)
+        if not is_valid:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid YAML: {'; '.join(errors)}"
+            )
+        
+        macro_script = macro_from_yaml(yaml_content)
+        
+        async with session_scope() as db:
+            skill = await db.get(LearnedSkill, skill_id)
+            if not skill:
+                raise HTTPException(status_code=404, detail="Skill not found")
+            
+            skill.macro_script = macro_script
+            await db.flush()
+            
+        return {
+            "success": True, 
+            "message": "Skill updated from YAML",
+            "step_count": len(macro_script)
+        }
+        
+    except YAMLError as e:
+        raise HTTPException(status_code=400, detail=f"YAML parse error: {str(e)}")
+    except Exception as e:
+        logger.exception(f"Failed to update skill from YAML: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update: {str(e)}")
+    finally:
+        await skill_discovery.reload()

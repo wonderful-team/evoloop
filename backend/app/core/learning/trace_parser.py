@@ -349,49 +349,16 @@ class TraceParser:
         """
         Convert sequence to human-readable narrative for LLM synthesis.
         """
-        lines = [f"# Task Trace: {sequence.task_name or 'Untitled'}", ""]
-        lines.append(f"**Thread ID**: {sequence.thread_id}")
-        lines.append(f"**Total Steps**: {len(sequence.steps)}")
-        lines.append(
-            f"**Human Intervention**: {'Yes' if sequence.has_human_intervention else 'No'}"
-        )
-        lines.append("")
-        lines.append("## Steps")
-        lines.append("")
-
-        for step in sequence.steps:
-            source_icon = "👤" if step.source == ActionSource.HUMAN else "🤖"
-            lines.append(
-                f"### Step {step.step_number} {source_icon} [{step.category.value}]"
+        try:
+            from app.utils import render_template
+            return render_template(
+                "events/trace_narrative.prompt.j2",
+                thread_id=sequence.thread_id,
+                task_name=sequence.task_name,
+                steps=sequence.steps,
+                has_human_intervention=sequence.has_human_intervention
             )
-            lines.append(f"- **Action**: `{step.action_name}`")
-
-            if step.action_args:
-                # Truncate long args
-                args_str = json.dumps(step.action_args, default=str)
-                if len(args_str) > 200:
-                    args_str = args_str[:200] + "..."
-                lines.append(f"- **Args**: `{args_str}`")
-
-            if step.state_context:
-                app = step.state_context.get("app_name")
-                title = step.state_context.get("window_title")
-                if app or title:
-                    lines.append(f"- **Context**: `{app or 'Unknown App'}` - `{title or 'No Title'}`")
-
-            if step.ui_context:
-                if step.ui_context.element_text:
-                    lines.append(
-                        f'- **UI Element**: "{step.ui_context.element_text[:50]}"'
-                    )
-                if step.ui_context.screenshot_path:
-                    lines.append(
-                        f"- **Screenshot**: `{step.ui_context.screenshot_path}`"
-                    )
-
-            if step.user_feedback:
-                lines.append(f'- **User Feedback**: "{step.user_feedback}"')
-
-            lines.append("")
-
-        return "\n".join(lines)
+        except Exception as e:
+            logger.error(f"Failed to render Trace narrative: {e}")
+            # Minimal fallback
+            return f"Trace Narrative for {sequence.thread_id} (Error rendering template)"

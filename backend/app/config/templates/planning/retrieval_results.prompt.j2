@@ -1,0 +1,23 @@
+{% if journal_matches %}
+Journal Matches ('{{ query }}'):
+{% for m in journal_matches %}
+- {{ m }}
+{% endfor %}
+{% elif journal_searched %}
+Journal: No text matches for '{{ query }}'.
+{% endif %}
+
+{% if kg_matches %}
+Knowledge Graph Matches ('{{ query }}'):
+{% for m in kg_matches %}
+- {{ m.name }}: {{ m.description }}
+{% endfor %}
+{% elif kg_searched %}
+Knowledge Graph: No matches for '{{ query }}'.
+{% endif %}
+
+{% if errors %}
+{% for err in errors %}
+{{ err }}
+{% endfor %}
+{% endif %}

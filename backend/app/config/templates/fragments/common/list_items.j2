@@ -1,0 +1,50 @@
+{#
+  List Item Rendering Components
+  
+  常用的列表项格式模板，可被其他模板引用。
+#}
+
+{# LSP 诊断项 #}
+{% macro lsp_diagnostic_item(line, severity, message, source="LSP") %}
+Line {{ line }}: [{{ severity }}] {{ message }} (Source: {{ source }})
+{% endmacro %}
+
+{# LSP 定义位置项 #}
+{% macro lsp_location_item(path, line) %}
+{{ path }}:{{ line }}
+{% endmacro %}
+
+{# 动作/事件项（用于 trace、action summary） #}
+{% macro action_item(type, name=none, args=none, output=none, content=none, timestamp=none, icon="•") %}
+{% if type == "tool_call" %}→ tool:{{ name }}({{ args | truncate(120) }})
+{% elif type == "tool_result" %}  ✔ result:{{ output | truncate(80) }}
+{% elif type == "llm_output" %}  💬 {{ content | truncate(200) }}
+{% elif timestamp %}{{ icon }} [{{ timestamp | round(2) }}s] {{ type }}{% if name %}: {{ name }}{% endif %}
+{% else %}{{ icon }} {{ type }}{% if name %}: {{ name }}{% endif %}
+{% endif %}
+{% endmacro %}
+
+{# UI 元素项 #}
+{% macro ui_element_item(element_line) %}
+{{ element_line }}
+{% endmacro %}
+
+{# 文件树项 #}
+{% macro file_tree_item(name, indent="", is_dir=false) %}
+{{ indent }}{{ name }}{% if is_dir %}/{% endif %}
+{% endmacro %}
+
+{# Episode 记忆项 #}
+{% macro episode_item(status, goal, error=none, plan=none) %}
+- [{{ status }}] Goal: {{ goal }}
+{% if error %}  Error: {{ error }}
+{% endif %}{% if plan %}  Plan: {{ plan }}
+{% endif %}---
+{% endmacro %}
+
+{# 带过滤条件的列表渲染 #}
+{% macro filtered_list(items, filter_field, filter_value, item_macro, **kwargs) %}
+{% for item in items %}
+{% if item.get(filter_field) == filter_value %}{{ item_macro(item, **kwargs) }}{% endif %}
+{% endfor %}
+{% endmacro %}

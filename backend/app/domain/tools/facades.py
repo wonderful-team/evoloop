@@ -1,3 +1,4 @@
+import logging
 import os
 from typing import Annotated, Literal
 
@@ -9,6 +10,9 @@ from app.core.context.manager import ContextManager
 from app.core.memory import memory_manager
 from app.core.monitoring.ui_actions import require_project_for_tool
 from app.core.tools import evoloop_tool, get_working_directory
+from app.utils import ProjectManagementFormatter
+
+logger = logging.getLogger(__name__)
 from app.domain.codebase.analysis.tools import find_definition
 from app.domain.codebase.retrieval.tools import search_codebase
 from app.domain.tools.files import edit_file, grep_files
@@ -241,13 +245,11 @@ async def manage_memory(
         episodes = await memory_manager.long_term.find_episodes_by_concept(key, project_id)
         if not episodes:
             return f"No historical episodes found related to '{key}'."
-        lines = [f"**Historical Tasks Related to '{key}':**"]
-        for ep in episodes:
-            status = "FAILED" if ep.get("error") else "SUCCESS"
-            lines.append(f"- [{status}] {ep.get('goal', 'Unknown')}")
-            if ep.get("result"):
-                lines.append(f"  Result: {ep.get('result')[:100]}...")
-        return "\n".join(lines)
+        try:
+            return ProjectManagementFormatter.episodes(episodes)
+        except Exception as e:
+            logger.error(f"Failed to render episodes list: {e}")
+            return f"Found {len(episodes)} episodes."
 
     return f"Error: Unknown action '{action}'"
 
@@ -281,20 +283,8 @@ async def consult_architecture(path: str = ""):
 
     info = await memory_manager.graph.get_directory_info(pid, path)
 
-    output = [f"# Architecture Report: {info['path'] or 'Root'}"]
-    output.append(f"**Summary**: {info['summary']}\n")
-
-    if info["sub_modules"]:
-        output.append("**Sub-Modules**:")
-        for Sub in info["sub_modules"]:
-            # Truncate summary for brevity
-            s = Sub["summary"] or "No summary"
-            output.append(f"- `{Sub['name']}`: {s[:100]}...")
-        output.append("")
-
-    if info["dependencies"]:
-        output.append("**Dependencies (Outgoing)**:")
-        for dep in info["dependencies"]:
-            output.append(f"- Depends on `{dep['target']}` (Weight: {dep['weight']})")
-
-    return "\n".join(output)
+    try:
+        return ProjectManagementFormatter.architecture_summary(info)
+    except Exception as e:
+        logger.error(f"Failed to render architecture report: {e}")
+        return f"Architecture info for {path}"

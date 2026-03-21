@@ -2,6 +2,7 @@ from typing import Optional
 from app.core.memory import memory_manager
 from app.core.tools import evoloop_tool
 from app.core.context.manager import ContextManager
+from app.utils import ContentFormatter
 
 
 @evoloop_tool(
@@ -61,12 +62,6 @@ async def search_chat_history(query: str, thread_id: Optional[str] = None, limit
     results = await memory_manager.search_messages(query, thread_id, limit)
     
     if not results:
-        return f"No results found for '{query}' in the conversation history."
+        return ContentFormatter.chat_search_results(query, [])
 
-    output = [f"Search results for '{query}':"]
-    for msg in results:
-        role_label = "User" if msg.type == "human" else "Assistant"
-        content_preview = msg.content[:200] + "..." if len(msg.content) > 200 else msg.content
-        output.append(f"[{role_label}]: {content_preview}")
-
-    return "\n\n".join(output)
+    return ContentFormatter.chat_search_results(query, results)

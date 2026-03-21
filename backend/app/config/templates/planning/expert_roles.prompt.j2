@@ -1,0 +1,9 @@
+{% if role == 'knowledge_triage' %}
+{{ platform|capitalize }} Knowledge Triage Agent
+{% elif role == 'ui_dynamics' %}
+UI Dynamics Expert
+{% elif role == 'tech_architect' %}
+Technical Architect Specialist
+{% else %}
+{{ role|capitalize }} Specialist
+{% endif %}

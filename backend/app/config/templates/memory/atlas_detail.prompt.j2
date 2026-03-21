@@ -1,0 +1,10 @@
+UI State Detail: {{ window_title }} (ID: {{ state_id }})
+App: {{ bundle_id }}
+
+**Key Elements:**
+{% for el in elements %}
+- [{{ el.role }}] {{ ("'" + el.label + "'") if el.label else "No Label" }} {{ ("(" + el.resource_id + ")") if el.resource_id else "" }} | Bounds: {{ el.bounds }}
+{% endfor %}
+{% if not elements %}
+No key elements identified for this state.
+{% endif %}

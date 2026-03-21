@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from app.utils import render_template
 
 from app.infrastructure.queue.celery import celery_app
 from app.core.evocloud import evocloud_manager
@@ -165,18 +166,13 @@ def _map_priority(priority: str) -> int:
 
 def _format_task_description(task_data: dict) -> str:
     """Format task data into description for EvoCloud."""
-    lines = [task_data.get("description", "")]
-
-    # Add requirement refs
-    refs = task_data.get("requirement_refs", [])
-    if refs:
-        lines.append(f"\n\n**关联需求**: {', '.join(refs)}")
-
-    # Add acceptance criteria
-    criteria = task_data.get("acceptance_criteria", [])
-    if criteria:
-        lines.append("\n\n**验收标准**:")
-        for c in criteria:
-            lines.append(f"- {c}")
-
-    return "\n".join(lines)
+    try:
+        return render_template(
+            "project/project_management.prompt.j2",
+            description=task_data.get("description", ""),
+            references=task_data.get("requirement_refs", []),
+            checklist=task_data.get("acceptance_criteria", [])
+        )
+    except Exception as e:
+        logger.error(f"Failed to render task description: {e}")
+        return task_data.get("description", "Formatting error.")

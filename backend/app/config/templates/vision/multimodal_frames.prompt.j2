@@ -1,0 +1,17 @@
+## Screen Recording Keyframes
+
+{% for frame in frames %}
+### Frame {{ loop.index }} [{{ frame.timestamp|round(2) }}s]
+**Visual Context**: {{ frame.description }}
+{% if frame.norm_events %}
+**User actions during this frame**:
+{% for evt in frame.norm_events %}
+  - {{ evt.action }} at ({{ evt.position[0]|round(3) }}, {{ evt.position[1]|round(3) }}) [{{ evt.position_desc }}]
+{% if evt.target_text %}
+    Target: "{{ evt.target_text }}"
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{# 图片由代码逻辑单独处理，这里只管文字结构 #}
+{% endfor %}

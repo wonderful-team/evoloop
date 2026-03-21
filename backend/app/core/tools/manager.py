@@ -137,10 +137,10 @@ class ToolManager:
             return ""
 
         return (
-            "### EXTERNAL CAPABILITIES (MCP SERVERS)\n"
-            "The following Model Context Protocol (MCP) servers are available to expand your capabilities:\n"
+            "EXTERNAL CAPABILITIES (MCP SERVERS)\n"
+            "The following Model Context Protocol (MCP) servers are available:\n"
             + "\n".join(mcp_inventory) + "\n\n"
-            "⚠️ **CRITICAL: To access tools from an inactive server, you MUST call `use_mcp_server(server_name)`.** "
+            "Note: To access tools from an inactive server, call `use_mcp_server(server_name)`. "
             "The tools will be injected on your next turn.\n"
         )
 
