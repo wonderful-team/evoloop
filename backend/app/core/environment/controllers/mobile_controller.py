@@ -490,7 +490,8 @@ class MobileController:
                         ocr_attempts += 1
                         try:
                             temp_img = await asyncio.to_thread(adb_driver.screenshot, device_id=device_id)
-                            ocr_result = await vision_engine.process(VisionTask.OCR, temp_img, on_android=True, device_id=device_id)
+                            # Mobile H5/WebView contexts don't benefit from Atlas learning
+                            ocr_result = await vision_engine.process(VisionTask.OCR, temp_img, on_android=True, device_id=device_id, enable_atlas_learning=False)
                             if os.path.exists(temp_img):
                                 os.remove(temp_img)
                             if ocr_result.success:
@@ -544,7 +545,8 @@ class MobileController:
                 msg = f"Screenshot: {filepath}"
                 if ocr:
                     try:
-                        ocr_res = await vision_engine.process(VisionTask.OCR, filepath, on_android=True, device_id=device_id)
+                        # Mobile H5/WebView contexts don't benefit from Atlas learning
+                        ocr_res = await vision_engine.process(VisionTask.OCR, filepath, on_android=True, device_id=device_id, enable_atlas_learning=False)
                         if ocr_res.success and ocr_res.elements:
                             msg += "\n\n### OCR Results (Detected Text & Coordinates):\n" + "\n".join([el.to_prompt_line() for el in ocr_res.elements])
                         else:

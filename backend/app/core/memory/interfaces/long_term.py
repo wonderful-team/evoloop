@@ -189,3 +189,16 @@ class ILongTermMemory(IMemoryProvider):
             Number of deleted episodes
         """
         pass
+
+    @abstractmethod
+    async def delete_episodes_by_run_ids(self, run_ids: list[str]) -> int:
+        """
+        Delete episodes associated with specific run IDs (source_message_id in Neo4j).
+
+        Args:
+            run_ids: List of run IDs (UUID strings)
+
+        Returns:
+            Number of deleted episodes
+        """
+        pass

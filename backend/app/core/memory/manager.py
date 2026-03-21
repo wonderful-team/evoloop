@@ -56,6 +56,10 @@ class MemoryManager:
         await self.short_term.flush()
         logger.info("MemoryManager: All components flushed")
 
+    async def search_messages(self, query: str, thread_id: str | None = None, limit: int = 10):
+        """Search conversation history."""
+        return await self.short_term.search_messages(query, thread_id, limit)
+
 
 # Global instance
 memory_manager = MemoryManager()

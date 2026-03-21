@@ -122,11 +122,15 @@ def merge_blackboard(old: BlackboardState | None, new: BlackboardState | None) -
             merged[key] = new[key]
 
     # [CRITICAL] Parallel List Concatenation
-    if "subtask_results" in new and new["subtask_results"]:
+    if "subtask_results" in new:
         old_results = old.get("subtask_results") or []
-        new_results = new["subtask_results"]
-        # Concatenate results from parallel branches
-        merged["subtask_results"] = old_results + new_results
+        new_results = new["subtask_results"] or []
+        if not new_results:
+            # Explicitly clearing results (e.g. from Aggregator)
+            merged["subtask_results"] = []
+        else:
+            # Concatenate results from parallel branches
+            merged["subtask_results"] = old_results + new_results
 
     # Metadata & Clipboard Merges
     if "metadata" in new:
@@ -181,10 +185,10 @@ class AgentState(TypedDict):
     situation_analysis: str | None
     action_plan: str | None
 
-    # Skill Execution (Imitation Learning Phase 3/4)
+    # Skill Execution (Imitation Learning)
     skill_execution_attempted: bool | None
 
-    # Tool Orchestration (Phase 3.0)
+    # Tool Orchestration
     active_tool_profile: str | None  # e.g. "DEVOPS", "RESEARCH"
 
     # Human-in-the-Loop State (Generic)

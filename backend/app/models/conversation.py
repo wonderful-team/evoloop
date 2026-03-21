@@ -31,21 +31,19 @@ class Message(Base):
     # Optional: reference to checkpoint ID if we want to linked back to graph state
     checkpoint_id: Mapped[str | None] = mapped_column(String(255))
 
-    # New columns for tool calls
+    # Tool calls storage (for AI messages that trigger tools)
     tool_calls: Mapped[list[dict] | None] = mapped_column(JSON)
-    # Deprecated: usage migrated to content + action_type='tool_output'
-    tool_output: Mapped[str | None] = mapped_column(Text)
 
-    # Phase 17: Action Type Discriminator
+    # Action Type Discriminator
     # values: 'text' (default), 'tool_output', 'thinking', 'system'
     action_type: Mapped[str] = mapped_column(String(50), default="text", server_default="text")
 
-    # Phase 3: Message-Run Association
+    # Message-Run Association for tracking execution context
     run_id: Mapped[str | None] = mapped_column(String(255), index=True)  # Associate with a specific execution run
     status: Mapped[str | None] = mapped_column(String(50))  # pending, streaming, completed, failed, waiting_human
     steps_snapshot: Mapped[list[dict] | None] = mapped_column(JSON)  # Embedded task steps at completion
 
-    # Phase 4: Threading
+    # Threading support for message branching
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), nullable=True)
     parent: Mapped[Optional["Message"]] = relationship("Message", remote_side="[Message.id]", backref="children")
 
@@ -105,7 +103,7 @@ class Conversation(Base):
 
 class HumanRequest(Base):
     """
-    Stores pending human interactions (Phase 0.2)
+    Stores pending human interactions (HITL - Human In The Loop)
     """
 
     __tablename__ = "human_requests"

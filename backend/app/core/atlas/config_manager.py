@@ -6,21 +6,21 @@ Manages dynamic configurations for Atlas system:
 - Dynamic app classifications
 - Default interaction strategies
 
-All configurations are stored in Redis (for fast lookup) with database persistence.
+All configurations are stored in cache (for fast lookup) with database persistence.
 """
 
 import json
 import logging
 from typing import Any
 
-from app.infrastructure.database.redis import get_redis_client
+from app.infrastructure.cache import cache
 from app.models.config import SystemConfig
 from sqlmodel import Session, select
 from app.core.db import engine
 
 logger = logging.getLogger(__name__)
 
-# Redis keys
+# Cache keys
 REDIS_KEY_APP_NAME_MAP = "atlas:app_name_map"  # Hash: name -> bundle_id
 REDIS_KEY_DYNAMIC_APPS_PREFIX = "system:dynamic_apps"  # Set: bundle_ids (platform-specific)
 REDIS_KEY_APP_STRATEGIES = "atlas:strategies"  # Key pattern: atlas:strategies:{platform}:{bundle_id}
@@ -31,18 +31,18 @@ class AtlasConfigManager:
 
     @staticmethod
     async def get_bundle_id(app_name: str) -> str | None:
-        """Get bundle ID from app name (Redis first, fallback to system detection)."""
+        """Get bundle ID from app name (cache first, fallback to system detection)."""
         if not app_name:
             return None
 
-        # 1. Try Redis
+        # 1. Try cache
         try:
-            redis = await get_redis_client()
-            bundle_id = await redis.hget(REDIS_KEY_APP_NAME_MAP, app_name)
+            
+            bundle_id = await cache.hget(REDIS_KEY_APP_NAME_MAP, app_name)
             if bundle_id:
                 return bundle_id
         except Exception as e:
-            logger.debug(f"[AtlasConfig] Redis lookup failed: {e}")
+            logger.debug(f"[AtlasConfig] Cache lookup failed: {e}")
 
         # 2. Try auto-detection for macOS
         return await AtlasConfigManager._detect_bundle_id(app_name)
@@ -60,7 +60,7 @@ class AtlasConfigManager:
             )
             if result.returncode == 0:
                 bundle_id = result.stdout.strip()
-                # Cache in Redis for future use
+                # Cache in cache for future use
                 await AtlasConfigManager.set_app_name_mapping(app_name, bundle_id)
                 return bundle_id
         except Exception as e:
@@ -71,8 +71,8 @@ class AtlasConfigManager:
     async def set_app_name_mapping(app_name: str, bundle_id: str, persist: bool = True):
         """Add or update app name to bundle ID mapping."""
         try:
-            redis = await get_redis_client()
-            await redis.hset(REDIS_KEY_APP_NAME_MAP, app_name, bundle_id)
+            
+            await cache.hset(REDIS_KEY_APP_NAME_MAP, app_name, bundle_id)
 
             if persist:
                 # Also persist to database (using sync Session)
@@ -97,8 +97,8 @@ class AtlasConfigManager:
     async def remove_app_name_mapping(app_name: str):
         """Remove app name mapping."""
         try:
-            redis = await get_redis_client()
-            await redis.hdel(REDIS_KEY_APP_NAME_MAP, app_name)
+            
+            await cache.hdel(REDIS_KEY_APP_NAME_MAP, app_name)
 
             # Remove from database (using sync Session)
             config_key = f"atlas:app_name:{app_name}"
@@ -119,11 +119,11 @@ class AtlasConfigManager:
 
     @staticmethod
     async def get_dynamic_apps(platform: str = "android") -> set[str]:
-        """Get all dynamic app bundle IDs from Redis for a specific platform."""
+        """Get all dynamic app bundle IDs from cache for a specific platform."""
         try:
-            redis = await get_redis_client()
+            
             key = AtlasConfigManager._get_dynamic_apps_key(platform)
-            apps = await redis.smembers(key)
+            apps = await cache.smembers(key)
             return set(apps) if apps else set()
         except Exception as e:
             logger.error(f"[AtlasConfig] Failed to get dynamic apps: {e}")
@@ -133,12 +133,12 @@ class AtlasConfigManager:
     async def mark_app_dynamic(bundle_id: str, platform: str = "android", reason: str = ""):
         """Mark an app as dynamic (coordinate-unstable)."""
         try:
-            redis = await get_redis_client()
+            
             key = AtlasConfigManager._get_dynamic_apps_key(platform)
-            await redis.sadd(key, bundle_id)
+            await cache.sadd(key, bundle_id)
             if reason:
                 # Include platform in categorization key
-                await redis.hset(f"system:app_categorization:{platform}", bundle_id, reason)
+                await cache.hset(f"system:app_categorization:{platform}", bundle_id, reason)
 
             logger.info(f"[AtlasConfig] Marked '{platform}:{bundle_id}' as DYNAMIC: {reason}")
         except Exception as e:
@@ -148,10 +148,10 @@ class AtlasConfigManager:
     async def unmark_app_dynamic(bundle_id: str, platform: str = "android"):
         """Remove app from dynamic list."""
         try:
-            redis = await get_redis_client()
+            
             key = AtlasConfigManager._get_dynamic_apps_key(platform)
-            await redis.srem(key, bundle_id)
-            await redis.hdel(f"system:app_categorization:{platform}", bundle_id)
+            await cache.srem(key, bundle_id)
+            await cache.hdel(f"system:app_categorization:{platform}", bundle_id)
 
             logger.info(f"[AtlasConfig] Unmarked '{platform}:{bundle_id}' as dynamic")
         except Exception as e:
@@ -203,27 +203,27 @@ class AtlasConfigManager:
         }
 
         try:
-            redis = await get_redis_client()
+            
 
             # Check if mappings already exist
-            existing = await redis.hlen(REDIS_KEY_APP_NAME_MAP)
+            existing = await cache.hlen(REDIS_KEY_APP_NAME_MAP)
             if existing == 0:
-                await redis.hset(REDIS_KEY_APP_NAME_MAP, mapping=default_mappings)
+                await cache.hset(REDIS_KEY_APP_NAME_MAP, mapping=default_mappings)
                 logger.info(f"[AtlasConfig] Initialized {len(default_mappings)} app name mappings")
 
             # 2. Initialize minimal dynamic app safeguards
             # Check macOS dynamic apps
-            existing_dynamic_macos = await redis.scard(AtlasConfigManager._get_dynamic_apps_key("macos"))
+            existing_dynamic_macos = await cache.scard(AtlasConfigManager._get_dynamic_apps_key("macos"))
             if existing_dynamic_macos == 0:
                 # Add macOS WeChat as minimal safeguard
-                await redis.sadd(AtlasConfigManager._get_dynamic_apps_key("macos"), "com.tencent.xinWeChat")
+                await cache.sadd(AtlasConfigManager._get_dynamic_apps_key("macos"), "com.tencent.xinWeChat")
                 logger.info("[AtlasConfig] Initialized minimal dynamic app safeguard for macOS (WeChat)")
 
             # Check Android dynamic apps
-            existing_dynamic_android = await redis.scard(AtlasConfigManager._get_dynamic_apps_key("android"))
+            existing_dynamic_android = await cache.scard(AtlasConfigManager._get_dynamic_apps_key("android"))
             if existing_dynamic_android == 0:
                 # Add Android WeChat as minimal safeguard
-                await redis.sadd(AtlasConfigManager._get_dynamic_apps_key("android"), "com.tencent.mm")
+                await cache.sadd(AtlasConfigManager._get_dynamic_apps_key("android"), "com.tencent.mm")
                 logger.info("[AtlasConfig] Initialized minimal dynamic app safeguard for Android (WeChat)")
 
             # 3. Initialize default strategies

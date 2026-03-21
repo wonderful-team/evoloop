@@ -2,10 +2,10 @@ import contextvars
 import json
 from dataclasses import dataclass, field
 from typing import Any
-from uuid import uuid4
 
-from app.infrastructure.database.redis import redis_client
 from app.core.exceptions import GlobalModeError
+from app.utils.id import gen_uuid
+from app.services.cache_services import ContextCacheService
 
 
 # ==========================================
@@ -19,7 +19,7 @@ class EvoContext:
     Unified Execution Context for EvoLoop.
     Holds request-scoped or task-scoped information.
     """
-    request_id: str = field(default_factory=lambda: str(uuid4()))
+    request_id: str = field(default_factory=gen_uuid)
     timestamp: float = field(default_factory=lambda: __import__("time").time())
 
     # Identity
@@ -36,7 +36,7 @@ class EvoContext:
     is_dry_run: bool = False
     language: str = "en"
 
-    # [Phase 1: Subconscious Pool]
+    # [Subconscious Pool]
     # Dynamically injected context from Environment/Learning plugins via EventBus
     short_term_memory: list[str] = field(default_factory=list)
     active_boundaries: list[str] = field(default_factory=list)
@@ -198,7 +198,7 @@ class ContextManager:
     @staticmethod
     async def save_to_redis(thread_id: str) -> None:
         """
-        Phase 4 Autonomy: Persist the current context to Redis using the thread_id.
+        Persist the current context to cache using the thread_id.
         Uses HSET for individual fields to allow for partial updates and prevent 
         serialization bottlenecks.
         """
@@ -206,11 +206,9 @@ class ContextManager:
         if ctx.request_id == "global-fallback":
             return
 
-        # [Phase 5] Use existing thread_id (e.g. from state) if available, 
+        # Use existing thread_id (e.g. from state) if available, 
         # otherwise use the provided one (e.g. from config)
         thread_id = ctx.thread_id or thread_id
-        key = f"evo:context:{thread_id}"
-
         try:
             # Map context to flat dictionary for HSET
             # Convert lists/dicts to JSON strings within fields
@@ -225,23 +223,22 @@ class ContextManager:
                     hset_data[k] = str(v)
 
             if hset_data:
-                await redis_client.hset(key, mapping=hset_data)
-                # Set expiration on the hash key (7 days)
-                await redis_client.expire(key, 604800)
+                cache_service = ContextCacheService()
+                await cache_service.save_context(thread_id, hset_data)
 
         except Exception as e:
             import logging
-            logging.getLogger(__name__).warning(f"Failed to save context to Redis (HSET): {e}")
+            logging.getLogger(__name__).warning(f"Failed to save context to cache (HSET): {e}")
 
     @staticmethod
     async def load_from_redis(thread_id: str) -> EvoContext | None:
         """
-        Phase 4 Autonomy: Load context from Redis using the thread_id and set it as current.
+        Load context from cache using the thread_id and set it as current.
         Supports Hash mapping (HGETALL).
         """
-        key = f"evo:context:{thread_id}"
         try:
-            data = await redis_client.hgetall(key)
+            cache_service = ContextCacheService()
+            data = await cache_service.load_context(thread_id)
             if data:
                 # Convert potential bytes to strings and parse JSON for collections
                 reconstructed = {}
@@ -267,9 +264,9 @@ class ContextManager:
                     elif k == "timestamp":
                         reconstructed[k] = float(v) if v else 0.0
                     elif k == "is_dry_run":
-                        reconstructed[k] = v.lower() == "true"
+                        reconstructed[k] = str(v).lower() == "true"
                     elif k == "project_id" or k == "command_id":
-                        reconstructed[k] = int(v) if v and v.isdigit() else None
+                        reconstructed[k] = int(v) if v and str(v).isdigit() else None
                     else:
                         reconstructed[k] = v if v != "" else None
 
@@ -278,7 +275,7 @@ class ContextManager:
                 return ctx
         except Exception as e:
             import logging
-            logging.getLogger(__name__).warning(f"Failed to load context from Redis (HGETALL): {e}")
+            logging.getLogger(__name__).warning(f"Failed to load context from cache (HGETALL): {e}")
 
         return None
 

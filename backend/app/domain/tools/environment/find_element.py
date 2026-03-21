@@ -17,7 +17,10 @@ from app.infrastructure.drivers.macos import macos_driver
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "查找元素", "en": "Find Element"}
+)
 async def find_element(
     target: str,
     platform: Literal["macos", "android"] | None = None,

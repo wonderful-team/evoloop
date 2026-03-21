@@ -6,7 +6,7 @@ from sqlalchemy import select
 from app.core.events import system_bus
 from app.core.evocloud import evocloud_manager
 from app.domain.codebase.indexing.service import IndexingService
-from app.domain.project.ignored_projects_cache import ignored_projects_cache
+from app.domain.project import cache as project_cache
 from app.infrastructure.database.sql.database import AsyncSessionLocal
 from app.models.codebase import Repository
 from app.utils.time import utcnow
@@ -57,7 +57,7 @@ class ProjectSyncService:
             if existing.sync_status == "IGNORED":
                 logger.info(f"[ProjectSync] Project {path} is already marked as IGNORED. Skipping.")
                 # Ensure it's in the cache
-                await ignored_projects_cache.add_ignored_path(abs_path)
+                await project_cache.add_ignored_path(abs_path)
                 return
             logger.info(f"[ProjectSync] Project already exists: {path}")
             return
@@ -268,7 +268,7 @@ class ProjectSyncService:
 
             # Update cache to exclude from tree views
             if repo.local_path:
-                await ignored_projects_cache.add_ignored_path(repo.local_path)
+                await project_cache.add_ignored_path(repo.local_path)
 
     async def unignore_project(self, repo_id: int) -> Repository:
         """
@@ -292,7 +292,7 @@ class ProjectSyncService:
 
             # Update cache to re-include in tree views
             if repo.local_path:
-                await ignored_projects_cache.remove_ignored_path(repo.local_path)
+                await project_cache.remove_ignored_path(repo.local_path)
 
             return repo
 
@@ -696,7 +696,7 @@ class ProjectSyncService:
             logger.info(f"[ProjectSync] Created IGNORED project record for: {path}")
 
             # Update cache
-            await ignored_projects_cache.add_ignored_path(abs_path)
+            await project_cache.add_ignored_path(abs_path)
 
         except Exception as e:
             logger.error(f"[ProjectSync] Failed to create ignored project record: {e}")

@@ -53,9 +53,17 @@ export const useProjectImportStore = create<ProjectImportState>((set, get) => ({
         detectedProjects: items,
         hasNewDetected: hasNewUnprocessed,
       })
-    } catch (error) {
-      console.error("Failed to fetch detected projects:", error)
-      set({ detectedProjects: [], hasNewDetected: false })
+    } catch (error: any) {
+      // Handle timeout errors gracefully - don't spam console with expected errors
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        console.warn('[ProjectImport] Fetch detected projects timed out, will retry on next poll')
+      } else if (error.message?.includes('Network Error') || !navigator.onLine) {
+        console.warn('[ProjectImport] Network error, likely offline')
+      } else {
+        console.error('Failed to fetch detected projects:', error)
+      }
+      // Keep existing projects on error, don't clear them
+      set({ hasNewDetected: false })
     }
   },
 

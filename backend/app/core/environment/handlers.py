@@ -185,8 +185,9 @@ def register_default_handlers() -> None:
     event_bus.subscribe(EventType.STATE_REFRESHED, SystemEventHandler.on_state_refreshed)
     event_bus.subscribe(EventType.BOUNDARY_LEARNED, SystemEventHandler.on_boundary_learned)
 
-    # App Atlas events
-    event_bus.subscribe(EventType.UI_TREE_OBSERVED, AppAtlasEventHandler.on_ui_tree_observed)
+    # App Atlas events - DISABLED: Passive learning removed to reduce overhead
+    # Atlas query functionality remains available via query_app_atlas tool
+    # event_bus.subscribe(EventType.UI_TREE_OBSERVED, AppAtlasEventHandler.on_ui_tree_observed)
 
     event_bus.mark_initialized()
     logger.info("📡 Awakening event handlers registered")

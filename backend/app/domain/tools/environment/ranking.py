@@ -11,7 +11,9 @@ from app.core.tools import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(
+    name_map={"zh": "获取应用使用排名", "en": "Get App Usage Ranker"}
+)
 async def get_app_usage_ranker(
     platform: Literal["macos", "android"] = "macos",
     top_n: int = 10

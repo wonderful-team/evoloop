@@ -12,6 +12,8 @@ from app.core.environment.controllers.desktop_controller import DesktopControlle
 from app.core.monitoring.activity import activity_monitor
 from app.core.execution.macro.schema import MacroStep, MacroStepType, MacroSource
 from app.core.environment.capabilities.registry import ActionRegistry
+from app.utils.geometry import parse_bounds
+from app.utils.xml import clean_xml_content
 
 logger = logging.getLogger(__name__)
 
@@ -615,10 +617,11 @@ class MacroEngine:
         """Extract collectible items from UI dump XML."""
         import xml.etree.ElementTree as ET
 
-        def parse_bounds(bounds_str: str):
-            match = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", bounds_str)
-            if match:
-                return tuple(map(int, match.groups()))
+        def _parse_bounds_local(bounds_str: str):
+            """Local wrapper that returns default on failure."""
+            bounds = parse_bounds(bounds_str)
+            if bounds:
+                return (bounds.x1, bounds.y1, bounds.x2, bounds.y2)
             return (0, 0, 0, 0)
 
         def is_anchor_match(text: str, rule: dict) -> bool:
@@ -629,23 +632,14 @@ class MacroEngine:
                 return True
             return False
 
-        # Clean XML
-        xml_start = xml_content.find("<?xml")
-        if xml_start == -1:
-            xml_start = xml_content.find("<hierarchy")
-        if xml_start == -1:
+        # Clean XML using utility function
+        xml_content = clean_xml_content(xml_content)
+        if not xml_content:
             return []
-
-        xml_content = xml_content[xml_start:]
-        hierarchy_end = xml_content.rfind("</hierarchy>")
-        if hierarchy_end != -1:
-            xml_content = xml_content[:hierarchy_end + len("</hierarchy>")]
-
-        xml_content = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', xml_content)
 
         try:
             root = ET.fromstring(xml_content)
-        except:
+        except ET.ParseError:
             return []
 
         items = []
@@ -654,7 +648,7 @@ class MacroEngine:
         for node in root.iter():
             text = node.get("text", "")
             if is_anchor_match(text, anchor_rule):
-                bounds = parse_bounds(node.get("bounds", ""))
+                bounds = _parse_bounds_local(node.get("bounds", ""))
                 if bounds == (0, 0, 0, 0):
                     continue
 
@@ -672,7 +666,7 @@ class MacroEngine:
 
                 features = []
                 for elem in root.iter():
-                    elem_bounds = parse_bounds(elem.get("bounds", ""))
+                    elem_bounds = _parse_bounds_local(elem.get("bounds", ""))
                     if elem_bounds == (0, 0, 0, 0):
                         continue
 

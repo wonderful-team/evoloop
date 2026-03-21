@@ -36,7 +36,9 @@ Output a JSON object.
 """
 
 
-@evoloop_tool
+@evoloop_tool(
+    name_map={"zh": "自动收获知识", "en": "Auto Harvest Knowledge"}
+)
 async def auto_harvest_from_git():
     """
     Analyze uncommitted changes (working directory) to extract and save new Knowledge Concepts.
@@ -70,7 +72,10 @@ async def _run_git(args: list[str], config: RunnableConfig | None = None) -> str
     return f"Error: Git command failed. {res.stderr}"
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "Git 状态", "en": "Git Status"}
+)
 async def git_status(config: RunnableConfig) -> str:
     """
     Get the current git status (branch, modified files).
@@ -78,7 +83,10 @@ async def git_status(config: RunnableConfig) -> str:
     return await _run_git(["status"], config)
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "Git 差异", "en": "Git Diff"}
+)
 async def git_diff(config: RunnableConfig) -> str:
     """
     Show changes between working tree and index (or last commit).
@@ -87,7 +95,10 @@ async def git_diff(config: RunnableConfig) -> str:
     return await _run_git(["diff"], config)
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "Git 提交", "en": "Git Commit"}
+)
 async def git_commit(message: str, add_all: bool = True, config: RunnableConfig = None) -> str:
     """
     Commit changes to the repository.
@@ -104,7 +115,10 @@ async def git_commit(message: str, add_all: bool = True, config: RunnableConfig 
     return await _run_git(["commit", "-m", message], config)
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "Git 历史", "en": "Git History"}
+)
 async def git_history(limit: int = 5, config: RunnableConfig = None) -> str:
     """
     Show the commit log.
@@ -112,7 +126,10 @@ async def git_history(limit: int = 5, config: RunnableConfig = None) -> str:
     return await _run_git(["log", f"-n {limit}", "--pretty=format:'%h - %an, %ar : %s'"], config)
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "Git 创建分支", "en": "Git Create Branch"}
+)
 async def git_create_branch(branch_name: str, config: RunnableConfig) -> str:
     """
     Create and checkout a new branch.

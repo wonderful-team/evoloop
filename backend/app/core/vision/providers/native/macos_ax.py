@@ -129,7 +129,7 @@ class MacOSAxProvider(VisionProvider):
             if w <= 0 or h <= 0:
                 continue
 
-            # Phase 6: Enhanced metadata for element classification
+            # Enhanced metadata for element classification
             role = raw.get("role", "")
             subrole = raw.get("subrole", "")
             path = raw.get("path", "")
@@ -152,7 +152,7 @@ class MacOSAxProvider(VisionProvider):
                     "role": role,
                     "subrole": subrole,
                     "path": path,
-                    # Phase 6: Additional attributes for element classification
+                    # Additional attributes for element classification
                     "is_scrollable": is_scrollable,
                     "ax_description": raw.get("description", ""),
                 }

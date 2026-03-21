@@ -27,6 +27,7 @@ from app.domain.tools.memory import (
     save_preference,
     search_concepts,
 )
+from app.domain.tools.memory_search import search_chat_history
 
 # ... (Delegate imports removed as they are now in actions)
 # Import the new dispatched tool
@@ -36,7 +37,8 @@ from app.utils.file import write_file_contents as utils_write_file
 @evoloop_tool(
     is_state_mutating=True,
     summary_template="database_logger.tool_summary.write_file",
-    affected_path_keys=["path"]
+    affected_path_keys=["path"],
+    name_map={"zh": "写入文档", "en": "Write Document"}
 )
 async def write_document(path: str, content: str, config: Annotated[RunnableConfig, InjectedToolArg] = None) -> str:
     """
@@ -55,7 +57,8 @@ async def write_document(path: str, content: str, config: Annotated[RunnableConf
 @evoloop_tool(
     is_state_mutating=True,
     summary_template="database_logger.tool_summary.edit_file",
-    affected_path_keys=["path"]
+    affected_path_keys=["path"],
+    name_map={"zh": "编辑文档", "en": "Edit Document"}
 )
 async def edit_document(
     path: str,
@@ -77,7 +80,8 @@ async def edit_document(
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.search_code"
+    summary_template="database_logger.tool_summary.search_code",
+    name_map={"zh": "探索代码库", "en": "Explore Codebase"}
 )
 async def explore_codebase(
     action: Literal["search_symbol", "search_text", "semantic_code_search", "analyze_impact"],
@@ -123,7 +127,8 @@ async def explore_codebase(
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.manage_git"
+    summary_template="database_logger.tool_summary.manage_git",
+    name_map={"zh": "管理Git", "en": "Manage Git"}
 )
 async def manage_git(
     action: Literal["status", "diff", "commit", "log", "create_branch"],
@@ -158,7 +163,8 @@ async def manage_git(
 @evoloop_tool(
     is_state_mutating=True,
     is_memory_tool=True,
-    summary_template="database_logger.tool_summary.manage_memory"
+    summary_template="database_logger.tool_summary.manage_memory",
+    name_map={"zh": "管理记忆", "en": "Manage Memory"}
 )
 async def manage_memory(
     action: Literal[
@@ -167,6 +173,7 @@ async def manage_memory(
         "add_concept",
         "search_concepts",
         "find_related_episodes",
+        "search_history",
     ] = "retrieve_preferences",
     key: str | None = None,  # concept name or pref key
     value: str | None = None,  # description or pref value
@@ -181,6 +188,21 @@ async def manage_memory(
     - add_concept: Add a knowledge concept (key=name, value=description)
     - search_concepts: Search for concepts (key=query)
     - find_related_episodes: Find historical tasks related to a concept (key=concept_name)
+    - search_history: Search conversation history for past decisions or context (key=query)
+      
+      USE THIS WHEN:
+      • User refers to "之前说的" / "刚才讨论的" / "第X轮" / "earlier" / "previously"
+      • User asks to "回到" / "参考" / "基于之前的"某个方案或讨论
+      • Current context window doesn't contain the referenced information
+      • You need to recall requirements, decisions, or code from earlier in the conversation
+      
+      IMPORTANT: Automatically searches the CURRENT conversation thread.
+      DO NOT provide thread_id - the tool handles this internally.
+      
+      Examples:
+      • User: "回到第3轮的方案" → search_history(key="第3轮 方案")
+      • User: "之前说的数据库设计" → search_history(key="数据库设计")
+      • User: "参照刚才的错误处理逻辑" → search_history(key="错误处理")
     """
     # Assuming user_id is handled implicitly or 'user_default'
     user_id = "user_default"
@@ -204,6 +226,11 @@ async def manage_memory(
         if not key:
             return "Error: key (query) required."
         return await search_concepts.ainvoke({"query": key}, config=config)
+
+    elif action == "search_history":
+        if not key:
+            return "Error: key (query) required."
+        return await search_chat_history.ainvoke({"query": key}, config=config)
 
     elif action == "find_related_episodes":
         if not key:

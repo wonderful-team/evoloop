@@ -16,7 +16,10 @@ class ConceptInput(BaseModel):
     description: str = Field(description="Concise description of the concept")
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "记忆概念", "en": "Memorize Concepts"}
+)
 async def memorize_concepts(
     concepts: list[ConceptInput],
     config: Annotated[RunnableConfig, InjectedToolArg] = None

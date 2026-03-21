@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 from app.core.vision.providers.base import VisionProvider
 from app.core.vision.types import ElementType, UIElement, VisionResult, VisionTask
 from app.infrastructure.drivers.adb import ADBError, adb_driver
+from app.utils.geometry import parse_bounds as _parse_bounds, Bounds
 
 logger = logging.getLogger(__name__)
 
@@ -19,10 +20,12 @@ logger = logging.getLogger(__name__)
 def _parse_bounds(bounds_str: str) -> tuple[int, int, int, int] | None:
     """
     Parse bounds string like "[100,200][300,400]" to (x1, y1, x2, y2).
+    
+    Note: Delegates to app.utils.geometry.parse_bounds for the actual implementation.
     """
-    match = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", bounds_str)
-    if match:
-        return tuple(map(int, match.groups()))
+    bounds = parse_bounds(bounds_str)
+    if bounds:
+        return (bounds.x1, bounds.y1, bounds.x2, bounds.y2)
     return None
 
 
@@ -181,7 +184,7 @@ class AndroidA11yProvider(VisionProvider):
             if width < 10 or height < 10:
                 continue
 
-            # Phase 6: Enhanced metadata for element classification
+            # Enhanced metadata for element classification
             scrollable = node.get("scrollable") == "true"
             checkable = node.get("checkable") == "true"
             checked = node.get("checked") == "true"
@@ -202,7 +205,7 @@ class AndroidA11yProvider(VisionProvider):
                     "class": node.get("class", ""),
                     "resource_id": node.get("resource-id", ""),
                     "package": node.get("package", ""),
-                    # Phase 6: Additional attributes for element classification
+                    # Additional attributes for element classification
                     "scrollable": scrollable,
                     "checkable": checkable,
                     "checked": checked,

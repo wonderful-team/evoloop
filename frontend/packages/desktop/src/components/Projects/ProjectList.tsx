@@ -137,7 +137,7 @@ export function ProjectList() {
                   )
                 })()}
                 {(proj.summarization_status === "running" ||
-                  proj.summarization_status === "SUMMARIZING") && (
+                  proj.summarization_status === "summarizing") && (
                     <Badge variant="secondary" className="bg-purple-100 text-purple-700 hover:bg-purple-200 border-purple-200 gap-1">
                       <ListTodo className="h-3 w-3 animate-pulse" /> Analyzing
                     </Badge>

@@ -31,9 +31,11 @@ export default function InitializationCheck({
   useEffect(() => {
     if (!isLoading && config) {
       const configMap: Record<string, string> = {}
-        ; (config as unknown as SystemConfig[]).forEach((item) => {
+      if (Array.isArray(config)) {
+        ;(config as unknown as SystemConfig[]).forEach((item) => {
           configMap[item.key] = item.value
         })
+      }
 
       // Check if critical configs are missing
       const missingWorkspaceRoot = !configMap.WORKSPACE_ROOT

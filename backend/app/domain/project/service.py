@@ -31,7 +31,7 @@ class ProjectContextManager:
 
         self._initialized = True
 
-        # [NEW] Phase 6: Project Structure Cache
+        # Project Structure Cache
         # Mapping: working_dir -> { "structure": str, "timestamp": float }
         self._structure_cache: dict[str, dict] = {}
 

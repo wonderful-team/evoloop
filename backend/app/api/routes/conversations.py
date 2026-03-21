@@ -7,7 +7,6 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from app.core.monitoring.activity import activity_monitor
-from app.core.persistence import get_db_pool
 from app.infrastructure.database.sql.database import get_db_session
 from app.models import Conversation, FileOperation, Message
 
@@ -47,9 +46,16 @@ class ReferenceItem(BaseModel):
     target_name: str
 
 
+def get_tool_display_name(tool_name: str) -> str | None:
+    """Get friendly display name for a tool from registry."""
+    from app.core.tools.registry import get_tool_friendly_name
+    return get_tool_friendly_name(tool_name, lang="zh")
+
+
 class ToolStep(BaseModel):
     id: str
-    tool: str
+    tool: str  # Original tool identifier (e.g., "search_web")
+    tool_name: str | None = None  # Friendly name (e.g., "搜索网页")
     input: dict | str
     output: str
     status: str = "success"
@@ -58,15 +64,15 @@ class ToolStep(BaseModel):
 
 class MessageItem(BaseModel):
     id: str
-    type: str
+    role: str
     content: str
     thinking: str | None
     created_at: str | None
-    steps_snapshot: list[dict] | None = None  # Phase 6: Historical task steps
+    steps_snapshot: list[dict] | None = None  # Historical task steps for completed runs
     run_id: str | None = None  # Deep Linking
     parent_id: int | None = None  # Threading
     references: list[ReferenceItem] = []  # Persistent References
-    steps: list[ToolStep] = []  # Phase 24: Tool Execution Steps
+    steps: list[ToolStep] = []  # Tool execution steps folded into AI message
     has_file_operations: bool = False  # For Undo/Retry optimization
 
 
@@ -90,6 +96,15 @@ class RewindResponse(BaseModel):
 class RewindRequest(BaseModel):
     revert_files: bool = True  # Whether to also revert file changes
     message_id: str | None = None  # Optional: target message to rewind to
+
+
+class MessageListResponse(BaseModel):
+    """Response model for paginated message list."""
+    items: list[MessageItem]
+    has_more: bool
+    first_id: int | None = None
+    last_id: int | None = None
+    total_count: int | None = None
 
 
 @router.get("/", response_model=list[ConversationListItem])
@@ -120,25 +135,61 @@ async def list_conversations(project_id: int | None = None):
         ]
 
 
-@router.get("/{thread_id}/messages", response_model=list[MessageItem])
-async def get_conversation_messages(thread_id: str):
+@router.get("/{thread_id}/messages", response_model=MessageListResponse)
+async def get_conversation_messages(
+    thread_id: str,
+    limit: int = 50,
+    before_id: int | None = None,
+):
     """
     Get message history for a thread from the persistent SQL log.
-    Includes steps_snapshot for historical task visualization.
+    Supports pagination for infinite scroll.
+    
+    Args:
+        thread_id: The conversation thread ID
+        limit: Number of messages to return (default 50, max 100)
+        before_id: Cursor for pagination - load messages before this ID
+    
+    Returns:
+        MessageListResponse with items, has_more flag, and cursors
     """
+    # Validate limit
+    limit = min(max(limit, 1), 100)
+    
     try:
         async with get_db_session() as session:
-            # Optimize: Eager load references
+            # Build base query - order by id DESC for pagination (newest first)
             stmt = (
                 select(Message)
                 .where(Message.thread_id == thread_id)
                 .options(selectinload(Message.references))
-                .order_by(Message.id.asc())
+                .order_by(Message.id.desc())
+                .limit(limit + 1)  # Fetch one extra to check has_more
             )
+            
+            # Apply cursor pagination
+            if before_id is not None:
+                stmt = stmt.where(Message.id < before_id)
+            
             result = await session.execute(stmt)
-            db_messages = result.scalars().all()
+            messages = result.scalars().all()
+            
+            # Check if there are more messages
+            has_more = len(messages) > limit
+            if has_more:
+                messages = messages[:limit]  # Remove the extra item
+            
+            # Reverse to chronological order (oldest first) for display
+            messages = list(reversed(messages))
+            
+            # Get total count on first load (when before_id is None)
+            total_count = None
+            if before_id is None:
+                count_stmt = select(Message.id).where(Message.thread_id == thread_id)
+                count_result = await session.execute(count_stmt)
+                total_count = len(count_result.scalars().all())
 
-            # Phase 17: Undo Optimization - Pre-check file operations
+            # Pre-check file operations for undo optimization
             file_ops_stmt = (
                 select(FileOperation.message_id)
                 .where(FileOperation.thread_id == thread_id)
@@ -146,13 +197,13 @@ async def get_conversation_messages(thread_id: str):
             file_ops_result = await session.execute(file_ops_stmt)
             messages_with_files = set(file_ops_result.scalars().all())
 
-            # Phase 24: Server-Side Tool Folding
+            # Server-side tool message folding into parent AI message
             # We aggregate 'tool' messages into the 'steps' of the preceding 'ai' message.
             final_items = []
             last_ai_item: MessageItem | None = None
             pending_tool_calls = []  # FIFO queue of (id, name, args) derived from AI message
 
-            for m in db_messages:
+            for m in messages:
                 # 1. Parse References (Common)
                 refs = (
                     [
@@ -172,7 +223,7 @@ async def get_conversation_messages(thread_id: str):
                 if m.role == "human":
                     item = MessageItem(
                         id=str(m.id),
-                        type="human",
+                        role="human",
                         content=m.content,
                         thinking=m.thinking,
                         created_at=m.created_at.isoformat() if m.created_at else None,
@@ -187,10 +238,25 @@ async def get_conversation_messages(thread_id: str):
                     last_ai_item = None
                     pending_tool_calls = []
 
-                elif m.role == "ai" or m.role == "assistant":
+                elif m.role == "ai":
+                    # Skip intermediate "tool calling" messages that have no real content
+                    # but have tool_calls. These should not be displayed as separate messages.
+                    is_intermediate = (
+                        m.tool_calls and
+                        (not m.content or m.content.strip() in ["", "正在执行工具...", "正在执行工具..."] or
+                         m.content.strip().startswith("正在执行"))
+                    )
+
+                    if is_intermediate and last_ai_item:
+                        # Merge tool_calls into existing last_ai_item instead of creating new one
+                        if isinstance(m.tool_calls, list):
+                            pending_tool_calls.extend(m.tool_calls)
+                        # Skip adding this message to final_items
+                        continue
+
                     item = MessageItem(
                         id=str(m.id),
-                        type="ai",  # Normalize to "ai" for frontend
+                        role="ai",  # Normalize to "ai" for frontend
                         content=m.content,
                         thinking=m.thinking,
                         created_at=m.created_at.isoformat() if m.created_at else None,
@@ -221,26 +287,44 @@ async def get_conversation_messages(thread_id: str):
                     if last_ai_item and pending_tool_calls:
                         # Match FIFO (Assuming Sequential Execution)
                         call_info = pending_tool_calls.pop(0)
+                        tool_name = call_info.get("name", "unknown")
 
                         step = ToolStep(
                             id=call_info.get("id", "unknown"),
-                            tool=call_info.get("name", "unknown"),
+                            tool=tool_name,
+                            tool_name=get_tool_display_name(tool_name),  # Friendly name from registry
                             input=call_info.get("args", {}),
-                            output=m.tool_output or m.content or "",  # Prefer tool_output column
+                            output=m.content or "",  # Tool output stored in content with action_type='tool_output'
                             status="success",
                         )
                         last_ai_item.steps.append(step)
                     else:
                         # Orphaned tool message or mismatch
-                        # For now, we HIDE it to prevent clutter, as per requirement.
+                        # For now, we HIDE it to remove it from clutter, as per requirement.
                         # If strict debugging is needed, valid tool messages should have a parent.
                         pass
 
-            return final_items
+            # Build response with cursors
+            first_id = messages[0].id if messages else None
+            last_id = messages[-1].id if messages else None
+            
+            return MessageListResponse(
+                items=final_items,
+                has_more=has_more,
+                first_id=first_id,
+                last_id=last_id,
+                total_count=total_count,
+            )
 
     except Exception as e:
         logger.error(f"Failed to fetch history for {thread_id}: {e}")
-        return []
+        return MessageListResponse(
+            items=[],
+            has_more=False,
+            first_id=None,
+            last_id=None,
+            total_count=0,
+        )
 
 
 @router.get("/search", response_model=list[SearchResult])
@@ -300,16 +384,24 @@ async def get_thread_activity(thread_id: str):
 @router.delete("/{thread_id}")
 async def delete_conversation(thread_id: str):
     """Delete a conversation history and its checkpoints."""
-    db_pool = get_db_pool()
-    if not db_pool:
-        raise HTTPException(503, "Database not initialized")
+    from app.core.persistence import get_checkpointer
 
     try:
-        # 1. Delete Checkpoints (Binary)
-        async with db_pool.connection() as conn:
-            async with conn.cursor() as cur:
-                await cur.execute("DELETE FROM checkpoints WHERE thread_id = %s", (thread_id,))
-                await cur.execute("DELETE FROM checkpoint_writes WHERE thread_id = %s", (thread_id,))
+        # 1. Delete Checkpoints via Checkpointer API (supports both Postgres and SQLite)
+        checkpointer = get_checkpointer()
+        if checkpointer:
+            try:
+                # Try to delete checkpoints using the checkpointer's async method
+                # AsyncSqliteSaver uses adelete_thread, AsyncPostgresSaver uses adelete
+                if hasattr(checkpointer, 'adelete_thread'):
+                    await checkpointer.adelete_thread(thread_id)
+                elif hasattr(checkpointer, 'adelete'):
+                    config = {"configurable": {"thread_id": thread_id}}
+                    await checkpointer.adelete(config)
+                logger.info(f"[DeleteConversation] Deleted checkpoints for thread {thread_id}")
+            except Exception as e:
+                # Log but don't fail if checkpoint deletion fails
+                logger.warning(f"[DeleteConversation] Failed to delete checkpoints via checkpointer: {e}")
 
         # 2. Delete Thread Metadata & Logs
         async with get_db_session() as session:

@@ -250,7 +250,7 @@ async def get_projects(
             p["local_status"] = local_info["status"]
             p["exists_locally"] = local_info["exists_locally"]
             p["local_path"] = local_info.get("local_path", "")
-            # Use DB indexing_status as fallback if Redis doesn't have it
+            # Use DB indexing_status as fallback if cache doesn't have it
             p["db_indexing_status"] = local_info.get("indexing_status", "pending")
             p["last_indexed_at"] = local_info.get("last_indexed_at")
         else:
@@ -333,7 +333,7 @@ async def get_projects(
 
     logger.info(f"[ProjectsAPI] Final response: {len(projects)} projects")
 
-    # 4. Enrich with Local System Status (Redis) and Wiki Existence (DB)
+    # 4. Enrich with Local system status (cache) and Wiki Existence (DB)
     from app.domain.wiki.service import wiki_service
 
     # Collect IDs for batch DB query (only for locally existing projects)
@@ -351,10 +351,10 @@ async def get_projects(
     except Exception as e:
         logger.warning(f"Failed to check wiki existence: {e}")
 
-    # Batch enrichment for Local System Status (Redis)
-    from app.infrastructure.database.redis import redis_client
+    # Batch enrichment for Local System Status (Cache)
+    from app.infrastructure.cache import cache
 
-    pipe = redis_client.pipeline()
+    pipe = cache.pipeline()
     project_keys = []
     for p in projects:
         pid = p.get("project_id") or p.get("id")
@@ -462,8 +462,8 @@ async def get_project_status(project_id: int):
     summarization_key = f"sys:{project_id}:summarization"
     wiki_key = f"sys:{project_id}:wiki"
 
-    from app.infrastructure.database.redis import redis_client
-    pipe = redis_client.pipeline()
+    from app.infrastructure.cache import cache
+    pipe = cache.pipeline()
     pipe.hgetall(indexing_key)
     pipe.hgetall(summarization_key)
     pipe.hgetall(wiki_key)

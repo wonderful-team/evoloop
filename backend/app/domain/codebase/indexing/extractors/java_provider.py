@@ -15,20 +15,6 @@ class JavaSemanticProvider(LanguageSemanticProvider):
     def get_language_name(self) -> str:
         return "java"
 
-    def get_structure_query(self) -> str:
-        """Query for Java class, interface and method definitions."""
-        return """
-            (class_declaration name: (identifier) @name) @class
-            (interface_declaration name: (identifier) @name) @class
-            (method_declaration name: (identifier) @name) @function
-        """
-
-    def get_imports_query(self) -> str:
-        """Query for Java imports."""
-        return """
-            (import_declaration [(scoped_identifier) (identifier)] @module) @import
-        """
-
     def get_api_query(self) -> str:
         return """
         (method_declaration

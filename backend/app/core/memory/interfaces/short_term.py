@@ -47,3 +47,18 @@ class IShortTermMemory(IMemoryProvider):
             thread_id: The conversation thread to prune
         """
         pass
+
+    @abstractmethod
+    async def search_messages(self, query: str, thread_id: str | None = None, limit: int = 10) -> list[BaseMessage]:
+        """
+        Search for messages containing the query string.
+
+        Args:
+            query: The search term
+            thread_id: Optional thread ID to narrow search
+            limit: Maximum results
+
+        Returns:
+            List of matching messages
+        """
+        pass

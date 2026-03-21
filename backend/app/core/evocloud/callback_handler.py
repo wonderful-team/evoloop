@@ -6,13 +6,14 @@ from typing import Any
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
+from app.core.context import tool_state_store
 from app.i18n.service import i18n
-from app.core.tools.registry import get_tool_metadata, get_tool_affected_paths
+from app.core.tools.registry import get_tool_affected_paths
 
 
-class EvoLoopCallbackHandler(AsyncCallbackHandler):
+class EvoCloudCallbackHandler(AsyncCallbackHandler):
     """
-    Callback Handler that pushes logs to EvoLoop Link (Server-side Plugin).
+    Callback Handler that pushes logs to EvoCloud Link (Server-side Plugin).
     """
 
     def __init__(self, client: Any, thread_id: str, project_id: int | None = None, command_id: int | None = None):
@@ -24,7 +25,7 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
         # Deduplication and Merging State
         self._last_tool_log = {"content": None, "timestamp": 0, "name": None}
         self._last_thought_log = {"content": None, "timestamp": 0}
-        self._active_tools = {}  # {run_id: {name, arguments, path}}
+        self._tool_store = tool_state_store
 
     def _normalize_content(self, content: str) -> str:
         """Normalize content to handle JSON vs Python repr differences."""
@@ -124,11 +125,14 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
         })
 
         run_id = str(kwargs.get("run_id", "default"))
-        self._active_tools[run_id] = {
-            "name": tool_name,
-            "arguments": normalized_input,
-            "path": self.current_tool_path
-        }
+        # Store in shared tool state store
+        self._tool_store.start_tool(
+            thread_id=self.thread_id,
+            run_id=run_id,
+            name=tool_name,
+            arguments=normalized_input,
+            path=self.current_tool_path
+        )
 
         await self.client.upload_log(
             thread_id=self.thread_id,
@@ -142,30 +146,16 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
 
     async def on_tool_end(self, output: str, **kwargs: Any) -> Any:
         run_id = str(kwargs.get("run_id"))
-        tool_info = self._active_tools.pop(run_id, {})
-        if not tool_info:
+        # Get tool state from shared store
+        tool_state = self._tool_store.end_tool(self.thread_id, run_id)
+        if not tool_state:
             return
 
-        tool_name = tool_info.get("name", "Tool")
-        arguments = tool_info.get("arguments", "")
-        tool_path = tool_info.get("path")
-        metadata = get_tool_metadata(tool_name) or {}
+        tool_name = tool_state.name
+        arguments = tool_state.arguments
 
-        # 1. Check if tool is classified as a "Read" tool in metadata
-        affected_keys = metadata.get("affected_path_keys", [])
-        is_file_content = len(affected_keys) > 0  # Heuristic: if it affects paths, it might produce file content
-
-        # 2. Optimization: Summarize heavy tool outputs using Metadata template
-        final_output = output
-        summary_template = metadata.get("result_summary_template")
-        if summary_template and output:
-            try:
-                line_count = len(output.splitlines())
-                item_count = line_count # Alias for directories
-                file_info = tool_path or "file"
-                final_output = i18n.get(summary_template, path=file_info, count=line_count, lines=line_count, items=item_count)
-            except Exception:
-                pass
+        # Use shared summary logic
+        final_output, is_file_content = tool_state.get_summary(output)
 
         combined_content = json.dumps({
             "name": tool_name,
@@ -187,10 +177,10 @@ class EvoLoopCallbackHandler(AsyncCallbackHandler):
 
     async def on_tool_error(self, error: BaseException, **kwargs: Any) -> Any:
         run_id = str(kwargs.get("run_id"))
-        tool_info = self._active_tools.pop(run_id, {})
+        tool_state = self._tool_store.end_tool(self.thread_id, run_id)
 
-        tool_name = tool_info.get("name", "error")
-        arguments = tool_info.get("arguments", "")
+        tool_name = tool_state.name if tool_state else "error"
+        arguments = tool_state.arguments if tool_state else ""
 
         combined_content = json.dumps({
             "name": tool_name,

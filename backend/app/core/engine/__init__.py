@@ -19,7 +19,7 @@ from app.core.engine.message_utils import (
     truncate_message_content,
 )
 from app.core.engine.state import AgentState
-from app.core.tools.registry import is_state_mutating_tool, is_pollable_tool, get_tool_affected_paths
+from app.core.tools.registry import get_tool_affected_paths
 from app.infrastructure.config.service import SystemConfigService
 from app.infrastructure.llm.factory import LLMFactory
 from app.utils.id import gen_uuid
@@ -43,9 +43,14 @@ class AgentEngine:
         max_steps: int = 5,
         temperature: float = 0.7,
         name: str = "Agent",
+        is_subtask: bool = False,
     ) -> dict[str, Any]:
         """
         Executes the standard Agent ReAct loop.
+
+        Args:
+            is_subtask: If True, uses single-shot execution (no ReAct loop).
+                       Subtasks must execute tools immediately in one turn.
         """
 
         # 1. Initialize LLM
@@ -82,17 +87,32 @@ class AgentEngine:
         # 3.2 Repair Orphaned Tool Messages (Delegated to utils)
         repaired_messages = repair_message_history(windowed_messages)
 
-        # 4. Loop Execution
-        return await AgentEngine._execute_react_loop(
-            llm_with_tools=llm_with_tools,
-            tool_map=tool_map,
-            messages=repaired_messages,
-            system_prompt=system_prompt,
-            config=config,
-            max_steps=max_steps,
-            name=name,
-            state=state,
-        )
+        # 4. Execution Mode Selection
+        if is_subtask:
+            # [CRITICAL FIX] Single-shot execution for subtasks
+            # Eliminates loop conditions: no second turn = no repetition
+            logger.info(f"[{name}] 🎯 Single-shot mode (subtask) - executing immediately")
+            return await AgentEngine._execute_single_shot(
+                llm_with_tools=llm_with_tools,
+                tool_map=tool_map,
+                messages=repaired_messages,
+                system_prompt=system_prompt,
+                config=config,
+                name=name,
+                state=state,
+            )
+        else:
+            # Standard ReAct loop for main tasks
+            return await AgentEngine._execute_react_loop(
+                llm_with_tools=llm_with_tools,
+                tool_map=tool_map,
+                messages=repaired_messages,
+                system_prompt=system_prompt,
+                config=config,
+                max_steps=max_steps,
+                name=name,
+                state=state,
+            )
 
     @staticmethod
     def _setup_callbacks(config: RunnableConfig) -> RunnableConfig:
@@ -159,7 +179,7 @@ class AgentEngine:
             logger.warning("[AgentEngine] No history messages (only System Prompt). Skipping LLM call to prevent API errors.")
             return {"messages": []}
 
-        logger.debug(f"--- [AgentEngine] System Prompt ---\n{system_prompt}\n-----------------------------------------------------")
+        logger.info(f"--- [AgentEngine] System Prompt ---\n{system_prompt}\n-----------------------------------------------------")
 
         new_messages = []
         local_tool_history = []
@@ -227,7 +247,8 @@ class AgentEngine:
                             target=target,
                             reason=reason,
                             context=context,
-                            authorized_tools=authorized_tools
+                            authorized_tools=authorized_tools,
+                            skill_id=tc["args"].get("skill_id")
                         )
                     }
 
@@ -269,60 +290,56 @@ class AgentEngine:
 
                 logger.info(f"[{name}] 🛠️ Call: {tool_name} | Args: {json.dumps(tool_args)}")
 
-                # Check duplication
+                # Track tool execution history
                 tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
+                local_tool_history.append(tool_sig)
 
-                if tool_sig in local_tool_history and not is_state_mutating_tool(tool_name) and not is_pollable_tool(tool_name):
-                    content = f"⚠️ SYSTEM ALERT: You have ALREADY executed `{tool_name}` with these exact arguments. Stop."
-                    logger.warning(f"[{name}] 🛑 Prevented duplicate tool: {tool_sig}")
+                tool = tool_map.get(tool_name)
+                executor = _ToolExecutor()
+
+                if tool:
+                    try:
+                        thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+                        snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
+
+                        # Capture Snapshots
+                        from app.core.memory.diff import diff_tracker
+                        for path in snapshot_paths:
+                            diff_tracker.capture_snapshot(path, thread_id)
+
+                        # Execute Tool
+                        content = await executor.execute(tool, tool_args, config=config)
+
+                        # --- Diff Tracking (Calculated Sync, Persisted Async) ---
+                        for path in snapshot_paths:
+                            try:
+                                operation, diff, original_content = diff_tracker.compute_diff(path, thread_id)
+                                if diff:
+                                    logger.info(f"📝 Diff Detected ({operation}) on {path} (Persisting in Background)")
+                                    # Offload DB Write to Celery
+                                    try:
+                                        from app.infrastructure.queue.celery import celery_app
+                                        msg_id = config.get("configurable", {}).get("run_id") or tool_id
+                                        celery_app.send_task(
+                                            "engine_persist_file_operation",
+                                            kwargs={
+                                                "thread_id": thread_id,
+                                                "message_id": str(msg_id),
+                                                "file_path": path,
+                                                "operation": operation,
+                                                "diff_content": diff,
+                                                "original_content": original_content,
+                                            }
+                                        )
+                                    except Exception:
+                                        logger.warning("Failed to dispatch FileOperation to Celery.")
+                            except Exception as e:
+                                logger.error(f"Failed to process diff for {path}: {e}")
+
+                    except Exception as e:
+                        content = f"Error executing {tool_name}: {e}"
                 else:
-                    local_tool_history.append(tool_sig)
-                    tool = tool_map.get(tool_name)
-                    executor = _ToolExecutor()
-
-                    if tool:
-                        try:
-                            thread_id = config.get("configurable", {}).get("thread_id", "unknown")
-                            snapshot_paths = get_tool_affected_paths(tool_name, tool_args)
-
-                            # Capture Snapshots
-                            from app.core.memory.diff import diff_tracker
-                            for path in snapshot_paths:
-                                diff_tracker.capture_snapshot(path, thread_id)
-
-                            # Execute Tool
-                            content = await executor.execute(tool, tool_args, config=config)
-
-                            # --- Diff Tracking (Calculated Sync, Persisted Async) ---
-                            for path in snapshot_paths:
-                                try:
-                                    operation, diff, original_content = diff_tracker.compute_diff(path, thread_id)
-                                    if diff:
-                                        logger.info(f"📝 Diff Detected ({operation}) on {path} (Persisting in Background)")
-                                        # Offload DB Write to Celery
-                                        try:
-                                            from app.infrastructure.queue.celery import celery_app
-                                            msg_id = config.get("configurable", {}).get("run_id") or tool_id
-                                            celery_app.send_task(
-                                                "engine_persist_file_operation",
-                                                kwargs={
-                                                    "thread_id": thread_id,
-                                                    "message_id": str(msg_id),
-                                                    "file_path": path,
-                                                    "operation": operation,
-                                                    "diff_content": diff,
-                                                    "original_content": original_content,
-                                                }
-                                            )
-                                        except Exception:
-                                            logger.warning("Failed to dispatch FileOperation to Celery.")
-                                except Exception as e:
-                                    logger.error(f"Failed to process diff for {path}: {e}")
-
-                        except Exception as e:
-                            content = f"Error executing {tool_name}: {e}"
-                    else:
-                        content = f"Error: Tool {tool_name} not found."
+                    content = f"Error: Tool {tool_name} not found."
 
                 # [Sync Fix] Inject run_id for robust rewind
                 run_id = config.get("configurable", {}).get("run_id")
@@ -408,20 +425,6 @@ class AgentEngine:
                     except Exception as e:
                         logger.warning(f"[{name}] Failed to execute history compression: {e}")
 
-            # Phase 4 Autonomy: Checkpoint & Resume Warning
-            # Give the LLM one final turn to summarize its findings before the hard cap
-            if i == max_steps - 2:
-                warning_msg = HumanMessage(
-                    content=(
-                        "⚠️ SYSTEM ALERT: You are approaching the maximum iteration limit for this exact node execution. "
-                        "You have 1 step remaining. Please wrap up your current thought process, save any critical findings "
-                        "using your tools (e.g. manage_memory, write_file), or prepare to yield control back to the Supervisor."
-                    )
-                )
-                logger.warning(f"[{name}] ⚠️ Nearing max_steps ({max_steps}). Injecting wrap-up warning.")
-                loop_messages.append(warning_msg)
-                new_messages.append(warning_msg)
-
         # Loop ended (e.g., hit max_steps without returning)
         if len(new_messages) > 0 and len(response.tool_calls) > 0:
             logger.error(f"[{name}] 🔴 Hit max_steps ({max_steps}) with open tool calls. Forcing termination.")
@@ -435,4 +438,128 @@ class AgentEngine:
             "messages": new_messages,
             "tool_history": local_tool_history,
             "blackboard": state.get("blackboard"),
+        }
+
+    @staticmethod
+    async def _execute_single_shot(
+        llm_with_tools,
+        tool_map: dict[str, Any],
+        messages: list[BaseMessage],
+        system_prompt: str,
+        config: RunnableConfig,
+        name: str,
+        state: dict,
+    ) -> dict[str, Any]:
+        """
+        Single-shot execution for subtasks.
+
+        CORE PRINCIPLE: Eliminate loop conditions by physically preventing a second turn.
+        No second turn = no opportunity for repetitive thinking.
+
+        Rules:
+        1. ONE LLM call only
+        2. MUST call at least one tool (subtasks are for action, not chitchat)
+        3. Execute tools immediately
+        4. Return results - no second LLM turn for "analysis" or "confirmation"
+        """
+        from app.core.tools.executor import ToolExecutor as _ToolExecutor
+
+        # Prepare messages (filter out old system messages)
+        history_messages = [m for m in messages if not isinstance(m, SystemMessage)]
+        system_msg = SystemMessage(content=system_prompt)
+        loop_messages = [system_msg] + history_messages
+
+        if not history_messages:
+            logger.warning(f"[{name}] No history messages for single-shot. Skipping.")
+            return {"messages": [], "tool_history": [], "blackboard": state.get("blackboard")}
+
+        logger.info(f"[{name}] 🎯 SINGLE-SHOT: Executing immediate tool call...")
+
+        # Single LLM invocation
+        try:
+            response = await llm_with_tools.ainvoke(loop_messages, config=config)
+        except Exception as e:
+            logger.error(f"[{name}] Single-shot LLM invocation failed: {e}")
+            return {
+                "messages": [AIMessage(content=f"[ERROR: Failed to invoke LLM: {e}]")],
+                "tool_history": [],
+                "blackboard": state.get("blackboard"),
+            }
+
+        # Inject run_id for tracking
+        run_id = config.get("configurable", {}).get("run_id")
+        if run_id:
+            if not hasattr(response, "metadata"):
+                response.metadata = {}
+            response.metadata["run_id"] = run_id
+            if not hasattr(response, "additional_kwargs"):
+                response.additional_kwargs = {}
+            response.additional_kwargs["run_id"] = run_id
+
+        new_messages = [response]
+        local_tool_history = []
+
+        # CRITICAL: Subtask MUST call tools
+        if not response.tool_calls:
+            logger.error(f"[{name}] 🛑 SINGLE-SHOT VIOLATION: Subtask did not call any tool!")
+            error_msg = AIMessage(
+                content="[ERROR: Subtask failed - no tool was invoked. Subtasks must execute tools immediately.]")
+            new_messages.append(error_msg)
+            return {
+                "messages": new_messages,
+                "tool_history": local_tool_history,
+                "blackboard": state.get("blackboard"),
+                "_routing_target": None,
+            }
+
+        # Execute all tools in parallel
+        logger.info(f"[{name}] 🛠️ Executing {len(response.tool_calls)} tool(s) immediately...")
+
+        async def _execute_tool(tc: dict) -> ToolMessage:
+            tool_name = tc["name"]
+            tool_args = tc["args"]
+            tool_id = tc["id"]
+
+            tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
+            local_tool_history.append(tool_sig)
+
+            tool = tool_map.get(tool_name)
+            executor = _ToolExecutor()
+
+            if not tool:
+                content = f"Error: Tool {tool_name} not found."
+            else:
+                try:
+                    content = await executor.execute(tool, tool_args, config=config)
+                except Exception as e:
+                    content = f"Error executing {tool_name}: {e}"
+
+            # Inject run_id
+            metadata = {"run_id": run_id} if run_id else {}
+
+            return ToolMessage(
+                content=truncate_message_content(str(content)),
+                tool_call_id=tool_id,
+                name=tool_name,
+                id=gen_uuid(),
+                metadata=metadata,
+                additional_kwargs=metadata
+            )
+
+        # Execute all tools concurrently
+        tool_results = await asyncio.gather(*[_execute_tool(tc) for tc in response.tool_calls])
+
+        for tool_msg in tool_results:
+            logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)[:100]}...")
+            new_messages.append(tool_msg)
+
+        # IMMEDIATE TERMINATION: No second LLM turn
+        # Results go directly to parent - no "analysis" or "confirmation" phase
+        logger.info(f"[{name}] ✓ Single-shot complete. {len(response.tool_calls)} tool(s) executed.")
+
+        return {
+            "messages": new_messages,
+            "tool_history": local_tool_history,
+            "blackboard": state.get("blackboard"),
+            "_routing_target": None,
         }

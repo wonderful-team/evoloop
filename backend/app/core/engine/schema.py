@@ -3,10 +3,10 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class NodeConfig(BaseModel):
+    """Configuration for a graph node."""
     id: str
     xpath: str | None = Field(alias="path", default=None)  # e.g. "app.core.engine.nodes.worker.worker_node"
-    type: Literal["function", "generic", "subgraph"] = "function"
-    subgraph_config: str | None = None  # Path to YAML file for subgraph
+    type: Literal["function", "generic"] = "function"
 
     @property
     def path(self):
@@ -17,15 +17,13 @@ class NodeConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_node_type(self) -> 'NodeConfig':
-        if self.type == "subgraph":
-            if not self.subgraph_config:
-                raise ValueError(f"Node '{self.id}' is of type 'subgraph' but missing 'subgraph_config'")
-        elif not self.xpath:
-            raise ValueError(f"Node '{self.id}' is of type '{self.type}' but missing 'path'")
+        if not self.xpath:
+            raise ValueError(f"Node '{self.id}' is missing 'path'")
         return self
 
 
 class EdgeConfig(BaseModel):
+    """Configuration for a graph edge."""
     from_node: str = Field(alias="from")
     to_node: str | None = Field(alias="to", default=None)
     type: Literal["simple", "conditional"] = "simple"
@@ -44,6 +42,7 @@ class EdgeConfig(BaseModel):
 
 
 class AgentConfig(BaseModel):
+    """Configuration for an agent graph."""
     name: str
     version: str
     state_schema: str = "app.core.engine.state.AgentState"

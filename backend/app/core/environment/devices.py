@@ -4,7 +4,7 @@ import time
 from typing import Optional, List, Set
 
 from app.core.environment import get_awakened_state
-from app.infrastructure.database.redis import get_redis_client
+from app.infrastructure.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -14,9 +14,9 @@ REDIS_KEY_DEVICE_QUEUE = "device:available_pool"
 
 class DevicePool:
     """
-    Redis-backed manager for Android hardware resources.
+    Cache-backed manager for Android hardware resources.
     Integrates with AwakenedState to track physical connectivity and
-    uses Redis sets/locks to handle distributed task assignment.
+    uses cache locks to handle distributed task assignment.
     """
 
     @classmethod
@@ -34,7 +34,7 @@ class DevicePool:
     async def reserve_device(cls, task_id: str, preferred_device: Optional[str] = None, timeout: int = 30) -> Optional[str]:
         """
         Try to reserve a device for a specific task.
-        Uses Redis to ensure exclusive access.
+        Uses cache to ensure exclusive access.
         
         Args:
             task_id: The ID of the task requesting the device.
@@ -44,7 +44,6 @@ class DevicePool:
         Returns:
             The device_id if successfully reserved, else None.
         """
-        redis = await get_redis_client()
         start_time = time.time()
         
         while time.time() - start_time < timeout:
@@ -59,11 +58,13 @@ class DevicePool:
             for serial in targets:
                 lock_key = f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{serial}"
                 # Set NX (Not Exists) with an expiry to prevent deadlocks (e.g. 1 hour)
-                success = await redis.set(lock_key, task_id, nx=True, ex=3600)
-                
-                if success:
-                    logger.info(f"Locked device {serial} for task {task_id}")
-                    return serial
+                # Note: FileCache doesn't support nx parameter, check existence first
+                current = await cache.get(lock_key)
+                if current is None:
+                    success = await cache.set(lock_key, task_id, ex=3600)
+                    if success:
+                        logger.info(f"Locked device {serial} for task {task_id}")
+                        return serial
             
             await asyncio.sleep(1) # Poll interval
             
@@ -75,12 +76,11 @@ class DevicePool:
         Release a previously reserved device.
         Only releases if the task_id still matches.
         """
-        redis = await get_redis_client()
         lock_key = f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{device_id}"
         
-        current_owner = await redis.get(lock_key)
+        current_owner = await cache.get(lock_key)
         if current_owner == task_id:
-            await redis.delete(lock_key)
+            await cache.delete(lock_key)
             logger.info(f"Released device {device_id} from task {task_id}")
         else:
             logger.warning(f"Task {task_id} tried to release device {device_id} but owner is {current_owner}")
@@ -90,12 +90,11 @@ class DevicePool:
         """
         Provide a detailed status map of all physical devices and their current owners.
         """
-        redis = await get_redis_client()
         serials = await cls.get_available_devices()
         
         results = []
         for s in serials:
-            owner = await redis.get(f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{s}")
+            owner = await cache.get(f"{REDIS_KEY_DEVICE_LOCK_PREFIX}{s}")
             results.append({
                 "device_id": s,
                 "status": "busy" if owner else "idle",

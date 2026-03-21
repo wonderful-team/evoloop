@@ -9,7 +9,10 @@ from app.core.tools import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "压缩历史", "en": "Compress History"}
+)
 async def compress_history(
     start_index: int, 
     end_index: int, 

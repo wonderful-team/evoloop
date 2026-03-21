@@ -10,6 +10,8 @@ from langchain_core.messages import BaseMessage
 from langchain_core.outputs import LLMResult
 
 from app.infrastructure.queue.celery import celery_app
+from app.core.config import settings
+from app.core.context import tool_state_store
 from app.core.evocloud import evocloud_manager
 from app.i18n.service import i18n
 from app.models.schemas.events import MessageEvent
@@ -27,9 +29,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     def __init__(self, thread_id: str, project_id: int, start_sequence: int = 0, run_id: str = None):
         self.thread_id = thread_id
         self.project_id = project_id
-        self.run_id = run_id  # Phase 3: Associate messages with runs
+        self.run_id = run_id  # Associate messages with specific execution runs
         self._sequence_counter = start_sequence  # Track message order within thread
-        self._run_tool_map = {}  # Map run_id to tool_name for visibility filtering
+        self._tool_store = tool_state_store
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> Any:
         pass
@@ -37,8 +39,14 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
     async def on_tool_start(self, serialized: dict[str, Any], input_str: str, *, run_id: UUID, **kwargs: Any) -> Any:
         """Track which tool is running for a given run_id."""
         tool_name = serialized.get("name")
-        if tool_name:
-            self._run_tool_map[str(run_id)] = tool_name
+        if tool_name and self.thread_id:
+            self._tool_store.start_tool(
+                thread_id=self.thread_id,
+                run_id=str(run_id),
+                name=tool_name,
+                arguments=input_str,
+                path=None
+            )
 
     async def on_chat_model_start(
         self,
@@ -88,7 +96,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 content = content.replace(think_match.group(0), "").strip()
 
             # 1.5 Filter out technical 'SESSION COMPLETE' messages from chat history.
-            # These are critical for 'Phase 5: Imitation Learning' but should not be shown to users.
+            # These are critical for Imitation Learning but should not be shown to users.
             if content and (content.strip().startswith("✅ SESSION COMPLETE") or content.strip().startswith("❌ SESSION COMPLETE")):
                 logger.info(f"[DatabaseCallbackHandler] Filtering technical session review from chat: {self.thread_id}")
                 return
@@ -127,7 +135,7 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             # Persist to DB
             tool_calls = getattr(message, "tool_calls", None)
             await self._save_log(
-                role="assistant",
+                role="ai",  # Normalized role value
                 content=content,
                 thinking=thinking,
                 tool_calls=tool_calls,
@@ -191,18 +199,18 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
         # 1. Determine Tool Name and Visibility
         run_id_str = str(run_id)
-        tool_name = self._run_tool_map.get(run_id_str, "unknown_tool")
-
-        # Clean up map
-        if run_id_str in self._run_tool_map:
-            del self._run_tool_map[run_id_str]
+        tool_state = None
+        if self.thread_id:
+            tool_state = self._tool_store.end_tool(self.thread_id, run_id_str)
+        
+        tool_name = tool_state.name if tool_state else "unknown_tool"
 
         visibility = self._get_tool_visibility(tool_name)
         if visibility == "HIDDEN":
             return
 
         # 2. Process Content (Folding/Summarizing)
-        # Phase 17: Deprecate Folding. Store strict raw output in content with action_type='tool_output'.
+        # Store raw tool output with action_type='tool_output' for frontend rendering.
         # Frontend handles display logic (Accordion).
 
         await self._save_log(
@@ -227,10 +235,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
         status: str = "completed",
         references: list[dict] | None = None,
         tool_calls: list | None = None,
-        tool_output: str | None = None, # Deprecated
         action_type: str = "text",
     ):
-        # Phase 18 Fix: Sanitize content for PostgreSQL (No NUL bytes)
+        # Sanitize content for PostgreSQL (remove NUL bytes)
         if content:
             # 1. Strip NUL bytes which crash Postgres TEXT fields
             content = content.replace("\x00", "")
@@ -280,14 +287,14 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                 }
             )
 
-            # Real-time History Sync (Non-blocking Redis Publish)
+            # Real-time History Sync (Non-blocking cache publish)
             try:
                 from app.core.monitoring.activity import activity_monitor
 
                 # Map action_type to frontend type
                 frontend_type = "text"
-                if role == "user":
-                    frontend_type = "user"
+                if role == "human":
+                    frontend_type = "human"
                 elif action_type == "tool_output":
                     frontend_type = "tool"
                 elif action_type == "thinking":
@@ -325,14 +332,17 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
 
     async def snapshot_steps_to_last_message(self, steps: list):
         """
-        Phase 6: Persist executed steps to the last AI message for historical rendering.
+        Persist executed steps to the last AI message for historical rendering.
         Offloaded to Celery to avoid blocking the agent loop.
+        
+        EMBEDDED_MODE: Waits for task completion to ensure data is persisted
+        before the agent loop exits (LocalCelery is fire-and-forget otherwise).
         """
         if not steps:
             return
 
         try:
-            celery_app.send_task(
+            result = celery_app.send_task(
                 "engine_snapshot_steps",
                 kwargs={
                     "thread_id": self.thread_id,
@@ -341,5 +351,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                     "steps": steps
                 }
             )
-        except Exception:
-            pass
+            
+            # EMBEDDED_MODE: Wait for task completion to ensure data persistence
+            # LocalCelery uses fire-and-forget by default, which can lose tasks
+            # when the event loop closes at agent shutdown
+            if settings.EMBEDDED_MODE:
+                await result.get(timeout=10)
+                logger.debug(f"[Embedded] Steps snapshot saved: {len(steps)} steps")
+                
+        except Exception as e:
+            logger.warning(f"Failed to snapshot steps: {e}")

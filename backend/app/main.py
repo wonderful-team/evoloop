@@ -126,10 +126,11 @@ async def lifespan(_app: FastAPI):
         except Exception as e:
             logger.warning(f"MCP configuration failed (non-critical): {e}")
 
-        # 2.8 Skill Discovery Sync (Custom Skills configured in Settings)
+        # 2.8 Skill Discovery Sync & Warm-up
         try:
             await skill_discovery._sync_system_skills()
-            logger.info("Skill synchronization complete.")
+            await skill_discovery.get_active_skills_list() # Warm up O(1) Memory Index
+            logger.info("Skill synchronization and warm-up complete.")
         except Exception as e:
             logger.warning(f"Skill synchronization failed (non-critical): {e}")
 
@@ -294,9 +295,9 @@ async def lifespan(_app: FastAPI):
                     cloud_path = project_data.get("external_path")
                     if cloud_path and os.path.exists(cloud_path):
                         # Check if this project was locally ignored
-                        from app.domain.project.ignored_projects_cache import ignored_projects_cache
+                        from app.domain.project import cache as project_cache
 
-                        is_ignored = await ignored_projects_cache.is_ignored(cloud_path)
+                        is_ignored = await project_cache.is_path_ignored(cloud_path)
                         if not is_ignored:
                             # Also check DB directly as fallback
                             from app.domain.codebase.indexing.service import IndexingService

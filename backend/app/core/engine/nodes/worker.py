@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import json
 import logging
 import os
@@ -6,6 +7,7 @@ from typing import Any
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.runnables import RunnableConfig
+from sqlalchemy import select
 
 from app.core.config import settings
 from app.core.context import ContextManager
@@ -60,15 +62,14 @@ class WorkerNode:
         role_name = agent_config.get("role_name", "Specialist")
 
         # 1 & 2. Parallel Hydration (Optimization Phase 5)
-        from app.core.engine.nodes.utils import SkillHydrator
-
         logger.info(f"[Worker] 🦎 Hydrating '{role_name}'...")
-        
+
+        from app.core.engine.nodes.utils import SkillHydrator
         tools_task = asyncio.to_thread(tool_manager.get_node_tools, "worker", state)
         skills_task = SkillHydrator.get_node_skills(state, "worker")
 
         tools, relevant_sops = await asyncio.gather(tools_task, skills_task)
-        
+
         # 2a. Fallback Recovery Skill Injection
         # During macro fallback, we explicitly inject the failed skill's instructions 
         # as the highest priority SOP for the Worker to reference.
@@ -78,7 +79,6 @@ class WorkerNode:
             try:
                 from app.infrastructure.database.sql.database import session_scope
                 from app.models.learning import LearnedSkill
-                from sqlalchemy import select
                 async with session_scope() as session:
                     # Fetch specific skill
                     stmt = select(LearnedSkill).where(LearnedSkill.id == original_skill_id)
@@ -89,7 +89,7 @@ class WorkerNode:
                         if not any(hasattr(s, 'id') and getattr(s, 'id') == original_skill_id for s in relevant_sops):
                             relevant_sops.insert(0, skill)
                             logger.info(f"[Worker] 📜 Force-injected Expert Guide for Skill ID {skill.id} (Fallback Recovery)")
-                            
+
                     # Fetch Generic Macro Healer (Fallback Baseline)
                     healer_stmt = select(LearnedSkill).where(LearnedSkill.name == "Macro Recovery Specialist")
                     healer_result = await session.execute(healer_stmt)
@@ -132,15 +132,13 @@ class WorkerNode:
         try:
             logger.info(f"[Worker] 🚀 Launching '{role_name}' atomic loop...")
 
-            # [CRITICAL Phase 5] Pure Execution: 
             # Subtasks should NOT inherit full message history to prevent "Echo Chamber" loops.
-            worker_state = state.copy()
+            # Use deepcopy for subtasks to prevent state pollution between parallel executions.
             if agent_config.get("is_subtask"):
-                worker_state["messages"] = messages
-                # Ensure the scoped thread_id from Router is used
-                worker_state["thread_id"] = state.get("thread_id") 
+                worker_state = copy.deepcopy(state)
             else:
-                worker_state["messages"] = messages
+                worker_state = state.copy()
+            worker_state["messages"] = messages
 
             engine_result = await AgentEngine.run_node(
                 state=worker_state,
@@ -148,7 +146,8 @@ class WorkerNode:
                 system_prompt=system_prompt,
                 tools=tools,
                 name=f"Worker-{role_name}",
-                max_steps=settings.WORKER_AGENT_MAX_STEPS,
+                max_steps=1 if agent_config.get("is_subtask") else settings.WORKER_AGENT_MAX_STEPS,
+                is_subtask=agent_config.get("is_subtask", False),
             )
 
             # 5. Unified Dispatching (Phase 2)
@@ -186,16 +185,28 @@ class WorkerNode:
 
         logger.info(f"[Worker][{role_name}] Loop finished. Content len: {len(content)}, Tools used: {len(tool_history)}, Target: {routing_target}")
 
+        # Determine structured outcome (replaces text-based [STATUS:] tag injection)
+        if "[ERROR:" in content or content.strip().startswith("Error:"):
+            worker_outcome = "failed"
+        else:
+            worker_outcome = "success"
+
         summary = f"**{role_name} Report**:\n{content}\n\n(Tools used: {len(tool_history)})"
 
         return_state: dict[str, Any] = {
             "messages": [AIMessage(content=summary)],
-            "next_node": routing_target or RoutingTarget.SUPERVISOR,
+            "next_node": routing_target or RoutingTarget.FINISH,
         }
 
-        # --- 🏅 Phase 1: Subtask Result Collection ---
-        # If this is a subtask execution, store result for aggregation
+        # --- Structured outcome via Blackboard ---
+        blackboard = state.get("blackboard") or {}
         agent_config = execution_ticket.get("agent_config", {})
+        # Subtask workers do NOT set worker_outcome directly;
+        # the Aggregator determines the final outcome after merging all parallel results.
+        if not agent_config.get("is_subtask"):
+            blackboard["worker_outcome"] = worker_outcome
+
+        # --- Subtask Result Collection ---
         if agent_config.get("is_subtask"):
             subtask_id = execution_ticket.get("subtask_id", "unknown")
             parent_task_id = execution_ticket.get("parent_task_id", "unknown")
@@ -208,27 +219,20 @@ class WorkerNode:
                 "timestamp": asyncio.get_event_loop().time(),
             }
 
-            # Store in blackboard for aggregation
-            blackboard = state.get("blackboard") or {}
             if "subtask_results" not in blackboard or blackboard["subtask_results"] is None:
                 blackboard["subtask_results"] = []
             
             blackboard["subtask_results"].append(subtask_result)
             
-            # Check if all subtasks are complete
             pending_agg = blackboard.get("pending_aggregation", {})
             if pending_agg:
                 expected_count = pending_agg.get("expected_count", 0)
                 current_count = len(blackboard["subtask_results"])
                 logger.debug(f"[Worker] 📊 Subtask completion progress: {current_count}/{expected_count}")
 
-                # Note: Aggregation is handled by Supervisor checking blackboard
-                # Worker always returns to Supervisor for centralized control
-
-            return_state["blackboard"] = blackboard
+        return_state["blackboard"] = blackboard
 
         # 5a. Cache Invalidation (Universal via Metadata)
-        # Instead of a hardcoded list, we use the tool registry's metadata.
         has_changes = False
         for t_sig in tool_history:
             tool_name = t_sig.split(":")[0] if ":" in t_sig else t_sig

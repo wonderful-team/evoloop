@@ -40,8 +40,6 @@ const generalSettingsSchema = z.object({
   WORKSPACE_ROOT: z.string().min(1),
   EVOCLOUD_DEVICE_NAME: z.string().min(1),
   LANGUAGE: z.string().default("zh"),
-  INTENT_MIN_CONFIDENCE: z.string().optional(),
-  REQUIRE_PLAN_APPROVAL: z.boolean().default(true),
 })
 
 type GeneralSettingsValues = z.infer<typeof generalSettingsSchema>
@@ -56,8 +54,6 @@ export default function GeneralSettings() {
       WORKSPACE_ROOT: "",
       EVOCLOUD_DEVICE_NAME: "",
       LANGUAGE: "zh",
-      INTENT_MIN_CONFIDENCE: "0.35",
-      REQUIRE_PLAN_APPROVAL: true,
     },
   })
 
@@ -66,17 +62,17 @@ export default function GeneralSettings() {
       try {
         const response = await SystemService.getSystemConfig()
         const configMap: Record<string, string> = {}
-          ; (response as unknown as SystemConfig[]).forEach((item) => {
+        if (Array.isArray(response)) {
+          ;(response as unknown as SystemConfig[]).forEach((item) => {
             configMap[item.key] = item.value
           })
+        }
 
         const language = configMap.LANGUAGE || "zh"
         form.reset({
           WORKSPACE_ROOT: configMap.WORKSPACE_ROOT || "",
           EVOCLOUD_DEVICE_NAME: configMap.EVOCLOUD_DEVICE_NAME || "",
           LANGUAGE: language,
-          INTENT_MIN_CONFIDENCE: configMap.INTENT_MIN_CONFIDENCE || "0.35",
-          REQUIRE_PLAN_APPROVAL: configMap.REQUIRE_PLAN_APPROVAL !== "false",
         })
 
         // Sync Language from Backend
@@ -100,18 +96,6 @@ export default function GeneralSettings() {
         requestBody: {
           key: "EVOCLOUD_DEVICE_NAME",
           value: data.EVOCLOUD_DEVICE_NAME,
-        },
-      })
-      await SystemService.updateSystemConfig({
-        requestBody: {
-          key: "INTENT_MIN_CONFIDENCE",
-          value: data.INTENT_MIN_CONFIDENCE || "0.35",
-        },
-      })
-      await SystemService.updateSystemConfig({
-        requestBody: {
-          key: "REQUIRE_PLAN_APPROVAL",
-          value: String(data.REQUIRE_PLAN_APPROVAL),
         },
       })
       // Save Language Preference
@@ -242,57 +226,6 @@ export default function GeneralSettings() {
                   </FormItem>
                 )}
               />
-
-              <div className="space-y-4 rounded-lg border p-4">
-                <div className="space-y-0.5">
-                  <h3 className="text-base font-medium">{t("settings.general.agentBehavior.title")}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {t("settings.general.agentBehavior.description")}
-                  </p>
-                </div>
-
-                <div className="grid gap-6 md:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="INTENT_MIN_CONFIDENCE"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>{t("settings.general.intentThreshold.label")}</FormLabel>
-                        <FormControl>
-                          <Input type="number" step="0.05" min="0" max="1" placeholder="0.35" {...field} />
-                        </FormControl>
-                        <FormDescription>
-                          {t("settings.general.intentThreshold.description")}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="REQUIRE_PLAN_APPROVAL"
-                    render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-4">
-                        <FormControl>
-                          <Checkbox
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                          />
-                        </FormControl>
-                        <div className="space-y-1 leading-none">
-                          <FormLabel>
-                            {t("settings.general.planApproval.label")}
-                          </FormLabel>
-                          <FormDescription>
-                            {t("settings.general.planApproval.description")}
-                          </FormDescription>
-                        </div>
-                      </FormItem>
-                    )}
-                  />
-                </div>
-              </div>
 
               <div className="flex justify-end">
                 <Button type="submit" disabled={loading}>

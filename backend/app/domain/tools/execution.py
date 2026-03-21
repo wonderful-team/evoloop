@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 @evoloop_tool(
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.bash"
+    summary_template="database_logger.tool_summary.bash",
+    name_map={"zh": "执行命令", "en": "Execute Bash"}
 )
 async def bash(command: str) -> str:
     """
@@ -56,7 +57,8 @@ async def bash(command: str) -> str:
 @evoloop_tool(
     is_pollable=True,
     is_state_mutating=True,
-    summary_template="database_logger.tool_summary.run_macro"
+    summary_template="database_logger.tool_summary.run_macro",
+    name_map={"zh": "执行宏", "en": "Run Macro"}
 )
 async def run_macro(
     skill_name: str | None = None,

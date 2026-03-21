@@ -5,8 +5,13 @@ import shutil
 import time
 from typing import Any
 
-from celery import shared_task
 from langchain_core.messages import SystemMessage
+
+# Conditional import for Celery (embedded mode compatibility)
+try:
+    from celery import shared_task
+except ImportError:
+    from app.infrastructure.queue.celery import shared_task
 from sqlalchemy import text, select, desc, func
 
 from app.core.config import settings
@@ -125,6 +130,7 @@ def snapshot_steps_task(
                             "name": t.get("name"),
                             "status": t.get("status"),
                             "type": t.get("type"),
+                            "parent_id": t.get("parent_id"),
                             "time": t.get("time"),
                             "details": t.get("details"),
                         }

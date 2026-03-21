@@ -23,15 +23,6 @@ from app.i18n.service import i18n
 logger = logging.getLogger(__name__)
 
 
-# ===== v5 UNIFIED ROUTING =====
-# ROLE_CONFIGS removed. Routing is fully YAML + Skill SOP driven.
-# The Supervisor LLM must call route_to('worker', context={agent_config:{...}})
-# for all execution roles. Role personas and SOPs live in:
-#   app/core/learning/skills/roles/*.SKILL.md
-# Fixed nodes (finish, documenter, chat) route directly via YAML edges.
-# Note: Prompt construction logic moved to SupervisorPromptBuilder
-
-
 class SupervisorNode:
     """
     Supervisor Node - Decision-making hub for the EvoLoop Agent (LLM-First Architecture).
@@ -64,8 +55,8 @@ class SupervisorNode:
         subtask_results = blackboard.get("subtask_results", [])
         pending_agg = blackboard.get("pending_aggregation", {})
 
-        if pending_agg:
-            expected = pending_agg.get("expected_count", 0)
+        if pending_agg and pending_agg.get("expected_count"):
+            expected = pending_agg["expected_count"]
             if len(subtask_results) >= expected:
                 logger.info(f"[Supervisor] 🧩 All {expected} subtasks done. Routing to Aggregator.")
                 return {
@@ -73,10 +64,29 @@ class SupervisorNode:
                     "blackboard": blackboard
                 }
 
-        # Phase 2: Build Context (Simplified via Middleware)
+        # Phase 2: Check Worker/Aggregator Outcome (Structured Control Flow)
+        worker_outcome = blackboard.get("worker_outcome")
+        if worker_outcome:
+            # Consume the signal to prevent stale detection on next iteration
+            blackboard["worker_outcome"] = None
+
+            if worker_outcome == "success":
+                logger.info("[Supervisor] ✅ Task complete (structured outcome). Routing to FINISH.")
+                return {
+                    "next_node": RoutingTarget.FINISH,
+                    "blackboard": blackboard,
+                    "iteration_count": state.get("iteration_count", 0) + 1
+                }
+            else:
+                # Task incomplete/failed - re-plan via LLM
+                logger.warning(f"[Supervisor] 🔄 Worker outcome: {worker_outcome}. Re-planning required.")
+                blackboard["ticket"] = None
+                # Fall through to LLM decision below
+
+        # Build Context and Run LLM Decision Loop
         context = await self._build_context(state, config, messages, project_id)
 
-        # Phase 3: Single ReAct Loop (Routing tools now provided via agent_main.yaml)
+        # Single ReAct Loop (Routing tools now provided via agent_main.yaml)
         tools = context["tools"]
 
         # Use Builder for unified prompt construction
@@ -96,6 +106,7 @@ class SupervisorNode:
             tools=tools,
             max_steps=settings.SUPERVISOR_AGENT_MAX_STEPS,
             name="Supervisor",
+            temperature=0.2,  # Balanced: strict tool calling + natural clarification
         )
 
         # Increment logical iteration counter
@@ -111,27 +122,17 @@ class SupervisorNode:
                 dispatch_result["iteration_count"] = new_iter_count
             return dispatch_result
 
-        # Legacy/Fallback Handling
+        # Protocol Violation: Supervisor MUST call route_to (signal)
         new_messages = engine_result.get("messages", [])
         blackboard = engine_result.get("blackboard", blackboard)
-        
-        if new_messages:
-            last_msg = new_messages[-1]
-            if isinstance(last_msg, AIMessage) and not getattr(last_msg, "tool_calls", None):
-                # Pure text response = consider task complete
-                logger.info("[Supervisor] 🏁 Text response without routing - finishing.")
-                return {
-                    "messages": new_messages,
-                    "next_node": RoutingTarget.FINISH,
-                    "blackboard": blackboard,
-                    "iteration_count": new_iter_count
-                }
 
-        # Ultimate fallback: default to Worker
-        logger.warning("[Supervisor] ⚠️ No routing signal and no text response - defaulting to Worker")
+        logger.error("[Supervisor] 🛑 Protocol violation: No route_to signal in response")
+        error_msg = AIMessage(
+            content="[ERROR: Supervisor failed to call route_to. This is a protocol violation.]"
+        )
         return {
-            "messages": new_messages,
-            "next_node": RoutingTarget.WORKER,
+            "messages": new_messages + [error_msg],
+            "next_node": RoutingTarget.FINISH,
             "blackboard": blackboard,
             "iteration_count": new_iter_count
         }

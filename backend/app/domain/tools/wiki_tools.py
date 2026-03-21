@@ -32,7 +32,10 @@ async def _resolve_wiki_project_id() -> int | None:
     return pid
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "列出Wiki页面", "en": "List Wiki Pages"}
+)
 async def list_wiki_pages(
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:
@@ -55,7 +58,10 @@ async def list_wiki_pages(
     return "\n".join(lines)
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "读取Wiki页面", "en": "Read Wiki Page"}
+)
 async def read_wiki_page(
     slug: str,
     config: Annotated[RunnableConfig, InjectedToolArg] = None
@@ -80,7 +86,10 @@ async def read_wiki_page(
         return f"--- Wiki Page: {page.title} ({page.slug}) ---\n\n{page.content}"
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "写入Wiki页面", "en": "Write Wiki Page"}
+)
 async def write_wiki_page(
     title: str,
     content: str,

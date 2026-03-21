@@ -16,6 +16,7 @@ from langchain_core.messages import (
 
 from app.constants import DEFAULT_WINDOW_SIZE, MAX_OUTPUT_LENGTH
 from app.i18n.service import i18n
+from app.utils.text import truncate_text as _truncate_text
 
 
 def _get_truncate_limit(model: str | None = None) -> int:
@@ -54,15 +55,14 @@ def truncate_message_content(
         model: Model name for profile-aware limit derivation.
     """
     effective_limit = limit or _get_truncate_limit(model)
-
+    
+    # Use the utility function with custom footer format
     if not content or len(content) <= effective_limit:
         return content
-
+    
     chars = len(content)
     lines = content.count("\n")
     truncated = content[:effective_limit]
-
-    # Add a suffix that the LLM understands as a truncation signal
     footer = f"\n...\n[Output truncated: {lines} lines / {chars} chars total. Use specific read/search tools for more.]"
     return truncated + footer
 
@@ -184,7 +184,7 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
 
         final_repaired.append(msg)
 
-    # Phase 3: Final check for trailing tool calls (history cannot end with AIMessage(tool_calls))
+    # Final check for trailing tool calls (history cannot end with AIMessage(tool_calls))
     if open_tool_calls and final_repaired:
         logger.warning(f"🔧 [Repair] History ends with dangling tool calls. Injecting dummy responses.")
         for tcid, tname in list(open_tool_calls.items()):
@@ -246,3 +246,112 @@ def smart_window_slice(
         sliced_msgs.insert(0, first_human_msg)
 
     return sliced_msgs
+
+
+# ==============================================================================
+# API Layer Message Folding
+# ==============================================================================
+
+def fold_messages(messages: list[BaseMessage]) -> list[dict]:
+    """
+    Fold flat message list into nested format with embedded steps.
+    
+    This eliminates the need for frontend to perform message folding.
+    Tool execution results are nested within their parent AI message as 'steps'.
+    
+    Args:
+        messages: Flat list of messages (AIMessage, ToolMessage, HumanMessage)
+        
+    Returns:
+        Folded list where each AI message contains nested 'steps' array
+        
+    Example:
+        Input:  [AIMessage(tool_calls=[...]), ToolMessage(...), AIMessage(...)]
+        Output: [
+            {
+                role: "ai",
+                content: "...",
+                tool_calls: [...],
+                steps: [{tool: "read_file", output: "...", status: "done"}]
+            },
+            {role: "ai", content: "...", steps: []}
+        ]
+    """
+    result = []
+    i = 0
+    
+    while i < len(messages):
+        msg = messages[i]
+        
+        if isinstance(msg, AIMessage):
+            # Collect tool execution results for this AI message
+            steps = []
+            tool_calls = msg.tool_calls or []
+            
+            # Look ahead for ToolMessages matching our tool_calls
+            j = i + 1
+            tool_call_ids = {tc.get("id"): tc for tc in tool_calls}
+            
+            while j < len(messages) and isinstance(messages[j], ToolMessage):
+                tool_msg = messages[j]
+                
+                # Match with tool_call_id
+                tool_call = tool_call_ids.get(tool_msg.tool_call_id)
+                
+                steps.append({
+                    "id": f"step-{tool_msg.tool_call_id}",
+                    "tool": tool_msg.name or (tool_call.get("name") if tool_call else "unknown"),
+                    "input": tool_call.get("args") if tool_call else {},
+                    "output": get_message_text(tool_msg),
+                    "status": "done",
+                    "tool_call_id": tool_msg.tool_call_id
+                })
+                j += 1
+            
+            result.append({
+                "id": getattr(msg, "id", f"msg-{i}"),
+                "role": "ai",
+                "content": get_message_text(msg),
+                "thinking": getattr(msg, "thinking", None),
+                "tool_calls": tool_calls,
+                "steps": steps,
+                "timestamp": getattr(msg, "created_at", None)
+            })
+            
+            i = j  # Skip processed ToolMessages
+            
+        elif isinstance(msg, ToolMessage):
+            # Orphan ToolMessage (shouldn't happen after repair, but handle gracefully)
+            result.append({
+                "id": f"orphan-{msg.tool_call_id}",
+                "role": "tool",
+                "tool": msg.name or "unknown",
+                "output": get_message_text(msg),
+                "tool_call_id": msg.tool_call_id,
+                "orphan": True
+            })
+            i += 1
+            
+        elif isinstance(msg, HumanMessage):
+            result.append({
+                "id": getattr(msg, "id", f"msg-{i}"),
+                "role": "human",
+                "content": get_message_text(msg),
+                "timestamp": getattr(msg, "created_at", None)
+            })
+            i += 1
+            
+        elif isinstance(msg, SystemMessage):
+            # System messages usually not shown in chat, but include if needed
+            result.append({
+                "id": f"system-{i}",
+                "role": "system",
+                "content": get_message_text(msg)
+            })
+            i += 1
+            
+        else:
+            # Unknown message type, skip
+            i += 1
+    
+    return result

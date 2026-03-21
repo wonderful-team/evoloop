@@ -1,4 +1,4 @@
-import { Play, XCircle, CheckCircle2, MessageCircleQuestion } from "lucide-react"
+import { Play, XCircle, CheckCircle2, MessageCircleQuestion, Ban } from "lucide-react"
 import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 import { useState } from "react"
@@ -23,6 +23,7 @@ export interface HumanRequestCardProps {
 export function HumanRequestCard({ request }: HumanRequestCardProps) {
     const { t } = useTranslation()
     const resumeAgent = useChatStore((s) => s.resumeAgent)
+    const cancelHumanRequest = useChatStore((s) => s.cancelHumanRequest)
     const [input, setInput] = useState("")
     const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -30,6 +31,15 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
         setIsSubmitting(true)
         try {
             await resumeAgent(response)
+        } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    const handleCancel = async () => {
+        setIsSubmitting(true)
+        try {
+            await cancelHumanRequest()
         } finally {
             setIsSubmitting(false)
         }
@@ -87,6 +97,17 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
             </CardContent>
 
             <CardFooter className="flex justify-end gap-2 pt-0">
+                {/* Cancel Button - Available for all request types */}
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancel}
+                    disabled={isSubmitting}
+                    className="text-muted-foreground hover:text-destructive"
+                >
+                    <Ban className="mr-2 h-4 w-4" />
+                    {t("common.cancel", "Cancel")}
+                </Button>
 
                 {/* Standard Submit for Text/Choice */}
                 {(request.type === "text" || request.type === "text_input" || request.type === "choice") && (

@@ -3,9 +3,13 @@ import { OpenAPI } from "@/client/core/OpenAPI";
 export interface ChatConnectionCallbacks {
     onConnectionChange: (connected: boolean, status: string) => void;
     onToken: (token: string) => void;
-    onActivity: (activity: any) => void;
+    onActivity: (activity: any) => void;  // Initial full snapshot only
+    onStep: (step: any) => void;          // Incremental step update
+    onArtifact: (artifact: any) => void;  // Incremental artifact update
+    onStatus: (status: any) => void;      // Incremental status update
     onHumanRequest: (request: any) => void;
-    onMessage: (message: any) => void; // Phase 11
+    onMessage: (message: any) => void; // Real-time message sync
+    onStream?: (streamEvent: any) => void; // Enhanced stream events (thinking, tool progress)
     onError: (error: string) => void;
 }
 
@@ -102,7 +106,7 @@ export class ChatConnection {
         sse.addEventListener("token", (e) => {
             try {
                 const data = JSON.parse(e.data);
-                // Phase 3 Refactor: Backend now sends { content: "..." }
+                // Backend sends structured token events
                 if (data && typeof data.content === 'string') {
                     this.callbacks?.onToken(data.content);
                 } else if (typeof data === 'string') {
@@ -124,6 +128,7 @@ export class ChatConnection {
             }
         });
 
+        // Initial full snapshot (sent once on connect)
         sse.addEventListener("activity", (e) => {
             try {
                 const data = JSON.parse(e.data);
@@ -133,13 +138,51 @@ export class ChatConnection {
             }
         });
 
-        // Phase 11: Real-time Message Sync
+        // Incremental updates (no re-fetch needed)
+        sse.addEventListener("step", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onStep(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse step", err);
+            }
+        });
+
+        sse.addEventListener("artifact", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onArtifact(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse artifact", err);
+            }
+        });
+
+        sse.addEventListener("status", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onStatus(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse status", err);
+            }
+        });
+
+        // Real-time Message Sync
         sse.addEventListener("message", (e) => {
             try {
                 const data = JSON.parse(e.data);
                 this.callbacks?.onMessage(data);
             } catch (err) {
                 console.error("[ChatConnection] Failed to parse message", err);
+            }
+        });
+
+        // Enhanced Stream Events (thinking, tool_start, tool_progress, etc.)
+        sse.addEventListener("stream", (e) => {
+            try {
+                const data = JSON.parse(e.data);
+                this.callbacks?.onStream?.(data);
+            } catch (err) {
+                console.error("[ChatConnection] Failed to parse stream event", err);
             }
         });
 

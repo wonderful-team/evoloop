@@ -7,7 +7,8 @@ from app.utils.process import run_command
 
 
 @evoloop_tool(
-    summary_template="database_logger.tool_summary.search_code"
+    summary_template="database_logger.tool_summary.search_code",
+    name_map={"zh": "查找定义", "en": "Find Definition"}
 )
 async def find_definition(symbol_name: str, file_pattern: str | None = None, config: RunnableConfig | None = None) -> str:
     """
@@ -56,7 +57,8 @@ async def find_definition(symbol_name: str, file_pattern: str | None = None, con
 
 
 @evoloop_tool(
-    summary_template="database_logger.tool_summary.search_code"
+    summary_template="database_logger.tool_summary.search_code",
+    name_map={"zh": "影响分析", "en": "Analyze Impact"}
 )
 async def analyze_impact(symbol_name: str, config: RunnableConfig | None = None) -> str:
     """

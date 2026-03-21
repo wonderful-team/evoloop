@@ -106,7 +106,7 @@ export const ProjectOverview: React.FC = () => {
             </Badge>
           )}
           {(currentProject?.summarization_status === "running" ||
-            currentProject?.summarization_status === "SUMMARIZING") && (
+            currentProject?.summarization_status === "summarizing") && (
               <Badge
                 variant="secondary"
                 className="bg-purple-100 text-purple-700 gap-1"

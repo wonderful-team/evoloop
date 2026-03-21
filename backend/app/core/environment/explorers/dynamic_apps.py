@@ -3,7 +3,7 @@ import logging
 from typing import Any
 
 from app.core.environment.explorers.base import BaseExplorer
-from app.infrastructure.database.redis import get_redis_client
+from app.infrastructure.cache import cache
 
 logger = logging.getLogger(__name__)
 
@@ -14,18 +14,18 @@ REDIS_KEY_APP_REASONING_PREFIX = "system:app_categorization"
 class DynamicAppTriage(BaseExplorer):
     """
     Autonomous discovery of dynamic (coordinate-unstable) applications.
-    Uses LLM to categorize apps and persists results in Redis.
+    Uses LLM to categorize apps and persists results in cache.
     Platform-specific to avoid conflicts between different OS versions.
     """
 
     @staticmethod
     def _get_dynamic_apps_key(platform: str) -> str:
-        """Generate platform-specific Redis key for dynamic apps."""
+        """Generate platform-specific cache key for dynamic apps."""
         return f"{REDIS_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
 
     @staticmethod
     def _get_reasoning_key(platform: str) -> str:
-        """Generate platform-specific Redis key for app reasoning."""
+        """Generate platform-specific cache key for app reasoning."""
         return f"{REDIS_KEY_APP_REASONING_PREFIX}:{platform}"
 
     async def scan(self, *args, **kwargs) -> list:
@@ -39,12 +39,10 @@ class DynamicAppTriage(BaseExplorer):
         device_id: str | None = None
     ):
         """
-        Sync discovery state with Redis and LLM.
+        Sync discovery state with cache and LLM.
         Supports partial updates (e.g. just macOS or just one Android device).
         Platform-specific storage prevents conflicts.
         """
-        redis = await get_redis_client()
-
         # Process by platform
         platforms_to_process = []
         if macos_apps:
@@ -53,9 +51,9 @@ class DynamicAppTriage(BaseExplorer):
             platforms_to_process.append(("android", android_packages))
 
         for platform, apps in platforms_to_process:
-            # 1. Get all previously processed apps from Redis for this platform
+            # 1. Get all previously processed apps from cache for this platform
             processed_key = f"system:processed_apps:{platform}"
-            processed_apps = await redis.smembers(processed_key)
+            processed_apps = await cache.smembers(processed_key)
 
             new_apps = [a for a in apps if a not in processed_apps]
 
@@ -68,12 +66,12 @@ class DynamicAppTriage(BaseExplorer):
             # 2. LLM Triage
             triage_results = await self._triage_with_llm(new_apps)
 
-            # 3. Update Redis with platform-specific keys
+            # 3. Update cache with platform-specific keys
             if triage_results:
                 dynamic_key = self._get_dynamic_apps_key(platform)
                 reasoning_key = self._get_reasoning_key(platform)
 
-                pipe = redis.pipeline()
+                pipe = cache.pipeline()
                 for app_id, data in triage_results.items():
                     is_dynamic = data.get("is_dynamic", False)
                     reason = data.get("reason", "Unknown")
@@ -135,19 +133,18 @@ class DynamicAppTriage(BaseExplorer):
 
     @staticmethod
     async def get_dynamic_apps(platform: str = "android") -> set[str]:
-        """Helper to fetch the current dynamic app set from Redis for a specific platform.
+        """Helper to fetch the current dynamic app set from cache for a specific platform.
 
         Pure dynamic configuration - no hardcoded fallbacks.
-        Apps are classified via LLM triage and stored in Redis.
+        Apps are classified via LLM triage and stored in cache.
 
         Args:
             platform: Platform identifier ("android", "macos", etc.)
         """
         try:
-            redis = await get_redis_client()
             dynamic_key = f"{REDIS_KEY_DYNAMIC_APPS_PREFIX}:{platform}"
-            app_ids = await redis.smembers(dynamic_key)
+            app_ids = await cache.smembers(dynamic_key)
             return set(app_ids) if app_ids else set()
         except Exception as e:
-            logger.error(f"[DynamicAppTriage] Redis fetch failed for {platform}: {e}")
+            logger.error(f"[DynamicAppTriage] Cache fetch failed for {platform}: {e}")
             return set()

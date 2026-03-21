@@ -15,7 +15,8 @@ from .actions.utils import resolve_and_validate_path
     is_pollable=True,
     affected_path_keys=["path"],
     summary_template="database_logger.tool_summary.search_code",
-    result_summary_template="database_logger.tool_summary.file_op_result"
+    result_summary_template="database_logger.tool_summary.file_op_result",
+    name_map={"zh": "搜索文件", "en": "Search Files"}
 )
 async def grep_files(
     pattern: str,

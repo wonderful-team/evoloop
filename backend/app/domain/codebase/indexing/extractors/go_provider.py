@@ -7,19 +7,6 @@ class GoSemanticProvider(LanguageSemanticProvider):
     def get_language_name(self) -> str:
         return "go"
 
-    def get_structure_query(self) -> str:
-        """Query for Go function and method definitions."""
-        return """
-            (function_declaration name: (identifier) @name body: (block) @body) @function
-            (method_declaration name: (field_identifier) @name body: (block) @body) @function
-        """
-
-    def get_imports_query(self) -> str:
-        """Query for Go imports."""
-        return """
-            (import_spec path: (string_literal) @module) @import
-        """
-
     def get_api_query(self) -> str:
         return """
         (call_expression

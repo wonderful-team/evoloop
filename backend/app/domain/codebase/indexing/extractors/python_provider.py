@@ -5,22 +5,14 @@ from .sem_provider import LanguageSemanticProvider
 
 
 class PythonSemanticProvider(LanguageSemanticProvider):
+    """Python semantic provider.
+    
+    Note: Structure and imports queries are inherited from base class
+    which loads them from queries.py to avoid duplication.
+    """
+    
     def get_language_name(self) -> str:
         return "python"
-
-    def get_structure_query(self) -> str:
-        """Query for Python function and class definitions."""
-        return """
-            (function_definition name: (identifier) @name body: (block) @body) @function
-            (class_definition name: (identifier) @name superclasses: (argument_list)? @superclasses body: (block) @body) @class
-        """
-
-    def get_imports_query(self) -> str:
-        """Query for Python imports."""
-        return """
-            (import_statement name: (dotted_name) @module) @import
-            (import_from_statement module_name: (dotted_name) @module) @import
-        """
 
     def get_api_query(self) -> str:
         return """

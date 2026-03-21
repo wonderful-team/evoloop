@@ -27,7 +27,7 @@ const DeleteAccount = () => {
       <Card className="border-orange-500/50">
         <CardHeader>
           <CardTitle className="text-orange-600">
-            {t("settings.danger.kb_reset_title", "Knowledge Base Reset")}
+            {t("settings.danger.kb_reset_title")}
           </CardTitle>
           <CardDescription>
             {t(
@@ -75,7 +75,7 @@ const ResetKnowledgeConfirmation = () => {
     },
     onError: (err) => {
       toast.error(
-        t("settings.danger.kb_reset_error", "Failed to wipe Knowledge Base."),
+        t("settings.danger.kb_reset_error"),
       )
       console.error(err)
     },
@@ -88,7 +88,7 @@ const ResetKnowledgeConfirmation = () => {
           variant="outline"
           className="mt-4 border-orange-200 text-orange-700 hover:bg-orange-50 hover:text-orange-800"
         >
-          {t("settings.danger.kb_reset_btn", "Reset Knowledge Base")}
+          {t("settings.danger.kb_reset_btn")}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>

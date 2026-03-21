@@ -2,7 +2,11 @@ import asyncio
 import logging
 import os
 
-from celery import shared_task
+# Conditional import for Celery (embedded mode compatibility)
+try:
+    from celery import shared_task
+except ImportError:
+    from app.infrastructure.queue.celery import shared_task
 
 from app.core.atlas.models import AtlasApp
 from app.core.environment.events import UiTreeObservedEvent, event_bus
@@ -72,7 +76,7 @@ def map_observed_ui_task(
                 detected_bundle_id = app_info.get("package", "unknown")
                 window_title = app_info.get("activity", "unknown")
 
-                # Phase 6: Version Awareness
+                # Version Awareness
                 version_hash = ""
                 # Use detected bundle_id for version lookup if no explicit bundle_id provided
                 version_lookup_id = bundle_id or detected_bundle_id

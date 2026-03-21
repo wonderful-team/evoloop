@@ -128,7 +128,10 @@ def query_excel_sql(file_path: str, sql_query: str) -> str:
         return f"SQL Execution Error: {str(e)}"
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "读取文档", "en": "Read Document"}
+)
 async def read_document(file_path: str, start_page: int | None = None, end_page: int | None = None) -> str:
     """
     Read and parse content from various document formats (PDF, DOCX, XLSX, MD, TXT, HTML, PY, JS, IMG, etc.).

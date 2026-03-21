@@ -3,7 +3,7 @@ from collections import defaultdict
 from typing import Dict, List, Any
 
 class SimplePubSubBus:
-    """A global in-process bus for message broadcasting when Redis is missing."""
+    """A global in-process bus for message broadcasting when cache is not available."""
     _instance = None
 
     def __new__(cls):

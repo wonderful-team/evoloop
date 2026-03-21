@@ -9,3 +9,5 @@ htmlcov
 /build/
 *.db
 !*.db.example
+/app/core/engine/.evoloop.pid
+/.evoloop.pid

@@ -6,12 +6,19 @@ import { ChatConnection } from "@/lib/ChatConnection"
 import type { Message } from "@/components/Chat/ChatMessageItem"
 import type { StepItem } from "@/components/Chat/ExecutionSteps"
 import type { AgentProcessStep } from "@/components/Chat/AgentProcess"
+import type { StreamState, StreamEvent } from "@/types/stream"
 
 interface ChatState {
     // --- Data ---
     threadId: string | null
     projectId: number | null
     messages: Message[]
+
+    // Pagination State for Infinite Scroll
+    hasMoreHistory: boolean      // Whether there are more messages to load
+    isLoadingHistory: boolean    // Loading state for pagination
+    firstMessageId: number | string | null  // Cursor for loading older messages
+    totalMessageCount: number | null  // Total messages in thread (if known)
 
     // Activity State
     status:
@@ -20,17 +27,20 @@ interface ChatState {
     | "error"
     | "stopped"
     | "interrupted"
-    | "SUMMARIZING"
-    | "INDEXING"
+    | "summarizing"
+    | "indexing"
     | "unknown"
     steps: StepItem[]
-    finalOutcome: string | null // Phase 6: SUCCESS | FAILED | INCOMPLETE
+    finalOutcome: string | null // Session outcome: SUCCESS | FAILED | INCOMPLETE
     streamedContent: string // The currently streaming token buffer (for the specific AI task)
-    activeMemories: Array<{ id: string; name: string }> // Phase 7: Active memory highlights
-    artifacts: Array<{ id: number; name: string; type: string; status: string; path?: string }> // Phase 8: Artifacts
+    activeMemories: Array<{ id: string; name: string }> // Active memory highlights
+    artifacts: Array<{ id: number; name: string; type: string; status: string; path?: string }> // Generated artifacts
     humanRequest: any | null // HITL Request (now includes project_switch, confirm, etc.)
-    agentState: { mode: string; task_name: string; task_status: string; details?: any } | null // Phase 9
-    thoughts: any[] // Phase 6: Transient Thoughts history
+    agentState: { mode: string; task_name: string; task_status: string; details?: any } | null // Current agent state
+    thoughts: any[] // Transient Thoughts history
+
+    // Enhanced Stream State for real-time UI updates
+    streamState: StreamState
 
     isConnected: boolean
     connectionStatus: string
@@ -44,25 +54,37 @@ interface ChatState {
     // storage/network actions
     setThread: (threadId: string, projectId: number) => Promise<void>
     fetchHistory: (threadId: string) => Promise<void>
+    loadMoreHistory: () => Promise<void> // Infinite scroll: load older messages
     sendMessage: (content: string, attachments?: any[]) => Promise<void>
     stopAgent: () => Promise<void>
     resumeAgent: (userInput?: string) => Promise<void>
+    cancelHumanRequest: (reason?: string) => Promise<void>
     clearContent: () => void
 
     // internal sse handlers (called by ChatConnection)
     _setConnectionStatus: (connected: boolean, status: string) => void
     _appendToken: (tokens: string) => void
-    _setActivitySnapshot: (snapshot: any) => void
+    _setActivitySnapshot: (snapshot: any) => void  // Initial full snapshot only
+    _addStep: (step: any) => void  // Incremental step update
+    _addArtifact: (artifact: any) => void  // Incremental artifact update
+    _updateStatus: (status: any) => void  // Incremental status update
     _setHumanRequest: (request: any) => void
-    _appendMessage: (msg: any) => void // Phase 11
-    _truncateMessages: (index: number) => void // Phase 25: Optimistic Truncate
+    _appendMessage: (msg: any) => void // Append message to chat
+    _truncateMessages: (index: number) => void // Optimistic truncate for rewind
     _setError: (error: string) => void
+    _processStreamEvent: (event: StreamEvent) => void // Handle structured stream events
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
     threadId: localStorage.getItem("evoloop_current_thread_id"),
     projectId: null,
     messages: [],
+
+    // Pagination State
+    hasMoreHistory: true,
+    isLoadingHistory: false,
+    firstMessageId: null,
+    totalMessageCount: null,
 
     status: "idle",
     steps: [],
@@ -73,7 +95,15 @@ export const useChatStore = create<ChatState>((set, get) => ({
     artifacts: [],
     humanRequest: null,
     agentState: null,
-    thoughts: [], // Phase 6
+    thoughts: [],
+
+    // Stream State for real-time updates
+    streamState: {
+        events: [],
+        currentThinking: null,
+        currentTool: null,
+        overallProgress: 0,
+    },
 
     isConnected: false,
     connectionStatus: "disconnected",
@@ -117,8 +147,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
                 get()._setConnectionStatus(connected, status),
             onToken: (token: string) => get()._appendToken(token),
             onActivity: (snapshot: any) => get()._setActivitySnapshot(snapshot),
+            onStep: (step: any) => get()._addStep(step),
+            onArtifact: (artifact: any) => get()._addArtifact(artifact),
+            onStatus: (status: any) => get()._updateStatus(status),
             onHumanRequest: (req: any) => get()._setHumanRequest(req),
             onMessage: (msg: any) => get()._appendMessage(msg),
+            onStream: (event: StreamEvent) => get()._processStreamEvent(event),
             onError: (error: string) => get()._setError(error),
         })
 
@@ -146,40 +180,93 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     fetchHistory: async (threadId) => {
         try {
-            const history = (await ConversationsService.getConversationMessages({
+            // Initial load: fetch latest messages (no cursor)
+            const response = (await ConversationsService.getConversationMessages({
                 threadId,
+                limit: 50,
             })) as any
-            const rawMessages = Array.isArray(history)
-                ? history
-                : history?.messages || []
-
-            // Format - Phase 6: Include steps_snapshot
+            
+            const rawMessages = response?.items || []
+            
+            // Format messages
             const formatted: Message[] = rawMessages
                 .map((m: any, idx: number) => ({
                     id: m.id || idx,
-                    role: m.type === "human" ? "user" : "ai",
-                    originalType: m.type, // Keep raw type for filtering
+                    role: m.role === "human" ? "human" : "ai",
+                    originalRole: m.role,
                     content: m.content || "",
                     thinking: m.thinking,
                     timestamp: m.created_at,
-                    steps_snapshot: m.steps_snapshot, // Phase 6: Historical tasks
-                    steps: m.steps || [], // Phase 24: Tool Execution Steps
-                    references: m.references || [], // Phase 9: Persistent References
+                    steps_snapshot: m.steps_snapshot,
+                    steps: m.steps || [],
+                    references: m.references || [],
                 }))
-                // Filter out empty messages AND 'tool' messages (which cause chat bubble explosion)
-                .filter((m: any) => (m.content || m.thinking || (m.steps && m.steps.length > 0)) && m.originalType !== "tool")
+                .filter((m: any) => (m.content || m.thinking || (m.steps && m.steps.length > 0)) && m.originalRole !== "tool")
 
-            // Optimistic Swap:
-            // If we are still on the same thread, update the messages.
-            // This happens in a single state update, so React batches the swap.
+            // Update state with pagination info
             if (get().threadId === threadId) {
-                set({ messages: formatted })
+                set({
+                    messages: formatted,
+                    hasMoreHistory: response?.has_more ?? false,
+                    firstMessageId: response?.first_id ?? null,
+                    totalMessageCount: response?.total_count ?? null,
+                    isLoadingHistory: false,
+                })
             }
         } catch (e) {
             console.error("Failed to fetch history", e)
             if (get().messages.length === 0) {
                 toast.error(i18n.t("chat.errors.loadHistory"))
             }
+        }
+    },
+
+    loadMoreHistory: async () => {
+        const { threadId, firstMessageId, isLoadingHistory, hasMoreHistory } = get()
+        
+        if (!threadId || isLoadingHistory || !hasMoreHistory || !firstMessageId) return
+        
+        set({ isLoadingHistory: true })
+        
+        try {
+            const response = (await ConversationsService.getConversationMessages({
+                threadId,
+                limit: 50,
+                beforeId: firstMessageId, // Load messages before the oldest current message
+            })) as any
+            
+            const rawMessages = response?.items || []
+            
+            if (rawMessages.length === 0) {
+                set({ hasMoreHistory: false, isLoadingHistory: false })
+                return
+            }
+            
+            // Format new messages
+            const formatted: Message[] = rawMessages
+                .map((m: any, idx: number) => ({
+                    id: m.id || idx,
+                    role: m.role === "human" ? "human" : "ai",
+                    originalRole: m.role,
+                    content: m.content || "",
+                    thinking: m.thinking,
+                    timestamp: m.created_at,
+                    steps_snapshot: m.steps_snapshot,
+                    steps: m.steps || [],
+                    references: m.references || [],
+                }))
+                .filter((m: any) => (m.content || m.thinking || (m.steps && m.steps.length > 0)) && m.originalRole !== "tool")
+            
+            // Prepend new messages to existing list
+            set((state) => ({
+                messages: [...formatted, ...state.messages],
+                hasMoreHistory: response?.has_more ?? false,
+                firstMessageId: response?.first_id ?? state.firstMessageId,
+                isLoadingHistory: false,
+            }))
+        } catch (e) {
+            console.error("Failed to load more history", e)
+            set({ isLoadingHistory: false })
         }
     },
 
@@ -204,7 +291,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         const newMessage: Message = {
             id: tempId,
-            role: "user",
+            role: "human",
             content: displayContent,
         }
 
@@ -265,8 +352,35 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
     },
 
+    cancelHumanRequest: async (reason?: string) => {
+        const { threadId } = get()
+        if (!threadId) return
+
+        try {
+            await AgentService.cancelHitlRequest({
+                requestBody: { thread_id: threadId, reason: reason || "User cancelled" },
+            })
+            toast.info(i18n.t("chat.status.cancelling"))
+            set({ status: "running", humanRequest: null }) // Optimistic clear
+        } catch (_e) {
+            toast.error(i18n.t("chat.errors.cancelHitl"))
+        }
+    },
+
     clearContent: () => {
-        set({ messages: [], steps: [], finalOutcome: null, streamedContent: "", humanRequest: null })
+        set({ 
+            messages: [], 
+            steps: [], 
+            finalOutcome: null, 
+            streamedContent: "", 
+            humanRequest: null,
+            streamState: {
+                events: [],
+                currentThinking: null,
+                currentTool: null,
+                overallProgress: 0,
+            },
+        })
     },
 
     // --- Internal Handlers ---
@@ -337,25 +451,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         if (
             prevStatus === "running" &&
             newStatus !== "running" &&
-            newStatus !== "SUMMARIZING"
+            newStatus !== "summarizing"
         ) {
-            // 1. Trigger Async History Refresh
-            // We don't clear streamedContent YET, to keep it visible while history loads.
-            const tid = get().threadId
-            if (tid) {
-                get()
-                    .fetchHistory(tid)
-                    .then(() => {
-                        // 2. Once history arrived, clear the buffer.
-                        // React will swap the 'streaming bubble' for the 'permanent message' in a single frame.
-                        set({ streamedContent: "" })
-                    })
-            }
+            // Clear streamed content when execution completes
+            // Note: Messages are updated incrementally via _appendMessage, no need to re-fetch
+            set({ streamedContent: "" })
         }
 
         // Normalize Backend Status -> Frontend Status
         // Backend: running, done, failed, cancelled, stopping, interrupted, idle
-        // Frontend: running, idle, error, stopped, interrupted, SUMMARIZING, INDEXING
+        // Frontend: running, idle, error, stopped, interrupted, summarizing, indexing
 
         let normalizedStatus = newStatus
         if (["done", "failed", "cancelled"].includes(newStatus)) {
@@ -367,13 +472,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
         set({
             status: normalizedStatus,
             steps: data.steps || data.tasks || [],
-            artifacts: data.artifacts || [], // Phase 8: Automatically Map Artifacts
-            finalOutcome: data.final_outcome || null, // Phase 6: Session Outcome Signal
-            activeMemories: data.active_memories || [], // Phase 7
-            agentState: data.agent_state || null, // Phase 9
+            artifacts: data.artifacts || [], // Generated artifacts
+            finalOutcome: data.final_outcome || null, // Session completion outcome
+            activeMemories: data.active_memories || [],
+            agentState: data.agent_state || null,
+            humanRequest: data.human_request || null, // Fix: Sync HITL request from activity snapshot
         })
 
-        // Phase 6: Transient Thought Extraction
+        // Extract transient thoughts from agent state
         if (data.agent_state && data.agent_state.details && data.agent_state.details.type === 'thought') {
             const newThought = data.agent_state.details
             const thoughtId = `${Date.now()}-${Math.random()}`
@@ -404,6 +510,75 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
     },
 
+    // Incremental update handlers (no re-fetch needed)
+    _addStep: (stepEvent: any) => {
+        // Add or update a single step incrementally
+        const stepData = stepEvent.data || stepEvent
+        if (!stepData) return
+
+        set(state => {
+            const existingIndex = state.steps.findIndex(s => s.id === stepData.id)
+            let newSteps
+            
+            if (existingIndex >= 0) {
+                // Update existing step
+                newSteps = [...state.steps]
+                newSteps[existingIndex] = { ...newSteps[existingIndex], ...stepData }
+            } else {
+                // Add new step
+                newSteps = [...state.steps, stepData]
+            }
+            
+            return { steps: newSteps }
+        })
+    },
+
+    _addArtifact: (artifactEvent: any) => {
+        // Add or update a single artifact incrementally
+        const artifactData = artifactEvent.data || artifactEvent
+        if (!artifactData) return
+
+        set(state => {
+            const existingIndex = state.artifacts.findIndex(a => a.id === artifactData.id || a.name === artifactData.name)
+            let newArtifacts
+            
+            if (existingIndex >= 0) {
+                // Update existing artifact
+                newArtifacts = [...state.artifacts]
+                newArtifacts[existingIndex] = { ...newArtifacts[existingIndex], ...artifactData }
+            } else {
+                // Add new artifact
+                newArtifacts = [...state.artifacts, artifactData]
+            }
+            
+            return { artifacts: newArtifacts }
+        })
+    },
+
+    _updateStatus: (statusEvent: any) => {
+        // Update status incrementally
+        const newStatus = statusEvent.status || statusEvent
+        if (!newStatus) return
+
+        // Normalize backend status to frontend status
+        let normalizedStatus = newStatus
+        if (["done", "failed", "cancelled"].includes(newStatus)) {
+            normalizedStatus = "idle"
+        } else if (newStatus === "stopping") {
+            normalizedStatus = "stopped"
+        }
+
+        const prevStatus = get().status
+        
+        // Detect completion - clear streamed content when execution ends
+        // Note: Messages are updated incrementally via _appendMessage, no need to re-fetch
+        if (prevStatus === "running" && normalizedStatus !== "running") {
+            set({ streamedContent: "" })
+        }
+
+        set({ status: normalizedStatus })
+    },
+
     _appendMessage: (rawMsg: any) => {
         const { messages, threadId } = get()
         if (!rawMsg || !threadId) return
@@ -419,104 +594,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
                    trimmed.startsWith("任务总结")
         }
 
-        // Phase 24: Tool Message Folding (Real-Time)
+        // Tool messages are now folded server-side
+        // Backend API now returns pre-folded messages with nested 'steps' array
+        // If we receive a tool message here, it's likely an orphan or out-of-order
         if (rawMsg.role === "tool" || rawMsg.type === "tool") {
-            // 1. Find last AI message (scan backwards)
-            let aiMsgIndex = -1
-            for (let i = messages.length - 1; i >= 0; i--) {
-                const r = messages[i].role as string
-                if (r === "ai" || r === "assistant") {
-                    aiMsgIndex = i
-                    break
-                }
-            }
-
-            if (aiMsgIndex !== -1) {
-                const aiMsg = messages[aiMsgIndex]
-                const existingSteps = aiMsg.steps || []
-
-                // 2. Match with tool_calls (If available from AI message event)
-                let toolName = "Unknown Tool"
-                let toolInput = {}
-                let parentId: string | number | undefined = undefined
-                let stepType: any = "tool"
-
-                // FIFO Matching Logic
-                const stepIndex = existingSteps.length
-                if (aiMsg.tool_calls && Array.isArray(aiMsg.tool_calls)) {
-                    if (stepIndex < aiMsg.tool_calls.length) {
-                        const call = aiMsg.tool_calls[stepIndex]
-                        toolName = call.name || "Tool"
-                        toolInput = call.args || {}
-                    }
-                }
-
-                // 2.5 [Phase 26] Metadata Enrichment from Global Activity Snapshot
-                // Try to find a matching step in the global state to get parent_id/type
-                const globalSteps = get().steps
-                if (globalSteps && globalSteps.length > 0) {
-                    // Try to find the N-th tool step in the global list that matches this toolName
-                    // or just find the N-th tool step overall.
-                    const toolSteps = globalSteps.filter(s => s.type === 'tool' || s.type === 'skill')
-                    if (stepIndex < toolSteps.length) {
-                        const matchedStep = toolSteps[stepIndex]
-                        parentId = matchedStep.parent_id
-                        stepType = matchedStep.type
-                        // If we didn't have toolName/Input from tool_calls, fallback to snapshot
-                        if (toolName === "Unknown Tool" && matchedStep.name) {
-                            toolName = matchedStep.name
-                        }
-                    }
-                }
-
-                const newStep: AgentProcessStep = {
-                    id: rawMsg.id || `step-${Date.now()}`,
-                    tool: toolName,
-                    input: toolInput,
-                    output: rawMsg.content || "",
-                    status: "success",
-                    duration: 0,
-                    parent_id: parentId,
-                    type: stepType
-                }
-
-                // 3. Update AI Message Immutably
-                const newAiMsg = {
-                    ...aiMsg,
-                    // If this was the streaming message, also clear potential thinking state if strictly needed, 
-                    // but usually tool output comes after thinking is done.
-                    steps: [...existingSteps, newStep]
-                }
-
-                // Replace in list
-                const newMessages = [...messages]
-                newMessages[aiMsgIndex] = newAiMsg
-
-                set({ messages: newMessages, streamedContent: "" })
-                return
-            }
-            // If orphaned, ignore (fold hidden)
+            // Log warning in dev mode, but don't try to fold manually
+            console.warn("[ChatStore] Received orphan tool message:", rawMsg.id)
             return
         }
 
         // 1. Format
+        // Use pre-folded steps from backend
         const newMsg: Message = {
             id: rawMsg.id,
-            role: (rawMsg.role === "human" || rawMsg.role === "user") ? "user" : "ai",
-            originalType: rawMsg.type,
+            role: rawMsg.role === "human" ? "human" : "ai",
+            originalRole: rawMsg.role,
             content: rawMsg.content || "",
             thinking: rawMsg.thinking,
             timestamp: rawMsg.created_at || new Date().toISOString(),
             steps_snapshot: rawMsg.steps_snapshot,
-            tool_calls: rawMsg.tool_calls, // Phase 24: Capture for matching
-            steps: [], // Initialize empty
-            references: rawMsg.references || [], // Phase 9: Real-time references
+            tool_calls: rawMsg.tool_calls,
+            steps: rawMsg.steps || [], // Use backend-folded steps if available
+            references: rawMsg.references || [],
         }
 
         // 2. Deduplicate
         if (messages.some(m => m.id === newMsg.id)) return
 
-        // 2. [Phase 26] Merge Consecutive AI Messages (Deduplication/Fragmentation Fix)
+        // Merge consecutive AI messages to handle fragmentation
         const lastMsg = messages[messages.length - 1]
         
         if (
@@ -564,5 +669,125 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
     _setError: (error: string) => {
         toast.error(i18n.t("chat.errors.connection", { error }))
+    },
+
+    _processStreamEvent: (event: StreamEvent) => {
+        const state = get().streamState
+        const MAX_EVENTS = 100
+        const newEvents = [...state.events, event].slice(-MAX_EVENTS)
+
+        switch (event.type) {
+            case 'thinking':
+                set({
+                    streamState: {
+                        ...state,
+                        events: newEvents,
+                        currentThinking: event.message,
+                    }
+                })
+                break
+
+            case 'tool_start':
+                set({
+                    streamState: {
+                        ...state,
+                        events: newEvents,
+                        currentTool: {
+                            id: event.data?.toolId || `tool-${Date.now()}`,
+                            toolName: event.data?.toolName || 'Unknown Tool',
+                            displayName: event.data?.displayName || event.data?.toolName || 'Unknown Tool',
+                            status: 'running',
+                            progress: 0,
+                            message: event.message,
+                            startTime: event.timestamp,
+                            params: event.data?.params,
+                        },
+                    }
+                })
+                break
+
+            case 'tool_progress':
+                if (state.currentTool) {
+                    set({
+                        streamState: {
+                            ...state,
+                            events: newEvents,
+                            currentTool: {
+                                ...state.currentTool,
+                                progress: event.progress || state.currentTool.progress,
+                                message: event.message,
+                            },
+                        }
+                    })
+                }
+                break
+
+            case 'tool_complete':
+                if (state.currentTool) {
+                    set({
+                        streamState: {
+                            ...state,
+                            events: newEvents,
+                            currentTool: {
+                                ...state.currentTool,
+                                status: 'complete',
+                                progress: 100,
+                                message: event.message,
+                                endTime: event.timestamp,
+                                result: event.data?.result,
+                            },
+                        }
+                    })
+                }
+                break
+
+            case 'tool_error':
+                if (state.currentTool) {
+                    set({
+                        streamState: {
+                            ...state,
+                            events: newEvents,
+                            currentTool: {
+                                ...state.currentTool,
+                                status: 'error',
+                                message: event.message,
+                                endTime: event.timestamp,
+                                error: event.data?.error,
+                            },
+                        }
+                    })
+                }
+                break
+
+            case 'progress':
+                set({
+                    streamState: {
+                        ...state,
+                        events: newEvents,
+                        overallProgress: event.progress || state.overallProgress,
+                    }
+                })
+                break
+
+            case 'complete':
+                set({
+                    streamState: {
+                        ...state,
+                        events: newEvents,
+                        currentThinking: null,
+                        currentTool: null,
+                        overallProgress: 100,
+                    }
+                })
+                break
+
+            default:
+                set({
+                    streamState: {
+                        ...state,
+                        events: newEvents,
+                    }
+                })
+        }
     },
 }))

@@ -139,7 +139,8 @@ class LSPManager:
 
 @evoloop_tool(
     is_pollable=True,
-    summary_template="database_logger.tool_summary.search_code"
+    summary_template="database_logger.tool_summary.search_code",
+    name_map={"zh": "咨询LSP", "en": "Consult LSP"}
 )
 async def consult_lsp(
     action: Literal["check_errors", "find_definition", "hover"],

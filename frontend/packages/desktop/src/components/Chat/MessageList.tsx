@@ -1,6 +1,6 @@
-import { useRef, useEffect, useMemo } from "react"
+import { useRef, useEffect, useMemo, useCallback, useState } from "react"
 import { useTranslation } from "react-i18next"
-import { Bot, HelpCircle, FileText, ListTodo, Search } from "lucide-react"
+import { Bot, HelpCircle, FileText, ListTodo, Search, Loader2 } from "lucide-react"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { ChatMessageItem, type Message } from "./ChatMessageItem"
 import { PendingMessageItem } from "./PendingMessageItem"
@@ -8,24 +8,32 @@ import { PendingMessageItem } from "./PendingMessageItem"
 interface MessageListProps {
     messages: Message[]
     isAgentWorking: boolean
+    hasMoreHistory?: boolean
+    isLoadingHistory?: boolean
     onAddToMemory?: (text: string) => void
     onRewind?: (msg: Message) => void
     onRetry?: (msg: Message) => void
     onQuote?: (msg: Message) => void
     onStarterClick?: (text: string) => void
+    onLoadMore?: () => void
 }
 
 export function MessageList({
     messages,
     isAgentWorking,
+    hasMoreHistory = false,
+    isLoadingHistory = false,
     onAddToMemory,
     onRewind,
     onRetry,
     onQuote,
-    onStarterClick
+    onStarterClick,
+    onLoadMore,
 }: MessageListProps) {
     const { t } = useTranslation()
     const scrollRef = useRef<HTMLDivElement>(null)
+    const [isNearTop, setIsNearTop] = useState(false)
+    const [scrollHeightBeforeLoad, setScrollHeightBeforeLoad] = useState<number | null>(null)
 
     // Grouping Logic
     const groupedMessages = useMemo(() => {
@@ -64,17 +72,80 @@ export function MessageList({
         return groups
     }, [messages])
 
-    // Auto-scroll (simplified)
+    // Handle scroll for infinite scroll
+    const handleScroll = useCallback(() => {
+        const container = scrollRef.current
+        if (!container) return
+
+        const { scrollTop, scrollHeight, clientHeight } = container
+        
+        // Check if near top (within 100px)
+        const nearTop = scrollTop < 100
+        setIsNearTop(nearTop)
+
+        // Trigger load more when near top and has more history
+        if (nearTop && hasMoreHistory && !isLoadingHistory && onLoadMore) {
+            // Save scroll height before loading to maintain position
+            setScrollHeightBeforeLoad(scrollHeight)
+            onLoadMore()
+        }
+    }, [hasMoreHistory, isLoadingHistory, onLoadMore])
+
+    // Maintain scroll position after loading more messages
     useEffect(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
-    }, [messages.length, isAgentWorking]) // Scroll on new messages
+        if (scrollHeightBeforeLoad !== null && scrollRef.current) {
+            const newScrollHeight = scrollRef.current.scrollHeight
+            const heightDiff = newScrollHeight - scrollHeightBeforeLoad
+            
+            // Adjust scroll position to compensate for new content at top
+            if (heightDiff > 0) {
+                scrollRef.current.scrollTop = heightDiff + 100 // Keep some buffer
+            }
+            
+            setScrollHeightBeforeLoad(null)
+        }
+    }, [messages.length, scrollHeightBeforeLoad])
+
+    // Auto-scroll to bottom on initial load and new messages (only if user is near bottom)
+    useEffect(() => {
+        const container = scrollRef.current
+        if (!container) return
+
+        // Only auto-scroll if:
+        // 1. It's initial load (messages.length <= 50)
+        // 2. User is near bottom (within 200px)
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200
+        
+        if (messages.length <= 50 || isNearBottom) {
+            container.scrollTo({ top: container.scrollHeight, behavior: "smooth" })
+        }
+    }, [messages.length, isAgentWorking])
 
     return (
-        <div className="flex-1 overflow-y-auto min-h-0 scroll-smooth" ref={scrollRef}>
+        <div 
+            className="flex-1 overflow-y-auto min-h-0 scroll-smooth relative" 
+            ref={scrollRef}
+            onScroll={handleScroll}
+        >
             <div className="space-y-2 max-w-4xl mx-auto pb-4">
+                
+                {/* Loading Indicator at Top */}
+                {isLoadingHistory && (
+                    <div className="py-4 text-center text-muted-foreground">
+                        <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+                        <span className="text-xs">{t("chat.loadingHistory", "Loading history...")}</span>
+                    </div>
+                )}
+
+                {/* No More History Indicator */}
+                {!hasMoreHistory && messages.length > 0 && (
+                    <div className="py-4 text-center text-muted-foreground/60 border-b border-border/30 mb-4">
+                        <span className="text-xs">{t("chat.noMoreHistory", "No more history")}</span>
+                    </div>
+                )}
 
                 {/* Empty State */}
-                {messages.length === 0 && (
+                {messages.length === 0 && !isLoadingHistory && (
                     <div className="flex flex-col items-center justify-center h-full text-muted-foreground mt-10 animate-in fade-in slide-in-from-bottom-4">
                         <Bot size={48} className="mb-4 opacity-20" />
                         <p className="text-lg font-medium mb-1">{t("chat.interface.welcome", "How can I help you today?")}</p>

@@ -12,7 +12,7 @@ from app.core.config import settings
 from app.core.db import engine
 from app.core.evocloud import evocloud_manager
 from app.core.identity import decode_local_jwt, identity_service
-from app.infrastructure.database.redis import redis_client
+from app.services.cache_services import UserCacheService, RateLimitService
 from app.models import User
 
 logger = logging.getLogger(__name__)
@@ -74,14 +74,9 @@ async def get_current_user(token: TokenDep) -> User:
         if member_id is None:
              raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid session payload")
 
-        # 2. Try Redis Cache first
-        user_data = None
-        try:
-            cached_data = await redis_client.get(f"evoloop:user:{member_id}")
-            if cached_data:
-                user_data = json.loads(cached_data)
-        except Exception as e:
-            logger.debug(f"Redis cache miss/error: {e}")
+        # 2. Try Cache first
+        user_cache = UserCacheService()
+        user_data = await user_cache.get_user(member_id)
 
         # 3. Fallback to Cloud fetch if cache miss
         if not user_data:
@@ -94,11 +89,8 @@ async def get_current_user(token: TokenDep) -> User:
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Cloud verification failed")
 
             user_data = result.get("data", {})
-            # Cache it back to Redis
-            try:
-                await redis_client.set(f"evoloop:user:{member_id}", json.dumps(user_data), ex=86400)
-            except Exception:
-                pass
+            # Cache it back
+            await user_cache.set_user(member_id, user_data)
 
         if user_data:
             user_data["id"] = user_data.get("id") or user_data.get("member_id") or member_id
@@ -152,7 +144,7 @@ async def verify_guest_access(
     Middleware-like dependency to verify guest access limits.
     If 'current_user' is present, this check is skipped (Paid/Auth user).
     If no user, checks 'token' param manually (backfill current_user).
-    If still no user, 'x_guest_id' is checked against Redis daily limits.
+    If still no user, 'x_guest_id' is checked against cache daily limits.
     """
     # 0. Backfill User from Query Token if Header Auth missing
     if not current_user and token:
@@ -184,7 +176,7 @@ async def verify_guest_access(
     if not effective_guest_id:
         raise HTTPException(status_code=401, detail="Authentication required (or guest_id)")
 
-    # Check Guest Limits via Redis
+    # Check Guest Limits via cache
     try:
         # 1. Get Global Config
         try:
@@ -201,12 +193,13 @@ async def verify_guest_access(
             raise HTTPException(status_code=403, detail="Guest chat disabled")
 
         # 2. Check Daily Usage
-        today = datetime.now().strftime("%Y-%m-%d")
-        key = f"guest:usage:{today}:{effective_guest_id}"
-
-        current_usage = await redis_client.incr(key)
-        if current_usage == 1:
-            await redis_client.expire(key, 86400)  # 24h
+        rate_limit = RateLimitService()
+        endpoint = "guest:usage"
+        current_usage = await rate_limit.increment(
+            endpoint, 
+            effective_guest_id,
+            window=86400  # 24h
+        )
 
         if current_usage > limit:
             raise HTTPException(
@@ -217,6 +210,6 @@ async def verify_guest_access(
     except HTTPException as he:
         raise he
     except Exception as e:
-        logger.error(f"Redis error during guest check: {e}")
-        # Fail-Close: If Redis is down, we cannot verify quota, so we must deny to prevent abuse.
+        logger.error(f"Cache error during guest check: {e}")
+        # Fail-Close: If cache is down, we cannot verify quota, so we must deny to prevent abuse.
         raise HTTPException(status_code=503, detail="Guest validation service temporary unavailable.")

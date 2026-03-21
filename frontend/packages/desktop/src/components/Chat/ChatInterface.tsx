@@ -36,6 +36,7 @@ import { SessionOutcomeBanner } from "./SessionOutcomeBanner"
 
 import { DiffDrawer } from "./DiffDrawer"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
+import { StreamStatus } from "./StreamStatus"
 
 export function ChatInterface() {
 
@@ -60,6 +61,11 @@ export function ChatInterface() {
   const status = useChatStore((s) => s.status)
   const steps = useChatStore((s) => s.steps)
   const streamedContent = useChatStore((s) => s.streamedContent)
+  const streamState = useChatStore((s) => s.streamState)
+  // Pagination state
+  const hasMoreHistory = useChatStore((s) => s.hasMoreHistory)
+  const isLoadingHistory = useChatStore((s) => s.isLoadingHistory)
+  const loadMoreHistory = useChatStore((s) => s.loadMoreHistory)
   // Props required for components
   const setThread = useChatStore((s) => s.setThread)
   const sendMessage = useChatStore((s) => s.sendMessage)
@@ -67,12 +73,41 @@ export function ChatInterface() {
   const _truncateMessages = useChatStore((s) => s._truncateMessages)
 
   // We maintain 'showContextPanel' locally as it involves UI preference
-  const [showContextPanel, setShowContextPanel] = useState(true)
+  // Global mode: hidden by default; Project mode: show by default
+  // But respect user's manual preference stored in localStorage
+  const [showContextPanel, setShowContextPanel] = useState(() => {
+    const saved = localStorage.getItem("chat.contextPanel.hidden")
+    // If user manually closed it before, respect that
+    if (saved === "true") return false
+    // Otherwise follow default logic
+    return !isGlobalMode
+  })
   const scrollRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<ChatInputAreaHandle>(null)
 
   // Smart Scroll State
   const [isUserScrolled, setIsUserScrolled] = useState(false)
+
+  // Auto-show context panel when switching from global to project mode
+  // But only if user hasn't manually closed it
+  useEffect(() => {
+    const saved = localStorage.getItem("chat.contextPanel.hidden")
+    if (!isGlobalMode && currentProject && saved !== "true") {
+      setShowContextPanel(true)
+    }
+  }, [isGlobalMode, currentProject])
+
+  // Persist manual close action
+  const handleCloseContextPanel = () => {
+    localStorage.setItem("chat.contextPanel.hidden", "true")
+    setShowContextPanel(false)
+  }
+
+  // Persist manual open action
+  const handleOpenContextPanel = () => {
+    localStorage.removeItem("chat.contextPanel.hidden")
+    setShowContextPanel(true)
+  }
 
   // --- Initialization ---
   useEffect(() => {
@@ -278,22 +313,23 @@ export function ChatInterface() {
     },
   })
 
-  // Phase 6: Retry Logic
+  // Retry Logic
   const retryMutation = useMutation({
-    mutationFn: async (revertFiles: boolean) => {
+    mutationFn: async ({ revertFiles, messageId }: { revertFiles: boolean; messageId?: string }) => {
       // @ts-ignore
       return AgentService.retryChat({
         requestBody: {
           thread_id: activeThreadId,
-          message: "", // Backend finds the last user message
+          message: "", // Backend finds the target user message
           project_id: projectId,
-          revert_files: revertFiles
+          revert_files: revertFiles,
+          message_id: messageId ? parseInt(messageId) : undefined
         }
       } as any)
     },
     onMutate: () => {
       // Optimistically truncate the messages list to remove old AI messages
-      const lastHumanIndex = [...messages].reverse().findIndex(m => m.role === "user")
+      const lastHumanIndex = [...messages].reverse().findIndex(m => m.role === "human")
       if (lastHumanIndex !== -1) {
         const actualIndex = messages.length - 1 - lastHumanIndex
         _truncateMessages(actualIndex + 1)
@@ -370,7 +406,7 @@ export function ChatInterface() {
     scrollToBottom()
   }, [scrollToBottom])
 
-  // Phase 8: Deep Linking Listener
+  // Deep Linking Listener
   useEffect(() => {
     const handleScrollToRun = (e: CustomEvent<{ runId: string }>) => {
       const runId = e.detail.runId
@@ -400,7 +436,7 @@ export function ChatInterface() {
           defaultSize={20}
           minSize={15}
           maxSize={25}
-          className="hidden lg:block min-w-[250px] border-r"
+          className="hidden lg:block min-w-[250px]"
         >
           <ChatSidebar
             threads={threads.map(t => ({
@@ -434,7 +470,7 @@ export function ChatInterface() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setShowContextPanel(true)}
+                  onClick={handleOpenContextPanel}
                   title={t("common.openContextPanel")}
                 >
                   <Brain className="h-5 w-5 text-muted-foreground" />
@@ -456,7 +492,9 @@ export function ChatInterface() {
                 {status === "idle" && <SessionOutcomeBanner outcome={finalOutcome} />}
                 <MessageList
                   messages={messages}
-                  isAgentWorking={status === "running" || status === "interrupted" || status === "SUMMARIZING"}
+                  isAgentWorking={status === "running" || status === "interrupted" || status === "summarizing"}
+                  hasMoreHistory={hasMoreHistory}
+                  isLoadingHistory={isLoadingHistory}
                   onAddToMemory={(txt) => {
                     setMemoryContent(txt)
                     setIsMemoryDialogOpen(true)
@@ -465,14 +503,12 @@ export function ChatInterface() {
                     // Check if any message from this point forward has file operations
                     const index = messages.findIndex(m => m.id === msg.id)
                     const subMessages = messages.slice(index)
-                    // messages are from backend, so we check has_file_operations (which we just added)
-                    // @ts-ignore
                     const hasFiles = subMessages.some(m => m.has_file_operations)
 
                     setSelectedMessageId(msg.id.toString())
 
                     // Capure content if it's a human message to refill later
-                    if (msg.role === "user") {
+                    if (msg.role === "human") {
                       setRewindContent(msg.content)
                     } else {
                       setRewindContent("")
@@ -485,26 +521,24 @@ export function ChatInterface() {
                       rewindMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
                     }
                   }}
-                  onRetry={(_msg) => {
-                    // Retry usually implies deleting everything after the LAST user message
-                    // Finding the last human index
-                    const lastHumanIndex = [...messages].reverse().findIndex(m => m.role === "user")
-                    const actualIndex = lastHumanIndex === -1 ? 0 : messages.length - 1 - lastHumanIndex
-                    const subMessages = messages.slice(actualIndex + 1)
+                  onRetry={(msg) => {
+                    // Targeted Retry starting from the specific user message
+                    const index = messages.findIndex(m => m.id === msg.id)
+                    const subMessages = messages.slice(index + 1)
 
-                    // @ts-ignore
                     const hasFiles = subMessages.some(m => m.has_file_operations)
 
-                    setSelectedMessageId(undefined)
+                    setSelectedMessageId(msg.id.toString())
                     if (hasFiles) {
                       setConfirmMode("retry")
                       setIsRewindDialogOpen(true)
                     } else {
-                      retryMutation.mutate(false) // No files to revert
+                      retryMutation.mutate({ revertFiles: false, messageId: msg.id.toString() })
                     }
                   }}
                   onQuote={(msg) => handleQuoteMessage(msg)}
                   onStarterClick={(text) => sendMessage(text)}
+                  onLoadMore={loadMoreHistory}
                 />
               </div>
             </div>
@@ -525,12 +559,15 @@ export function ChatInterface() {
 
             {/* HumanRequestCard moved to AgentCanvas */}
 
+            {/* Stream Status - Real-time Agent Execution Status */}
+            <StreamStatus state={streamState} className="mx-4 mb-2" />
+
             {/* Input Area */}
             <ChatInputArea
               ref={chatInputRef}
               onSend={handleSendMessage}
               onStop={stopAgent}
-              isAgentWorking={status === "running" || status === "SUMMARIZING"}
+              isAgentWorking={status === "running" || status === "summarizing"}
               isSending={false} // Store handles optimistic, no separate loading state needed here
               isStopPending={false} // Immediate
               currentProject={currentProject}
@@ -555,7 +592,7 @@ export function ChatInterface() {
                   projectId={currentProject?.id}
                   activeThreadId={activeThreadId || ""}
                   autoSwitchToTab={undefined} // Disable auto-switch as we have Live Zone now
-                  onClose={() => setShowContextPanel(false)}
+                  onClose={handleCloseContextPanel}
                   isGlobalMode={isGlobalMode}
                 />
               </div>
@@ -610,7 +647,7 @@ export function ChatInterface() {
           if (confirmMode === "rewind") {
             rewindMutation.mutate({ revertFiles, messageId: selectedMessageId })
           } else {
-            retryMutation.mutate(revertFiles)
+            retryMutation.mutate({ revertFiles, messageId: selectedMessageId })
           }
         }}
       />

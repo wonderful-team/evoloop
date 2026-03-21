@@ -18,7 +18,7 @@ import {
 import { Input } from "@evoloop/shared/components/ui/input"
 import { Label } from "@evoloop/shared/components/ui/label"
 import { ScrollArea } from "@evoloop/shared/components/ui/scroll-area"
-import { useChatStore } from "@/stores/chatStore" // Phase 7
+import { useChatStore } from "@/stores/chatStore"
 import { MessageContent } from "../MessageContent"
 
 interface MemoryTabProps {
@@ -29,7 +29,7 @@ export function MemoryTab({ projectId }: MemoryTabProps) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
 
-  // Phase 7: Get active memories from store
+  // Get active memories from store
   const activeMemories = useChatStore((s) => s.activeMemories)
   const isActive = (conceptName: string) => {
     return activeMemories.some((m) =>

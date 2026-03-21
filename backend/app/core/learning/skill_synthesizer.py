@@ -69,7 +69,7 @@ class SynthesizedSkill:
     preconditions: list[str] = field(default_factory=list)
     instructions: str | None = None  # Markdown instructions (心法)
     
-    # Phase 6: Deterministic Execution
+    # Deterministic Execution
     execution_mode: str = "agentic" # "agentic" or "deterministic"
     macro_script: list[dict] = field(default_factory=list) # JSON payload for MacroEngine
 
@@ -236,7 +236,7 @@ class WorkflowSynthesizer:
 
         messages = [
             SystemMessage(content=prompt),
-            HumanMessage(content="Please analyze the trace and generate the skill YAML."),
+            HumanMessage(content=prompt_builder.build_synthesis_human_prompt()),
         ]
 
         response = await llm.ainvoke(messages, config={"callbacks": []})  # Internal thought, do not stream
@@ -363,7 +363,7 @@ class WorkflowSynthesizer:
 
             target_selector = step.ui_context.element_selector if step.ui_context else None
             
-            # Phase 6: Automatic Extractor Nodes mapping
+            # Automatic Extractor Nodes mapping
             is_extract = False
             if event_type in ("get_text", "get_html", "get_attribute"):
                 macro_step = {

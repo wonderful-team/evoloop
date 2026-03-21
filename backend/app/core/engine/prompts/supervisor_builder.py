@@ -115,12 +115,12 @@ class SupervisorPromptBuilder:
             "warnings": {
                 "visited_nodes": visited_nodes,
                 "last_route": last_route,
-                "is_ambiguous": last_human_msg and len(last_human_msg.strip()) < 5,
                 "last_human_msg": last_human_msg,
             },
             "sys_info": {
                 "project_structure": project_structure_stub,
                 "project_concepts": project_concepts,
+                "active_skills": ctx.metadata.get("active_skills", []),
             },
             "has_android": telemetry_data.get("android", []),
             "has_macos": telemetry_data.get("macos", False),

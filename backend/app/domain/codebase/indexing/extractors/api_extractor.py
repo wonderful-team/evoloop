@@ -1,14 +1,18 @@
+"""
+API Extractor
+=============
+
+Extracts API endpoint definitions from code files using TreeSitter.
+"""
+
 import logging
-import os  # Added import
 from dataclasses import dataclass
 
 import tree_sitter
 
-from app.constants import SEMANTIC_LANGUAGE_MAP
 from app.domain.codebase.indexing.parsers import parser_registry
-from app.utils.file import read_file_content
 
-from .sem_provider import LanguageSemanticProvider
+from .base_extractor import SemanticExtractorBase
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +26,7 @@ class APIEndpoint:
     line_number: int
 
 
-class APIExtractor:
+class APIExtractor(SemanticExtractorBase[APIEndpoint]):
     """
     Extracts API Definitions from code files using TreeSitter.
     Acts as a dispatcher to language-specific providers.
@@ -30,39 +34,32 @@ class APIExtractor:
 
     HTTP_METHODS = {"get", "post", "put", "delete", "patch", "options", "head"}
 
-    def __init__(self):
-        # Use shared provider registry instead of creating own instances
-        from .provider_registry import semantic_provider_registry
-        self._registry = semantic_provider_registry
-
-    def _get_provider(self, lang_name: str) -> LanguageSemanticProvider | None:
-        """Get provider from shared registry."""
-        return self._registry.get(lang_name)
-
     async def extract(self, file_path: str) -> list[APIEndpoint]:
-        ext = os.path.splitext(file_path)[1].lower()
+        """Extract API endpoints from file."""
+        # Detect language
+        lang_name = self._detect_language(file_path)
+        if not lang_name:
+            return []
 
-        # Find the language for this extension
-        lang_name = None
-        for name, exts in SEMANTIC_LANGUAGE_MAP.items():
-            if ext in exts:
-                lang_name = name
-                break
-
-        provider = self._get_provider(lang_name) if lang_name else None
+        # Get provider
+        provider = self._get_provider(lang_name)
         if not provider:
             return []
-        parser_info = parser_registry.get_parser(ext.lstrip("."))
+
+        # Get parser
+        ext = file_path.split('.')[-1] if '.' in file_path else ''
+        parser_info = parser_registry.get_parser(ext)
         if not parser_info:
             return []
 
         parser, language = parser_info
 
-        try:
-            content, _ = read_file_content(file_path)
-            if not content:
-                return []
+        # Read and parse
+        content = self._read_file(file_path)
+        if not content:
+            return []
 
+        try:
             tree = parser.parse(bytes(content, "utf8"))
             query_str = provider.get_api_query()
             if not query_str:
@@ -87,6 +84,7 @@ class APIExtractor:
             return []
 
     async def sync_to_graph(self, project_id: int, endpoints: list[APIEndpoint]):
+        """Sync API endpoints to Neo4j graph."""
         if not endpoints:
             return
 

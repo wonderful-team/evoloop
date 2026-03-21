@@ -7,7 +7,9 @@ from app.infrastructure.drivers.macos import macos_driver
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(
+    name_map={"zh": "分析图像", "en": "Analyze Image"}
+)
 async def analyze_image(
     image_source: str,
     question: str = "Describe this image in detail.",

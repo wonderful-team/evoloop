@@ -53,6 +53,8 @@ def evoloop_tool(
     result_summary_template: str | None = None,
     is_memory_tool: bool = False,
     is_multimodal: bool = False,
+    name_map: dict[str, str] | None = None,  # {"zh": "中文名", "en": "English Name"}
+    handle_tool_error: bool = True,  # Allow override for HITL tools
     **kwargs,
 ):
     """
@@ -102,9 +104,11 @@ def evoloop_tool(
         tool_instance.metadata["result_summary_template"] = result_summary_template
         tool_instance.metadata["is_memory_tool"] = is_memory_tool
         tool_instance.metadata["is_multimodal"] = is_multimodal
+        tool_instance.metadata["name_map"] = name_map or {}
 
         # Enable error handling to return validation errors as text to the Agent
-        tool_instance.handle_tool_error = True
+        # Note: HITL tools should set handle_tool_error=False to allow interrupt exceptions to propagate
+        tool_instance.handle_tool_error = handle_tool_error
 
         return tool_instance
 

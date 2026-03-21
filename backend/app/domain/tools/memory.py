@@ -6,7 +6,8 @@ from app.core.tools import evoloop_tool
 @evoloop_tool(
     is_state_mutating=True,
     is_memory_tool=True,
-    summary_template="database_logger.tool_summary.manage_memory"
+    summary_template="database_logger.tool_summary.manage_memory",
+    name_map={"zh": "保存偏好", "en": "Save Preference"}
 )
 async def save_preference(
     key: str,
@@ -37,7 +38,8 @@ async def save_preference(
 @evoloop_tool(
     is_pollable=True,
     is_memory_tool=True,
-    summary_template="database_logger.tool_summary.manage_memory"
+    summary_template="database_logger.tool_summary.manage_memory",
+    name_map={"zh": "获取用户偏好", "en": "Get User Preferences"}
 )
 async def get_user_preferences(project_id: int = None):
     """
@@ -55,7 +57,8 @@ async def get_user_preferences(project_id: int = None):
 @evoloop_tool(
     is_pollable=True,
     is_memory_tool=True,
-    summary_template="database_logger.tool_summary.manage_memory"
+    summary_template="database_logger.tool_summary.manage_memory",
+    name_map={"zh": "搜索概念", "en": "Search Concepts"}
 )
 async def search_concepts(query: str, project_id: int = None):
     """
@@ -84,7 +87,8 @@ async def search_concepts(query: str, project_id: int = None):
 @evoloop_tool(
     is_state_mutating=True,
     is_memory_tool=True,
-    summary_template="database_logger.tool_summary.manage_memory"
+    summary_template="database_logger.tool_summary.manage_memory",
+    name_map={"zh": "添加概念", "en": "Add Concept"}
 )
 async def add_concept(name: str, description: str, project_id: int = None):
     """

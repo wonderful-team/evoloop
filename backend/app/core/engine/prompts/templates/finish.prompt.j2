@@ -5,7 +5,6 @@ Your task is to audit the conversation history and write a final conclusion. The
 1. **Audit Mission Success**: Compare the Audit Context below against the User's original request and the Acceptance Criteria in the Blackboard.
 2. **Harvest Knowledge** (if applicable): If significant patterns or decisions were made, call `memorize_concepts` to preserve them.
 3. **Write a Final Conclusion** — follow this structure STRICTLY:
-
    ```xml
    <audit>
      <outcome>SUCCESS | FAILED | INCOMPLETE</outcome>
@@ -20,11 +19,8 @@ Your task is to audit the conversation history and write a final conclusion. The
      DO NOT use status icons (e.g., {{ icons.success }}/{{ icons.failed }}).
    </report>
    ```
-
 > **IMPORTANT**: Your entire response MUST consist ONLY of the `<audit>` and `<report>` XML blocks. No other text is permitted.
-
 > The session ends after your conclusion. Be honest and specific.
-
 {% include 'fragments/blackboard.j2' %}
 
 ### Audit Context (Actions Taken)

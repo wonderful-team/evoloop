@@ -512,6 +512,9 @@ async def synthesize_skill(body: SynthesizeRequest):
     except Exception as e:
         logger.exception(f"Skill synthesis failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Synthesis failed: {str(e)}")
+    finally:
+        # Always reload cache after potential synthesis
+        await skill_discovery.reload()
 
 
 @router.post("/skills/import")
@@ -528,6 +531,8 @@ async def import_skills(body: ImportSkillsRequest):
     except Exception as e:
         logger.exception(f"Skill import failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Import failed: {str(e)}")
+    finally:
+        await skill_discovery.reload()
 
 
 @router.get("/skills", response_model=PaginatedSkillsResponse)
@@ -634,29 +639,34 @@ async def delete_skill(skill_id: int):
     """
     Physically delete a skill and its resources.
     """
-    async with session_scope() as db:
-        # 1. Get Skill
-        stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
-        result = await db.execute(stmt)
-        skill = result.scalar_one_or_none()
+    try:
+        async with session_scope() as db:
+            # 1. Get Skill
+            stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
+            result = await db.execute(stmt)
+            skill = result.scalar_one_or_none()
 
-        if not skill:
-            raise HTTPException(status_code=404, detail="Skill not found")
+            if not skill:
+                raise HTTPException(status_code=404, detail="Skill not found")
 
-        # 2. Cleanup Resources on Disk (Phase 5 folders)
-        if skill.resource_path:
-            try:
-                path = Path(skill.resource_path)
-                if path.exists() and path.is_dir():
-                    shutil.rmtree(path)
-                    logger.info(f"Deleted skill resources at: {path}")
-            except Exception as e:
-                logger.error(f"Failed to delete skill resources at {skill.resource_path}: {e}")
+            # 2. Cleanup Resources on Disk (Phase 5 folders)
+            if skill.resource_path:
+                try:
+                    path = Path(skill.resource_path)
+                    if path.exists() and path.is_dir():
+                        shutil.rmtree(path)
+                        logger.info(f"Deleted skill resources at: {path}")
+                except Exception as e:
+                    logger.error(f"Failed to delete skill resources at {skill.resource_path}: {e}")
 
-        # 3. Physical Delete from DB
-        await db.delete(skill)
-
-    return {"success": True, "message": f"Skill {skill_id} physically deleted"}
+            # 3. Physical Delete from DB
+            await db.delete(skill)
+            await db.flush()
+            
+        return {"success": True, "message": f"Skill {skill_id} physically deleted"}
+    finally:
+        # 4. Invalidate Cache
+        await skill_discovery.reload()
 
 
 class UpdateSkillRequest(BaseModel):
@@ -676,53 +686,54 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
     """
     Update a learned skill.
     """
-    async with session_scope() as db:
-        # 1. Get Skill
-        stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
-        result = await db.execute(stmt)
-        skill = result.scalar_one_or_none()
+    try:
+        async with session_scope() as db:
+            # 1. Get Skill
+            stmt = select(LearnedSkill).where(LearnedSkill.id == skill_id)
+            result = await db.execute(stmt)
+            skill = result.scalar_one_or_none()
 
-        if not skill:
-            raise HTTPException(status_code=404, detail="Skill not found")
+            if not skill:
+                raise HTTPException(status_code=404, detail="Skill not found")
 
-        # 2. Update Fields
-        if body.name:
-            # Check uniqueness if name changed
-            if body.name != skill.name:
-                stmt_check = select(LearnedSkill).where(LearnedSkill.name == body.name)
-                existing = (await db.execute(stmt_check)).scalar_one_or_none()
-                if existing:
-                     raise HTTPException(status_code=400, detail=f"Skill name '{body.name}' already exists")
-            skill.name = body.name
+            # 2. Update Fields
+            if body.name:
+                # Check uniqueness if name changed
+                if body.name != skill.name:
+                    stmt_check = select(LearnedSkill).where(LearnedSkill.name == body.name)
+                    existing = (await db.execute(stmt_check)).scalar_one_or_none()
+                    if existing:
+                         raise HTTPException(status_code=400, detail=f"Skill name '{body.name}' already exists")
+                skill.name = body.name
 
-        if body.description:
-            skill.description = body.description
+            if body.description:
+                skill.description = body.description
 
-        if body.namespace:
-            skill.namespace = body.namespace
+            if body.namespace:
+                skill.namespace = body.namespace
 
-        if body.instructions is not None:
-            skill.instructions = body.instructions
+            if body.instructions is not None:
+                skill.instructions = body.instructions
 
-        if body.trigger_patterns is not None:
-            skill.trigger_patterns = json.dumps(body.trigger_patterns)
+            if body.trigger_patterns is not None:
+                skill.trigger_patterns = json.dumps(body.trigger_patterns)
 
-        if body.parameters is not None:
-            # Just dump the list of dicts directly
-            skill.parameters = json.dumps(body.parameters)
+            if body.parameters is not None:
+                # Just dump the list of dicts directly
+                skill.parameters = json.dumps(body.parameters)
 
-        if body.preconditions is not None:
-            skill.preconditions = json.dumps(body.preconditions)
+            if body.preconditions is not None:
+                skill.preconditions = json.dumps(body.preconditions)
 
-        if body.execution_mode is not None:
-            skill.execution_mode = body.execution_mode
+            if body.execution_mode is not None:
+                skill.execution_mode = body.execution_mode
+                
+            if body.macro_script is not None:
+                skill.macro_script = body.macro_script
+
+            # 3. Commit (Automatic via session_scope exit, but we want to return updated data)
+            await db.flush()
             
-        if body.macro_script is not None:
-            skill.macro_script = body.macro_script
-
-        # 3. Commit (Automatic via session_scope exit, but we want to return updated data)
-        await db.flush()
-
         return {
             "success": True,
             "message": f"Skill {skill_id} updated",
@@ -734,6 +745,9 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
                 "parameters": json.loads(skill.parameters),
             },
         }
+    finally:
+        # 4. Invalidate Cache
+        await skill_discovery.reload()
 
 
 async def execute_macro_with_fallback(thread_id: str, project_id: int, skill_id: int, skill_name: str, macro_payload: list, params: dict, allow_self_healing: bool = True):

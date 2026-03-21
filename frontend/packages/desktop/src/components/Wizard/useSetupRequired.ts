@@ -39,9 +39,11 @@ export function useSetupRequired(): SetupStatus {
 
         // Convert config array to map
         const configMap: Record<string, string> = {}
-            ; (config as unknown as SystemConfig[]).forEach((item) => {
+        if (Array.isArray(config)) {
+            ;(config as unknown as SystemConfig[]).forEach((item) => {
                 configMap[item.key] = item.value
             })
+        }
 
         // Check P0 required configurations
         const missingLLM =

@@ -376,6 +376,29 @@ export const BrainResponseSchema = {
     title: 'BrainResponse'
 } as const;
 
+export const CancelHITLRequestSchema = {
+    properties: {
+        thread_id: {
+            type: 'string',
+            title: 'Thread Id'
+        },
+        reason: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Reason'
+        }
+    },
+    type: 'object',
+    required: ['thread_id'],
+    title: 'CancelHITLRequest'
+} as const;
+
 export const ChangePasswordRequestSchema = {
     properties: {
         old_password: {
@@ -490,6 +513,17 @@ export const ChatRequestSchema = {
                 }
             ],
             title: 'Checkpoint Id'
+        },
+        message_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Message Id'
         },
         attachments: {
             anyOf: [
@@ -779,6 +813,70 @@ export const DomEventsRequestSchema = {
     description: '请求模型：接收 DOM 事件'
 } as const;
 
+export const EditPreviewRequestSchema = {
+    properties: {
+        file_path: {
+            type: 'string',
+            title: 'File Path',
+            description: 'Path to the file'
+        },
+        edit_description: {
+            type: 'string',
+            title: 'Edit Description',
+            description: 'Natural language description of the edit'
+        },
+        cursor_line: {
+            type: 'integer',
+            minimum: 1,
+            title: 'Cursor Line',
+            description: 'Current line number'
+        },
+        cursor_column: {
+            type: 'integer',
+            minimum: 0,
+            title: 'Cursor Column',
+            description: 'Current column position'
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id',
+            description: 'Project ID for context'
+        }
+    },
+    type: 'object',
+    required: ['file_path', 'edit_description', 'cursor_line', 'cursor_column'],
+    title: 'EditPreviewRequest',
+    description: 'Request for edit preview as ghost text.'
+} as const;
+
+export const EditPreviewResponseSchema = {
+    properties: {
+        preview: {
+            anyOf: [
+                {
+                    additionalProperties: true,
+                    type: 'object'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Preview',
+            description: 'Edit preview data'
+        }
+    },
+    type: 'object',
+    title: 'EditPreviewResponse',
+    description: 'Response for edit preview request.'
+} as const;
+
 export const EmbeddingConfigRequestSchema = {
     properties: {
         provider: {
@@ -961,6 +1059,61 @@ export const FileNodeSchema = {
     type: 'object',
     required: ['name', 'path', 'type'],
     title: 'FileNode'
+} as const;
+
+export const GhostSuggestionSchema = {
+    properties: {
+        text: {
+            type: 'string',
+            title: 'Text',
+            description: 'The suggested text to insert'
+        },
+        confidence: {
+            type: 'number',
+            maximum: 1,
+            minimum: 0,
+            title: 'Confidence',
+            description: 'Confidence score (0-1)'
+        },
+        type: {
+            type: 'string',
+            title: 'Type',
+            description: 'Suggestion type: completion, edit_preview, snippet'
+        },
+        source: {
+            type: 'string',
+            title: 'Source',
+            description: 'Source: pattern, llm, context'
+        },
+        display_text: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Display Text',
+            description: 'Formatted display text'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description',
+            description: 'Tooltip description'
+        }
+    },
+    type: 'object',
+    required: ['text', 'confidence', 'type', 'source'],
+    title: 'GhostSuggestion',
+    description: 'A single ghost text suggestion.'
 } as const;
 
 export const GlobalEventDataSchema = {
@@ -1195,6 +1348,91 @@ export const IndexingRequestSchema = {
     type: 'object',
     required: ['project_id'],
     title: 'IndexingRequest'
+} as const;
+
+export const InlineCompletionRequestSchema = {
+    properties: {
+        file_path: {
+            type: 'string',
+            title: 'File Path',
+            description: 'Path to the file being edited'
+        },
+        cursor_line: {
+            type: 'integer',
+            minimum: 1,
+            title: 'Cursor Line',
+            description: 'Current line number (1-indexed)'
+        },
+        cursor_column: {
+            type: 'integer',
+            minimum: 0,
+            title: 'Cursor Column',
+            description: 'Current column position (0-indexed)'
+        },
+        current_line_text: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Current Line Text',
+            description: 'Text of current line up to cursor'
+        },
+        context_lines: {
+            type: 'integer',
+            maximum: 50,
+            minimum: 0,
+            title: 'Context Lines',
+            description: 'Number of context lines to include',
+            default: 10
+        },
+        project_id: {
+            anyOf: [
+                {
+                    type: 'integer'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Project Id',
+            description: 'Project ID for context-aware suggestions'
+        }
+    },
+    type: 'object',
+    required: ['file_path', 'cursor_line', 'cursor_column'],
+    title: 'InlineCompletionRequest',
+    description: 'Request for inline code completion.'
+} as const;
+
+export const InlineCompletionResponseSchema = {
+    properties: {
+        suggestion: {
+            anyOf: [
+                {
+                    '$ref': '#/components/schemas/GhostSuggestion'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            description: 'Primary suggestion'
+        },
+        alternative_suggestions: {
+            items: {
+                '$ref': '#/components/schemas/GhostSuggestion'
+            },
+            type: 'array',
+            title: 'Alternative Suggestions',
+            description: 'Alternative suggestions'
+        }
+    },
+    type: 'object',
+    title: 'InlineCompletionResponse',
+    description: 'Response for inline completion request.'
 } as const;
 
 export const LLMConfigRequestSchema = {
@@ -2957,6 +3195,17 @@ export const ToolStepSchema = {
         tool: {
             type: 'string',
             title: 'Tool'
+        },
+        tool_name: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Tool Name'
         },
         input: {
             anyOf: [

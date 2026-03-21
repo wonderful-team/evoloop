@@ -41,6 +41,7 @@ class ChatRequest(BaseModel):
     project_id: int | None = 1
     command_id: int | None = None
     checkpoint_id: str | None = None
+    message_id: int | None = None  # Targeted retry/edit support
     attachments: list[dict[str, Any]] | None = None  # [{"url": "...", "type": "image"}]
     revert_files: bool = True  # For retry/undo support
 
@@ -56,6 +57,11 @@ class ResumeRequest(BaseModel):
     thread_id: str
     user_input: str | None = None  # Optional user response for HITL
     command_id: int | None = None  # Explicit command_id for resumption trace
+
+
+class CancelHITLRequest(BaseModel):
+    thread_id: str
+    reason: str | None = None  # Optional reason for cancellation
 
 
 # =============================================================================
@@ -244,10 +250,8 @@ async def stop_chat(req: ChatRequest):
 @router.post("/chat/retry", dependencies=[Depends(verify_guest_access)])
 async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
     """
-    Retry the last user message.
-    Rolls back history (deletes AI messages after last human msg) and restarts generation.
-
-    Refactored to use unified dispatch logic after rewind.
+    Retry a specific user message (Targeted Retry).
+    Rolls back history (deletes messages after the target) and restarts generation.
     """
     from app.core.engine.history import history_service
 
@@ -257,22 +261,37 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
     from sqlalchemy.orm import selectinload
 
     async with session_scope() as session:
-        # Find last human message BEFORE rewinding (eager load references)
-        stmt = (
-            select(Message)
-            .options(selectinload(Message.references))
-            .where(Message.thread_id == req.thread_id)
-            .where(Message.role == "human")
-            .order_by(Message.id.desc())
-            .limit(1)
-        )
-        result = await session.execute(stmt)
-        last_human_msg = result.scalar_one_or_none()
+        # Determine target message
+        if req.message_id:
+            logger.info(f"[Retry] Targeted retry for message {req.message_id}")
+            stmt = (
+                select(Message)
+                .options(selectinload(Message.references))
+                .where(Message.id == req.message_id)
+            )
+            result = await session.execute(stmt)
+            target_msg = result.scalar_one_or_none()
+
+            if not target_msg or target_msg.thread_id != req.thread_id or target_msg.role != "human":
+                raise HTTPException(status_code=404, detail=f"Target human message {req.message_id} not found in thread")
+            last_human_msg = target_msg
+        else:
+            # Fallback to last human message
+            stmt = (
+                select(Message)
+                .options(selectinload(Message.references))
+                .where(Message.thread_id == req.thread_id)
+                .where(Message.role == "human")
+                .order_by(Message.id.desc())
+                .limit(1)
+            )
+            result = await session.execute(stmt)
+            last_human_msg = result.scalar_one_or_none()
 
         if not last_human_msg:
             raise HTTPException(status_code=404, detail="No human message found to retry")
 
-        # Load attachments for reconstruction (inside session)
+        # Load attachments for reconstruction
         attachments = None
         if last_human_msg.references:
             attachments = [
@@ -309,7 +328,10 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
     ContextManager.set(ctx)
 
     # Use unified dispatcher
-    # Retry should NOT pass checkpoint_id - it must start from the latest state after rewind
+    # [ROOT-CAUSE FIX] For retry, use the checkpoint_id discovered (or created) by perform_rewind
+    # to ensure we start from a clean state without "ghost message" pollution.
+    checkpoint_id = rewind_result.get("checkpoint_id")
+
     result = await _prepare_and_dispatch(
         thread_id=req.thread_id,
         project_id=req.project_id,
@@ -317,7 +339,7 @@ async def retry_chat(req: ChatRequest, bg_tasks: BackgroundTasks):
         message_content=retry_message_content,
         attachments=attachments,
         command_id=req.command_id,
-        checkpoint_id=None,  # Retry always starts from latest checkpoint after rewind
+        checkpoint_id=checkpoint_id,
         goal_prefix="Retry: ",
         is_retry=True,
         skip_message_persistence=True,
@@ -470,7 +492,7 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
             await activity_monitor.end_run(req.thread_id, "cancelled")
         except AgentHumanInterruptException:
             # INTERRUPT: Task interrupted for human input.
-            # Tool has already updated Redis state, so we just end cleanly.
+            # Tool has already updated cache state, so we just end cleanly.
             # DO NOT mark as 'failed' in activity_monitor.
             logger.info(f"Resume interrupted for human input: {req.thread_id}")
         except Exception as e:
@@ -480,6 +502,123 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
     bg_tasks.add_task(_resume_graph)
 
     return {"status": "resuming", "thread_id": req.thread_id}
+
+
+@router.post("/hitl/cancel")
+async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks):
+    """
+    Cancel a pending HITL (Human-in-the-Loop) request.
+    This will dismiss the confirmation card and resume execution with a cancellation signal.
+    """
+    from app.core.globals import get_graph
+    from app.core.persistence import get_checkpointer
+    from app.domain.tools.human_input import (
+        cancel_request,
+        get_pending_requests_for_thread,
+    )
+
+    graph = get_graph()
+    checkpointer = get_checkpointer()
+
+    if not graph or not checkpointer:
+        raise HTTPException(
+            status_code=500, detail="Graph or Checkpointer not initialized"
+        )
+
+    # Find pending HITL request for this thread
+    pending_requests = get_pending_requests_for_thread(req.thread_id)
+    if not pending_requests:
+        raise HTTPException(
+            status_code=404, detail="No pending HITL request found for this thread"
+        )
+
+    # Cancel the most recent pending request
+    request_to_cancel = pending_requests[-1]
+    cancel_success = cancel_request(request_to_cancel.id)
+
+    if not cancel_success:
+        raise HTTPException(
+            status_code=500, detail="Failed to cancel HITL request"
+        )
+
+    # Clear the human request from activity monitor
+    await activity_monitor.clear_human_request(req.thread_id)
+
+    # Config for resuming from checkpoint
+    config = {
+        "configurable": {
+            "thread_id": req.thread_id
+        }
+    }
+
+    # Prepare cancellation response
+    cancel_reason = req.reason or "User cancelled the request"
+
+    # [HITL Cancel Fix]: Send cancellation as tool response
+    try:
+        current_state = await graph.aget_state(config)
+        if current_state.values and "messages" in current_state.values:
+            history = current_state.values["messages"]
+            if history:
+                last_msg = history[-1]
+                # If last message was an Assistant Message with tool_calls
+                if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
+                    last_tool_call = last_msg.tool_calls[-1]
+                    if last_tool_call["name"] in ["request_approval", "request_human_input"]:
+                        logger.info(f"Sending CANCELLED response for tool call {last_tool_call['name']}")
+                        tool_msg = ToolMessage(
+                            tool_call_id=last_tool_call["id"],
+                            content=f"CANCELLED: {cancel_reason}",
+                        )
+                        inputs = {"messages": [tool_msg]}
+                    else:
+                        inputs = {"messages": [HumanMessage(content=f"[Cancelled: {cancel_reason}]")]}
+                else:
+                    inputs = {"messages": [HumanMessage(content=f"[Cancelled: {cancel_reason}]")]}
+            else:
+                inputs = {"messages": [HumanMessage(content=f"[Cancelled: {cancel_reason}]")]}
+        else:
+            inputs = {"messages": [HumanMessage(content=f"[Cancelled: {cancel_reason}]")]}
+    except Exception as state_e:
+        logger.warning(f"Failed to inspect state for cancel: {state_e}")
+        inputs = {"messages": [HumanMessage(content=f"[Cancelled: {cancel_reason}]")]}
+
+    # Resume in background with cancellation signal
+    async def _cancel_and_resume():
+        from app.core.callbacks.transparent import TransparentCallbackHandler
+        from app.core.exceptions import AgentCancelledException
+
+        callback = TransparentCallbackHandler(thread_id=req.thread_id)
+
+        try:
+            await activity_monitor.start_run(req.thread_id, "Resuming after cancellation...")
+
+            resume_config = {
+                **config,
+                "callbacks": [callback]
+            }
+
+            # Resume execution with cancellation signal
+            async for _event in graph.astream(inputs, config=resume_config):
+                await activity_monitor.check_cancellation(req.thread_id)
+
+            await activity_monitor.end_run(req.thread_id, "done")
+
+        except AgentCancelledException:
+            await activity_monitor.end_run(req.thread_id, "cancelled")
+        except AgentHumanInterruptException:
+            logger.info(f"Cancel interrupted for human input: {req.thread_id}")
+        except Exception as e:
+            logger.error(f"Cancel resume error for {req.thread_id}: {e}")
+            await activity_monitor.end_run(req.thread_id, "failed")
+
+    bg_tasks.add_task(_cancel_and_resume)
+
+    return {
+        "status": "cancelled",
+        "thread_id": req.thread_id,
+        "request_id": request_to_cancel.id,
+    }
 
 
 @router.post("/webhook")

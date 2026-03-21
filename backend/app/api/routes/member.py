@@ -31,14 +31,14 @@ async def login(req: LoginRequest):
     # Update result to return local token
     result["token"] = local_token
 
-    # Cache to Redis for fast access in deps.py
+    # Cache for fast access in deps.py
     user_data = result.get("data", {})
     member_id = result.get("member_id", 0)
     if user_data and member_id:
         try:
-            from app.infrastructure.database.redis import redis_client
-            async with redis_client:
-                await redis_client.set(f"evoloop:user:{member_id}", json.dumps(user_data), ex=86400)
+            from app.services.cache_services import UserCacheService
+            user_cache = UserCacheService()
+            await user_cache.set_user(member_id, user_data)
         except Exception:
             pass
 
@@ -65,9 +65,9 @@ async def logout():
     if evocloud_manager.link:
         await evocloud_manager.link.stop()
 
-    # Clear Redis Token (Unified logic in client logout? No, client logout clears local state)
-    # But for Redis (Server-side session-ish), let's keep it clean or move to client.
-    # The client uses Redis for caching token? No, Client uses file.
+    # Clear cache token (Unified logic in client logout? No, client logout clears local state)
+    # But for cache (server-side session-ish), let's keep it clean or move to client.
+    # The client uses cache for caching token? No, Client uses file.
 
 
 @router.get("/cancellation/info")

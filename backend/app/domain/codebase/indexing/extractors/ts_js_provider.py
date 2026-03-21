@@ -7,21 +7,6 @@ class JavaScriptSemanticProvider(LanguageSemanticProvider):
     def get_language_name(self) -> str:
         return "javascript"
 
-    def get_structure_query(self) -> str:
-        """Query for JavaScript function and class definitions."""
-        return """
-            (function_declaration name: (identifier) @name) @function
-            (class_declaration name: (identifier) @name) @class
-            (method_definition name: (property_identifier) @name) @function
-        """
-
-    def get_imports_query(self) -> str:
-        """Query for JavaScript imports."""
-        return """
-            (import_statement source: (string) @module) @import
-            (call_expression function: (identifier) @func arguments: (arguments (string) @module) (#eq? @func "require")) @import
-        """
-
     def get_api_query(self) -> str:
         return """
         (call_expression
@@ -69,18 +54,3 @@ class JavaScriptSemanticProvider(LanguageSemanticProvider):
 class TypeScriptSemanticProvider(JavaScriptSemanticProvider):
     def get_language_name(self) -> str:
         return "typescript"
-
-    def get_structure_query(self) -> str:
-        """Query for TypeScript function, class, and interface definitions."""
-        return """
-            (function_declaration name: (identifier) @name) @function
-            (class_declaration name: (_) @name) @class
-            (method_definition name: (property_identifier) @name) @function
-            (interface_declaration name: (_) @name) @class
-        """
-
-    def get_imports_query(self) -> str:
-        """Query for TypeScript imports."""
-        return """
-            (import_statement source: (string) @module) @import
-        """

@@ -22,7 +22,10 @@ logger = logging.getLogger(__name__)
 
 # ===== 1. State Management Tools (v1 Evolution) =====
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "更新黑板", "en": "Update Blackboard"}
+)
 def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> dict[str, Any]:
     """
     Updates the agent's dynamic state center (blackboard) with a key-value pair.
@@ -40,7 +43,10 @@ def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> dict[str
     }
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "管理会话元数据", "en": "Manage Session Metadata"}
+)
 def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> dict[str, Any]:
     """
     Updates session-level metadata to guide the agent's behavior and context resolution.
@@ -64,12 +70,16 @@ def manage_session_metadata(key: str, value: Any, _config: RunnableConfig) -> di
 
 # ===== 2. Routing Tools (v2 Evolution) =====
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "路由到", "en": "Route To"}
+)
 def route_to(
     target: RoutingTarget,
     reason: str,
     context: dict[str, Any] | None = None,
     authorized_tools: list[str] | None = None,
+    skill_id: int | None = None,
 ) -> str:
     """
     Hand off the current task to a specialist node.
@@ -87,16 +97,30 @@ def route_to(
         reason: Why this handoff is occurring.
         context: Structured guidance or attention focus for the specialist.
         authorized_tools: Restricted set of tools if specific constraints are needed.
+                          The Supervisor should select appropriate tools from the
+                          Worker Baseline Capability Pool defined in agent_main.yaml.
+                          For deep_researcher: ["search_web", "browser_control", ...]
+                          For documenter: ["read_file", "write_file", "list_files", ...]
     """
-    context_str = json.dumps(context, ensure_ascii=False) if context else "{}"
     target_val = target.value if hasattr(target, "value") else target
-    return f"[ROUTE_SIGNAL] → {target_val}: {reason} | Context: {context_str}"
+    
+    context = context or {}
+    if authorized_tools:
+        context["authorized_tools"] = authorized_tools
+    
+    context_str = json.dumps(context, ensure_ascii=False)
+    skill_info = f" | Skill ID: {skill_id}" if skill_id else ""
+    tool_info = f" | Tools: {authorized_tools}" if authorized_tools else ""
+    
+    return f"[ROUTE_SIGNAL] → {target_val}: {reason} | Context: {context_str}{skill_info}{tool_info}"
 
 
 # ===== 3. Coordination & Planning Tools (v3/4 Evolution) =====
 
 
-@evoloop_tool()
+@evoloop_tool(
+    name_map={"zh": "分解任务", "en": "Decompose Task"}
+)
 async def decompose_task(
     task_description: str,
     context: str = "",
@@ -130,12 +154,21 @@ JSON Format:
         {{
             "id": "task_1",
             "intent": "...",
-            "tools": ["tool_1"],
+            "tools": ["browser_control", "search_web"],
             "estimated_complexity": "low"
         }}
     ],
     "aggregation_strategy": "merge" | "concatenate" | "analyze"
-}}"""
+}}
+
+IMPORTANT: Each subtask MUST have a non-empty "tools" array with specific tool names relevant to that subtask's goal. Available tools include:
+- "browser_control" - for web browsing and data collection
+- "search_web" - for web search
+- "desktop_control" - for desktop automation
+- "mobile_control" - for mobile device automation
+- "read_file", "write_file", "edit_file" - for file operations
+- "bash" - for command execution
+- "analyze_image" - for image analysis"""
 
     try:
         response = await llm.ainvoke(
@@ -159,7 +192,9 @@ JSON Format:
         return {"status": "error", "error": str(e)}
 
 
-@evoloop_tool()
+@evoloop_tool(
+    name_map={"zh": "生成代理", "en": "Spawn Agents"}
+)
 async def spawn_agents(
     mission_plan: dict[str, Any],
     reasoning: str = "",
@@ -185,7 +220,9 @@ async def spawn_agents(
     }
 
 
-@evoloop_tool()
+@evoloop_tool(
+    name_map={"zh": "聚合结果", "en": "Aggregate Results"}
+)
 async def aggregate_results(
     aggregation_strategy: str,
     results: list[dict],

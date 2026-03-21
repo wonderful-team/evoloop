@@ -52,7 +52,7 @@ async def _summarize_project_logic(name: str, path: str):
     sys_tid = f"sys:{project_id}:summarization"
     await activity_monitor.start_run(sys_tid, f"Summarize Project: {name}")
     await activity_monitor.update_agent_state(
-        sys_tid, "SUMMARIZING", "Project Analysis", "Gathering Context..."
+        sys_tid, "Summarizing", "Project Analysis", "Gathering Context..."
     )
 
     try:
@@ -113,7 +113,7 @@ async def _summarize_project_logic(name: str, path: str):
 
         # Update Status
         await activity_monitor.update_agent_state(
-            sys_tid, "SUMMARIZING", "Project Analysis", "Reading Files & Context..."
+            sys_tid, "Summarizing", "Project Analysis", "Reading Files & Context..."
         )
 
         # 1. Gather Context (Files)
@@ -137,7 +137,7 @@ async def _summarize_project_logic(name: str, path: str):
 
         # Update Status
         await activity_monitor.update_agent_state(
-            sys_tid, "SUMMARIZING", "Project Analysis", "Generating Summary with LLM..."
+            sys_tid, "Summarizing", "Project Analysis", "Generating Summary with LLM..."
         )
 
         # 2. Call LLM

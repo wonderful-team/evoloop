@@ -14,7 +14,10 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "桌面控制", "en": "Desktop Control"}
+)
 async def desktop_control(
     action: Literal["screenshot", "click", "double_click", "type_text", "key_press", "open_app", "applescript", "get_info", "list_apps", "batch", "get_active_app", "scroll", "drag_drop", "dump_ui", "gui_extract"],
     x: int | None = None,
@@ -105,7 +108,10 @@ async def desktop_control(
     )
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "验证UI状态", "en": "Verify UI State"}
+)
 async def verify_ui_state(
     expected_element: str | None = None,
     expected_role: str | None = None,
@@ -128,7 +134,10 @@ async def verify_ui_state(
     )
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "快速检查屏幕", "en": "Quick Check Screen"}
+)
 async def quick_check_screen(
     check_type: Literal["has_text", "has_element", "is_loaded"],
     target: str | None = None,

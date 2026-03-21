@@ -1,19 +1,17 @@
-import hashlib
 import json
 import logging
 import os
 import shutil
-import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from sqlalchemy import func, select
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from app.core.config import settings
-from app.infrastructure.database.redis import redis_client
 from app.infrastructure.database.sql.database import session_scope
 from app.infrastructure.llm.factory import LLMFactory
+from app.core.learning.prompts import prompt_builder
 from app.models.learning import LearnedSkill
 
 logger = logging.getLogger(__name__)
@@ -38,7 +36,9 @@ class SkillDiscovery:
 
     def __init__(self):
         self._skills_cache: list[LearnedSkill] | None = None
-        self._cache_expiry = 0
+        self._id_map: dict[int, LearnedSkill] = {}
+        self._name_map: dict[str, LearnedSkill] = {}
+        self._skills_list_cache: list[dict[str, Any]] | None = None
         self._system_skills_synced = False
 
     async def _sync_system_skills(self):
@@ -78,8 +78,8 @@ class SkillDiscovery:
         Copy built-in skills to user skills directory.
         Only copies new or updated skills (based on modification time).
         """
-        if not os.path.exists(user_path):
-            os.makedirs(user_path, exist_ok=True)
+        from app.utils.path import ensure_dir
+        ensure_dir(user_path)
 
         for root, dirs, files in os.walk(builtin_path):
             # Calculate relative path from builtin skills root
@@ -87,7 +87,7 @@ class SkillDiscovery:
             target_dir = os.path.join(user_path, rel_path)
 
             # Create target directory
-            os.makedirs(target_dir, exist_ok=True)
+            ensure_dir(target_dir)
 
             # Copy files
             for file in files:
@@ -99,130 +99,163 @@ class SkillDiscovery:
                     shutil.copy2(source_file, target_file)
                     logger.debug(f"[Discovery] Copied skill file: {rel_path}/{file}")
 
-    async def _get_active_skills(self) -> list[LearnedSkill]:
-        """Cache-active skills from DB."""
-        await self._sync_system_skills()
-
-        now = time.time()
-        if self._skills_cache and now < self._cache_expiry:
+    async def _get_active_skills(self, force_reload: bool = False) -> list[LearnedSkill]:
+        """
+        [Phase 5 Optimization] Persistence Cache.
+        Fetch active skills with long-term memory residency.
+        """
+        if not force_reload and self._skills_cache is not None:
             return self._skills_cache
+
+        await self._sync_system_skills()
 
         async with session_scope() as db:
             stmt = select(LearnedSkill).where(LearnedSkill.is_active == True)
             result = await db.execute(stmt)
-            self._skills_cache = list(result.scalars().all())
-            self._cache_expiry = now + 60
+            items = list(result.scalars().all())
+            
+            # Populate Memory Maps for O(1) Lookup
+            self._id_map = {s.id: s for s in items}
+            self._name_map = {s.name.lower(): s for s in items}
+            
+            self._skills_cache = items
+            
+            # Clear derivative caches to force re-calculation if needed
+            self._skills_list_cache = None
+            
+            logger.info(f"[Discovery] Specialized expertise indexed: {len(self._id_map)} skills resident in memory.")
+        
         return self._skills_cache
+
+    async def get_skill_by_id(self, skill_id: int) -> Optional[LearnedSkill]:
+        """
+        Phase 5 Deterministic Routing:
+        Fetch a specific skill by its unique ID.
+        Uses O(1) Memory Indexing.
+        """
+        if not skill_id:
+            return None
+            
+        await self._get_active_skills()
+        return self._id_map.get(skill_id)
 
     async def _get_skills_by_namespace(self, namespace_prefix: str) -> list[LearnedSkill]:
         """
         Phase 5 Deterministic Routing:
         Fetch skills strictly within a given directory tree (namespace).
-        e.g., namespace_prefix='os/macos' will match 'os/macos/click' and 'os/macos/copy'
+        Now utilizes in-memory filtering to reduce DB I/O.
         """
-        async with session_scope() as db:
-            stmt = select(LearnedSkill).where(
-                LearnedSkill.is_active == True,
-                LearnedSkill.namespace.like(f"{namespace_prefix}%")
-            )
-            result = await db.execute(stmt)
-            return list(result.scalars().all())
+        all_skills = await self._get_active_skills()
+        if not namespace_prefix:
+            return all_skills
+            
+        return [
+            s for s in all_skills 
+            if s.namespace and s.namespace.startswith(namespace_prefix)
+        ]
+
+    async def reload(self):
+        """
+        Force a full refresh of the in-memory skill cache and indices.
+        Call this after DB mutations.
+        """
+        await self._get_active_skills(force_reload=True)
 
     # --- Phase 5: Deterministic "Yellow Pages" Discovery ---
 
     async def exact_search(
         self,
         query: str,
-        history: list[dict] | None = None,
-        namespace_context: str | None = None
+        namespace_context: str | None = None,
+        **kwargs
     ) -> tuple[SkillMatch | None, list[LearnedSkill], str]:
         """
-        Pure LLM-Based Skill Discovery with History support and Redis Caching.
+        Deterministic Skill lookup based on ID or Exact Name.
+        Uses O(1) Memory Indexing.
         """
-        # 0. Check Cache (Phase 5 Optimization)
-        history_str = json.dumps(history[-3:] if history else [])
-        cache_key = f"evo:intent_cache:{hashlib.md5((query + history_str).encode()).hexdigest()}"
+        # Ensure cache is ready (will be warm at startup, but safe fallback)
+        all_skills = await self._get_active_skills()
         
-        try:
-            cached_res = await redis_client.get(cache_key)
-            if cached_res:
-                data = json.loads(cached_res)
-                logger.info(f"[Discovery] Intent Cache Hit for: {query[:30]}...")
-                
-                match = None
-                if data.get("match"):
-                    m = data["match"]
-                    match = SkillMatch(
-                        skill_id=m["skill_id"],
-                        skill_name=m["skill_name"],
-                        confidence=m["confidence"],
-                        reasoning=m["reasoning"] + " (Cached)",
-                        extracted_params=m["extracted_params"]
-                    )
-                
-                # Note: For simplicity in cache, we don't full-hydrate the 'relevant' list if missed, 
-                # but SkillMatch presence is the primary driver.
-                relevant = []
-                if match:
-                    async with session_scope() as db:
-                        s = await db.get(LearnedSkill, match.skill_id)
-                        if s: relevant = [s]
-                
-                return match, relevant, data.get("reasoning", "")
-        except Exception as e:
-            logger.warning(f"[Discovery] Cache lookup failed: {e}")
+        if not query:
+            return None, [], "Empty query provided."
 
-        # Ensure system SOPs are loaded into the DB
-        await self._sync_system_skills()
+        query_clean = str(query).strip()
+        
+        # 1. Try ID lookup (O(1))
+        best_skill = None
+        if query_clean.isdigit():
+            target_id = int(query_clean)
+            best_skill = self._id_map.get(target_id)
+        
+        # 2. Try Exact Name lookup (O(1))
+        if not best_skill:
+            query_lower = query_clean.lower()
+            best_skill = self._name_map.get(query_lower)
+            
+        # 3. Try Namespace-Prefix lookup (O(N) Fallback for specific tree traversal)
+        if not best_skill and "/" in query_clean:
+            # Simple prefix match within the same depth
+            best_skill = next((s for s in all_skills if s.name.startswith(query_clean)), None)
 
-        # 1. Prepare candidate pool
+        if best_skill:
+            match = SkillMatch(
+                skill_id=best_skill.id,
+                skill_name=best_skill.name,
+                confidence=1.0,
+                reasoning="Deterministic match found.",
+                extracted_params={}
+            )
+            return match, [best_skill], "Exact match found."
+
+        # If no deterministic match, return empty. 
+        # We no longer trigger implicit LLM here to ensure transparency.
+        logger.info(f"[Discovery] No deterministic match for: {query_clean}")
+        return None, [], "No exact match found."
+
+    async def semantic_search(
+        self,
+        query: str,
+        history: list[dict] | None = None,
+        namespace_context: str | None = None,
+        current_plan: str | None = None,
+        user_preferences: str | None = None
+    ) -> tuple[SkillMatch | None, list[LearnedSkill], str]:
+        """
+        Pure LLM-Based Skill Discovery with History support.
+        Intent Caching has been DISABLED to prioritize accuracy.
+        Used by explicit search tools.
+        """
+        # Ensure cache is ready
         all_skills = await self._get_active_skills()
         if not all_skills:
-            return None, []
+            return None, [], "No active skills available to match."
 
         # 2. Build LLM Context
-        skill_catalog = "\n".join([
-            f"- ID: {s.id} | Name: {s.name} | Description: {s.description}"
-            for s in all_skills
-        ])
+        prompt_vars = {
+            "catalog": "\n".join([
+                f"- ID: {s.id} | Name: {s.name} | Description: {s.description}"
+                for s in all_skills
+            ]),
+            "current_plan": current_plan or "None",
+            "user_preferences": user_preferences or "None"
+        }
 
-        system_prompt = """You are the EvoLoop Skill Router. 
-Match the USER_QUERY to the most relevant skill in the CATALOG.
-
-CATALOG:
-{catalog}
-
-RULES:
-1. If the CURRENT_USER_QUERY contains a task request (even if preceded by "nevermind" or "cancel previous"), match it to the best skill.
-2. If the query is ONLY a conversational filler or confirmation (e.g. "Agreed", "Okay", "Done"), return NO_MATCH.
-3. Handle cross-lingual mapping (ZH query -> EN skill).
-4. If the user switched from one task to another in the same message, prioritize the NEW task.
-5. In multi-turn context (PREVIOUS_QUERY/RESPONSE), identify if the user is confirmation a previous suggestion OR starting something new.
-
-OUTPUT FORMAT (JSON ONLY):
-{{
-  "match_found": bool,
-  "skill_id": int or null,
-  "skill_name": "string or null",
-  "confidence": float (0.0 to 1.0),
-  "reasoning": "brief explanation",
-  "parameters": {{ "key": "value" }}
-}}"""
+        system_prompt = prompt_builder.build_discovery_prompt(prompt_vars)
 
         try:
-            llm = LLMFactory.create_llm(temperature=0.0)  # High precision
+            llm = LLMFactory.create_llm(temperature=0.0)
             messages = [
-                SystemMessage(content=system_prompt.format(catalog=skill_catalog))
+                SystemMessage(content=system_prompt)
             ]
 
             # Incorporate history if provided
             if history:
                 for msg in history[-5:]:  # Last 5 turns for context
-                    role = msg.get("role", "user")
+                    role = msg.get("role", "human")
                     content = msg.get("content", "")
-                    if role == "user":
+                    if role == "human":
                         messages.append(HumanMessage(content=f"PREVIOUS_QUERY: {content}"))
-                    elif role == "assistant":
+                    elif role == "ai":
                         messages.append(AIMessage(content=f"PREVIOUS_RESPONSE: {content}"))
 
             messages.append(HumanMessage(content=f"CURRENT_USER_QUERY: {query}"))
@@ -242,7 +275,7 @@ OUTPUT FORMAT (JSON ONLY):
                 data = json.loads(content)
             except Exception as e:
                 logger.error(f"[Discovery] JSON Parse Error: {e}. Content: {content}")
-                return None, []
+                return None, [], f"JSON Parse Error: {e}"
 
             match = None
             relevant = []
@@ -262,32 +295,16 @@ OUTPUT FORMAT (JSON ONLY):
                         extracted_params=data.get("parameters", {})
                     )
                     relevant = [best_skill]
-                    logger.info(f"[Discovery] LLM Match Found: {best_skill.name} (Conf: {match.confidence})")
-
-            # 3. Store in Cache (5 minutes)
-            try:
-                cache_data = {
-                    "match": {
-                        "skill_id": match.skill_id,
-                        "skill_name": match.skill_name,
-                        "confidence": match.confidence,
-                        "reasoning": match.reasoning,
-                        "extracted_params": match.extracted_params
-                    } if match else None,
-                    "reasoning": reasoning
-                }
-                await redis_client.set(cache_key, json.dumps(cache_data), ex=300)
-            except Exception as e:
-                logger.warning(f"[Discovery] Cache write failed: {e}")
+                    logger.info(f"[Discovery] Semantic Match Found: {best_skill.name} (Conf: {match.confidence})")
 
             if not match:
-                logger.info(f"[Discovery] LLM decided NO_MATCH for: {query[:50]}. Reasoning: {reasoning}")
+                logger.info(f"[Discovery] Semantic search decided NO_MATCH for: {query[:50]}. Reasoning: {reasoning}")
                 relevant = (all_skills if namespace_context else [])
 
             return match, relevant, reasoning
 
         except Exception as e:
-            logger.error(f"[Discovery] LLM matching failed: {e}")
+            logger.error(f"[Discovery] Semantic matching failed: {e}")
             return None, [], str(e)
 
     async def get_namespace_index(self, namespace_context: str) -> list[dict[str, str]]:
@@ -301,6 +318,26 @@ OUTPUT FORMAT (JSON ONLY):
 
         skills = await self._get_skills_by_namespace(namespace_context)
         return [{"id": s.id, "name": s.name, "description": s.description or ""} for s in skills]
+
+    async def get_active_skills_list(self) -> list[dict[str, Any]]:
+        """
+        Returns a flat list of all active skills as dictionaries.
+        Uses in-memory cache to avoid redundant conversions.
+        """
+        if self._skills_list_cache is not None:
+            return self._skills_list_cache
+
+        all_skills = await self._get_active_skills()
+        self._skills_list_cache = [
+            {
+                "id": s.id,
+                "name": s.name,
+                "namespace": s.namespace or "general",
+                "description": (s.description or "No description.").replace('\n', ' ')
+            }
+            for s in all_skills
+        ]
+        return self._skills_list_cache
 
     async def discover(
         self,
@@ -316,14 +353,14 @@ OUTPUT FORMAT (JSON ONLY):
 
     async def match(self, user_input: str, history: list[dict] | None = None, threshold: float = 0.5, thread_id: str = None) -> SkillMatch | None:
         """Backward compatible wrapper for intent matching."""
-        match, _, _ = await self.exact_search(user_input, history=history)
+        match, _, _ = await self.exact_search(user_input)
         if match and match.confidence >= threshold:
             return match
         return None
 
     async def retrieve(self, topic: str, history: list[dict] | None = None, top_k: int = 3) -> list[LearnedSkill]:
         """Backward compatible wrapper for knowledge retrieval."""
-        _, relevant, _ = await self.exact_search(topic, history=history)
+        _, relevant, _ = await self.exact_search(topic)
         return relevant
 
     # [Deprecated Compatibility]

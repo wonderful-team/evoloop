@@ -14,12 +14,12 @@ export interface StepItem {
   name: string
   status: "running" | "done" | "failed" | "cancelled"
   type: "node" | "tool" | "ai" | "skill"
-  parent_id?: number // Phase 18: Link to phase
+  parent_id?: number // Link to parent phase
   time: string
   details?: string
 }
 
-// A Group is a collection of steps under a header (Phase)
+// A Group is a collection of steps under a header
 interface StepGroup {
   id: string
   title: string
@@ -36,7 +36,7 @@ interface ExecutionStepsProps {
 function groupSteps(steps: StepItem[], t: any): StepGroup[] {
   const groups: StepGroup[] = []
 
-  // 1. Separate Headers (Phases) and Children
+  // 1. Separate Headers and Children
   const headerMap = new Map<number, StepItem>()
   const childrenMap = new Map<number, StepItem[]>() // parent_id -> steps
   const orphans: StepItem[] = []
@@ -81,7 +81,7 @@ function groupSteps(steps: StepItem[], t: any): StepGroup[] {
     })
   })
 
-  // 3. Handle Orphans (Implicit "Execution" Phase)
+  // 3. Handle Orphans (implicit Execution group)
   if (orphans.length > 0) {
     const implicitGroup: StepGroup = {
       id: "g-implicit",

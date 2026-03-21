@@ -88,7 +88,16 @@ class CleanupOrchestrator:
         class EpisodeCleanupHandler(ICleanupHandler):
             async def cleanup(self, message_ids: list[str], **kwargs) -> int:
                 try:
-                    return await memory_manager.long_term.delete_episodes_by_message_ids(message_ids)
+                    count = 0
+                    # 1. Cleanup by SQL message IDs (legacy/fallback)
+                    count += await memory_manager.long_term.delete_episodes_by_message_ids(message_ids)
+                    
+                    # 2. Cleanup by Run IDs (Modern/Root Cause Fix)
+                    run_ids = kwargs.get("run_ids", [])
+                    if run_ids:
+                        count += await memory_manager.long_term.delete_episodes_by_run_ids(run_ids)
+                    
+                    return count
                 except Exception as e:
                     logger.error(f"Episode cleanup failed: {e}")
                     return 0
@@ -108,12 +117,32 @@ class CleanupOrchestrator:
                     return 0
 
         self.handlers.append(TodoCleanupHandler())
+        
+        # 4. Trace Handler (Learning Module)
+        class TraceEventCleanupHandler(ICleanupHandler):
+            async def cleanup(self, message_ids: list[str], **kwargs) -> int:
+                from app.models.learning import TraceEvent
+                try:
+                    async with session_scope() as session:
+                        # Convert to int for message_id column, while keeping strings for node_name
+                        int_ids = [int(mid) for mid in message_ids if mid.isdigit()]
+                        stmt = delete(TraceEvent).where(
+                            (TraceEvent.node_name.in_(message_ids)) | 
+                            (TraceEvent.message_id.in_(int_ids))
+                        )
+                        result = await session.execute(stmt)
+                        return result.rowcount
+                except Exception as e:
+                    logger.error(f"TraceEvent cleanup failed: {e}")
+                    return 0
 
-    async def cleanup_all(self, message_ids: list[str], revert_files: bool = True) -> dict:
-        if not message_ids:
+        self.handlers.append(TraceEventCleanupHandler())
+
+    async def cleanup_all(self, message_ids: list[str], revert_files: bool = True, run_ids: list[str] | None = None) -> dict:
+        if not message_ids and not run_ids:
             return {}
 
-        logger.info(f"CleanupOrchestrator: Rolling back side effects for {len(message_ids)} messages (revert_files={revert_files})...")
+        logger.info(f"CleanupOrchestrator: Rolling back side effects for {len(message_ids)} messages and {len(run_ids or [])} runs (revert_files={revert_files})...")
 
         results = {}
 
@@ -130,7 +159,7 @@ class CleanupOrchestrator:
         for handler in self.handlers:
             name = handler.__class__.__name__
             try:
-                count = await handler.cleanup(message_ids)
+                count = await handler.cleanup(message_ids, run_ids=run_ids)
                 results[name] = count
                 logger.info(f"Handler {name} cleaned {count} items.")
             except Exception as e:
@@ -144,13 +173,13 @@ class CleanupOrchestrator:
 _orchestrator = CleanupOrchestrator()
 
 
-async def cleanup_side_effects(message_ids: list[str], revert_files: bool = True) -> dict:
+async def cleanup_side_effects(message_ids: list[str], revert_files: bool = True, run_ids: list[str] | None = None) -> dict:
     """
     Public entry point for cleanup.
     
     Args:
         message_ids: List of message IDs to clean up
         revert_files: If True, physically restore files to pre-modification state.
-                      If False, only clean up DB records (leave files unchanged).
+        run_ids: Optional list of run IDs (UUIDs) to clean up (e.g. for Episode memory)
     """
-    return await _orchestrator.cleanup_all(message_ids, revert_files=revert_files)
+    return await _orchestrator.cleanup_all(message_ids, revert_files=revert_files, run_ids=run_ids)

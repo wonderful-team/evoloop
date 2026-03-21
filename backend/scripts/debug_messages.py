@@ -22,22 +22,22 @@ def fetch_messages(thread_id):
             with conn.cursor() as cur:
                 print(f"Querying thread: {thread_id}")
                 cur.execute(
-                    "SELECT id, role, content, tool_calls, tool_output FROM messages WHERE thread_id = %s ORDER BY id",
+                    "SELECT id, role, content, tool_calls, action_type FROM messages WHERE thread_id = %s ORDER BY id",
                     (thread_id,)
                 )
                 rows = cur.fetchall()
                 print(f"Found {len(rows)} messages.\n")
 
                 for row in rows:
-                    msg_id, role, content, tool_calls, tool_output = row
+                    msg_id, role, content, tool_calls, action_type = row
                     print(f"[{msg_id}] {role}")
 
                     if tool_calls:
                         print(f"  Tool Calls: {str(tool_calls)[:100]}...")
 
-                    if role == "tool":
-                         # Check if this is the approval output
-                         print(f"  Tool Output: {str(tool_output)[:100]}...")
+                    if role == "tool" or action_type == "tool_output":
+                         # Tool output now stored in content
+                         print(f"  Tool Output: {str(content)[:100]}...")
 
                     if role == "human":
                         print(f"  Human: {content}")

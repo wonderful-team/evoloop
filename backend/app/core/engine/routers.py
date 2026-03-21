@@ -7,6 +7,7 @@ import logging
 from collections.abc import Callable
 
 from langgraph.types import Send
+from langchain_core.messages import HumanMessage
 
 from app.constants import DEFAULT_PROJECT_ID, RoutingTarget
 from app.core.config import settings
@@ -49,19 +50,30 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             if skill_hint:
                 system_instructions += f" Use learned skill: {skill_hint}."
 
+            # Get tools from subtask, but ensure it's not empty
+            subtask_tools = subtask.get("tools", [])
+            # If no tools specified, allow all worker tools by not setting the field
+            # (ToolManager will use full tool set when dynamic_tools is falsy)
+            agent_config = {
+                "role_name": f"Field Specialist {subtask_id}",
+                "system_instructions": system_instructions,
+                "is_subtask": True,
+                "subtask_context": subtask.get("context", {}),
+                "skill_hint": skill_hint,
+            }
+            # Only set tools if explicitly provided and non-empty
+            if subtask_tools:
+                agent_config["tools"] = subtask_tools
+                logger.info(f"[Router] Subtask {subtask_id} assigned tools: {subtask_tools}")
+            else:
+                logger.info(f"[Router] Subtask {subtask_id} using full worker tool set")
+
             ticket = {
                 "ticket_type": "subtask",
                 "topic": subtask["intent"],
                 "parent_task_id": parent_thread_id,
                 "subtask_id": subtask_id,
-                "agent_config": {
-                    "role_name": "Field Specialist",
-                    "system_instructions": system_instructions,
-                    "tools": subtask.get("tools", []),
-                    "is_subtask": True,
-                    "subtask_context": subtask.get("context", {}),
-                    "skill_hint": skill_hint,
-                }
+                "agent_config": agent_config
             }
 
             sends.append(Send(RoutingTarget.WORKER, {
@@ -70,7 +82,13 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
                 "execution_ticket": ticket,
                 "blackboard": blackboard.copy(), # Context preservation (WD, Clipboard)
                 "is_subtask": True,
+                # [CRITICAL] Start with empty messages to prevent inheriting parent history
+                # Worker will set the mission message via build_mission_message()
+                "messages": [],
             }))
+
+        # Consume the spawn_plan to prevent re-triggering on next router pass
+        blackboard["spawn_plan"] = None
 
         return sends
 
@@ -92,18 +110,13 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
                 "execution_ticket": execution_ticket,
             })
 
-        # Fallback: route without ticket (Worker will handle gracefully)
-        return Send(RoutingTarget.WORKER, {
-            "project_id": state.get("project_id", DEFAULT_PROJECT_ID),
-            "execution_ticket": {
-                "ticket_type": "task",
-                "topic": "General execution",
-                "agent_config": {
-                    "role_name": next_node.replace("_", " ").title(),
-                    "system_instructions": f"Execute as {next_node}",
-                }
-            },
-        })
+        # CRITICAL: No execution ticket found - this indicates a Supervisor routing bug
+        logger.error(f"[Router] CRITICAL: No execution ticket in blackboard for Worker route. "
+                     f"This should not happen - Supervisor should always create a ticket via route_to.")
+        raise ValueError(
+            "Supervisor routing error: No execution ticket found. "
+            "Supervisor must call route_to() with a valid execution_ticket before routing to Worker."
+        )
 
     return "finish"
 

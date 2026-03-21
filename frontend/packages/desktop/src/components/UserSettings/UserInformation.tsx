@@ -28,7 +28,7 @@ const createSchema = (t: any) =>
   z.object({
     nickname: z.string().max(30).optional(),
     email: z.email({
-      message: t("auth.errors.invalidEmail") || "Invalid email address",
+      message: t("auth.errors.invalidEmail"),
     }),
   })
 

@@ -50,7 +50,8 @@ def _tmp_screenshot_path(
 async def _run_ocr(filepath: str) -> str:
     """Run OCR on filepath and return formatted OCR lines."""
     try:
-        ocr_result = await vision_engine.process(VisionTask.OCR, filepath)
+        # Browser contexts don't benefit from Atlas learning (dynamic web pages)
+        ocr_result = await vision_engine.process(VisionTask.OCR, filepath, enable_atlas_learning=False)
         if ocr_result.success and ocr_result.elements:
             lines = [el.to_prompt_line() for el in ocr_result.elements]
             return "\n\n### OCR Results (Detected Text & Coordinates):\n" + "\n".join(lines)
@@ -156,13 +157,26 @@ class BrowserController:
 
                 await recording_ctx.record(action_type, params, screenshot_fn, context_fn)
 
+            # --- Pre-action state capture for stasis detection ---
+            pre_url = page.url
+            try:
+                pre_title = await page.title()
+            except Exception:
+                pre_title = ""
+
             # ── Navigation ────────────────────────────────────────────────────
             if action == "navigate":
                 if not url:
                     return "Error: 'url' is required for navigate."
                 await page.goto(url, wait_until="load", timeout=60_000)
                 await _record("navigate", {"url": url})
-                return f"✅ Navigated to: {page.url}\nTitle: {await page.title()}"
+                
+                post_url = page.url
+                post_title = await page.title()
+                res = f"✅ Navigated to: {post_url}\nTitle: {post_title}"
+                if post_url == pre_url and post_title == pre_title:
+                    res += "\nNote: The page URL and title remained unchanged after this action."
+                return res
 
             elif action == "back":
                 await page.go_back(wait_until="load", timeout=15_000)
@@ -205,7 +219,13 @@ class BrowserController:
                         await target.dblclick(timeout=timeout_ms)
                     verb = "Clicked" if action == "click" else "Double-clicked"
                     await _record(action, {"selector": loc, "x": x, "y": y})
-                    return f"✅ {verb}: {loc}"
+                    
+                    post_url = page.url
+                    post_title = await page.title()
+                    res = f"✅ {verb}: {loc}"
+                    if post_url == pre_url and post_title == pre_title:
+                        res += "\nNote: The page URL and title remained unchanged after this click."
+                    return res
                 elif x is not None and y is not None:
                     if action == "click":
                         await page.mouse.click(x, y)
@@ -213,7 +233,13 @@ class BrowserController:
                         await page.mouse.dblclick(x, y)
                     verb = "Clicked" if action == "click" else "Double-clicked"
                     await _record(action, {"x": x, "y": y})
-                    return f"✅ {verb} at ({x}, {y})."
+                    
+                    post_url = page.url
+                    post_title = await page.title()
+                    res = f"✅ {verb} at ({x}, {y})."
+                    if post_url == pre_url and post_title == pre_title:
+                        res += "\nNote: The page URL and title remained unchanged after this click."
+                    return res
                 else:
                     return "Error: Provide 'selector', 'text', or (x, y) for click/double_click."
 
@@ -318,7 +344,7 @@ class BrowserController:
                 else:
                     content = await page.inner_text("body")
                 content = re.sub(r"\n{3,}", "\n\n", content).strip()
-                return truncate_output(content, max_len=6000, suffix="\n… [truncated, total {len(content)} chars]")
+                return truncate_output(content, max_len=20000, suffix="\n… [truncated, total {len(content)} chars]")
 
             elif action == "get_html":
                 if selector:

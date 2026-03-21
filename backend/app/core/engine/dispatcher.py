@@ -67,6 +67,7 @@ class SignalDispatcher:
             "constraints": routing_context.get("constraints", []),
             "agent_config": agent_config,
             "namespace_context": inferred_namespace,
+            "skill_id": signal.skill_id,
         }
         blackboard["ticket"] = execution_ticket
 

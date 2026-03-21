@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
-from app.domain.project.ignored_projects_cache import ignored_projects_cache
+from app.domain.project import cache as project_cache
 from app.infrastructure.database.sql.database import session_scope
 from app.models import CodeChunk, SourceFile
 
@@ -133,8 +133,8 @@ class AnnotatedTreeGenerator:
 
         self.file_filter = FileFilter()
 
-        # Get ignored project paths from cache (Redis + DB)
-        ignored_paths = await ignored_projects_cache.get_ignored_paths()
+        # Get ignored project paths from cache (cache + DB)
+        ignored_paths = await project_cache.get_ignored_paths()
         logger.debug(f"[TreeGenerator] Ignored paths: {ignored_paths}")
 
         # Check if root_path itself is inside an ignored project

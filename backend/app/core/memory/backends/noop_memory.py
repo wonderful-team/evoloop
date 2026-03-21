@@ -75,6 +75,10 @@ class NoOpLongTermMemory(ILongTermMemory):
         """No-op delete."""
         return 0
 
+    async def delete_episodes_by_run_ids(self, run_ids: list[str]) -> int:
+        """No-op delete."""
+        return 0
+
 
 class NoOpPreferenceStore(IPreferenceStore):
     """NoOp implementation of preference store for embedded mode."""

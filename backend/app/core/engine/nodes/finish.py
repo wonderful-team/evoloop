@@ -1,8 +1,9 @@
 import logging
 import re
-import uuid
 
 from langchain_core.messages import AIMessage
+
+from app.utils.id import gen_uuid
 from langchain_core.runnables import RunnableConfig
 
 from app.core.config import settings
@@ -38,7 +39,7 @@ def _extract_final_summary(messages: list) -> str:
         if isinstance(msg, AIMessage) and msg.content:
             content = str(msg.content)
             
-            # 1. Structural Extraction (Phase 6b Systematic)
+            # 1. Structural Extraction (Systematic Review)
             # Prioritize content within <report> tags
             report_match = re.search(r"<report>(.*?)</report>", content, flags=re.DOTALL | re.IGNORECASE)
             if report_match:
@@ -82,7 +83,7 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, origin
             logger.warning("Finish: No thread_id in context, skipping episode recording.")
             return
 
-        message_id = config.get("configurable", {}).get("run_id") or str(uuid.uuid4())
+        message_id = config.get("configurable", {}).get("run_id") or gen_uuid()
 
         from app.core.brain.filesystem.manager import BrainFileSystem
         from app.core.brain.filesystem.protocol import MemoryZone, MemoryFile
@@ -125,7 +126,7 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, origin
 
 async def finish_node(state: AgentState, config: RunnableConfig):
     """
-    Session Reviewer — Shadow Observer / Terminal Gate (Phase 3).
+    Session Reviewer — Shadow Observer / Terminal Gate.
     """
     # 1. Resolve Context
     ctx = ContextManager.current()
@@ -169,7 +170,7 @@ async def finish_node(state: AgentState, config: RunnableConfig):
         blackboard = result.get("blackboard", blackboard)
         summary = _extract_final_summary(messages)
 
-    # Phase 6: Sync Structured Outcome to Blackboard for UI/Analytics
+    # Sync Structured Outcome to Blackboard for UI/Analytics
     # This outcome is used by the frontend to show success/failure indicators.
     # MUST extract before message cleaning below
     full_text = "".join([str(m.content) for m in messages if isinstance(m, AIMessage)])

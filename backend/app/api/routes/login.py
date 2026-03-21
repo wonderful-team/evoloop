@@ -10,7 +10,7 @@ from app.core.evocloud.bridge.handlers import (
     handle_remote_command,
 )
 from app.core.identity import identity_service
-from app.infrastructure.database.redis import redis_client
+from app.services.cache_services import LinkTokenService, UserCacheService
 from app.models import Token
 
 logger = logging.getLogger(__name__)
@@ -58,19 +58,20 @@ async def login_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Dep
                 detail="Failed to initialize local session",
             )
 
-        # 3. Persist cloud token to Redis for other services if needed (for now)
+        # 3. Persist cloud token to cache for other services if needed (for now)
         user_data = result.get("data", {})
         member_id = result.get("member_id", 0)
 
         try:
-            async with redis_client:
-                await redis_client.set("evoloop:link:token", result.get("token"))
-                # Store user info for fast access in deps.py
-                if user_data and member_id is not None:
-                    import json
-                    await redis_client.set(f"evoloop:user:{member_id}", json.dumps(user_data), ex=86400)
+            link_token_service = LinkTokenService()
+            user_cache = UserCacheService()
+            
+            await link_token_service.store_token("token", result.get("token"))
+            # Store user info for fast access in deps.py
+            if user_data and member_id is not None:
+                await user_cache.set_user(member_id, user_data)
         except Exception as e:
-            logger.warning(f"Failed to cache user to Redis: {e}")
+            logger.warning(f"Failed to cache user: {e}")
             pass
 
         return Token(access_token=local_token, token_type="bearer")

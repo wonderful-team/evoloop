@@ -1,7 +1,11 @@
 import asyncio
 import logging
 
-from celery import shared_task
+# Conditional import for Celery (embedded mode compatibility)
+try:
+    from celery import shared_task
+except ImportError:
+    from app.infrastructure.queue.celery import shared_task
 
 from app.core.brain.consolidation import MemoryConsolidator
 from app.core.brain.drivers.llm_driver import ReflectiveDriver

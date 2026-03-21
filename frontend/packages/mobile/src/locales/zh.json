@@ -20,7 +20,7 @@
       "title": "高效技巧"
     },
     "slide1": {
-      "subtitle": "您的随身智能助手。<br />无论是编写代码、解答疑惑，<br />还是头脑风暴，在这里随时开始。",
+      "subtitle": "您的随身通用智能体。<br />无论是跨平台编排、编写代码，<br />还是解答疑惑，在这里随时开始。",
       "title": "EvoLoop AI"
     },
     "next": "下一步"
@@ -37,8 +37,8 @@
     },
     "capabilities": {
       "cloud": {
-        "desc": "问答、编码、创意",
-        "title": "云端助手"
+        "desc": "跨平台自动化、编排、创意",
+        "title": "云端智能体"
       },
       "title": "核心能力",
       "device": {
@@ -59,7 +59,7 @@
     },
     "title": "用户手册",
     "intro": {
-      "desc": "EvoLoop 是您的双模智能助手。通过简单的左右滑动，您可以在 <bold>云端智能</bold> 和 <bold>本地设备</bold> 之间无缝切换。",
+      "desc": "EvoLoop 是您的随身通用智能体。通过简单的左右滑动，您可以在 <bold>云端智能</bold> 和 <bold>本地设备</bold> 之间无缝切换。",
       "title": "快速入门"
     },
     "replayParams": "重播新手引导"
@@ -280,7 +280,7 @@
   },
   "index": {
     "placeholder": "输入指令或问题...",
-    "subtitle": "您的智能移动助手"
+    "subtitle": "您的通用移动智能体"
   },
   "hitl": {
     "responseSent": "回复已发送",

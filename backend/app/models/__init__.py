@@ -15,6 +15,8 @@ from .learning import LearnedSkill as LearnedSkill
 from .learning import SynthesisJob as SynthesisJob
 from .learning import TraceEvent as TraceEvent
 from .memory import MemoryConcept as MemoryConcept
+from .checkpoint import FileCheckpoint as FileCheckpoint
+from .checkpoint import FileCheckpointSnapshot as FileCheckpointSnapshot
 from .persistence import Checkpoint as Checkpoint
 from .persistence import CheckpointBlob as CheckpointBlob
 from .persistence import CheckpointMigration as CheckpointMigration
@@ -43,6 +45,8 @@ __all__ = [
     "HumanRequest",
     "MessageReference",
     "FileOperation",
+    "FileCheckpoint",
+    "FileCheckpointSnapshot",
     "LearnedSkill",
     "SynthesisJob",
     "TraceEvent",

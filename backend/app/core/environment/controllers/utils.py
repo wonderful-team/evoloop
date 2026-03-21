@@ -8,9 +8,11 @@ hierarchy. Uses composition over inheritance for better flexibility.
 import asyncio
 import logging
 import os
-import unicodedata
 from abc import ABC, abstractmethod
 from typing import Any, Callable
+
+from app.utils.text import normalize_text as _normalize_text, truncate_output
+from app.utils.geometry import normalize_coordinates as _normalize_coordinates
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +72,7 @@ class RecordingContext:
                 pass  # Screenshot is optional
 
         # Build context
-        context = context_fn() if context_fn else {}
+        context = await context_fn() if context_fn else {}
 
         # Record the action
         await self.recorder.record_action(
@@ -87,10 +89,10 @@ def normalize_text(t: str | None) -> str:
     Normalize text for comparison: NFC unicode, lowercase, no spaces.
 
     Used for element name matching across different platforms.
+    
+    Note: Delegates to app.utils.text.normalize_text for the actual implementation.
     """
-    if not t:
-        return ""
-    return unicodedata.normalize('NFC', str(t)).lower().strip().replace(" ", "").replace("\u3000", "")
+    return _normalize_text(t)
 
 
 def resolve_element_alias(target: str | None, element_name: str | None) -> str | None:
@@ -109,14 +111,12 @@ def normalize_coordinates(
     screen_w: int,
     screen_h: int
 ) -> tuple[int | None, int | None]:
-    """Convert relative coordinates (0.0-1.0) to pixel coordinates."""
-    if x is None or y is None:
-        return x, y
-    if not any(isinstance(v, float) for v in [x, y]):
-        return int(x), int(y)
-    nx = int(x * screen_w) if isinstance(x, float) else int(x)
-    ny = int(y * screen_h) if isinstance(y, float) else int(y)
-    return nx, ny
+    """
+    Convert relative coordinates (0.0-1.0) to pixel coordinates.
+    
+    Note: Delegates to app.utils.geometry.normalize_coordinates for the actual implementation.
+    """
+    return _normalize_coordinates(x, y, screen_w, screen_h)
 
 
 def cleanup_file(filepath: str | None) -> None:
@@ -125,11 +125,7 @@ def cleanup_file(filepath: str | None) -> None:
         os.remove(filepath)
 
 
-def truncate_output(text: str, max_len: int = 6000, suffix: str = "...") -> str:
-    """Truncate long output strings with indicator."""
-    if len(text) <= max_len:
-        return text
-    return text[:max_len] + f"\n{suffix} [truncated, total {len(text)} chars]"
+# truncate_output is now imported from app.utils.text
 
 
 async def run_with_timeout(

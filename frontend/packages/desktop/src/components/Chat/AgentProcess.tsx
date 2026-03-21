@@ -15,7 +15,7 @@ export interface AgentProcessStep {
     parent_id?: string | number
 }
 
-// A Group is a collection of steps under a header (Phase)
+// A Group is a collection of steps under a header
 interface StepGroup {
     id: string
     title: string

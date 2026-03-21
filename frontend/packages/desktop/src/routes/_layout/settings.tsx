@@ -61,7 +61,7 @@ function UserSettings() {
   const { t } = useTranslation()
 
   useEffect(() => {
-    document.title = t("settings.pageTitle", "Settings - EvoLoop")
+    document.title = t("settings.pageTitle")
   }, [t])
 
   const { user: currentUser } = useAuth()

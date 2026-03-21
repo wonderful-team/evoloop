@@ -42,10 +42,11 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> dict[str
         # 4. Success Signal
         result_text = agg_result.get("aggregated", "Aggregation failed")
         
-        # 5. Update Blackboard (Clear recursion blocker + Save result)
-        # We clear subtask_results and pending_aggregation to allow next plan
+        # 5. Update Blackboard (Clear all orchestration state + Save result)
         blackboard["subtask_results"] = []
         blackboard["pending_aggregation"] = None
+        blackboard["spawn_plan"] = None
+        blackboard["worker_outcome"] = "success"
         blackboard.setdefault("metadata", {})["last_aggregation_result"] = result_text
 
         return {
@@ -59,6 +60,8 @@ async def aggregator_node(state: AgentState, config: RunnableConfig) -> dict[str
         # Ensure blackboard is returned even on error, potentially clearing pending state
         blackboard["subtask_results"] = []
         blackboard["pending_aggregation"] = None
+        blackboard["spawn_plan"] = None
+        blackboard["worker_outcome"] = "failed"
         blackboard.setdefault("metadata", {})["last_aggregation_result"] = f"❌ Aggregation failed: {e}"
         return {
             "messages": [AIMessage(content=f"❌ Aggregation failed: {e}")],

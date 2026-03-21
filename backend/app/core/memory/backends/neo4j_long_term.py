@@ -1,8 +1,8 @@
 import logging
 import time
-import uuid
 
 from app.core.config import settings
+from app.utils.id import gen_uuid
 from app.core.memory.interfaces.long_term import (
     Concept,
     Episode,
@@ -271,7 +271,7 @@ class Neo4jLongTermMemory(ILongTermMemory):
             return None
 
         # Create Episode Node
-        episode_id = str(uuid.uuid4())
+        episode_id = gen_uuid()
 
         query = """
         CREATE (e:Episode {
@@ -484,3 +484,8 @@ class Neo4jLongTermMemory(ILongTermMemory):
         except Exception as e:
             logger.error(f"Failed to delete episodes by message IDs: {e}")
             return 0
+
+    async def delete_episodes_by_run_ids(self, run_ids: list[str]) -> int:
+        """Delete episodes linked to specific run IDs (source_message_id)."""
+        # In Neo4j backend, run_id is stored in source_message_id
+        return await self.delete_episodes_by_message_ids(run_ids)

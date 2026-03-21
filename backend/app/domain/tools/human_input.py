@@ -154,7 +154,9 @@ def cancel_request(request_id: str) -> bool:
     "request_human_input",
     args_schema=RequestHumanInputArgs,
     is_pollable=True,
-    summary_template="database_logger.tool_summary.ask_user"
+    summary_template="database_logger.tool_summary.ask_user",
+    name_map={"zh": "请求人工输入", "en": "Request Human Input"},
+    handle_tool_error=False,  # HITL must propagate interrupt exception
 )
 async def request_human_input(
     prompt: str,
@@ -279,7 +281,9 @@ async def request_human_input(
     "request_approval",
     args_schema=RequestApprovalArgs,
     is_pollable=True,
-    summary_template="database_logger.tool_summary.ask_user"
+    summary_template="database_logger.tool_summary.ask_user",
+    name_map={"zh": "请求审批", "en": "Request Approval"},
+    handle_tool_error=False,  # HITL must propagate interrupt exception
 )
 async def request_approval(
     action_description: str,

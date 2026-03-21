@@ -112,7 +112,7 @@ def _seed_llm_config(SystemConfigService):
 
 
 async def init_atlas_config() -> None:
-    """Initialize Atlas configuration (Redis-based, no hardcoding)."""
+    """Initialize Atlas configuration (Cache-based, no hardcoding)."""
     logger.info("Initializing Atlas configuration...")
     from app.core.atlas.config_manager import AtlasConfigManager
     await AtlasConfigManager.initialize_defaults()

@@ -12,6 +12,9 @@ class LanguageSemanticProvider(ABC):
     - Code structure extraction (get_structure_query)
     - Import extraction (get_imports_query)
     - DB schema extraction (extract_db)
+    
+    Note: Structure and imports queries are loaded from queries.py by default
+    to avoid duplication. Override only if language-specific customization needed.
     """
 
     @abstractmethod
@@ -32,17 +35,24 @@ class LanguageSemanticProvider(ABC):
     def get_structure_query(self) -> str | None:
         """
         Return the Tree-sitter query for structure extraction (functions, classes).
-        Used by TreeSitterExtractor for code indexing.
-        Returns None if not implemented (falls back to queries.py).
+        Loads from queries.py by default to avoid duplication.
+        Override only if language needs custom structure query.
         """
-        return None
+        from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
+        lang = self.get_language_name()
+        query_data = TREE_SITTER_QUERIES.get(lang, {})
+        return query_data.get("defs")
 
     def get_imports_query(self) -> str | None:
         """
         Return the Tree-sitter query for import extraction.
-        Returns None if not implemented (falls back to queries.py).
+        Loads from queries.py by default to avoid duplication.
+        Override only if language needs custom imports query.
         """
-        return None
+        from app.domain.codebase.indexing.queries import TREE_SITTER_QUERIES
+        lang = self.get_language_name()
+        query_data = TREE_SITTER_QUERIES.get(lang, {})
+        return query_data.get("imports")
 
     def extract_db(self, file_path: str, content: str) -> list[Any]:
         """Generic DB extraction using content (Regex or otherwise)"""

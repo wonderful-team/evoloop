@@ -13,7 +13,10 @@ class GetWorkspaceTreeSchema(BaseModel):
     with_symbols: bool = Field(False, description="Whether to include code symbols (classes/functions) in the tree. Defaults to False for speed and token economy.")
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "获取工作区树", "en": "Get Workspace Tree"}
+)
 async def get_workspace_tree(
     dir_path: str = ".",
     max_depth: int = 2,
@@ -49,7 +52,10 @@ async def get_workspace_tree(
         return f"Failed to list structure: {str(e)}"
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "暂存到剪贴板", "en": "Stash to Clipboard"}
+)
 async def stash_to_clipboard(content: Any, mime_type: str = "text/plain", metadata: dict = None) -> str:
     """
     Stash information (text, image path, UI element bounds) into the agent's short-term workspace clipboard.
@@ -66,7 +72,10 @@ async def stash_to_clipboard(content: Any, mime_type: str = "text/plain", metada
     return f"Successfully stashed {mime_type} to workspace clipboard."
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "从剪贴板检索", "en": "Retrieve from Clipboard"}
+)
 async def retrieve_from_clipboard() -> str:
     """
     Retrieve all items currently in the workspace clipboard.

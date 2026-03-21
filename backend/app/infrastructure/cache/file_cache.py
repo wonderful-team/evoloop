@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class FileCache:
     """File-based cache implementation for embedded mode.
 
-    Mimics Redis API but stores data in JSON files.
+    Mimics cache API but stores data in JSON files.
     Structure:
         ~/.evoloop/cache/
             strings/{key}.json
@@ -373,7 +373,7 @@ class FileCache:
         """Close cache (no-op for file cache)."""
         pass
 
-    # Pipeline support for compatibility with Redis
+    # Pipeline support for compatibility with cache
     def pipeline(self):
         """Return a pipeline object for batch operations."""
         return FileCachePipeline(self)
@@ -392,7 +392,7 @@ class FileCache:
 
 
 class FileCachePipeline:
-    """Pipeline for batching Redis-like operations on FileCache.
+    """Pipeline for batching cache-like operations on FileCache.
 
     Accumulates commands and executes them sequentially when execute() is called.
     This mimics Redis pipeline behavior for compatibility.

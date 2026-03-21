@@ -5,7 +5,7 @@ from typing import Any
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import BaseTool
 
-from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
+from app.core.evocloud.callback_handler import EvoCloudCallbackHandler
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class ToolExecutor:
     """
     Service to execute tools with enhanced observability.
-    Ensures that start/end events are logged to the frontend via EvoLoopCallbackHandler.
+    Ensures that start/end events are logged to the frontend via EvoCloudCallbackHandler.
     """
 
     def __init__(self):
@@ -30,7 +30,7 @@ class ToolExecutor:
                     However, we also manually trigger specific logs if the handler is found.
         """
         callbacks = config.get("callbacks", []) if config else []
-        evoloop_handler: EvoLoopCallbackHandler | None = None
+        evoloop_handler: EvoCloudCallbackHandler | None = None
 
         # Normalize callbacks to a list
         callback_list = []
@@ -40,9 +40,9 @@ class ToolExecutor:
             # Handle AsyncCallbackManager/CallbackManager
             callback_list = callbacks.handlers
 
-        # Find EvoLoop handler to force-feed logs if needed
+        # Find EvoCloud handler to force-feed logs if needed
         for cb in callback_list:
-            if isinstance(cb, EvoLoopCallbackHandler):
+            if isinstance(cb, EvoCloudCallbackHandler):
                 evoloop_handler = cb
                 break
 

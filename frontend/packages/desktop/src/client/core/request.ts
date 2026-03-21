@@ -194,7 +194,6 @@ export const sendRequest = async <T>(
 		signal: controller.signal,
 		url,
 		withCredentials: config.WITH_CREDENTIALS,
-		timeout: 30000, // 30 seconds timeout
 	};
 
 	onCancel(() => controller.abort());

@@ -3,7 +3,7 @@
 import logging
 
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 
 from app.core.memory.interfaces.short_term import IShortTermMemory
 from app.infrastructure.database.sql.database import session_scope
@@ -150,3 +150,44 @@ class SqlShortTermMemory(IShortTermMemory):
                 await db.execute(delete_stmt)
                 await db.commit()
                 logger.info(f"SqlShortTermMemory: Pruned {len(ids_to_delete)} old messages from thread {thread_id}")
+
+    async def search_messages(self, query: str, thread_id: str | None = None, limit: int = 10) -> list[BaseMessage]:
+        """
+        Search for messages containing the query string using SQL LIKE.
+        Supports multi-keyword search (space-separated keywords are OR-ed).
+        """
+        async with session_scope() as db:
+            # Build multi-keyword search (space-separated = OR)
+            keywords = [k.strip() for k in query.split() if k.strip()]
+            
+            if len(keywords) == 1:
+                # Single keyword - simple LIKE
+                stmt = select(Message).where(Message.content.ilike(f"%{keywords[0]}%"))
+            elif len(keywords) > 1:
+                # Multiple keywords - OR condition
+                conditions = [Message.content.ilike(f"%{k}%") for k in keywords]
+                stmt = select(Message).where(or_(*conditions))
+            else:
+                # Empty query - return nothing
+                return []
+            
+            if thread_id:
+                stmt = stmt.where(Message.thread_id == thread_id)
+            
+            # Focus on text and thinking for cleaner results
+            stmt = stmt.where(Message.action_type.in_(["text", "thinking"]))
+            stmt = stmt.order_by(Message.created_at.desc()).limit(limit)
+            
+            result = await db.execute(stmt)
+            db_messages = result.scalars().all()
+
+        lc_messages: list[BaseMessage] = []
+        for msg in db_messages:
+            if msg.role == "human":
+                lc_messages.append(HumanMessage(content=msg.content))
+            elif msg.role == "ai":
+                lc_messages.append(AIMessage(content=msg.content))
+            elif msg.role == "system":
+                lc_messages.append(SystemMessage(content=msg.content))
+        
+        return lc_messages

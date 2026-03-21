@@ -11,7 +11,9 @@ from sqlalchemy import select
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(
+    name_map={"zh": "委托周期性意图", "en": "Delegate Periodic Intent"}
+)
 async def delegate_periodic_intent(
     intent: str,
     trigger: str,
@@ -57,7 +59,9 @@ async def delegate_periodic_intent(
         return f"Error: Failed to delegate intent. {str(e)}"
 
 
-@evoloop_tool
+@evoloop_tool(
+    name_map={"zh": "检查任务健康", "en": "Inspect Task Health"}
+)
 async def inspect_task_health(task_id: int) -> str:
     """
     Inspect the health and execution history of an autonomous task.
@@ -93,7 +97,9 @@ async def inspect_task_health(task_id: int) -> str:
         return f"Error: Failed to inspect task health. {str(e)}"
 
 
-@evoloop_tool
+@evoloop_tool(
+    name_map={"zh": "列出自主任务", "en": "List Autonomous Tasks"}
+)
 async def list_autonomous_tasks(project_id: Optional[int] = None) -> str:
     """
     List all autonomous tasks managed by the agent.

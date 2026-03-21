@@ -17,7 +17,10 @@ from app.models.todo import (
 from app.utils.time import utcnow
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "管理待办事项", "en": "Manage Todo"}
+)
 async def manage_todo(
     action: Literal["add", "list", "update", "delete"],
     title: str | None = None,

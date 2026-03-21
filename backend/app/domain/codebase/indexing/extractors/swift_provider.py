@@ -62,43 +62,4 @@ class SwiftSemanticProvider(LanguageSemanticProvider):
 
         return endpoints
 
-    def get_structure_query(self) -> str:
-        return """
-        ; Classes
-        (class_declaration
-          name: (simple_identifier) @class.name
-        ) @class.def
 
-        ; Structs
-        (struct_declaration
-          name: (simple_identifier) @class.name
-        ) @class.def
-
-        ; Enums
-        (enum_declaration
-          name: (simple_identifier) @class.name
-        ) @class.def
-
-        ; Protocols
-        (protocol_declaration
-          name: (simple_identifier) @class.name
-        ) @class.def
-
-        ; Functions
-        (function_declaration
-          name: (simple_identifier) @function.name
-        ) @function.def
-
-        ; Extensions
-        (extension_declaration
-          (type_identifier) @class.name
-        ) @class.extension
-        """
-
-    def get_imports_query(self) -> str:
-        return """
-        ; Import statements
-        (import_declaration
-          (identifier) @import.name
-        )
-        """

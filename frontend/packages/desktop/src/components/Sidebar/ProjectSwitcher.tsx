@@ -152,7 +152,7 @@ export function ProjectSwitcher() {
                   </Badge>
                 )
               } else if (currentProject?.summarization_status === "running" ||
-                currentProject?.summarization_status === "SUMMARIZING") {
+                currentProject?.summarization_status === "summarizing") {
                 return (
                   <Badge
                     variant="secondary"

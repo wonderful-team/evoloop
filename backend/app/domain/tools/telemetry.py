@@ -7,7 +7,10 @@ from app.core.tools import evoloop_tool
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "获取环境遥测", "en": "Get Environment Telemetry"}
+)
 async def get_environment_telemetry() -> dict[str, Any]:
     """
     Retrieves raw telemetry data about the current environment, including connected devices,

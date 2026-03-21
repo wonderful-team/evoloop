@@ -10,20 +10,22 @@ Defines the core data structures that represent an application's UI topology:
 
 from __future__ import annotations
 
-import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from app.utils.dataclass_helpers import NestedSerializableMixin
+from app.utils.hash import compute_version_hash as _compute_version_hash
+
 
 @dataclass
-class AtlasElement:
+class AtlasElement(NestedSerializableMixin):
     """
     A semantic anchor for a single interactive UI element.
     Platform-agnostic representation.
 
-    Phase 6: Element Classification
+    Element Classification
     - element_category: Classifies element type (static/dynamic/container)
     - is_infrastructure: True for static elements like toolbars (reliable coordinates)
     - coordinate_confidence: 0.0-1.0, low for dynamic content
@@ -39,46 +41,20 @@ class AtlasElement:
     is_enabled: bool = True
     parent_menu: str | None = None
 
-    # Phase 6: Element classification
+    # Element classification
     element_category: str = "unknown"  # static | static_navigation | static_toolbar | dynamic | dynamic_content | container_*
     is_infrastructure: bool = False     # True for reliable static elements
     coordinate_confidence: float = 1.0  # 0.0-1.0, reliability of coordinates
     clickable: bool = False             # Whether element is interactive
     metadata: dict[str, Any] = field(default_factory=dict)  # Platform-specific metadata
 
-    def to_dict(self) -> dict:
-        return {
-            "role": self.role,
-            "label": self.label,
-            "ax_path": self.ax_path,
-            "os_identifier": self.os_identifier or self.ax_path,
-            "ocr_confidence": self.ocr_confidence,
-            "shortcut": self.shortcut,
-            "visual_hash": self.visual_hash,
-            "bounds": self.bounds,
-            "is_enabled": self.is_enabled,
-            "parent_menu": self.parent_menu,
-            "element_category": self.element_category,
-            "is_infrastructure": self.is_infrastructure,
-            "coordinate_confidence": self.coordinate_confidence,
-            "clickable": self.clickable,
-            "metadata": self.metadata,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> AtlasElement:
-        # Filter only valid fields
-        valid_fields = cls.__dataclass_fields__.keys()
-        filtered = {k: v for k, v in data.items() if k in valid_fields}
-        return cls(**filtered)
-
 
 @dataclass
-class AtlasState:
+class AtlasState(NestedSerializableMixin):
     """
     A snapshot of the application at a given UI state (a 'screen').
 
-    Phase 6: Infrastructure-only states
+    Infrastructure-only states
     - is_infrastructure_only: True for dynamic apps (only stores static UI like toolbars)
     """
     state_id: str
@@ -97,31 +73,9 @@ class AtlasState:
     def get_element_by_path(self, ax_path: str) -> AtlasElement | None:
         return next((e for e in self.elements if e.ax_path == ax_path), None)
 
-    def to_dict(self) -> dict:
-        return {
-            "state_id": self.state_id,
-            "window_title": self.window_title,
-            "elements": [e.to_dict() for e in self.elements],
-            "screenshot_hash": self.screenshot_hash,
-            "metadata": self.metadata,
-            "is_infrastructure_only": self.is_infrastructure_only,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> AtlasState:
-        elements = [AtlasElement.from_dict(e) for e in data.get("elements", [])]
-        return cls(
-            state_id=data["state_id"],
-            window_title=data["window_title"],
-            elements=elements,
-            screenshot_hash=data.get("screenshot_hash"),
-            metadata=data.get("metadata", {}),
-            is_infrastructure_only=data.get("is_infrastructure_only", False),
-        )
-
 
 @dataclass
-class AtlasTransition:
+class AtlasTransition(NestedSerializableMixin):
     """
     Records a causal link between states.
     """
@@ -130,25 +84,6 @@ class AtlasTransition:
     to_state: str
     action_type: str = "click"
     success: bool = True
-
-    def to_dict(self) -> dict:
-        return {
-            "from_state": self.from_state,
-            "action": self.action.to_dict(),
-            "to_state": self.to_state,
-            "action_type": self.action_type,
-            "success": self.success,
-        }
-
-    @classmethod
-    def from_dict(cls, data: dict) -> AtlasTransition:
-        return cls(
-            from_state=data["from_state"],
-            action=AtlasElement.from_dict(data["action"]),
-            to_state=data["to_state"],
-            action_type=data.get("action_type", "click"),
-            success=data.get("success", True),
-        )
 
 
 @dataclass
@@ -173,27 +108,46 @@ class AtlasApp:
     is_dynamic: bool = False
 
     @property
-    def concept_key(self) -> str:
-        return f"app_model:{self.bundle_id}"
-
-    def compute_version_hash(self, app_version: str, app_modified_at: str) -> str:
-        raw = f"{self.bundle_id}:{app_version}:{app_modified_at}"
-        self.version_hash = hashlib.md5(raw.encode()).hexdigest()[:12]
-        return self.version_hash
-
-    def add_state(self, state: AtlasState) -> None:
-        self.states[state.state_id] = state
-
-    def add_transition(self, transition: AtlasTransition) -> None:
-        self.transitions.append(transition)
-
-    def get_all_elements(self) -> list[AtlasElement]:
+    def all_elements(self) -> list[AtlasElement]:
+        """Flatten all elements from all states."""
         elements = []
         for state in self.states.values():
             elements.extend(state.elements)
         return elements
 
+    @property
+    def infrastructure_elements(self) -> list[AtlasElement]:
+        """Get only infrastructure (static) elements."""
+        return [e for e in self.all_elements if e.is_infrastructure]
+
+    @property
+    def dynamic_elements(self) -> list[AtlasElement]:
+        """Get only dynamic elements."""
+        return [e for e in self.all_elements if not e.is_infrastructure]
+
+    def get_element_by_label(self, label: str) -> AtlasElement | None:
+        """Search for an element by label across all states."""
+        label_lower = label.lower()
+        for state in self.states.values():
+            if elem := state.get_element_by_label(label):
+                return elem
+        return None
+
+    def get_element_by_path(self, ax_path: str) -> AtlasElement | None:
+        """Search for an element by path across all states."""
+        for state in self.states.values():
+            if elem := state.get_element_by_path(ax_path):
+                return elem
+        return None
+
+    def get_state_elements(self, state_id: str) -> list[AtlasElement]:
+        """Get elements for a specific state."""
+        if state := self.states.get(state_id):
+            return state.elements
+        return []
+
     def to_dict(self) -> dict:
+        """Convert to dictionary with proper datetime handling."""
         return {
             "app_name": self.app_name,
             "bundle_id": self.bundle_id,
@@ -212,12 +166,22 @@ class AtlasApp:
 
     @classmethod
     def from_dict(cls, data: dict) -> AtlasApp:
+        """Create from dictionary with proper datetime handling."""
         states = {
             k: AtlasState.from_dict(v) for k, v in data.get("states", {}).items()
         }
         transitions = [
             AtlasTransition.from_dict(t) for t in data.get("transitions", [])
         ]
+        
+        # Handle datetime parsing
+        explored_at = datetime.now()
+        if "explored_at" in data:
+            try:
+                explored_at = datetime.fromisoformat(data["explored_at"])
+            except (ValueError, TypeError):
+                pass
+        
         return cls(
             app_name=data["app_name"],
             bundle_id=data["bundle_id"],
@@ -226,11 +190,45 @@ class AtlasApp:
             transitions=transitions,
             menu_tree=data.get("menu_tree", {}),
             version_hash=data.get("version_hash", ""),
-            explored_at=datetime.fromisoformat(data["explored_at"]) if "explored_at" in data else datetime.now(),
+            explored_at=explored_at,
             exploration_depth=data.get("exploration_depth", 0),
             is_dynamic=data.get("is_dynamic", False),
         )
 
-    @classmethod
-    def from_json(cls, json_str: str) -> AtlasApp:
-        return cls.from_dict(json.loads(json_str))
+    def compute_version_hash(self) -> str:
+        """Compute a hash representing the current state of the app map."""
+        content = f"{self.bundle_id}:{len(self.states)}:{len(self.transitions)}"
+        return _compute_version_hash(content)
+
+    def get_infrastructure_only(self) -> "AtlasApp":
+        """
+        Return a copy with only infrastructure (static) elements.
+        Used for dynamic apps where only static UI is reliable.
+        """
+        filtered_states = {}
+        for state_id, state in self.states.items():
+            infra_elements = [e for e in state.elements if e.is_infrastructure]
+            if infra_elements:
+                # Create new state with filtered elements
+                filtered_state = AtlasState(
+                    state_id=state.state_id,
+                    window_title=state.window_title,
+                    elements=infra_elements,
+                    screenshot_hash=state.screenshot_hash,
+                    metadata=state.metadata,
+                    is_infrastructure_only=True,
+                )
+                filtered_states[state_id] = filtered_state
+
+        return AtlasApp(
+            app_name=self.app_name,
+            bundle_id=self.bundle_id,
+            platform=self.platform,
+            states=filtered_states,
+            transitions=[],  # Clear transitions for infrastructure-only view
+            menu_tree=self.menu_tree,
+            version_hash=self.version_hash,
+            explored_at=self.explored_at,
+            exploration_depth=self.exploration_depth,
+            is_dynamic=True,  # Mark as dynamic since we're filtering
+        )

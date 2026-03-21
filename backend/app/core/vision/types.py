@@ -2,6 +2,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
+from app.utils.dataclass_helpers import SerializableMixin
+
 
 class ElementType(Enum):
     """Type of UI element."""

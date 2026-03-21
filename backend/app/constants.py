@@ -13,7 +13,7 @@ DEFAULT_PROJECT_ID = 1
 DEFAULT_WINDOW_SIZE = 30
 DEFAULT_HISTORY_RETAIN_COUNT = 5  # Number of messages to retain during compression
 
-# Technical Markers for Session Cleanup (Phase 6)
+# Technical Markers for Session Cleanup
 TECHNICAL_MARKERS = [
     "SESSION COMPLETE", "MISSION END", "MISSION COMPLETE",
     "任务结束", "会话结束", "任务完成", "结论", "总结", "结果"
@@ -644,17 +644,6 @@ PRESET_LLM_MODELS = [
         "description": "本地运行的 Ollama 模型",
         "icon": "ollama",
     },
-    {
-        "id": "custom",
-        "name": "自定义...",
-        "type": "custom",
-        "provider": "",
-        "base_url": "",
-        "model": "",
-        "vision_model": "",
-        "description": "配置其他 OpenAI 兼容接口",
-        "icon": "settings",
-    },
 ]
 
 # Preset Embedding Models
@@ -690,6 +679,16 @@ PRESET_EMBEDDING_MODELS = [
         "description": "使用您自己的阿里云 DashScope API Key",
     },
     {
+        "id": "lm-studio-local",
+        "name": "LM-Studio (本地)",
+        "type": "custom",
+        "provider": "openai",
+        "base_url": "http://localhost:1234/v1",
+        "model": "local-model",
+        "dimensions": 768,
+        "description": "本地运行的 LM-Studio 嵌入模型",
+    },
+    {
         "id": "ollama-nomic",
         "name": "Ollama nomic-embed-text (本地)",
         "type": "custom",
@@ -698,16 +697,6 @@ PRESET_EMBEDDING_MODELS = [
         "model": "nomic-embed-text",
         "dimensions": 768,
         "description": "本地运行的 Ollama 嵌入模型",
-    },
-    {
-        "id": "custom",
-        "name": "自定义...",
-        "type": "custom",
-        "provider": "",
-        "base_url": "",
-        "model": "",
-        "dimensions": 768,
-        "description": "配置其他 OpenAI 兼容接口",
     },
 ]
 
@@ -812,7 +801,7 @@ INTERCEPT_TARGETS = [
     "以后再说"
 ]
 
-# Phase 6: High-risk keywords for interactive safety guard
+# High-risk keywords for interactive safety guard
 RISK_KEYWORDS = [
     "delete", "pay", "transfer", "uninstall", "buy", "confirm payment",
     "删除", "支付", "转账", "卸载", "买", "清除"

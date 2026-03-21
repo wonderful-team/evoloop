@@ -35,7 +35,7 @@ export const ChatSidebar = memo(
 
     return (
       <div
-        className="flex flex-col h-full border-r bg-muted/5"
+        className="flex flex-col h-full bg-muted/5"
         data-tour="chat-sidebar"
       >
         <div className="p-2 border-b bg-background shrink-0">

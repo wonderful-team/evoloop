@@ -4,17 +4,59 @@ Task queue for EvoLoop Backend.
 Supports two modes:
 - Full mode: Celery + Redis (traditional)
 - Embedded mode: LocalCelery (in-process, no broker)
+
+Both implementations conform to the TaskScheduler abstract base class.
 """
 
 import asyncio
 import functools
 import logging
 from pathlib import Path
-from typing import Any, Callable, Coroutine
+from typing import Any, Callable, Coroutine, Union
 
 from app.core.config import settings
+from app.infrastructure.queue.base import TaskScheduler, SyncTaskMixin
 
 logger = logging.getLogger(__name__)
+
+
+# Task name to module mapping for dynamic loading
+TASK_MODULE_MAP = {
+    # Engine tasks
+    "engine_persist_file_operation": "app.core.engine.tasks",
+    "engine_upload_cloud_log": "app.core.engine.tasks",
+    "engine_snapshot_steps": "app.core.engine.tasks",
+    "engine_harvest_concepts": "app.core.engine.tasks",
+    "engine_record_episode": "app.core.engine.tasks",
+    "engine_prune_checkpoints": "app.core.engine.tasks",
+    "engine_persist_message": "app.core.engine.tasks",
+    "engine_cleanup_artifacts": "app.core.engine.tasks",
+    "engine_git_harvest": "app.core.engine.tasks",
+    "engine_reconcile_skill_macro": "app.core.engine.tasks",
+    "engine_scheduler_tick": "app.core.engine.tasks",
+    "run_autonomous_task_execution": "app.core.engine.tasks",
+    # Brain tasks
+    "brain_consolidate_memory": "app.core.brain.tasks",
+    "brain_summarize_thread": "app.core.brain.tasks",
+    # Atlas tasks
+    "atlas_explore_app": "app.core.atlas.tasks",
+    "atlas_execute_exploration": "app.core.atlas.tasks",
+    # Vision tasks
+    "cleanup_screenshots": "app.core.vision.cleanup",
+    "cleanup_screen_recordings": "app.core.vision.cleanup",
+    # Indexing tasks
+    "index_repository": "app.domain.codebase.indexing.tasks",
+    "incremental_index": "app.domain.codebase.indexing.tasks",
+    # Project tasks
+    "summarize_project": "app.domain.project.summarizer",
+    "sync_project": "app.domain.project.sync_tasks",
+    # Wiki tasks
+    "sync_wiki_page": "app.domain.wiki.tasks",
+}
+
+
+# Temporary registry for tasks registered before celery_app is created
+_pending_shared_tasks: list[tuple] = []
 
 
 # =============================================================================
@@ -135,10 +177,16 @@ class LocalAsyncResult:
         return self._ready and self._exception is None
 
 
-class LocalCelery:
+class LocalCelery(TaskScheduler, SyncTaskMixin):
     """
-    Mock Celery app for embedded mode.
-    Provides @app.task decorator and basic API.
+    Embedded mode task scheduler.
+    
+    Implements TaskScheduler interface using in-process async execution.
+    Tasks run in the same event loop, making this suitable for standalone
+    deployments without Redis/Celery infrastructure.
+    
+    Note: By default, tasks are fire-and-forget. For critical operations,
+    use execute_sync() or await result.get() to ensure completion.
     """
 
     def __init__(self, name: str = "evoloop_local"):
@@ -213,41 +261,6 @@ class LocalCelery:
         logger.info("[LocalCelery] Worker main called (no-op in embedded mode)")
 
 
-# Task name to module mapping for dynamic loading
-TASK_MODULE_MAP = {
-    # Engine tasks
-    "engine_persist_file_operation": "app.core.engine.tasks",
-    "engine_upload_cloud_log": "app.core.engine.tasks",
-    "engine_snapshot_steps": "app.core.engine.tasks",
-    "engine_harvest_concepts": "app.core.engine.tasks",
-    "engine_record_episode": "app.core.engine.tasks",
-    "engine_prune_checkpoints": "app.core.engine.tasks",
-    "engine_persist_message": "app.core.engine.tasks",
-    "engine_cleanup_artifacts": "app.core.engine.tasks",
-    "engine_git_harvest": "app.core.engine.tasks",
-    "engine_reconcile_skill_macro": "app.core.engine.tasks",
-    "engine_scheduler_tick": "app.core.engine.tasks",
-    "run_autonomous_task_execution": "app.core.engine.tasks",
-    # Brain tasks
-    "brain_consolidate_memory": "app.core.brain.tasks",
-    "brain_summarize_thread": "app.core.brain.tasks",
-    # Atlas tasks
-    "atlas_explore_app": "app.core.atlas.tasks",
-    "atlas_execute_exploration": "app.core.atlas.tasks",
-    # Vision tasks
-    "cleanup_screenshots": "app.core.vision.cleanup",
-    "cleanup_screen_recordings": "app.core.vision.cleanup",
-    # Indexing tasks
-    "index_repository": "app.domain.codebase.indexing.tasks",
-    "incremental_index": "app.domain.codebase.indexing.tasks",
-    # Project tasks
-    "summarize_project": "app.domain.project.summarizer",
-    "sync_project": "app.domain.project.sync_tasks",
-    # Wiki tasks
-    "sync_wiki_page": "app.domain.wiki.tasks",
-}
-
-
 # Compatibility: shared_task decorator
 def shared_task(func=None, *, name=None, bind=False, **options):
     """
@@ -257,10 +270,19 @@ def shared_task(func=None, *, name=None, bind=False, **options):
     def decorator(f):
         task_name = name or f.__module__ + "." + f.__name__
         task = LocalTask(f, name=task_name, bind=bind)
-        # Register with celery_app if it's LocalCelery
-        if isinstance(celery_app, LocalCelery):
-            celery_app.tasks[task_name] = task
-            logger.debug(f"[shared_task] Registered: {task_name}")
+        # Register with celery_app if it's already created, otherwise queue it
+        try:
+            if 'celery_app' in globals() and isinstance(celery_app, LocalCelery):
+                celery_app.tasks[task_name] = task
+                logger.debug(f"[shared_task] Registered: {task_name}")
+            else:
+                # Queue for later registration
+                _pending_shared_tasks.append((task_name, task))
+                logger.debug(f"[shared_task] Queued for registration: {task_name}")
+        except NameError:
+            # celery_app not defined yet, queue for later
+            _pending_shared_tasks.append((task_name, task))
+            logger.debug(f"[shared_task] Queued for registration: {task_name}")
         return task
 
     if func is not None:
@@ -278,70 +300,74 @@ def _register_local_tasks(app: LocalCelery):
     This is needed because task modules use 'from celery import shared_task'
     which doesn't automatically register with our LocalCelery.
     """
+    # First, process any tasks that were queued before celery_app was created
+    global _pending_shared_tasks
+    for task_name, task in _pending_shared_tasks:
+        if task_name not in app.tasks:
+            app.tasks[task_name] = task
+            logger.debug(f"[LocalCelery] Registered from queue: {task_name}")
+    logger.info(f"[LocalCelery] Registered {len(_pending_shared_tasks)} tasks from shared_task queue")
+    _pending_shared_tasks = []  # Clear the queue
+
     # Import task functions and wrap them as LocalTasks
+    # Use importlib to avoid circular imports
+    import importlib
+
     try:
-        # Engine tasks
-        from app.core.engine.tasks import (
-            persist_file_operation_task,
-            upload_cloud_log_task,
-            snapshot_steps_task,
-            harvest_concepts_task,
-            record_episode_task,
-            prune_checkpoints_task,
-            persist_message_task,
-            cleanup_artifacts_task,
-            git_harvest_task,
-            reconcile_skill_macro_task,
-            engine_scheduler_tick,
-            run_autonomous_task_execution,
-        )
+        # Engine tasks - dynamically import to avoid circular imports
+        engine_tasks = importlib.import_module('app.core.engine.tasks')
 
         tasks_to_register = [
-            ("engine_persist_file_operation", persist_file_operation_task, False),
-            ("engine_upload_cloud_log", upload_cloud_log_task, False),
-            ("engine_snapshot_steps", snapshot_steps_task, False),
-            ("engine_harvest_concepts", harvest_concepts_task, False),
-            ("engine_record_episode", record_episode_task, False),
-            ("engine_prune_checkpoints", prune_checkpoints_task, False),
-            ("engine_persist_message", persist_message_task, False),
-            ("engine_cleanup_artifacts", cleanup_artifacts_task, False),
-            ("engine_git_harvest", git_harvest_task, False),
-            ("engine_reconcile_skill_macro", reconcile_skill_macro_task, False),
-            ("engine_scheduler_tick", engine_scheduler_tick, False),
-            ("run_autonomous_task_execution", run_autonomous_task_execution, False),
+            ("engine_persist_file_operation", getattr(engine_tasks, 'persist_file_operation_task', None), False),
+            ("engine_upload_cloud_log", getattr(engine_tasks, 'upload_cloud_log_task', None), False),
+            ("engine_snapshot_steps", getattr(engine_tasks, 'snapshot_steps_task', None), False),
+            ("engine_harvest_concepts", getattr(engine_tasks, 'harvest_concepts_task', None), False),
+            ("engine_record_episode", getattr(engine_tasks, 'record_episode_task', None), False),
+            ("engine_prune_checkpoints", getattr(engine_tasks, 'prune_checkpoints_task', None), False),
+            ("engine_persist_message", getattr(engine_tasks, 'persist_message_task', None), False),
+            ("engine_cleanup_artifacts", getattr(engine_tasks, 'cleanup_artifacts_task', None), False),
+            ("engine_git_harvest", getattr(engine_tasks, 'git_harvest_task', None), False),
+            ("engine_reconcile_skill_macro", getattr(engine_tasks, 'reconcile_skill_macro_task', None), False),
+            ("engine_scheduler_tick", getattr(engine_tasks, 'engine_scheduler_tick', None), False),
+            ("run_autonomous_task_execution", getattr(engine_tasks, 'run_autonomous_task_execution', None), False),
         ]
 
+        registered_count = 0
         for name, func, bind in tasks_to_register:
-            if name not in app.tasks:
+            if func is not None and name not in app.tasks:
                 app.tasks[name] = LocalTask(func, name=name, bind=bind)
                 logger.debug(f"[LocalCelery] Registered: {name}")
+                registered_count += 1
 
-        logger.info(f"[LocalCelery] Registered {len(tasks_to_register)} engine tasks")
+        logger.info(f"[LocalCelery] Registered {registered_count} engine tasks")
 
     except Exception as e:
         logger.warning(f"[LocalCelery] Failed to register engine tasks: {e}")
 
     try:
-        # Brain tasks
-        from app.core.brain.tasks import (
-            consolidate_memory,
-        )
+        # Brain tasks - dynamically import to avoid circular imports
+        brain_tasks = importlib.import_module('app.core.brain.tasks')
+        func = getattr(brain_tasks, 'consolidate_memory', None)
 
-        name, func = "brain_consolidate_memory", consolidate_memory
-        if name not in app.tasks:
-            app.tasks[name] = LocalTask(func, name=name, bind=False)
-
-        logger.info("[LocalCelery] Registered brain tasks")
+        if func is not None:
+            name = "brain_consolidate_memory"
+            if name not in app.tasks:
+                app.tasks[name] = LocalTask(func, name=name, bind=False)
+                logger.info("[LocalCelery] Registered brain tasks")
     except Exception as e:
         logger.warning(f"[LocalCelery] Failed to register brain tasks: {e}")
 
     try:
-        # Vision cleanup tasks
-        from app.core.vision.cleanup import cleanup_screenshots, cleanup_screen_recordings
+        # Vision cleanup tasks - dynamically import to avoid circular imports
+        vision_cleanup = importlib.import_module('app.core.vision.cleanup')
 
-        for name, func in [("cleanup_screenshots", cleanup_screenshots),
-                           ("cleanup_screen_recordings", cleanup_screen_recordings)]:
-            if name not in app.tasks:
+        vision_tasks = [
+            ("cleanup_screenshots", getattr(vision_cleanup, 'cleanup_screenshots', None)),
+            ("cleanup_screen_recordings", getattr(vision_cleanup, 'cleanup_screen_recordings', None)),
+        ]
+
+        for name, func in vision_tasks:
+            if func is not None and name not in app.tasks:
                 app.tasks[name] = LocalTask(func, name=name, bind=False)
 
         logger.info("[LocalCelery] Registered vision cleanup tasks")
@@ -349,8 +375,13 @@ def _register_local_tasks(app: LocalCelery):
         logger.warning(f"[LocalCelery] Failed to register vision tasks: {e}")
 
 
-def create_celery_app():
-    """Create Celery app based on configuration."""
+def create_celery_app() -> TaskScheduler:
+    """
+    Create task scheduler based on configuration.
+    
+    Returns:
+        LocalCelery if EMBEDDED_MODE=True, otherwise Celery
+    """
     if settings.EMBEDDED_MODE:
         logger.info("[Celery] Embedded mode enabled with LocalCelery (in-process tasks)")
         app = LocalCelery("evoloop_embedded")
@@ -410,4 +441,6 @@ def create_celery_app():
 
 
 # Global Celery/LocalCelery instance
-celery_app = create_celery_app()
+# Type annotation helps IDE/static analysis understand the interface
+celery_app: TaskScheduler = create_celery_app()
+"""Global task scheduler instance (Celery or LocalCelery depending on EMBEDDED_MODE)."""

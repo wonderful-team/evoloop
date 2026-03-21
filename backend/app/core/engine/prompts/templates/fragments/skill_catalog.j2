@@ -1,0 +1,10 @@
+{%- if skills -%}
+{%- for namespace, group in skills|groupby('namespace') %}
+### {{ namespace }}
+{% for s in group -%}
+- {{ s.name }} (ID: {{ s.id }}): {{ s.description }}
+{% endfor -%}
+{%- endfor %}
+{%- else %}
+No skills currently indexed.
+{%- endif %}

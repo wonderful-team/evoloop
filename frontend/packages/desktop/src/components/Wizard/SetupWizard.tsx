@@ -152,11 +152,10 @@ export function SetupWizard({ open, onOpenChange }: SetupWizardProps) {
     const totalSteps = STEPS.length
 
     return (
-        <Dialog open={open} onOpenChange={() => { }}>
+        <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
                 className="max-w-xl p-0 overflow-hidden"
-                onInteractOutside={(e) => e.preventDefault()}
-                onEscapeKeyDown={(e) => e.preventDefault()}
+                showCloseButton={false}
             >
                 <DialogHeader className="sr-only">
                     <DialogTitle>{t("wizard.title")}</DialogTitle>

@@ -12,7 +12,8 @@ from .actions.filesystem import handle_filesystem
     is_state_mutating=True,
     affected_path_keys=["path", "destination"],
     summary_template="database_logger.tool_summary.operate_file",
-    result_summary_template="database_logger.tool_summary.file_op_result"
+    result_summary_template="database_logger.tool_summary.file_op_result",
+    name_map={"zh": "文件系统操作", "en": "File System"}
 )
 async def file_system(
     action: Literal["mkdir", "delete", "move"],

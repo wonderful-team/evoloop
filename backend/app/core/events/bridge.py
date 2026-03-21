@@ -1,7 +1,7 @@
 """
 Event Bridge Handler
 
-Bridges internal system events to Redis Pub/Sub for frontend streaming.
+Bridges internal system events to cache Pub/Sub for frontend streaming.
 Enables real-time UI updates when system state changes occur.
 """
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 class EventBridgeHandler:
     """
-    Subscribes to key internal events and publishes them to Redis.
+    Subscribes to key internal events and publishes them to cache.
     
     This enables the frontend to receive real-time updates about:
     - Device connections/disconnections
@@ -41,7 +41,7 @@ class EventBridgeHandler:
     @staticmethod
     async def on_event(event: BaseEvent) -> None:
         """
-        Bridge internal events to Redis Pub/Sub.
+        Bridge internal events to cache Pub/Sub.
         
         Publishes to the global system channel that all connected clients subscribe to.
         """
@@ -91,4 +91,4 @@ def register_event_bridge() -> None:
     # Subscribe to awakening bus (for device/skill events)
     awaken_bus.subscribe_all(EventBridgeHandler.on_event)
 
-    logger.info("📡 Event bridge registered (Internal → Redis)")
+    logger.info("📡 Event bridge registered (Internal → Cache)")

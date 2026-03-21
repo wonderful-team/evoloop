@@ -15,6 +15,7 @@ class RouteToSignal(AgentSignal):
     target: str = "finish"
     context: dict[str, Any] = field(default_factory=dict)
     authorized_tools: Optional[list[str]] = None
+    skill_id: Optional[int] = None
 
 
 @dataclass

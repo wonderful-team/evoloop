@@ -110,32 +110,33 @@ function ToolExecutionSection({ msg }: { msg: Message }) {
 
 export interface Message {
   id: number | string
-  role: "user" | "ai" | "tool" | "system"
+  role: "human" | "ai" | "tool" | "system"
   content: string
-  action_type?: string // Phase 17: Tool Output Refactor
+  action_type?: string // Tool output discriminator
   thinking?: string
   timestamp?: string // ISO timestamp from backend
   run_id?: string // Deep Linking
-  parent_id?: number // Phase 8: Threading
-  references?: Array<{ // Phase 9: Persistent References
+  parent_id?: number // Parent message ID for threading
+  references?: Array<{ // Persistent message references
     id: string
     type: string // memory, file, knowledge
     target_id: string
     target_name: string
   }>
-  originalType?: string // Kept for filtering
+  originalRole?: string // Kept for filtering
   steps_snapshot?: Array<{
-    // Phase 6: Historical task steps
+    // Historical task steps
     id: number
     name: string
     status: string
     type?: string
-    parent_id?: number // Phase 18: Link to phase
+    parent_id?: number // Link to parent phase
     time?: string
     details?: string
   }>
-  steps?: AgentProcessStep[] // Phase 24: Tool Execution Steps
-  tool_calls?: any[] // Phase 24: For Real-Time matching
+  steps?: AgentProcessStep[] // Tool execution steps
+  tool_calls?: any[] // Tool calls for real-time matching
+  has_file_operations?: boolean // Whether this message has associated file operations (for Rewind/Retry)
 }
 
 interface ChatMessageItemProps {
@@ -143,8 +144,8 @@ interface ChatMessageItemProps {
   isGrouped?: boolean
   showAvatar?: boolean
   onAddToMemory?: (text: string) => void
-  onRewind?: () => void
-  onRetry?: () => void
+  onRewind?: (msg: Message) => void
+  onRetry?: (msg: Message) => void
   onQuote?: () => void
 }
 
@@ -158,7 +159,7 @@ const ChatMessageItem = memo(
       return null
     }
 
-    // Phase 17: Render Tool Output as Collapsible
+    // Render Tool Output as Collapsible accordion
     if (msg.role === "tool") {
       return (
         <div className="flex justify-start mb-2 px-4">
@@ -185,7 +186,7 @@ const ChatMessageItem = memo(
     }
 
     return (
-      <div data-run-id={msg.run_id} className={`group relative flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"} items-start ${isGrouped ? "mb-1" : "mb-1"}`}>
+      <div data-run-id={msg.run_id} className={`group relative flex gap-3 ${msg.role === "human" ? "justify-end" : "justify-start"} items-start ${isGrouped ? "mb-1" : "mb-1"}`}>
         {msg.role === "ai" && (
           <div className="shrink-0 w-8 flex flex-col items-center">
             {showAvatar ? (
@@ -206,7 +207,7 @@ const ChatMessageItem = memo(
 
             {/* 1. Main Content - AI FIRST */}
             {msg.content && (
-              <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed ${msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
+              <div className={`rounded-lg px-4 py-3 text-sm leading-relaxed ${msg.role === "human" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"}`}>
 
                 {(() => {
                   // Artifact Detection
@@ -247,7 +248,7 @@ const ChatMessageItem = memo(
                   }
 
                   // Standard Markdown Render
-                  return <MessageContent content={cleanContent} isUser={msg.role === "user"} />
+                  return <MessageContent content={cleanContent} isUser={msg.role === "human"} />
                 })()}
               </div>
             )}
@@ -310,15 +311,26 @@ const ChatMessageItem = memo(
             <ToolExecutionSection msg={msg} />
           </div>
 
-          {/* Message Actions */}
-          <div className={`absolute ${msg.role === "user" ? "left-2 top-2" : "right-2 top-2"} opacity-0 group-hover:opacity-100 transition-opacity flex gap-1`}>
-            {/* Exposed Retry Button for AI */}
-            {onRetry && (
+          {/* Message Actions - Bottom of bubble, keep left/right position */}
+          <div className={`absolute ${msg.role === "human" ? "left-0" : "right-0"} -bottom-3 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1`}>
+            {/* Exposed Copy Button - For all message types */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 rounded-full bg-background border shadow-sm text-muted-foreground hover:text-foreground"
+              onClick={() => navigator.clipboard.writeText(msg.content)}
+              title={t("chat.interface.copy", "Copy")}
+            >
+              <Copy className="h-4 w-4" />
+            </Button>
+
+            {/* Exposed Retry Button - Only for user messages */}
+            {onRetry && msg.role === "human" && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8 rounded-full bg-background border shadow-sm text-muted-foreground hover:text-foreground"
-                onClick={() => onRetry()}
+                onClick={() => onRetry(msg)}
                 title={t("chat.interface.retry", "Retry")}
               >
                 <RotateCcw className="h-4 w-4" />
@@ -336,11 +348,6 @@ const ChatMessageItem = memo(
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent>
-                <DropdownMenuItem
-                  onClick={() => navigator.clipboard.writeText(msg.content)}
-                >
-                  <Copy className="mr-2 h-4 w-4" /> {t("chat.interface.copy")}
-                </DropdownMenuItem>
                 {msg.role === "ai" && (
                   <>
                     {onAddToMemory && (
@@ -353,8 +360,9 @@ const ChatMessageItem = memo(
                     )}
                   </>
                 )}
-                {onRewind && (
-                  <DropdownMenuItem onClick={() => onRewind()}>
+                {/* Rewind Action - Only for user messages */}
+                {onRewind && msg.role === "human" && (
+                  <DropdownMenuItem onClick={() => onRewind(msg)}>
                     <Undo className="mr-2 h-4 w-4" />{" "}
                     {t("chat.interface.rewind")}
                   </DropdownMenuItem>
@@ -371,7 +379,7 @@ const ChatMessageItem = memo(
           </div>
         </div>
 
-        {msg.role === "user" && (
+        {msg.role === "human" && (
           <div className="shrink-0 w-8 flex flex-col items-center">
             {showAvatar ? (
               <Avatar className="h-8 w-8 mt-1">
@@ -387,7 +395,7 @@ const ChatMessageItem = memo(
 
         {/* Timestamp */}
         {msg.timestamp && (
-          <div className={`absolute -bottom-0 ${msg.role === "user" ? "right-0" : "left-0"} text-[10px] text-muted-foreground/60`}>
+          <div className={`absolute -bottom-0 ${msg.role === "human" ? "right-0" : "left-0"} text-[10px] text-muted-foreground/60`}>
             {new Date(msg.timestamp).toLocaleTimeString([], {
               hour: "2-digit",
               minute: "2-digit",

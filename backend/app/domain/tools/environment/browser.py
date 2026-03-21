@@ -14,7 +14,10 @@ from app.core.environment.controllers.browser_controller import BrowserControlle
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "浏览器控制", "en": "Browser Control"}
+)
 async def browser_control(
     action: Literal[
         # Navigation

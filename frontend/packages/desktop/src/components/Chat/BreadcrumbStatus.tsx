@@ -38,7 +38,7 @@ export const BreadcrumbStatus = memo(() => {
     // If no plan, maybe don't show specific breadcrumb, or just Project
     // If agent is running, show "Working..."
 
-    const isRunning = status === "running" || status === "SUMMARIZING"
+    const isRunning = status === "running" || status === "summarizing"
 
     return (
         <div className="flex items-center text-xs text-muted-foreground px-4 py-2 border-b bg-muted/20 select-none overflow-hidden">

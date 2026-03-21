@@ -12,7 +12,10 @@ class SearchNativeToolsSchema(BaseModel):
     )
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=True,
+    name_map={"zh": "搜索原生工具", "en": "Search Native Tools"}
+)
 async def search_native_tools(query: str = "") -> dict[str, Any]:
     """
     Search available system tools and capabilities. 

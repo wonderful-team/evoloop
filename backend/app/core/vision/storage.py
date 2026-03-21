@@ -13,7 +13,6 @@ Screen Recordings (屏幕录制):
 - frames: 从视频中提取的帧
 """
 
-import hashlib
 import logging
 import os
 import shutil
@@ -23,6 +22,8 @@ from pathlib import Path
 from typing import Literal
 
 from app.core.config import settings
+from app.utils.hash import compute_file_hash
+from app.utils.path import ensure_dir
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ class ScreenshotStorage:
         """Ensure all screenshot directories exist."""
         for purpose in ScreenshotPurpose:
             path = self._get_base_dir(purpose)
-            os.makedirs(path, exist_ok=True)
+            ensure_dir(path)
             logger.debug(f"[ScreenshotStorage] Ensured directory: {path}")
 
     def _get_base_dir(self, purpose: ScreenshotPurpose) -> str:
@@ -140,7 +141,7 @@ class ScreenshotStorage:
             dir_path = os.path.join(base_dir, date_folder)
 
         if ensure_dir:
-            os.makedirs(dir_path, exist_ok=True)
+            ensure_dir(dir_path)
 
         filename = self._generate_filename(platform, bundle_id, suffix)
         return os.path.join(dir_path, filename)
@@ -302,11 +303,8 @@ class ScreenshotStorage:
 
     def compute_hash(self, filepath: str) -> str:
         """Compute MD5 hash of screenshot for deduplication."""
-        try:
-            with open(filepath, "rb") as f:
-                return hashlib.md5(f.read()).hexdigest()[:16]
-        except Exception:
-            return ""
+        result = compute_file_hash(filepath, algo="md5")
+        return result[:16] if result else ""
 
 
 # Singleton instance
@@ -365,8 +363,8 @@ class ScreenRecordingStorage:
 
     def _ensure_directories(self):
         """Ensure all recording directories exist."""
-        os.makedirs(settings.SCREEN_RECORDINGS_DIR, exist_ok=True)
-        os.makedirs(settings.SCREEN_RECORDING_FRAMES_DIR, exist_ok=True)
+        ensure_dir(settings.SCREEN_RECORDINGS_DIR)
+        ensure_dir(settings.SCREEN_RECORDING_FRAMES_DIR)
         logger.debug(f"[ScreenRecordingStorage] Ensured directories")
 
     def get_recording_path(
@@ -396,7 +394,7 @@ class ScreenRecordingStorage:
         dir_path = os.path.join(settings.SCREEN_RECORDINGS_DIR, date_folder)
 
         if ensure_dir:
-            os.makedirs(dir_path, exist_ok=True)
+            ensure_dir(dir_path)
 
         # Include session_id in filename if provided
         if session_id:
@@ -429,7 +427,7 @@ class ScreenRecordingStorage:
         dir_path = os.path.join(settings.SCREEN_RECORDING_FRAMES_DIR, session_id)
 
         if ensure_dir:
-            os.makedirs(dir_path, exist_ok=True)
+            ensure_dir(dir_path)
 
         filename = f"frame_{timestamp_ms}.{ext}"
         return os.path.join(dir_path, filename)
@@ -447,7 +445,7 @@ class ScreenRecordingStorage:
         """
         dir_path = os.path.join(settings.SCREEN_RECORDING_FRAMES_DIR, session_id)
         if ensure_dir:
-            os.makedirs(dir_path, exist_ok=True)
+            ensure_dir(dir_path)
         return dir_path
 
     def cleanup_expired(self, dry_run: bool = False) -> dict[str, int]:

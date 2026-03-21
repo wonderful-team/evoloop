@@ -22,7 +22,7 @@ def run_full_indexing_task(project_id: int, rebuild: bool = False):
     async def _monitored_execution():
         try:
             await activity_monitor.start_run(sys_tid, "Full Codebase Indexing")
-            await activity_monitor.update_agent_state(sys_tid, "INDEXING", "Indexing Codebase", "Initializing...")
+            await activity_monitor.update_agent_state(sys_tid, "Indexing", "Indexing Codebase", "Initializing...")
 
             # TODO: We should enhance trigger_full_index to accept a progress callback
             await indexing_manager.trigger_full_index(project_id, rebuild)

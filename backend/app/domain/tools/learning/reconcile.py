@@ -7,7 +7,9 @@ from app.core.engine.tasks import reconcile_skill_macro_task
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool
+@evoloop_tool(
+    name_map={"zh": "调和技能", "en": "Reconcile Skill"}
+)
 async def reconcile_skill(skill_id: int, thread_id: str) -> str:
     """
     Self-heal a skill by reconciling its broken macro with a successful execution trace.

@@ -88,6 +88,11 @@ export type BrainResponse = {
     mode?: string;
 };
 
+export type CancelHITLRequest = {
+    thread_id: string;
+    reason?: (string | null);
+};
+
 export type ChangePasswordRequest = {
     /**
      * Current password
@@ -117,6 +122,7 @@ export type ChatRequest = {
     project_id?: (number | null);
     command_id?: (number | null);
     checkpoint_id?: (string | null);
+    message_id?: (number | null);
     attachments?: (Array<{
     [key: string]: unknown;
 }> | null);
@@ -184,6 +190,44 @@ export type DomEventsRequest = {
     events: Array<DomEventData>;
 };
 
+/**
+ * Request for edit preview as ghost text.
+ */
+export type EditPreviewRequest = {
+    /**
+     * Path to the file
+     */
+    file_path: string;
+    /**
+     * Natural language description of the edit
+     */
+    edit_description: string;
+    /**
+     * Current line number
+     */
+    cursor_line: number;
+    /**
+     * Current column position
+     */
+    cursor_column: number;
+    /**
+     * Project ID for context
+     */
+    project_id?: (number | null);
+};
+
+/**
+ * Response for edit preview request.
+ */
+export type EditPreviewResponse = {
+    /**
+     * Edit preview data
+     */
+    preview?: ({
+    [key: string]: unknown;
+} | null);
+};
+
 export type EmbeddingConfigRequest = {
     /**
      * openai, ollama, or generic
@@ -228,6 +272,36 @@ export type FileNode = {
     path: string;
     type: string;
     children?: (Array<FileNode> | null);
+};
+
+/**
+ * A single ghost text suggestion.
+ */
+export type GhostSuggestion = {
+    /**
+     * The suggested text to insert
+     */
+    text: string;
+    /**
+     * Confidence score (0-1)
+     */
+    confidence: number;
+    /**
+     * Suggestion type: completion, edit_preview, snippet
+     */
+    type: string;
+    /**
+     * Source: pattern, llm, context
+     */
+    source: string;
+    /**
+     * Formatted display text
+     */
+    display_text?: (string | null);
+    /**
+     * Tooltip description
+     */
+    description?: (string | null);
 };
 
 /**
@@ -279,6 +353,50 @@ export type ImportSkillsRequest = {
 
 export type IndexingRequest = {
     project_id: number;
+};
+
+/**
+ * Request for inline code completion.
+ */
+export type InlineCompletionRequest = {
+    /**
+     * Path to the file being edited
+     */
+    file_path: string;
+    /**
+     * Current line number (1-indexed)
+     */
+    cursor_line: number;
+    /**
+     * Current column position (0-indexed)
+     */
+    cursor_column: number;
+    /**
+     * Text of current line up to cursor
+     */
+    current_line_text?: (string | null);
+    /**
+     * Number of context lines to include
+     */
+    context_lines?: number;
+    /**
+     * Project ID for context-aware suggestions
+     */
+    project_id?: (number | null);
+};
+
+/**
+ * Response for inline completion request.
+ */
+export type InlineCompletionResponse = {
+    /**
+     * Primary suggestion
+     */
+    suggestion?: (GhostSuggestion | null);
+    /**
+     * Alternative suggestions
+     */
+    alternative_suggestions?: Array<GhostSuggestion>;
 };
 
 export type LLMConfigRequest = {
@@ -335,6 +453,14 @@ export type MessageItem = {
     references?: Array<ReferenceItem>;
     steps?: Array<ToolStep>;
     has_file_operations?: boolean;
+};
+
+export type MessageListResponse = {
+    items: Array<MessageItem>;
+    has_more: boolean;
+    total_count?: number;
+    first_id?: number;
+    last_id?: number;
 };
 
 export type MessageResponse = {
@@ -676,6 +802,7 @@ export type Token = {
 export type ToolStep = {
     id: string;
     tool: string;
+    tool_name?: (string | null);
     input: ({
     [key: string]: unknown;
 } | string);
@@ -820,6 +947,12 @@ export type AgentResumeChatData = {
 
 export type AgentResumeChatResponse = (unknown);
 
+export type AgentCancelHitlRequestData = {
+    requestBody: CancelHITLRequest;
+};
+
+export type AgentCancelHitlRequestResponse = (unknown);
+
 export type AgentWebhookEndpointData = {
     requestBody: WebhookRequest;
 };
@@ -896,9 +1029,11 @@ export type ConversationsListConversationsResponse = (Array<ConversationListItem
 
 export type ConversationsGetConversationMessagesData = {
     threadId: string;
+    limit?: number;
+    beforeId?: number | null;
 };
 
-export type ConversationsGetConversationMessagesResponse = (Array<MessageItem>);
+export type ConversationsGetConversationMessagesResponse = (MessageListResponse);
 
 export type ConversationsSearchConversationsData = {
     projectId?: (number | null);
@@ -1037,6 +1172,29 @@ export type FilesSearchFilesByNameData = {
 };
 
 export type FilesSearchFilesByNameResponse = (Array<{
+    [key: string]: unknown;
+}>);
+
+export type GhostTextSuggestInlineCompletionData = {
+    requestBody: InlineCompletionRequest;
+};
+
+export type GhostTextSuggestInlineCompletionResponse = (InlineCompletionResponse);
+
+export type GhostTextPreviewEditGhostData = {
+    requestBody: EditPreviewRequest;
+};
+
+export type GhostTextPreviewEditGhostResponse = (EditPreviewResponse);
+
+export type GhostTextListPatternsData = {
+    /**
+     * Filter by language (py, ts, js, etc.)
+     */
+    language?: (string | null);
+};
+
+export type GhostTextListPatternsResponse = (Array<{
     [key: string]: unknown;
 }>);
 

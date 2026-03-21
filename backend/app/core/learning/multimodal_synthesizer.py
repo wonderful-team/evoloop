@@ -523,19 +523,21 @@ class MultimodalSkillSynthesizer:
         # 构建人机交互内容
         content = []
         
-        # Identify if we have multiple apps
-        is_cross_app = ", " in bundle_id
-        app_context_label = "Target Applications" if is_cross_app else "Target Application (Package Name)"
+        # 1. 构建核心任务上下文
+        app_context_label = "Target Applications" if ", " in bundle_id else "Target Application (Package Name)"
+        
+        context_vars = {
+            "task_description": task_description,
+            "app_context_label": app_context_label,
+            "bundle_id": bundle_id,
+            "event_context": event_context
+        }
+        
+        task_context = self.prompt_builder.build_multimodal_context_prompt(context_vars)
 
         content.append({
             "type": "text", 
-            "text": (
-                f"## Task Description\n{task_description}\n\n"
-                f"## {app_context_label}\n{bundle_id}\n\n"
-                f"## Coordinate System\n"
-                "All coordinates are normalized to 0.0-1.0 range (0.0=top/left, 1.0=bottom/right).\n\n"
-                f"## User Actions (Complete Timeline)\n{event_context}\n\n"
-            )
+            "text": task_context
         })
 
         # 2. 关键帧详情 (附带图片)

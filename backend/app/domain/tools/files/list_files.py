@@ -12,7 +12,8 @@ from .actions.list import handle_list
     is_pollable=True,
     summary_template="database_logger.tool_summary.list_files",
     affected_path_keys=["path"],
-    result_summary_template="evoloop_logger.list_summary"
+    result_summary_template="evoloop_logger.list_summary",
+    name_map={"zh": "列出文件", "en": "List Files"}
 )
 async def list_files(
     path: str,

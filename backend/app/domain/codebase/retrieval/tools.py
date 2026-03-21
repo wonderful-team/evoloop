@@ -3,12 +3,13 @@ import asyncio
 from app.core.context.manager import ContextManager
 from app.core.monitoring.ui_actions import require_project_for_tool
 from app.core.tools import evoloop_tool
-from app.domain.codebase.retrieval.graph_explorer import graph_explorer
+from app.domain.codebase.retrieval.graph_service import graph_service
 from app.domain.codebase.retrieval.service import RetrievalService
 
 
 @evoloop_tool(
-    summary_template="database_logger.tool_summary.search_code"
+    summary_template="database_logger.tool_summary.search_code",
+    name_map={"zh": "搜索代码库", "en": "Search Codebase"}
 )
 async def search_codebase(query: str, project_id: int | None = None) -> str:
     """
@@ -97,7 +98,8 @@ async def search_codebase(query: str, project_id: int | None = None) -> str:
 
 
 @evoloop_tool(
-    summary_template="database_logger.tool_summary.search_code"
+    summary_template="database_logger.tool_summary.search_code",
+    name_map={"zh": "自然语言查询图谱", "en": "Query Graph (NL)"}
 )
 async def query_graph_natural_language(question: str, project_id: int) -> str:
     """
@@ -109,4 +111,4 @@ async def query_graph_natural_language(question: str, project_id: int) -> str:
         question: The natural language question to ask.
         project_id: The ID of the project to query.
     """
-    return await graph_explorer.query(question, project_id)
+    return await graph_service.natural_language_query(question, project_id)

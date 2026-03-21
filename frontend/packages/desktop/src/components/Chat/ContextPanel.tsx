@@ -41,9 +41,9 @@ export const ContextPanel = memo(
     const status = useChatStore((s) => s.status)
 
     // Determine if Agent is active
-    const isAgentActive = status === "running" || status === "interrupted" || status === "SUMMARIZING"
+    const isAgentActive = status === "running" || status === "interrupted" || status === "summarizing"
 
-    // Phase 5: Auto-switch Tab
+    // Auto-switch Tab based on context
     useEffect(() => {
       if (autoSwitchToTab) {
         // Map old tab names to new groups if needed, or assume backend sends group name?
@@ -72,7 +72,7 @@ export const ContextPanel = memo(
     // Global mode - show simplified context panel
     if (isGlobalMode) {
       return (
-        <div className="flex flex-col h-full bg-background border-l">
+        <div className="flex flex-col h-full bg-background">
           {/* Header */}
           <div className="flex items-center justify-between p-3 border-b h-14 shrink-0">
             <span className="font-semibold text-sm flex items-center gap-2">
@@ -117,7 +117,7 @@ export const ContextPanel = memo(
     }
 
     return (
-      <div className="flex flex-col h-full bg-background border-l">
+      <div className="flex flex-col h-full bg-background">
         {/* Header (Unified) */}
         <div className="flex items-center justify-between p-3 border-b h-14 shrink-0">
           <span className="font-semibold text-sm flex items-center gap-2">

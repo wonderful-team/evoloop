@@ -127,7 +127,7 @@ class Settings(BaseSettings):
     NEO4J_PASSWORD: str | None = None
     USE_NEO4J: bool = True  # Set to False to disable Neo4j
 
-    # Cache (Redis) - Optional, disabled in embedded mode
+    # Cache backend (Redis in production, FileCache in embedded mode)
     REDIS_URL: str | None = "redis://localhost:6379/0"
     USE_REDIS: bool = True  # Set to False to disable Redis
 
@@ -345,7 +345,7 @@ class Settings(BaseSettings):
 
     # Dynamic Agents
     SUPERVISOR_AGENT_MAX_STEPS: int = 20
-    WORKER_AGENT_MAX_STEPS: int = 100
+    WORKER_AGENT_MAX_STEPS: int = 50
     FINISH_AGENT_MAX_STEPS: int = 10
 
     @computed_field  # type: ignore[prop-decorator]

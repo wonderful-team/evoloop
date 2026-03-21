@@ -1,4 +1,4 @@
-import { Monitor, Moon, Sun } from "lucide-react"
+import { Brain, Monitor, Moon, Sun } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { useTheme } from "@evoloop/shared/components/theme-provider"
 import {
@@ -10,10 +10,29 @@ import {
 } from "@evoloop/shared/components/ui/card"
 import { Label } from "@evoloop/shared/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@evoloop/shared/components/ui/radio-group"
+import { Checkbox } from "@evoloop/shared/components/ui/checkbox"
+import { useEffect, useState } from "react"
+
+const SHOW_THINKING_KEY = "evoloop:showThinking"
+
+export function useShowThinking() {
+  const [showThinking, setShowThinking] = useState(() => {
+    if (typeof window === "undefined") return true
+    const stored = localStorage.getItem(SHOW_THINKING_KEY)
+    return stored === null ? true : stored === "true"
+  })
+
+  useEffect(() => {
+    localStorage.setItem(SHOW_THINKING_KEY, String(showThinking))
+  }, [showThinking])
+
+  return { showThinking, setShowThinking }
+}
 
 export default function AppearanceSettings() {
   const { t } = useTranslation()
   const { theme, setTheme } = useTheme()
+  const { showThinking, setShowThinking } = useShowThinking()
 
   return (
     <div className="space-y-6">
@@ -112,6 +131,36 @@ export default function AppearanceSettings() {
               </Label>
             </div>
           </RadioGroup>
+        </CardContent>
+      </Card>
+
+      {/* Thinking/Reasoning Display Toggle */}
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings.appearance.chatDisplay")}</CardTitle>
+          <CardDescription>
+            {t("settings.appearance.chatDisplayDesc")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Brain className="h-5 w-5 text-muted-foreground" />
+              <div className="space-y-0.5">
+                <Label htmlFor="show-thinking">
+                  {t("settings.appearance.showThinking")}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {t("settings.appearance.showThinkingDesc")}
+                </p>
+              </div>
+            </div>
+            <Checkbox
+              id="show-thinking"
+              checked={showThinking}
+              onCheckedChange={(checked) => setShowThinking(checked === true)}
+            />
+          </div>
         </CardContent>
       </Card>
     </div>

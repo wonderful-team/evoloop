@@ -27,7 +27,7 @@ class BrainCleanupHandler(ICleanupHandler):
         self.reflective = ReflectiveDriver()
         self.consolidator = MemoryConsolidator(self.reflective, self.fs)
 
-    async def cleanup(self, message_ids: list[str]) -> int:
+    async def cleanup(self, message_ids: list[str], **kwargs) -> int:
         count = 0
         for mid in message_ids:
             if await self.consolidator.remove_entry_by_id(mid):

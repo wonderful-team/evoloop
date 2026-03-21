@@ -23,6 +23,7 @@ function Layout() {
   const { user } = useAuth()
   const { required: setupRequired, loading: setupLoading } = useSetupRequired()
   const [showWizard, setShowWizard] = useState(false)
+  const [hasShownWizard, setHasShownWizard] = useState(false)
 
   const isFullWidth =
     pathname.includes("/chat") ||
@@ -31,12 +32,13 @@ function Layout() {
     pathname.includes("/todos") ||
     pathname.startsWith("/learning/skills")
 
-  // Show wizard when setup is required
+  // Show wizard when setup is required (only once per session)
   useEffect(() => {
-    if (!setupLoading && setupRequired && user) {
+    if (!setupLoading && setupRequired && user && !hasShownWizard) {
       setShowWizard(true)
+      setHasShownWizard(true)
     }
-  }, [setupRequired, setupLoading, user])
+  }, [setupRequired, setupLoading, user, hasShownWizard])
 
   return (
     <SpotlightTourProvider steps={desktopTourSteps}>

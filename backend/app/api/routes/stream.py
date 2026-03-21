@@ -12,7 +12,7 @@ from fastapi.responses import StreamingResponse
 
 from app.api.deps import verify_guest_access
 from app.core.monitoring.activity import activity_monitor
-from app.infrastructure.database.redis import redis_pubsub_client
+from app.infrastructure.cache import cache
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/stream", tags=["stream"])
@@ -22,14 +22,26 @@ router = APIRouter(prefix="/stream", tags=["stream"])
 async def stream_chat(thread_id: str):
     """
     SSE endpoint to stream chat updates for a thread.
-    Uses Redis Pub/Sub for real-time event streaming.
+    Uses cache Pub/Sub for real-time event streaming.
+    
+    Event Types:
+    - activity: Initial full state snapshot (sent once on connect)
+    - step: New step created/updated (incremental)
+    - artifact: New artifact created/updated (incremental)
+    - status: Status change (incremental)
+    - token: Token stream for chat
+    - message: New message (with tool folding)
+    - human_request: HITL request
+    - stream: Structured stream events (thinking, tool_progress, etc.)
     """
 
     async def event_generator():
         pubsub = None
+        # Track last AI message for server-side tool folding
+        last_ai_message = None
+        
         try:
-            # 1. Bootstrap: Send Initial Full State
-            # This ensures frontend is up-to-date even if it missed events
+            # 1. Bootstrap: Send Initial Full State (once)
             try:
                 activity = await activity_monitor.get_activity(thread_id)
             except Exception as e:
@@ -38,9 +50,8 @@ async def stream_chat(thread_id: str):
                 activity = await activity_monitor.get_activity(thread_id)
 
             if activity:
-                # Construct snapshot using the same structure as before
                 snapshot = {
-                    "tasks": activity.get("tasks", []),
+                    "steps": activity.get("steps", []),
                     "artifacts": activity.get("artifacts", []),
                     "agent_state": activity.get("agent_state", {}),
                     "active_memories": activity.get("active_memories", []),
@@ -54,11 +65,11 @@ async def stream_chat(thread_id: str):
                 if activity.get("human_request"):
                     yield f"event: human_request\ndata: {json.dumps(activity['human_request'])}\n\n"
 
-            # 2. Subscribe to Redis Channel
-            pubsub = redis_pubsub_client.pubsub()
+            # 2. Subscribe to cache channel
+            pubsub = cache.pubsub()
             await pubsub.subscribe(f"chat:{thread_id}:events")
 
-            # 3. Stream Events
+            # 3. Stream Events (incremental)
             while True:
                 try:
                     message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
@@ -69,97 +80,83 @@ async def stream_chat(thread_id: str):
                     continue
                 except Exception as e:
                     if "Buffer is closed" in str(e):
-                        logger.error("Redis Buffer is closed. Re-initializing connection...")
-                        # We hope the pool handles the actual reconnect
+                        logger.error("Cache buffer is closed. Re-initializing connection...")
                         await asyncio.sleep(1.0)
                         await pubsub.subscribe(f"chat:{thread_id}:events")
                         continue
                     raise e
 
                 if message and message["type"] == "message":
-                    # Raw event JSON from backend
-                    raw_data = message["data"]  # This is a string (JSON)
+                    raw_data = message["data"]
 
                     try:
-                        # We parse it just to route it correctly if needed, or forward directly
-                        # The backend now sends Pydantic .json() strings.
-                        # { "type": "task", "action": "create", "id": 1, ... }
                         event_data = json.loads(raw_data)
                         event_type = event_data.get("type", "unknown")
 
-                        # In Phase 3, we simply forward these as specific SSE events
-                        # Frontend currently listens to: token, activity, human_request, status, done, error
-                        # WE NEED COMPATIBILITY ADAPTER HERE unless we upgrade frontend immediately.
-
-                        # Compatibility Strategy:
-                        # For "token" -> emit 'event: token'
-                        # For others -> We should ideally trigger a re-fetch or construct a patch.
-                        # BUT, for this refactor to work with EXISTING frontend, we have a problem:
-                        # The existing frontend expects "event: activity" with FULL SNAPSHOT.
-                        # If we only send deltas, the frontend won't update the lists.
-
-                        # Temporary Hybrid Mode:
-                        # If we receive a Task/Artifact/State event, we FETCH the full state again and send it.
-                        # This turns "Polling" into "Push-Triggered Polling".
-                        # It is still 100x better than blind polling.
-                        # Once Frontend is updated (Phase 4), we will send the raw delta.
-
-                        # Let's verify if Token is handled
-                        if event_type == "token":
-                            # Token events in ActivityMonitor are not actually published separately yet?
-                            # Wait, look at TransparentCallbackHandler.
-                            # It calls monitor.update_task... which publishes 'task' update.
-                            # It does NOT publish 'token' event specifically.
-                            # Ah, `monitor.update_task` sends `TaskEvent(action="update")`.
-                            # The `details` field contains the text? No, `details` is full text.
-                            pass
-
-                        # -- HYBRID ADAPTER --
-                        # Trigger full Snapshot emit on structural change
-                        state_changing_events = ["step", "task", "artifact", "state", "status"]
-                        if event_type in state_changing_events:
-                            # Re-fetch full activity (Fast, local redis)
-                            # This implementation is "Push-Triggered Broadcast"
-                            current = await activity_monitor.get_activity(thread_id)
-                            snapshot = {
-                                "tasks": current.get("tasks", []),
-                                "artifacts": current.get("artifacts", []),
-                                "agent_state": current.get("agent_state", {}),
-                                "active_memories": current.get("active_memories", []),
-                                "verification": current.get("verification", {}),
-                                "status": current.get("status", "unknown"),
-                                "human_request": current.get("human_request"),
-                                "final_outcome": current.get("final_outcome", ""),
-                            }
-                            yield f"event: activity\ndata: {json.dumps(snapshot)}\n\n"
-
-                            if event_type == "status":
-                                yield f"event: status\ndata: {json.dumps({'status': current['status']})}\n\n"
-
-                        # Forward Token Logic Direct from Event
-                        if event_type == "token":
+                        # Incremental updates: forward events directly without re-fetching
+                        if event_type == "step":
+                            yield f"event: step\ndata: {json.dumps(event_data)}\n\n"
+                        
+                        elif event_type == "artifact":
+                            yield f"event: artifact\ndata: {json.dumps(event_data)}\n\n"
+                        
+                        elif event_type == "status":
+                            yield f"event: status\ndata: {json.dumps(event_data)}\n\n"
+                        
+                        elif event_type == "token":
                             content = event_data.get("content")
                             if content:
                                 yield f"event: token\ndata: {json.dumps({'content': content})}\n\n"
-
-                        # Forward Message Event
-                        if event_type == "message":
-                            yield f"event: message\ndata: {json.dumps(event_data.get('data'))}\n\n"
-
-                        # HITL: Forward Human Request Event
-                        if event_type == "human_request":
+                        
+                        elif event_type == "message":
+                            msg_data = event_data.get('data', {})
+                            msg_role = msg_data.get('role', '')
+                            msg_type = msg_data.get('type', '')
+                            
+                            # Server-side Tool Message Folding
+                            if msg_role == 'tool' or msg_type == 'tool':
+                                if last_ai_message:
+                                    existing_steps = last_ai_message.get('steps', [])
+                                    step_index = len(existing_steps)
+                                    tool_calls = last_ai_message.get('tool_calls', [])
+                                    
+                                    tool_name = 'Unknown Tool'
+                                    tool_input = {}
+                                    if tool_calls and step_index < len(tool_calls):
+                                        call = tool_calls[step_index]
+                                        tool_name = call.get('name', 'Tool')
+                                        tool_input = call.get('args', {})
+                                    
+                                    step = {
+                                        'id': msg_data.get('id') or f'step-{asyncio.get_event_loop().time()}',
+                                        'tool': tool_name,
+                                        'input': tool_input,
+                                        'output': msg_data.get('content', ''),
+                                        'status': 'success',
+                                        'duration': 0,
+                                    }
+                                    
+                                    if 'steps' not in last_ai_message:
+                                        last_ai_message['steps'] = []
+                                    last_ai_message['steps'].append(step)
+                                    
+                                    yield f"event: message\ndata: {json.dumps(last_ai_message)}\n\n"
+                                else:
+                                    logger.warning(f"[Stream] Orphan tool message received: {msg_data.get('id')}")
+                            else:
+                                if msg_role == 'ai':
+                                    msg_data['steps'] = msg_data.get('steps', [])
+                                    last_ai_message = msg_data
+                                yield f"event: message\ndata: {json.dumps(msg_data)}\n\n"
+                        
+                        elif event_type == "human_request":
                             yield f"event: human_request\ndata: {json.dumps(event_data.get('data'))}\n\n"
+                        
+                        elif event_type in ["thinking", "tool_start", "tool_progress", "tool_complete", "tool_error", "checkpoint", "progress", "complete"]:
+                            yield f"event: stream\ndata: {json.dumps(event_data)}\n\n"
 
                     except Exception as e:
                         logger.error(f"Error processing pubsub message: {e}")
-
-                # Maintain the "Token Polling" for now?
-                # Mixing PubSub blocking with Polling is hard unless we use `asyncio.wait_for`.
-                # Let's add a specialized Token Handling.
-
-                # Check tokens "frequently"?
-                # Better: Modify ActivityMonitor to publish TokenEvents.
-                # See next step. For now, let's implement the skeleton.
 
                 await asyncio.sleep(0.01)
 

@@ -101,7 +101,9 @@ class VisionEngine:
         result.latency_ms = (time.time() - start_time) * 1000
 
         # 5. Passive Atlas Learning for non-DETECT tasks
-        if task != VisionTask.DETECT and result.success:
+        # Skip Atlas learning for browser contexts (dynamic web pages don't benefit from Atlas)
+        enable_atlas = kwargs.get("enable_atlas_learning", True)
+        if task != VisionTask.DETECT and result.success and enable_atlas:
             # Check platform
             platform = kwargs.get("platform")
             if not platform:

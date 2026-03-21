@@ -116,7 +116,20 @@ export function MacroEditor({
     // Fetch Action Registry from Backend
     useEffect(() => {
         fetch("/api/v1/learning/capabilities/actions")
-            .then(res => res.json())
+            .then(async (res) => {
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`)
+                }
+                const text = await res.text()
+                if (!text || text.trim() === "") {
+                    throw new Error("Empty response")
+                }
+                try {
+                    return JSON.parse(text)
+                } catch (e) {
+                    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}...`)
+                }
+            })
             .then(data => setActionRegistry(data))
             .catch(err => console.error("Failed to fetch Action Registry:", err))
     }, [])

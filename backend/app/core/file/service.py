@@ -11,13 +11,9 @@ from app.constants import (
     WHITELIST_FILE_EXTENSIONS,
 )
 from app.utils.file import get_file_ext, resolve_path as utils_resolve_path
+from app.utils.similarity import find_similar_file as _find_similar_file
 
 logger = logging.getLogger(__name__)
-
-try:
-    from rapidfuzz import fuzz, process
-except ImportError:
-    process = None
 
 
 def walk_tree(
@@ -157,22 +153,9 @@ def filter_code_files(
 
 
 def find_similar_file(file_path: str, repo_files: list[str], threshold: float = 0.7) -> str | None:
-    """Fuzzy search for file in list."""
-    if not process:
-        for repo_file in repo_files:
-            if file_path.lower() in repo_file.lower():
-                return repo_file
-        return None
-
-    matches = process.extractOne(file_path, repo_files, scorer=fuzz.WRatio)
-    if matches and matches[1] >= threshold * 100:
-        return matches[0]
-
-    filename = os.path.basename(file_path)
-    if filename != file_path:
-        all_filenames = [os.path.basename(f) for f in repo_files]
-        filename_to_path = {os.path.basename(f): f for f in repo_files}
-        matches = process.extractOne(filename, all_filenames, scorer=fuzz.WRatio)
-        if matches and matches[1] >= threshold * 100:
-            return filename_to_path[matches[0]]
-    return None
+    """Fuzzy search for file in list.
+    
+    This function is a wrapper around utils.similarity.find_similar_file
+    for backward compatibility.
+    """
+    return _find_similar_file(file_path, repo_files, threshold)

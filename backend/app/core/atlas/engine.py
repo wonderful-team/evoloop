@@ -1,4 +1,3 @@
-import hashlib
 import logging
 from typing import Any
 
@@ -7,6 +6,7 @@ from app.core.atlas.models import AtlasApp, AtlasElement, AtlasState
 from app.core.atlas.ports.store import IAtlasStore
 from app.core.atlas.strategy import AppStrategy, AtlasStrategyStore, InteractionStrategy
 from app.core.environment.explorers.dynamic_apps import DynamicAppTriage
+from app.utils.hash import compute_state_id
 
 logger = logging.getLogger(__name__)
 
@@ -267,8 +267,8 @@ class AtlasEngine:
 
     def _generate_state_id(self, bundle_id: str, window_title: str) -> str:
         """Generates a stable semantic ID for a UI state."""
-        raw = f"{bundle_id}:{window_title}"
-        h = hashlib.md5(raw.encode()).hexdigest()[:8]
+        # Use utility function for hash computation
+        h = compute_state_id(bundle_id, window_title, length=8)
         # Clean title for readability
         clean_title = "".join(c for c in window_title if c.isalnum()).lower()[:20]
         return f"{clean_title}_{h}"
@@ -342,7 +342,7 @@ class AtlasEngine:
             strategy.hints["coordinate_unstable"] = True
             strategy.hints["last_observed_title"] = window_title
 
-            # Save to Redis
+            # Save to cache
             await AtlasStrategyStore.save_strategy(strategy)
             logger.debug(f"[AtlasEngine] Saved strategy for {bundle_id}")
 

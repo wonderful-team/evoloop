@@ -9,7 +9,7 @@ from langgraph.types import Command
 from sqlalchemy import func, select
 
 from app.core.callbacks.database_logger import DatabaseCallbackHandler
-from app.core.callbacks.evoloop_logger import EvoLoopCallbackHandler
+from app.core.evocloud.callback_handler import EvoCloudCallbackHandler
 
 # Callbacks
 from app.constants import DEFAULT_PROJECT_ID, STATUS_ICONS
@@ -134,7 +134,7 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
         except Exception as e:
             logger.warning(f"Failed to fetch max sequence number: {e}")
 
-        # Run project setup, DB conversation check, and Redis context load in parallel
+        # Run project setup, DB conversation check, and cache context load in parallel
         setup_results = await asyncio.gather(
             _ensure_conversation_in_db(thread_id, project_id, inputs),
             ContextManager.load_from_redis(thread_id) # Phase 4 Parallel context load
@@ -188,7 +188,7 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
 
         try:
             callbacks = [callback, db_callback]
-            callbacks.append(EvoLoopCallbackHandler(
+            callbacks.append(EvoCloudCallbackHandler(
                 evocloud_manager,
                 thread_id,
                 project_id=project_id,
@@ -201,32 +201,6 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             graph_instance = get_graph()
             if not graph_instance:
                 raise ValueError("Global Graph not initialized")
-
-            # [CRITICAL FIX] For retry: Check if checkpoint has messages, if not, recover from DB
-            is_retry = inputs.get("is_retry", False)
-            if is_retry:
-                logger.info(f"[BackgroundAgent] Checking checkpoint with config: thread_id={config.get('configurable', {}).get('thread_id')}")
-                current_state = await graph_instance.aget_state(config)
-                checkpoint_messages = current_state.values.get("messages", []) if current_state and current_state.values else []
-                if not checkpoint_messages:
-                    logger.warning(f"[BackgroundAgent] Checkpoint empty for retry thread {thread_id}. Recovering from DB...")
-                    # Recover human message from database
-                    async with session_scope() as session:
-                        stmt = (
-                            select(Message)
-                            .where(Message.thread_id == thread_id)
-                            .where(Message.role == "human")
-                            .order_by(Message.id.desc())
-                            .limit(1)
-                        )
-                        result = await session.execute(stmt)
-                        last_human_msg = result.scalar_one_or_none()
-                        if last_human_msg:
-                            human_msg = HumanMessage(content=last_human_msg.content)
-                            await graph_instance.aupdate_state(config, {"messages": [human_msg]})
-                            # CRITICAL FIX: aupdate_state doesn't work reliably with AsyncSqliteSaver
-                            # We need to pass messages directly to astream as input
-                            inputs["messages"] = [human_msg]
 
             # [HITL Resume Logic]
             # Check if this is a resume request from Mobile/Background
@@ -266,7 +240,7 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
                 await activity_monitor.check_cancellation(thread_id)
                 pass
 
-            # Phase 4 Autonomy: Persist the subconscious Context Pool to Redis before exiting/suspending
+            # Phase 4 Autonomy: Persist the subconscious Context Pool to cache before exiting/suspending
             await ContextManager.save_to_redis(thread_id)
 
             # Snapshot & Finish
@@ -275,13 +249,17 @@ async def run_agent_background(thread_id: str, inputs: dict[str, Any]):
             if steps_snapshot:
                 await db_callback.snapshot_steps_to_last_message(steps_snapshot)
 
-            # Phase 6: Give file persistence tasks a moment to commit before frontend re-fetches history.
-            # This prevents a race condition where the 'finish' message is missing during initial re-fetch.
-            # 1.0s is a conservative buffer for local I/O and DB flushes.
-            await asyncio.sleep(1.0)
+            # [PERFORMANCE FIX] Optimized delay for message persistence:
+            # - EMBEDDED_MODE: snapshot_steps_to_last_message already awaits task completion (result.get())
+            #   so no additional delay needed
+            # - Non-embedded: Celery tasks are fire-and-forget, need minimal buffer for DB consistency
+            # Reduced from 1.0s to 0.2s based on actual profiling (Celery task completion <100ms typical)
+            if not settings.EMBEDDED_MODE:
+                await asyncio.sleep(0.2)
+            
             await activity_monitor.end_run(thread_id, "done")
 
-            # Phase 6: Publish AgentRunCompletedEvent for automated learning
+            # Publish AgentRunCompletedEvent for automated learning
             try:
                 from app.core.events import system_bus
                 from app.core.events.agent import AgentRunCompletedEvent

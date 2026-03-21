@@ -89,7 +89,8 @@
       "connection_failed": "Connection Failed",
       "description": "Configure the Language Model used by the Agent.",
       "select_model": "Select Model",
-      "select_model_placeholder": "Choose a model..."
+      "select_model_placeholder": "Choose a model...",
+      "custom": "Custom"
     },
     "tabs": {
       "password": "Password",
@@ -114,6 +115,7 @@
     "modelFields": {
       "apiKeyDesc": "Key is stored securely. Leave blank if not changing.",
       "provider": "Provider",
+      "providerHint": "e.g. openai, anthropic, or any custom provider",
       "modelName": "Model Name",
       "baseUrl": "Base URL",
       "apiKey": "API Key",
@@ -451,6 +453,8 @@
       "provider": "Service Provider",
       "testRequired": "Please test the connection to ensure correct configuration",
       "selectProvider": "Select a provider",
+      "selectModel": "Select Model",
+      "selectModelPlaceholder": "Choose a model...",
       "providers": {
         "openai": "OpenAI",
         "qwen": "Qwen (Alibaba)",
@@ -485,7 +489,7 @@
     "description": "Complete the necessary system configuration",
     "prev": "Previous",
     "welcome": {
-      "subtitle": "Your intelligent development assistant is almost ready! Just 2 minutes to complete the setup.",
+      "subtitle": "Your Universal AI Agent is almost ready! Just 2 minutes to complete the setup.",
       "start": "Get Started",
       "title": "Welcome to EvoLoop",
       "feature1": "Configure AI model service",
@@ -524,6 +528,7 @@
     "agentStopped": "Chat stopped",
     "status": {
       "resuming": "Agent resuming...",
+      "cancelling": "Cancelling request...",
       "working": "Working..."
     },
     "errors": {
@@ -531,6 +536,7 @@
       "sendMessage": "Failed to send message",
       "stopAgent": "Failed to stop agent",
       "resumeAgent": "Failed to resume agent",
+      "cancelHitl": "Failed to cancel request",
       "connection": "Connection Error: {{error}}"
     },
     "context": {
@@ -1234,11 +1240,11 @@
     "finish": "Finish",
     "step1": {
       "title": "Welcome to EvoLoop",
-      "content": "EvoLoop is your intelligent coding assistant, helping you efficiently complete code writing, project management, and automation tasks. Click the LOGO to expand or collapse the sidebar."
+      "content": "EvoLoop is your Universal AI Agent, helping you efficiently complete cross-platform orchestration, code writing, and automation tasks. Click the LOGO to expand or collapse the sidebar."
     },
     "step2": {
       "title": "Smart Chat",
-      "content": "Engage in natural language conversations with the AI assistant. Get programming help, code reviews, and answers to your questions. Supports multi-turn conversations with context awareness."
+      "content": "Engage in natural language conversations with the Universal Agent. Get cross-platform automation, programming help, and code reviews. Supports multi-turn conversations with context awareness."
     },
     "step3": {
       "title": "Projects",

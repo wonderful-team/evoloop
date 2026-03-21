@@ -1,18 +1,87 @@
+"""
+Unified Graph Service
+=====================
+
+Merged functionality from:
+- GraphExplorer (natural language queries)
+- GraphRetrievalService (structured queries)
+
+Provides a single interface for all Neo4j graph operations.
+"""
+
+import logging
 from typing import Any
 
+from langchain_core.prompts.prompt import PromptTemplate
+
+from app.core.config import settings
 from app.infrastructure.database.graph.driver import get_graph_db
+from app.infrastructure.llm.factory import LLMFactory
+
+logger = logging.getLogger(__name__)
 
 
-class GraphRetrievalService:
+class GraphService:
     """
-    Retrieves Code Structure and Relations from Neo4j.
-    Enables 'Find Usages', 'Call Hierarchy', and 'Dependency Analysis'.
+    Unified service for Neo4j graph operations.
+    
+    Combines functionality from previous GraphExplorer and GraphRetrievalService
+    to eliminate redundancy.
     """
+
+    def __init__(self):
+        # Skip initialization in Embedded Mode (no Neo4j)
+        self._graph = None
+        self._embedded_mode = settings.EMBEDDED_MODE
+        
+        if self._embedded_mode:
+            logger.debug("GraphService: Disabled in Embedded Mode (Neo4j not available)")
+            return
+
+        # Initialize LangChain Neo4jGraph for NL queries
+        try:
+            from langchain_neo4j import Neo4jGraph
+            
+            self._graph = Neo4jGraph(
+                url=settings.NEO4J_URI,
+                username=settings.NEO4J_USER,
+                password=settings.NEO4J_PASSWORD,
+                refresh_schema=False,
+            )
+            
+            # Define schema explicitly (bypassing APOC)
+            self._graph.schema = """
+Node properties:
+- **File**
+  - path: STRING (The relative file path, e.g. 'app/main.py')
+  - project_id: INTEGER
+  - last_indexed: INTEGER
+- **CodeEntity**
+  - name: STRING (Short name, e.g. 'UserService')
+  - full_name: STRING (Fully qualified name)
+  - type: STRING (e.g. 'function', 'class', 'method')
+  - project_id: INTEGER
+
+Relationship properties:
+- **RELATION**
+  - type: STRING (e.g. 'calls', 'imports', 'inherits')
+
+Relationships:
+(:File)-[:CONTAINS]->(:CodeEntity)
+(:CodeEntity)-[:RELATION]->(:CodeEntity)
+"""
+            logger.info("GraphService initialized with manual schema")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize Neo4jGraph: {e}")
+            self._graph = None
+
+    # =================================================================================
+    # Structured Queries (from former GraphRetrievalService)
+    # =================================================================================
 
     async def find_symbol_definition(self, symbol_name: str, project_id: int) -> list[dict[str, Any]]:
-        """
-        Find a symbol definition using Graph.
-        """
+        """Find a symbol definition using Graph."""
         driver = await get_graph_db()
         query = """
         MATCH (e:CodeEntity {name: $name, project_id: $pid})
@@ -22,14 +91,10 @@ class GraphRetrievalService:
         """
         async with driver.session() as session:
             result = await session.run(query, name=symbol_name, pid=project_id)
-            records = await result.data()
-            return records
+            return await result.data()
 
     async def find_usages(self, symbol_name: str, project_id: int) -> list[dict[str, Any]]:
-        """
-        Find who uses (calls/references) this symbol.
-        Replaces 'grep' for structural usage finding.
-        """
+        """Find who uses (calls/references) this symbol."""
         driver = await get_graph_db()
         query = """
         MATCH (target:CodeEntity {name: $name, project_id: $pid})
@@ -40,16 +105,12 @@ class GraphRetrievalService:
         """
         async with driver.session() as session:
             result = await session.run(query, name=symbol_name, pid=project_id)
-            records = await result.data()
-            return records
+            return await result.data()
 
     async def get_call_hierarchy(self, symbol_name: str, project_id: int, depth: int = 2) -> dict[str, Any]:
-        """
-        Get recursive call hierarchy (Who calls me, who do I call).
-        """
+        """Get recursive call hierarchy (Who calls me, who do I call)."""
         driver = await get_graph_db()
 
-        # Incoming (Who calls me)
         incoming_query = f"""
         MATCH (target:CodeEntity {{name: $name, project_id: $pid}})
         MATCH path = (source)-[:RELATION*1..{depth}]->(target)
@@ -57,7 +118,6 @@ class GraphRetrievalService:
         LIMIT 20
         """
 
-        # Outgoing (Who do I call)
         outgoing_query = f"""
         MATCH (source:CodeEntity {{name: $name, project_id: $pid}})
         MATCH path = (source)-[:RELATION*1..{depth}]->(target)
@@ -66,9 +126,6 @@ class GraphRetrievalService:
         """
 
         async with driver.session() as session:
-            # For visualization, we might return paths.
-            # For simplistic text output, we just count or list unique nodes.
-
             in_res = await session.run(incoming_query, name=symbol_name, pid=project_id)
             in_paths = await in_res.data()
 
@@ -81,5 +138,83 @@ class GraphRetrievalService:
                 "details": "Graph paths fetched (summarized for now)",
             }
 
+    # =================================================================================
+    # Natural Language Queries (from former GraphExplorer)
+    # =================================================================================
 
-graph_retrieval_service = GraphRetrievalService()
+    async def natural_language_query(self, question: str, project_id: int | None = None) -> str:
+        """
+        Ask a natural language question about the graph.
+        
+        Args:
+            question: User's question (e.g. "Who calls function process_payment?")
+            project_id: Optional context to restrict search
+        """
+        if not self._graph:
+            return "Graph Service is not available (Neo4j not connected or in Embedded Mode)."
+
+        from langchain_neo4j import GraphCypherQAChain
+
+        llm = LLMFactory.create_llm(temperature=0)
+
+        CYPHER_GENERATION_TEMPLATE = """Task:Generate Cypher statement to query a graph database.
+Instructions:
+Use only the provided relationship types and properties in the schema.
+Do not use any other relationship types or properties that are not provided.
+Schema:
+{schema}
+
+Note: Do not include any explanations or apologies in your responses.
+Do not respond to any questions that might ask anything else than for you to construct a Cypher statement.
+Do not include any text except the generated Cypher statement.
+
+The question is:
+{question}
+"""
+        if project_id is not None and project_id != 0:
+            CYPHER_GENERATION_TEMPLATE += f"\nConstraint: ALWAYS filter by project_id = {project_id} in your query if nodes have that property."
+
+        CYPHER_GENERATION_PROMPT = PromptTemplate(
+            input_variables=["schema", "question"],
+            template=CYPHER_GENERATION_TEMPLATE
+        )
+
+        chain = GraphCypherQAChain.from_llm(
+            llm=llm,
+            graph=self._graph,
+            verbose=True,
+            cypher_prompt=CYPHER_GENERATION_PROMPT,
+            allow_dangerous_requests=True,
+        )
+
+        try:
+            result = await chain.ainvoke({"query": question})
+            return result["result"]
+        except Exception as e:
+            logger.error(f"Graph NL Query Failed: {e}")
+            return f"I couldn't query the graph: {e}"
+
+    async def query_cypher(self, cypher_query: str, params: dict | None = None) -> list[dict]:
+        """
+        Execute raw Cypher query directly.
+        
+        Args:
+            cypher_query: Raw Cypher query string
+            params: Query parameters
+            
+        Returns:
+            List of result records as dictionaries
+        """
+        driver = await get_graph_db()
+        async with driver.session() as session:
+            result = await session.run(cypher_query, params or {})
+            return await result.data()
+
+
+# Global Instance
+graph_service = GraphService()
+
+# Backward compatibility aliases
+# TODO: Migrate callers to use graph_service directly
+graph_retrieval_service = graph_service
+graph_explorer = graph_service

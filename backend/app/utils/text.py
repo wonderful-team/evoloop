@@ -287,3 +287,175 @@ def html_to_markdown(html: str, base_url: str = "") -> str:
     # Clean up extra whitespace
     result = re.sub(r"\n{3,}", "\n\n", result)
     return result.strip()
+
+
+# ============================================================================
+# Text Truncation
+# ============================================================================
+
+
+def truncate_text(
+    text: str,
+    max_len: int,
+    suffix: str = "...",
+    indicator: bool = True
+) -> str:
+    """
+    Truncate text if it exceeds max_len, with optional indicator.
+    
+    Args:
+        text: The text to truncate
+        max_len: Maximum character length
+        suffix: Suffix to append when truncated
+        indicator: Whether to include truncation metadata
+    
+    Returns:
+        Truncated text with suffix and optional indicator
+    
+    Examples:
+        >>> truncate_text("hello world", 8)
+        'hello...'
+        >>> truncate_text("line1\\nline2\\nline3", 20, indicator=True)
+        'line1\\nline2...\\n[truncated: 3 lines / 20 chars total]'
+    """
+    if not text or len(text) <= max_len:
+        return text
+    
+    chars = len(text)
+    lines = text.count("\n") + 1
+    truncated = text[:max_len]
+    
+    if indicator:
+        footer = f"\n...\n[Output truncated: {lines} lines / {chars} chars total.]"
+        return truncated + footer
+    
+    return truncated + suffix
+
+
+def truncate_output(text: str, max_len: int = 6000, suffix: str = "...") -> str:
+    """
+    Truncate long output strings with simple indicator.
+    
+    Args:
+        text: The text to truncate
+        max_len: Maximum length (default 6000)
+        suffix: Suffix string
+    
+    Returns:
+        Truncated text
+    """
+    if len(text) <= max_len:
+        return text
+    return text[:max_len] + f"\n{suffix} [truncated, total {len(text)} chars]"
+
+
+# ============================================================================
+# Technical Markers Stripping
+# ============================================================================
+
+
+def strip_technical_markers(text: str) -> str:
+    """
+    Remove technical markers and formatting from text.
+    
+    Removes:
+    - XML/HTML tags like <report>, <think>, <audit>
+    - Markdown code block markers
+    - Status icons
+    - Technical markers like "Status:", "Outcome:"
+    
+    Args:
+        text: Text containing technical markers
+    
+    Returns:
+        Cleaned text
+    """
+    import re
+    
+    # Remove XML/HTML tags with content for specific tags
+    tags_to_remove = ["audit", "outcome", "reason", "proof_points"]
+    for tag in tags_to_remove:
+        text = re.sub(rf"<{tag}>.*?</{tag}>", "", text, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove all remaining HTML tags
+    text = re.sub(r"<[^>]+>", "", text)
+    
+    # Remove lines that look like "Header: " (short labels)
+    text = re.sub(r"^\s*[^:\n]{1,20}:\s*", "", text, flags=re.MULTILINE)
+    
+    # Remove status icons (common Unicode icons)
+    status_icons = ["✅", "❌", "⚠️", "ℹ️", "📝", "🔍", "⚡", "🔧", "📊"]
+    icons_pattern = "[" + "".join(re.escape(i) for i in status_icons) + "]"
+    text = re.sub(icons_pattern, "", text)
+    
+    # Remove markdown code markers
+    text = text.replace("```", "").strip()
+    
+    return text.strip()
+
+
+def normalize_text(text: str | None) -> str:
+    """
+    Normalize text for comparison: NFC unicode, lowercase, no spaces.
+    
+    Used for element name matching across different platforms.
+    
+    Args:
+        text: Text to normalize
+    
+    Returns:
+        Normalized text
+    """
+    import unicodedata
+    
+    if not text:
+        return ""
+    
+    return unicodedata.normalize('NFC', str(text)).lower().strip().replace(" ", "").replace("\u3000", "")
+
+
+# ============================================================================
+# Content Extraction (Backward Compatibility)
+# ============================================================================
+
+
+def extract_code_blocks(text: str) -> list[tuple[str, str]]:
+    """
+    Extract all code blocks from markdown text.
+    
+    Args:
+        text: Markdown text containing code blocks
+    
+    Returns:
+        List of (language, content) tuples
+    """
+    # Pattern to match ```lang ... ```
+    pattern = r"```(?P<lang>\w+)?\n(?P<code>.*?)```"
+    matches = re.findall(pattern, text, re.DOTALL)
+    
+    results = []
+    for lang, code in matches:
+        results.append((lang.strip() if lang else "text", code.strip()))
+    
+    return results
+
+
+def extract_json_from_markdown(content: str) -> str:
+    """
+    Extract JSON from markdown code blocks or return raw content.
+    
+    Args:
+        content: Text potentially containing JSON code block
+    
+    Returns:
+        Extracted JSON string
+    """
+    patterns = [
+        r'```json\s*(.*?)\s*```',
+        r'```\s*(.*?)\s*```',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, content, re.DOTALL)
+        if match:
+            return match.group(1).strip()
+    return content.strip()

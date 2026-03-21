@@ -15,20 +15,6 @@ class CSharpSemanticProvider(LanguageSemanticProvider):
     def get_language_name(self) -> str:
         return "csharp"
 
-    def get_structure_query(self) -> str:
-        """Query for C# class and method definitions."""
-        return """
-            (class_declaration name: (identifier) @name body: (declaration_list) @body) @class
-            (method_declaration name: (identifier) @name body: (block) @body) @function
-        """
-
-    def get_imports_query(self) -> str:
-        """Query for C# using directives."""
-        return """
-            (using_directive name: (identifier) @module) @import
-            (using_directive name: (qualified_name) @module) @import
-        """
-
     def get_api_query(self) -> str:
         return """
         (method_declaration

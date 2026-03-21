@@ -30,14 +30,17 @@ class SkillHydrator:
             return await skill_discovery.get_namespace_index(namespace_context)
 
         # Eager mode: Fetch and return full SOP instructions
-        logger.info(f"[Hydrator] Eagerly hydrating skills for topic: {topic}")
+        execution_ticket = state.get("execution_ticket") or {}
+        # skill_id takes priority from the ticket if present, otherwise fallback to topic
+        query = execution_ticket.get("skill_id") or topic
+
+        logger.info(f"[Hydrator] Eagerly hydrating skills for query: {query}")
         match, relevant, reasoning = await skill_discovery.exact_search(
-            query=topic,
+            query=query,
             namespace_context=namespace_context
         )
 
-        # exact_search returns (SkillMatch | None, List[LearnedSkill])
-        # If there's a match, relevant already contains the skill object.
+        # exact_search handles both numeric ID, exact name, and namespace/ prefix
         return relevant
 
     @staticmethod

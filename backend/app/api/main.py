@@ -7,6 +7,7 @@ from app.api.routes import (
     conversations,
     devices,
     files,
+    ghost_text,
     learning,
     library,
     login,
@@ -71,3 +72,6 @@ api_router.include_router(wiki.router, prefix="/wiki", tags=["wiki"])
 
 # Cognitive Brain (Flash Mode)
 api_router.include_router(brain.router, prefix="/brain", tags=["brain"])
+
+# Ghost Text (Phase 4: Inline Code Completion)
+api_router.include_router(ghost_text.router, tags=["ghost-text"])

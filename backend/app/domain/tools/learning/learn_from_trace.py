@@ -10,7 +10,10 @@ from app.infrastructure.database.sql.database import session_scope
 from app.models.learning import LearnedSkill
 
 
-@evoloop_tool(is_state_mutating=True)
+@evoloop_tool(
+    is_state_mutating=True,
+    name_map={"zh": "从轨迹学习技能", "en": "Learn Skill from Trace"}
+)
 async def learn_skill_from_trace(thread_id: str, session_id: str | None = None) -> str:
     """
     Analyzes the execution trace of a given thread/session and learns a reusable skill from it.

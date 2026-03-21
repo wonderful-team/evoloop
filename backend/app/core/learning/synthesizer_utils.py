@@ -14,6 +14,10 @@ import yaml
 
 from app.core.config import settings
 from app.models import TraceEvent
+from app.utils.extract import extract_yaml_block as _extract_yaml_block
+from app.utils.extract import extract_section as _extract_section
+from app.utils.path import ensure_dir
+from app.utils.time import normalize_timestamp_ms_to_sec as _normalize_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +173,7 @@ def export_skill_to_filesystem(skill_data: dict) -> str | None:
         name = skill_data.get("name", "unnamed_skill")
         namespace_path = os.path.join(base_dir, namespace, name)
 
-        os.makedirs(namespace_path, exist_ok=True)
+        ensure_dir(namespace_path)
         skill_md_path = os.path.join(namespace_path, "SKILL.md")
 
         # 构建 frontmatter
@@ -202,14 +206,10 @@ def extract_yaml_block(text: str) -> str | None:
     从文本中提取 YAML 代码块
 
     支持 ```yaml 和 ``` 两种格式
+    
+    Note: Delegates to app.utils.extract.extract_yaml_block for the actual implementation.
     """
-    if "```yaml" in text:
-        return text.split("```yaml", 1)[1].split("```", 1)[0].strip()
-    if "```" in text:
-        parts = text.split("```", 2)
-        if len(parts) >= 2:
-            return parts[1].strip()
-    return None
+    return _extract_yaml_block(text)
 
 
 def extract_instructions_section(text: str) -> str:
@@ -217,6 +217,8 @@ def extract_instructions_section(text: str) -> str:
     从 LLM 响应中提取 Markdown 文档部分
 
     识别 Expert Skill Guide 等标记
+    
+    Note: Delegates to app.utils.extract.extract_section for the actual implementation.
     """
     markers = [
         "# 🧠 Expert Skill Guide",
@@ -224,10 +226,7 @@ def extract_instructions_section(text: str) -> str:
         "## 1. Mental Model",
         "## Skill Instructions"
     ]
-    for marker in markers:
-        if marker in text:
-            return text[text.find(marker):].strip()
-    return text
+    return _extract_section(text, markers)
 
 
 def normalize_timestamp_to_seconds(timestamp: float) -> float:
@@ -242,11 +241,10 @@ def normalize_timestamp_to_seconds(timestamp: float) -> float:
 
     Returns:
         float: 相对秒数（从视频开始计算的秒数）
+    
+    Note: Delegates to app.utils.time.normalize_timestamp_ms_to_sec for the actual implementation.
     """
-    if timestamp is None:
-        return 0.0
-
-    return float(timestamp) / 1000.0
+    return _normalize_timestamp(timestamp)
 
 
 def describe_normalized_position(norm_x: float, norm_y: float) -> str:

@@ -69,7 +69,7 @@ export function SidebarChatList({
   )
 
   return (
-    <div className="flex flex-col h-full bg-background border-r">
+    <div className="flex flex-col h-full bg-background">
       {/* Search Input */}
       <div className="p-3 sticky top-0 bg-background/95 backdrop-blur z-10 border-b">
         <div className="relative">

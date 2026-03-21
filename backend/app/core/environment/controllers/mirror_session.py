@@ -338,8 +338,8 @@ class MirrorSessionManager:
         self.stopped_sessions: dict[str, MirrorSession] = {}  # Cache stopped sessions for event count retrieval
 
     async def create_session(self, device_id: str, record_video: bool = True) -> MirrorSession:
-        import uuid
-        session_id = str(uuid.uuid4())
+        from app.utils.id import gen_uuid
+        session_id = gen_uuid()
         session = MirrorSession(session_id, device_id)
 
         success = await session.start(record_video=record_video)

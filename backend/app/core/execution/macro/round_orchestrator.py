@@ -7,11 +7,18 @@ Supports baseline, stress test, and chaos rounds.
 
 import copy
 import logging
-import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+
+from app.utils.random_utils import (
+    random_delay_ms,
+    random_drift,
+    random_int_range,
+    should_trigger,
+)
+from app.utils.registry import ClassRegistry
 
 from app.core.execution.macro.verification_models import (
     RoundConfig,
@@ -95,9 +102,11 @@ class DelayInjector(InterferenceInjector):
         payload = modified.get("payload", {})
 
         # Calculate delay based on intensity
-        base_delay = 500  # ms
-        max_additional = int(3000 * intensity)  # up to 3s additional
-        delay = base_delay + random.randint(0, max_additional)
+        delay = random_delay_ms(
+            base_ms=500,
+            max_additional_ms=3000,
+            intensity=intensity
+        )
 
         # Add delay before this step
         payload["injected_delay_before_ms"] = delay
@@ -181,9 +190,11 @@ class ElementInstabilityInjector(InterferenceInjector):
         payload = modified.get("payload", {})
 
         # Add retry configuration
-        base_retries = 1
-        max_additional = int(4 * intensity)
-        retries = base_retries + random.randint(0, max_additional)
+        retries = random_int_range(
+            base=1,
+            max_additional=4,
+            intensity=intensity
+        )
 
         payload["max_retries"] = retries
         payload["retry_delay_ms"] = 500 + int(1000 * intensity)
@@ -207,8 +218,8 @@ class PopupInterferenceInjector(InterferenceInjector):
         return "popup_interference"
 
     def can_apply(self, step: Dict[str, Any], context: RoundContext) -> bool:
-        # Apply to some steps randomly
-        return random.random() < 0.3  # 30% chance
+        # Apply to some steps randomly (30% chance)
+        return should_trigger(0.3)
 
     def apply(
         self,
@@ -257,9 +268,8 @@ class CoordinateDriftInjector(InterferenceInjector):
         x = payload.get("x", 0)
         y = payload.get("y", 0)
 
-        max_drift = int(50 * intensity)
-        drift_x = random.randint(-max_drift, max_drift)
-        drift_y = random.randint(-max_drift, max_drift)
+        drift_x = random_drift(max_drift=50, intensity=intensity)
+        drift_y = random_drift(max_drift=50, intensity=intensity)
 
         payload["x"] = x + drift_x
         payload["y"] = y + drift_y
@@ -278,10 +288,10 @@ class CoordinateDriftInjector(InterferenceInjector):
         return "Simulates coordinate drift between recording and execution"
 
 
-class InterferenceRegistry:
+class InterferenceRegistry(ClassRegistry[InterferenceInjector]):
     """Registry of available interference injectors"""
 
-    _injectors: Dict[str, Type[InterferenceInjector]] = {
+    _classes: Dict[str, Type[InterferenceInjector]] = {
         "delay": DelayInjector,
         "network_degradation": NetworkDegradationInjector,
         "element_instability": ElementInstabilityInjector,
@@ -291,19 +301,13 @@ class InterferenceRegistry:
 
     @classmethod
     def get_injector(cls, name: str) -> Optional[InterferenceInjector]:
-        """Get injector by name"""
-        injector_class = cls._injectors.get(name)
-        return injector_class() if injector_class else None
+        """Get injector by name (instantiates the class)"""
+        return cls.create(name)
 
     @classmethod
     def list_injectors(cls) -> List[str]:
         """List available injector names"""
-        return list(cls._injectors.keys())
-
-    @classmethod
-    def register(cls, name: str, injector_class: Type[InterferenceInjector]) -> None:
-        """Register a new injector"""
-        cls._injectors[name] = injector_class
+        return cls.list()
 
 
 class RoundStrategy(ABC):
@@ -573,7 +577,7 @@ class RoundOrchestrator:
             for injector in injectors:
                 if injector.can_apply(modified_step, context):
                     # Apply based on intensity
-                    if random.random() < intensity:
+                    if should_trigger(probability=1.0, intensity=intensity):
                         modified_step = injector.apply(modified_step, context, intensity)
                         logger.info(f"[Orchestrator] Applied {injector.get_name()} to step {step.get('step_number')}")
 

@@ -100,8 +100,7 @@ class TreeSitterExtractor(BaseExtractor):
 
         lang_key = parser_registry.get_language_key(extension)
 
-        # Priority: Use provider's get_structure_query() if available
-        # Fallback: Use TREE_SITTER_QUERIES dictionary
+        # Get queries from provider (which loads from queries.py)
         from .provider_registry import semantic_provider_registry
         provider = semantic_provider_registry.get(lang_key)
 
@@ -112,11 +111,13 @@ class TreeSitterExtractor(BaseExtractor):
             query_str = provider.get_structure_query() or ""
             imports_query_str = provider.get_imports_query() or ""
 
-        # Fallback to queries.py if provider doesn't have structure query
+        # Direct fallback to queries.py if no provider
         if not query_str:
             query_data = TREE_SITTER_QUERIES.get(lang_key)
             if query_data and "defs" in query_data:
                 query_str = query_data["defs"]
+            if query_data and "imports" in query_data:
+                imports_query_str = query_data["imports"]
 
         matches = []
         try:

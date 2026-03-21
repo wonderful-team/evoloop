@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
-import { CheckCircle2, ChevronDown, ChevronUp, Eye, EyeOff, Loader2, XCircle } from "lucide-react"
+import { CheckCircle2, Eye, EyeOff, Loader2, XCircle } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 import { useTranslation } from "react-i18next"
@@ -50,8 +50,6 @@ export function LLMSettings() {
   const [loading, setLoading] = useState(false)
   const [testing, setTesting] = useState(false)
   const [showApiKey, setShowApiKey] = useState(false)
-  const [advancedMode, setAdvancedMode] = useState(false)
-  const [selectedModelId, setSelectedModelId] = useState<string>("")
   const [testResult, setTestResult] = useState<{
     success: boolean
     msg: string
@@ -65,10 +63,11 @@ export function LLMSettings() {
 
   const presetModels: PresetModel[] = (presetModelsData as any)?.models || []
 
-  // Form for advanced mode
+  // Unified form - selectedModel stores the model ID or "custom"
   const form = useForm({
     defaultValues: {
-      provider: "openai",
+      selectedModel: "",  // preset model id or "custom"
+      provider: "openai", // actual provider for custom mode
       base_url: "",
       model: "",
       vision_model: "",
@@ -76,8 +75,8 @@ export function LLMSettings() {
     },
   })
 
-  // Simple mode form
-  const [simpleApiKey, setSimpleApiKey] = useState("")
+  const selectedModelId = form.watch("selectedModel")
+  const isCustom = selectedModelId === "custom"
 
   // Load initial config
   useEffect(() => {
@@ -85,13 +84,17 @@ export function LLMSettings() {
       try {
         const response = await SystemService.getSystemConfig()
         const configMap: Record<string, string> = {}
-        ;(response as unknown as SystemConfig[]).forEach((item) => {
-          configMap[item.key] = item.value
-        })
+        if (Array.isArray(response)) {
+          ;(response as unknown as SystemConfig[]).forEach((item) => {
+            configMap[item.key] = item.value
+          })
+        }
 
         const currentProvider = configMap.LLM_PROVIDER || ""
         const currentModel = configMap.LLM_MODEL || ""
         const currentBaseUrl = configMap.LLM_BASE_URL || ""
+        const currentVisionModel = configMap.VISION_MODEL || ""
+        const currentApiKey = configMap.LLM_API_KEY || ""
 
         // Try to find matching preset model
         const matchingPreset = presetModels.find(
@@ -102,21 +105,26 @@ export function LLMSettings() {
         )
 
         if (matchingPreset) {
-          setSelectedModelId(matchingPreset.id)
+          // Use preset model
+          form.reset({
+            selectedModel: matchingPreset.id,
+            provider: matchingPreset.provider,
+            base_url: currentBaseUrl,
+            model: currentModel,
+            vision_model: currentVisionModel,
+            api_key: currentApiKey,
+          })
         } else if (currentModel) {
-          // Custom config - still show simple mode but select "custom"
-          setSelectedModelId("custom")
-          // User can manually switch to advanced if needed
+          // Custom config
+          form.reset({
+            selectedModel: "custom",
+            provider: currentProvider || "openai",
+            base_url: currentBaseUrl,
+            model: currentModel,
+            vision_model: currentVisionModel,
+            api_key: currentApiKey,
+          })
         }
-
-        form.reset({
-          provider: currentProvider || "openai",
-          base_url: currentBaseUrl,
-          model: currentModel,
-          vision_model: configMap.VISION_MODEL || "",
-          api_key: configMap.LLM_API_KEY || "",
-        })
-        setSimpleApiKey(configMap.LLM_API_KEY || "")
       } catch (error) {
         console.error("Failed to load LLM config", error)
       }
@@ -124,24 +132,24 @@ export function LLMSettings() {
     if (presetModels.length > 0) {
       fetchConfig()
     }
-  }, [presetModels.length])
+  }, [presetModels.length, form])
 
-  // Handle model selection in simple mode
-  const handleModelSelect = (modelId: string) => {
-    setSelectedModelId(modelId)
+  // Handle model selection
+  const handleModelSelect = (value: string) => {
     setTestResult(null)
+    form.setValue("selectedModel", value)
 
-    if (modelId === "custom") {
-      setAdvancedMode(true)
-      // Only set provider if not already set, otherwise keep current
-      const currentProvider = form.getValues("provider")
-      if (!currentProvider) {
-        form.setValue("provider", "openai")
-      }
+    if (value === "custom") {
+      // Clear custom fields for user to fill
+      form.setValue("provider", "openai")
+      form.setValue("base_url", "")
+      form.setValue("model", "")
+      form.setValue("vision_model", "")
       return
     }
 
-    const preset = presetModels.find((m) => m.id === modelId)
+    // Apply preset model config
+    const preset = presetModels.find((m) => m.id === value)
     if (preset) {
       form.setValue("provider", preset.provider)
       form.setValue("base_url", preset.base_url)
@@ -150,53 +158,24 @@ export function LLMSettings() {
     }
   }
 
-  // Sync simpleApiKey to form when switching to advanced mode
-  useEffect(() => {
-    if (advancedMode && simpleApiKey) {
-      form.setValue("api_key", simpleApiKey)
-    }
-  }, [advancedMode, simpleApiKey])
-
-  // Handle switching back to simple mode - try to match current config to preset
-  const handleModeSwitch = () => {
-    const newMode = !advancedMode
-    setAdvancedMode(newMode)
-    setTestResult(null)
-
-    if (!newMode) {
-      // Switching to simple mode - try to find matching preset
-      const values = form.getValues()
-      const matchingPreset = presetModels.find(
-        (m) =>
-          m.provider === values.provider &&
-          m.model === values.model &&
-          m.base_url === values.base_url
-      )
-      if (matchingPreset) {
-        setSelectedModelId(matchingPreset.id)
-      } else if (values.model) {
-        setSelectedModelId("custom")
-      } else {
-        setSelectedModelId("")
-      }
-      // Sync API key back to simple mode
-      if (values.api_key) {
-        setSimpleApiKey(values.api_key)
-      }
-    }
-  }
-
   const onTestConnection = async () => {
     const values = form.getValues()
     setTesting(true)
     setTestResult(null)
+
+    // Get actual provider - either from preset or custom
+    const preset = presetModels.find((m) => m.id === values.selectedModel)
+    const actualProvider = preset ? preset.provider : values.provider
+    const actualBaseUrl = preset ? preset.base_url : values.base_url
+    const actualModel = preset ? preset.model : values.model
+
     try {
       const res: any = await SystemService.testLlmConnection({
         requestBody: {
-          provider: values.provider,
-          base_url: values.base_url,
-          model: values.model,
-          api_key: values.api_key || simpleApiKey,
+          provider: actualProvider,
+          base_url: actualBaseUrl,
+          model: actualModel,
+          api_key: values.api_key,
         },
       })
       if (res.success) {
@@ -225,14 +204,22 @@ export function LLMSettings() {
   const onSubmit = async () => {
     const values = form.getValues()
     setLoading(true)
+
+    // Get actual config - either from preset or custom
+    const preset = presetModels.find((m) => m.id === values.selectedModel)
+    const actualProvider = preset ? preset.provider : values.provider
+    const actualBaseUrl = preset ? preset.base_url : values.base_url
+    const actualModel = preset ? preset.model : values.model
+    const actualVisionModel = preset ? preset.vision_model : values.vision_model
+
     try {
       await SystemService.applyLlmConfig({
         requestBody: {
-          provider: values.provider,
-          base_url: values.base_url,
-          model: values.model,
-          vision_model: values.vision_model,
-          api_key: values.api_key || simpleApiKey,
+          provider: actualProvider,
+          base_url: actualBaseUrl,
+          model: actualModel,
+          vision_model: actualVisionModel,
+          api_key: values.api_key,
         },
       })
       toast.success(t("settings.llm.saved"))
@@ -249,204 +236,126 @@ export function LLMSettings() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              {t("settings.llm.title")}
-            </CardTitle>
-            <CardDescription className="mt-1.5">
-              {t("settings.llm.description")}
-            </CardDescription>
-          </div>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={handleModeSwitch}
-          >
-            {advancedMode ? t("common.simple") : t("common.advanced")}
-            {advancedMode ? (
-              <ChevronUp className="ml-1 h-4 w-4" />
-            ) : (
-              <ChevronDown className="ml-1 h-4 w-4" />
-            )}
-          </Button>
-        </div>
+        <CardTitle>{t("settings.llm.title")}</CardTitle>
+        <CardDescription>{t("settings.llm.description")}</CardDescription>
       </CardHeader>
       <CardContent>
-        {/* Simple Mode */}
-        {!advancedMode && (
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                {t("settings.llm.select_model")}
-              </label>
-              <Select
-                value={selectedModelId}
-                onValueChange={handleModelSelect}
-                disabled={isLoadingModels}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      isLoadingModels
-                        ? t("common.loading")
-                        : t("settings.llm.select_model_placeholder")
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {presetModels.map((model) => (
-                    <SelectItem key={model.id} value={model.id}>
-                      <div className="flex flex-col">
-                        <span>{model.name}</span>
-                        {model.description && (
-                          <span className="text-xs text-muted-foreground">
-                            {model.description}
-                          </span>
-                        )}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-sm text-muted-foreground">
-                {selectedPreset?.description}
-              </p>
-            </div>
-
-            {selectedModelId && selectedModelId !== "custom" && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  {t("settings.modelFields.apiKey")}
-                </label>
-                <div className="relative">
-                  <Input
-                    type={showApiKey ? "text" : "password"}
-                    placeholder="sk-..."
-                    value={simpleApiKey}
-                    onChange={(e) => setSimpleApiKey(e.target.value)}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute right-0 top-0 h-9 w-9 text-muted-foreground hover:bg-transparent"
-                    onClick={() => setShowApiKey(!showApiKey)}
+        <Form {...form}>
+          <form className="space-y-4">
+            {/* Model Selection */}
+            <FormField
+              control={form.control}
+              name="selectedModel"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("settings.llm.select_model")}</FormLabel>
+                  <Select
+                    value={field.value}
+                    onValueChange={handleModelSelect}
+                    disabled={isLoadingModels}
                   >
-                    {showApiKey ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={
+                            isLoadingModels
+                              ? t("common.loading")
+                              : t("settings.llm.select_model_placeholder")
+                          }
+                        />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {presetModels.map((model) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          <div className="flex flex-col">
+                            <span>{model.name}</span>
+                            {model.description && (
+                              <span className="text-xs text-muted-foreground">
+                                {model.description}
+                              </span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                      <SelectItem value="custom">
+                        <span className="font-medium">{t("settings.llm.custom")}</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {!isCustom && selectedPreset?.description && (
+                    <FormDescription>{selectedPreset.description}</FormDescription>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {/* Custom Configuration Fields - Only show when custom is selected */}
+            {isCustom && (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="provider"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs">{t("settings.modelFields.provider")}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="openai" {...field} className="h-8" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
                     )}
-                  </Button>
+                  />
+                  <FormField
+                    control={form.control}
+                    name="base_url"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs">{t("settings.modelFields.baseUrl")}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="https://api.openai.com/v1" {...field} className="h-8" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  {t("settings.modelFields.apiKeyDesc")}
-                </p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <FormField
+                    control={form.control}
+                    name="model"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs">{t("settings.modelFields.modelName")}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="gpt-4o" {...field} className="h-8" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="vision_model"
+                    render={({ field }) => (
+                      <FormItem className="space-y-1">
+                        <FormLabel className="text-xs">{t("settings.modelFields.visionModel")}</FormLabel>
+                        <FormControl>
+                          <Input placeholder="gpt-4o" {...field} className="h-8" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
             )}
 
-            <div className="flex items-center gap-4 pt-2">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={onTestConnection}
-                disabled={testing || loading || !selectedModelId}
-              >
-                {testing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {t("settings.llm.test_connection")}
-              </Button>
-
-              <Button
-                type="button"
-                onClick={onSubmit}
-                disabled={loading || testing || !selectedModelId}
-              >
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                {t("settings.llm.apply_btn")}
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Advanced Mode */}
-        {advancedMode && (
-          <Form {...form}>
-            <form className="space-y-4">
-              <FormField
-                control={form.control}
-                name="provider"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("settings.modelFields.provider")}</FormLabel>
-                    <Select
-                      onValueChange={field.onChange}
-                      defaultValue={field.value}
-                      value={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="openai">OpenAI</SelectItem>
-                        <SelectItem value="anthropic">Anthropic</SelectItem>
-                        <SelectItem value="ollama">Ollama</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="base_url"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("settings.modelFields.baseUrl")}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://api.openai.com/v1" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="model"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{t("settings.modelFields.modelName")}</FormLabel>
-                      <FormControl>
-                        <Input placeholder="gpt-4o" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="vision_model"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>{t("settings.modelFields.visionModel")}</FormLabel>
-                    <FormControl>
-                      <Input placeholder="gpt-4o" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      {t("settings.modelFields.visionModelDesc")}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
+            {/* API Key - Show when any model is selected */}
+            {selectedModelId && (
               <FormField
                 control={form.control}
                 name="api_key"
@@ -482,7 +391,10 @@ export function LLMSettings() {
                   </FormItem>
                 )}
               />
+            )}
 
+            {/* Action Buttons */}
+            {selectedModelId && (
               <div className="flex items-center gap-4 pt-2">
                 <Button
                   type="button"
@@ -494,28 +406,32 @@ export function LLMSettings() {
                   {t("settings.llm.test_connection")}
                 </Button>
 
-                <Button type="button" onClick={onSubmit} disabled={loading || testing}>
+                <Button
+                  type="button"
+                  onClick={onSubmit}
+                  disabled={loading || testing}
+                >
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   {t("settings.llm.apply_btn")}
                 </Button>
               </div>
-            </form>
-          </Form>
-        )}
-
-        {/* Test Result */}
-        {testResult && (
-          <div
-            className={`mt-4 flex items-center gap-2 text-sm ${testResult.success ? "text-green-600" : "text-red-600"}`}
-          >
-            {testResult.success ? (
-              <CheckCircle2 className="h-4 w-4" />
-            ) : (
-              <XCircle className="h-4 w-4" />
             )}
-            {testResult.msg}
-          </div>
-        )}
+
+            {/* Test Result */}
+            {testResult && (
+              <div
+                className={`flex items-center gap-2 text-sm ${testResult.success ? "text-green-600" : "text-red-600"}`}
+              >
+                {testResult.success ? (
+                  <CheckCircle2 className="h-4 w-4" />
+                ) : (
+                  <XCircle className="h-4 w-4" />
+                )}
+                {testResult.msg}
+              </div>
+            )}
+          </form>
+        </Form>
       </CardContent>
     </Card>
   )

@@ -12,12 +12,14 @@ from .actions.read import handle_read
     is_pollable=True,
     summary_template="database_logger.tool_summary.read_file",
     affected_path_keys=["path"],
-    result_summary_template="database_logger.tool_summary.read_file_result"
+    result_summary_template="database_logger.tool_summary.read_file_result",
+    name_map={"zh": "读取文件", "en": "Read File"}
 )
 async def read_file(
     path: str | None = None,
     start_line: str | int | None = None,
     end_line: str | int | None = None,
+    include_metadata: bool = True,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
@@ -27,6 +29,8 @@ async def read_file(
         path: Absolute or relative path to the file. **REQUIRED**
         start_line: Optional start line (1-indexed). Can be int or string.
         end_line: Optional end line (1-indexed, inclusive). Can be int or string.
+        include_metadata: Include file stats and hash in output (default: True).
+                         Set to False for cleaner output in scripts.
     """
     if not path:
         return "Error: Missing argument 'path'. usage: read_file(path='...')"
@@ -50,4 +54,4 @@ async def read_file(
     s = safe_int(start_line)
     e = safe_int(end_line)
 
-    return await handle_read(path, s, e, config=config)
+    return await handle_read(path, s, e, config=config, include_metadata=include_metadata)

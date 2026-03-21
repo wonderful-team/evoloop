@@ -1,7 +1,8 @@
 import time
-from uuid import uuid4
 
 from starlette.middleware.base import BaseHTTPMiddleware
+
+from app.utils.id import gen_uuid
 from starlette.requests import Request
 
 from app.core.context.manager import ContextManager, EvoContext
@@ -21,8 +22,8 @@ class ContextMiddleware(BaseHTTPMiddleware):
         start_time = time.time()
 
         # 1. Extract IDs
-        trace_id = request.headers.get("X-Trace-ID", str(uuid4()))
-        request_id = request.headers.get("X-Request-ID", str(uuid4()))
+        trace_id = request.headers.get("X-Trace-ID", gen_uuid())
+        request_id = request.headers.get("X-Request-ID", gen_uuid())
 
         # 2. Attempt Identify User (Best Effort)
         # We don't enforce auth here (deps.py does that), we just populate context if possible.

@@ -1,16 +1,19 @@
 import { useChatStore } from "@/stores/chatStore"
-import { Bot, Loader2 } from "lucide-react"
+import { Bot, Brain, ChevronDown, ChevronRight, Loader2, Terminal } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@evoloop/shared/components/ui/avatar"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@evoloop/shared/components/ui/collapsible"
+import { Button } from "@evoloop/shared/components/ui/button"
 import { ExecutionSteps } from "./ExecutionSteps"
 import { MessageContent } from "./MessageContent"
 import { ArtifactsList } from "./Artifacts/ArtifactsList"
 import { ThoughtCard } from "./ThoughtCard"
 import { HumanRequestCard } from "./HumanRequestCard"
-import { memo } from "react"
+import { memo, useState } from "react"
 import { useTranslation } from "react-i18next"
 
 export const PendingMessageItem = memo(() => {
     const { t } = useTranslation()
+    const [stepsOpen, setStepsOpen] = useState(false)
 
     // Connect to granular store selectors for performance
     const streamedContent = useChatStore((s) => s.streamedContent)
@@ -19,6 +22,11 @@ export const PendingMessageItem = memo(() => {
     const status = useChatStore((s) => s.status)
     const thoughts = useChatStore((s) => s.thoughts) || []
     const humanRequest = useChatStore((s) => s.humanRequest)
+
+    // Calculate running steps count for summary
+    const runningStepsCount = steps.filter(s => s.status === "running").length
+    const completedStepsCount = steps.filter(s => s.status === "done").length
+    const hasSteps = steps.length > 0
 
     // Only render if there is active content or running status
     // But typically MessageList controls when to show this.
@@ -37,34 +45,89 @@ export const PendingMessageItem = memo(() => {
 
             <div className="relative max-w-[85%] w-full min-w-0 space-y-2">
 
-                {/* 1. Thoughts (Reasoning) */}
-                {thoughts.length > 0 && (
-                    <div className="space-y-1 mb-2">
-                        {thoughts.map(thought => (
-                            <ThoughtCard key={thought.id} thought={thought} />
-                        ))}
-                    </div>
-                )}
-
-                {/* 2. Task Execution Steps */}
-                {steps.length > 0 && (
-                    <div className="mb-2 w-full">
-                        <ExecutionSteps steps={steps as any} />
-                    </div>
-                )}
-
-                {/* 3. Artifacts (Generated Files/Reports) */}
-                {artifacts.length > 0 && (
-                    <div className="mb-2 w-full">
-                        <ArtifactsList artifacts={artifacts} />
-                    </div>
-                )}
-
-                {/* 4. Streamed Content (The Response) */}
-                {streamedContent && (
+                {/* 1. Streamed Content (The Response) - AI FIRST */}
+                {(streamedContent || status === "running") && (
                     <div className="rounded-lg px-4 py-3 text-sm leading-relaxed bg-muted text-foreground min-h-[40px]">
-                        <MessageContent content={streamedContent} />
-                        <span className="inline-block w-1.5 h-4 ml-1 align-middle bg-primary animate-pulse" />
+                        {streamedContent ? (
+                            <>
+                                <MessageContent content={streamedContent} />
+                                {status === "running" && (
+                                    <span className="inline-block w-1.5 h-4 ml-1 align-middle bg-primary animate-pulse" />
+                                )}
+                            </>
+                        ) : (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground italic">
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                                {t("chat.interface.agentThinking", "Thinking...")}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* 2. Thoughts (Reasoning) - Collapsible, Secondary, Default Collapsed */}
+                {thoughts.length > 0 && (
+                    <Collapsible defaultOpen={false} className="w-full">
+                        <CollapsibleTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start"
+                            >
+                                <Brain className="h-3.5 w-3.5" />
+                                <span className="font-medium">
+                                    {thoughts.length} {t("chat.steps.thoughts", "thoughts")}
+                                </span>
+                                <ChevronRight className="h-3.5 w-3.5 ml-auto" />
+                            </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-1 space-y-1">
+                            {thoughts.map(thought => (
+                                <ThoughtCard key={thought.id} thought={thought} />
+                            ))}
+                        </CollapsibleContent>
+                    </Collapsible>
+                )}
+
+                {/* 3. Task Execution Steps - Collapsed by default with compact summary */}
+                {hasSteps && (
+                    <Collapsible
+                        open={stepsOpen}
+                        onOpenChange={setStepsOpen}
+                        className="w-full"
+                    >
+                        {/* Compact Summary Bar */}
+                        <CollapsibleTrigger asChild>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center gap-2 w-full justify-start"
+                            >
+                                <Terminal className="h-3.5 w-3.5" />
+                                <span className="font-medium">
+                                    {runningStepsCount > 0
+                                        ? t("chat.steps.executing", "Executing") + ` ${runningStepsCount} ${t("chat.steps.tools", "tools")}...`
+                                        : completedStepsCount === steps.length
+                                            ? t("chat.steps.completed", "Completed") + ` ${steps.length} ${t("chat.steps.tools", "tools")}`
+                                            : t("chat.steps.progress", "Progress") + ` ${completedStepsCount}/${steps.length}`
+                                    }
+                                </span>
+                                {stepsOpen ? (
+                                    <ChevronDown className="h-3.5 w-3.5 ml-auto" />
+                                ) : (
+                                    <ChevronRight className="h-3.5 w-3.5 ml-auto" />
+                                )}
+                            </Button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-1">
+                            <ExecutionSteps steps={steps as any} />
+                        </CollapsibleContent>
+                    </Collapsible>
+                )}
+
+                {/* 4. Artifacts (Generated Files/Reports) */}
+                {artifacts.length > 0 && (
+                    <div className="w-full">
+                        <ArtifactsList artifacts={artifacts} />
                     </div>
                 )}
 
@@ -72,14 +135,6 @@ export const PendingMessageItem = memo(() => {
                 {status === "interrupted" && humanRequest && (
                     <div className="mt-2 w-full">
                         <HumanRequestCard request={humanRequest} />
-                    </div>
-                )}
-
-                {/* 6. Loading Indicator (if nothing else is showing yet) */}
-                {!streamedContent && steps.length === 0 && thoughts.length === 0 && status === "running" && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground italic h-10">
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                        {t("chat.interface.agentThinking", "Thinking...")}
                     </div>
                 )}
             </div>

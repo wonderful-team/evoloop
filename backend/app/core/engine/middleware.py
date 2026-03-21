@@ -64,23 +64,31 @@ class EvoContextMiddleware:
                 break
 
         if last_human_msg and settings.USE_NEO4J_MEMORY and not state.get("is_subtask"):
-            try:
-                from app.core.memory import memory_manager
-                project_id = ctx.project_id or 1
-                
-                # Semantic search for relevant concepts and past episodes
-                concepts = await memory_manager.long_term.search_concepts(last_human_msg, project_id)
-                if concepts:
-                    ctx.metadata["project_concepts"] = "\n".join([f"- **{c.name}**: {c.description}" for c in concepts[:3]])
-                
-                # Fetch recent episodic snippets for grounding
-                episodes = await memory_manager.episodic.search_episodes(last_human_msg, project_id, limit=2)
-                if episodes:
-                    ctx.metadata["episodic_memory_raw"] = "\n".join([e.summary for e in episodes])
-            except Exception as e:
-                logger.warning(f"[Middleware] Memory hydration failed: {e}")
+            from app.core.memory import memory_manager
+            project_id = ctx.project_id or 1
 
-        # 4. State Harmonization (Blackboard Pattern - Phase 4 Consolidation)
+            # Semantic search for relevant concepts and past episodes
+            concepts = await memory_manager.long_term.search_concepts(last_human_msg, project_id)
+            if concepts:
+                ctx.metadata["project_concepts"] = "\n".join([f"- **{c.name}**: {c.description}" for c in concepts[:3]])
+
+            # Fetch recent episodic snippets for grounding
+            episodes = await memory_manager.episodic.search_episodes(last_human_msg, project_id, limit=3)
+            if episodes:
+                # [Deep Fix] Filter out episodes from the CURRENT run attempt to prevent "Session concluded" pollution
+                current_run_id = config.get("configurable", {}).get("run_id")
+                filtered = [
+                    e for e in episodes
+                    if getattr(e, "source_message_id", None) != current_run_id
+                ]
+                if filtered:
+                    ctx.metadata["episodic_memory_raw"] = "\n".join([e.summary for e in filtered[:2]])
+
+        # 4. Standard Capability Hydration (SOP Index)
+        from app.core.learning.discovery import skill_discovery
+        ctx.metadata["active_skills"] = await skill_discovery.get_active_skills_list()
+
+        # 5. State Harmonization (Blackboard Pattern - Phase 4 Consolidation)
         if not blackboard.get("verification") and state.get("verification_status"):
             blackboard["verification"] = state.get("verification_status")
 
@@ -89,14 +97,14 @@ class EvoContextMiddleware:
         is_retry = config.get("metadata", {}).get("is_retry", False)
         
         if (state.get("is_retry") or is_retry) and not state.get("is_subtask"):
-             logger.info("[Middleware] 🔄 Retry detected: Performing deep blackboard cleanup.")
-             for key in ["ticket", "verification", "route_reason"]:
-                 blackboard[key] = None
-             
-             if "metadata" in blackboard:
-                 for key in ["final_outcome", "shadow_audit"]:
-                     if key in blackboard["metadata"]:
-                         del blackboard["metadata"][key]
+            logger.info("[Middleware] 🔄 Retry detected: Performing deep blackboard cleanup.")
+            for key in ["ticket", "verification", "route_reason"]:
+                blackboard[key] = None
+
+            if "metadata" in blackboard:
+                for key in ["final_outcome", "shadow_audit"]:
+                    if key in blackboard["metadata"]:
+                        del blackboard["metadata"][key]
         elif "metadata" in blackboard and not state.get("is_subtask"):
             for key in ["final_outcome", "shadow_audit"]:
                 if key in blackboard["metadata"]:

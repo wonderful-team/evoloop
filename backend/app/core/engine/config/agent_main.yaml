@@ -49,6 +49,7 @@ nodes:
       - "read_file"
       - "write_file"
       - "edit_file"
+      - "preview_edit"
       - "list_files"
       - "file_system"
       - "bash"
@@ -57,6 +58,14 @@ nodes:
       - "explore_codebase"
       - "grep_files"
       - "get_workspace_tree"
+      # Checkpoints
+      - "create_checkpoint"
+      - "list_checkpoints"
+      - "rollback_checkpoint"
+      - "delete_checkpoint"
+      # Ghost Text
+      - "suggest_inline_completion"
+      - "preview_edit_ghost"
       # Knowledge & Memory
       - "manage_memory"
       - "search_skills"
@@ -97,6 +106,9 @@ nodes:
   - id: "flash_brain"
     path: "app.core.brain.node.flash_brain_node"
 
+  - id: "aggregator"
+    path: "app.core.engine.nodes.aggregator.aggregator_node"
+
 edges:
   # 1. Supervisor (Router)
   - from: "supervisor"
@@ -108,9 +120,10 @@ edges:
       finish: "finish"
       flash_brain: "flash_brain"
       worker: "worker"
-      spawn_subtasks: "worker"  # Phase 1: Dynamic subtasks map to worker (handled by Send)
+      aggregator: "aggregator"
+      spawn_subtasks: "worker"  # Dynamic subtasks map to worker (handled by Send)
 
-  # 2. Worker -> Supervisor
+  # 2. Worker -> Supervisor (Worker reports back to Supervisor for next decision)
   - from: "worker"
     to: "supervisor"
     type: "simple"
@@ -123,6 +136,11 @@ edges:
   # 4. Finish -> END (always terminal)
   - from: "finish"
     to: "END"
+    type: "simple"
+
+  # 5. Aggregator -> Supervisor (Aggregator reports merged results back)
+  - from: "aggregator"
+    to: "supervisor"
     type: "simple"
 
   # 6. Flash Brain -> Supervisor

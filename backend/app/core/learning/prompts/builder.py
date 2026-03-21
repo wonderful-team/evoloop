@@ -75,3 +75,30 @@ class LearningPromptBuilder:
         except Exception as e:
             logger.error(f"Error rendering Multimodal Synthesis template: {e}")
             return f"Error loading multimodal synthesis template: {e}"
+
+    def build_discovery_prompt(self, vars: Dict[str, Any]) -> str:
+        """Renders the skill discovery (intent matching) prompt."""
+        try:
+            template = self.env.get_template("skill_discovery.prompt.j2")
+            return template.render(**vars)
+        except Exception as e:
+            logger.error(f"Error rendering Discovery template: {e}")
+            return f"Error loading skill discovery template: {e}"
+
+    def build_multimodal_context_prompt(self, vars: Dict[str, Any]) -> str:
+        """Renders the task context for multimodal synthesis."""
+        try:
+            template = self.env.get_template("multimodal_task_context.j2")
+            return template.render(**vars)
+        except Exception as e:
+            logger.error(f"Error rendering Multimodal Context template: {e}")
+            return f"Error loading multimodal context template: {e}"
+
+    def build_synthesis_human_prompt(self, vars: Dict[str, Any] = None) -> str:
+        """Renders the human prompt for skill synthesis."""
+        try:
+            template = self.env.get_template("synthesis_human.prompt.j2")
+            return template.render(**(vars or {}))
+        except Exception as e:
+            logger.error(f"Error rendering Synthesis Human template: {e}")
+            return "Please analyze the trace and generate the skill YAML."

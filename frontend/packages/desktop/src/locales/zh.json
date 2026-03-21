@@ -89,7 +89,8 @@
       "connection_failed": "连接失败",
       "description": "配置智能体使用的大语言模型。",
       "select_model": "选择模型",
-      "select_model_placeholder": "请选择模型..."
+      "select_model_placeholder": "请选择模型...",
+      "custom": "自定义"
     },
     "tabs": {
       "password": "密码",
@@ -114,6 +115,7 @@
     "modelFields": {
       "apiKeyDesc": "密钥将安全存储。如不修改请留空。",
       "provider": "提供商",
+      "providerHint": "例如：openai、anthropic 或任何自定义提供商",
       "modelName": "模型名称",
       "baseUrl": "API 地址",
       "apiKey": "API 密钥",
@@ -451,6 +453,8 @@
       "provider": "服务提供商",
       "testRequired": "请先测试连接以确保配置正确",
       "selectProvider": "选择提供商",
+      "selectModel": "选择模型",
+      "selectModelPlaceholder": "请选择模型...",
       "providers": {
         "openai": "OpenAI",
         "qwen": "通义千问",
@@ -485,7 +489,7 @@
     "description": "完成必要的系统配置",
     "prev": "上一步",
     "welcome": {
-      "subtitle": "您的智能开发助手即将就绪！只需 2 分钟完成以下配置，即可开始使用。",
+      "subtitle": "您的通用智能体即将就绪！只需 2 分钟完成以下配置，即可开始使用。",
       "start": "开始配置",
       "title": "欢迎使用 EvoLoop",
       "feature1": "配置 AI 模型服务",
@@ -524,6 +528,7 @@
     "agentStopped": "对话已停止",
     "status": {
       "resuming": "智能体正在恢复...",
+      "cancelling": "正在取消请求...",
       "working": "工作中..."
     },
     "errors": {
@@ -531,6 +536,7 @@
       "sendMessage": "发送消息失败",
       "stopAgent": "停止智能体失败",
       "resumeAgent": "恢复智能体失败",
+      "cancelHitl": "取消请求失败",
       "connection": "连接错误: {{error}}"
     },
     "context": {
@@ -1234,11 +1240,11 @@
     "finish": "完成",
     "step1": {
       "title": "欢迎使用 EvoLoop",
-      "content": "EvoLoop 是您的智能编程助手，帮助您高效完成代码编写、项目管理和自动化任务。点击 LOGO 可展开或收起侧边栏。"
+      "content": "EvoLoop 是您的通用智能体 (Universal Agent)，帮助您高效完成跨平台编排、代码编写和自动化任务。点击 LOGO 可展开或收起侧边栏。"
     },
     "step2": {
       "title": "智能对话",
-      "content": "与 AI 助手进行自然语言对话，获取编程帮助、代码审查、问题解答等服务。支持多轮对话和上下文理解。"
+      "content": "与通用智能体进行自然语言对话，获取跨平台自动化、编程帮助、代码审查等服务。支持多轮对话和上下文理解。"
     },
     "step3": {
       "title": "项目管理",

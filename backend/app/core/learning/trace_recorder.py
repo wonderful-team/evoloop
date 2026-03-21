@@ -38,7 +38,7 @@ class TraceRecorder:
         self.traces: List[ActionTrace] = []
         self.is_recording = False
         self.output_dir = os.path.join(settings.BROWSER_ARTIFACTS_DIR, "traces", session_id)
-        os.makedirs(self.output_dir, exist_ok=True)
+        ensure_dir(self.output_dir)
         
     def start(self):
         """Starts the recording session."""

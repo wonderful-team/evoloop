@@ -22,7 +22,10 @@ class SearchSkillsSchema(BaseModel):
     )
 
 
-@evoloop_tool(is_pollable=True)
+@evoloop_tool(
+    is_pollable=False,
+    name_map={"zh": "搜索技能", "en": "Search Skills"}
+)
 async def search_skills(query: str = "", namespace: str = None, index_mode: bool = False) -> dict[str, Any]:
     """
     Search or browse the SOP (Standard Operating Procedure) library.
@@ -46,7 +49,7 @@ async def search_skills(query: str = "", namespace: str = None, index_mode: bool
         }
 
     # 2. Search Mode: Find specific skills
-    match, relevant, reasoning = await skill_discovery.exact_search(query=query, namespace_context=namespace)
+    match, relevant, reasoning = await skill_discovery.semantic_search(query=query, namespace_context=namespace)
 
     if match and relevant:
         skill_obj = relevant[0]

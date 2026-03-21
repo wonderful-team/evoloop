@@ -1,6 +1,17 @@
+"""
+Transparent Callback Handler with Structured Streaming
+=======================================================
+
+Unified callback handler with structured stream events.
+Eliminates separate EnhancedStreamManager module by integrating its capabilities directly.
+"""
+
 import ast
 import json
 import logging
+import time
+from dataclasses import dataclass, asdict
+from enum import Enum
 from typing import Any
 
 from langchain_core.callbacks import AsyncCallbackHandler
@@ -9,78 +20,156 @@ from langchain_core.outputs import LLMResult
 from app.core.tools.registry import is_state_mutating_tool, get_tool_affected_paths, get_tool_metadata
 from app.models.schemas.events import TokenEvent
 
-# Use standard logger instead of rich Console
 logger = logging.getLogger(__name__)
+
+
+class StreamEventType(Enum):
+    """Types of streaming events for real-time UI updates."""
+    THINKING = "thinking"
+    TOOL_START = "tool_start"
+    TOOL_PROGRESS = "tool_progress"
+    TOOL_COMPLETE = "tool_complete"
+    TOOL_ERROR = "tool_error"
+    CHECKPOINT = "checkpoint"
+    PROGRESS = "progress"
+    COMPLETE = "complete"
+
+
+@dataclass
+class StreamEvent:
+    """A structured streaming event for frontend consumption."""
+    type: str
+    message: str
+    data: dict | None = None
+    progress: int | None = None
+    timestamp: str | None = None
+    
+    def __post_init__(self):
+        if self.timestamp is None:
+            from datetime import datetime
+            self.timestamp = datetime.utcnow().isoformat()
+    
+    def to_json(self) -> str:
+        """Convert to JSON string for SSE."""
+        return json.dumps(asdict(self), default=str)
 
 
 class TransparentCallbackHandler(AsyncCallbackHandler):
     """
-    A CallbackHandler that logs LLM thoughts, tool calls,
-    and code generation to standard logger.
-    Async compliant for Redis Monitor integration.
+    Unified CallbackHandler with structured streaming support.
+    
+
+    Stream event capabilities are now integrated directly into this handler.
+    
+    Responsibilities:
+    1. LangChain callback handling (on_llm_start, on_tool_end, etc.)
+    2. Activity monitor integration (step tracking)
+    3. Structured stream event publishing (thinking, tool_progress, etc.)
     """
 
     def __init__(self, thread_id: str = None):
         super().__init__()
         self.thread_id = thread_id
         from app.core.monitoring.activity import activity_monitor
+        from app.core.context import tool_state_store
+        from app.infrastructure.cache import cache
 
         self.monitor = activity_monitor
+        self._cache = cache
+        self._tool_store = tool_state_store
+        
+        # Step tracking
         self.llm_task_id = None
         self.tool_task_id = None
         self.active_llm_run_id = None
-        self._current_stream_buffer = ""
+        self._current_phase_task_id = None
         self._active_nodes = {}
+        
+        # Stream tracking
+        self._current_stream_buffer = ""
+
+    # ==============================================================================
+    # Structured Stream Event Methods
+    # ==============================================================================
+
+    async def _publish_stream_event(self, event: StreamEvent):
+        """
+        Publish a structured stream event to cache for frontend SSE consumption.
+        
+        Unified with existing events channel (single channel architecture).
+        All events (tokens, thinking, tool_progress) go through the same channel.
+        """
+        if not self.thread_id:
+            return
+            
+        try:
+            # Unified: Publish to events channel (same as TokenEvent)
+            # Frontend distinguishes by event structure (type field)
+            await self._cache.publish(
+                f"chat:{self.thread_id}:events",
+                event.to_json()
+            )
+        except Exception as e:
+            logger.debug(f"Failed to publish stream event: {e}")
+
+    async def emit_thinking(self, message: str, detail: str | None = None):
+        """Emit thinking/reasoning event."""
+        await self._publish_stream_event(StreamEvent(
+            type=StreamEventType.THINKING.value,
+            message=message,
+            data={"detail": detail} if detail else None
+        ))
+
+    async def emit_tool_progress(self, tool_name: str, message: str, progress: int | None = None):
+        """Emit tool progress update."""
+        await self._publish_stream_event(StreamEvent(
+            type=StreamEventType.TOOL_PROGRESS.value,
+            message=message,
+            data={"tool": tool_name},
+            progress=progress
+        ))
+
+    async def emit_checkpoint(self, checkpoint_id: int, name: str, file_count: int):
+        """Emit checkpoint creation event."""
+        await self._publish_stream_event(StreamEvent(
+            type=StreamEventType.CHECKPOINT.value,
+            message=f"Checkpoint created: {name}",
+            data={"checkpoint_id": checkpoint_id, "file_count": file_count}
+        ))
+
+    # ==============================================================================
+    # LangChain Callback Methods
+    # ==============================================================================
 
     async def on_llm_start(self, serialized: dict[str, Any], prompts: list[str], **kwargs: Any) -> None:
         """Run when LLM starts running."""
-        # logger.info("LLM Start") # Too noisy
-
-        # Phase 18: Link LLM Thinking to Phase
-        # Ideally we'd create a 'thinking' task here, but currently we just stream tokens.
-        # If we wanted to track thinking as a task:
-        # parent_id = getattr(self, "_current_phase_task_id", None)
-        # if parent_id: ...
-        pass
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
             # Deduplicate nested LLM calls
-            # Only start a "Thinking..." task if no LLM is currently active for this handler
             if self.active_llm_run_id is None:
                 self.active_llm_run_id = kwargs.get("run_id")
                 self.llm_task_id = await self.monitor.add_step(self.thread_id, "Thinking...", "ai")
 
     async def on_llm_new_token(self, token: str, **kwargs: Any) -> None:
-        # Avoid logging every token to file!
-        # console.print(token, end="", style="cyan")
-
-        # Check cancellation during streaming
+        """Run on new LLM token."""
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
-        # Update monitor task details with streamed content
-        # Ensure we only update for the active run
-        run_id = kwargs.get("run_id")
-        if self.thread_id and self.llm_task_id and self.monitor:
-            if run_id == self.active_llm_run_id:
+            run_id = kwargs.get("run_id")
+            if self.llm_task_id and run_id == self.active_llm_run_id:
                 self._current_stream_buffer += token
-                # 1. Update Monitor (Still needed for full history/re-rendering - optimized?)
-                # Maybe we don't need to update Redis for EVERY token either?
-                # Let's keep it for now as Redis is fast, but could be optimized similarly.
-                # Actually, let's optimize Redis writes too to reduce load.
 
-                # 2. BUFFERED PUBLISH Strategy (No more typewriter)
-                # We use a temporary buffer for the "View" event
+                # BUFFERED PUBLISH Strategy
                 if not hasattr(self, "_publish_buffer"):
                     self._publish_buffer = ""
 
                 self._publish_buffer += token
 
-                # Condition: Flush on Newline OR > 50 chars (Chunked display)
+                # Flush on Newline OR > 50 chars
                 if "\n" in token or len(self._publish_buffer) > 50:
                     try:
-                        if hasattr(self.monitor, "client"):
+                        if hasattr(self.monitor, "client") and self.monitor.client:
                             await self.monitor.client.publish(
                                 f"chat:{self.thread_id}:events",
                                 TokenEvent(content=self._publish_buffer).json(),
@@ -98,8 +187,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
     async def on_llm_end(self, response: LLMResult, **kwargs: Any) -> None:
         """Run when LLM ends running."""
-        # logger.info("LLM End")
-
         # FLUSH REMAINING BUFFER
         if hasattr(self, "_publish_buffer") and self._publish_buffer:
             try:
@@ -114,7 +201,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         run_id = kwargs.get("run_id")
         if self.thread_id and self.llm_task_id and self.monitor:
-            # Only close if the ending run is the one that started the task
             if run_id == self.active_llm_run_id:
                 await self.monitor.update_step(self.thread_id, self.llm_task_id, "done")
                 self.llm_task_id = None
@@ -128,7 +214,6 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         run_id = kwargs.get("run_id")
         if self.thread_id and self.llm_task_id and self.monitor:
             if run_id == self.active_llm_run_id:
-                # [HITL FIX] If interrupted, don't mark as failed
                 exc_name = type(error).__name__
                 if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
                     await self.monitor.update_step(self.thread_id, self.llm_task_id, "done")
@@ -141,45 +226,42 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
     async def on_tool_start(self, serialized: dict[str, Any], input_str: str, **kwargs: Any) -> None:
         """Run when tool starts running."""
-        # Check cancellation
         if self.thread_id and self.monitor:
             await self.monitor.check_cancellation(self.thread_id)
 
-        # 1. Log Activity Task
         tool_name = serialized.get("name") if serialized else "Unknown Tool"
         self.current_tool_name = tool_name
         self.current_tool_path = None
 
-        # Friendly name for the task
+        # Get friendly name
         metadata = get_tool_metadata(tool_name) or {}
         summary_template = metadata.get("summary_template")
         
         friendly_name = f"Using {tool_name}"
         if summary_template:
             try:
-                # Basic template rendering for friendly name (extracting path if exists)
                 args = json.loads(input_str) if input_str.strip().startswith("{") else {}
                 friendly_name = i18n.get(summary_template, **args)
             except Exception:
                 pass
-        
-        # Legacy/Special Handlers removed in favor of metadata-driven friendly_name
 
+        # Create activity step
         if self.thread_id and self.monitor:
-            # Phase 18: Link to Parent Phase
             parent_id = getattr(self, "_current_phase_task_id", None)
+            if parent_id is None:
+                parent_id = await self.monitor.add_step(self.thread_id, "► Execution Phase", "node")
+                self._current_phase_task_id = parent_id
+
             self.tool_task_id = await self.monitor.add_step(self.thread_id, friendly_name, "tool", parent_id=parent_id)
 
-        # Phase 18: Dynamic Path Extraction via Metadata
+        # Extract path info
         data = None
         try:
-            # Agent inputs are often JSON strings
             if input_str.strip().startswith("{"):
                 data = json.loads(input_str)
         except Exception:
             pass
 
-        # Fallback: LangChain sometimes logs inputs as Python dict string (single quotes)
         if data is None:
             try:
                 if input_str.strip().startswith("{"):
@@ -192,11 +274,28 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             if affected_paths:
                 self.current_tool_path = affected_paths[0]
 
-        # Standard Log Output
-        logger.info(f"[Tool Start] {tool_name} Input: {input_str[:500]}...")
-
+        # Store tool state in shared store
+        run_id = str(kwargs.get("run_id", "default"))
         if self.thread_id:
-            # 1. Handle Task Boundary (Agent State)
+            self._tool_store.start_tool(
+                thread_id=self.thread_id,
+                run_id=run_id,
+                name=tool_name,
+                arguments=input_str,
+                path=self.current_tool_path
+            )
+
+        # Emit structured stream event
+        await self._publish_stream_event(StreamEvent(
+            type=StreamEventType.TOOL_START.value,
+            message=friendly_name,
+            data={"tool": tool_name, "params": data}
+        ))
+
+        logger.info(f"[Tool Start] {tool_name}")
+
+        # Handle special tool types
+        if self.thread_id:
             if tool_name == "task_boundary":
                 try:
                     data = json.loads(input_str)
@@ -208,12 +307,10 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 except Exception:
                     pass
 
-            # 2. Handle Artifacts (Dynamic via Metadata)
             if is_state_mutating_tool(tool_name):
                 try:
                     if input_str.strip().startswith("{"):
                         data = json.loads(input_str)
-                        # We still need a path for the artifact UI
                         affected_paths = get_tool_affected_paths(tool_name, data)
                         if affected_paths:
                             fname = affected_paths[0]
@@ -227,11 +324,9 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 except Exception:
                     pass
 
-            # Phase 7: Detect Memory Tool Access via Metadata
             if metadata.get("is_memory_tool"):
                 try:
                     data = json.loads(input_str) if input_str.strip().startswith("{") else {}
-                    # Extract identifier (action or query)
                     action = data.get("action", "")
                     key = data.get("key") or data.get("query") or data.get("name") or "Unknown"
                     memory_name = f"{action or tool_name}: {key[:30]}"
@@ -245,39 +340,37 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             await self.monitor.update_step(self.thread_id, self.tool_task_id, "done")
             self.tool_task_id = None
 
-        # Standard Log Output
-        # Strict sanitation for file reads (including manage_file read)
-        # 2. Extract result summary using metadata
-        metadata = get_tool_metadata(self.current_tool_name) or {}
-        summary_template = metadata.get("result_summary_template")
-        affected_keys = metadata.get("affected_path_keys", [])
+        # Get tool state from shared store
+        run_id = str(kwargs.get("run_id", "default"))
+        tool_state = None
+        if self.thread_id:
+            tool_state = self._tool_store.end_tool(self.thread_id, run_id)
 
-        log_output = output # Initialize log_output with the full output as a fallback
+        # Generate result summary using shared logic
+        tool_name = self.current_tool_name
+        if tool_state:
+            log_output, _ = tool_state.get_summary(output)
+            duration = self._tool_store.get_duration(self.thread_id, run_id) if self.thread_id else None
+        else:
+            # Fallback if state not found
+            log_output = output[:500] if len(output) > 500 else output
+            duration = None
 
-        if summary_template and self.current_tool_path:
-            try:
-                lines = output.split("\n")
-                count = len(lines)
-                if not output:
-                    count = 0
-                log_output = i18n.get(summary_template, path=self.current_tool_path, count=count, lines=count, items=count)
-            except Exception:
-                pass
-        
-        # Fallback for large content or general tools
-        elif len(output) > 500:
-            lines = output.split("\n")
-            if len(lines) > 20:
-                log_output = f"{output[:300]}\n...\n[Truncated {len(lines)} lines / {len(output)} chars]"
+        logger.info(f"[Tool End] {tool_name}")
 
-        logger.info(f"[Tool End] Output: {log_output}")
+        # Emit structured stream event
+        if tool_name:
+            await self._publish_stream_event(StreamEvent(
+                type=StreamEventType.TOOL_COMPLETE.value,
+                message=log_output[:200],
+                data={"tool": tool_name, "duration": duration, "success": True}
+            ))
 
     async def on_tool_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when tool errors."""
         logger.error(f"Tool Error in thread {self.thread_id}: {error}")
         
         if self.thread_id and self.tool_task_id and self.monitor:
-            # [HITL FIX] If interrupted, don't mark as failed
             exc_name = type(error).__name__
             if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
                 await self.monitor.update_step(self.thread_id, self.tool_task_id, "done")
@@ -286,27 +379,21 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
             
             self.tool_task_id = None
 
+        # Emit structured stream event
+        tool_name = getattr(self, 'current_tool_name', None)
+        if tool_name:
+            await self._publish_stream_event(StreamEvent(
+                type=StreamEventType.TOOL_ERROR.value,
+                message=str(error)[:200],
+                data={"tool": tool_name, "success": False}
+            ))
+
     async def on_chain_start(self, serialized: dict[str, Any], inputs: dict[str, Any], **kwargs: Any) -> None:
-        """Run when chain starts running."""
-        # 1. Check for LangGraph Node Transition
-        # LangGraph injects 'langgraph_node' into metadata
+        """Run when chain (node) starts running."""
         metadata = kwargs.get("metadata", {})
         node_name = metadata.get("langgraph_node")
 
         if node_name and self.thread_id and self.monitor:
-            # Ignore internal nodes/pregel stuff if necessary
-            # Usually node names are meaningful (e.g. "tech_lead", "coder")
-
-            # Avoid "Start" / "End" noise if possible, but LangGraph usually names them specifically
-
-            # FLATTENING UI: User wants "categorization" or "folding".
-            # We re-enable this but map node names to friendly "Phase" names.
-            # This creates "Phase" tasks that can act as headers in the UI.
-
-            # --- 🏅 Unified Node Visualization (v5.0) ---
-            # Instead of a hardcoded map of legacy nodes, we use a structural map 
-            # for standard nodes and dynamic roles for the Universal Worker.
-
             standard_node_names = {
                 "supervisor": "Supervisor Phase",
                 "finish": "Completion Phase",
@@ -314,10 +401,8 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 "flash_brain": "Cognitive Awakening",
             }
 
-            # 1. Try structural names
             phase_name = standard_node_names.get(node_name)
             
-            # 2. Try dynamic worker roles
             if node_name == "worker" or not phase_name:
                 execution_ticket = inputs.get("execution_ticket") or {}
                 agent_config = execution_ticket.get("agent_config") or {}
@@ -326,54 +411,39 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
                 if role_name:
                     phase_name = f"{role_name} Phase"
                 else:
-                    # Fallback: Capitalize node ID (e.g. 'worker' -> 'Worker Phase')
                     phase_name = f"{node_name.replace('_', ' ').title()} Phase"
 
             friendly_name = f"► {phase_name}"
-
-            # Log all significant structural/working nodes
             ignorable_nodes = ("__start__", "__end__", "language_router")
-            should_log = node_name not in ignorable_nodes
-
-            if should_log:
+            
+            if node_name not in ignorable_nodes:
                 run_id = kwargs.get("run_id")
-                # We mark it as 'running' so it shows as the active phase
                 task_id = await self.monitor.add_step(self.thread_id, friendly_name, "node")
                 self._active_nodes[run_id] = (task_id, node_name)
-
-                # Phase 18: Track active Phase ID for child tasks
                 self._current_phase_task_id = task_id
 
     async def on_chain_end(self, outputs: dict[str, Any], **kwargs: Any) -> None:
         """Run when chain ends running."""
         run_id = kwargs.get("run_id")
-        if hasattr(self, "_active_nodes") and run_id in self._active_nodes:
+        if run_id in self._active_nodes:
             task_id, node_name = self._active_nodes[run_id]
             if self.thread_id and self.monitor:
-                # 1. Update the original node task to 'done'
                 await self.monitor.update_step(self.thread_id, task_id, "done")
-
-                # Phase 18: Clear active Phase ID if it matches
                 if getattr(self, "_current_phase_task_id", None) == task_id:
                     self._current_phase_task_id = None
-
             del self._active_nodes[run_id]
 
     async def on_chain_error(self, error: BaseException, **kwargs: Any) -> None:
         """Run when chain errors."""
         run_id = kwargs.get("run_id")
-        if hasattr(self, "_active_nodes") and run_id in self._active_nodes:
+        if run_id in self._active_nodes:
             task_id, node_name = self._active_nodes[run_id]
             if self.thread_id and self.monitor:
-                # [HITL FIX] If interrupted (e.g. tool call raised AgentHumanInterruptException), 
-                # do not mark node as 'failed'.
                 exc_name = type(error).__name__
                 if "Interrupt" in exc_name or "GraphInterrupt" in exc_name:
                     await self.monitor.update_step(self.thread_id, task_id, "done")
                 else:
-                    # 1. Update the original node task to 'failed'
                     await self.monitor.update_step(self.thread_id, task_id, "failed", details=str(error))
-
             del self._active_nodes[run_id]
 
     async def on_text(self, text: str, **kwargs: Any) -> None:
