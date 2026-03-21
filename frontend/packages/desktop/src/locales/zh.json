@@ -836,7 +836,8 @@
     },
     "status": {
       "indexing": "索引中",
-      "analyzing": "分析中"
+      "analyzing": "分析中",
+      "indexed": "已索引"
     },
     "overview": {
       "title": "项目概览",

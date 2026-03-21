@@ -346,6 +346,15 @@ def persist_message_task(
                     res = await session.execute(stmt)
                     target_parent_id = res.scalar_one_or_none()
 
+                # Calculate visibility for clean pagination
+                # Hidden: Pure tool results, and intermediate AI empty messages with tool_calls
+                is_visible = True
+                if role == "tool":
+                    is_visible = False
+                elif role == "ai":
+                    if tool_calls and (not content or content.strip() in ["", "正在执行工具..."] or content.strip().startswith("正在执行")):
+                        is_visible = False
+
                 log = Message(
                     thread_id=thread_id,
                     project_id=project_id,
@@ -358,6 +367,7 @@ def persist_message_task(
                     parent_id=target_parent_id,
                     tool_calls=tool_calls,
                     action_type=action_type,
+                    is_visible=is_visible,
                 )
                 session.add(log)
                 await session.flush()  # Get ID for references

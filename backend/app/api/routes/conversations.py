@@ -3,7 +3,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlalchemy import delete, select, in_
+from sqlalchemy import delete, select
 from sqlalchemy.orm import selectinload
 
 from app.core.monitoring.activity import activity_monitor
@@ -159,12 +159,12 @@ async def get_conversation_messages(
     
     try:
         async with get_db_session() as session:
-            # Step 1: Query only human and ai messages (no tool messages)
+            # Step 1: Query only visible messages (main conversation nodes)
             visible_stmt = (
                 select(Message)
                 .where(
                     Message.thread_id == thread_id,
-                    Message.role.in_(["human", "ai"])
+                    Message.is_visible == True
                 )
                 .options(selectinload(Message.references))
                 .order_by(Message.id.desc())
@@ -188,30 +188,43 @@ async def get_conversation_messages(
             
             # Step 2: Collect all run_ids from visible messages
             run_ids = {m.run_id for m in visible_messages if m.run_id}
+
+            # To prevent losing the active run if it only has intermediate messages so far
+            if before_id is None:
+                latest_msg_stmt = (
+                    select(Message.run_id)
+                    .where(Message.thread_id == thread_id, Message.run_id.is_not(None))
+                    .order_by(Message.id.desc())
+                    .limit(1)
+                )
+                latest_run_id = (await session.execute(latest_msg_stmt)).scalar_one_or_none()
+                if latest_run_id:
+                    run_ids.add(latest_run_id)
             
-            # Step 3: Fetch all tool messages associated with these runs
-            tool_messages = []
+            # Step 3: Fetch all invisible messages associated with these runs
+            invisible_messages = []
             if run_ids:
-                tool_stmt = (
+                invisible_stmt = (
                     select(Message)
                     .where(
                         Message.thread_id == thread_id,
-                        Message.role == "tool",
+                        Message.is_visible == False,
                         Message.run_id.in_(run_ids)
                     )
-                    .order_by(Message.id.asc())  # Chronological order for tool sequence
+                    .options(selectinload(Message.references))
+                    .order_by(Message.id.asc())  # Chronological order
                 )
-                tool_result = await session.execute(tool_stmt)
-                tool_messages = tool_result.scalars().all()
+                invisible_result = await session.execute(invisible_stmt)
+                invisible_messages = invisible_result.scalars().all()
             
             # Step 4: Merge and sort all messages by id
-            all_messages = visible_messages + list(tool_messages)
+            all_messages = visible_messages + list(invisible_messages)
             all_messages.sort(key=lambda m: m.id)
             
             # Get total count on first load (when before_id is None)
             total_count = None
             if before_id is None:
-                count_stmt = select(Message.id).where(Message.thread_id == thread_id)
+                count_stmt = select(Message.id).where(Message.thread_id == thread_id, Message.is_visible == True)
                 count_result = await session.execute(count_stmt)
                 total_count = len(count_result.scalars().all())
 

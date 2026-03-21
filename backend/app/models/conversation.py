@@ -38,6 +38,9 @@ class Message(Base):
     # values: 'text' (default), 'tool_output', 'thinking', 'system'
     action_type: Mapped[str] = mapped_column(String(50), default="text", server_default="text")
 
+    # Visibility flag for pagination (hide intermediate tool-calling AI/Tool messages)
+    is_visible: Mapped[bool] = mapped_column(default=True, server_default="1")
+
     # Message-Run Association for tracking execution context
     run_id: Mapped[str | None] = mapped_column(String(255), index=True)  # Associate with a specific execution run
     status: Mapped[str | None] = mapped_column(String(50))  # pending, streaming, completed, failed, waiting_human

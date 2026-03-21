@@ -836,7 +836,8 @@
     },
     "status": {
       "indexing": "Indexing",
-      "analyzing": "Analyzing"
+      "analyzing": "Analyzing",
+      "indexed": "Indexed"
     },
     "overview": {
       "title": "Project Overview",
