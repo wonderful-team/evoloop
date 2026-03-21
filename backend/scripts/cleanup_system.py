@@ -189,8 +189,6 @@ class CleanupManager:
         print("-" * 40)
 
         try:
-            from app.infrastructure.cache.file_cache import get_file_cache
-
             cache_dir = Path.home() / ".evoloop" / "cache"
             if not cache_dir.exists():
                 print("  ℹ️  FileCache 目录不存在")
