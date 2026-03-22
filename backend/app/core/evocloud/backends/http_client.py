@@ -404,6 +404,93 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data["result"] = result
         await self.request("POST", "/evolooplink/api/command/updateStatus", data=data)
 
+    # ==================== Subscription APIs ====================
+
+    async def get_subscription_status(self) -> dict:
+        """获取会员订阅状态"""
+        return await self.request("GET", "/subscription/api/subscription/status")
+
+    async def get_subscription_permissions(self) -> dict:
+        """获取会员功能权限"""
+        return await self.request("GET", "/subscription/api/subscription/permissions")
+
+    async def check_feature_permission(self, feature: str) -> dict:
+        """检查特定功能权限"""
+        return await self.request(
+            "POST", 
+            "/subscription/api/subscription/checkPermission",
+            data={"feature": feature}
+        )
+
+    async def validate_feature_access(self, required_feature: str) -> dict:
+        """验证访问权限（详细版）"""
+        return await self.request(
+            "POST",
+            "/subscription/api/subscription/validateAccess",
+            data={"required_feature": required_feature}
+        )
+
+    async def get_subscription_plans(self) -> dict:
+        """获取可用订阅计划列表"""
+        return await self.request("GET", "/subscription/api/subscription/plans")
+
+    async def create_subscription_order(self, level_id: int, auto_renew: bool = False) -> dict:
+        """创建订阅订单"""
+        return await self.request(
+            "POST",
+            "/subscription/api/subscription/createOrder",
+            data={"level_id": level_id, "auto_renew": 1 if auto_renew else 0}
+        )
+
+    async def get_subscription_detail(self) -> dict:
+        """获取订阅详情"""
+        return await self.request("GET", "/subscription/api/subscription/getDetail")
+
+    async def get_ai_quota(self, quota_type: str = "ai_chat") -> dict:
+        """获取 AI 配额"""
+        return await self.request(
+            "GET",
+            "/subscription/api/aiQuota/getQuota",
+            params={"type": quota_type}
+        )
+
+    async def consume_ai_quota(self, quota_type: str, count: int = 1, metadata: dict | None = None) -> dict:
+        """消耗 AI 配额"""
+        return await self.request(
+            "POST",
+            "/subscription/api/aiQuota/consumeQuota",
+            data={
+                "type": quota_type,
+                "count": count,
+                "metadata": metadata or {}
+            }
+        )
+
+    async def get_all_ai_quotas(self) -> dict:
+        """获取所有 AI 配额"""
+        return await self.request("GET", "/subscription/api/aiQuota/getAllQuotas")
+
+    async def batch_check_ai_quota(self, quota_types: list) -> dict:
+        """批量检查 AI 配额"""
+        return await self.request(
+            "POST",
+            "/subscription/api/aiQuota/batchCheck",
+            data={"types": quota_types}
+        )
+
+    async def get_ai_quota_history(self, quota_type: str = "", page: int = 1, page_size: int = 20) -> dict:
+        """获取 AI 配额使用历史"""
+        params = {"page": page, "page_size": page_size}
+        if quota_type:
+            params["type"] = quota_type
+        return await self.request(
+            "GET",
+            "/subscription/api/aiQuota/getUsageHistory",
+            params=params
+        )
+
+    # ==================== Log APIs ====================
+
     async def upload_log(self, device_id, thread_id, log_type, content, name=None, command_id=None, project_id=None):
         content_str = json_utils.dumps(content) if isinstance(content, dict | list) else str(content)
 

@@ -61,9 +61,13 @@ class ToolState:
         
         # Try to use result summary template from metadata
         summary_template = self.metadata.get("result_summary_template")
+        
+        # Ensure output is string for processing
+        output_str = str(output) if not isinstance(output, str) else output
+        
         if summary_template and output:
             try:
-                line_count = len(output.splitlines())
+                line_count = len(output_str.splitlines())
                 file_info = self.path or "file"
                 return (
                     i18n.get(summary_template, path=file_info, count=line_count, 
@@ -74,15 +78,15 @@ class ToolState:
                 pass
         
         # Truncate if output is too long (>500 chars or >20 lines)
-        if len(output) > 500:
-            lines = output.splitlines()
+        if len(output_str) > 500:
+            lines = output_str.splitlines()
             if len(lines) > 20:
                 return (
-                    f"{output[:300]}\n...\n[Truncated {len(lines)} lines / {len(output)} chars]",
+                    f"{output_str[:300]}\n...\n[Truncated {len(lines)} lines / {len(output_str)} chars]",
                     is_file_content
                 )
         
-        return output, is_file_content
+        return output_str, is_file_content
 
 
 class ToolStateStore:

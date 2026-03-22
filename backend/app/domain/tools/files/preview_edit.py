@@ -135,7 +135,7 @@ async def preview_edit_internal(
     from app.domain.tools.utils.editing.engine import EditEngine
     
     try:
-        target_path = resolve_and_validate_path(path, config)
+        target_path = await resolve_and_validate_path(path, config)
     except ValueError as e:
         return EditPreviewResult(
             success=False,

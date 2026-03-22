@@ -71,7 +71,7 @@ class SynthesizedSkill:
     
     # Deterministic Execution
     execution_mode: str = "agentic" # "agentic" or "deterministic"
-    macro_script: list[dict] = field(default_factory=list) # JSON payload for MacroEngine
+    macro_script: str = ""  # YAML format for storage and execution
 
     # Metadata
     source_thread_id: str | None = None
@@ -139,9 +139,13 @@ class WorkflowSynthesizer:
 
         # Use evolved macro if available
         if verification["status"] == "success" and verification.get("evolved_macro"):
-            original_count = len(macro_script)
-            evolved_count = len(verification["evolved_macro"])
-            macro_script = verification["evolved_macro"]
+            evolved_steps = verification["evolved_macro"]
+            # Count lines/steps in original YAML for comparison
+            original_steps = yaml.safe_load(macro_script) if macro_script else []
+            original_count = len(original_steps)
+            evolved_count = len(evolved_steps)
+            # Convert evolved steps back to YAML string
+            macro_script = yaml.dump(evolved_steps, default_flow_style=False, allow_unicode=True, sort_keys=False)
             logger.info(
                 f"[{self.thread_id}] Using evolved macro: {original_count} -> {evolved_count} steps, "
                 f"mode={verification.get('execution_mode', 'unknown')}"
@@ -152,9 +156,6 @@ class WorkflowSynthesizer:
                 f"Proceeding with unverified macro."
             )
             # Don't abort - let the LLM have a chance to fix it
-
-        # Step 3: Call LLM to synthesize skill
-        yaml_output = await self._generate_skill_yaml(narrative, summary, first_user_msg)
 
         # Step 4.5: Parse YAML to SynthesizedSkill and inject macro
         skill = self._parse_skill_yaml(yaml_output, sequence)
@@ -189,7 +190,7 @@ class WorkflowSynthesizer:
 
         return skill
 
-    async def verify_macro(self, macro_script: list[dict], project_id: int = 1) -> dict:
+    async def verify_macro(self, macro_script: str, project_id: int = 1) -> dict:
         """
         [Phase 5] Agent-based verification of a draft macro.
 
@@ -252,8 +253,8 @@ class WorkflowSynthesizer:
 
         return content
 
-    def _compile_macro_script(self, sequence: TraceSequence) -> list[dict]:
-        """Compile raw TraceSteps into a clean deterministic macro JSON format."""
+    def _compile_macro_script(self, sequence: TraceSequence) -> str:
+        """Compile raw TraceSteps into a clean deterministic macro YAML format."""
         macro = []
         has_extract = False
         last_package = None
@@ -410,16 +411,10 @@ class WorkflowSynthesizer:
                 "payload": {}
             })
 
-        # Append Dump Data Sink if any extraction occurred
-        if has_extract:
-            macro.append({
-                "step_number": len(macro) + 1,
-                "type": "dump",
-                "payload": {}
-            })
-
         # Macro optimization is now handled via MacroService in the main synthesize flow
-        return self._cleanup_macro(macro)[0]
+        steps = self._cleanup_macro(macro)[0]
+        # Convert to YAML string for storage
+        return yaml.dump(steps, default_flow_style=False, allow_unicode=True, sort_keys=False)
 
     @classmethod
     def _cleanup_macro(cls, steps: List[dict], start_index: int = 1) -> Tuple[List[dict], int]:
@@ -463,7 +458,7 @@ class WorkflowSynthesizer:
             source_thread_id=self.thread_id,
             source_session_id=self.session_id,
             tools_used=list(set(sequence.tools_used)),
-            macro_script=data.get("macro_script"), # EXTRACT FROM LLM YAML
+            macro_script=yaml.dump(data.get("macro_script", []), default_flow_style=False, allow_unicode=True, sort_keys=False) if data.get("macro_script") else "",
         )
 
     def _export_physical_skill(self, skill: SynthesizedSkill) -> None:

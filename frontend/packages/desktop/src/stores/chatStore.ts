@@ -332,15 +332,23 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         // 2. Send Request
         try {
-            await AgentService.chatEndpoint({
+            const res = await AgentService.chatEndpoint({
                 requestBody: {
                     message: content, // Send raw text (backend handles merging)
                     thread_id: threadId,
                     project_id: projectId,
                     attachments: attachments // Pass structured attachments
                 },
-            })
-            // Success - we don't need to do anything, SSE "status: running" will confirm
+            }) as any
+
+            if (res && res.message_id) {
+                set((state) => ({
+                    messages: state.messages.map((m) =>
+                        m.id === tempId ? { ...m, id: res.message_id } : m
+                    ),
+                }))
+            }
+            // Success - we don't need to do anything else, SSE "status: running" will confirm
             // But we keep status running just in case SSE is slow
         } catch (e) {
             console.error(e)

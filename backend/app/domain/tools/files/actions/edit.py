@@ -39,7 +39,7 @@ async def handle_edit(
         return i18n.get("domain_tools.files.edit_target_short")
 
     try:
-        target_path = resolve_and_validate_path(path, config)
+        target_path = await resolve_and_validate_path(path, config)
     except ValueError as e:
         return str(e)
 

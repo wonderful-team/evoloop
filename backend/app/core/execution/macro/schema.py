@@ -304,5 +304,5 @@ class MacroScript(BaseModel):
                 raise ValueError(f"Invalid JSON: {e}")
 
 
-# Resolve forward references
-MacroStep.update_forward_refs()
+# Resolve forward references (Pydantic V2)
+MacroStep.model_rebuild()

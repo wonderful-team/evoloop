@@ -18,6 +18,7 @@ from app.core.execution.macro import (
     VerificationReporter,
 )
 from app.core.execution.macro.schema import MacroScript
+from app.utils.yaml import macro_from_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class VerificationService:
     @classmethod
     async def verify_macro(
         cls,
-        macro_script: Union[List[Dict[str, Any]], MacroScript],
+        macro_script: Union[List[Dict[str, Any]], MacroScript, str],
         platform: str = "web",
         max_rounds: int = 2,
         auto_evolve: bool = True,
@@ -44,7 +45,7 @@ class VerificationService:
         Verify a macro script with optional evolution.
 
         Args:
-            macro_script: The macro script to verify
+            macro_script: The macro script to verify (list, MacroScript, or YAML string)
             platform: Target platform (web, android, desktop)
             max_rounds: Number of verification rounds
             auto_evolve: Whether to evolve the macro based on results
@@ -55,9 +56,22 @@ class VerificationService:
         Returns:
             Dictionary with verification results and evolved macro
         """
-        # Convert MacroScript to list if needed
+        # Convert various formats to list of steps
+        steps = None
         if isinstance(macro_script, MacroScript):
             steps = [step.dict() for step in macro_script.steps]
+        elif isinstance(macro_script, str):
+            # Parse YAML string
+            try:
+                steps = macro_from_yaml(macro_script)
+            except Exception as e:
+                logger.error(f"Failed to parse macro YAML: {e}")
+                return {
+                    "success": False,
+                    "error": f"Invalid macro YAML: {e}",
+                    "evolved_macro": None,
+                    "execution_mode": "agentic"
+                }
         else:
             steps = macro_script
 
@@ -206,7 +220,7 @@ class VerificationService:
     @classmethod
     async def evolve_macro(
         cls,
-        macro_script: Union[List[Dict[str, Any]], MacroScript],
+        macro_script: Union[List[Dict[str, Any]], MacroScript, str],
         platform: str = "web",
         max_rounds: int = 2
     ) -> Dict[str, Any]:
@@ -216,7 +230,7 @@ class VerificationService:
         Returns the evolved macro with enhanced error handling.
 
         Args:
-            macro_script: Original macro script
+            macro_script: Original macro script (list, MacroScript, or YAML string)
             platform: Target platform
             max_rounds: Number of verification rounds
 
@@ -240,7 +254,19 @@ class VerificationService:
             }
 
         # Calculate improvements
-        original_count = len(macro_script) if isinstance(macro_script, list) else len(macro_script.steps)
+        if isinstance(macro_script, list):
+            original_count = len(macro_script)
+        elif isinstance(macro_script, MacroScript):
+            original_count = len(macro_script.steps)
+        elif isinstance(macro_script, str):
+            # Parse YAML to count steps
+            try:
+                steps = macro_from_yaml(macro_script)
+                original_count = len(steps)
+            except:
+                original_count = 0
+        else:
+            original_count = 0
         evolved_count = len(result["evolved_macro"])
 
         improvements = []

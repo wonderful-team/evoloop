@@ -138,7 +138,18 @@ async def run_macro(
         identifier = f"id={skill_id}" if skill_id else f"name='{skill_name}'"
         return ControllerResponse.not_found(identifier, item_type="skill")
 
-    # 3. Validate macro script
+    # 3. Parse and validate macro script (now stored as YAML string)
+    macro_script = None
+    if skill.macro_script:
+        from app.utils.yaml import macro_from_yaml
+        try:
+            macro_script = macro_from_yaml(skill.macro_script)
+        except Exception as e:
+            return ControllerResponse.error(
+                f"Failed to parse macro YAML for skill '{skill.name}'",
+                details=str(e)
+            )
+
     if not macro_script or not isinstance(macro_script, list) or len(macro_script) == 0:
         mode = skill.execution_mode or "agentic"
         return ControllerResponse.error(
@@ -155,19 +166,20 @@ async def run_macro(
         )
 
     logger.info(
-        f"[run_macro] Executing skill '{skill_name}' (id={skill_id}) "
+        f"[run_macro] Executing skill '{skill.name}' (id={skill.id}) "
         f"with {len(macro_script)} steps, params={params}"
     )
     
     # Pass metadata for the event advisor to use
     execution_params = params.copy() if params else {}
-    execution_params["_skill_id"] = skill_id
-    execution_params["_skill_name"] = skill_name
+    execution_params["_skill_id"] = skill.id
+    execution_params["_skill_name"] = skill.name
     
     result = await MacroService.run(
         thread_id=thread_id,
         script_input=macro_script,
         params=execution_params,
+        skill=skill,
     )
 
     # 5. Format result using SkillResponse for consistency

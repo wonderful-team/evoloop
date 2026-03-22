@@ -36,22 +36,25 @@ parameters:
     type: string
     required: true/false
     description: "[what this parameter represents]"
-macro_script: |
-  [
-    {
-      "type": "action",
-      "event_type": "navigate",
-      "source": "dom",
-      "target_selector": "address_bar",
-      "payload": {"url": "https://example.com"}
-    },
-    {
-      "type": "action",
-      "event_type": "click",
-      "source": "dom",
-      "target_selector": "button.submit",
-      "payload": {"x": 0.5, "y": 0.3}
-    },
+macro_script:
+  version: "1.0"
+  metadata:
+    format: evoloop-macro
+    step_count: 2
+  steps:
+    - type: action
+      event_type: navigate
+      source: dom
+      target_selector: address_bar
+      payload:
+        url: "https://example.com"
+    - type: action
+      event_type: click
+      source: dom
+      target_selector: button.submit
+      payload:
+        x: 0.5
+        y: 0.3
     {
       "type": "extract",
       "extract_type": "gui_extract",
@@ -79,7 +82,7 @@ macro_script: |
 
 ## 🛠️ Macro Script Schema (STRICT)
 
-The `macro_script` field MUST be a JSON array of steps following these rules:
+The `macro_script` field MUST be a YAML object with a `steps` array following these rules:
 ### 1. Root Step Fields (STRICT):
 - **STARTING ACTION**: The VERY FIRST step of the `macro_script` MUST be an activation action to ensure a clean start:
     - **Mobile**: Use `event_type: "open_app"`.

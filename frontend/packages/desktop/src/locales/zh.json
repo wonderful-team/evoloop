@@ -226,12 +226,8 @@
       "paramNameNoSpaces": "引用 ID 不能包含空格",
       "paramNameHelp": "系统引用时的唯一 ID (例如: user_name)",
       "paramDescHelp": "运行时机器人向您提问的文本 (例如: 请输入用户名)",
-      "aiOptimize": "AI 优化",
-      "aiRefineSuccess": "AI 优化完成",
       "configSidebar": "技能配置",
-      "aiRefinedDesc": "AI 基于执行逻辑优化了描述。",
-      "automatedPrefix": "自动生成的 ",
-      "optimizedSuffix": " (已优化)",
+      "unsavedChangesConfirm": "有未保存的更改，确定要离开吗？",
       "currentPath": "当前路径",
       "debugPanel": "调试控制台",
       "noActiveStep": "没有活动步骤",
@@ -240,7 +236,8 @@
       "variables": "变量",
       "expertGuidePlaceholder": "为智能体编写 Markdown 指令... 例如：\n1. 访问 github.com\n2. 点击 'New Repository' 按钮",
       "macroPlaceholder": "[{ 'event_type': 'click', 'target_selector': '.btn' }]",
-      "invalidMacroJson": "宏脚本必须是有效的 JSON"
+      "invalidMacroJson": "宏脚本必须是有效的 JSON",
+      "invalidMacroYaml": "宏脚本必须是有效的 YAML"
     },
     "mirror": {
       "title": "Android 镜像控制台",

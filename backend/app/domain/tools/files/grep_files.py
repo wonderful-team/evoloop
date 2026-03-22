@@ -29,7 +29,7 @@ async def grep_files(
     Useful for finding all usages of a function, class, or variable.
     """
     try:
-        target_path = resolve_and_validate_path(path, config)
+        target_path = await resolve_and_validate_path(path, config)
     except ValueError as e:
         return str(e)
 

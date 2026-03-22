@@ -89,10 +89,22 @@ def macro_from_yaml(yaml_content: str) -> list[dict]:
     Raises:
         YAMLError: If format is invalid
     """
+    # Handle empty or whitespace-only content
+    if not yaml_content or not yaml_content.strip():
+        return []
+    
     data = safe_yaml_loads(yaml_content)
     
+    # Handle None (empty YAML)
+    if data is None:
+        return []
+    
+    # Support pure array format (direct list of steps)
+    if isinstance(data, list):
+        return data
+    
     if not isinstance(data, dict):
-        raise YAMLError("YAML root must be a mapping")
+        raise YAMLError("YAML root must be a mapping or a list")
     
     # Support both wrapped and unwrapped formats
     steps = data.get("steps", data.get("macro_script", data))

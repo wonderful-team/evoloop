@@ -201,21 +201,30 @@ class MultimodalSkillSynthesizer:
             else:
                 target_macro = compiled_macro
 
-        # [Phase 15] 宏规范化 (处理 LLM 的不规范输出)
+        # [Phase 15] 宏规范化 (处理 LLM 的不规范输出) 并转换为 YAML 存储
+        final_steps = None
         if isinstance(target_macro, list):
-            target_macro, _ = cleanup_macro_steps(target_macro)
-            skill_data["macro_script"] = target_macro
+            final_steps, _ = cleanup_macro_steps(target_macro)
         else:
             logger.warning("Target macro is not a list, falling back to compiled_macro.")
-            target_macro = compiled_macro
-            skill_data["macro_script"] = compiled_macro
+            final_steps = compiled_macro
 
-        # 如果没有有效的 LLM 宏，使用编译出来的作为兜底
-        if not skill_data.get("macro_script") or not isinstance(skill_data.get("macro_script"), list):
-            skill_data["macro_script"] = compiled_macro
+        # 如果没有有效的宏，使用编译出来的作为兜底
+        if not final_steps or not isinstance(final_steps, list):
+            final_steps = compiled_macro
+        
+        # Convert to YAML string for storage
+        if final_steps:
+            skill_data["macro_script"] = yaml.dump(
+                final_steps, 
+                default_flow_style=False, 
+                allow_unicode=True, 
+                sort_keys=False
+            )
             skill_data["execution_mode"] = "deterministic"
         else:
-            skill_data["execution_mode"] = "deterministic"
+            skill_data["macro_script"] = None
+            skill_data["execution_mode"] = "agentic"
 
         processing_time = time.time() - start_time
         logger.info(f"Synthesis completed in {processing_time:.1f}s.")
@@ -250,9 +259,20 @@ class MultimodalSkillSynthesizer:
         sequence = parser._convert_to_sequence(events)
         
         synth = WorkflowSynthesizer(thread_id=thread_id)
-        return synth._compile_macro_script(sequence)
+        macro_yaml = synth._compile_macro_script(sequence)
+        # Parse YAML string to list
+        if isinstance(macro_yaml, str):
+            try:
+                import yaml
+                data = yaml.safe_load(macro_yaml)
+                if isinstance(data, dict) and "steps" in data:
+                    return data["steps"]
+                return data if isinstance(data, list) else []
+            except Exception:
+                return []
+        return macro_yaml if isinstance(macro_yaml, list) else []
 
-    async def verify_macro(self, macro_script: list[dict], project_id: int = 1) -> dict:
+    async def verify_macro(self, macro_script: str, project_id: int = 1) -> dict:
         """Dry-run 验证宏脚本的有效性"""
         return await verify_macro_script(
             macro_script=macro_script,

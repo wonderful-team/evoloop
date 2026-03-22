@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Union
 from app.core.execution.macro.engine import MacroEngine
 from app.core.execution.macro.optimizer import MacroOptimizer
 from app.core.execution.macro.schema import MacroScript
+from app.core.execution.macro.healing_policy import SelfHealingPolicy
 from app.core.monitoring.activity import activity_monitor
 
 logger = logging.getLogger(__name__)
@@ -20,11 +21,18 @@ class MacroService:
         cls, 
         thread_id: str, 
         script_input: Union[MacroScript, List[Dict]], 
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
+        skill: Optional[Any] = None  # LearnedSkill, optional for policy check
     ) -> Dict[str, Any]:
         """
         High-level entry point to execute a macro.
         Handles: Validation, Activity Monitoring, Parameters, and Engine Dispatch.
+        
+        Args:
+            thread_id: The conversation thread ID
+            script_input: Macro script (MacroScript object or list of step dicts)
+            params: Execution parameters (optional)
+            skill: The LearnedSkill being executed (optional, for self-healing policy)
         """
         # 1. Validation / Hydration
         try:
@@ -58,7 +66,20 @@ class MacroService:
                 logger.error(f"[{thread_id}] Macro execution failed: {msg}")
                 await activity_monitor.end_run(thread_id, "failed")
                 
-                # --- Decoupled Self-Healing Trigger ---
+                # --- Unified Self-Healing Decision ---
+                decision = SelfHealingPolicy.check(skill=skill, execution_params=params)
+                
+                if not decision.allowed:
+                    logger.warning(f"[{thread_id}] Self-healing disabled: {decision.reason}")
+                    return {
+                        "success": False, 
+                        "message": msg,
+                        "allow_self_healing": False,
+                        "healing_disabled_reason": decision.reason,
+                        "healing_disabled_source": decision.source,
+                    }
+                
+                # Self-healing is allowed - trigger fallback via event system
                 from app.core.events import system_bus
                 from app.core.events.macro import MacroExecutionFailedEvent
                 
@@ -69,27 +90,18 @@ class MacroService:
                     fallback_context=fallback_ctx,
                     thread_id=thread_id
                 )
-                # Pass self-healing switches to event data for Advisor to see
-                event.data["allow_self_healing"] = params.get("_allow_self_healing", True) if params else True
                 
-                # Publish synchronously so listeners can populate suggestions
+                # Publish event for listeners (advisor will add suggestions)
                 await system_bus.publish(event)
                 
-                # Evaluate if self-healing is allowed based on suggestions
-                self_healing_allowed = True
-                if any("[SELF_HEALING_DISABLED]" in s for s in event.suggestions):
-                    self_healing_allowed = False
-
-                result = {
+                return {
                     "success": False, 
                     "message": msg,
-                    "allow_self_healing": self_healing_allowed,
-                    "suggestions": event.suggestions
+                    "allow_self_healing": True,
+                    "suggestions": event.suggestions,
+                    "status": "fallback_required",
+                    "fallback_context": fallback_ctx,
                 }
-                if fallback_ctx:
-                    result["status"] = "fallback_required"
-                    result["fallback_context"] = fallback_ctx
-                return result
 
             # 4. Success Reporting
             await activity_monitor.log_event("macro_thought", {"text": "Macro execution completed successfully."}, thread_id)

@@ -7,6 +7,7 @@ differences between file versions using unified diff format.
 
 import difflib
 import logging
+import os
 from typing import Tuple
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,9 @@ class DiffTracker:
             path: File path to capture
             thread_id: Optional thread identifier for isolation
         """
+        if os.path.isdir(path):
+            return
+
         key = f"{thread_id}:{path}"
         try:
             with open(path, encoding="utf-8") as f:
@@ -78,6 +82,9 @@ class DiffTracker:
             - diff: unified diff text (empty if no change)
             - original_content: original content or None (None if ADD or no change)
         """
+        if os.path.isdir(path):
+            return "", "", None
+
         key = f"{thread_id}:{path}"
         if key not in self._snapshots:
             return "", "", None

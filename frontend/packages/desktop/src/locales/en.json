@@ -226,12 +226,8 @@
       "paramNameHelp": "Unique ID used by the system (e.g., user_name)",
       "paramDescHelp": "The question the agent asks you (e.g., Please enter user name)",
       "paramHelp": "Define parameters the user needs to provide before executing this skill (e.g., search term, city name).",
-      "aiOptimize": "AI Optimize",
-      "aiRefineSuccess": "AI Refinement complete",
       "configSidebar": "Skill Configuration",
-      "aiRefinedDesc": "AI refined description based on execution logic.",
-      "automatedPrefix": "automated ",
-      "optimizedSuffix": " (Optimized)",
+      "unsavedChangesConfirm": "You have unsaved changes. Are you sure you want to leave?",
       "currentPath": "Current Path",
       "debugPanel": "Debug Console",
       "noActiveStep": "No active step",
@@ -240,7 +236,8 @@
       "variables": "Variables",
       "expertGuidePlaceholder": "Write markdown instructions for the agent... e.g. \\n1. Go to github.com\\n2. Click the 'New Repository' button",
       "macroPlaceholder": "[{ 'event_type': 'click', 'target_selector': '.btn' }]",
-      "invalidMacroJson": "Macro script must be valid JSON"
+      "invalidMacroJson": "Macro script must be valid JSON",
+      "invalidMacroYaml": "Macro script must be valid YAML"
     },
     "mirror": {
       "title": "Android Mirror Console",

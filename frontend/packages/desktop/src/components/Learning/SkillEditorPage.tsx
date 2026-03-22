@@ -3,16 +3,16 @@
  */
 
 import {
-    Loader2,
     Save,
     Settings2,
-    Sparkles,
     Play,
     Zap,
     ArrowLeft,
     Trash2,
+    Loader2,
+    Sparkles,
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
@@ -23,6 +23,7 @@ import { EditorSidebar } from "./EditorSidebar"
 import { useChatStore } from "@/stores/chatStore"
 import type { LearnedSkill } from "@/types/skill"
 import type { ParamDef } from "./EditorSidebar"
+import { dump as yamlDump, load as yamlLoad } from "js-yaml"
 import { MacroEditor, MacroYamlEditor, type MacroStep } from "./SmartReplay"
 import { MarkdownEditor } from "@/components/Common/MarkdownEditor"
 
@@ -35,7 +36,7 @@ interface SkillEditorPageProps {
 export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProps) {
     const { t } = useTranslation()
     const queryClient = useQueryClient()
-    const [aiOptimizing, setAiOptimizing] = useState(false)
+
 
     // Form state
     const [name, setName] = useState("")
@@ -47,6 +48,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
     const [executionMode, setExecutionMode] = useState<"agentic" | "deterministic">("agentic")
     const [macroScript, setMacroScript] = useState("[]")
     const [editorMode, setEditorMode] = useState<"visual" | "yaml">("visual")
+    const [hasChanges, setHasChanges] = useState(false)
 
     // Fetch skill data
     const { data: skill, isLoading: isLoadingSkill } = useQuery({
@@ -56,6 +58,35 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
             return result as unknown as LearnedSkill
         },
     })
+
+    // Track changes and warn before unload
+    useEffect(() => {
+        if (skill) {
+            setHasChanges(true)
+        }
+    }, [name, description, triggers, params, instructions, executionMode, macroScript])
+
+    // Warn before closing/leaving page with unsaved changes
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (hasChanges) {
+                e.preventDefault()
+                e.returnValue = ""
+                return ""
+            }
+        }
+        window.addEventListener("beforeunload", handleBeforeUnload)
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload)
+    }, [hasChanges])
+
+    // Handle back button with unsaved changes
+    const handleBack = useCallback(() => {
+        if (hasChanges) {
+            const confirmed = window.confirm(t("learning.editor.unsavedChangesConfirm"))
+            if (!confirmed) return
+        }
+        onBack?.()
+    }, [hasChanges, onBack, t])
 
     // Initialize form from skill data
     useEffect(() => {
@@ -79,28 +110,72 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
             setParams(safeParse(skill.parameters, []))
             setInstructions(skill.instructions || "")
             setExecutionMode((skill as any).execution_mode === "deterministic" ? "deterministic" : "agentic")
-            setMacroScript((skill as any).macro_script ? JSON.stringify((skill as any).macro_script, null, 2) : "[]")
+
+            // Handle macro_script: API now returns YAML string directly
+            const rawMacro = (skill as any).macro_script
+            if (rawMacro) {
+                if (typeof rawMacro === "string") {
+                    // It's already YAML string from API
+                    setMacroScript(rawMacro)
+                } else {
+                    // Legacy: convert JSON to YAML
+                    setMacroScript(yamlDump(rawMacro, { indent: 2, lineWidth: -1, noRefs: true, sortKeys: false }))
+                }
+            } else {
+                setMacroScript("version: \"1.0\"\nmetadata:\n  format: evoloop-macro\n  step_count: 0\nsteps: []")
+            }
+            setHasChanges(false)
         }
     }, [skill])
 
-    // Helper to safely parse macro script
+    // Helper to safely parse macro script from YAML
     const safeParseMacro = (script: string): MacroStep[] => {
         try {
-            const parsed = JSON.parse(script || "[]")
-            return Array.isArray(parsed) ? parsed : []
-        } catch {
+            // Try YAML first (new format)
+            const parsed = yamlLoad(script || "steps: []")
+            
+            // Handle null/undefined
+            if (!parsed) return []
+            
+            // Handle direct array format (must check before object check)
+            if (Array.isArray(parsed)) {
+                return parsed
+            }
+            
+            // Handle object formats
+            if (typeof parsed === "object") {
+                // Handle { steps: [...] } format
+                if (Array.isArray((parsed as any).steps)) {
+                    return (parsed as any).steps
+                }
+                // Handle nested { macro_script: { steps: [...] } } format from LLM
+                const nested = (parsed as any).macro_script
+                if (nested && typeof nested === "object") {
+                    if (Array.isArray(nested.steps)) {
+                        return nested.steps
+                    }
+                }
+            }
             return []
+        } catch {
+            // Fallback to JSON (legacy format)
+            try {
+                const parsed = JSON.parse(script || "[]")
+                return Array.isArray(parsed) ? parsed : []
+            } catch {
+                return []
+            }
         }
     }
 
     // Mutations
     const updateMutation = useMutation({
         mutationFn: async () => {
-            let parsedMacro = []
+            // Validate YAML before saving
             try {
-                parsedMacro = JSON.parse(macroScript || "[]")
+                yamlLoad(macroScript || "steps: []")
             } catch (e) {
-                throw new Error(t("learning.editor.invalidMacroJson"))
+                throw new Error(t("learning.editor.invalidMacroYaml"))
             }
 
             return LearningService.updateSkill({
@@ -112,12 +187,13 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                     parameters: params as any[],
                     instructions: instructions,
                     execution_mode: executionMode,
-                    macro_script: parsedMacro,
+                    macro_script: macroScript,  // Send YAML string directly
                 } as any,
             })
         },
         onSuccess: () => {
             toast.success(t("common.saved"))
+            setHasChanges(false)
             queryClient.invalidateQueries({ queryKey: ["learnedSkills"] })
             queryClient.invalidateQueries({ queryKey: ["skill", skillId] })
             onSave?.()
@@ -166,21 +242,6 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
         const newParams = [...params]
         newParams[index] = { ...newParams[index], [field]: value }
         setParams(newParams)
-    }
-
-    const handleAiOptimize = async () => {
-        setAiOptimizing(true)
-        await new Promise((resolve) => setTimeout(resolve, 1500))
-
-        const betterDescription = description || t("learning.editor.aiRefinedDesc")
-        const autoPrefix = t("learning.editor.automatedPrefix")
-        if (!triggers.includes(autoPrefix + name.toLowerCase())) {
-            setTriggers([...triggers, autoPrefix + name.toLowerCase()])
-        }
-        setDescription(betterDescription + t("learning.editor.optimizedSuffix"))
-
-        setAiOptimizing(false)
-        toast.success(t("learning.editor.aiRefineSuccess"))
     }
 
     const handleSave = async () => {
@@ -241,7 +302,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
         return (
             <div className="flex flex-col items-center justify-center h-full gap-4">
                 <p className="text-muted-foreground">{t("learning.skillNotFound")}</p>
-                <Button onClick={onBack}>
+                <Button onClick={handleBack}>
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     {t("common.back")}
                 </Button>
@@ -254,7 +315,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
             {/* Header */}
             <header className="flex items-center justify-between px-3 py-2 border-b bg-card shrink-0">
                 <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="sm" onClick={onBack} className="gap-2">
+                    <Button variant="ghost" size="sm" onClick={handleBack} className="gap-2">
                         <ArrowLeft className="h-4 w-4" />
                         {t("common.back")}
                     </Button>
@@ -280,21 +341,6 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                     >
                         <Play className="h-3.5 w-3.5 fill-current" />
                         {t("learning.execution.runNow")}
-                    </Button>
-
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        className="gap-2 text-xs font-bold border-primary/20 hover:bg-primary/5"
-                        onClick={handleAiOptimize}
-                        disabled={aiOptimizing}
-                    >
-                        {aiOptimizing ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                            <Sparkles className="h-3.5 w-3.5 text-primary" />
-                        )}
-                        {t("learning.editor.aiOptimize")}
                     </Button>
 
                     <Button
@@ -416,7 +462,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                             {editorMode === "visual" ? (
                                 <MacroEditor
                                     steps={safeParseMacro(macroScript)}
-                                    onChange={(steps) => setMacroScript(JSON.stringify(steps, null, 2))}
+                                    onChange={(steps) => setMacroScript(yamlDump(steps, { indent: 2, lineWidth: -1, noRefs: true, sortKeys: false }))}
                                     onStepPreview={(step) => {
                                         console.log("Preview step:", step)
                                         toast.info(`Step ${step.step_number}: ${step.description || step.event_type}`)
@@ -425,7 +471,7 @@ export function SkillEditorPage({ skillId, onBack, onSave }: SkillEditorPageProp
                             ) : (
                                 <MacroYamlEditor
                                     steps={safeParseMacro(macroScript)}
-                                    onChange={(steps) => setMacroScript(JSON.stringify(steps, null, 2))}
+                                    onChange={(steps) => setMacroScript(yamlDump(steps, { indent: 2, lineWidth: -1, noRefs: true, sortKeys: false }))}
                                 />
                             )}
                         </div>

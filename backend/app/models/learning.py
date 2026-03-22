@@ -145,7 +145,7 @@ class LearnedSkill(Base):
 
     # Execution Mode (Phase 6: Deterministic Playback)
     execution_mode: Mapped[str] = mapped_column(String(20), default="agentic")  # "agentic" or "deterministic"
-    macro_script: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # JSON array of compiled deterministic steps
+    macro_script: Mapped[str | None] = mapped_column(Text, nullable=True)  # YAML format of deterministic steps
     allow_self_healing: Mapped[bool] = mapped_column(default=True)
 
 

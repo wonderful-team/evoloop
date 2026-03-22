@@ -170,7 +170,7 @@ class SkillDTO(BaseModel):
     is_active: bool
     status: str
     execution_mode: str = "agentic"
-    macro_script: list[dict] | None = None
+    macro_script: str | None = None  # YAML format
     validation_report: dict[str, Any] | None = None
     instructions: str | None = None
     created_at: datetime
@@ -500,7 +500,7 @@ async def synthesize_skill(body: SynthesizeRequest):
                 status="pending_review",
                 instructions=skill.instructions,
                 execution_mode=skill.execution_mode,
-                macro_script=skill.macro_script,
+                macro_script=skill.macro_script,  # Already YAML string
             )
             db.add(db_skill)
             await db.flush()  # Get ID
@@ -586,7 +586,7 @@ async def list_skills(
                     "is_active": s.is_active,
                     "status": s.status,
                     "execution_mode": s.execution_mode,
-                    "macro_script": s.macro_script,
+                    "macro_script": s.macro_script or "",
                     "validation_report": s.validation_report,
                     "instructions": s.instructions,
                     "created_at": s.created_at,
@@ -630,7 +630,7 @@ async def get_skill(skill_id: int):
             "is_active": skill.is_active,
             "status": skill.status,
             "execution_mode": skill.execution_mode,
-            "macro_script": skill.macro_script,
+            "macro_script": skill.macro_script or "",
             "validation_report": skill.validation_report,
             "instructions": skill.instructions,
             "resource_path": skill.resource_path,
@@ -681,7 +681,7 @@ class UpdateSkillRequest(BaseModel):
     instructions: str | None = None
     preconditions: list[dict[str, Any]] | None = None
     execution_mode: str | None = None
-    macro_script: list[dict] | None = None
+    macro_script: str | None = None  # YAML format
 
 
 @router.put("/skills/{skill_id}")
@@ -732,7 +732,12 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
                 skill.execution_mode = body.execution_mode
                 
             if body.macro_script is not None:
-                skill.macro_script = body.macro_script
+                # Validate it's valid YAML before saving
+                try:
+                    macro_from_yaml(body.macro_script)
+                    skill.macro_script = body.macro_script
+                except YAMLError as e:
+                    raise HTTPException(status_code=400, detail=f"Invalid YAML: {e}")
 
             # 3. Commit (Automatic via session_scope exit, but we want to return updated data)
             await db.flush()
@@ -744,8 +749,8 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
                 "id": skill.id,
                 "name": skill.name,
                 "description": skill.description,
-                "trigger_patterns": json.loads(skill.trigger_patterns),
-                "parameters": json.loads(skill.parameters),
+                "trigger_patterns": json.loads(skill.trigger_patterns) if skill.trigger_patterns else [],
+                "parameters": json.loads(skill.parameters) if skill.parameters else [],
             },
         }
     finally:
@@ -753,56 +758,86 @@ async def update_skill(skill_id: int, body: UpdateSkillRequest):
         await skill_discovery.reload()
 
 
-async def execute_macro_with_fallback(thread_id: str, project_id: int, skill_id: int, skill_name: str, macro_payload: list, params: dict, allow_self_healing: bool = True):
-    # Pass metadata and healing switch to MacroService for event advisor
-    execution_params = params.copy() if params else {}
-    execution_params["_skill_id"] = skill_id
-    execution_params["_skill_name"] = skill_name
-    execution_params["_allow_self_healing"] = allow_self_healing
-
-    result = await MacroService.run(thread_id, macro_payload, execution_params)
+async def execute_macro_with_fallback(
+    thread_id: str, 
+    project_id: int, 
+    skill: LearnedSkill, 
+    macro_payload: list, 
+    params: dict
+):
+    """
+    Execute a deterministic macro with unified self-healing policy.
     
-    if result.get("status") == "fallback_required":
-        # Check if self-healing is actually allowed (voted by advisor)
-        if not result.get("allow_self_healing", True):
-            logger.warning(f"[{thread_id}] Macro failed, but Self-Healing is DISABLED. Skipping fallback.")
-            return
-
-        logger.warning(f"[{thread_id}] Macro failed, triggering Agentic Fallback...")
-        fallback_ctx = result.get("fallback_context", {})
-        
-        fallback_msg = (
-            f"SYSTEM ALERT: The deterministic macro for '{skill_name}' failed.\n"
-            f"As Supervisor, you must now ANALYZE the failure context and DELEGATE a fix to a specialized Worker.\n\n"
-            f"Failure Context:\n{json.dumps(fallback_ctx, indent=2, ensure_ascii=False)}\n\n"
-            f"Your Goal:\n"
-            f"1. Check the failed step and reason.\n"
-            f"2. Call `route_to('worker', ...)` with an appropriate role (e.g., 'Automation Specialist') to heal the process and complete the user's original request."
+    Args:
+        thread_id: Conversation thread ID
+        project_id: Project ID
+        skill: The LearnedSkill being executed (contains self-healing settings)
+        macro_payload: Macro script steps
+        params: Execution parameters
+    """
+    from app.core.execution.macro.healing_policy import SelfHealingPolicy
+    
+    # Prepare execution params with metadata
+    execution_params = params.copy() if params else {}
+    execution_params["_skill_id"] = skill.id
+    execution_params["_skill_name"] = skill.name
+    
+    # Pass skill to MacroService for unified policy enforcement
+    result = await MacroService.run(
+        thread_id=thread_id, 
+        script_input=macro_payload, 
+        params=execution_params,
+        skill=skill
+    )
+    
+    # Check if fallback is needed
+    if result.get("status") != "fallback_required":
+        return
+    
+    # Check if self-healing is allowed (unified policy already checked in MacroService)
+    if not result.get("allow_self_healing", True):
+        logger.warning(
+            f"[{thread_id}] Macro failed, but Self-Healing is DISABLED "
+            f"(reason: {result.get('healing_disabled_reason', 'unknown')}). "
+            f"Skipping fallback."
         )
+        return
+
+    logger.warning(f"[{thread_id}] Macro failed, triggering Agentic Fallback...")
+    fallback_ctx = result.get("fallback_context", {})
+    
+    fallback_msg = (
+        f"SYSTEM ALERT: The deterministic macro for '{skill.name}' failed.\n"
+        f"As Supervisor, you must now ANALYZE the failure context and DELEGATE a fix to a specialized Worker.\n\n"
+        f"Failure Context:\n{json.dumps(fallback_ctx, indent=2, ensure_ascii=False)}\n\n"
+        f"Your Goal:\n"
+        f"1. Check the failed step and reason.\n"
+        f"2. Call `route_to('worker', ...)` with an appropriate role (e.g., 'Automation Specialist') to heal the process and complete the user's original request."
+    )
+    
+    # Persist as 'human' to force Agent supervisor to treat it as a task
+    async with session_scope() as db:
+        msg = Message(
+            thread_id=thread_id,
+            project_id=project_id,
+            role="human",
+            content=fallback_msg,
+            sequence_number=999999,
+        )
+        db.add(msg)
+        await db.commit()
         
-        # Persist as 'human' to force Agent supervisor to treat it as a task
-        async with session_scope() as db:
-            msg = Message(
-                thread_id=thread_id,
-                project_id=project_id,
-                role="human",
-                content=fallback_msg,
-                sequence_number=999999,
-            )
-            db.add(msg)
-            await db.commit()
-            
-        inputs = {
-            "messages": [{"type": "human", "content": fallback_msg}],
-            "project_id": project_id,
-            "metadata": {
-                "original_skill_id": skill_id,
-                "is_fallback_recovery": True
-            }
+    inputs = {
+        "messages": [{"type": "human", "content": fallback_msg}],
+        "project_id": project_id,
+        "metadata": {
+            "original_skill_id": skill.id,
+            "is_fallback_recovery": True
         }
-        
-        # Hand over execution to the main Agent Loop
-        await run_agent_background(thread_id, inputs)
+    }
+    
+    # Hand over execution to the main Agent Loop
+    await run_agent_background(thread_id, inputs)
 
 
 @router.post("/skills/{skill_id}/execute")
@@ -861,17 +896,21 @@ async def execute_skill(
     if execution_mode == "deterministic" and skill.macro_script:
         import copy
         
-        # Deepcopy to avoid mutating the skill model in cache
-        macro_payload = copy.deepcopy(skill.macro_script)
+        # Parse YAML to Python objects for execution
+        try:
+            macro_steps = macro_from_yaml(skill.macro_script)
+        except YAMLError as e:
+            raise HTTPException(status_code=500, detail=f"Failed to parse macro YAML: {e}")
+        
+        # Deepcopy to avoid mutating
+        macro_payload = copy.deepcopy(macro_steps)
         bg_tasks.add_task(
             execute_macro_with_fallback, 
-            body.thread_id, 
-            body.project_id, 
-            skill.id, 
-            skill_name, 
-            macro_payload, 
-            body.params,
-            skill.allow_self_healing  # Pass the skill-level switch
+            thread_id=body.thread_id, 
+            project_id=body.project_id, 
+            skill=skill,  # Pass full skill object for unified policy
+            macro_payload=macro_payload, 
+            params=body.params
         )
         return {"success": True, "message": f"Deterministic Macro execution queued for '{skill_name}'", "execution_mode": execution_mode}
     else:
@@ -1274,7 +1313,7 @@ class SynthesizeFromRecordingResponse(BaseModel):
     skill_id: int | None
     skill_name: str | None
     skill_yaml: str | None
-    macro_script: list[dict] | None = None
+    macro_script: str | None = None  # YAML format
     verification: dict | None = None
     error: str | None
     processing_time_seconds: float
@@ -1367,7 +1406,7 @@ async def synthesize_from_recording(request: SynthesizeFromRecordingRequest):
                 status="pending_review", # [FIX] 需要用户二次确认
                 is_active=True,
                 execution_mode=skill_data.get("execution_mode", "agentic"),
-                macro_script=skill_data.get("macro_script"),
+                macro_script=skill_data.get("macro_script"),  # Should be YAML string from synthesizer
                 validation_report={"status": "pending_verification"}, # 初始状态
             )
             db.add(db_skill)
@@ -1408,7 +1447,7 @@ parameters: {json.dumps(skill_data.get('parameters', []))}
                 skill_id=db_skill.id,
                 skill_name=skill_data["name"],
                 skill_yaml=skill_yaml,
-                macro_script=skill_data.get("macro_script"),
+                macro_script=skill_data.get("macro_script"),  # Should be YAML string from synthesizer
                 verification=verification,
                 error=None,
                 processing_time_seconds=round(processing_time, 2),
@@ -1841,7 +1880,7 @@ async def run_smart_synthesis(
                 "trigger_patterns": skill.trigger_patterns,
                 "instructions": skill.instructions,
                 "execution_mode": skill.execution_mode,
-                "macro_script": skill.macro_script,
+                "macro_script": skill.macro_script or "",
             }
             job.generated_skill = skill_dict
 
@@ -1856,7 +1895,7 @@ async def run_smart_synthesis(
                     parameters="[]",  # 默认空参数列表
                     instructions=skill.instructions,
                     execution_mode=skill.execution_mode,
-                    macro_script=skill.macro_script,
+                    macro_script=skill.macro_script,  # Already YAML string
                     is_active=False,
                     status="pending_review",  # 标准化为 pending_review
                     skill_source="smart_replay",  # 标识来源为智能回放合成
@@ -2193,15 +2232,11 @@ async def get_skill_yaml(skill_id: int):
                 media_type="text/yaml"
             )
         
-        try:
-            yaml_content = macro_to_yaml(skill.macro_script)
-            return Response(
-                content=yaml_content,
-                media_type="text/yaml"
-            )
-        except Exception as e:
-            logger.error(f"Failed to convert macro to YAML: {e}")
-            raise HTTPException(status_code=500, detail="Failed to generate YAML")
+        # macro_script is already stored as YAML string
+        return Response(
+            content=skill.macro_script,
+            media_type="text/yaml"
+        )
 
 
 @router.put("/skills/{skill_id}/yaml")
@@ -2223,20 +2258,21 @@ async def update_skill_yaml(
                 detail=f"Invalid YAML: {'; '.join(errors)}"
             )
         
-        macro_script = macro_from_yaml(yaml_content)
-        
+        # Store YAML directly as string
         async with session_scope() as db:
             skill = await db.get(LearnedSkill, skill_id)
             if not skill:
                 raise HTTPException(status_code=404, detail="Skill not found")
             
-            skill.macro_script = macro_script
+            skill.macro_script = yaml_content
             await db.flush()
             
+        # Return step count by parsing
+        steps = macro_from_yaml(yaml_content)
         return {
             "success": True, 
             "message": "Skill updated from YAML",
-            "step_count": len(macro_script)
+            "step_count": len(steps)
         }
         
     except YAMLError as e:

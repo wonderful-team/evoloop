@@ -134,6 +134,163 @@ async def get_current_user_optional(token: TokenDepOptional) -> User | None:
 CurrentUserOptional = Annotated[User | None, Depends(get_current_user_optional)]
 
 
+# ==================== Subscription Permission Dependencies ====================
+
+async def check_feature_permission(feature: str, token: TokenDep) -> bool:
+    """
+    检查会员是否有特定订阅功能权限
+    
+    Args:
+        feature: 功能标识，如 "ai_chat", "premium_content" 等
+        token: JWT token
+        
+    Returns:
+        True if has permission, False otherwise
+    """
+    try:
+        result = await evocloud_manager.api.check_feature_permission(feature)
+        if result.get("code") == 0:
+            return result.get("data", {}).get("has_permission", False)
+        return False
+    except Exception as e:
+        logger.error(f"检查功能权限失败 [{feature}]: {e}")
+        return False
+
+
+def require_subscription_feature(feature: str):
+    """
+    FastAPI 依赖工厂：要求特定订阅功能权限
+    
+    Usage:
+        @router.post("/chat")
+        async def chat(
+            req: ChatRequest,
+            user: CurrentUser = Depends(require_subscription_feature("ai_chat"))
+        ):
+            ...
+    """
+    async def checker(token: TokenDep) -> User:
+        user = await get_current_user(token)
+        
+        # 检查权限
+        has_access = await check_feature_permission(feature, token)
+        
+        if not has_access:
+            # 获取用户当前订阅信息用于错误提示
+            try:
+                sub_detail = await evocloud_manager.api.get_subscription_detail()
+                current_level = sub_detail.get("data", {}).get("level_name", "免费用户")
+            except:
+                current_level = "未知"
+                
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "message": f"需要订阅功能: {feature}",
+                    "feature": feature,
+                    "current_level": current_level,
+                    "upgrade_url": "/subscription/plans",
+                    "code": "SUBSCRIPTION_REQUIRED"
+                }
+            )
+        
+        return user
+    
+    return checker
+
+
+async def check_ai_quota(quota_type: str, token: str | None = None) -> dict:
+    """
+    检查 AI 配额
+    
+    Returns:
+        {"has_quota": True, "remaining": 50, "total": 100}
+    """
+    try:
+        result = await evocloud_manager.api.get_ai_quota(quota_type)
+        if result.get("code") == 0:
+            data = result.get("data", {})
+            remaining = data.get("remaining", 0)
+            return {
+                "has_quota": remaining > 0,
+                "remaining": remaining,
+                "total": data.get("total", 0),
+                "used": data.get("used", 0)
+            }
+        return {"has_quota": False, "remaining": 0, "total": 0, "used": 0}
+    except Exception as e:
+        logger.error(f"检查 AI 配额失败 [{quota_type}]: {e}")
+        # 失败时允许访问（降级策略）
+        return {"has_quota": True, "remaining": -1, "error": str(e)}
+
+
+def require_ai_quota(quota_type: str):
+    """
+    FastAPI 依赖工厂：要求 AI 配额
+    
+    Usage:
+        @router.post("/chat")
+        async def chat(
+            req: ChatRequest,
+            user: CurrentUser = Depends(require_ai_quota("ai_chat"))
+        ):
+            ...
+    """
+    async def checker(token: TokenDep) -> User:
+        user = await get_current_user(token)
+        
+        quota_info = await check_ai_quota(quota_type, token)
+        
+        if not quota_info.get("has_quota"):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail={
+                    "message": f"AI 配额已用完: {quota_type}",
+                    "quota_type": quota_type,
+                    "used": quota_info.get("used"),
+                    "total": quota_info.get("total"),
+                    "upgrade_url": "/subscription/plans",
+                    "code": "QUOTA_EXHAUSTED"
+                }
+            )
+        
+        return user
+    
+    return checker
+
+
+async def consume_ai_quota_dependency(
+    quota_type: str,
+    count: int = 1,
+    metadata: dict | None = None
+):
+    """
+    消耗 AI 配额的依赖函数
+    
+    Usage:
+        @router.post("/chat")
+        async def chat(
+            req: ChatRequest,
+            user: CurrentUser = Depends(require_ai_quota("ai_chat"))
+        ):
+            # 执行业务逻辑
+            result = await do_chat(req)
+            
+            # 消耗配额
+            await consume_ai_quota_dependency("ai_chat", count=1, metadata={"tokens": result.tokens})
+            
+            return result
+    """
+    try:
+        result = await evocloud_manager.api.consume_ai_quota(quota_type, count, metadata)
+        if result.get("code") != 0:
+            logger.warning(f"消耗配额失败 [{quota_type}]: {result.get('message')}")
+    except Exception as e:
+        logger.error(f"消耗配额异常 [{quota_type}]: {e}")
+
+
+# ==================== Guest Access ====================
+
 async def verify_guest_access(
     current_user: CurrentUserOptional,
     x_guest_id: Annotated[str | None, Header()] = None,

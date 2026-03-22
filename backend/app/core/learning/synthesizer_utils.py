@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 async def verify_macro_script(
-    macro_script: list[dict],
+    macro_script: list[dict] | str,
     thread_id: str = "verifier",
     project_id: int = 1,
     params: dict | None = None
@@ -34,7 +34,7 @@ async def verify_macro_script(
     执行宏脚本的 Dry-run 验证，检查提取目标是否达成。
 
     Args:
-        macro_script: 宏脚本步骤列表
+        macro_script: 宏脚本步骤列表 (list) 或 YAML 字符串
         thread_id: 验证线程标识（用于日志）
         project_id: 项目ID
         params: 可选的运行参数（如 {"max_scrolls": 2, "is_dry_run": True}）
@@ -67,7 +67,13 @@ async def verify_macro_script(
         success = result.get("success", False)
         extracted_data = result.get("extracted_data", {})
 
-        expected_keys = [s["key"] for s in macro_script if s.get("type") == "extract"]
+        # Handle both YAML string and list input
+        steps = macro_script
+        if isinstance(macro_script, str):
+            from app.utils.yaml import macro_from_yaml
+            steps = macro_from_yaml(macro_script)
+        
+        expected_keys = [s["key"] for s in steps if s.get("type") == "extract"]
         missing_keys = [k for k in expected_keys if k not in extracted_data]
 
         status = "success" if success and not missing_keys else "failed"

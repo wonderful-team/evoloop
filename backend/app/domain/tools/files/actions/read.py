@@ -32,7 +32,7 @@ async def handle_read(
         include_metadata: Whether to include file stats in output
     """
     try:
-        target_path = resolve_and_validate_path(path, config)
+        target_path = await resolve_and_validate_path(path, config)
     except ValueError as e:
         return str(e)
 

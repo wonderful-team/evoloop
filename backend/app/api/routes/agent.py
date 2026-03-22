@@ -11,7 +11,10 @@ from langchain_core.messages import HumanMessage, ToolMessage
 from pydantic import BaseModel
 from sqlalchemy import func, select
 
-from app.api.deps import CurrentUserOptional, verify_guest_access
+from app.api.deps import (
+    CurrentUserOptional,
+    verify_guest_access,
+)
 from app.core.context import thread_context_store
 from app.core.context.manager import ContextManager, EvoContext
 
@@ -110,6 +113,8 @@ async def _prepare_and_dispatch(
 
     await activity_monitor.start_run(thread_id, goal)
 
+    persisted_msg_id = None
+
     # --- 3. DB Persistence & EvoCloud Sync ---
     try:
         async with session_scope() as session:
@@ -140,6 +145,7 @@ async def _prepare_and_dispatch(
                 )
                 session.add(user_msg)
                 await session.flush()
+                persisted_msg_id = user_msg.id
 
                 logger.info(f"[Dispatch] Persisted user message for {thread_id} (seq={user_msg.sequence_number})")
 
@@ -202,6 +208,8 @@ async def _prepare_and_dispatch(
     bg_tasks.add_task(run_agent_background, thread_id, inputs)
 
     result = {"status": "queued", "thread_id": thread_id}
+    if persisted_msg_id is not None:
+        result["message_id"] = persisted_msg_id
     if is_retry:
         result["action"] = "retry"
     return result

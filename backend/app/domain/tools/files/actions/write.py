@@ -16,7 +16,7 @@ async def handle_write(
         return i18n.get("domain_tools.files.write_content_required", action=action)
 
     try:
-        target_path = resolve_and_validate_path(path, config)
+        target_path = await resolve_and_validate_path(path, config)
         utils_write_file(content, target_path)
         return i18n.get("domain_tools.files.write_success", path=path)
     except Exception as e:

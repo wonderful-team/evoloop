@@ -20,7 +20,7 @@ async def handle_filesystem(
     root = get_working_directory(config)
 
     try:
-        target_path = resolve_and_validate_path(path, config)
+        target_path = await resolve_and_validate_path(path, config)
     except ValueError as e:
         return str(e)
 

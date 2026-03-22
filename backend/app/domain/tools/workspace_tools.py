@@ -33,7 +33,7 @@ async def get_workspace_tree(
     # For now, we use a simple detection or rely on absolute paths.
 
     try:
-        target_path = resolve_and_validate_path(dir_path, config)
+        target_path = await resolve_and_validate_path(dir_path, config)
     except ValueError as e:
         return str(e)
 

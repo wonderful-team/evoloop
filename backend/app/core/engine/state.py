@@ -117,7 +117,7 @@ def merge_blackboard(old: BlackboardState | None, new: BlackboardState | None) -
     merged = old.copy()
     
     # Standard field updates (overwrite)
-    for key in ["ticket", "verification", "route_reason", "spawn_plan", "pending_aggregation", "working_directory", "plan_approved"]:
+    for key in ["ticket", "verification", "route_reason", "spawn_plan", "pending_aggregation", "working_directory", "plan_approved", "worker_outcome"]:
         if key in new:
             merged[key] = new[key]
 

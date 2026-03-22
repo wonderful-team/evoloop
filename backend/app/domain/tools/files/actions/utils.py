@@ -7,10 +7,11 @@ from app.i18n.service import i18n
 from app.utils.file import resolve_path
 
 
-def resolve_and_validate_path(path: str, config: RunnableConfig | None = None) -> str:
+async def resolve_and_validate_path(path: str, config: RunnableConfig | None = None) -> str:
     """
     Resolve path and perform security check.
-    Raises ValueError on security violation or resolution failure.
+    In global mode, prompts user to select/create a project via HITL.
+    Raises ValueError on security violation, resolution failure, or user cancellation.
     """
     # Handle Agent Hallucinations (treating system root dependencies)
     if path.strip() == "/" or path.strip() == "":
@@ -18,16 +19,15 @@ def resolve_and_validate_path(path: str, config: RunnableConfig | None = None) -
 
     root = get_working_directory(config)
 
-    # Global Mode Check: If working directory is not set (fallback to cwd/workspace_root),
-    # we should warn about potential incorrect file operations
-    # Note: This is a safety check - in global mode, file operations may not work as expected
+    # Global Mode Check: If working directory is not set, prompt user to select/create project
     ctx = ContextManager.current()
     if ctx.project_id == 0 or (ctx.project_id is None and root == "."):
-        # Global mode detected - file operations are restricted
         from app.infrastructure.config.service import SystemConfigService
+        from app.core.monitoring.ui_actions import require_project_for_tool
 
         db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
+        
         if root == "." or root == workspace_root:
             raise ValueError(
                 f"File operations are not available in global mode. "

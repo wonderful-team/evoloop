@@ -16,7 +16,7 @@ async def handle_list(
     config: RunnableConfig | None = None,
 ) -> str:
     try:
-        target_path = resolve_and_validate_path(path, config)
+        target_path = await resolve_and_validate_path(path, config)
     except ValueError as e:
         return str(e)
 

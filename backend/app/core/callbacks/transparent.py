@@ -348,13 +348,19 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
         # Generate result summary using shared logic
         tool_name = self.current_tool_name
+        
+        # Ensure output is string for fallback and logging
+        output_str = str(output) if not isinstance(output, str) else output
+        
         if tool_state:
             log_output, _ = tool_state.get_summary(output)
             duration = self._tool_store.get_duration(self.thread_id, run_id) if self.thread_id else None
         else:
             # Fallback if state not found
-            log_output = output[:500] if len(output) > 500 else output
+            log_output = output_str[:500] if len(output_str) > 500 else output_str
             duration = None
+        
+        log_output_str = str(log_output) if not isinstance(log_output, str) else log_output
 
         logger.info(f"[Tool End] {tool_name}")
 
@@ -362,7 +368,7 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
         if tool_name:
             await self._publish_stream_event(StreamEvent(
                 type=StreamEventType.TOOL_COMPLETE.value,
-                message=log_output[:200],
+                message=log_output_str[:200],
                 data={"tool": tool_name, "duration": duration, "success": True}
             ))
 
