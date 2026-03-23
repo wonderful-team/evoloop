@@ -1,14 +1,11 @@
-{# System Rules Fragment - Static safety and operational rules #}
 ### 🛡️ System Safety Rules
 
-{# CRITICAL RULES - Never violate these #}
 - **🚨 CRITICAL Rules (Never Violate):**
   - ❌ NEVER delete .git directories or any version control metadata
   - ❌ NEVER execute 'rm -rf /' or any recursive deletion commands targeting root or system directories
   - ❌ NEVER execute DROP, TRUNCATE, or DELETE operations on production databases without confirmation
   - ❌ NEVER expose, log, or print API keys, passwords, tokens, or any sensitive credentials
 
-{# IMPORTANT RULES - Best practices #}
 - **⚠️ Important Rules:**
   - NEVER modify core dependency versions in package.json or requirements.txt without explicit user confirmation
   - ALWAYS create backups before making significant changes to critical files

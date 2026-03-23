@@ -1,13 +1,16 @@
 {% if blackboard.ticket %}
 ## 🏢 LIVE EXECUTION STATUS (Blackboard)
 ### ACTIVE TICKET: {{ blackboard.ticket.ticket_type|upper }}
-- **Goal**: {{ blackboard.route_reason or 'N/A' }}
+- **Goal**: {{ blackboard.ticket.topic or blackboard.route_reason or 'N/A' }}
 - **Focus Files**: {{ blackboard.ticket.focus_paths|join(', ') if blackboard.ticket.focus_paths else 'N/A' }}
 {% if blackboard.ticket.acceptance_criteria %}
 - **Acceptance Criteria**:
 {% for c in blackboard.ticket.acceptance_criteria -%}
   - {{ c }}
 {% endfor %}{% endif %}
+{% else %}
+## 🏢 LIVE EXECUTION STATUS (Blackboard)
+*No active ticket. Reviewing session history...*
 {% endif %}
 
 {% if blackboard.metadata %}

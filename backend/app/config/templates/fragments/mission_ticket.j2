@@ -1,6 +1,18 @@
 {% if is_subtask -%}
 ### TASK: {{ topic }}
-Call a tool now. One turn only.
+{% if acceptance_criteria %}
+**Success Criteria**:
+{% for c in acceptance_criteria -%}
+- {{ c }}
+{% endfor %}
+{% endif %}
+{% if parameters %}
+**Context**:
+{% for k, v in parameters.items() -%}
+- {{ k }}: {{ v }}
+{% endfor %}
+{% endif %}
+Execute using available tools. One turn only.
 {%- else -%}
 ### MISSION TICKET
 **Goal**: {{ topic }}

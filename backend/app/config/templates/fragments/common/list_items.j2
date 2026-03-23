@@ -43,8 +43,8 @@ Line {{ line }}: [{{ severity }}] {{ message }} (Source: {{ source }})
 {% endmacro %}
 
 {# 带过滤条件的列表渲染 #}
-{% macro filtered_list(items, filter_field, filter_value, item_macro, **kwargs) %}
+{% macro filtered_list(items, filter_field, filter_value, item_macro) %}
 {% for item in items %}
-{% if item.get(filter_field) == filter_value %}{{ item_macro(item, **kwargs) }}{% endif %}
+{% if item.get(filter_field) == filter_value %}{{ item_macro(item) }}{% endif %}
 {% endfor %}
 {% endmacro %}

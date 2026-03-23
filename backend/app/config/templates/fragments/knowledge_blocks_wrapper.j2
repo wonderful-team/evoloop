@@ -11,5 +11,6 @@
 {% for skill in skills %}
 {% set is_primary = (loop.index0 == 0) %}
 {% include "fragments/knowledge_block.j2" %}
+
 {% endfor %}
 {% endif %}
