@@ -6,7 +6,6 @@ from typing import Any
 from langchain_core.callbacks import AsyncCallbackHandler
 from langchain_core.outputs import LLMResult
 
-from app.core.context import tool_state_store
 from app.i18n.service import i18n
 from app.core.tools.registry import get_tool_affected_paths
 
@@ -25,6 +24,8 @@ class EvoCloudCallbackHandler(AsyncCallbackHandler):
         # Deduplication and Merging State
         self._last_tool_log = {"content": None, "timestamp": 0, "name": None}
         self._last_thought_log = {"content": None, "timestamp": 0}
+        
+        from app.core.context import tool_state_store
         self._tool_store = tool_state_store
 
     def _normalize_content(self, content: str) -> str:

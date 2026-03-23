@@ -3,6 +3,7 @@ Memory Consolidation Service (Sleep Cycle).
 Responsible for condensing short-term memory (logs/working) into long-term knowledge.
 """
 import logging
+import re
 
 from app.core.brain.drivers.abstract import BaseBrainDriver
 from app.core.brain.filesystem.manager import BrainFileSystem
@@ -42,6 +43,7 @@ class MemoryConsolidator:
             system_prompt = render_template("memory/memory_consolidation.prompt.j2")
         except Exception:
             system_prompt = "Summarize the following Working Memory scratchpad into a concise knowledge entry."
+
         summary = await self.llm.generate(
             context=task_content,
             user_input="Summarize key facts and decisions.",
@@ -73,7 +75,6 @@ class MemoryConsolidator:
         """
         Remove a consolidated entry by its source message ID anchor.
         """
-        import re
         try:
             journal_path = f"{MemoryZone.KNOWLEDGE.value}/journal.md"
             content = self.fs.read_file(journal_path)

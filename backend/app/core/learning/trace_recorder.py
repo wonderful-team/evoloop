@@ -12,6 +12,7 @@ from langchain_core.outputs import LLMResult
 from app.core.config import settings
 from app.core.context.manager import ContextManager
 from app.infrastructure.database.sql.database import session_scope
+from app.utils.path import ensure_dir
 
 logger = logging.getLogger(__name__)
 

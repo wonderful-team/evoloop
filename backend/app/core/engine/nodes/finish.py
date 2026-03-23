@@ -22,12 +22,38 @@ logger = logging.getLogger(__name__)
 def _extract_tool_usage(messages: list) -> str:
     """Extract a summary of tools used in the session to prove activity."""
     tools_used = set()
+    from langchain_core.messages import AIMessage, ToolMessage
+    
     for msg in messages:
-        if isinstance(msg, AIMessage) and hasattr(msg, "tool_calls"):
-            for tc in msg.tool_calls:
-                tools_used.add(tc["name"])
+        if isinstance(msg, AIMessage):
+            # 1. Standard tool_calls attribute
+            if hasattr(msg, "tool_calls") and msg.tool_calls:
+                for tc in msg.tool_calls:
+                    name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", None)
+                    if name:
+                        tools_used.add(name)
+            # 2. Legacy/Provider-specific additional_kwargs
+            elif msg.additional_kwargs and "tool_calls" in msg.additional_kwargs:
+                for tc in msg.additional_kwargs["tool_calls"]:
+                    name = tc.get("function", {}).get("name") if "function" in tc else tc.get("name")
+                    if name:
+                        tools_used.add(name)
+        elif isinstance(msg, ToolMessage) or (hasattr(msg, "tool_call_id") and msg.tool_call_id):
+            # 3. Direct ToolMessage check (fallback for when AI message link is lost)
+            name = getattr(msg, "name", None)
+            if name:
+                tools_used.add(name)
+
+    # Use PerceptionsFormatter for consistent output formatting
     from app.utils import PerceptionsFormatter
-    return PerceptionsFormatter.tools_used(tools_used)
+    formatted = PerceptionsFormatter.tools_used(tools_used)
+
+    if not formatted or formatted.strip() == "":
+        if not tools_used:
+            return "No tool actions were recorded in this session. The conversation may have concluded with text responses only."
+        return f"Tools utilized in this session: {', '.join(sorted(tools_used))}"
+
+    return formatted
 
 
 def _extract_final_summary(messages: list) -> str:
@@ -124,6 +150,16 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, origin
 async def finish_node(state: AgentState, config: RunnableConfig):
     """
     Session Reviewer — Shadow Observer / Terminal Gate.
+    
+    [ARCHITECTURAL NOTE]
+    This node receives the FULL conversation history from the state.
+    The history may contain messages from previous Session Reviewer runs,
+    which should NOT influence the current audit.
+    
+    Strategy:
+    1. Use smart_window_slice to get recent relevant context
+    2. The Session Reviewer generates a final summary
+    3. We return a CLEAN message list to prevent pollution of future runs
     """
     # 1. Resolve Context
     ctx = ContextManager.current()
@@ -145,18 +181,45 @@ async def finish_node(state: AgentState, config: RunnableConfig):
         verification_status = blackboard.get("verification") or state.get("verification_status", {})
         action_context = _extract_tool_usage(messages)
 
+        # Phase 8: Strategic Context Injection (Design Audit Fix)
+        iteration_count = state.get("iteration_count", 0)
+        project_id = ctx.project_id or state.get("project_id") or DEFAULT_PROJECT_ID
+        
+        from app.core.environment import get_awakened_state
+        env_state = get_awakened_state()
+        telemetry_data = {}
+        if env_state:
+            telemetry_data = {
+                "android": [{"id": d.device_id, "reachable": d.is_reachable} for d in env_state.android_devices],
+                "macos": bool(env_state.macos),
+                "network": env_state.network.internet_connected if env_state.network else False
+            }
+
         builder = FinishPromptBuilder(
             current_plan=current_plan,
             execution_ticket=execution_ticket,
             verification_status=verification_status,
-            action_context=action_context
+            action_context=action_context,
+            iteration_count=iteration_count,
+            project_id=project_id,
+            telemetry=telemetry_data,
+            blackboard=blackboard
         )
         system_prompt = builder.build()
         tools = tool_manager.get_node_tools("finish", state)
 
         logger.info("[Finish] 🕵️ Starting Explicit Session Audit")
+        
+        # Use smart windowing to get relevant context without overwhelming the LLM
+        from app.core.engine.message_utils import smart_window_slice
+        windowed_messages = smart_window_slice(messages, window_size=10)
+        
+        # Create focused state for the auditor
+        focused_state = dict(state)
+        focused_state["messages"] = windowed_messages
+        
         result = await AgentEngine.run_node(
-            state=state,
+            state=focused_state,
             config=config,
             system_prompt=system_prompt,
             tools=tools,
@@ -194,9 +257,31 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     original_skill_id = metadata.get("original_skill_id")
     _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id)
 
+    # [CRITICAL FIX] Prevent pollution of future sessions
+    # Use RemoveMessage to delete previous Session Reviewer outputs from history
+    # This ensures they don't get passed to future LLM calls
+    from langchain_core.messages import RemoveMessage
+
+    messages_to_return = list(messages)  # Copy the list
+    removed_ids = []
+
+    # Identify and mark messages from previous Session Reviewer runs for deletion
+    # These are typically AIMessages without tool_calls and with specific patterns
+    for msg in state.get("messages", []):
+        if isinstance(msg, AIMessage) and msg.content:
+            content = str(msg.content)
+            # Detect previous Session Reviewer outputs (pollution sources)
+            # They typically contain structured audit reports or meta-markers
+            if "<audit>" in content and "<report>" in content and hasattr(msg, 'id') and msg.id:
+                messages_to_return.append(RemoveMessage(id=msg.id))
+                removed_ids.append(msg.id[:8] + "...")
+
+    if removed_ids:
+        logger.info(f"[Finish] 🗑️ Marked {len(removed_ids)} previous Session Reviewer messages for removal: {removed_ids}")
+
     logger.info(f"Finish: {i18n.get('icons.success', default='✅')} Session concluded with outcome {final_outcome or 'DONE'}. Routing to END.")
     return {
-        "messages": messages, 
+        "messages": messages_to_return, 
         "next_node": "END",
         "blackboard": blackboard
     }

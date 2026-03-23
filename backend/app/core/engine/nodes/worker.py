@@ -108,9 +108,13 @@ class WorkerNode:
             ctx.metadata["is_subtask"] = True
 
         logger.info(f"[Worker] 🧠 Utilizing enriched context for role '{role_name}'")
-
+        
         # 3. Construct Prompts (Using Builder & Phase 1 Blackboard)
         blackboard = state.get("blackboard") or {}
+
+        # Use full plan for complete context
+        # Previously simplified plan caused loss of step descriptions and dependencies
+        full_plan = state.get("structured_plan") or state.get("current_plan") or blackboard.get("plan")
 
         # 3b. Focus-File Data Retrieval (data only, rendering handled by template)
         focus_files = await self._hydrate_focus_files(execution_ticket, ctx)
@@ -120,7 +124,8 @@ class WorkerNode:
             blackboard,
             skills=relevant_sops,
             ticket=execution_ticket,
-            focus_files=focus_files
+            focus_files=focus_files,
+            plan=full_plan
         )
         system_prompt = prompt_builder.build(config)
 
@@ -289,23 +294,41 @@ class WorkerNode:
         cwd = ctx.working_directory or ""
         results = []
 
-        for rel_path in focus_paths:
+        for path_item in focus_paths:
             try:
-                full_path = os.path.join(cwd, rel_path) if cwd else rel_path
+                # 1. Path Normalization & Integration (Handle absolute host paths from Supervisor)
+                if os.path.isabs(path_item):
+                    full_path = path_item
+                    # Try to derive a meaningful relative path for the Agent's view
+                    from app.core.engine.prompts.utils import get_mapped_cwd
+                    display_path = get_mapped_cwd(path_item)
+                else:
+                    full_path = os.path.join(cwd, path_item) if cwd else path_item
+                    display_path = path_item
+
                 if not os.path.exists(full_path):
-                    results.append({"rel_path": rel_path, "status": "missing"})
+                    results.append({"rel_path": display_path, "status": "missing"})
+                    continue
+
+                if os.path.isdir(full_path):
+                    # For directories, provide a basic info instead of failing
+                    results.append({
+                        "rel_path": display_path, 
+                        "status": "directory", 
+                        "detail": "This is a directory. Use 'get_workspace_tree' or 'ls' to examine."
+                    })
                     continue
 
                 size = os.path.getsize(full_path)
                 if size > 30_000:
-                    results.append({"rel_path": rel_path, "status": "skipped", "detail": f"Too large: {size}b"})
+                    results.append({"rel_path": display_path, "status": "skipped", "detail": f"Too large: {size}b"})
                     continue
 
                 with open(full_path, encoding="utf-8") as f:
                     file_content = f.read()
-                results.append({"rel_path": rel_path, "status": "ok", "content": file_content})
+                results.append({"rel_path": display_path, "status": "ok", "content": file_content})
             except Exception as e:
-                results.append({"rel_path": rel_path, "status": "error", "detail": str(e)})
+                results.append({"rel_path": path_item, "status": "error", "detail": str(e)})
 
         return results
 

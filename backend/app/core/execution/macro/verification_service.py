@@ -302,7 +302,7 @@ class SynthesisIntegration:
 
     @staticmethod
     async def verify_for_synthesis(
-        macro_script: List[Dict[str, Any]],
+        macro_script: Union[List[Dict[str, Any]], Any],
         thread_id: str,
         project_id: int = 1
     ) -> Dict[str, Any]:
@@ -312,7 +312,7 @@ class SynthesisIntegration:
         This is the drop-in replacement for the old verify_macro method.
 
         Args:
-            macro_script: Compiled macro from trace
+            macro_script: Compiled macro from trace (can be list of steps or MacroScript)
             thread_id: Thread ID for context
             project_id: Project ID for environment
 
@@ -321,12 +321,35 @@ class SynthesisIntegration:
         """
         logger.info(f"[{thread_id}] Phase 5: Running agent-based verification")
 
-        # Detect platform from macro
-        platform = SynthesisIntegration._detect_platform(macro_script)
+        # Normalize macro_script to list of dict steps
+        steps = macro_script
+        if hasattr(macro_script, 'steps'):
+            # MacroScript object - convert to dicts with proper nesting
+            try:
+                # Try Pydantic v2 method first
+                steps = [step.model_dump() if hasattr(step, 'model_dump') else step.dict() 
+                         for step in macro_script.steps]
+            except Exception as e:
+                logger.warning(f"Failed to convert MacroScript to dicts: {e}")
+                steps = list(macro_script.steps)
+
+        # Filter out non-dict steps (safety check)
+        steps = [s for s in steps if isinstance(s, dict)]
+
+        if not steps:
+            logger.error("No valid steps found in macro_script")
+            return {
+                "status": "failed",
+                "error": "No valid steps in macro script",
+                "report": {}
+            }
+
+        # Detect platform from normalized steps
+        platform = SynthesisIntegration._detect_platform(steps)
 
         # Run verification with 2 rounds (baseline + stress test)
         result = await VerificationService.verify_macro(
-            macro_script=macro_script,
+            macro_script=steps,
             platform=platform,
             max_rounds=2,
             auto_evolve=True,
@@ -351,11 +374,44 @@ class SynthesisIntegration:
 
     @staticmethod
     def _detect_platform(macro_script: List[Dict[str, Any]]) -> str:
-        """Detect platform from macro steps"""
+        """Detect platform from macro steps (handles nested if/else structures)"""
         sources = set()
-        for step in macro_script:
-            source = step.get("source", "dom")
-            sources.add(source)
+
+        def extract_sources(steps):
+            """Recursively extract sources from steps, handling nested structures"""
+            for step in steps:
+                if not isinstance(step, dict):
+                    continue
+
+                # Handle regular action steps
+                if "source" in step:
+                    sources.add(step["source"])
+
+                # Handle if/else nested steps
+                if step.get("type") == "if":
+                    # Check condition
+                    condition = step.get("condition", {})
+                    if isinstance(condition, dict):
+                        # Try to infer from condition type
+                        cond_type = condition.get("type", "")
+                        if "mobile" in str(cond_type).lower():
+                            sources.add("mobile")
+
+                    # Recursively process then_steps
+                    then_steps = step.get("then_steps", [])
+                    if isinstance(then_steps, list):
+                        extract_sources(then_steps)
+
+                    # Recursively process else_steps
+                    else_steps = step.get("else_steps", [])
+                    if isinstance(else_steps, list):
+                        extract_sources(else_steps)
+
+        extract_sources(macro_script)
+
+        # Default to "dom" if no sources found
+        if not sources:
+            sources.add("dom")
 
         if "mobile" in sources or "android" in sources:
             return "android"

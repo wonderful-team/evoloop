@@ -48,13 +48,13 @@ class ContextMiddleware(BaseHTTPMiddleware):
             thread_id=request.headers.get("X-Thread-ID")  # Optional: thread hint
         )
 
-        # 3b. Hydrate Subconscious Plugins
-        plugin_registry.hydrate_context(ctx)
-
-        # 4. Set Context & Run
+        # 4. Set Context FIRST so plugins relying on ContextManager.current() work correctly
         token = ContextManager.set(ctx)
 
         try:
+            # 3b. Hydrate Subconscious Plugins
+            plugin_registry.hydrate_context(ctx)
+
             response = await call_next(request)
 
             # Inject Headers

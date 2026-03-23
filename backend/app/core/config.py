@@ -159,6 +159,12 @@ class Settings(BaseSettings):
     ANTHROPIC_API_KEY: str | None = None
     GOOGLE_API_KEY: str | None = None
     BRAVE_API_KEY: str | None = None
+    
+    # Path Security
+    ALLOWED_PATH_PREFIXES: list[str] = [
+        "/tmp/dataset",
+        "/tmp/evoloop"
+    ]
 
     # --- Cognitive Brain Configuration ---
     # Memory Architecture Toggle (Phase 4 Autonomy)

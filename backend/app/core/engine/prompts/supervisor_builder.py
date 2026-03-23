@@ -31,12 +31,15 @@ class SupervisorPromptBuilder:
 
     async def build(self, config: RunnableConfig) -> str:
         """Constructs the full system prompt using Jinja2 templating."""
-        from app.core.context import ContextManager
+        from app.core.context import ContextManager, plugin_registry
+        from .utils import get_mapped_cwd, get_sandbox_mode
 
         # 1. Prepare Environment & State
-        user_lang = SystemConfigService.get_language_preference()
         ctx = ContextManager.current()
-        cwd = ctx.metadata.get("cwd", "")
+        plugin_registry.hydrate_context(ctx)
+        user_lang = SystemConfigService.get_language_preference()
+        actual_cwd = get_mapped_cwd(ctx.working_directory or ctx.metadata.get("cwd", ""))
+        mode = get_sandbox_mode()
         project_concepts = ctx.metadata.get("project_concepts", "")
 
         # Get the current awakened state for telemetry access
@@ -89,6 +92,7 @@ class SupervisorPromptBuilder:
             "project_id": self.project_id,
             "iteration_count": self.iteration_count,
             "user_lang": user_lang,
+            "sandbox_mode": mode,
             "telemetry": telemetry_data,
             "blackboard": {
                 "ticket": blackboard.get("ticket"),
@@ -110,7 +114,7 @@ class SupervisorPromptBuilder:
                 "last_human_msg": last_human_msg,
             },
             "sys_info": {
-                "cwd": cwd,
+                "cwd": actual_cwd,
                 "is_global_mode": is_global_mode,
                 "project_concepts": project_concepts,
                 "active_skills": ctx.metadata.get("active_skills", []),

@@ -160,8 +160,6 @@ class SupervisorNode:
         core_tools = tool_manager.get_node_tools("supervisor", state)
         last_msg = get_last_human_message(messages)
 
-        logger.info(f"[Supervisor] 📂 Context utilized from unified Middleware.")
-
         # Get blackboard from state for prompt builder
         blackboard = state.get("blackboard") or {}
 

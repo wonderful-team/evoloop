@@ -112,7 +112,7 @@ class ScreenshotStorage:
         platform: Literal["macos", "android", "browser"] = "macos",
         bundle_id: str | None = None,
         suffix: str | None = None,
-        ensure_dir: bool = True
+        create_dir: bool = True
     ) -> str:
         """
         Get a file path for saving a screenshot.
@@ -140,7 +140,7 @@ class ScreenshotStorage:
             date_folder = datetime.now().strftime("%Y%m%d")
             dir_path = os.path.join(base_dir, date_folder)
 
-        if ensure_dir:
+        if create_dir:
             ensure_dir(dir_path)
 
         filename = self._generate_filename(platform, bundle_id, suffix)
@@ -372,7 +372,7 @@ class ScreenRecordingStorage:
         session_id: str | None = None,
         timestamp: int | None = None,
         ext: str = "mp4",
-        ensure_dir: bool = True
+        create_dir: bool = True
     ) -> str:
         """
         Get a file path for saving a screen recording.
@@ -393,7 +393,7 @@ class ScreenRecordingStorage:
         date_folder = datetime.now().strftime("%Y%m%d")
         dir_path = os.path.join(settings.SCREEN_RECORDINGS_DIR, date_folder)
 
-        if ensure_dir:
+        if create_dir:
             ensure_dir(dir_path)
 
         # Include session_id in filename if provided
@@ -409,7 +409,7 @@ class ScreenRecordingStorage:
         session_id: str,
         timestamp_ms: int,
         ext: str = "png",
-        ensure_dir: bool = True
+        create_dir: bool = True
     ) -> str:
         """
         Get a file path for saving an extracted frame.
@@ -426,13 +426,13 @@ class ScreenRecordingStorage:
         # Organize frames by session
         dir_path = os.path.join(settings.SCREEN_RECORDING_FRAMES_DIR, session_id)
 
-        if ensure_dir:
+        if create_dir:
             ensure_dir(dir_path)
 
         filename = f"frame_{timestamp_ms}.{ext}"
         return os.path.join(dir_path, filename)
 
-    def get_frames_dir(self, session_id: str, ensure_dir: bool = True) -> str:
+    def get_frames_dir(self, session_id: str, create_dir: bool = True) -> str:
         """
         Get the directory for extracted frames of a session.
 
@@ -444,7 +444,7 @@ class ScreenRecordingStorage:
             Path to the frames directory
         """
         dir_path = os.path.join(settings.SCREEN_RECORDING_FRAMES_DIR, session_id)
-        if ensure_dir:
+        if create_dir:
             ensure_dir(dir_path)
         return dir_path
 

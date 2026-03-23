@@ -68,12 +68,26 @@ def route_supervisor(state: AgentState) -> str | list[Send]:
             else:
                 logger.info(f"[Router] Subtask {subtask_id} using full worker tool set")
 
+            # Build rich context for subtask execution
+            # Include description as acceptance criteria and context as parameters
+            subtask_acceptance_criteria = []
+            if subtask.get("description"):
+                subtask_acceptance_criteria.append(subtask["description"])
+            if subtask.get("title") and subtask["title"] != subtask["intent"]:
+                subtask_acceptance_criteria.append(f"Task: {subtask['title']}")
+            
+            subtask_parameters = subtask.get("context", {})
+            if subtask.get("dependencies"):
+                subtask_parameters["dependencies"] = subtask["dependencies"]
+            
             ticket = {
                 "ticket_type": "subtask",
                 "topic": subtask["intent"],
                 "parent_task_id": parent_thread_id,
                 "subtask_id": subtask_id,
-                "agent_config": agent_config
+                "agent_config": agent_config,
+                "acceptance_criteria": subtask_acceptance_criteria if subtask_acceptance_criteria else None,
+                "parameters": subtask_parameters if subtask_parameters else None,
             }
 
             sends.append(Send(RoutingTarget.WORKER, {

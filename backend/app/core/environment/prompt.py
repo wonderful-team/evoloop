@@ -12,6 +12,7 @@ from app.core.context.manager import ContextManager
 from app.core.context.plugins import plugin_registry
 from app.core.tools.manager import tool_manager
 from app.infrastructure.drivers.browser import browser_manager
+from app.infrastructure.config.service import SystemConfigService
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ class AppEnvironmentPrompt:
                 "spatial_awareness": ctx.spatial_awareness,
                 "boundaries": ctx.active_boundaries,
                 "user_preferences": ctx.metadata.get("user_preferences", {}),
+                "user_lang": SystemConfigService.get_language_preference(),
                 "mcp_inventory": tool_manager.get_mcp_inventory(),
                 "browser_status": _get_browser_status(),
                 "has_android": ctx.metadata.get("has_android", False),
