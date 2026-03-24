@@ -38,7 +38,6 @@ try:
         AnthropicAsyncClient.__del__ = _safe_anthropic_del
 except ImportError:
     pass
-# ---------------------------------------------------------------------------------
 
 _HTTP_CLIENT_POOL = LoopBoundResource(
     factory=lambda: httpx.AsyncClient(

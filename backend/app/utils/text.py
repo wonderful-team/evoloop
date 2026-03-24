@@ -350,48 +350,8 @@ def truncate_output(text: str, max_len: int = 6000, suffix: str = "...") -> str:
 
 
 # ============================================================================
-# Technical Markers Stripping
+# Text Normalization
 # ============================================================================
-
-
-def strip_technical_markers(text: str) -> str:
-    """
-    Remove technical markers and formatting from text.
-    
-    Removes:
-    - XML/HTML tags like <report>, <think>, <audit>
-    - Markdown code block markers
-    - Status icons
-    - Technical markers like "Status:", "Outcome:"
-    
-    Args:
-        text: Text containing technical markers
-    
-    Returns:
-        Cleaned text
-    """
-    import re
-    
-    # Remove XML/HTML tags with content for specific tags
-    tags_to_remove = ["audit", "outcome", "reason", "proof_points"]
-    for tag in tags_to_remove:
-        text = re.sub(rf"<{tag}>.*?</{tag}>", "", text, flags=re.DOTALL | re.IGNORECASE)
-    
-    # Remove all remaining HTML tags
-    text = re.sub(r"<[^>]+>", "", text)
-    
-    # Remove lines that look like "Header: " (short labels)
-    text = re.sub(r"^\s*[^:\n]{1,20}:\s*", "", text, flags=re.MULTILINE)
-    
-    # Remove status icons (common Unicode icons)
-    status_icons = ["✅", "❌", "⚠️", "ℹ️", "📝", "🔍", "⚡", "🔧", "📊"]
-    icons_pattern = "[" + "".join(re.escape(i) for i in status_icons) + "]"
-    text = re.sub(icons_pattern, "", text)
-    
-    # Remove markdown code markers
-    text = text.replace("```", "").strip()
-    
-    return text.strip()
 
 
 def normalize_text(text: str | None) -> str:

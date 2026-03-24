@@ -58,6 +58,12 @@ class SignalDispatcher:
         if authorized_tools is not None:
             agent_config["tools"] = authorized_tools
 
+        reserved_keys = {
+            "ticket_type", "priority", "focus_paths", "topic", "query", 
+            "acceptance_criteria", "constraints", "agent_config", "namespace_context"
+        }
+        parameters = {k: v for k, v in routing_context.items() if k not in reserved_keys}
+
         execution_ticket = {
             "ticket_type": routing_context.get("ticket_type", "task"),
             "priority": routing_context.get("priority", "normal"),
@@ -68,6 +74,7 @@ class SignalDispatcher:
             "agent_config": agent_config,
             "namespace_context": inferred_namespace,
             "skill_id": signal.skill_id,
+            "parameters": parameters,
         }
         blackboard["ticket"] = execution_ticket
 

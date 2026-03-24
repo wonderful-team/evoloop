@@ -13,7 +13,7 @@ from app.core.engine.prompts.finish import FinishPromptBuilder
 from app.core.engine.state import AgentState
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools.manager import tool_manager
-from app.constants import DEFAULT_PROJECT_ID, TECHNICAL_MARKERS, STATUS_ICONS
+from app.constants import DEFAULT_PROJECT_ID
 from app.i18n.service import i18n
 
 logger = logging.getLogger(__name__)
@@ -70,24 +70,18 @@ def _extract_final_summary(messages: list) -> str:
 
             # 2. Fallback: Strip XML-based audit tags
             content = re.sub(r"<(audit|outcome|reason|proof_points)>.*?</\1>", "", content, flags=re.DOTALL | re.IGNORECASE)
-            # Remove any orphan/leftover XML tags
+            # Remove any other leftover XML tags (like <thought>, <status>, etc.)
             content = re.sub(r"<[^>]+>", "", content)
             
             # 3. Language-Agnostic Header Peeling
             # Instead of a hardcoded list, we strip lines that look like "Header: " 
             # (e.g., "Summary: ", "最终总结: ", "结论: ")
-            # regex: start of line, 1-20 chars (excluding newline/tags), followed by colon and optional space
-            content = re.sub(r"^\s*[^:\n]{1,20}:\s*", "", content, flags=re.MULTILINE)
+            # regex: start of line, 1-25 chars (excluding newline/tags), followed by colon and optional space
+            content = re.sub(r"^\s*[^:\n]{1,25}:\s*", "", content, flags=re.MULTILINE)
             
-            # 4. Icon & Delimiter Cleanup (Using decentralized constants)
-            # Matches status icons and technical markers
-            icons_pattern = "[" + "".join([re.escape(i) for i in STATUS_ICONS.values()]) + "]"
-            content = re.sub(icons_pattern, "", content)
-            
-            markers_pattern = r"(" + "|".join([re.escape(m) for m in TECHNICAL_MARKERS]) + r"):?\s*"
-            content = re.sub(markers_pattern, "", content, flags=re.IGNORECASE)
-            
-            # 5. Clean backticks/code blocks and trim
+            # 4. Cleanup and Trim
+            # We no longer blacklist specific icons or markers, but trim the text
+            # and remove code blocks to ensure a clean narrative.
             content = content.replace("```", "").strip()
             
             return content[:2000]

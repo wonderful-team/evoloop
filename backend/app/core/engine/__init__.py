@@ -12,8 +12,9 @@ from langchain_core.messages import (
 )
 from langchain_core.runnables import RunnableConfig
 
-from app.constants import DEFAULT_PROJECT_ID, DEFAULT_WINDOW_SIZE
+from app.constants import DEFAULT_WINDOW_SIZE, MAX_CONTEXT_CHARS
 from app.core.engine.message_utils import (
+    prune_redundant_results,
     repair_message_history,
     smart_window_slice,
     truncate_message_content,
@@ -81,8 +82,15 @@ class AgentEngine:
         except ImportError:
             pass
 
-        # 3.1 Smart Windowing (Delegated to utils)
-        windowed_messages = smart_window_slice(raw_messages, window_size=DEFAULT_WINDOW_SIZE)
+        # 3.1 Redundancy Pruning (Collapse old large outputs)
+        pruned_messages = prune_redundant_results(raw_messages)
+
+        # 3.2 Smart Windowing (Delegated to utils, with character limit)
+        windowed_messages = smart_window_slice(
+            pruned_messages, 
+            window_size=DEFAULT_WINDOW_SIZE,
+            max_total_chars=MAX_CONTEXT_CHARS 
+        )
 
         # 3.2 Repair Orphaned Tool Messages (Delegated to utils)
         repaired_messages = repair_message_history(windowed_messages)
@@ -117,29 +125,29 @@ class AgentEngine:
     @staticmethod
     def _setup_callbacks(config: RunnableConfig) -> RunnableConfig:
         """Inject TraceCallbackHandler for Imitation/Reinforcement Learning."""
-        try:
-            from app.core.learning.trace_recorder import TraceCallbackHandler
-
-            thread_id = config.get("configurable", {}).get("thread_id", "unknown")
-            if thread_id and thread_id != "unknown":
-                trace_handler = TraceCallbackHandler(thread_id)
-
-                # Safely update callbacks
-                existing_callbacks = config.get("callbacks", []) or []
-                if not isinstance(existing_callbacks, list):
-                    if hasattr(existing_callbacks, "handlers"):
-                        existing_callbacks = existing_callbacks.handlers
-                    else:
-                        existing_callbacks = [existing_callbacks]
-
-                # Check duplication
-                has_tracer = any(isinstance(c, TraceCallbackHandler) for c in existing_callbacks)
-
-                if not has_tracer:
-                    config = config.copy()
-                    config["callbacks"] = existing_callbacks + [trace_handler]
-        except Exception as e:
-            logger.warning(f"Failed to inject TraceCallbackHandler: {e}")
+        # try:
+        #     from app.core.learning.trace_recorder import TraceCallbackHandler
+        #
+        #     thread_id = config.get("configurable", {}).get("thread_id", "unknown")
+        #     if thread_id and thread_id != "unknown":
+        #         trace_handler = TraceCallbackHandler(thread_id)
+        #
+        #         # Safely update callbacks
+        #         existing_callbacks = config.get("callbacks", []) or []
+        #         if not isinstance(existing_callbacks, list):
+        #             if hasattr(existing_callbacks, "handlers"):
+        #                 existing_callbacks = existing_callbacks.handlers
+        #             else:
+        #                 existing_callbacks = [existing_callbacks]
+        #
+        #         # Check duplication
+        #         has_tracer = any(isinstance(c, TraceCallbackHandler) for c in existing_callbacks)
+        #
+        #         if not has_tracer:
+        #             config = config.copy()
+        #             config["callbacks"] = existing_callbacks + [trace_handler]
+        # except Exception as e:
+        #     logger.warning(f"Failed to inject TraceCallbackHandler: {e}")
 
         return config
 

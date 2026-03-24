@@ -79,7 +79,6 @@ class WorkerPromptBuilder:
             "environment_block": ctx.environment_block,
             "knowledge_blocks": knowledge_blocks,
             "clipboard": self.clipboard,
-            "focus_files": self.focus_files,
             "has_android": ctx.metadata.get("has_android", False),
             "is_subtask": self.agent_config.get("is_subtask", False),
             "historical_context": self.ticket.get("historical_context") if self.ticket else None,
@@ -100,6 +99,7 @@ class WorkerPromptBuilder:
             "acceptance_criteria": self.ticket.get("acceptance_criteria", []),
             "parameters": self.ticket.get("parameters", {}),
             "is_subtask": self.agent_config.get("is_subtask", False),
+            "focus_files": self.focus_files,
         }
         try:
             return render_template("fragments/mission_ticket.j2", **template_vars)

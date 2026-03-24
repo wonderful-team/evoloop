@@ -31,3 +31,23 @@ Execute using available tools. One turn only.
 
 Please execute this mission now. Use your tools.
 {%- endif %}
+
+{% if focus_files -%}
+## 📎 Attention Guidance (Focus Files)
+The Supervisor has identified {{ focus_files | length }} focus file(s) for this mission:
+{% for file in focus_files -%}
+{%- if file.status == "ok" %}
+--- FILE: {{ file.rel_path }} ---
+{{ file.content }}
+--- END OF FILE ---
+{%- elif file.status == "missing" %}
+- ⚠️ **MISSING**: `{{ file.rel_path }}` — File not found on disk.
+{%- elif file.status == "skipped" %}
+- ⏭️ **SKIPPED**: `{{ file.rel_path }}` — {{ file.detail }}
+{%- elif file.status == "directory" %}
+- 📂 **DIRECTORY**: `{{ file.rel_path }}` — {{ file.detail }}
+{%- elif file.status == "error" %}
+- ❌ **ERROR**: `{{ file.rel_path }}` — {{ file.detail }}
+{%- endif %}
+{%- endfor %}
+{%- endif -%}

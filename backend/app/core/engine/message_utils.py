@@ -14,9 +14,15 @@ from langchain_core.messages import (
     ToolMessage,
 )
 
-from app.constants import DEFAULT_WINDOW_SIZE, MAX_OUTPUT_LENGTH
+from app.constants import (
+    DEFAULT_WINDOW_SIZE, 
+    MAX_OUTPUT_LENGTH,
+    MAX_CONTEXT_CHARS,
+    CONTEXT_PRUNE_THRESHOLD
+)
 from app.i18n.service import i18n
-from app.utils.text import truncate_text as _truncate_text
+
+logger = logging.getLogger(__name__)
 
 
 def _get_truncate_limit(model: str | None = None) -> int:
@@ -209,15 +215,18 @@ def repair_message_history(messages: list[BaseMessage]) -> list[BaseMessage]:
 def smart_window_slice(
     messages: list[BaseMessage],
     window_size: int | None = None,
+    max_total_chars: int = MAX_CONTEXT_CHARS,
     model: str | None = None,
 ) -> list[BaseMessage]:
     """
     Slice the message list to a window size, ensuring no (AI -> Tool) pair is split.
     If the window start falls on a ToolMessage, it backtracks to include the parent AIMessage.
+    Also enforces a character-based limit (max_total_chars) to prevent Token overflow.
 
     Args:
         messages: Full list of messages.
         window_size: Explicit window size. If None, derived from ModelProfile.
+        max_total_chars: Maximum total characters allowed in the resulting slice.
         model: Model name for profile-aware window sizing.
 
     Returns:

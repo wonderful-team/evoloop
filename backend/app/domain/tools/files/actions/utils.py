@@ -27,7 +27,7 @@ async def resolve_and_validate_path(path: str, config: RunnableConfig | None = N
 
         db_workspace_root = SystemConfigService.get_value("WORKSPACE_ROOT")
         workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
-        
+
         if root == "." or root == workspace_root:
             raise ValueError(
                 f"File operations are not available in global mode. "

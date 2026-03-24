@@ -189,7 +189,6 @@ from app.utils.text import (
     extract_json_from_markdown,
     html_to_markdown,
     normalize_text,
-    strip_technical_markers,
     truncate_output,
     truncate_text,
 )
@@ -271,7 +270,6 @@ __all__ = [
     "extract_json_from_markdown",
     "html_to_markdown",
     "normalize_text",
-    "strip_technical_markers",
     # Extract
     "extract_code_block",
     "extract_json_block",

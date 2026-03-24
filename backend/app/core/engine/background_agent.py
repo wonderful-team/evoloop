@@ -12,7 +12,7 @@ from app.core.callbacks.database_logger import DatabaseCallbackHandler
 from app.core.evocloud.callback_handler import EvoCloudCallbackHandler
 
 # Callbacks
-from app.constants import DEFAULT_PROJECT_ID, STATUS_ICONS
+from app.constants import DEFAULT_PROJECT_ID
 from app.core.callbacks.transparent import TransparentCallbackHandler
 from app.core.config import settings
 from app.core.context.manager import ContextManager, EvoContext
@@ -351,7 +351,7 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
     
     if is_retryable:
         user_message = (
-            f"{STATUS_ICONS['warning']} **{i18n.get('core_engine.retryable_error_title', default='API Connectivity Issue')}**: "
+            f"{i18n.get('icons.warning', default='⚠️')} **{i18n.get('core_engine.retryable_error_title', default='API Connectivity Issue')}**: "
             f"{i18n.get('core_engine.retryable_error_desc', default='I encountered a transient error while communicating with the LLM.')}\n\n"
             f"> {str(e)}\n\n"
             f"I have paused execution to prevent state corruption. You can try to **Resume** this task."
@@ -359,7 +359,7 @@ async def _handle_task_exception(thread_id: str, project_id: int, e: Exception):
         action_type = "warning"
     else:
         user_message = (
-            f"{STATUS_ICONS['failed']} **{i18n.get('core_engine.system_error_title', default='System Error')}**: "
+            f"{i18n.get('icons.failed', default='❌')} **{i18n.get('core_engine.system_error_title', default='System Error')}**: "
             f"{i18n.get('core_engine.execution_failed', default='Agent execution failed due to a logic or configuration error.')}\n\n"
             f"{i18n.get('core_engine.error_details', default='Error Details')}:\n> {str(e)}\n\n"
             f"{i18n.get('core_engine.retry_prompt', default='Please try again or contact support.')}"
