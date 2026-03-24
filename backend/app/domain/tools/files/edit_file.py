@@ -53,7 +53,7 @@ async def edit_file(
     
     # If dry_run, use preview_edit
     if dry_run:
-        from .preview_edit import preview_edit
-        return await preview_edit(path=path, target=target, replacement=replacement, config=config)
+        from .preview_edit import preview_edit_internal
+        return await preview_edit_internal(path=path, target=target, replacement=replacement, config=config)
 
     return await handle_edit(path, target, replacement, allow_multiple, expected_hash, config=config)

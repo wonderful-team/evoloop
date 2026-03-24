@@ -1,119 +1,243 @@
 import logging
+import threading
 import os
+import pty
+import select
+import subprocess
+import time
+import termios
+import uuid
 from dataclasses import dataclass, field
+from typing import Tuple
 
 from app.core.context.manager import ContextManager
-from app.utils.process import run_command
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class PersistentTerminal:
+    """
+    Manages a long-running interactive shell process via PTY with robust signal tracking.
+    """
+    session_id: str
+    cwd: str
+    env: dict[str, str]
+    
+    _master_fd: int = field(init=False, default=-1)
+    _proc: subprocess.Popen = field(init=False, default=None)
+
+    def __post_init__(self):
+        self._start_shell()
+
+    def _start_shell(self):
+        """Start a persistent bash instance with a PTY."""
+        self._master_fd, slave_fd = pty.openpty()
+        
+        # Disable echo to simplify parsing
+        attr = termios.tcgetattr(self._master_fd)
+        attr[3] = attr[3] & ~termios.ECHO
+        termios.tcsetattr(self._master_fd, termios.TCSANOW, attr)
+
+        shell_env = self.env.copy()
+        shell_env["TERM"] = "dumb"
+        # We use a blank PS1 since we use unique SIG markers for status
+        shell_env["PS1"] = ""
+
+        self._proc = subprocess.Popen(
+            ["/bin/bash", "--norc", "--noprofile"],
+            stdin=slave_fd,
+            stdout=slave_fd,
+            stderr=slave_fd,
+            cwd=self.cwd,
+            env=shell_env,
+            close_fds=True,
+            preexec_fn=os.setsid
+        )
+        os.close(slave_fd)
+        
+        # Initial stabilization wait
+        time.sleep(0.2)
+        logger.debug(f"[PTY][{self.session_id}] Shell started (PID: {self._proc.pid}) at {self.cwd}")
+
+    def run_command(self, command: str, timeout: int = 60) -> Tuple[str, int]:
+        """Execute a command synchronously and return (output, exit_code)."""
+        if self._proc.poll() is not None:
+            logger.warning(f"[PTY][{self.session_id}] Shell died. Restarting...")
+            self._start_shell()
+
+        # Generate a unique marker for this specific execution
+        sig = str(uuid.uuid4())
+        marker = f"EVO_SIG_DONE_{sig}_"
+        # Wrap command to echo status at the end
+        full_cmd = f"{command}\necho \"{marker}$?\"\n"
+        
+        try:
+            os.write(self._master_fd, full_cmd.encode())
+        except OSError as e:
+            logger.error(f"[PTY][{self.session_id}] Master FD write error: {e}")
+            self._start_shell()
+            os.write(self._master_fd, full_cmd.encode())
+
+        output = b""
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            r, _, _ = select.select([self._master_fd], [], [], 0.1)
+            if r:
+                try:
+                    chunk = os.read(self._master_fd, 4096)
+                    if not chunk:
+                        break
+                    output += chunk
+                    # Look for the marker sequence
+                    if marker.encode() in output:
+                        # Check if we have the full signature including exit code and final newline
+                        rest = output.split(marker.encode())[1]
+                        if b"\n" in rest:
+                            break
+                except OSError:
+                    break
+            
+            if self._proc.poll() is not None:
+                break
+        
+        text = output.decode("utf-8", errors="replace")
+        
+        # Parse result
+        exit_code = 0
+        actual_output = text
+        
+        if marker in text:
+            parts = text.split(marker)
+            actual_output = parts[0].strip()
+            # The part after marker starts with the exit code
+            try:
+                exit_code_str = parts[1].split("\n")[0].strip()
+                exit_code = int(exit_code_str)
+            except (ValueError, IndexError):
+                logger.error(f"[PTY][{self.session_id}] Failed to parse exit code from fragment: {parts[1][:50]}")
+                exit_code = -1
+        else:
+            if time.time() - start_time >= timeout:
+                actual_output = text + "\n[Error: Command timed out]"
+                exit_code = -1
+
+        # Periodic state sync (CWD)
+        self._sync_state()
+        
+        return actual_output, exit_code
+
+    def _sync_state(self):
+        """Silently query the shell for current CWD to keep session state accurate."""
+        sig = str(uuid.uuid4())
+        marker = f"EVO_PWD_SIG_{sig}_"
+        cmd = f"pwd\necho \"{marker}$?\"\n"
+        os.write(self._master_fd, cmd.encode())
+        
+        # Short timeout for internal sync
+        output = b""
+        start_time = time.time()
+        while time.time() - start_time < 2:
+            r, _, _ = select.select([self._master_fd], [], [], 0.05)
+            if r:
+                try:
+                    chunk = os.read(self._master_fd, 1024)
+                    output += chunk
+                    if marker.encode() in output: break
+                except OSError: break
+        
+        text = output.decode("utf-8", errors="replace")
+        if marker in text:
+            new_cwd = text.split(marker)[0].strip()
+            # Clean up bash non-interactive noise if any
+            new_cwd = new_cwd.splitlines()[-1] if "\n" in new_cwd else new_cwd
+            if os.path.isdir(new_cwd):
+                self.cwd = new_cwd
+
+    def teardown(self):
+        if self._proc:
+            try:
+                self._proc.terminate()
+                self._proc.wait(timeout=1)
+            except:
+                try: self._proc.kill()
+                except: pass
+        if self._master_fd != -1:
+            try: os.close(self._master_fd)
+            except: pass
 
 
 @dataclass
 class TerminalSession:
     """
     Represents a persistent shell session for a specific context (Thread/Task).
+    Holds the state (cwd, env) and the underlying PTY process.
     """
     cwd: str
     env: dict[str, str] = field(default_factory=lambda: os.environ.copy())
+    pty: PersistentTerminal = field(init=False, default=None)
+    _lock: threading.Lock = field(init=False, default_factory=threading.Lock)
 
     def __post_init__(self):
-        # Ensure minimal env
         if "TERM" not in self.env:
             self.env["TERM"] = "xterm-256color"
+            
+    def get_pty(self, session_id: str) -> PersistentTerminal:
+        if not self.pty:
+            self.pty = PersistentTerminal(session_id, self.cwd, self.env)
+        return self.pty
 
 
 class TerminalManager:
     """
     Manages terminal sessions based on the current execution context.
-    No longer a singleton with shared state. State is stored in Context or Memory.
-    For V1 refactor, we will maintain an in-memory map keyed by thread_id/context_id 
-    until we move to a proper Kernel/Sandbox architecture.
     """
-
-    # In-memory storage for active sessions
-    # Key: thread_id or session_id
     _sessions: dict[str, TerminalSession] = {}
 
     @classmethod
     def _get_session_key(cls) -> str:
         ctx = ContextManager.current()
-        # Prefer thread_id, fallback to request_id
         return ctx.thread_id or ctx.request_id or "global"
 
     @classmethod
     def get_session(cls) -> TerminalSession:
         key = cls._get_session_key()
         if key not in cls._sessions:
-             # Initialize with context working directory if available
             ctx = ContextManager.current()
             initial_cwd = ctx.working_directory or os.getcwd()
-
-            # Create new session
             cls._sessions[key] = TerminalSession(cwd=initial_cwd)
-            logger.debug(f"Created new TerminalSession for {key} at {initial_cwd}")
 
         return cls._sessions[key]
 
     @classmethod
     def run_command(cls, command: str, timeout: int = 60) -> tuple[str, str, int]:
         """
-        Runs a command in the current context's persistent session.
+        Runs a command in a persistent PTY session.
+        Returns (stdout, stderr, exit_code) for compatibility.
         """
         session = cls.get_session()
+        key = cls._get_session_key()
+        pty_sess = session.get_pty(key)
+        
         command = command.strip()
-
-        # 1. Handle 'cd' manually
-        if command.startswith("cd "):
-            path = command[3:].strip()
-            return cls._change_directory(session, path)
-
-        # 2. Handle 'export' manually (simple case)
-        if command.startswith("export "):
-            return cls._handle_export(session, command)
-
-        # 3. Run actual subprocess
         try:
-            result = run_command(
-                command,
-                cwd=session.cwd,
-                env=session.env,
-                timeout=timeout
-            )
-
-            return result.stdout, result.stderr, result.returncode
-
+            with session._lock:
+                stdout, exit_code = pty_sess.run_command(command, timeout=timeout)
+                # Sync session level CWD
+                session.cwd = pty_sess.cwd
+            return stdout, "", exit_code
         except Exception as e:
+            logger.exception(f"[TerminalManager][{key}] System Error")
             return "", str(e), 1
 
     @classmethod
-    def _change_directory(cls, session: TerminalSession, path: str) -> tuple[str, str, int]:
-        # Resolve absolute path relative to current tracked CWD
-        # Handle ~ expansion
-        if path.startswith("~"):
-            path = os.path.expanduser(path)
-
-        new_path = os.path.abspath(os.path.join(session.cwd, path))
-
-        if os.path.isdir(new_path):
-            session.cwd = new_path
-            return f"Changed directory to {new_path}", "", 0 # i18n? keeping simple for now to avoid circulars
-        else:
-            return "", f"cd: no such file or directory: {path}", 1
-
-    @classmethod
-    def _handle_export(cls, session: TerminalSession, command: str) -> tuple[str, str, int]:
-        # export KEY=VALUE
-        # Remove 'export '
-        kv = command[7:].strip()
-        if "=" in kv:
-            key, value = kv.split("=", 1)
-            # Remove quotes
-            value = value.strip("'").strip('"')
-            session.env[key] = value
-            return f"Exported {key}", "", 0
-
-        return "", "export: invalid format", 1
+    def teardown_all(cls):
+        for session in cls._sessions.values():
+            if session.pty:
+                session.pty.teardown()
+        cls._sessions.clear()
 
 
-# Global Accessor (Stateless Class)
+# Global Accessor
 terminal_manager = TerminalManager

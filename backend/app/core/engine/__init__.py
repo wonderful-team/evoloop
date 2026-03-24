@@ -201,9 +201,15 @@ class AgentEngine:
                     response.additional_kwargs = {}
                 response.additional_kwargs["run_id"] = run_id
 
-            # OBSERVE: LLM Response (Thinking)
+            # OBSERVE: LLM Response (Thinking/Thought)
+            thinking_content = ""
             if response.content:
-                logger.info(f"[{name}] 🧠 Thinking: {response.content}")
+                thinking_content = response.content
+            elif hasattr(response, "additional_kwargs") and "thought" in response.additional_kwargs:
+                thinking_content = response.additional_kwargs["thought"]
+
+            if thinking_content:
+                logger.info(f"[{name}] 🧠 Thinking: {thinking_content}")
 
             loop_messages.append(response)
             new_messages.append(response)
@@ -290,8 +296,10 @@ class AgentEngine:
 
                 logger.info(f"[{name}] 🛠️ Call: {tool_name} | Args: {json.dumps(tool_args)}")
 
-                # Track tool execution history
+                # Track tool execution history and detect repetitions
                 tool_sig = f"{tool_name}:{json.dumps(tool_args, sort_keys=True)}"
+                if tool_sig in local_tool_history:
+                    logger.warning(f"[{name}] ⚠️ REPETITION DETECTED: Agent is repeating tool call: {tool_sig}")
                 local_tool_history.append(tool_sig)
 
                 tool = tool_map.get(tool_name)
@@ -358,7 +366,7 @@ class AgentEngine:
             tool_results = await asyncio.gather(*[_process_single_tool(tc) for tc in response.tool_calls])
 
             for tool_msg in tool_results:
-                logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)[:100]}...")
+                logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)}")
                 loop_messages.append(tool_msg)
                 new_messages.append(tool_msg)
 
@@ -550,7 +558,7 @@ class AgentEngine:
         tool_results = await asyncio.gather(*[_execute_tool(tc) for tc in response.tool_calls])
 
         for tool_msg in tool_results:
-            logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)[:100]}...")
+            logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)}")
             new_messages.append(tool_msg)
 
         # IMMEDIATE TERMINATION: No second LLM turn
