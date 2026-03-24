@@ -234,19 +234,40 @@ def smart_window_slice(
     """
     effective_window = window_size or _get_window_size(model)
 
+    # 1. Message Count Based Slicing
     if len(messages) <= effective_window:
-        return messages
+        sliced_msgs = messages
+    else:
+        start_index = max(0, len(messages) - effective_window)
+        # Backtrack if starting on a ToolMessage
+        while start_index > 0 and isinstance(messages[start_index], ToolMessage):
+            start_index -= 1
+        sliced_msgs = messages[start_index:]
 
-    start_index = max(0, len(messages) - effective_window)
+    # 2. Character-Based Secondary Slicing
+    # We calculate total characters and prune from the middle (keeping first and recent)
+    def _calc_total_chars(msgs):
+        return sum(len(get_message_text(m)) for m in msgs)
 
-    # If we are cutting off, and the first message in window is a ToolMessage,
-    # step back to include the parent AIMessage (if possible).
-    # We check if start_index points to a ToolMessage.
-    while start_index > 0 and isinstance(messages[start_index], ToolMessage):
-        start_index -= 1
-
-    # Slice
-    sliced_msgs = messages[start_index:]
+    total_chars = _calc_total_chars(sliced_msgs)
+    
+    if total_chars > max_total_chars:
+        logger.warning(f"📉 [Window] Total chars ({total_chars}) exceeds limit ({max_total_chars}). Pruning history.")
+        
+        # We try to keep the first message (Intent) and the most recent N messages
+        first_msg = next((m for m in messages if isinstance(m, HumanMessage)), None)
+        
+        # Start dropping from the beginning of sliced_msgs (which is already recent history)
+        # but always skip the very last few messages to maintain chain of thought
+        protected_count = 3  # Keep at least last 3 messages (AI -> Tool -> result)
+        
+        while len(sliced_msgs) > protected_count and _calc_total_chars(sliced_msgs) > max_total_chars:
+            # Check if first message is our protected intent
+            if first_msg and sliced_msgs[0] == first_msg:
+                # If we have more than protected_count, drop the second one (the oldest non-intent)
+                sliced_msgs.pop(1)
+            else:
+                sliced_msgs.pop(0)
 
     # Enhance: Preserve the First Human Message (User Goal) if it was sliced out
     # This ensures Supervisor keeps the original context/intent.
@@ -255,6 +276,57 @@ def smart_window_slice(
         sliced_msgs.insert(0, first_human_msg)
 
     return sliced_msgs
+
+
+def prune_redundant_results(messages: list[BaseMessage], threshold: int = CONTEXT_PRUNE_THRESHOLD) -> list[BaseMessage]:
+    """
+    Identifies and collapses redundant large tool outputs in message history.
+    If the same tool (e.g., read_file) is called multiple times for the same resource,
+    previous large outputs are collapsed to save tokens.
+
+    Args:
+        messages: List of messages to prune.
+        threshold: Character threshold above which a message is considered "large".
+    """
+    if not messages:
+        return messages
+
+    seen_resources = {}  # {resource_key: last_index}
+    pruned = list(messages)
+    
+    # Iterate backwards to keep the most recent ones intact
+    for i in range(len(pruned) - 1, -1, -1):
+        msg = pruned[i]
+        if not isinstance(msg, ToolMessage):
+            continue
+            
+        # Determine resource key (e.g., tool_name:path)
+        resource_key = None
+        if msg.name == "read_file":
+            # Heuristic: try to find filename in content or from history if available
+            # In our system, the tool call args are in the preceding AI message
+            resource_key = f"read_file" # Simplified for now, can be improved
+        elif msg.name == "bash":
+            resource_key = f"bash"
+
+        if not resource_key:
+            continue
+            
+        text = get_message_text(msg)
+        if len(text) < threshold:
+            continue
+            
+        if resource_key in seen_resources:
+            # This is an older, large result for the same tool type
+            # Collapse it
+            lines = text.count("\n")
+            chars = len(text)
+            msg.content = f"[System: Previous large output (Tool: {msg.name}, {lines} lines, {chars} chars) collapsed to save context. Refer to more recent turns for status.]"
+            logger.info(f"✂️ [Prune] Collapsed redundant ToolMessage: {msg.name} ({chars} chars)")
+        else:
+            seen_resources[resource_key] = i
+            
+    return pruned
 
 
 # ==============================================================================

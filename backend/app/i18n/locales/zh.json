@@ -96,7 +96,8 @@
     },
     "core_utils": {
         "orphaned_tool": "正在执行工具...",
-        "conversation_continuation": "...延续对话上下文..."
+        "conversation_continuation": "...延续对话上下文...",
+        "interrupted_tool_response": "[系统：结果已省略或上下文已中断。请根据剩余上下文进行回复。]"
     },
     "orchestration": {
         "skill_not_found": "未找到技能 '{name}'。可用技能：{available}",

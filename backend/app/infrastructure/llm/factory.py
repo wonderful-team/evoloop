@@ -42,7 +42,7 @@ except ImportError:
 _HTTP_CLIENT_POOL = LoopBoundResource(
     factory=lambda: httpx.AsyncClient(
         http2=True,
-        timeout=httpx.Timeout(60.0, connect=10.0),
+        timeout=httpx.Timeout(300.0, connect=10.0), # Increased from 60s to 300s for reasoning models
         limits=httpx.Limits(max_connections=100, max_keepalive_connections=20)
     ),
     cleanup=_close_client
@@ -84,6 +84,8 @@ class LLMFactory:
                     streaming=False,
                     fix_tool_args_list=True,
                     repair_history=True,
+                    timeout=300.0,
+                    http_async_client=_HTTP_CLIENT_POOL.get(),
                 )
 
             # Check for Kimi / Moonshot
@@ -94,16 +96,20 @@ class LLMFactory:
                     model_name=model_name,
                     temperature=temperature,
                     streaming=False,
-                    fix_tool_args_list=False,  # Kimi usually follows standard
-                    repair_history=True,       # Most compatible APIs need history repair
+                    fix_tool_args_list=False,
+                    repair_history=True,
+                    timeout=300.0,
+                    http_async_client=_HTTP_CLIENT_POOL.get(),
                 )
 
-            return ChatAnthropic(
+            return CompatibleChatAnthropic(
                 api_key=api_key,
                 base_url=base_url,
                 model_name=model_name,
                 temperature=temperature,
-                streaming=False,  # Disable streaming to prevent httpx.ResponseNotRead on errors
+                streaming=False,
+                timeout=300.0,
+                http_async_client=_HTTP_CLIENT_POOL.get(),
             )
 
         # Default: OpenAI Compatible (Adaptive)

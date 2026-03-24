@@ -111,5 +111,11 @@ class EvoContextMiddleware:
                     logger.debug(f"[Middleware] Resetting terminal metadata '{key}' for new run.")
                     del blackboard["metadata"][key]
 
+        # 6. Ticket Synchronization (UI/Prompt Hardening)
+        execution_ticket = state.get("execution_ticket")
+        if execution_ticket and not blackboard.get("ticket"):
+            logger.debug("[Middleware] Syncing top-level execution_ticket to blackboard.")
+            blackboard["ticket"] = execution_ticket
+
         state["blackboard"] = blackboard
         return state

@@ -1,4 +1,7 @@
+from functools import cached_property
 from typing import Any
+
+import anthropic
 
 from app.core.engine import repair_message_history
 
@@ -54,12 +57,14 @@ class CompatibleChatAnthropic(ChatAnthropic):
     fix_tool_args_list: bool = False
     repair_history: bool = True
     clean_null_fields: bool = True
+    http_async_client: Any = None
 
     def __init__(self, **kwargs: Any) -> None:
         # Extract custom fields first
         fix_tool_args_list = kwargs.pop("fix_tool_args_list", False)
         repair_history = kwargs.pop("repair_history", True)
         clean_null_fields = kwargs.pop("clean_null_fields", True)
+        http_async_client = kwargs.pop("http_async_client", None)
 
         # Initialize parent (Pydantic model)
         super().__init__(**kwargs)
@@ -68,6 +73,24 @@ class CompatibleChatAnthropic(ChatAnthropic):
         self.fix_tool_args_list = fix_tool_args_list
         self.repair_history = repair_history
         self.clean_null_fields = clean_null_fields
+        self.http_async_client = http_async_client
+
+    @cached_property
+    def _async_client(self) -> anthropic.AsyncClient:
+        if self.http_async_client:
+            client_params = self._client_params
+            return anthropic.AsyncClient(
+                api_key=client_params["api_key"],
+                base_url=client_params["base_url"],
+                http_client=self.http_async_client,
+            )
+        return super()._async_client
+
+    @cached_property
+    def _client(self) -> anthropic.Client:
+        # We don't have a sync pool easily, but we can default or use a dummy for now
+        # Standard usage is async anyway.
+        return super()._client
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
         if self.repair_history:

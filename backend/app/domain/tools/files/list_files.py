@@ -19,6 +19,7 @@ async def list_files(
     path: str,
     depth: int = 3,
     tree: bool = True,
+    with_symbols: bool = False,
     config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
@@ -27,7 +28,8 @@ async def list_files(
     Args:
         path: Directory path to explore.
         depth: Maximum depth for tree view (default 3).
-        tree: If True, returns annotated directory tree. If False, returns flat file list.
+        tree: If True, returns directory tree. If False, returns flat file list.
+        with_symbols: If True, includes class and function names in the tree (requires indexing).
     """
     action: Literal["list", "list_tree"] = "list_tree" if tree else "list"
-    return await handle_list(action, path, depth, tree, config)
+    return await handle_list(action, path, max_depth=depth, with_symbols=with_symbols, config=config)

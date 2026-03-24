@@ -121,7 +121,7 @@ def merge_blackboard(old: BlackboardState | None, new: BlackboardState | None) -
         if key in new:
             merged[key] = new[key]
 
-    # [CRITICAL] Parallel List Concatenation
+    # [CRITICAL] Parallel List Concatenation (Deduplicated)
     if "subtask_results" in new:
         old_results = old.get("subtask_results") or []
         new_results = new["subtask_results"] or []
@@ -129,8 +129,12 @@ def merge_blackboard(old: BlackboardState | None, new: BlackboardState | None) -
             # Explicitly clearing results (e.g. from Aggregator)
             merged["subtask_results"] = []
         else:
-            # Concatenate results from parallel branches
-            merged["subtask_results"] = old_results + new_results
+            # Deduplicate by subtask_id to prevent exponential explosion
+            seen_ids = {r.get("subtask_id") for r in old_results if r.get("subtask_id")}
+            delta_results = [r for r in new_results if r.get("subtask_id") not in seen_ids]
+            
+            # Concatenate only new results from parallel branches or worker delta
+            merged["subtask_results"] = old_results + delta_results
 
     # Metadata & Clipboard Merges
     if "metadata" in new:
@@ -177,6 +181,9 @@ class AgentState(TypedDict):
     iteration_count: int
     error: str | None
     next_node: Annotated[str | None, lambda a, b: b]
+    
+    # [NEW Phase 5] Execution Ticket for mission context
+    execution_ticket: ExecutionTicket | None
 
     # Memory
     user_preferences: str | None

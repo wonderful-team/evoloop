@@ -86,7 +86,8 @@ class SignalDispatcher:
 
         return {
             "next_node": target,
-            "blackboard": blackboard
+            "blackboard": blackboard,
+            "execution_ticket": execution_ticket
         }
 
     @staticmethod

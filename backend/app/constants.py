@@ -12,20 +12,8 @@ from app.core.config import settings
 DEFAULT_PROJECT_ID = 1
 DEFAULT_WINDOW_SIZE = 30
 DEFAULT_HISTORY_RETAIN_COUNT = 5  # Number of messages to retain during compression
-
-# Technical Markers for Session Cleanup
-TECHNICAL_MARKERS = [
-    "SESSION COMPLETE", "MISSION END", "MISSION COMPLETE",
-    "任务结束", "会话结束", "任务完成", "结论", "总结", "结果"
-]
-
-STATUS_ICONS = {
-    "success": "✅",
-    "failed": "❌",
-    "warning": "⚠️",
-    "thinking": "🧠",
-    "routing": "🎯"
-}
+MAX_CONTEXT_CHARS = 400000  # Max total characters in message history (~100k tokens)
+CONTEXT_PRUNE_THRESHOLD = 5000  # Character threshold for collapsing old tool results
 
 
 # ====================== Document Type Enum ======================
@@ -787,7 +775,7 @@ LANGUAGE_MAP = {
 }
 
 # ====================== Output Constraints ======================
-MAX_OUTPUT_LENGTH = 20000  # Max characters for tool output before truncation
+MAX_OUTPUT_LENGTH = 60000  # Max characters for tool output before truncation
 
 
 # ====================== Mobile / Reactor Constants ======================

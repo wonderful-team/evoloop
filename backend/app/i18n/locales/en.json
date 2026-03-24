@@ -95,7 +95,8 @@
     },
     "core_utils": {
         "orphaned_tool": "Executing tool...",
-        "conversation_continuation": "...continuing conversation context..."
+        "conversation_continuation": "...continuing conversation context...",
+        "interrupted_tool_response": "[System: Result omitted or context interrupted. Respond to remaining context.]"
     },
     "orchestration": {
         "skill_not_found": "Skill '{name}' not found. Available skills: {available}",
