@@ -15,7 +15,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 
-from app.constants import INTERCEPT_TARGETS, RISK_KEYWORDS
+from app.constants import RISK_KEYWORDS
 from app.core.atlas import atlas_engine
 from app.core.atlas.models import AtlasApp
 from app.core.context import ContextManager
@@ -214,22 +214,6 @@ class MobileController:
                     logger.info(f"[Mobile] Hybrid/H5 detected (Nodes: {node_count})")
                 return is_h5
 
-            async def flash_intercept(a11y_result=None) -> bool:
-                """Phase 4: Atomic Interceptor - Flash-scan for common close buttons."""
-                if a11y_result is None:
-                    a11y_result = await android_a11y_provider.process(VisionTask.DETECT, "", device_id=device_id)
-                if a11y_result.success and a11y_result.elements:
-                    for el in a11y_result.elements:
-                        txt = normalize_text(el.text)
-                        if any(normalize_text(k) in txt for k in INTERCEPT_TARGETS):
-                            logger.info(f"[Reactor] Intercepted artifact: '{el.text}' at ({el.x}, {el.y})")
-                            if passive_safety:
-                                logger.info("[Reactor] Passive Safety enabled: Skipping auto-intercept click.")
-                                return False
-                            await asyncio.to_thread(adb_driver.tap, el.x, el.y, device_id=device_id)
-                            return True
-                return False
-
             async def check_sentinel(expected_pkg: str | None) -> bool:
                 """Phase 4: Activity Sentinel - Detect drift and recover."""
                 if not expected_pkg or expected_pkg in ["unknown", "error", "com.android.systemui"]:
@@ -407,7 +391,6 @@ class MobileController:
                     VisionTask.DETECT, "", device_id=device_id, compressed=compressed_dump
                 )
 
-                await flash_intercept(initial_a11y_result)
                 is_h5 = await probe_hybrid(initial_a11y_result)
 
                 ocr_attempts = 0

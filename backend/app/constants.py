@@ -779,16 +779,6 @@ MAX_OUTPUT_LENGTH = 60000  # Max characters for tool output before truncation
 
 
 # ====================== Mobile / Reactor Constants ======================
-# Phase 4: Common artifact buttons to intercept
-INTERCEPT_TARGETS = [
-    "跳过",
-    "知道了",
-    "跳过广告",
-    "×",
-    "关闭",
-    "以后再说"
-]
-
 # High-risk keywords for interactive safety guard
 RISK_KEYWORDS = [
     "delete", "pay", "transfer", "uninstall", "buy", "confirm payment",
