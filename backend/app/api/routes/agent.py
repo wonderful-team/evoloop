@@ -535,7 +535,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
         )
 
     # Find pending HITL request for this thread
-    pending_requests = get_pending_requests_for_thread(req.thread_id)
+    pending_requests = await get_pending_requests_for_thread(req.thread_id)
     if not pending_requests:
         raise HTTPException(
             status_code=404, detail="No pending HITL request found for this thread"
@@ -543,7 +543,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
 
     # Cancel the most recent pending request
     request_to_cancel = pending_requests[-1]
-    cancel_success = cancel_request(request_to_cancel.id)
+    cancel_success = await cancel_request(request_to_cancel.id)
 
     if not cancel_success:
         raise HTTPException(
@@ -563,22 +563,32 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
     # Prepare cancellation response
     cancel_reason = req.reason or "User cancelled the request"
 
-    # [HITL Cancel Fix]: Send cancellation as tool response
+    # [HITL Cancel Fix]: Send cancellation as ToolMessage instead of HumanMessage
+    # This ensures the graph recognizes the tool call as completed.
     try:
         current_state = await graph.aget_state(config)
         if current_state.values and "messages" in current_state.values:
             history = current_state.values["messages"]
             if history:
                 last_msg = history[-1]
-                # If last message was an Assistant Message with tool_calls
+                # If last message was an Assistant Message with tool_calls (pending)
                 if hasattr(last_msg, "tool_calls") and last_msg.tool_calls:
                     last_tool_call = last_msg.tool_calls[-1]
                     if last_tool_call["name"] in ["request_approval", "request_human_input"]:
-                        logger.info(f"Sending CANCELLED response for tool call {last_tool_call['name']}")
-                # Use system_tools template for cancellation message
-                from app.utils import SystemToolsFormatter
-                cancel_msg = SystemToolsFormatter.signals([f"Request cancelled: {cancel_reason}"])
-                inputs = {"messages": [HumanMessage(content=cancel_msg)]}
+                        logger.info(f"Auto-cancelling tool call {last_tool_call['name']} on cancel")
+
+                        # Use default_value from DB request if it exists, else "CANCELLED"
+                        cancel_response = request_to_cancel.default_value or "CANCELLED"
+
+                        tool_msg = ToolMessage(
+                            tool_call_id=last_tool_call["id"],
+                            content=cancel_response,
+                        )
+                        inputs = {"messages": [tool_msg]}
+                    else:
+                        inputs = {"messages": [HumanMessage(content=f"Request cancelled: {cancel_reason}")]}
+                else:
+                    inputs = {"messages": [HumanMessage(content=f"Request cancelled: {cancel_reason}")]}
     except Exception as state_e:
         logger.warning(f"Failed to inspect state for cancel: {state_e}")
         inputs = {"messages": [HumanMessage(content=f"Request cancelled: {cancel_reason}")]}

@@ -195,13 +195,13 @@ async def get_action_registry():
 
 
 @router.get("/human-requests", response_model=list[HumanInputRequestOut])
-def list_pending_requests(thread_id: str | None = None):
+async def list_pending_requests(thread_id: str | None = None):
     """
     Get all pending human input requests.
     Optionally filter by thread_id.
     """
     if thread_id:
-        requests = get_pending_requests_for_thread(thread_id)
+        requests = await get_pending_requests_for_thread(thread_id)
         return [
             HumanInputRequestOut(
                 id=req.id,
@@ -217,7 +217,8 @@ def list_pending_requests(thread_id: str | None = None):
             for req in requests
         ]
 
-    return get_all_pending_requests()
+    requests_raw = await get_all_pending_requests()
+    return [HumanInputRequestOut(**req) for req in requests_raw]
 
 
 def _normalize_skill_params(params_raw: str | list | dict | None) -> list[dict]:
@@ -275,11 +276,11 @@ def _normalize_skill_params(params_raw: str | list | dict | None) -> list[dict]:
 
 
 @router.get("/human-requests/{request_id}", response_model=HumanInputRequestOut)
-def get_request(request_id: str):
+async def get_request(request_id: str):
     """
     Get a specific human input request by ID.
     """
-    request = get_pending_request(request_id)
+    request = await get_pending_request(request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
 
@@ -297,12 +298,12 @@ def get_request(request_id: str):
 
 
 @router.post("/human-requests/{request_id}/respond", response_model=RespondResponse)
-def respond_to_request(request_id: str, body: RespondRequest):
+async def respond_to_request(request_id: str, body: RespondRequest):
     """
     Submit a response to a pending human input request.
     This will resume the paused agent workflow.
     """
-    request = get_pending_request(request_id)
+    request = await get_pending_request(request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
 
@@ -311,7 +312,7 @@ def respond_to_request(request_id: str, body: RespondRequest):
             status_code=400, detail=f"Request is not pending (status: {request.status})"
         )
 
-    success = complete_request(request_id, body.response)
+    success = await complete_request(request_id, body.response)
 
     if success:
         return RespondResponse(
@@ -322,12 +323,12 @@ def respond_to_request(request_id: str, body: RespondRequest):
 
 
 @router.post("/human-requests/{request_id}/cancel", response_model=RespondResponse)
-def cancel_pending_request(request_id: str):
+async def cancel_pending_request(request_id: str):
     """
     Cancel a pending human input request.
     The agent will receive the default value if set.
     """
-    request = get_pending_request(request_id)
+    request = await get_pending_request(request_id)
     if not request:
         raise HTTPException(status_code=404, detail="Request not found")
 
@@ -336,7 +337,7 @@ def cancel_pending_request(request_id: str):
             status_code=400, detail=f"Request is not pending (status: {request.status})"
         )
 
-    success = cancel_request(request_id)
+    success = await cancel_request(request_id)
 
     if success:
         return RespondResponse(success=True, message=f"Request {request_id} cancelled")
@@ -345,11 +346,11 @@ def cancel_pending_request(request_id: str):
 
 
 @router.post("/cleanup", response_model=RespondResponse)
-def cleanup_requests(max_age_hours: int = 24):
+async def cleanup_requests(max_age_hours: int = 24):
     """
     Clean up old completed/cancelled requests.
     """
-    cleanup_old_requests(max_age_hours)
+    await cleanup_old_requests(max_age_hours)
     return RespondResponse(success=True, message="Cleanup completed")
 
 

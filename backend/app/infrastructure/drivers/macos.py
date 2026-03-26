@@ -188,8 +188,8 @@ class MacOSDriver:
             logger.info(f"Double-clicked at ({x}, {y}) via CGEvent")
             return
 
-        except ImportError:
-            pass
+        except (ImportError, AttributeError) as e:
+            logger.debug(f"Quartz double-click failed: {e}")
 
         # Fallback: use cliclick with dc command
         cliclick_paths = ["/opt/homebrew/bin/cliclick", "/usr/local/bin/cliclick"]

@@ -10,11 +10,15 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field
 
+from sqlalchemy import select, update
+
 from app.core.evocloud import evocloud_manager
 from app.core.exceptions import AgentHumanInterruptException
 from app.core.monitoring.activity import activity_monitor
 from app.core.tools import evoloop_tool
 from app.i18n.service import i18n
+from app.infrastructure.database.sql.database import session_scope
+from app.models.conversation import HumanRequest
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class HumanInputRequest(BaseModel):
-    """Stored request for human input."""
+    """Stored request for human input (Pydantic model for internal use)."""
 
     id: str
     thread_id: str
@@ -37,10 +41,22 @@ class HumanInputRequest(BaseModel):
     status: Literal["pending", "completed", "timeout", "cancelled"] = "pending"
     response: Any | None = None
 
-
-# In-memory store for pending requests
-# In production, this should be stored in database for persistence across restarts
-_pending_requests: dict[str, HumanInputRequest] = {}
+    @classmethod
+    def from_db(cls, db_model: HumanRequest):
+        """Convert from SQLAlchemy model to Pydantic model."""
+        return cls(
+            id=db_model.id,
+            thread_id=db_model.thread_id,
+            request_type=db_model.type,  # Map type to request_type
+            prompt=db_model.description,  # Map description to prompt
+            options=db_model.options,
+            context=db_model.context,
+            default_value=db_model.default_value,
+            timeout_seconds=300,  # Hardcoded or from DB if added
+            created_at=db_model.created_at,
+            status=db_model.status,
+            response=db_model.result,
+        )
 
 
 # ============ Input Schemas ============
@@ -86,7 +102,7 @@ class RequestApprovalArgs(BaseModel):
 # ============ Core Request Management ============
 
 
-def create_request(
+async def create_request(
     thread_id: str,
     request_type: str,
     prompt: str,
@@ -95,56 +111,76 @@ def create_request(
     default_value: str | None = None,
     timeout_seconds: int | None = 300,
 ) -> HumanInputRequest:
-    """Create and store a human input request."""
-    request = HumanInputRequest(
-        id=str(uuid4()),
-        thread_id=thread_id,
-        request_type=request_type,
-        prompt=prompt,
-        options=options,
-        context=context,
-        default_value=default_value,
-        timeout_seconds=timeout_seconds,
-    )
-    _pending_requests[request.id] = request
-    logger.info(f"Created human input request: {request.id} ({request_type})")
-    return request
+    """Create and store a human input request in the database."""
+    request_id = str(uuid4())
+    async with session_scope() as session:
+        db_request = HumanRequest(
+            id=request_id,
+            thread_id=thread_id,
+            type=request_type,
+            description=prompt,
+            options=options,
+            context=context,
+            default_value=default_value,
+            status="pending",
+        )
+        session.add(db_request)
+        # Flush to ensure it's saved but wait for commit in session_scope
+        await session.flush()
+        
+        pydantic_req = HumanInputRequest.from_db(db_request)
+        logger.info(f"Created human input request in DB: {request_id} ({request_type})")
+        return pydantic_req
 
 
-def get_pending_request(request_id: str) -> HumanInputRequest | None:
-    """Get a pending request by ID."""
-    return _pending_requests.get(request_id)
+async def get_pending_request(request_id: str) -> HumanInputRequest | None:
+    """Get a pending request by ID from the database."""
+    async with session_scope() as session:
+        db_request = await session.get(HumanRequest, request_id)
+        if db_request:
+            return HumanInputRequest.from_db(db_request)
+    return None
 
 
-def get_pending_requests_for_thread(thread_id: str) -> list[HumanInputRequest]:
-    """Get all pending requests for a specific thread."""
-    return [
-        req for req in _pending_requests.values()
-        if req.thread_id == thread_id and req.status == "pending"
-    ]
+async def get_pending_requests_for_thread(thread_id: str) -> list[HumanInputRequest]:
+    """Get all pending requests for a specific thread from the database."""
+    async with session_scope() as session:
+        stmt = select(HumanRequest).where(
+            HumanRequest.thread_id == thread_id, 
+            HumanRequest.status == "pending"
+        ).order_by(HumanRequest.created_at.asc())
+        result = await session.execute(stmt)
+        return [HumanInputRequest.from_db(req) for req in result.scalars().all()]
 
 
-def complete_request(request_id: str, response: Any) -> bool:
-    """Complete a pending request with user's response."""
-    if request_id not in _pending_requests:
-        return False
+async def complete_request(request_id: str, response: Any) -> bool:
+    """Complete a pending request with user's response in the database."""
+    async with session_scope() as session:
+        stmt = (
+            update(HumanRequest)
+            .where(HumanRequest.id == request_id)
+            .values(status="completed", result=str(response))
+        )
+        result = await session.execute(stmt)
+        success = result.rowcount > 0
+        if success:
+            logger.info(f"Completed human input request {request_id} in DB with response: {response}")
+        return success
 
-    request = _pending_requests[request_id]
-    request.status = "completed"
-    request.response = response
-    logger.info(f"Completed human input request: {request_id} with response: {response}")
-    return True
 
-
-def cancel_request(request_id: str) -> bool:
-    """Cancel a pending request."""
-    if request_id not in _pending_requests:
-        return False
-
-    request = _pending_requests[request_id]
-    request.status = "cancelled"
-    logger.info(f"Cancelled human input request: {request_id}")
-    return True
+async def cancel_request(request_id: str) -> bool:
+    """Cancel a pending request in the database."""
+    async with session_scope() as session:
+        stmt = (
+            update(HumanRequest)
+            .where(HumanRequest.id == request_id)
+            .values(status="cancelled")
+        )
+        result = await session.execute(stmt)
+        success = result.rowcount > 0
+        if success:
+            logger.info(f"Cancelled human input request {request_id} in DB")
+        return success
 
 
 # ============ Tools ============
@@ -204,7 +240,7 @@ async def request_human_input(
         return i18n.get("domain_tools.human_input.error_options")
 
     # Create the request
-    request = create_request(
+    request = await create_request(
         thread_id=thread_id,
         request_type=input_type,
         prompt=prompt,
@@ -339,7 +375,7 @@ async def request_approval(
         approval_context += f"\n{i18n.get('domain_tools.human_input.consequences', conseq=consequences)}\n"
 
     # Create the request
-    request = create_request(
+    request = await create_request(
         thread_id=thread_id,
         request_type="approval",
         prompt=action_description,
@@ -396,38 +432,38 @@ async def request_approval(
 # ============ API Helpers ============
 
 
-def get_all_pending_requests() -> list[dict]:
-    """Get all pending requests as dictionaries (for API responses)."""
-    return [
-        {
-            "id": req.id,
-            "thread_id": req.thread_id,
-            "request_type": req.request_type,
-            "prompt": req.prompt,
-            "options": req.options,
-            "context": req.context,
-            "default_value": req.default_value,
-            "created_at": req.created_at.isoformat(),
-            "status": req.status,
-        }
-        for req in _pending_requests.values()
-        if req.status == "pending"
-    ]
+async def get_all_pending_requests() -> list[dict]:
+    """Get all pending requests from database as dictionaries (for API responses)."""
+    async with session_scope() as session:
+        stmt = select(HumanRequest).where(HumanRequest.status == "pending")
+        result = await session.execute(stmt)
+        return [
+            {
+                "id": req.id,
+                "thread_id": req.thread_id,
+                "request_type": req.type,
+                "prompt": req.description,
+                "options": req.options,
+                "context": req.context,
+                "default_value": req.default_value,
+                "created_at": req.created_at.isoformat(),
+                "status": req.status,
+            }
+            for req in result.scalars().all()
+        ]
 
 
-def cleanup_old_requests(max_age_hours: int = 24):
-    """Remove old completed/cancelled requests."""
-    cutoff = datetime.utcnow()
-    to_remove = []
-
-    for req_id, req in _pending_requests.items():
-        if req.status in ("completed", "cancelled", "timeout"):
-            age = (cutoff - req.created_at).total_seconds() / 3600
-            if age > max_age_hours:
-                to_remove.append(req_id)
-
-    for req_id in to_remove:
-        del _pending_requests[req_id]
-
-    if to_remove:
-        logger.info(f"Cleaned up {len(to_remove)} old human input requests")
+async def cleanup_old_requests(max_age_hours: int = 24):
+    """Remove old completed/cancelled requests from database."""
+    from sqlalchemy import delete
+    from datetime import timedelta
+    cutoff = datetime.utcnow() - timedelta(hours=max_age_hours)
+    
+    async with session_scope() as session:
+        stmt = delete(HumanRequest).where(
+            HumanRequest.status.in_(["completed", "cancelled", "timeout"]),
+            HumanRequest.created_at < cutoff
+        )
+        result = await session.execute(stmt)
+        if result.rowcount > 0:
+            logger.info(f"Cleaned up {result.rowcount} old human input requests from DB")

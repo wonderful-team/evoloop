@@ -113,9 +113,12 @@ class HumanRequest(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID
     thread_id: Mapped[str] = mapped_column(String(36), index=True)  # Not FK to avoid strict dependency
-    type: Mapped[str] = mapped_column(String(50))  # 'input', 'confirmation', 'selection'
-    description: Mapped[str] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, completed, rejected
-    result: Mapped[str | None] = mapped_column(Text)  # JSON string of user input
+    type: Mapped[str] = mapped_column(String(50))  # 'text', 'choice', 'confirmation', 'approval'
+    description: Mapped[str] = mapped_column(Text)  # Prompt/Question
+    options: Mapped[list[str] | None] = mapped_column(JSON)  # List of choices
+    context: Mapped[str | None] = mapped_column(Text)  # Additional context
+    default_value: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(50), default="pending")  # pending, completed, cancelled, timeout
+    result: Mapped[str | None] = mapped_column(Text)  # JSON string of user response
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

@@ -46,7 +46,7 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
     }
 
     return (
-        <Card className="w-full max-w-[85%] sm:max-w-[75%] mx-auto my-4 border-amber-500/30 bg-amber-500/5 shadow-sm animate-in fade-in slide-in-from-bottom-2">
+        <Card className="w-full my-2 border-amber-500/30 bg-amber-500/5 shadow-sm animate-in fade-in slide-in-from-bottom-2">
             <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2 text-amber-600 dark:text-amber-500">
                     <MessageCircleQuestion className="h-4 w-4" />
