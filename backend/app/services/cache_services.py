@@ -284,7 +284,7 @@ class ActivityStateService:
             await self._cache.hset(
                 key,
                 mapping={
-                    "status": "running",
+                    "status": "idle",  # HITL cleared, agent not yet resumed
                     "human_request": "",
                     "interrupt_reason": "",
                     "updated_at": str(__import__('time').time())

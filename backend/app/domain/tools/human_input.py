@@ -27,7 +27,12 @@ logger = logging.getLogger(__name__)
 
 
 class HumanInputRequest(BaseModel):
-    """Stored request for human input (Pydantic model for internal use)."""
+    """Stored request for human input (Pydantic model for internal use).
+    
+    Note: Timeout mechanism is intentionally NOT implemented.
+    EvoLoop is an interactive assistant where users have full control.
+    HITL requests will remain pending until user responds or explicitly cancels.
+    """
 
     id: str
     thread_id: str
@@ -36,7 +41,6 @@ class HumanInputRequest(BaseModel):
     options: list[str] | None = None
     context: str | None = None
     default_value: str | None = None
-    timeout_seconds: int | None = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     status: Literal["pending", "completed", "timeout", "cancelled"] = "pending"
     response: Any | None = None
@@ -52,7 +56,6 @@ class HumanInputRequest(BaseModel):
             options=db_model.options,
             context=db_model.context,
             default_value=db_model.default_value,
-            timeout_seconds=300,  # Hardcoded or from DB if added
             created_at=db_model.created_at,
             status=db_model.status,
             response=db_model.result,
@@ -109,7 +112,6 @@ async def create_request(
     options: list[str] | None = None,
     context: str | None = None,
     default_value: str | None = None,
-    timeout_seconds: int | None = 300,
 ) -> HumanInputRequest:
     """Create and store a human input request in the database."""
     request_id = str(uuid4())
@@ -285,7 +287,6 @@ async def request_human_input(
             "options": options,
             "context": context,
             "default_value": default_value,
-            "timeout_seconds": 300,
         },
     )
 

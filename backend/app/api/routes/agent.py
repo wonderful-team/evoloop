@@ -536,22 +536,40 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
 
     # Find pending HITL request for this thread
     pending_requests = await get_pending_requests_for_thread(req.thread_id)
-    if not pending_requests:
+    
+    # [HITL 404 Fix]: Also check activity monitor for transient requests (like project switch)
+    activity_state = await activity_monitor._state_service.get_state(req.thread_id)
+    has_activity_request = activity_state.get("human_request") is not None
+
+    if not pending_requests and not has_activity_request:
         raise HTTPException(
             status_code=404, detail="No pending HITL request found for this thread"
         )
 
-    # Cancel the most recent pending request
-    request_to_cancel = pending_requests[-1]
-    cancel_success = await cancel_request(request_to_cancel.id)
+    # If it's a DB-backed request, cancel it there first
+    request_to_cancel = None
+    if pending_requests:
+        # Cancel the most recent pending request
+        request_to_cancel = pending_requests[-1]
+        cancel_success = await cancel_request(request_to_cancel.id)
 
-    if not cancel_success:
-        raise HTTPException(
-            status_code=500, detail="Failed to cancel HITL request"
-        )
+        if not cancel_success:
+            raise HTTPException(
+                status_code=500, detail="Failed to cancel HITL request"
+            )
 
-    # Clear the human request from activity monitor
+
+    # Always clear the human request from activity monitor
     await activity_monitor.clear_human_request(req.thread_id)
+
+    # If this was purely a transient activity request (no DB record), we're done
+    # No need to resume the graph as transient requests don't pause it with a checkpoint
+    if not pending_requests:
+        return {
+            "status": "cancelled",
+            "thread_id": req.thread_id,
+            "request_id": None,
+        }
 
     # Config for resuming from checkpoint
     config = {
@@ -627,7 +645,7 @@ async def cancel_hitl_request(req: CancelHITLRequest, bg_tasks: BackgroundTasks)
     return {
         "status": "cancelled",
         "thread_id": req.thread_id,
-        "request_id": request_to_cancel.id,
+        "request_id": request_to_cancel.id if request_to_cancel else None,
     }
 
 

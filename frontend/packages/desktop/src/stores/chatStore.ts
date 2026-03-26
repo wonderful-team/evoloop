@@ -393,14 +393,32 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const { threadId } = get()
         if (!threadId) return
 
+        // Save previous state for rollback
+        const previousStatus = get().status
+        const previousHumanRequest = get().humanRequest
+
+        // Optimistic update to idle (consistent with backend clear_human_request)
+        set({ status: "idle", humanRequest: null })
+
         try {
             await AgentService.cancelHitlRequest({
                 requestBody: { thread_id: threadId, reason: reason || i18n.t("chat.status.userCancelled") },
             })
             toast.info(i18n.t("chat.status.cancelling"))
-            set({ status: "running", humanRequest: null }) // Optimistic clear
-        } catch (_e) {
+            
+            // Safety timeout: if state is still stuck after 5s, force reset
+            setTimeout(() => {
+                const current = get()
+                if (current.status === "interrupted" && current.humanRequest) {
+                    set({ status: "idle", humanRequest: null })
+                    toast.error(i18n.t("chat.errors.cancelFailed"))
+                }
+            }, 5000)
+            
+        } catch (error) {
             toast.error(i18n.t("chat.errors.cancelHitl"))
+            // Rollback optimistic update
+            set({ status: previousStatus, humanRequest: previousHumanRequest })
         }
     },
 
@@ -447,9 +465,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
     },
 
     _setHumanRequest: (req: any) => {
-        set({ humanRequest: req, status: "interrupted" })
+        // Handle clear action from ActivityMonitor
+        if (req && req.action === "clear") {
+            set({ humanRequest: null, status: "idle" })
+            return
+        }
 
-        if (req) {
+        // Handle create/update action
+        const data = req.data || req
+        set({ humanRequest: data, status: "interrupted" })
+
+        if (data) {
             // Determine interaction type and show appropriate notification
             const interactionType = req.type || "text_input"
             const titleMap: Record<string, string> = {
@@ -606,11 +632,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
         }
 
         const prevStatus = get().status
+        const currentHumanRequest = get().humanRequest
         
         // Detect completion - clear streamed content when execution ends
         // Note: Messages are updated incrementally via _appendMessage, no need to re-fetch
         if (prevStatus === "running" && normalizedStatus !== "running") {
             set({ streamedContent: "" })
+        }
+
+        // HITL Safety Net 1: When leaving interrupted state, clear humanRequest
+        if (prevStatus === "interrupted" && normalizedStatus !== "interrupted") {
+            set({ status: normalizedStatus, humanRequest: null })
+            return
+        }
+        
+        // HITL Safety Net 2: If status is not interrupted but humanRequest exists, clear it
+        if (normalizedStatus !== "interrupted" && currentHumanRequest) {
+            set({ status: normalizedStatus, humanRequest: null })
+            return
         }
 
         set({ status: normalizedStatus })
