@@ -107,8 +107,8 @@ class MacOSDriver:
             logger.info(f"Clicked at ({x}, {y}) via CGEvent")
             return
 
-        except ImportError:
-            logger.debug("Quartz not available, trying cliclick")
+        except (ImportError, AttributeError) as e:
+            logger.debug(f"Quartz not available or failed: {e}, trying cliclick")
         except Exception as e:
             logger.warning(f"CGEvent click failed: {e}, trying fallback")
 
