@@ -5,7 +5,6 @@ import { AgentService, ConversationsService } from "@/client"
 import { ChatConnection } from "@/lib/ChatConnection"
 import type { Message } from "@/components/Chat/ChatMessageItem"
 import type { StepItem } from "@/components/Chat/ExecutionSteps"
-import type { AgentProcessStep } from "@/components/Chat/AgentProcess"
 import type { StreamState, StreamEvent } from "@/types/stream"
 
 interface ChatState {
@@ -396,7 +395,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
         try {
             await AgentService.cancelHitlRequest({
-                requestBody: { thread_id: threadId, reason: reason || "User cancelled" },
+                requestBody: { thread_id: threadId, reason: reason || i18n.t("chat.status.userCancelled") },
             })
             toast.info(i18n.t("chat.status.cancelling"))
             set({ status: "running", humanRequest: null }) // Optimistic clear
@@ -454,13 +453,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
             // Determine interaction type and show appropriate notification
             const interactionType = req.type || "text_input"
             const titleMap: Record<string, string> = {
-                text_input: "Human Input Required",
-                project_switch: "Project Switch Required",
-                confirm: "Confirmation Required",
-                file_select: "File Selection Required",
+                text_input: i18n.t("chat.interrupted.inputTitle"),
+                project_switch: i18n.t("chat.interrupted.projectSwitchTitle"),
+                confirm: i18n.t("chat.interrupted.confirmTitle"),
+                file_select: i18n.t("chat.interrupted.fileSelectTitle"),
             }
 
-            const title = titleMap[interactionType] || "Action Required"
+            const title = titleMap[interactionType] || i18n.t("chat.request.title")
 
             // 1. In-app Toast (Persistent)
             toast.error(title, {
@@ -470,7 +469,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
             // 2. Desktop Notification (For background awareness)
             if ("Notification" in window && Notification.permission === "granted") {
-                new Notification(`EvoLoop: ${title}`, {
+                new Notification(`${i18n.t("chat.notification.prefix")}${title}`, {
                     body: req.prompt,
                     requireInteraction: true,
                 })
@@ -534,7 +533,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                     id: thoughtId,
                     type: "thought",
                     thought_type: newThought.thought_type || "generic",
-                    title: data.agent_state.task_status || "Thinking",
+                    title: data.agent_state.task_status || i18n.t("chat.status.thinking"),
                     content: newThought,
                     confidence: newThought.confidence,
                     timestamp: Date.now()
@@ -625,11 +624,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const isTechnicalMarker = (content: string) => {
             if (!content) return false
             const trimmed = content.trim()
-            return trimmed === "正在执行工具..." || 
+            return trimmed === i18n.t("chat.status.executingTool") || 
                    trimmed === "Thinking..." || 
-                   trimmed === "思考中..." ||
+                   trimmed === i18n.t("chat.status.thinking") ||
                    trimmed.startsWith("✅ SESSION COMPLETE") ||
-                   trimmed.startsWith("任务总结")
+                   trimmed.startsWith(i18n.t("chat.status.taskSummary"))
         }
 
         // Tool messages are now folded server-side
@@ -734,8 +733,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
                         events: newEvents,
                         currentTool: {
                             id: event.data?.toolId || `tool-${Date.now()}`,
-                            toolName: event.data?.toolName || 'Unknown Tool',
-                            displayName: event.data?.displayName || event.data?.toolName || 'Unknown Tool',
+                            toolName: event.data?.toolName || i18n.t("common.tool.defaultName"),
+                            displayName: event.data?.displayName || event.data?.toolName || i18n.t("common.tool.defaultName"),
                             status: 'running',
                             progress: 0,
                             message: event.message,

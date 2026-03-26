@@ -1,10 +1,12 @@
 import json
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from app.api import deps
 from app.api.deps import TokenDep
 from app.core.evocloud import evocloud_manager
+from app.core.evocloud.backends.http_client import EvoCloudHTTPClient
 from app.core.identity import identity_service
 
 router = APIRouter(tags=["member"])
@@ -83,3 +85,68 @@ async def apply_cancellation(_token: TokenDep):
 @router.post("/cancellation/cancel")
 async def cancel_cancellation(_token: TokenDep):
     return await evocloud_manager.api.cancel_cancellation_apply()
+
+
+# --- Subscription & Quota ---
+
+@router.get("/subscription/plans")
+async def get_subscription_plans(_token: TokenDep):
+    """获取可用订阅计划"""
+    return await evocloud_manager.api.get_subscription_plans()
+
+
+@router.get("/subscription/status")
+async def get_subscription_status(_token: TokenDep):
+    """获取订阅状态"""
+    return await evocloud_manager.api.get_subscription_status()
+
+
+@router.get("/subscription/detail")
+async def get_subscription_detail(_token: TokenDep):
+    """获取订阅详情"""
+    return await evocloud_manager.api.get_subscription_detail()
+
+
+class CreateOrderRequest(BaseModel):
+    level_id: int
+    auto_renew: bool = False
+
+
+@router.post("/subscription/order")
+async def create_subscription_order(req: CreateOrderRequest, _token: TokenDep):
+    """创建订阅订单"""
+    return await evocloud_manager.api.create_subscription_order(req.level_id, req.auto_renew)
+
+
+@router.post("/subscription/cancel")
+async def cancel_subscription(cancel_type: str = "expire", reason: str = "", _token: TokenDep = None):
+    """取消订阅"""
+    return await evocloud_manager.api.cancel_subscription(cancel_type, reason)
+
+
+@router.get("/subscription/order/status")
+async def check_subscription_order_status(
+    order_id: str,
+    _token: TokenDep,
+):
+    """
+    检查订阅订单状态
+    """
+    return await evocloud_manager.api.check_subscription_order_status(order_id)
+
+@router.get("/quota")
+async def get_ai_quota(_token: TokenDep):
+    """获取主要 AI 配额 (统一配额池)"""
+    return await evocloud_manager.api.get_ai_quota()
+
+
+@router.get("/quota/all")
+async def get_all_ai_quotas(_token: TokenDep):
+    """获取所有 AI 配额"""
+    return await evocloud_manager.api.get_all_ai_quotas()
+
+
+@router.get("/quota/history")
+async def get_ai_quota_history(page: int = 1, page_size: int = 20, _token: TokenDep = None):
+    """获取配额使用历史"""
+    return await evocloud_manager.api.get_ai_quota_history(page, page_size=page_size)

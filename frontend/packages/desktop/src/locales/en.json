@@ -526,7 +526,12 @@
     "status": {
       "resuming": "Agent resuming...",
       "cancelling": "Cancelling request...",
-      "working": "Working..."
+      "working": "Working...",
+      "userCancelled": "User cancelled",
+      "executingTool": "Executing tool...",
+      "thinking": "Thinking...",
+      "sessionComplete": "Session Complete",
+      "taskSummary": "Task Summary"
     },
     "errors": {
       "loadHistory": "Failed to load chat history",
@@ -686,6 +691,8 @@
       "title": "Agent Paused",
       "projectSwitchTitle": "Project Switch Required",
       "confirmTitle": "Confirmation Required",
+      "inputTitle": "Human Input Required",
+      "fileSelectTitle": "File Selection Required",
       "description": "The agent is waiting for your input or confirmation to continue.",
       "inputPlaceholder": "Enter additional instructions (optional)...",
       "addInput": "Add Instructions",
@@ -698,6 +705,9 @@
       "noProjects": "No available projects",
       "projectSelected": "Project selected. Click Resume to continue.",
       "confirmQuestion": "Do you want to continue?"
+    },
+    "notification": {
+      "prefix": "EvoLoop: "
     },
     "stateScratchpad": "Scratchpad",
     "addLinkTitle": "Add External Link",

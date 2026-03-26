@@ -160,13 +160,15 @@ export function User({ user }: { user: any }) {
               />
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => window.open(import.meta.env.VITE_EVOCLOUD_MEMBER_URL, "_blank")}>
-              <Crown className="text-yellow-500" />
-              <span>
-                {user?.member_level_name
-                  ? t("user.manageSubscription")
-                  : t("user.upgradeToPro")}
-              </span>
+            <DropdownMenuItem asChild>
+              <RouterLink to="/subscription" onClick={handleMenuClick}>
+                <Crown className="text-yellow-500" />
+                <span>
+                  {user?.member_level_name
+                    ? t("user.manageSubscription")
+                    : t("user.upgradeToPro")}
+                </span>
+              </RouterLink>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <RouterLink to="/settings" onClick={handleMenuClick}>

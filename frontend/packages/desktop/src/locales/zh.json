@@ -526,7 +526,12 @@
     "status": {
       "resuming": "智能体正在恢复...",
       "cancelling": "正在取消请求...",
-      "working": "工作中..."
+      "working": "工作中...",
+      "userCancelled": "用户已取消",
+      "executingTool": "正在执行工具...",
+      "thinking": "思考中...",
+      "sessionComplete": "会话完成",
+      "taskSummary": "任务总结"
     },
     "errors": {
       "loadHistory": "加载对话历史失败",
@@ -686,6 +691,8 @@
       "title": "Agent 已暂停",
       "projectSwitchTitle": "需要切换项目",
       "confirmTitle": "需要确认",
+      "inputTitle": "需要输入",
+      "fileSelectTitle": "需要选择文件",
       "description": "Agent 正在等待您的输入或确认以继续。",
       "inputPlaceholder": "输入额外指令（可选）...",
       "addInput": "添加指令",
@@ -698,6 +705,9 @@
       "noProjects": "没有可用的项目",
       "projectSelected": "已选择项目。点击继续以执行。",
       "confirmQuestion": "是否确认继续？"
+    },
+    "notification": {
+      "prefix": "EvoLoop: "
     },
     "stateScratchpad": "草稿纸 (Scratchpad)",
     "addLinkTitle": "添加外部链接",

@@ -684,6 +684,23 @@ export const CreateFileRequestSchema = {
     title: 'CreateFileRequest'
 } as const;
 
+export const CreateOrderRequestSchema = {
+    properties: {
+        level_id: {
+            type: 'integer',
+            title: 'Level Id'
+        },
+        auto_renew: {
+            type: 'boolean',
+            title: 'Auto Renew',
+            default: false
+        }
+    },
+    type: 'object',
+    required: ['level_id'],
+    title: 'CreateOrderRequest'
+} as const;
+
 export const CreateProjectRequestSchema = {
     properties: {
         name: {
@@ -703,6 +720,45 @@ export const CreateProjectRequestSchema = {
     type: 'object',
     required: ['name', 'path'],
     title: 'CreateProjectRequest'
+} as const;
+
+export const CreateSkillFromYamlRequestSchema = {
+    properties: {
+        name: {
+            type: 'string',
+            title: 'Name'
+        },
+        description: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Description'
+        },
+        namespace: {
+            anyOf: [
+                {
+                    type: 'string'
+                },
+                {
+                    type: 'null'
+                }
+            ],
+            title: 'Namespace'
+        },
+        yaml_content: {
+            type: 'string',
+            title: 'Yaml Content'
+        }
+    },
+    type: 'object',
+    required: ['name', 'yaml_content'],
+    title: 'CreateSkillFromYamlRequest',
+    description: 'Request to create a skill from YAML macro definition.'
 } as const;
 
 export const DomEventDataSchema = {
@@ -1014,8 +1070,7 @@ export const ExecuteSkillRequestSchema = {
                     type: 'null'
                 }
             ],
-            title: 'Execution Mode',
-            description: 'Optional: override skill\'s execution mode (agentic or deterministic)'
+            title: 'Execution Mode'
         }
     },
     type: 'object',
@@ -2157,11 +2212,7 @@ export const SkillDTOSchema = {
         macro_script: {
             anyOf: [
                 {
-                    items: {
-                        additionalProperties: true,
-                        type: 'object'
-                    },
-                    type: 'array'
+                    type: 'string'
                 },
                 {
                     type: 'null'
@@ -2577,11 +2628,7 @@ export const SynthesizeFromRecordingResponseSchema = {
         macro_script: {
             anyOf: [
                 {
-                    items: {
-                        additionalProperties: true,
-                        type: 'object'
-                    },
-                    type: 'array'
+                    type: 'string'
                 },
                 {
                     type: 'null'
@@ -3414,11 +3461,7 @@ export const UpdateSkillRequestSchema = {
         macro_script: {
             anyOf: [
                 {
-                    items: {
-                        additionalProperties: true,
-                        type: 'object'
-                    },
-                    type: 'array'
+                    type: 'string'
                 },
                 {
                     type: 'null'
@@ -3732,6 +3775,44 @@ export const UserPublicSchema = {
     type: 'object',
     required: ['id'],
     title: 'UserPublic'
+} as const;
+
+export const ValidateYamlRequestSchema = {
+    properties: {
+        yaml_content: {
+            type: 'string',
+            title: 'Yaml Content'
+        }
+    },
+    type: 'object',
+    required: ['yaml_content'],
+    title: 'ValidateYamlRequest',
+    description: 'Request to validate YAML macro format.'
+} as const;
+
+export const ValidateYamlResponseSchema = {
+    properties: {
+        valid: {
+            type: 'boolean',
+            title: 'Valid'
+        },
+        errors: {
+            items: {
+                type: 'string'
+            },
+            type: 'array',
+            title: 'Errors'
+        },
+        step_count: {
+            type: 'integer',
+            title: 'Step Count',
+            default: 0
+        }
+    },
+    type: 'object',
+    required: ['valid', 'errors'],
+    title: 'ValidateYamlResponse',
+    description: 'Response from YAML validation.'
 } as const;
 
 export const ValidationErrorSchema = {

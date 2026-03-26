@@ -3,7 +3,7 @@
 import type { CancelablePromise } from './core/CancelablePromise';
 import { OpenAPI } from './core/OpenAPI';
 import { request as __request } from './core/request';
-import type { AgentChatEndpointData, AgentChatEndpointResponse, AgentStopChatData, AgentStopChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentCancelHitlRequestData, AgentCancelHitlRequestResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementResponse, AuthSendSmsData, AuthSendSmsResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthResetPasswordData, AuthResetPasswordResponse, BrainChatWithBrainData, BrainChatWithBrainResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRenameConversationData, ConversationsRenameConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, ConversationsGetThreadChangesetData, ConversationsGetThreadChangesetResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, DevicesGetDebugStatusResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesSearchFilesData, FilesSearchFilesResponse, FilesSearchFilesByNameData, FilesSearchFilesByNameResponse, GhostTextSuggestInlineCompletionData, GhostTextSuggestInlineCompletionResponse, GhostTextPreviewEditGhostData, GhostTextPreviewEditGhostResponse, GhostTextListPatternsData, GhostTextListPatternsResponse, LearningGetActionRegistryResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningImportSkillsData, LearningImportSkillsResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeleteSkillData, LearningDeleteSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LearningListMirrorDevicesResponse, LearningStartMirrorSessionData, LearningStartMirrorSessionResponse, LearningStartMirrorRecordingData, LearningStartMirrorRecordingResponse, LearningStopMirrorSessionData, LearningStopMirrorSessionResponse, LearningGetDeviceResolutionData, LearningGetDeviceResolutionResponse, LearningPersistMirrorEventsData, LearningPersistMirrorEventsResponse, LearningPersistGlobalEventsData, LearningPersistGlobalEventsResponse, LearningPersistDomEventsData, LearningPersistDomEventsResponse, LearningUploadScreenshotData, LearningUploadScreenshotResponse, LearningValidateSkillData, LearningValidateSkillResponse, LearningSynthesizeFromRecordingData, LearningSynthesizeFromRecordingResponse, LearningPreviewRecordingDataData, LearningPreviewRecordingDataResponse, LearningListAnnotationsData, LearningListAnnotationsResponse, LearningCreateAndroidExtractPointData, LearningCreateAndroidExtractPointResponse, LearningListAndroidExtractPointsData, LearningListAndroidExtractPointsResponse, LearningStartSmartSynthesisData, LearningStartSmartSynthesisResponse, LearningGetSynthesisJobData, LearningGetSynthesisJobResponse, LearningListSessionSynthesisJobsData, LearningListSessionSynthesisJobsResponse, LearningCleanupRecordingSessionData, LearningCleanupRecordingSessionResponse, LearningConfirmLearnedSkillData, LearningConfirmLearnedSkillResponse, LibraryListLibraryFilesData, LibraryListLibraryFilesResponse, LibraryUploadLibraryFileData, LibraryUploadLibraryFileResponse, LibraryDeleteLibraryFileData, LibraryDeleteLibraryFileResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, McpConnectMcpServerData, McpConnectMcpServerResponse, MemberLoginData, MemberLoginResponse, MemberStatusResponse, MemberLogoutResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemoryListConceptsWithCountsData, MemoryListConceptsWithCountsResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, MemoryGetEpisodesByConceptData, MemoryGetEpisodesByConceptResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectRequirementsUploadRequirementDocumentData, ProjectRequirementsUploadRequirementDocumentResponse, ProjectRequirementsListProjectRequirementsData, ProjectRequirementsListProjectRequirementsResponse, ProjectRequirementsGetRequirementDetailData, ProjectRequirementsGetRequirementDetailResponse, ProjectRequirementsDeleteRequirementDocumentData, ProjectRequirementsDeleteRequirementDocumentResponse, ProjectRequirementsGetAnalysisTasksData, ProjectRequirementsGetAnalysisTasksResponse, ProjectRequirementsGetAnalysisSyncProgressData, ProjectRequirementsGetAnalysisSyncProgressResponse, ProjectsGetProjectsData, ProjectsGetProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ProjectsGetDetectedProjectsResponse, ProjectsImportDetectedProjectData, ProjectsImportDetectedProjectResponse, ProjectsIgnoreDetectedProjectData, ProjectsIgnoreDetectedProjectResponse, ProjectsGetIgnoredProjectsResponse, ProjectsUnignoreProjectData, ProjectsUnignoreProjectResponse, ProjectsBatchImportProjectsData, ProjectsBatchImportProjectsResponse, ProjectsBatchIgnoreProjectsData, ProjectsBatchIgnoreProjectsResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemHealthCheckResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemResetKnowledgeBaseResponse, SystemGetCloudStatusResponse, SystemGetAvailableLlmModelsResponse, SystemGetAvailableEmbeddingModelsResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, TodosCreateTodoData, TodosCreateTodoResponse, TodosListTodosData, TodosListTodosResponse, TodosGetTodoData, TodosGetTodoResponse, TodosUpdateTodoData, TodosUpdateTodoResponse, TodosDeleteTodoData, TodosDeleteTodoResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UsersReadUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersChangePasswordData, UsersChangePasswordResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse, UtilsGetAiConfigResponse, WechatAuthGetWechatConfigResponse, WechatAuthGenerateQrCodeResponse, WechatAuthCheckLoginStatusData, WechatAuthCheckLoginStatusResponse, WechatAuthWechatDirectLoginData, WechatAuthWechatDirectLoginResponse, WechatAuthWechatCallbackGetData, WechatAuthWechatCallbackGetResponse, WechatAuthWechatCallbackPostData, WechatAuthWechatCallbackPostResponse, WikiGetWikiPagesData, WikiGetWikiPagesResponse, WikiGenerateWikiData, WikiGenerateWikiResponse } from './types.gen';
+import type { AgentChatEndpointData, AgentChatEndpointResponse, AgentStopChatData, AgentStopChatResponse, AgentRetryChatData, AgentRetryChatResponse, AgentResumeChatData, AgentResumeChatResponse, AgentCancelHitlRequestData, AgentCancelHitlRequestResponse, AgentWebhookEndpointData, AgentWebhookEndpointResponse, AuthGetCaptchaConfigResponse, AuthGetCaptchaData, AuthGetCaptchaResponse, AuthGetRegisterConfigResponse, AuthGetRegisterAgreementResponse, AuthSendSmsData, AuthSendSmsResponse, AuthRegisterMobileData, AuthRegisterMobileResponse, AuthRegisterUsernameData, AuthRegisterUsernameResponse, AuthLoginMobileData, AuthLoginMobileResponse, AuthCheckMobileData, AuthCheckMobileResponse, AuthResetPasswordData, AuthResetPasswordResponse, BrainChatWithBrainData, BrainChatWithBrainResponse, ConversationsListConversationsData, ConversationsListConversationsResponse, ConversationsGetConversationMessagesData, ConversationsGetConversationMessagesResponse, ConversationsSearchConversationsData, ConversationsSearchConversationsResponse, ConversationsRenameConversationData, ConversationsRenameConversationResponse, ConversationsDeleteConversationData, ConversationsDeleteConversationResponse, ConversationsGetThreadActivityData, ConversationsGetThreadActivityResponse, ConversationsRewindConversationData, ConversationsRewindConversationResponse, ConversationsGetThreadChangesetData, ConversationsGetThreadChangesetResponse, DevicesGetDevicesResponse, DevicesSendCommandData, DevicesSendCommandResponse, DevicesGetRecentLogsData, DevicesGetRecentLogsResponse, DevicesSearchLogsData, DevicesSearchLogsResponse, DevicesBindClientData, DevicesBindClientResponse, DevicesBindCurrentDeviceData, DevicesBindCurrentDeviceResponse, DevicesGetDebugStatusResponse, FilesListFilesData, FilesListFilesResponse, FilesCreateFileData, FilesCreateFileResponse, FilesGetFileContentData, FilesGetFileContentResponse, FilesGetRawFileData, FilesGetRawFileResponse, FilesOpenFileData, FilesOpenFileResponse, FilesUploadFileData, FilesUploadFileResponse, FilesSearchFilesData, FilesSearchFilesResponse, FilesSearchFilesByNameData, FilesSearchFilesByNameResponse, GhostTextSuggestInlineCompletionData, GhostTextSuggestInlineCompletionResponse, GhostTextPreviewEditGhostData, GhostTextPreviewEditGhostResponse, GhostTextListPatternsData, GhostTextListPatternsResponse, LearningGetActionRegistryResponse, LearningListPendingRequestsData, LearningListPendingRequestsResponse, LearningGetRequestData, LearningGetRequestResponse, LearningRespondToRequestData, LearningRespondToRequestResponse, LearningCancelPendingRequestData, LearningCancelPendingRequestResponse, LearningCleanupRequestsData, LearningCleanupRequestsResponse, LearningStartRecordingData, LearningStartRecordingResponse, LearningStopRecordingData, LearningStopRecordingResponse, LearningListRecordingSessionsData, LearningListRecordingSessionsResponse, LearningSynthesizeSkillData, LearningSynthesizeSkillResponse, LearningImportSkillsData, LearningImportSkillsResponse, LearningListSkillsData, LearningListSkillsResponse, LearningGetSkillData, LearningGetSkillResponse, LearningDeleteSkillData, LearningDeleteSkillResponse, LearningUpdateSkillData, LearningUpdateSkillResponse, LearningExecuteSkillData, LearningExecuteSkillResponse, LearningListMirrorDevicesResponse, LearningStartMirrorSessionData, LearningStartMirrorSessionResponse, LearningStartMirrorRecordingData, LearningStartMirrorRecordingResponse, LearningStopMirrorSessionData, LearningStopMirrorSessionResponse, LearningGetDeviceResolutionData, LearningGetDeviceResolutionResponse, LearningPersistMirrorEventsData, LearningPersistMirrorEventsResponse, LearningPersistGlobalEventsData, LearningPersistGlobalEventsResponse, LearningPersistDomEventsData, LearningPersistDomEventsResponse, LearningUploadScreenshotData, LearningUploadScreenshotResponse, LearningValidateSkillData, LearningValidateSkillResponse, LearningSynthesizeFromRecordingData, LearningSynthesizeFromRecordingResponse, LearningPreviewRecordingDataData, LearningPreviewRecordingDataResponse, LearningListAnnotationsData, LearningListAnnotationsResponse, LearningCreateAndroidExtractPointData, LearningCreateAndroidExtractPointResponse, LearningListAndroidExtractPointsData, LearningListAndroidExtractPointsResponse, LearningStartSmartSynthesisData, LearningStartSmartSynthesisResponse, LearningGetSynthesisJobData, LearningGetSynthesisJobResponse, LearningListSessionSynthesisJobsData, LearningListSessionSynthesisJobsResponse, LearningCleanupRecordingSessionData, LearningCleanupRecordingSessionResponse, LearningConfirmLearnedSkillData, LearningConfirmLearnedSkillResponse, LearningCreateSkillFromYamlData, LearningCreateSkillFromYamlResponse, LearningValidateSkillYamlData, LearningValidateSkillYamlResponse, LearningGetSkillYamlData, LearningGetSkillYamlResponse, LearningUpdateSkillYamlData, LearningUpdateSkillYamlResponse, LibraryListLibraryFilesData, LibraryListLibraryFilesResponse, LibraryUploadLibraryFileData, LibraryUploadLibraryFileResponse, LibraryDeleteLibraryFileData, LibraryDeleteLibraryFileResponse, LoginLoginAccessTokenData, LoginLoginAccessTokenResponse, McpListMcpServersResponse, McpAddMcpServerData, McpAddMcpServerResponse, McpDeleteMcpServerData, McpDeleteMcpServerResponse, McpConnectMcpServerData, McpConnectMcpServerResponse, MemberLoginData, MemberLoginResponse, MemberStatusResponse, MemberLogoutResponse, MemberGetCancellationInfoResponse, MemberApplyCancellationResponse, MemberCancelCancellationResponse, MemberGetSubscriptionPlansResponse, MemberGetSubscriptionStatusResponse, MemberGetSubscriptionDetailResponse, MemberCreateSubscriptionOrderData, MemberCreateSubscriptionOrderResponse, MemberCancelSubscriptionData, MemberCancelSubscriptionResponse, MemberCheckSubscriptionOrderStatusData, MemberCheckSubscriptionOrderStatusResponse, MemberGetAiQuotaResponse, MemberGetAllAiQuotasResponse, MemberGetAiQuotaHistoryData, MemberGetAiQuotaHistoryResponse, MemoryListConceptsData, MemoryListConceptsResponse, MemoryAddConceptData, MemoryAddConceptResponse, MemoryListConceptsWithCountsData, MemoryListConceptsWithCountsResponse, MemorySearchMemoryData, MemorySearchMemoryResponse, MemoryGetEpisodesByConceptData, MemoryGetEpisodesByConceptResponse, PlanningGetPlanData, PlanningGetPlanResponse, ProjectModulesGetBudgetListData, ProjectModulesGetBudgetListResponse, ProjectModulesGetBudgetOverviewData, ProjectModulesGetBudgetOverviewResponse, ProjectModulesGetTimesheetListData, ProjectModulesGetTimesheetListResponse, ProjectModulesQuickAddTimesheetData, ProjectModulesQuickAddTimesheetResponse, ProjectModulesGetProjectStatisticsData, ProjectModulesGetProjectStatisticsResponse, ProjectRequirementsUploadRequirementDocumentData, ProjectRequirementsUploadRequirementDocumentResponse, ProjectRequirementsListProjectRequirementsData, ProjectRequirementsListProjectRequirementsResponse, ProjectRequirementsGetRequirementDetailData, ProjectRequirementsGetRequirementDetailResponse, ProjectRequirementsDeleteRequirementDocumentData, ProjectRequirementsDeleteRequirementDocumentResponse, ProjectRequirementsGetAnalysisTasksData, ProjectRequirementsGetAnalysisTasksResponse, ProjectRequirementsGetAnalysisSyncProgressData, ProjectRequirementsGetAnalysisSyncProgressResponse, ProjectsGetProjectsData, ProjectsGetProjectsResponse, ProjectsCreateProjectData, ProjectsCreateProjectResponse, ProjectsGetCurrentProjectResponse, ProjectsGetProjectStatusData, ProjectsGetProjectStatusResponse, ProjectsDeleteProjectData, ProjectsDeleteProjectResponse, ProjectsRunIndexingEndpointData, ProjectsRunIndexingEndpointResponse, ProjectsGetDetectedProjectsResponse, ProjectsImportDetectedProjectData, ProjectsImportDetectedProjectResponse, ProjectsIgnoreDetectedProjectData, ProjectsIgnoreDetectedProjectResponse, ProjectsGetIgnoredProjectsResponse, ProjectsUnignoreProjectData, ProjectsUnignoreProjectResponse, ProjectsBatchImportProjectsData, ProjectsBatchImportProjectsResponse, ProjectsBatchIgnoreProjectsData, ProjectsBatchIgnoreProjectsResponse, ResourcesListResourcesData, ResourcesListResourcesResponse, ResourcesCreateResourceData, ResourcesCreateResourceResponse, ResourcesDeleteResourceData, ResourcesDeleteResourceResponse, StreamStreamChatData, StreamStreamChatResponse, SymbolsSearchSymbolsData, SymbolsSearchSymbolsResponse, SymbolsGenerateSymbolWikiData, SymbolsGenerateSymbolWikiResponse, SystemGetSystemConfigResponse, SystemUpdateSystemConfigData, SystemUpdateSystemConfigResponse, SystemHealthCheckResponse, SystemTestEmbeddingConnectionData, SystemTestEmbeddingConnectionResponse, SystemApplyEmbeddingConfigData, SystemApplyEmbeddingConfigResponse, SystemTestLlmConnectionData, SystemTestLlmConnectionResponse, SystemApplyLlmConfigData, SystemApplyLlmConfigResponse, SystemResetKnowledgeBaseResponse, SystemGetCloudStatusResponse, SystemTraceCloudLinkResponse, SystemGetAvailableLlmModelsResponse, SystemGetAvailableEmbeddingModelsResponse, TasksGetProjectTasksData, TasksGetProjectTasksResponse, TasksCreateTaskData, TasksCreateTaskResponse, TasksGetTaskDetailData, TasksGetTaskDetailResponse, TasksUpdateTaskData, TasksUpdateTaskResponse, TasksDeleteTaskData, TasksDeleteTaskResponse, TasksUpdateTaskStatusEndpointData, TasksUpdateTaskStatusEndpointResponse, TasksExecuteTaskData, TasksExecuteTaskResponse, TodosCreateTodoData, TodosCreateTodoResponse, TodosListTodosData, TodosListTodosResponse, TodosGetTodoData, TodosGetTodoResponse, TodosUpdateTodoData, TodosUpdateTodoResponse, TodosDeleteTodoData, TodosDeleteTodoResponse, ToolsListRuntimeToolsResponse, ToolsListAllToolsResponse, UsersReadUserMeResponse, UsersUpdateUserMeData, UsersUpdateUserMeResponse, UsersChangePasswordData, UsersChangePasswordResponse, UtilsHealthCheckResponse, UtilsGetEvoloopStatusResponse, UtilsGetAiConfigResponse, WechatAuthGetWechatConfigResponse, WechatAuthGenerateQrCodeResponse, WechatAuthCheckLoginStatusData, WechatAuthCheckLoginStatusResponse, WechatAuthWechatDirectLoginData, WechatAuthWechatDirectLoginResponse, WechatAuthWechatCallbackGetData, WechatAuthWechatCallbackGetResponse, WechatAuthWechatCallbackPostData, WechatAuthWechatCallbackPostResponse, WikiGetWikiPagesData, WikiGetWikiPagesResponse, WikiGenerateWikiData, WikiGenerateWikiResponse } from './types.gen';
 
 export class AgentService {
     /**
@@ -1794,6 +1794,109 @@ export class LearningService {
             }
         });
     }
+    
+    /**
+     * Create Skill From Yaml
+     * Create a new skill from YAML macro definition.
+     *
+     * The YAML should follow the EvoLoop macro format:
+     * ```yaml
+     * version: "1.0"
+     * metadata:
+     * format: evoloop-macro
+     * steps:
+     * - type: action
+     * event_type: navigate
+     * source: dom
+     * payload:
+     * url: "https://example.com"
+     * ```
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static createSkillFromYaml(data: LearningCreateSkillFromYamlData): CancelablePromise<LearningCreateSkillFromYamlResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/learning/skills/from-yaml',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Validate Skill Yaml
+     * Validate YAML macro format without creating a skill.
+     * Useful for frontend validation before saving.
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns ValidateYamlResponse Successful Response
+     * @throws ApiError
+     */
+    public static validateSkillYaml(data: LearningValidateSkillYamlData): CancelablePromise<LearningValidateSkillYamlResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/learning/skills/validate-yaml',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Skill Yaml
+     * Get skill macro as YAML format.
+     *
+     * Returns the macro_script in human-friendly YAML format.
+     * @param data The data for the request.
+     * @param data.skillId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getSkillYaml(data: LearningGetSkillYamlData): CancelablePromise<LearningGetSkillYamlResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/learning/skills/{skill_id}/yaml',
+            path: {
+                skill_id: data.skillId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Update Skill Yaml
+     * Update skill macro from YAML content.
+     *
+     * Accepts raw YAML body (not JSON).
+     * @param data The data for the request.
+     * @param data.skillId
+     * @param data.requestBody
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static updateSkillYaml(data: LearningUpdateSkillYamlData): CancelablePromise<LearningUpdateSkillYamlResponse> {
+        return __request(OpenAPI, {
+            method: 'PUT',
+            url: '/api/v1/learning/skills/{skill_id}/yaml',
+            path: {
+                skill_id: data.skillId
+            },
+            body: data.requestBody,
+            mediaType: 'text/yaml',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
 }
 
 export class LibraryService {
@@ -2039,6 +2142,158 @@ export class MemberService {
         return __request(OpenAPI, {
             method: 'POST',
             url: '/api/v1/member/cancellation/cancel'
+        });
+    }
+    
+    /**
+     * Get Subscription Plans
+     * 获取可用订阅计划
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getSubscriptionPlans(): CancelablePromise<MemberGetSubscriptionPlansResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/member/subscription/plans'
+        });
+    }
+    
+    /**
+     * Get Subscription Status
+     * 获取订阅状态
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getSubscriptionStatus(): CancelablePromise<MemberGetSubscriptionStatusResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/member/subscription/status'
+        });
+    }
+    
+    /**
+     * Get Subscription Detail
+     * 获取订阅详情
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getSubscriptionDetail(): CancelablePromise<MemberGetSubscriptionDetailResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/member/subscription/detail'
+        });
+    }
+    
+    /**
+     * Create Subscription Order
+     * 创建订阅订单
+     * @param data The data for the request.
+     * @param data.requestBody
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static createSubscriptionOrder(data: MemberCreateSubscriptionOrderData): CancelablePromise<MemberCreateSubscriptionOrderResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/member/subscription/order',
+            body: data.requestBody,
+            mediaType: 'application/json',
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Cancel Subscription
+     * 取消订阅
+     * @param data The data for the request.
+     * @param data.cancelType
+     * @param data.reason
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static cancelSubscription(data: MemberCancelSubscriptionData = {}): CancelablePromise<MemberCancelSubscriptionResponse> {
+        return __request(OpenAPI, {
+            method: 'POST',
+            url: '/api/v1/member/subscription/cancel',
+            query: {
+                cancel_type: data.cancelType,
+                reason: data.reason
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Check Subscription Order Status
+     * 检查订阅订单状态
+     * @param data The data for the request.
+     * @param data.orderId
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static checkSubscriptionOrderStatus(data: MemberCheckSubscriptionOrderStatusData): CancelablePromise<MemberCheckSubscriptionOrderStatusResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/member/subscription/order/status',
+            query: {
+                order_id: data.orderId
+            },
+            errors: {
+                422: 'Validation Error'
+            }
+        });
+    }
+    
+    /**
+     * Get Ai Quota
+     * 获取主要 AI 配额 (统一配额池)
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getAiQuota(): CancelablePromise<MemberGetAiQuotaResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/member/quota'
+        });
+    }
+    
+    /**
+     * Get All Ai Quotas
+     * 获取所有 AI 配额
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getAllAiQuotas(): CancelablePromise<MemberGetAllAiQuotasResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/member/quota/all'
+        });
+    }
+    
+    /**
+     * Get Ai Quota History
+     * 获取配额使用历史
+     * @param data The data for the request.
+     * @param data.page
+     * @param data.pageSize
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static getAiQuotaHistory(data: MemberGetAiQuotaHistoryData = {}): CancelablePromise<MemberGetAiQuotaHistoryResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/member/quota/history',
+            query: {
+                page: data.page,
+                page_size: data.pageSize
+            },
+            errors: {
+                422: 'Validation Error'
+            }
         });
     }
 }
@@ -3046,6 +3301,19 @@ export class SystemService {
         return __request(OpenAPI, {
             method: 'GET',
             url: '/api/v1/system/cloud-status'
+        });
+    }
+    
+    /**
+     * Trace Cloud Link
+     * Diagnostic: Trace Agent -> Go Gateway -> Member Center (PHP).
+     * @returns unknown Successful Response
+     * @throws ApiError
+     */
+    public static traceCloudLink(): CancelablePromise<SystemTraceCloudLinkResponse> {
+        return __request(OpenAPI, {
+            method: 'GET',
+            url: '/api/v1/system/trace-cloud'
         });
     }
     

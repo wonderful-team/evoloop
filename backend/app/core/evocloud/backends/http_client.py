@@ -101,7 +101,23 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
         client = await self.get_client()
         active_token = token or self.get_token()
 
-        url = f"{self.base_url}{endpoint}"
+        # Split-Proxy Logic: Determine prefix based on endpoint
+        # Routes starting with /api/v1 (except specific legacy) or specific gateway patterns
+        gateway_prefixes = ["/api/v1/user", "/api/v1/quota", "/api/v1/auth/verify", "/ws", "/health"]
+        is_gateway = any(endpoint.startswith(p) for p in gateway_prefixes)
+
+        prefix = "/gateway"
+        if prefix in self.base_url:
+            root_url = self.base_url.split(prefix)[0].rstrip("/")
+        else:
+            root_url = self.base_url.rstrip("/")
+
+        if is_gateway:
+            current_base = f"{root_url}/gateway"
+        else:
+            current_base = f"{root_url}/member"
+
+        url = f"{current_base}{endpoint}"
         timestamp = int(time.time())
         body_str = json_utils.dumps(data) if data else ""
 
@@ -117,11 +133,11 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
 
         if params is None:
             params = {}
+
         if active_token:
             params["token"] = active_token
 
         try:
-            logger.debug(f"Req: {method} {endpoint} | Params: {params} | Data: {data}")
             resp = await client.request(method, url, params=params, json=data, headers=req_headers)
 
             if resp.status_code >= 400:
@@ -442,52 +458,43 @@ class EvoCloudHTTPClient(EvoCloudClientProtocol):
             data={"level_id": level_id, "auto_renew": 1 if auto_renew else 0}
         )
 
+    async def check_subscription_order_status(self, order_id: str) -> dict:
+        """检查订阅订单支付状态"""
+        return await self.request(
+            "GET", 
+            "/subscription/api/order/checkStatus",
+            params={"order_id": order_id}
+        )
+
     async def get_subscription_detail(self) -> dict:
         """获取订阅详情"""
         return await self.request("GET", "/subscription/api/subscription/getDetail")
 
-    async def get_ai_quota(self, quota_type: str = "ai_chat") -> dict:
-        """获取 AI 配额"""
-        return await self.request(
-            "GET",
-            "/subscription/api/aiQuota/getQuota",
-            params={"type": quota_type}
-        )
+    async def cancel_subscription(self, cancel_type: str = "expire", reason: str = "") -> dict:
+        """取消订阅"""
+        return await self.request("POST", "/subscription/api/subscription/cancel", data={
+            "cancel_type": cancel_type,
+            "reason": reason
+        })
 
-    async def consume_ai_quota(self, quota_type: str, count: int = 1, metadata: dict | None = None) -> dict:
-        """消耗 AI 配额"""
-        return await self.request(
-            "POST",
-            "/subscription/api/aiQuota/consumeQuota",
-            data={
-                "type": quota_type,
-                "count": count,
-                "metadata": metadata or {}
-            }
-        )
+    async def get_ai_quota(self) -> dict:
+        """获取 AI 配额（统一配额池）"""
+        return await self.request("GET", "/subscription/api/aiQuota")
 
     async def get_all_ai_quotas(self) -> dict:
-        """获取所有 AI 配额"""
-        return await self.request("GET", "/subscription/api/aiQuota/getAllQuotas")
+        """获取所有 AI 配额 (目前与 get_ai_quota 相同)"""
+        return await self.get_ai_quota()
 
-    async def batch_check_ai_quota(self, quota_types: list) -> dict:
-        """批量检查 AI 配额"""
-        return await self.request(
-            "POST",
-            "/subscription/api/aiQuota/batchCheck",
-            data={"types": quota_types}
-        )
+    async def consume_ai_quota(self, count: int = 1, metadata: dict | None = None) -> dict:
+        """消耗 AI 配额（统一配额池）"""
+        return await self.request("POST", "/subscription/api/aiQuota/consumeQuota", data={
+            "count": count
+        })
 
-    async def get_ai_quota_history(self, quota_type: str = "", page: int = 1, page_size: int = 20) -> dict:
+    async def get_ai_quota_history(self, page: int = 1, page_size: int = 20) -> dict:
         """获取 AI 配额使用历史"""
         params = {"page": page, "page_size": page_size}
-        if quota_type:
-            params["type"] = quota_type
-        return await self.request(
-            "GET",
-            "/subscription/api/aiQuota/getUsageHistory",
-            params=params
-        )
+        return await self.request("GET", "/subscription/api/aiQuota/getUsageHistory", params=params)
 
     # ==================== Log APIs ====================
 

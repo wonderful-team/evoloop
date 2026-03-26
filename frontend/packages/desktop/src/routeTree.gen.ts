@@ -18,10 +18,12 @@ import { Route as AndroidMarkerOverlayRouteImport } from './routes/android-marke
 import { Route as LayoutRouteImport } from './routes/_layout'
 import { Route as LayoutIndexRouteImport } from './routes/_layout/index'
 import { Route as LayoutTodosRouteImport } from './routes/_layout/todos'
+import { Route as LayoutSubscriptionRouteImport } from './routes/_layout.subscription'
 import { Route as LayoutSettingsRouteImport } from './routes/_layout/settings'
 import { Route as LayoutLibraryRouteImport } from './routes/_layout/library'
 import { Route as LayoutLearningRouteImport } from './routes/_layout/learning'
 import { Route as LayoutChatRouteImport } from './routes/_layout/chat'
+import { Route as LayoutSubscriptionIndexRouteImport } from './routes/_layout.subscription.index'
 import { Route as LayoutProjectsIndexRouteImport } from './routes/_layout/projects.index'
 import { Route as LayoutProjectsProjectIdRouteImport } from './routes/_layout/projects.$projectId'
 import { Route as LayoutProjectsProjectIdIndexRouteImport } from './routes/_layout/projects.$projectId.index'
@@ -78,6 +80,11 @@ const LayoutTodosRoute = LayoutTodosRouteImport.update({
   path: '/todos',
   getParentRoute: () => LayoutRoute,
 } as any)
+const LayoutSubscriptionRoute = LayoutSubscriptionRouteImport.update({
+  id: '/subscription',
+  path: '/subscription',
+  getParentRoute: () => LayoutRoute,
+} as any)
 const LayoutSettingsRoute = LayoutSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -97,6 +104,11 @@ const LayoutChatRoute = LayoutChatRouteImport.update({
   id: '/chat',
   path: '/chat',
   getParentRoute: () => LayoutRoute,
+} as any)
+const LayoutSubscriptionIndexRoute = LayoutSubscriptionIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LayoutSubscriptionRoute,
 } as any)
 const LayoutProjectsIndexRoute = LayoutProjectsIndexRouteImport.update({
   id: '/projects/',
@@ -175,9 +187,11 @@ export interface FileRoutesByFullPath {
   '/learning': typeof LayoutLearningRouteWithChildren
   '/library': typeof LayoutLibraryRoute
   '/settings': typeof LayoutSettingsRoute
+  '/subscription': typeof LayoutSubscriptionRouteWithChildren
   '/todos': typeof LayoutTodosRoute
   '/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/projects/': typeof LayoutProjectsIndexRoute
+  '/subscription/': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
@@ -202,6 +216,7 @@ export interface FileRoutesByTo {
   '/todos': typeof LayoutTodosRoute
   '/': typeof LayoutIndexRoute
   '/projects': typeof LayoutProjectsIndexRoute
+  '/subscription': typeof LayoutSubscriptionIndexRoute
   '/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
@@ -225,10 +240,12 @@ export interface FileRoutesById {
   '/_layout/learning': typeof LayoutLearningRouteWithChildren
   '/_layout/library': typeof LayoutLibraryRoute
   '/_layout/settings': typeof LayoutSettingsRoute
+  '/_layout/subscription': typeof LayoutSubscriptionRouteWithChildren
   '/_layout/todos': typeof LayoutTodosRoute
   '/_layout/': typeof LayoutIndexRoute
   '/_layout/projects/$projectId': typeof LayoutProjectsProjectIdRouteWithChildren
   '/_layout/projects/': typeof LayoutProjectsIndexRoute
+  '/_layout/subscription/': typeof LayoutSubscriptionIndexRoute
   '/_layout/projects/$projectId/files': typeof LayoutProjectsProjectIdFilesRoute
   '/_layout/projects/$projectId/gantt': typeof LayoutProjectsProjectIdGanttRoute
   '/_layout/projects/$projectId/reports': typeof LayoutProjectsProjectIdReportsRoute
@@ -253,9 +270,11 @@ export interface FileRouteTypes {
     | '/learning'
     | '/library'
     | '/settings'
+    | '/subscription'
     | '/todos'
     | '/projects/$projectId'
     | '/projects/'
+    | '/subscription/'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
     | '/projects/$projectId/reports'
@@ -280,6 +299,7 @@ export interface FileRouteTypes {
     | '/todos'
     | '/'
     | '/projects'
+    | '/subscription'
     | '/projects/$projectId/files'
     | '/projects/$projectId/gantt'
     | '/projects/$projectId/reports'
@@ -302,10 +322,12 @@ export interface FileRouteTypes {
     | '/_layout/learning'
     | '/_layout/library'
     | '/_layout/settings'
+    | '/_layout/subscription'
     | '/_layout/todos'
     | '/_layout/'
     | '/_layout/projects/$projectId'
     | '/_layout/projects/'
+    | '/_layout/subscription/'
     | '/_layout/projects/$projectId/files'
     | '/_layout/projects/$projectId/gantt'
     | '/_layout/projects/$projectId/reports'
@@ -392,6 +414,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutTodosRouteImport
       parentRoute: typeof LayoutRoute
     }
+    '/_layout/subscription': {
+      id: '/_layout/subscription'
+      path: '/subscription'
+      fullPath: '/subscription'
+      preLoaderRoute: typeof LayoutSubscriptionRouteImport
+      parentRoute: typeof LayoutRoute
+    }
     '/_layout/settings': {
       id: '/_layout/settings'
       path: '/settings'
@@ -419,6 +448,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/chat'
       preLoaderRoute: typeof LayoutChatRouteImport
       parentRoute: typeof LayoutRoute
+    }
+    '/_layout/subscription/': {
+      id: '/_layout/subscription/'
+      path: '/'
+      fullPath: '/subscription/'
+      preLoaderRoute: typeof LayoutSubscriptionIndexRouteImport
+      parentRoute: typeof LayoutSubscriptionRoute
     }
     '/_layout/projects/': {
       id: '/_layout/projects/'
@@ -512,6 +548,17 @@ const LayoutLearningRouteWithChildren = LayoutLearningRoute._addFileChildren(
   LayoutLearningRouteChildren,
 )
 
+interface LayoutSubscriptionRouteChildren {
+  LayoutSubscriptionIndexRoute: typeof LayoutSubscriptionIndexRoute
+}
+
+const LayoutSubscriptionRouteChildren: LayoutSubscriptionRouteChildren = {
+  LayoutSubscriptionIndexRoute: LayoutSubscriptionIndexRoute,
+}
+
+const LayoutSubscriptionRouteWithChildren =
+  LayoutSubscriptionRoute._addFileChildren(LayoutSubscriptionRouteChildren)
+
 interface LayoutProjectsProjectIdRouteChildren {
   LayoutProjectsProjectIdFilesRoute: typeof LayoutProjectsProjectIdFilesRoute
   LayoutProjectsProjectIdGanttRoute: typeof LayoutProjectsProjectIdGanttRoute
@@ -547,6 +594,7 @@ interface LayoutRouteChildren {
   LayoutLearningRoute: typeof LayoutLearningRouteWithChildren
   LayoutLibraryRoute: typeof LayoutLibraryRoute
   LayoutSettingsRoute: typeof LayoutSettingsRoute
+  LayoutSubscriptionRoute: typeof LayoutSubscriptionRouteWithChildren
   LayoutTodosRoute: typeof LayoutTodosRoute
   LayoutIndexRoute: typeof LayoutIndexRoute
   LayoutProjectsProjectIdRoute: typeof LayoutProjectsProjectIdRouteWithChildren
@@ -558,6 +606,7 @@ const LayoutRouteChildren: LayoutRouteChildren = {
   LayoutLearningRoute: LayoutLearningRouteWithChildren,
   LayoutLibraryRoute: LayoutLibraryRoute,
   LayoutSettingsRoute: LayoutSettingsRoute,
+  LayoutSubscriptionRoute: LayoutSubscriptionRouteWithChildren,
   LayoutTodosRoute: LayoutTodosRoute,
   LayoutIndexRoute: LayoutIndexRoute,
   LayoutProjectsProjectIdRoute: LayoutProjectsProjectIdRouteWithChildren,

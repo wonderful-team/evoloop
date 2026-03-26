@@ -159,10 +159,25 @@ export type CreateFileRequest = {
     content: string;
 };
 
+export type CreateOrderRequest = {
+    level_id: number;
+    auto_renew?: boolean;
+};
+
 export type CreateProjectRequest = {
     name: string;
     description?: string;
     path: string;
+};
+
+/**
+ * Request to create a skill from YAML macro definition.
+ */
+export type CreateSkillFromYamlRequest = {
+    name: string;
+    description?: (string | null);
+    namespace?: (string | null);
+    yaml_content: string;
 };
 
 /**
@@ -582,9 +597,7 @@ export type SkillDTO = {
     is_active: boolean;
     status: string;
     execution_mode?: string;
-    macro_script?: (Array<{
-    [key: string]: unknown;
-}> | null);
+    macro_script?: (string | null);
     validation_report?: ({
     [key: string]: unknown;
 } | null);
@@ -695,9 +708,7 @@ export type SynthesizeFromRecordingResponse = {
     skill_id: (number | null);
     skill_name: (string | null);
     skill_yaml: (string | null);
-    macro_script?: (Array<{
-    [key: string]: unknown;
-}> | null);
+    macro_script?: (string | null);
     verification?: ({
     [key: string]: unknown;
 } | null);
@@ -828,9 +839,7 @@ export type UpdateSkillRequest = {
     [key: string]: unknown;
 }> | null);
     execution_mode?: (string | null);
-    macro_script?: (Array<{
-    [key: string]: unknown;
-}> | null);
+    macro_script?: (string | null);
 };
 
 export type UpdateUserRequest = {
@@ -886,6 +895,22 @@ export type UserPublic = {
     point?: number;
     is_active?: boolean;
     is_superuser?: boolean;
+};
+
+/**
+ * Request to validate YAML macro format.
+ */
+export type ValidateYamlRequest = {
+    yaml_content: string;
+};
+
+/**
+ * Response from YAML validation.
+ */
+export type ValidateYamlResponse = {
+    valid: boolean;
+    errors: Array<(string)>;
+    step_count?: number;
 };
 
 export type ValidationError = {
@@ -1418,6 +1443,31 @@ export type LearningConfirmLearnedSkillData = {
 
 export type LearningConfirmLearnedSkillResponse = (RespondResponse);
 
+export type LearningCreateSkillFromYamlData = {
+    requestBody: CreateSkillFromYamlRequest;
+};
+
+export type LearningCreateSkillFromYamlResponse = (unknown);
+
+export type LearningValidateSkillYamlData = {
+    requestBody: ValidateYamlRequest;
+};
+
+export type LearningValidateSkillYamlResponse = (ValidateYamlResponse);
+
+export type LearningGetSkillYamlData = {
+    skillId: number;
+};
+
+export type LearningGetSkillYamlResponse = (unknown);
+
+export type LearningUpdateSkillYamlData = {
+    requestBody: string;
+    skillId: number;
+};
+
+export type LearningUpdateSkillYamlResponse = (unknown);
+
 export type LibraryListLibraryFilesData = {
     requestBody?: User;
 };
@@ -1484,6 +1534,42 @@ export type MemberGetCancellationInfoResponse = (unknown);
 export type MemberApplyCancellationResponse = (unknown);
 
 export type MemberCancelCancellationResponse = (unknown);
+
+export type MemberGetSubscriptionPlansResponse = (unknown);
+
+export type MemberGetSubscriptionStatusResponse = (unknown);
+
+export type MemberGetSubscriptionDetailResponse = (unknown);
+
+export type MemberCreateSubscriptionOrderData = {
+    requestBody: CreateOrderRequest;
+};
+
+export type MemberCreateSubscriptionOrderResponse = (unknown);
+
+export type MemberCancelSubscriptionData = {
+    cancelType?: string;
+    reason?: string;
+};
+
+export type MemberCancelSubscriptionResponse = (unknown);
+
+export type MemberCheckSubscriptionOrderStatusData = {
+    orderId: string;
+};
+
+export type MemberCheckSubscriptionOrderStatusResponse = (unknown);
+
+export type MemberGetAiQuotaResponse = (unknown);
+
+export type MemberGetAllAiQuotasResponse = (unknown);
+
+export type MemberGetAiQuotaHistoryData = {
+    page?: number;
+    pageSize?: number;
+};
+
+export type MemberGetAiQuotaHistoryResponse = (unknown);
 
 export type MemoryListConceptsData = {
     projectId: number;
@@ -1764,6 +1850,8 @@ export type SystemApplyLlmConfigResponse = (unknown);
 export type SystemResetKnowledgeBaseResponse = (unknown);
 
 export type SystemGetCloudStatusResponse = (unknown);
+
+export type SystemTraceCloudLinkResponse = (unknown);
 
 export type SystemGetAvailableLlmModelsResponse = (unknown);
 

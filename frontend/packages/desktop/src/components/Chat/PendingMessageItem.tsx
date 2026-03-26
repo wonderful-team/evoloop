@@ -44,7 +44,7 @@ export const PendingMessageItem = memo(() => {
                 </Avatar>
             </div>
 
-            <div className="relative max-w-[85%] w-full min-w-0 space-y-2">
+            <div className="relative max-w-full w-full min-w-0 space-y-2">
 
                 {/* 1. Streamed Content (The Response) - AI FIRST */}
                 {(streamedContent || status === "running") && (
