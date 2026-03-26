@@ -15,6 +15,7 @@
 {% if is_subtask %}
 - **Single-Shot Alignment**: Since you are a sub-agent, focus on fulfilling YOUR specific Mission Ticket criteria. The results will be aggregated by the Supervisor.
 {% endif %}
+- **Blackboard Management**: You can update the shared state (Blackboard) by including '[BLACKBOARD: key=value]' in your thinking or response. Use this to persist critical insights or flags for subsequent steps.
 
 ### 🎯 Role-Based Tool Priority
 Based on your role "{{ role_name }}", prioritize these tools:

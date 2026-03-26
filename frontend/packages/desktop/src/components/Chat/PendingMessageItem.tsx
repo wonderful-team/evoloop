@@ -22,6 +22,7 @@ export const PendingMessageItem = memo(() => {
     const status = useChatStore((s) => s.status)
     const thoughts = useChatStore((s) => s.thoughts) || []
     const humanRequest = useChatStore((s) => s.humanRequest)
+    const streamState = useChatStore((s) => s.streamState)
 
     // Calculate running steps count for summary
     const runningStepsCount = steps.filter(s => s.status === "running").length
@@ -56,9 +57,19 @@ export const PendingMessageItem = memo(() => {
                                 )}
                             </>
                         ) : (
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground italic">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                {t("chat.interface.agentThinking", "Thinking...")}
+                             <div className="flex flex-col gap-1 w-full">
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground italic">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    {streamState.currentThinking || t("chat.interface.agentThinking", "Thinking...")}
+                                </div>
+                                {streamState.overallProgress > 0 && streamState.overallProgress < 100 && (
+                                    <div className="w-full h-1 bg-muted-foreground/10 rounded-full overflow-hidden mt-1">
+                                        <div 
+                                            className="h-full bg-primary/40 transition-all duration-300"
+                                            style={{ width: `${streamState.overallProgress}%` }}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

@@ -219,6 +219,8 @@ class AgentEngine:
 
             if thinking_content:
                 logger.info(f"[{name}] 🧠 Thinking: {thinking_content}")
+                # --- 🏅 Inferred Blackboard Update (Phase 5 Optimization) ---
+                AgentEngine._parse_inferred_blackboard(thinking_content, state, name)
 
             loop_messages.append(response)
             new_messages.append(response)
@@ -515,6 +517,9 @@ class AgentEngine:
 
         new_messages = [response]
         local_tool_history = []
+
+        # --- 🏅 Inferred Blackboard Update (Phase 5 Optimization) ---
+        AgentEngine._parse_inferred_blackboard(response.content, state, name)
 
         # CRITICAL: Subtask MUST call tools
         if not response.tool_calls:

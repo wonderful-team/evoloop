@@ -1,7 +1,6 @@
 import { Play, XCircle, CheckCircle2, MessageCircleQuestion, Ban } from "lucide-react"
-import ReactMarkdown from "react-markdown"
-import remarkGfm from "remark-gfm"
 import { useState } from "react"
+import { MessageContent } from "./MessageContent"
 import { useTranslation } from "react-i18next"
 import { Button } from "@evoloop/shared/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@evoloop/shared/components/ui/card"
@@ -56,18 +55,14 @@ export function HumanRequestCard({ request }: HumanRequestCardProps) {
 
             <CardContent className="space-y-4">
                 {/* Prompt */}
-                <div className="text-sm whitespace-pre-wrap font-medium">
-                    {request.prompt}
+                <div className="font-medium">
+                    <MessageContent content={request.prompt} />
                 </div>
 
                 {/* Context */}
                 {request.context && (
-                    <div className="text-xs text-muted-foreground bg-background/50 p-2 rounded border overflow-auto">
-                        <div className="prose prose-sm dark:prose-invert max-w-none">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {request.context}
-                            </ReactMarkdown>
-                        </div>
+                    <div className="bg-background/50 p-2 rounded border overflow-auto">
+                        <MessageContent content={request.context} />
                     </div>
                 )}
 

@@ -22,14 +22,17 @@ logger = logging.getLogger(__name__)
 
 # ===== 1. State Management Tools (v1 Evolution) =====
 
-@evoloop_tool(
-    is_state_mutating=True,
-    name_map={"zh": "更新黑板", "en": "Update Blackboard"}
-)
+# @evoloop_tool(
+#     is_state_mutating=True,
+#     name_map={"zh": "更新黑板", "en": "Update Blackboard"}
+# )
 def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> dict[str, Any]:
     """
-    Updates the agent's dynamic state center (blackboard) with a key-value pair.
-    Useful for passing information between nodes or controlling autonomous flow.
+    [DEPRECATED] Updates the agent's dynamic state center (blackboard).
+    
+    NOTE: In Phase 5+, you can update the blackboard more efficiently by 
+    simply including '[BLACKBOARD: key=value]' in your text response/thought.
+    This saves an LLM turn.
 
     Args:
         key: The variable name to set (e.g., "complexity", "status").
@@ -37,7 +40,7 @@ def update_blackboard(key: str, value: Any, _config: RunnableConfig) -> dict[str
     """
     return {
         "status": "success",
-        "message": f"State field '{key}' updated successfully.",
+        "message": f"State field '{key}' updated successfully. (Note: Inferred update via '[BLACKBOARD: {key}={value}]' is preferred)",
         "_signal": "update_blackboard",
         "data": {"key": key, "value": value}
     }

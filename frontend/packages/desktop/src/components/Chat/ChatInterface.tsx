@@ -36,7 +36,6 @@ import { SessionOutcomeBanner } from "./SessionOutcomeBanner"
 
 import { DiffDrawer } from "./DiffDrawer"
 import { RewindConfirmDialog } from "./RewindConfirmDialog"
-import { StreamStatus } from "./StreamStatus"
 
 export function ChatInterface() {
 
@@ -61,7 +60,6 @@ export function ChatInterface() {
   const status = useChatStore((s) => s.status)
   const steps = useChatStore((s) => s.steps)
   const streamedContent = useChatStore((s) => s.streamedContent)
-  const streamState = useChatStore((s) => s.streamState)
   // Pagination state
   const hasMoreHistory = useChatStore((s) => s.hasMoreHistory)
   const isLoadingHistory = useChatStore((s) => s.isLoadingHistory)
@@ -563,9 +561,6 @@ export function ChatInterface() {
             )}
 
             {/* HumanRequestCard moved to AgentCanvas */}
-
-            {/* Stream Status - Real-time Agent Execution Status */}
-            <StreamStatus state={streamState} className="mx-4 mb-2" />
 
             {/* Input Area */}
             <ChatInputArea

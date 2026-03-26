@@ -9,7 +9,7 @@ nodes:
     path: "app.core.engine.nodes.supervisor.supervisor_node"
     tools:
       - "route_to"
-      - "update_blackboard"
+      # - "update_blackboard"
       - "manage_session_metadata"
       - "spawn_agents"
       - "decompose_task"
@@ -36,7 +36,7 @@ nodes:
       # based on the current mission and environment telemetry.
       # =====================================================================
       # Orchestration & State (Unified Engine Controls)
-      - "update_blackboard"
+      # - "update_blackboard"
       - "manage_session_metadata"
       - "spawn_agents"
       # Desktop & Mobile Automation
