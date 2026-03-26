@@ -12,8 +12,9 @@ from app.core.config import settings
 DEFAULT_PROJECT_ID = 1
 DEFAULT_WINDOW_SIZE = 30
 DEFAULT_HISTORY_RETAIN_COUNT = 5  # Number of messages to retain during compression
-MAX_CONTEXT_CHARS = 400000  # Max total characters in message history (~100k tokens)
-CONTEXT_PRUNE_THRESHOLD = 5000  # Character threshold for collapsing old tool results
+MAX_CONTEXT_CHARS = 150000  # Max total characters in message history (~40k tokens)
+CONTEXT_PRUNE_THRESHOLD = 10000  # Character threshold for collapsing old tool results
+MAX_OUTPUT_LENGTH = 60000  # Max characters for tool output before truncation
 
 
 # ====================== Document Type Enum ======================
@@ -773,10 +774,6 @@ LANGUAGE_MAP = {
     "en": "English",
     "zh": "Mandarin Chinese (中文)",
 }
-
-# ====================== Output Constraints ======================
-MAX_OUTPUT_LENGTH = 60000  # Max characters for tool output before truncation
-
 
 # ====================== Mobile / Reactor Constants ======================
 # High-risk keywords for interactive safety guard

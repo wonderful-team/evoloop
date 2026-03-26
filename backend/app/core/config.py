@@ -213,8 +213,8 @@ class Settings(BaseSettings):
     CHROME_STARTUP_TIMEOUT: int = Field(5, validation_alias="EVOLOOP_CHROME_STARTUP_TIMEOUT")
 
     # EvoCloud API
-    EVOCLOUD_API_URL: str = Field("https://mall.imagicbox.cn", validation_alias="EVOCLOUD_API_URL")
-    EVOCLOUD_WS_URL: str = Field("wss://mall.imagicbox.cn/wss/", validation_alias="EVOCLOUD_WS_URL")
+    EVOCLOUD_API_URL: str = Field("https://api.evoloop.cn", validation_alias="EVOCLOUD_API_URL")
+    EVOCLOUD_WS_URL: str = Field("wss://api.evoloop.cn/wss/", validation_alias="EVOCLOUD_WS_URL")
     EVOCLOUD_API_KEY: str | None = Field(None, validation_alias="EVOCLOUD_API_KEY")
     EVOCLOUD_API_SECRET: str | None = Field(None, validation_alias="EVOCLOUD_API_SECRET")
 

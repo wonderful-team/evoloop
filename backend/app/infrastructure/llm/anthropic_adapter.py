@@ -1,9 +1,13 @@
+import logging
 from functools import cached_property
 from typing import Any
 
 import anthropic
 
-from app.core.engine import repair_message_history
+from app.core.engine import repair_message_history, log_messages
+
+logger = logging.getLogger(__name__)
+
 
 try:
     from langchain_anthropic import ChatAnthropic
@@ -15,9 +19,7 @@ try:
         from langchain_core.messages.ai import UsageMetadata
 
         def _create_usage_metadata(usage: Any) -> UsageMetadata:
-            return UsageMetadata(
-                input_tokens=usage.input_tokens, output_tokens=usage.output_tokens
-            )
+            return UsageMetadata(input_tokens=usage.input_tokens, output_tokens=usage.output_tokens)
 
     from langchain_anthropic.output_parsers import extract_tool_calls
     from langchain_core.messages import AIMessage
@@ -95,11 +97,17 @@ class CompatibleChatAnthropic(ChatAnthropic):
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
         if self.repair_history:
             messages = repair_message_history(messages)
+
+        log_messages(messages, "CompatibleChatAnthropic (Async)")
+
         return await super()._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
         if self.repair_history:
             messages = repair_message_history(messages)
+
+        log_messages(messages, "CompatibleChatAnthropic (Sync)")
+            
         return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
 
     def _format_output(self, data: Any, **kwargs: Any) -> ChatResult:

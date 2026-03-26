@@ -3,7 +3,7 @@
  * 用于管理 EvoCloud 的 WebSocket 连接，支持语音聊天功能
  */
 
-const WS_URL = import.meta.env.VITE_EVOLOOP_WS_URL || "wss://mall.imagicbox.cn/wss/"
+const WS_URL = import.meta.env.VITE_EVOLOOP_WS_URL || "wss://api.evoloop.cn/wss/"
 
 type MessageHandler = (data: any) => void
 

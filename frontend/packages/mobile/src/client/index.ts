@@ -2,7 +2,7 @@
 import axios from "axios"
 
 // Base configuration
-const BASE_URL = import.meta.env.VITE_EVOCLOUD_API_URL || "https://mall.imagicbox.cn"
+const BASE_URL = import.meta.env.VITE_EVOCLOUD_API_URL || "https://api.evoloop.cn"
 
 const client = axios.create({
     baseURL: BASE_URL,

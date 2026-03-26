@@ -228,7 +228,7 @@ class TraceParser:
             window_bounds = None
             if event.action_payload:
                 try:
-                    payload = json.loads(event.action_payload)
+                    payload = event.action_payload if isinstance(event.action_payload, dict) else json.loads(event.action_payload)
                     window_bounds = payload.get("window_bounds")
                 except:
                     pass
@@ -279,7 +279,7 @@ class TraceParser:
             source = ActionSource.HUMAN if event.is_human_action else ActionSource.AGENT
 
             # Parse payload
-            payload = json.loads(event.action_payload) if event.action_payload else {}
+            payload = event.action_payload if isinstance(event.action_payload, dict) else (json.loads(event.action_payload) if event.action_payload else {})
 
             # Determine action name and args
             action_name = event.action_type
@@ -303,7 +303,7 @@ class TraceParser:
                 or event.target_text
             ):
                 ui_info = (
-                    json.loads(event.ui_element_info) if event.ui_element_info else {}
+                    event.ui_element_info if isinstance(event.ui_element_info, dict) else (json.loads(event.ui_element_info) if event.ui_element_info else {})
                 )
                 ui_context = UIContext(
                     screenshot_path=event.screenshot_path,
@@ -315,7 +315,7 @@ class TraceParser:
             state_context = {}
             if event.state_snapshot:
                 try:
-                    state_context = json.loads(event.state_snapshot)
+                    state_context = event.state_snapshot if isinstance(event.state_snapshot, dict) else json.loads(event.state_snapshot)
                 except Exception:
                     pass
 

@@ -10,10 +10,10 @@
 
 import io
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 from PIL import Image
 
@@ -65,6 +65,11 @@ class CompressedFrame:
     original_size: Tuple[int, int]  # 原始分辨率
     compression_ratio: float      # 压缩比
     detail_level: str             # "low" or "high"
+    
+    # 动态注入的语义信息
+    timestamp: Optional[float] = None
+    description: Optional[str] = None
+    norm_events: List[dict] = field(default_factory=list)
 
 
 @dataclass
@@ -197,7 +202,8 @@ class FrameCompressor:
             if strategy is None and config is None:
                 strategy = self._detect_strategy(img)
 
-            cfg = config or PRESETS[strategy]
+            effective_strategy = strategy or self.default_strategy
+            cfg = config or PRESETS[effective_strategy]
 
             # 执行压缩
             compressed_data = self._compress_image(img, cfg)
@@ -279,7 +285,7 @@ class FrameCompressor:
         if original_width > config.max_width:
             ratio = config.max_width / original_width
             new_size = (config.max_width, int(original_height * ratio))
-            img = img.resize(new_size, Image.LANCZOS)
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
 
         # 保存为 JPEG
         buffer = io.BytesIO()
@@ -487,7 +493,7 @@ class KeyframeCandidate:
     timestamp: float
     context: str           # "pre_action", "post_action", "transition"
     description: str
-    related_event: any
+    related_event: Any
     priority: int          # 3=high, 2=medium, 1=low
 
     def __repr__(self):

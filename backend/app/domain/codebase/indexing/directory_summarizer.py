@@ -157,18 +157,9 @@ class DirectorySummarizer:
         try:
             response = await llm.ainvoke(prompt_text)
             return response.content if hasattr(response, 'content') else str(response)
-        except Exception:
-            # Fallback for LLM failure or invocation error (invoked vs invoke)
-            # invoke is standard
-            try:
-                response = await llm.ainvoke([
-                    SystemMessage(content=system_prompt),
-                    HumanMessage(content=user_prompt),
-                ])
-                return response.content
-            except Exception as e:
-                logger.error(f"LLM Summary Failed: {e}")
-                return "Summary generation failed."
+        except Exception as e:
+            logger.error(f"LLM Summary Failed for {dir_path}: {e}")
+            return "Summary generation failed."
 
 
 # Global Instance

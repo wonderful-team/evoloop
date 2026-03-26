@@ -9,6 +9,7 @@ from alembic import op
 import sqlalchemy as sa
 import sqlmodel.sql.sqltypes
 from sqlalchemy.dialects import postgresql
+from pgvector.sqlalchemy import Vector
 
 # revision identifiers, used by Alembic.
 revision = '5568ce2ff638'
@@ -58,7 +59,7 @@ def downgrade():
     op.add_column('repositories', sa.Column('last_indexed_at', postgresql.TIMESTAMP(timezone=True), autoincrement=False, nullable=True))
     op.add_column('messages', sa.Column('project_id', sa.INTEGER(), autoincrement=False, nullable=False))
     op.add_column('messages', sa.Column('checkpoint_id', sa.VARCHAR(length=255), autoincrement=False, nullable=True))
-    op.drop_constraint(None, 'messages', type_='foreignkey')
+    op.drop_constraint("messages_project_id_fkey", 'messages', type_='foreignkey')
     op.create_index(op.f('ix_messages_project_id'), 'messages', ['project_id'], unique=False)
     op.alter_column('messages', 'sequence_number',
                existing_type=sa.INTEGER(),
@@ -101,12 +102,12 @@ def downgrade():
     op.add_column('code_chunks', sa.Column('file_id', sa.INTEGER(), autoincrement=False, nullable=False))
     op.add_column('code_chunks', sa.Column('chunk_type', sa.VARCHAR(length=50), autoincrement=False, nullable=False))
     op.add_column('code_chunks', sa.Column('identifier', sa.VARCHAR(length=255), autoincrement=False, nullable=False))
-    op.drop_constraint(None, 'code_chunks', type_='foreignkey')
+    op.drop_constraint("code_chunks_file_id_fkey", 'code_chunks', type_='foreignkey')
     op.create_foreign_key(op.f('code_chunks_file_id_fkey'), 'code_chunks', 'source_files', ['file_id'], ['id'])
     op.drop_index(op.f('ix_code_chunks_source_file_id'), table_name='code_chunks')
     op.alter_column('code_chunks', 'embedding',
-               existing_type=pgvector.sqlalchemy.vector.VECTOR(dim=1536),
-               type_=pgvector.sqlalchemy.vector.VECTOR(dim=768),
+               existing_type=Vector(dim=1536),
+               type_=Vector(dim=768),
                existing_nullable=True)
     op.drop_column('code_chunks', 'source_file_id')
     op.create_table('checkpoint_migrations',
@@ -165,7 +166,7 @@ def downgrade():
     sa.Column('description', sa.TEXT(), autoincrement=False, nullable=False),
     sa.Column('signature', sa.TEXT(), autoincrement=False, nullable=False),
     sa.Column('category', sa.VARCHAR(length=100), autoincrement=False, nullable=True),
-    sa.Column('embedding', pgvector.sqlalchemy.vector.VECTOR(dim=1536), autoincrement=False, nullable=True),
+    sa.Column('embedding', Vector(dim=1536), autoincrement=False, nullable=True),
     sa.Column('updated_at', postgresql.TIMESTAMP(timezone=True), autoincrement=False, nullable=False),
     sa.PrimaryKeyConstraint('id', name=op.f('tools_pkey'))
     )

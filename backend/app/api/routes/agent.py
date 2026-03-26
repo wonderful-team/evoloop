@@ -363,8 +363,6 @@ async def resume_chat(req: ResumeRequest, bg_tasks: BackgroundTasks):
     Resume a paused/interrupted graph execution.
     Used after Human-in-the-Loop interrupts where user provides input.
     """
-    from langchain_core.messages import HumanMessage
-
     from app.core.globals import get_graph
     from app.core.persistence import get_checkpointer
 

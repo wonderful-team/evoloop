@@ -7,6 +7,7 @@ Manages file checkpoints for easy rollback and recovery.
 
 import hashlib
 import logging
+import os
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -101,16 +102,16 @@ class CheckpointManager:
     ) -> list[FileCheckpoint]:
         """List checkpoints for a thread or project."""
         async with session_scope() as session:
-            query = select(FileCheckpoint).options(joinedload(FileFileCheckpoint.files))
+            query = select(FileCheckpoint).options(joinedload(FileCheckpoint.files))
             
             if thread_id:
-                query = query.where(FileFileCheckpoint.thread_id == thread_id)
+                query = query.where(FileCheckpoint.thread_id == thread_id)
             if project_id:
-                query = query.where(FileFileCheckpoint.project_id == project_id)
+                query = query.where(FileCheckpoint.project_id == project_id)
             if not include_auto:
-                query = query.where(FileFileCheckpoint.created_by == "manual")
+                query = query.where(FileCheckpoint.created_by == "manual")
             
-            query = query.order_by(desc(FileFileCheckpoint.created_at)).limit(limit)
+            query = query.order_by(desc(FileCheckpoint.created_at)).limit(limit)
             
             result = await session.execute(query)
             return list(result.scalars().unique())
@@ -120,8 +121,8 @@ class CheckpointManager:
         async with session_scope() as session:
             result = await session.execute(
                 select(FileCheckpoint)
-                .options(joinedload(FileFileCheckpoint.files))
-                .where(FileFileCheckpoint.id == checkpoint_id)
+                .options(joinedload(FileCheckpoint.files))
+                .where(FileCheckpoint.id == checkpoint_id)
             )
             return result.scalar_one_or_none()
     

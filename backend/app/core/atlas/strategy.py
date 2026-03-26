@@ -106,7 +106,7 @@ class AtlasStrategyStore:
         return f"{REDIS_KEY_ATLAS_STRATEGIES}:{platform}:{bundle_id}"
 
     @classmethod
-    async def get(cls, bundle_id: str, platform: str = "android") -> AppStrategy | None:
+    async def get_strategy(cls, bundle_id: str, platform: str = "android") -> AppStrategy | None:
         """Retrieve strategy for an app."""
         key = cls._get_key(bundle_id, platform)
         try:
@@ -118,18 +118,18 @@ class AtlasStrategyStore:
         return None
 
     @classmethod
-    async def save(cls, strategy: AppStrategy) -> bool:
+    async def save_strategy(cls, strategy: AppStrategy) -> bool:
         """Save strategy for an app."""
         key = cls._get_key(strategy.bundle_id, strategy.platform)
         try:
-            await cache.set(key, json.dumps(strategy.to_dict()), ttl=86400 * 7)  # 7 days
+            await cache.set(key, json.dumps(strategy.to_dict()), ex=86400 * 7)  # 7 days
             return True
         except Exception as e:
             logger.error(f"Failed to save strategy for {strategy.bundle_id}: {e}")
             return False
 
     @classmethod
-    async def delete(cls, bundle_id: str, platform: str = "android") -> bool:
+    async def delete_strategy(cls, bundle_id: str, platform: str = "android") -> bool:
         """Delete strategy for an app."""
         key = cls._get_key(bundle_id, platform)
         try:

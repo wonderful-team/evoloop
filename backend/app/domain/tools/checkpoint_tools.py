@@ -62,7 +62,7 @@ async def create_checkpoint(
     project_id = ctx.project_id
     
     try:
-        checkpoint = await checkpoint_manager.create_file_checkpoint(
+        checkpoint = await checkpoint_manager.create_checkpoint(
             thread_id=thread_id,
             name=name,
             file_paths=file_paths,

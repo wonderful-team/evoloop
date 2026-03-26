@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
 
 from app.core.context.manager import ContextManager
 from app.utils import render_template
@@ -8,6 +7,8 @@ from app.core.monitoring.ui_actions import require_project_for_tool
 from app.core.tools import evoloop_tool
 from app.domain.codebase.retrieval.graph_service import graph_service
 from app.domain.codebase.retrieval.service import RetrievalService
+
+logger = logging.getLogger(__name__)
 
 
 @evoloop_tool(

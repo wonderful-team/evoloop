@@ -212,19 +212,6 @@ def read_file_streaming(
             current_line += 1
 
 
-def read_file_content(file_path: str, start_line: int | None = None, end_line: int | None = None) -> tuple[str, str]:
-    """Attempt to detect file encoding."""
-    encodings = ["utf-8", "latin-1", "utf-16", "ascii"]
-    for encoding in encodings:
-        try:
-            with open(file_path, encoding=encoding) as f:
-                f.read(100)
-                return encoding
-        except UnicodeDecodeError:
-            continue
-    return "utf-8"
-
-
 def read_file_content(
     file_path: str,
     start_line: int | None = None,

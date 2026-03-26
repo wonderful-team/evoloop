@@ -12,7 +12,7 @@ interface StreamChatParams {
 
 // Get the cloud API base URL
 const getBaseUrl = () => {
-  return import.meta.env.VITE_EVOCLOUD_API_URL || "https://mall.imagicbox.cn"
+  return import.meta.env.VITE_EVOCLOUD_API_URL || "https://api.evoloop.cn"
 }
 
 /**

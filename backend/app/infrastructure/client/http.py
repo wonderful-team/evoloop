@@ -48,13 +48,16 @@ class ToolRequestManager:
     """
     _instance = None
     _lock = asyncio.Lock()
+    _requests: dict[str, ToolRequest]
+    _thread_requests: dict[str, list[str]]
+    _cleanup_task: Optional[asyncio.Task]
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._requests: dict[str, ToolRequest] = {}
-            cls._instance._thread_requests: dict[str, list[str]] = {}
-            cls._instance._cleanup_task: Optional[asyncio.Task] = None
+            cls._instance._requests = {}
+            cls._instance._thread_requests = {}
+            cls._instance._cleanup_task = None
         return cls._instance
 
     async def start(self):
@@ -219,10 +222,10 @@ class ClientCapabilitiesManager:
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._tools: set[str] = set()
-            cls._instance._prefixes: set[str] = set()
-            cls._instance._version: str = ""
-            cls._instance._last_reported: Optional[datetime] = None
+            cls._instance._tools = set()
+            cls._instance._prefixes = set()
+            cls._instance._version = ""
+            cls._instance._last_reported = None
         return cls._instance
 
     def update_capabilities(

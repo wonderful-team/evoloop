@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -351,13 +352,13 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
                     "steps": steps
                 }
             )
-            
+
             # EMBEDDED_MODE: Wait for task completion to ensure data persistence
             # LocalCelery uses fire-and-forget by default, which can lose tasks
             # when the event loop closes at agent shutdown
             if settings.EMBEDDED_MODE:
+                logger.info(f"[DatabaseCallback] EMBEDDED_MODE detected: Waiting for steps snapshot task...")
                 await result.get(timeout=10)
-                logger.debug(f"[Embedded] Steps snapshot saved: {len(steps)} steps")
-                
+
         except Exception as e:
             logger.warning(f"Failed to snapshot steps: {e}")

@@ -11,7 +11,7 @@ import subprocess
 import traceback
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, Body, File, HTTPException, Query, Request, Response, UploadFile
@@ -907,7 +907,7 @@ async def execute_skill(
         bg_tasks.add_task(
             execute_macro_with_fallback, 
             thread_id=body.thread_id, 
-            project_id=body.project_id, 
+            project_id=body.project_id or 1,
             skill=skill,  # Pass full skill object for unified policy
             macro_payload=macro_payload, 
             params=body.params
@@ -1023,7 +1023,7 @@ async def get_device_resolution(device_id: str):
     """Get Android device screen resolution via ADB."""
     from app.infrastructure.drivers.adb import adb_driver
     try:
-        size = await adb_driver.get_screen_size(device_id)
+        size = adb_driver.get_screen_size(device_id)
         if not size:
             return {"width": 1080, "height": 1920}  # Sensible fallback
         return {"width": size[0], "height": size[1]}
@@ -1634,7 +1634,7 @@ async def list_annotations(session_id: str):
                         "height": coords.get("height") if coords else None,
                     } if coords else None,
                     user_note=e.target_text or "Screen region extraction",
-                    created_at=e.created_at.isoformat() if e.created_at else datetime.now().isoformat(),
+                    created_at=e.created_at if e.created_at else datetime.now(),
                 )
             )
 
@@ -1888,14 +1888,14 @@ async def run_smart_synthesis(
             try:
                 import json
                 new_skill = LearnedSkill(
-                    name=skill.name,
-                    description=skill.description,
-                    namespace=skill.namespace or "misc",
-                    trigger_patterns=json.dumps(skill.trigger_patterns) if skill.trigger_patterns else "[]",
-                    parameters="[]",  # 默认空参数列表
-                    instructions=skill.instructions,
-                    execution_mode=skill.execution_mode,
-                    macro_script=skill.macro_script,  # Already YAML string
+                    name=skill_dict.get("name", "unnamed_skill"),
+                    description=skill_dict.get("description", ""),
+                    namespace=skill_dict.get("namespace", "misc"),
+                    trigger_patterns=json.dumps(skill_dict.get("trigger_patterns", [])),
+                    parameters="[]",
+                    instructions=skill_dict.get("instructions", ""),
+                    execution_mode=skill_dict.get("execution_mode", "agentic"),
+                    macro_script=skill_dict.get("macro_script", ""),
                     is_active=False,
                     status="pending_review",  # 标准化为 pending_review
                     skill_source="smart_replay",  # 标识来源为智能回放合成

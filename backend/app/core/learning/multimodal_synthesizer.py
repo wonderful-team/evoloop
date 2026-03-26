@@ -330,7 +330,8 @@ class MultimodalSkillSynthesizer:
                 return []
 
             for event in events:
-                event.timestamp = normalize_timestamp_to_seconds(event.timestamp)
+                if event.timestamp is not None:
+                    event.timestamp = normalize_timestamp_to_seconds(event.timestamp)
 
             if events:
                 timestamps = [e.timestamp for e in events if e.timestamp is not None]
@@ -593,7 +594,7 @@ class MultimodalSkillSynthesizer:
         ]
         
         response = await self.vision_llm.ainvoke(messages)
-        return response.content
+        return str(response.content)
 
     def _describe_position(self, norm_x: float, norm_y: float) -> str:
         """将归一化坐标转换为精细的语义描述 (5x5 风格)"""

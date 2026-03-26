@@ -430,13 +430,7 @@ async def delete_conversation(thread_id: str):
         checkpointer = get_checkpointer()
         if checkpointer:
             try:
-                # Try to delete checkpoints using the checkpointer's async method
-                # AsyncSqliteSaver uses adelete_thread, AsyncPostgresSaver uses adelete
-                if hasattr(checkpointer, 'adelete_thread'):
-                    await checkpointer.adelete_thread(thread_id)
-                elif hasattr(checkpointer, 'adelete'):
-                    config = {"configurable": {"thread_id": thread_id}}
-                    await checkpointer.adelete(config)
+                await checkpointer.adelete_thread(thread_id)
                 logger.info(f"[DeleteConversation] Deleted checkpoints for thread {thread_id}")
             except Exception as e:
                 # Log but don't fail if checkpoint deletion fails

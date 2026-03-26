@@ -12,13 +12,13 @@ class AndroidService:
     """
 
     @staticmethod
-    async def dehydrate_layout(xml_content: str) -> List[Dict[str, Any]]:
+    async def dehydrate_layout(xml_content: str) -> tuple[List[Dict[str, Any]], str]:
         """
         Processes raw Android XML layout into a dehydrated list of interactive elements.
         Uses AndroidA11yProvider for robust XML parsing and element extraction.
         """
         if not xml_content or not xml_content.strip():
-            return []
+            return [], "Empty layout."
 
         # Use the provider's internal parse method to avoid re-implementing 
         # bounds parsing and coordinate calculation.
@@ -41,7 +41,8 @@ class AndroidService:
                 "resource_id": el.metadata.get("resource_id", ""),
             })
             
-        return dehydrated
+        summary = f"Dehydrated layout with {len(dehydrated)} interactive elements."
+        return dehydrated, summary
 
 
 android_service = AndroidService()

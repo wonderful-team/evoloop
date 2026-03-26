@@ -23,20 +23,19 @@ export function LocalChatScreen() {
   const initializedRef = useRef(false)
   const [activeThreadId, setActiveThreadId] = useState<string | undefined>(undefined)
 
-  const handleSend = async (content: string, attachments: any[] = []) => {
-    // Optimistic UI
-    let displayContent = content
-    if (attachments.length > 0) {
-      const attachmentStrings = attachments
-        .map((att) => {
-          if (att.type === "image") return `[Image: ${att.url}]`
-          return `[File: ${att.url}]`
-        })
-        .join("\n")
-      displayContent =
-        attachmentStrings + (displayContent.trim() ? `\n${displayContent.trim()}` : "")
-    }
+  const { currentProject, isProjectInitialized } = useMobileStore()
+  
+  const {
+    isConnected,
+    isLocal,
+    unifiedMessages,
+    clearMessages,
+    addMessage,
+    setMessages,
+    sendCommand,
+  } = useEvoLoopWebSocket(Number(deviceId))
 
+  const handleSend = async (content: string, attachments: any[] = []) => {
     addMessage({
       type: "user",
       content: content,
@@ -44,21 +43,28 @@ export function LocalChatScreen() {
       timestamp: Date.now(),
     })
 
-    try {
-      // Use HTTP directly for command submission to support rich media and improve reliability
-      await CommandService.sendCommand({
-        device_id: Number(deviceId),
-        content: {
-          command_type: "chat",
-          params: {
-            message: content,
-            attachments: attachments,
-            project_id: currentProject?.project_id,
-          },
+    const payload = {
+      device_id: Number(deviceId),
+      content: {
+        command_type: "chat",
+        params: {
+          message: content,
+          attachments: attachments,
+          project_id: currentProject?.project_id,
         },
-        project_id: currentProject?.project_id,
-        thread_id: activeThreadId, // Ensure session continuity across devices
-      })
+      },
+      project_id: currentProject?.project_id,
+      thread_id: activeThreadId,
+    }
+
+    const sentViaWs = sendCommand(payload as any)
+    if (sentViaWs) {
+      console.log("[Chat] Sent via WebSocket")
+      return
+    }
+
+    try {
+      await CommandService.sendCommand(payload)
     } catch (e: any) {
       toast.error(t("chat.local.sendFailed") + e.message)
       addMessage({
@@ -73,34 +79,20 @@ export function LocalChatScreen() {
   useEffect(() => {
     if (searchParams.initialMessage && !initializedRef.current) {
       initializedRef.current = true
-      // Small delay to ensure everything is mounted
       setTimeout(() => {
         handleSend(searchParams.initialMessage)
-        // Clear param? Maybe not needed if we rely on ref, but cleaner for URL
-        // navigate({ search: (prev: any) => ({ ...prev, initialMessage: undefined }) })
       }, 500)
     }
   }, [searchParams.initialMessage])
 
-  const { currentProject, isProjectInitialized } = useMobileStore()
-  const {
-    isConnected,
-    unifiedMessages, // <--- Hybrid stream
-    clearMessages,
-    addMessage,
-    setMessages,
-  } = useEvoLoopWebSocket(Number(deviceId))
-
-  // Fetch history - Use LogsService for unified history
+  // Fetch history
   useEffect(() => {
     if (deviceId && isProjectInitialized) {
       if (activeThreadId === "") {
-        // Explicitly clear messages for New Chat
         setMessages([])
         return
       }
 
-      // For highlight mode, use LogsService (debug context)
       if (highlight) {
         LogsService.getRecentLogs({
           device_id: Number(deviceId),
@@ -123,7 +115,6 @@ export function LocalChatScreen() {
         return
       }
 
-      // Normal mode: Use LogsService for detailed history (tools/thoughts)
       const promise = activeThreadId
         ? LogsService.getLogsByThread({
           thread_id: activeThreadId,
@@ -155,9 +146,6 @@ export function LocalChatScreen() {
                 timestamp: log.create_time ? log.create_time * 1000 : Date.now(),
               }
             })
-            // Logs are typically ASC for thread, DESC for recent
-            // If getLogsByThread sends ASC, we don't need reverse.
-            // If getRecentLogs sends DESC, we need reverse.
             setMessages(activeThreadId ? formatted : formatted.reverse())
           }
         })
@@ -182,7 +170,6 @@ export function LocalChatScreen() {
       if (res.code >= 0 && Array.isArray(res.data)) {
         return res.data
       }
-      // If data is an object with list property, common in cloud APIs
       if (res.code >= 0 && (res.data as any)?.list) {
         return (res.data as any).list
       }
@@ -192,7 +179,6 @@ export function LocalChatScreen() {
     refetchOnWindowFocus: false,
   })
 
-  // Ensure devices is an array before calling find
   const devicesList = Array.isArray(devices) ? devices : []
   const currentDevice = devicesList.find(
     (d: any) => d.device_id === Number(deviceId),
@@ -204,7 +190,11 @@ export function LocalChatScreen() {
   let statusShadow = ""
 
   if (isConnected) {
-    if (isDeviceOnline) {
+    if (isLocal) {
+        statusText = "Direct P2P"
+        statusColor = "bg-blue-500"
+        statusShadow = "shadow-[0_0_8px_rgba(59,130,246,0.5)]"
+    } else if (isDeviceOnline) {
       statusText = t("chat.local.agentOnline")
       statusColor = "bg-green-500"
       statusShadow = "shadow-[0_0_8px_rgba(34,197,94,0.5)]"
@@ -231,12 +221,9 @@ export function LocalChatScreen() {
           }
         },
         project_id: currentProject?.project_id,
-        thread_id: threadId, // Ensure HITL response goes to correct session
+        thread_id: threadId,
       })
-
       toast.success(t("hitl.responseSent"))
-
-      // Optimistic update? Maybe allow UI to show "submitted" state.
     } catch (e: any) {
       toast.error(t("hitl.sendFailed") + e.message)
     }
@@ -258,7 +245,7 @@ export function LocalChatScreen() {
       />
 
       <MessageList
-        messages={unifiedMessages as any} // Pass hybrid stream
+        messages={unifiedMessages as any}
         isProjectInitialized={isProjectInitialized}
         isDeviceOnline={isDeviceOnline}
         highlight={highlight}
@@ -267,7 +254,6 @@ export function LocalChatScreen() {
         showStarters={unifiedMessages.length === 0}
       />
 
-      {/* Back to Live FAB */}
       {highlight && (
         <div className="absolute bottom-20 right-4 z-30">
           <Button

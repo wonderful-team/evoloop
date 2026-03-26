@@ -54,7 +54,14 @@ class TraceRecorder:
         logger.info(f"[TraceRecorder] Recording stopped. Trace saved to: {file_path}")
         return file_path
 
-    async def record_action(self, action_type: str, platform: str, parameters: Dict[str, Any], context: Dict[str, Any] = None, screenshot_data: bytes = None):
+    async def record_action(
+        self, 
+        action_type: str, 
+        platform: str, 
+        parameters: Dict[str, Any], 
+        context: Optional[Dict[str, Any]] = None, 
+        screenshot_data: Optional[bytes] = None
+    ):
         """Records a single action with its context."""
         if not self.is_recording:
             return
@@ -276,7 +283,7 @@ async def sync_thread_to_graph(
         action_data = []
         for ev in events[:50]:  # cap at 50 events
             try:
-                payload = json.loads(ev.action_payload) if ev.action_payload else {}
+                payload = ev.action_payload if isinstance(ev.action_payload, dict) else json.loads(ev.action_payload) if ev.action_payload else {}
             except Exception:
                 payload = {}
             

@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import time
 from datetime import datetime
+from typing import Any, Literal
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +137,7 @@ class ADBDriver:
     def screenshot(
         self,
         device_id: str | None = None,
-        purpose: str = "temp",
+        purpose: Literal["temp", "atlas", "debug", "dataset"] = "temp",
         bundle_id: str | None = None,
         suffix: str | None = None
     ) -> str:
@@ -238,12 +239,28 @@ class ADBDriver:
     def input_text(self, text: str, device_id: str | None = None) -> None:
         """
         Input text to the device.
-        Note: Standard ADB input text doesn't support non-ASCII well and can NPE on some ROMs.
+        Advanced version: supports non-ASCII (Chinese) by falling back to clipboard + paste.
         """
         start = time.time()
+        is_ascii = all(ord(c) < 128 for c in text)
         
-        # 1. Attempt broadcast-based input (requires ADBKeyBoard/Yosemite/etc, common in silky automation)
-        # This is non-blocking and safe even if no receiver exists (just does nothing)
+        # Helper to try paste fallback (Synchronous)
+        def _try_paste_fallback():
+            logger.info(f"Using clipboard/paste fallback for text: '{text[:10]}...'")
+            if self.set_clipboard(text, device_id=device_id):
+                # Small wait for clipboard to propagate
+                time.sleep(0.5)
+                # 279 is KEYCODE_PASTE (Android 9+)
+                # 66 is ENTER (if needed, but usually just paste)
+                try:
+                    self.press_key(279, device_id=device_id)
+                except:
+                    # Fallback to Ctrl+V if Paste keycode is not supported
+                    self._run_adb(["shell", "input", "keyevent", "--longpress", "279"], device_id=device_id)
+                return True
+            return False
+
+        # 1. Attempt broadcast-based input (requires ADBKeyBoard/etc)
         try:
             self._run_adb([
                 "shell", "am", "broadcast", "-a", "ADB_INPUT_TEXT", "--es", "msg", f"'{text}'"
@@ -251,28 +268,22 @@ class ADBDriver:
         except:
             pass
 
-        # 2. Attempt standard input text for ASCII/compatibility
-        # We handle spaces with %s and use quotes to protect other chars
-        # But for Chinese, we try a safer quoting or direct pass
-        is_ascii = all(ord(c) < 128 for c in text)
-        processed_text = text.replace(" ", "%s")
-        
-        try:
-            # Wrap in double quotes for better shell compatibility in modern Android
-            # If it contains complex chars, we use a single-quoted block but escape internal ones
-            if is_ascii:
+        # 2. Attempt standard input text (if ASCII)
+        if is_ascii:
+            processed_text = text.replace(" ", "%s")
+            try:
                 self._run_adb(["shell", "input", "text", processed_text], device_id=device_id)
-            else:
-                # Experimental: try double-quoting for Chinese
-                self._run_adb(["shell", "input", "text", f'"{processed_text}"'], device_id=device_id)
-            
-            logger.info(f"Input text '{text[:10]}...' in {(time.time()-start)*1000:.0f}ms")
-        except ADBError as e:
-            if "NullPointerException" in str(e):
-                logger.warning(f"ADB 'input text' NPE detected for '{text}'. The device ROM doesn't support native non-ASCII input via standard ADB.")
-                raise RuntimeError(f"Failed to input text: '{text}'. Device ROM rejected the non-ASCII characters. Consider using clipboard/paste strategy if possible, or stick to English.")
-            else:
-                raise e
+                logger.info(f"Input text '{text[:10]}...' in {(time.time()-start)*1000:.0f}ms")
+                return
+            except Exception as e:
+                logger.debug(f"ASCII input failed, trying fallback: {e}")
+
+        # 3. Non-ASCII or Failed ASCII: Clipboard + Paste Fallback
+        if _try_paste_fallback():
+            logger.info(f"Successfully input text via clipboard fallback in {(time.time()-start)*1000:.0f}ms")
+            return
+
+        raise ADBError(f"Failed to input text: '{text}'. All methods (standard, broadcast, clipboard) failed.")
 
     def press_key(self, keycode: int | str, device_id: str | None = None) -> None:
         """
@@ -379,82 +390,124 @@ class ADBDriver:
             logger.debug(f"Failed to read clipboard: {e}")
             return ""
 
+    def set_clipboard(self, text: str, device_id: str | None = None) -> bool:
+        """
+        Set the current clipboard text on the device.
+        Tries multiple methods (broadcast, service call).
+        """
+        # Method 1: Helper broadcast (if available)
+        try:
+            self._run_adb([
+                "shell", "am", "broadcast", "-a", "ADB_SET_CLIPBOARD", "--es", "text", f"'{text}'"
+            ], device_id=device_id)
+        except:
+            pass
+
+        # Method 2: Service call (Universal for Android 8-13+)
+        # We try both call 2 and call 3 as indices vary by ROM
+        try:
+            # Note: s16 handles basic strings. Complex multi-line might fail.
+            for call_idx in [2, 3]:
+                # Syntax: service call clipboard [idx] i32 1 s16 "TEXT"
+                # The '1' signifies USER_ID or similar in Parcel
+                self._run_adb([
+                    "shell", "service", "call", "clipboard", str(call_idx), "i32", "1", "s16", f'"{text}"'
+                ], device_id=device_id)
+            return True
+        except Exception as e:
+            logger.debug(f"Service call clipboard failed: {e}")
+
+        # Method 3: am start with extra (Works on some ROMs if Settings handles it)
+        try:
+            self._run_adb([
+                "shell", "am", "start", "-a", "android.intent.action.SEND", 
+                "--es", "android.intent.extra.TEXT", f'"{text}"',
+                "-t", "text/plain", "com.android.settings/.Settings"
+            ], device_id=device_id)
+            # This is messy as it opens a UI, so we only use as last resort or if we can close it
+            return True
+        except:
+            pass
+
+        return False
+
     def dump_ui(self, device_id: str | None = None, compressed: bool = True) -> str:
         """
         Dump the current UI hierarchy as XML.
-        Uses --compressed to bypass 'idle state' issues common on real devices by default.
+        Robust version: tries exec-out first, then file-based with explicit verification.
         """
-        import time
         start = time.time()
 
-        # Method 1: Try direct exec-out with optional --compressed (fastest)
-        cmd = [self._adb_path]
-        if device_id:
-            cmd.extend(["-s", device_id])
+        # Method 1: Try direct exec-out (Fastest, avoids device filesystem issues)
+        configs = [compressed, False] if compressed else [False]
+        for try_compressed in configs:
+            try:
+                args = ["exec-out", "uiautomator", "dump"]
+                if try_compressed:
+                    args.append("--compressed")
+                args.append("/dev/tty")
 
-        # Use /dev/tty as output to get direct streaming
-        # Some devices support this, some don't
-        try:
-            dump_args = ["exec-out", "uiautomator", "dump"]
-            if compressed:
-                dump_args.append("--compressed")
-            dump_args.append("/dev/tty")
-
-            result = subprocess.run(
-                cmd + dump_args,
-                capture_output=True,
-                text=True,
-                timeout=10
-            )
-
-            # If it failed or returns empty (and we used compressed), try without --compressed as final fallback
-            if (result.returncode != 0 or not result.stdout.strip()) and compressed:
-                 result = subprocess.run(
-                    cmd + ["exec-out", "uiautomator", "dump", "/dev/tty"],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-
-            if result.returncode == 0 and result.stdout.strip():
-                # Output format: "UI hierchary dumped to: /dev/tty\n<xml>..."
-                output = result.stdout
-                # Find the XML start
-                xml_start = output.find("<?xml")
+                # exec-out streams directly, no "UI hierarchy dumped to" prefix
+                stdout, _ = self._run_adb(args, device_id=device_id, timeout=10)
+                
+                # Verify we got a valid XML block
+                xml_start = stdout.find("<?xml")
                 if xml_start == -1:
-                    xml_start = output.find("<hierarchy")
+                    xml_start = stdout.find("<hierarchy")
 
-                if xml_start >= 0:
-                    xml_content = output[xml_start:]
-                    logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (exec-out)")
-                    return xml_content
-        except Exception as e:
-            logger.debug(f"exec-out method failed: {e}")
+                if xml_start >= 0 and "</hierarchy>" in stdout:
+                    logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (exec-out, compressed={try_compressed})")
+                    return stdout[xml_start:]
+            except Exception as e:
+                if not try_compressed:
+                    logger.debug(f"exec-out dump failed: {e}")
+                continue
 
-        # Method 2: Fallback to file-based approach
+        # Method 2: Fallback to file-based approach with explicit existence verification
+        logger.warning("[ADB] exec-out dump failed, falling back to file-based dump")
         remote_path = "/data/local/tmp/window_dump.xml"
         try:
-            dump_cmd = ["shell", "uiautomator", "dump"]
-            if compressed:
-                dump_cmd.append("--compressed")
-            dump_cmd.append(remote_path)
-            
-            self._run_adb(dump_cmd, device_id=device_id)
-        except ADBError:
-            # Final fallback: standard dump
-            self._run_adb(["shell", "uiautomator", "dump", remote_path], device_id=device_id)
+            # 1. Clean up stale file if any
+            try:
+                self._run_adb(["shell", "rm", "-f", remote_path], device_id=device_id)
+            except:
+                pass
 
-        stdout, _ = self._run_adb(["shell", "cat", remote_path], device_id=device_id)
+            # 2. Try Dump
+            try:
+                dump_cmd = ["shell", "uiautomator", "dump"]
+                if compressed:
+                    dump_cmd.append("--compressed")
+                dump_cmd.append(remote_path)
+                self._run_adb(dump_cmd, device_id=device_id, timeout=15)
+            except ADBError:
+                # 3. Final fallback: standard dump
+                self._run_adb(["shell", "uiautomator", "dump", remote_path], device_id=device_id, timeout=15)
 
-        # Cleanup (async, don't wait)
-        subprocess.Popen(
-            [self._adb_path] + (["-s", device_id] if device_id else []) + ["shell", "rm", "-f", remote_path],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
-        )
+            # 4. CRITICAL: Verify file existence and non-zero size
+            # This addresses the "silent failure" where uiautomator exits 0 but creates no file
+            try:
+                self._run_adb(["shell", "test", "-s", remote_path], device_id=device_id)
+            except ADBError:
+                time.sleep(1.0) # Grace period
+                try:
+                    self._run_adb(["shell", "test", "-s", remote_path], device_id=device_id)
+                except ADBError:
+                    raise ADBError(f"uiautomator dump reported success but file '{remote_path}' was not created or is empty. Device UI service might be unresponsive.")
 
-        logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (file)")
-        return stdout
+            # 5. Read and Cleanup
+            stdout, _ = self._run_adb(["shell", "cat", remote_path], device_id=device_id)
+
+            subprocess.Popen(
+                [self._adb_path] + (["-s", device_id] if device_id else []) + ["shell", "rm", "-f", remote_path],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+
+            logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (file)")
+            return stdout
+        except Exception as e:
+            logger.error(f"UI hierarchy dump failed: {e}")
+            raise ADBError(f"Failed to capture UI hierarchy: {e}")
 
     def get_screen_size(self, device_id: str | None = None) -> tuple[int, int]:
         """
@@ -631,7 +684,7 @@ class ADBDriver:
         """
         try:
             stdout, _ = self._run_adb(["shell", "dumpsys", "package", package], device_id=device_id, timeout=10)
-            info = {"package": package}
+            info: dict[str, Any] = {"package": package}
             
             # Extract versionCode
             vc_match = re.search(r'versionCode=(\d+)', stdout)
@@ -705,7 +758,7 @@ class ADBDriver:
         device_id: str | None = None,
         after_timestamp: int | None = None,
     ) -> list[dict]:
-        """
+        r"""
         Read recent SMS messages from the device inbox.
         If a regex_pattern is provided, polls for up to timeout seconds until a match is found.
 

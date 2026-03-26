@@ -78,9 +78,12 @@ async def analyze_impact(symbol_name: str, config: RunnableConfig | None = None)
             return f"No usages found for symbol '{symbol_name}' in the Knowledge Graph."
 
         relations_data = []
-        for fp, items in by_file.items():
-            for item in items:
-                relations_data.append({"source": item, "direction": "used by File", "target": fp})
+        for usage in usages:
+            relations_data.append({
+                "source": usage["source"],
+                "direction": usage["relation"],
+                "target": usage["file_path"]
+            })
         
         return render_template("codebase/codebase_indexing.prompt.j2", relations=relations_data)
 

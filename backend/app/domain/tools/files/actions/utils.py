@@ -40,7 +40,16 @@ async def resolve_and_validate_path(path: str, config: RunnableConfig | None = N
         raise ValueError(i18n.get("domain_tools.files.resolve_error", path=path))
 
     # Security Check: Prevent breaking out of working directory
-    if not str(target_path).startswith(str(root)):
+    is_safe = str(target_path).startswith(str(root))
+
+    if not is_safe:
+        # Optional: Allow whitelisted system paths (e.g., /tmp/dataset for testing)
+        for prefix in settings.ALLOWED_PATH_PREFIXES:
+            if str(target_path).startswith(prefix):
+                is_safe = True
+                break
+
+    if not is_safe:
         raise ValueError(i18n.get("domain_tools.files.security_violation", path=path, root=root))
 
     return target_path

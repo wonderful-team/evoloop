@@ -217,15 +217,15 @@ async def request_human_input(
     # The actual waiting/response handling is done by the frontend + API layer
     context_section = ""
     if context:
-        context_section = f"\n{i18n.get('prompts.domain_tools.human_input.context', context=context)}"
+        context_section = f"\n{i18n.get('domain_tools.human_input.context', context=context)}"
 
     options_section = ""
     if options:
-        options_section = f"\n{i18n.get('prompts.domain_tools.human_input.options', options=', '.join(options))}"
+        options_section = f"\n{i18n.get('domain_tools.human_input.options', options=', '.join(options))}"
 
     default_section = ""
     if default_value:
-        default_section = f"\n{i18n.get('prompts.domain_tools.human_input.default', default=default_value)}"
+        default_section = f"\n{i18n.get('domain_tools.human_input.default', default=default_value)}"
 
     response_text = i18n.get(
         "domain_tools.human_input.request_template",
@@ -333,10 +333,10 @@ async def request_approval(
 """
 
     if details:
-        approval_context += f"\n{i18n.get('prompts.domain_tools.human_input.details', details=details)}\n"
+        approval_context += f"\n{i18n.get('domain_tools.human_input.details', details=details)}\n"
 
     if consequences:
-        approval_context += f"\n{i18n.get('prompts.domain_tools.human_input.consequences', conseq=consequences)}\n"
+        approval_context += f"\n{i18n.get('domain_tools.human_input.consequences', conseq=consequences)}\n"
 
     # Create the request
     request = create_request(

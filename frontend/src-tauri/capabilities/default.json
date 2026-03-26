@@ -79,7 +79,7 @@
       "identifier": "http:default",
       "allow": [
         {
-          "url": "https://mall.imagicbox.cn/**"
+          "url": "https://api.evoloop.cn/**"
         },
         {
           "url": "http://localhost:8000/**"

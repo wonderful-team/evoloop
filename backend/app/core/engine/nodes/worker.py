@@ -12,6 +12,7 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.context import ContextManager
 from app.core.engine import AgentEngine
+from app.core.engine.message_utils import get_message_text
 from app.core.engine.prompts import WorkerPromptBuilder
 from app.core.engine.state import AgentState
 from app.core.environment import get_awakened_state
@@ -183,7 +184,7 @@ class WorkerNode:
         and subtask result collection (Phase 1).
         """
         last_msg = engine_result["messages"][-1]
-        content = last_msg.content if isinstance(last_msg, AIMessage) else ""
+        content = get_message_text(last_msg) if isinstance(last_msg, AIMessage) else ""
         tool_history = engine_result.get("tool_history", [])
         routing_target = engine_result.get("_routing_target")
 

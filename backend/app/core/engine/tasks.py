@@ -3,7 +3,7 @@ import logging
 import os
 import shutil
 import time
-from typing import Any
+from typing import Any, cast
 
 from langchain_core.messages import SystemMessage
 
@@ -171,7 +171,7 @@ def harvest_concepts_task(concepts_data: list[dict], project_id: int):
                 # Optimized logic for Android layouts
                 if name.startswith("android_layout:"):
                     logger.info(f"Optimizing layout concept: {name}")
-                    elements, summary = android_service.dehydrate_layout(description)
+                    elements, summary = await android_service.dehydrate_layout(description)
                     
                     if elements:
                         # 1. Trigger App Atlas mapping (Structured Storage)
@@ -429,10 +429,10 @@ def git_harvest_task(cwd: str, project_id: int):
     Background task to extract knowledge concepts from git diff.
     """
     async def _run():
-        from app.domain.tools.git import HARVEST_PROMPT, ExtractionResult
-        from app.infrastructure.llm.factory import LLMFactory
-        from app.infrastructure.config.service import SystemConfigService
         import subprocess
+        from app.infrastructure.llm.factory import LLMFactory
+        from app.domain.tools.git import ExtractionResult
+        from app.infrastructure.config.service import SystemConfigService
 
         # 1. Get Diff
         try:
@@ -447,7 +447,8 @@ def git_harvest_task(cwd: str, project_id: int):
             logger.error(f"[Celery] Git diff failed: {e}")
             return
 
-            # 2. Extract
+        # 2. Extract
+        try:
             llm = LLMFactory.create_llm(temperature=0.0)
             structured_llm = llm.with_structured_output(ExtractionResult)
             user_lang = SystemConfigService.get_language_preference()
@@ -459,11 +460,11 @@ def git_harvest_task(cwd: str, project_id: int):
                 user_language=user_lang
             )
 
-            result = await structured_llm.ainvoke([
+            result = cast(ExtractionResult, await structured_llm.ainvoke([
                 SystemMessage(content=prompt_text)
-            ])
+            ]))
 
-            if result and result.concepts:
+            if isinstance(result, ExtractionResult) and result.concepts:
                 for concept in result.concepts:
                     mem_concept = MemConcept(concept.name, concept.description, project_id, concept.related_files)
                     await memory_manager.long_term.store_concept(mem_concept)

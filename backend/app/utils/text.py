@@ -121,7 +121,8 @@ def html_to_markdown(html: str, base_url: str = "") -> str:
     if not html:
         return ""
 
-    from bs4 import BeautifulSoup, NavigableString
+    from bs4 import BeautifulSoup
+    from bs4.element import NavigableString
 
     def process_element(element) -> str:
         """Process a single HTML element."""
@@ -372,50 +373,3 @@ def normalize_text(text: str | None) -> str:
         return ""
     
     return unicodedata.normalize('NFC', str(text)).lower().strip().replace(" ", "").replace("\u3000", "")
-
-
-# ============================================================================
-# Content Extraction (Backward Compatibility)
-# ============================================================================
-
-
-def extract_code_blocks(text: str) -> list[tuple[str, str]]:
-    """
-    Extract all code blocks from markdown text.
-    
-    Args:
-        text: Markdown text containing code blocks
-    
-    Returns:
-        List of (language, content) tuples
-    """
-    # Pattern to match ```lang ... ```
-    pattern = r"```(?P<lang>\w+)?\n(?P<code>.*?)```"
-    matches = re.findall(pattern, text, re.DOTALL)
-    
-    results = []
-    for lang, code in matches:
-        results.append((lang.strip() if lang else "text", code.strip()))
-    
-    return results
-
-
-def extract_json_from_markdown(content: str) -> str:
-    """
-    Extract JSON from markdown code blocks or return raw content.
-    
-    Args:
-        content: Text potentially containing JSON code block
-    
-    Returns:
-        Extracted JSON string
-    """
-    patterns = [
-        r'```json\s*(.*?)\s*```',
-        r'```\s*(.*?)\s*```',
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, content, re.DOTALL)
-        if match:
-            return match.group(1).strip()
-    return content.strip()

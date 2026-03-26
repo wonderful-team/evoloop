@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
-import { useTranslation } from "react-i18next"
-import { toast } from "sonner"
-import { DevicesService } from "../client"
 
-const WS_URL = import.meta.env.VITE_EVOLOOP_WS_URL || "wss://mall.imagicbox.cn/wss/"
+const CLOUD_WS_URL = import.meta.env.VITE_EVOLOOP_WS_URL || "wss://api.evoloop.cn/ws/evoloop"
+const LOCAL_PORT = 8766
 
 // Debug/Trace Log (for expandable thought/tool views)
 export interface LogMessage {
@@ -54,12 +52,14 @@ export const normalizeLogMessage = (m: any): LogMessage => {
 }
 
 export function useEvoLoopWebSocket(deviceId: number | null) {
-  const { t } = useTranslation()
   const [isConnected, setIsConnected] = useState(false)
-  const [messages, setMessages] = useState<LogMessage[]>([])  // Unified logs
-  const wsRef = useRef<WebSocket | null>(null)
+  const [isLocal, setIsLocal] = useState(false)
+  const [messages, setMessages] = useState<LogMessage[]>([])
+  
+  const cloudWsRef = useRef<WebSocket | null>(null)
+  const localWsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<any>(null)
-  const retryCountRef = useRef(0)
+  const [localIp, setLocalIp] = useState<string | null>(localStorage.getItem("evoloop_last_local_ip"))
 
   const addMessage = useCallback((msg: LogMessage) => {
     setMessages((prev) => {
@@ -71,151 +71,142 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
     })
   }, [])
 
-  const connect = useCallback(() => {
-    if (!deviceId) return
-
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current)
-    }
-
+  const handleIncomingMessage = useCallback((data: any) => {
     try {
-      const ws = new WebSocket(WS_URL)
-      wsRef.current = ws
-
-      ws.onopen = () => {
-        console.log("[EvoLoop] WS Connected")
-        setIsConnected(true)
-        retryCountRef.current = 0
+      if (data.type === "connect_ok") {
+        console.log("[EvoLoop] Cloud Handshake Success")
+        return
       }
 
-      ws.onmessage = async (event) => {
-        try {
-          const data = JSON.parse(event.data)
+      if (data.type === "new_logs") {
+        const logs = data.data.logs || []
+        const batchProjectId = data.data.project_id
+        if (Array.isArray(logs)) {
+          setMessages((prev) => {
+            const formattedLogs = logs.map((log: any) => {
+              const normalized = normalizeLogMessage(log)
+              if (!normalized.project_id && batchProjectId) {
+                normalized.project_id = batchProjectId
+              }
+              return normalized
+            })
 
-          if (data.type === "init") {
-            const clientId = data.data.client_id
-            console.log("[EvoLoop] Got client_id:", clientId)
-            try {
-              await DevicesService.bindMobile(clientId)
-              console.log("[EvoLoop] Mobile Bound")
-            } catch (e) {
-              console.error("[EvoLoop] Bind failed", e)
-              toast.error(t("toast.bindFailed"))
-            }
-          } else if (data.type === "ping") {
-            // ignore
-          } else if (data.type === "new_logs") {
-            const logs = data.data.logs || []
-            const batchProjectId = data.data.project_id
-            if (Array.isArray(logs)) {
-              setMessages((prev) => {
-                const formattedLogs = logs.map((log: any) => {
-                  const normalized = normalizeLogMessage(log)
-                  // Apply batchProjectId if individual log doesn't have one
-                  if (!normalized.project_id && batchProjectId) {
-                    normalized.project_id = batchProjectId
-                  }
-                  return normalized
-                })
-
-                // Deduplicate incoming logs against existing
-                // 1. By log_id (Priority)
-                // 2. By content + role if log_id is missing (To catch matched optimistic user messages)
-                const newLogs = formattedLogs.filter((nl) => {
-                  // Check if log_id already exists
-                  if (nl.log_id && prev.some((pl) => pl.log_id && pl.log_id === nl.log_id)) return false
-
-                  // If it's a user message from server, check if we have a matching optimistic message (no log_id)
-                  // We allow a small time window for matching
-                  if (nl.type === 'user' || nl.role === 'user') {
-                    const matchIdx = prev.findIndex(pl =>
-                      !pl.log_id &&
-                      pl.role === nl.role &&
-                      pl.content === nl.content &&
-                      Math.abs(pl.timestamp - nl.timestamp) < 30000 // 30s window
-                    )
-                    if (matchIdx !== -1) {
-                      // Replace the optimistic message with the server one to get the log_id
-                      prev[matchIdx] = nl
-                      return false
-                    }
-                  }
-
-                  return true
-                })
-                return [...prev, ...newLogs]
-              })
-            }
-          } else if (
-            ["thought", "tool", "output", "error", "hitl_request", "model"].includes(data.type)
-          ) {
-            setMessages((prev) => {
-              const normalized = normalizeLogMessage(data)
-
-              // Deduplicate single incoming log
-              if (normalized.log_id && prev.some(pl => pl.log_id === normalized.log_id)) return prev
-
-              // Check for matching optimistic
-              if (normalized.role === 'user') {
+            const newLogs = formattedLogs.filter((nl) => {
+              if (nl.log_id && prev.some((pl) => pl.log_id && pl.log_id === nl.log_id)) return false
+              if (nl.type === 'user' || nl.role === 'user') {
                 const matchIdx = prev.findIndex(pl =>
                   !pl.log_id &&
-                  pl.role === normalized.role &&
-                  pl.content === normalized.content &&
-                  Math.abs(pl.timestamp - normalized.timestamp) < 30000
+                  pl.role === nl.role &&
+                  pl.content === nl.content &&
+                  Math.abs(pl.timestamp - nl.timestamp) < 30000
                 )
                 if (matchIdx !== -1) {
-                  const updated = [...prev]
-                  updated[matchIdx] = normalized
-                  return updated
+                  prev[matchIdx] = nl
+                  return false
                 }
               }
-
-              return [...prev, normalized]
+              return true
             })
-          }
-        } catch (e) {
-          console.error("[EvoLoop] WS Parse Error", e)
+            return [...prev, ...newLogs]
+          })
         }
+      } else if (
+        ["thought", "tool", "output", "error", "hitl_request", "model"].includes(data.type)
+      ) {
+        setMessages((prev) => {
+          const normalized = normalizeLogMessage(data)
+          if (normalized.log_id && prev.some(pl => pl.log_id === normalized.log_id)) return prev
+          if (normalized.role === 'user') {
+            const matchIdx = prev.findIndex(pl =>
+              !pl.log_id &&
+              pl.role === normalized.role &&
+              pl.content === normalized.content &&
+              Math.abs(pl.timestamp - normalized.timestamp) < 30000
+            )
+            if (matchIdx !== -1) {
+              const updated = [...prev]
+              updated[matchIdx] = normalized
+              return updated
+            }
+          }
+          return [...prev, normalized]
+        })
+      }
+    } catch (e) {
+      console.error("[EvoLoop] WS Parse Error", e)
+    }
+  }, [])
+
+  const connectCloud = useCallback(() => {
+    if (!deviceId || (localWsRef.current && localWsRef.current.readyState === WebSocket.OPEN)) return
+
+    try {
+      const ws = new WebSocket(CLOUD_WS_URL)
+      cloudWsRef.current = ws
+
+      ws.onopen = () => {
+        console.log("[EvoLoop] Cloud WS Connected. Handshaking...")
+        const token = localStorage.getItem("evoloop_token") || localStorage.getItem("access_token")
+        if (token) {
+          ws.send(JSON.stringify({
+            type: "connect",
+            payload: {
+              device_type: "mobile",
+              token: token
+            }
+          }))
+        }
+        setIsConnected(true)
+        setIsLocal(false)
+      }
+
+      ws.onmessage = (event) => {
+        handleIncomingMessage(JSON.parse(event.data))
       }
 
       ws.onclose = () => {
-        console.log("[EvoLoop] WS Closed")
-        setIsConnected(false)
-
-        // Exponential backoff
-        const delay = Math.min(30000, 1000 * Math.pow(2, retryCountRef.current))
-        console.log(`[EvoLoop] Reconnecting in ${delay}ms (attempt ${retryCountRef.current + 1})`)
-        retryCountRef.current += 1
-        reconnectTimeoutRef.current = setTimeout(connect, delay)
-      }
-
-      ws.onerror = (e) => {
-        console.error("[EvoLoop] WS Error", e)
+        console.log("[EvoLoop] Cloud WS Closed")
+        if (!isLocal) setIsConnected(false)
+        reconnectTimeoutRef.current = setTimeout(connectCloud, 5000)
       }
     } catch (e) {
-      console.error("[EvoLoop] Connection failed", e)
+      console.error("[EvoLoop] Cloud Connection failed", e)
     }
-  }, [deviceId, t])
+  }, [deviceId, isLocal, handleIncomingMessage])
 
-  useEffect(() => {
-    if (deviceId) {
-      connect()
-    }
-    return () => {
-      if (wsRef.current) {
-        // Prevent reconnect logic from firing on intentional cleanup
-        wsRef.current.onclose = null
-        wsRef.current.close()
+  const connectLocal = useCallback((ip: string) => {
+    if (localWsRef.current) localWsRef.current.close()
+
+    try {
+      const ws = new WebSocket(`ws://${ip}:${LOCAL_PORT}`)
+      localWsRef.current = ws
+
+      ws.onopen = () => {
+        console.log("[EvoLoop] Local P2P Connected!")
+        setIsConnected(true)
+        setIsLocal(true)
+        localStorage.setItem("evoloop_last_local_ip", ip)
       }
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current)
+
+      ws.onmessage = (event) => {
+        handleIncomingMessage(JSON.parse(event.data))
       }
+
+      ws.onclose = () => {
+        console.log("[EvoLoop] Local WS Closed. Falling back to Cloud...")
+        setIsLocal(false)
+        setIsConnected(false)
+        connectCloud()
+      }
+    } catch (e) {
+      console.error("[EvoLoop] Local Connection failed", e)
     }
-  }, [deviceId, connect])
+  }, [connectCloud, handleIncomingMessage])
 
   const sendMessage = useCallback((msg: any) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify(msg))
+    const ws = (localWsRef.current?.readyState === WebSocket.OPEN) ? localWsRef.current : cloudWsRef.current
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify(msg))
       return true
     }
     return false
@@ -227,47 +218,49 @@ export function useEvoLoopWebSocket(deviceId: number | null) {
     thread_id?: string;
     project_id?: number
   }) => {
-    if (!isConnected || !deviceId) {
-      return false;
-    }
+    if (!isConnected || !deviceId) return false
 
-    // Fallback to HTTP if WS not ready? Or return false and let UI decide?
-    // Let's try sending via WS
-    const payload = {
-      type: "send_command",
-      data: {
+    const payload = isLocal ? {
+      type: "new_command",
+      data: { ...data }
+    } : {
+      type: "command_relay",
+      payload: {
         ...data,
-        device_id: deviceId // Force current device context
+        target_device_id: deviceId
       }
     }
 
     return sendMessage(payload)
-  }, [isConnected, deviceId, sendMessage])
+  }, [isConnected, deviceId, sendMessage, isLocal])
 
-  // Derived state: Unified Stream
-  // Filter out any 'user' type logs just in case they sneak in (actually user logs ARE allowed now for chat history)
-  // Wait, if we use LogsService, user messages come as 'user' type logs.
-  // We should NOT filter 'user' type if we want them to show up.
-  // But previously we filtered them?
-  // "messages.filter(m => (m as any).type !== 'user' ...)"
-  // If we want unified history, we need user messages.
-  // The 'user' type logs from cloud are okay.
-  // The 'output' logs (Final Answer) might still duplicate if Assistant message is also generated differently?
-  // Let's keep it simple: Just allow all logs, maybe filter 'output' if it's redundant.
-  // Actually, 'output' -> Final Answer.
-  // 'ai' -> partial streaming? No 'ai' is usually thought/text.
-  // Let's keep the filter for now just to be safe based on previous logic, but allow 'user'.
-  // Sort unified messages by timestamp
+  useEffect(() => {
+    if (deviceId) {
+      if (localIp) {
+        connectLocal(localIp)
+      } else {
+        connectCloud()
+      }
+    }
+    return () => {
+      if (cloudWsRef.current) cloudWsRef.current.close()
+      if (localWsRef.current) localWsRef.current.close()
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current)
+    }
+  }, [deviceId, localIp, connectLocal, connectCloud])
+
   const unifiedMessages = [...messages].sort((a, b) => a.timestamp - b.timestamp)
 
   return {
     isConnected,
+    isLocal,
     messages,
     unifiedMessages,
     sendMessage,
     sendCommand,
     addMessage,
     setMessages,
+    setLocalIp,
     clearMessages: () => setMessages([]),
   }
 }

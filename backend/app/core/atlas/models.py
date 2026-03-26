@@ -195,9 +195,12 @@ class AtlasApp:
             is_dynamic=data.get("is_dynamic", False),
         )
 
-    def compute_version_hash(self) -> str:
-        """Compute a hash representing the current state of the app map."""
-        content = f"{self.bundle_id}:{len(self.states)}:{len(self.transitions)}"
+    def compute_version_hash(self, version_name: str | None = None, update_time: str | None = None) -> str:
+        """
+        Compute a hash representing the current state of the app map.
+        Includes version metadata if provided.
+        """
+        content = f"{self.bundle_id}:{version_name or ''}:{update_time or ''}:{len(self.states)}:{len(self.transitions)}"
         return _compute_version_hash(content)
 
     def get_infrastructure_only(self) -> "AtlasApp":

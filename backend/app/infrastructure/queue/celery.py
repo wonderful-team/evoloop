@@ -154,16 +154,31 @@ class LocalAsyncResult:
             logger.error(f"[LocalAsyncResult] Task {self.task.name} failed: {e}")
 
     async def get(self, timeout: float = None, propagate: bool = True):
-        """Execute and return result."""
+        """Wait for result and return."""
         if not self._ready:
-            try:
-                self._result = await self.task.run(*self.args, **self.kwargs)
-                self._ready = True
-            except Exception as e:
-                self._exception = e
-                self._ready = True
-                if propagate:
-                    raise
+            # 1. If background task is already running, wait for it
+            if hasattr(self, "_async_task") and not self._async_task.done():
+                try:
+                    if timeout:
+                        await asyncio.wait_for(asyncio.shield(self._async_task), timeout=timeout)
+                    else:
+                        await self._async_task
+                except (asyncio.TimeoutError, TimeoutError):
+                    raise TimeoutError(f"Task {self.task.name} timed out after {timeout}s")
+                except Exception:
+                    # _run_task already handles exceptions and sets _exception/_ready
+                    pass
+            
+            # 2. If still not ready (no task was scheduled or it failed silently), run it now
+            if not self._ready:
+                try:
+                    self._result = await self.task.run(*self.args, **self.kwargs)
+                    self._ready = True
+                except Exception as e:
+                    self._exception = e
+                    self._ready = True
+                    if propagate:
+                        raise
 
         if self._exception and propagate:
             raise self._exception

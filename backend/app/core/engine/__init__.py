@@ -17,7 +17,7 @@ from app.core.engine.message_utils import (
     prune_redundant_results,
     repair_message_history,
     smart_window_slice,
-    truncate_message_content,
+    truncate_message_content, log_messages,
 )
 from app.core.engine.state import AgentState
 from app.core.tools.registry import get_tool_affected_paths
@@ -169,8 +169,9 @@ class AgentEngine:
         history_messages = [m for m in messages if not isinstance(m, SystemMessage)]
 
         # Always prepend System Prompt
-        # Optimization: Inject Prompt Caching for Anthropic if provider is set
-        if SystemConfigService.get_value("LLM_PROVIDER") == "anthropic":
+        # Optimization: Inject Prompt Caching for Anthropic/Kimi
+        provider = SystemConfigService.get_value("LLM_PROVIDER")
+        if provider in ["anthropic", "kimi"]:
             system_msg = SystemMessage(content=[
                 {
                     "type": "text",
@@ -187,13 +188,13 @@ class AgentEngine:
             logger.warning("[AgentEngine] No history messages (only System Prompt). Skipping LLM call to prevent API errors.")
             return {"messages": []}
 
-        logger.info(f"--- [AgentEngine] System Prompt ---\n{system_prompt}\n-----------------------------------------------------")
+        logger.debug(f"--- [AgentEngine] System Prompt ---\n{system_prompt}\n-----------------------------------------------------")
 
         new_messages = []
         local_tool_history = []
 
         for i in range(max_steps):
-            logger.info(f"--- {name} Loop Step {i + 1} ---")
+            log_messages(loop_messages, context_name=f"--- {name} Loop Step {i+1} ---")
 
             # Invoke LLM
             response = await llm_with_tools.ainvoke(loop_messages, config=config)
@@ -374,7 +375,7 @@ class AgentEngine:
             tool_results = await asyncio.gather(*[_process_single_tool(tc) for tc in response.tool_calls])
 
             for tool_msg in tool_results:
-                logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)}")
+                logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content[:500])}...")
                 loop_messages.append(tool_msg)
                 new_messages.append(tool_msg)
 
@@ -566,7 +567,7 @@ class AgentEngine:
         tool_results = await asyncio.gather(*[_execute_tool(tc) for tc in response.tool_calls])
 
         for tool_msg in tool_results:
-            logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content)}")
+            logger.info(f"[{name}] ✅ Result ({tool_msg.name}): {str(tool_msg.content[:500])}...")
             new_messages.append(tool_msg)
 
         # IMMEDIATE TERMINATION: No second LLM turn

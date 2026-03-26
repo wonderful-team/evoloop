@@ -63,5 +63,9 @@ async def recall_memory(query: str, domain: str = "both") -> str:
                 kg_data["message"] = f"No matches for '{query}'."
         except Exception as e:
             logger.error(f"Graph search failed: {e}")
+            kg_data["error"] = str(e)
+            errors.append(f"Graph Error: {e}")
+        
+        result["graph"] = kg_data
 
-    return "\n".join(results)
+    return json.dumps(result, ensure_ascii=False, indent=2)

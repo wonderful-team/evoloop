@@ -1,5 +1,7 @@
 import hashlib
 import hmac
+import os
+import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -80,31 +82,29 @@ def sanitize_filename(filename: str, replacement: str = '_') -> str:
     Returns:
         Sanitized filename safe for use in filesystem
     """
-    import re
-    
     # Remove path separators and null bytes
     unsafe = ['\\', '/', '\x00', '\n', '\r', '\t']
     result = filename
     for char in unsafe:
         result = result.replace(char, replacement)
-    
+
     # Remove other special characters
     result = re.sub(r'[<>:"|?*]', replacement, result)
-    
+
     # Limit length
     if len(result) > 255:
         name, ext = os.path.splitext(result)
         result = name[:255 - len(ext)] + ext
-    
+
     # Don't allow hidden files or reserved names on Windows
     reserved = {'CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4',
                 'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 'LPT3',
                 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'}
-    
+
     base = os.path.splitext(result)[0].upper()
     if base in reserved:
         result = replacement + result
-    
+
     return result
 
 

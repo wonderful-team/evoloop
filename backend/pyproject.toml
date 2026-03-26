@@ -82,6 +82,7 @@ dependencies = [
     "ddgs>=9.11.4",
     "beautifulsoup4>=4.12.0",
     "langgraph-checkpoint-sqlite>=3.0.3",
+    "langgraph-checkpoint-postgres>=3.0.4",
 ]
 
 [project.optional-dependencies]
@@ -95,7 +96,8 @@ full = [
     "redis>=5.0.0",
     "langchain-postgres>=0.0.9",
     "langchain-neo4j>=0.7.0",
-    "langgraph-checkpoint-postgres>=2.0.0",
+    "langgraph-checkpoint-sqlite>=3.0.3",
+    "langgraph-checkpoint-postgres>=3.0.4",
 ]
 # Embedded mode only (lighter, no external deps)
 embedded = [

@@ -8,6 +8,7 @@ import logging
 import os
 import subprocess
 import time
+from typing import cast, Literal, Any
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class MacOSDriver:
         # Use hierarchical storage for proper lifecycle management
         from app.core.vision.storage import screenshot_storage
         filepath = screenshot_storage.get_path(
-            purpose=purpose,
+            purpose=cast(Literal["temp", "atlas", "debug", "dataset"], purpose),
             platform="macos",
             bundle_id=bundle_id,
             suffix=suffix
@@ -132,20 +133,7 @@ class MacOSDriver:
                 except Exception as e:
                     logger.warning(f"cliclick failed: {e}")
 
-        # Method 3: AppleScript with mouse move + click current position
-        # This is more reliable than "click at"
-        script = f'''
-        tell application "System Events"
-            set frontApp to name of first application process whose frontmost is true
-        end tell
-        
-        do shell script "osascript -e 'tell application \\"System Events\\" to ¬
-            tell application process \\"{frontApp}\\" to ¬
-            keystroke \\"\\" '"
-        '''
-
-        # Actually, the most reliable AppleScript approach is using a helper
-        # Since neither CGEvent nor cliclick is available, provide clear error
+        # Method 3: Provide clear error since reliable fallback is not yet implemented
         raise RuntimeError(
             f"Cannot click at ({x}, {y}). "
             "Please install pyobjc-framework-Quartz: pip install pyobjc-framework-Quartz\n"

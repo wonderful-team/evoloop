@@ -186,13 +186,16 @@ class MobileController:
 
             # ── Internal helpers (closures capturing context) ──────────────
 
-            async def finish_action(msg: str | dict, success: bool = True) -> str:
+            async def finish_action(msg: str | dict, success: bool = True, note: str | None = None) -> str:
                 """Phase 4/6: wait_after_ms logic and standardized rendering."""
                 if wait_after_ms > 0:
                     await asyncio.sleep(wait_after_ms / 1000.0)
                 
                 if isinstance(msg, str):
-                    return render_template("report/response.prompt.j2", success=success, message=msg, note=f"Wait: {wait_after_ms}ms" if wait_after_ms > 0 else None)
+                    # Combine wait note with caller-provided note
+                    wait_note = f"Wait: {wait_after_ms}ms" if wait_after_ms > 0 else None
+                    final_note = f"{note} ({wait_note})" if note and wait_note else (note or wait_note)
+                    return render_template("report/response.prompt.j2", success=success, message=msg, note=final_note)
                 return str(msg)
 
             async def probe_hybrid(a11y_result=None) -> bool:

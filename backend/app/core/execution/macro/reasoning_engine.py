@@ -45,9 +45,9 @@ class AgentReasoningEngine:
         self,
         current_step: Dict[str, Any],
         ui_state: Dict[str, Any],
-        history: List[Dict[str, Any]] = None,
+        history: List[Dict[str, Any]] | None = None,
         is_recovery: bool = False,
-        failure_reason: str = None
+        failure_reason: str = ""
     ) -> ActionDecision:
         """
         Decide the next action based on visual state and current macro step.
@@ -59,6 +59,7 @@ class AgentReasoningEngine:
             is_recovery: If True, this is a recovery attempt after failure
             failure_reason: Reason for previous failure (if is_recovery=True)
         """
+        history = history or []
         screenshot_path = ui_state.get("screenshot")
         step_number = current_step.get("step_number", "?")
         context = "RECOVERY" if is_recovery else "DECISION"
@@ -90,7 +91,12 @@ class AgentReasoningEngine:
             logger.info(f"[LLM:{context}:{step_number}] Raw response received")
             logger.info(f"[LLM:{context}:{step_number}] Response content:\n{content}")
 
-            result = self._parse_reasoning_response(content, current_step)
+            # Ensure content is string for parsing
+            content_str = str(content)
+            if isinstance(content, list):
+                content_str = "".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
+            
+            result = self._parse_reasoning_response(content_str, current_step)
 
             # Log parsed result
             logger.info(f"[LLM:{context}:{step_number}] Parsed decision: action={result.action}, confidence={result.confidence}")
@@ -146,12 +152,20 @@ class AgentReasoningEngine:
             content = response.content
             logger.info(f"[LLM:VERIFY:{step_number}] Response:\n{content}")
 
-            data = json.loads(re.search(r'\{.*\}', content, re.DOTALL).group())
-            success = data.get("success", True)
-            reasoning = data.get("reasoning", "No details")
+            # Ensure content is string for regex
+            if isinstance(content, list):
+                content = "".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
 
-            logger.info(f"[LLM:VERIFY:{step_number}] Verification result: success={success}")
-            logger.info(f"[LLM:VERIFY:{step_number}] Reasoning: {reasoning}")
+            json_match = re.search(r'\{.*\}', str(content), re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+                success = data.get("success", True)
+                reasoning = data.get("reasoning", "No details")
+            else:
+                success = True
+                reasoning = "Could not parse JSON response, assuming success"
+
+            logger.info(f"[LLM:VERIFY:{step_number}] Verification result: success={success},  Reasoning: {reasoning}")
 
             return success, reasoning
 
@@ -186,9 +200,18 @@ class AgentReasoningEngine:
             content = response.content
             logger.info(f"[LLM:TERMINAL:{step_number}] Response:\n{content}")
 
-            data = json.loads(re.search(r'\{.*\}', content, re.DOTALL).group())
-            is_terminal = data.get("is_terminal", True)
-            reasoning = data.get("reasoning", "No reasoning")
+            # Ensure content is string for regex
+            if isinstance(content, list):
+                content = "".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
+
+            json_match = re.search(r'\{.*\}', str(content), re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+                is_terminal = data.get("is_terminal", True)
+                reasoning = data.get("reasoning", "No reasoning")
+            else:
+                is_terminal = True
+                reasoning = "Parsing failed"
 
             logger.info(f"[LLM:TERMINAL:{step_number}] is_terminal={is_terminal}")
             logger.info(f"[LLM:TERMINAL:{step_number}] Reasoning: {reasoning}")
@@ -202,13 +225,14 @@ class AgentReasoningEngine:
         self,
         step: Dict[str, Any],
         ui_state: Dict[str, Any],
-        history: List[Dict[str, Any]] = None,
+        history: List[Dict[str, Any]] | None = None,
         is_recovery: bool = False,
-        failure_reason: str = None
+        failure_reason: str = ""
     ) -> str:
         """Build the prompt for the Vision LLM"""
 
         # Build history context
+        history = history or []
         history_context = history[-3:] if history else []
 
         # Convert step to YAML for better readability
@@ -271,11 +295,12 @@ class AgentReasoningEngine:
         self,
         step: Dict[str, Any],
         ui_state: Dict[str, Any],
-        history: List[Dict[str, Any]] = None
+        history: List[Dict[str, Any]] | None = None
     ) -> RedundancyCheckResult:
         """
         Check if a step is redundant based on visual state and history.
         """
+        history = history or []
         screenshot_path = ui_state.get("screenshot")
         step_number = step.get("step_number", "?")
 
@@ -304,14 +329,21 @@ class AgentReasoningEngine:
             content = response.content
             logger.info(f"[LLM:REDUNDANCY:{step_number}] Response:\n{content}")
 
-            data = json.loads(re.search(r'\{.*\}', content, re.DOTALL).group())
+            # Ensure content is string for regex
+            if isinstance(content, list):
+                content = "".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
 
-            result = RedundancyCheckResult(
-                is_redundant=data.get("is_redundant", False),
-                redundancy_type=RedundancyType(data.get("type", "none")),
-                reason=data.get("reason", "Agent reasoning"),
-                suggested_action=data.get("suggested_action", "keep")
-            )
+            json_match = re.search(r'\{.*\}', str(content), re.DOTALL)
+            if json_match:
+                data = json.loads(json_match.group())
+                result = RedundancyCheckResult(
+                    is_redundant=data.get("is_redundant", False),
+                    redundancy_type=RedundancyType(data.get("type", "none")),
+                    reason=data.get("reason", "Agent reasoning"),
+                    suggested_action=data.get("suggested_action", "keep")
+                )
+            else:
+                result = RedundancyCheckResult(is_redundant=False)
 
             logger.info(f"[LLM:REDUNDANCY:{step_number}] Result: is_redundant={result.is_redundant}, type={result.redundancy_type.value}")
             return result
@@ -359,7 +391,15 @@ class AgentReasoningEngine:
             content = response.content
             logger.info(f"[LLM:ANALYZE] Response:\n{content}")
 
-            data = json.loads(re.search(r'\{.*\}', content, re.DOTALL).group())
+            # Ensure content is string for regex
+            if isinstance(content, list):
+                content = "".join([c.get("text", "") if isinstance(c, dict) else str(c) for c in content])
+
+            json_match = re.search(r'\{.*\}', str(content), re.DOTALL)
+            if not json_match:
+                return AIAnalysisResult(qualitative_assessment="Could not parse analysis JSON")
+
+            data = json.loads(json_match.group())
 
             # Clean up issues data - filter None values from affected_steps
             raw_issues = data.get("issues", [])

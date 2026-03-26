@@ -1,7 +1,6 @@
 import logging
+import os
 import random
-
-from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.core.memory import memory_manager
 from app.infrastructure.llm.factory import LLMFactory

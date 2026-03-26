@@ -23,3 +23,9 @@ class BaseBrainDriver(ABC):
         Returns True if the driver is ready.
         """
         pass
+
+    async def initialize(self) -> None:
+        """
+        Optional boot sequence for the driver.
+        """
+        pass

@@ -14,6 +14,7 @@ Flow:
 import asyncio
 import json
 import logging
+import platform
 from typing import Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -22,6 +23,12 @@ import websockets
 from websockets.exceptions import ConnectionClosed
 
 from app.core.config import settings
+
+try:
+    from zeroconf import IPVersion, ServiceInfo, Zeroconf
+    HAS_ZEROCONF = True
+except ImportError:
+    HAS_ZEROCONF = False
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +70,8 @@ class ClientWebSocketManager:
         self._lock = asyncio.Lock()
         self._server = None
         self._is_running = False
+        self._zeroconf: Optional[Any] = None
+        self._service_info: Optional[Any] = None
 
         # Connection state
         self._client_connected = False

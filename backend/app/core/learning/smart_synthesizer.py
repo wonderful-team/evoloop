@@ -15,20 +15,41 @@ class SmartSynthesizer:
     Uses a multi-modal LLM/Reasoning approach to find patterns.
     """
     
-    def __init__(self):
-        pass
+    def __init__(
+        self, 
+        job_id: int | None = None, 
+        session_id: str | None = None, 
+        thread_id: str | None = None, 
+        task_goal: str | None = None, 
+        annotations: List[Any] | None = None
+    ):
+        self.job_id = job_id
+        self.session_id = session_id
+        self.thread_id = thread_id
+        self.task_goal = task_goal
+        self.annotations = annotations or []
 
-    async def synthesize(self, trace_file_path: str) -> Dict[str, Any]:
+    async def synthesize(self, trace_file_path: Optional[str] = None) -> Dict[str, Any]:
         """
         Main entry point for synthesis.
         Reads a trace file and returns a Phase 4 compatible YAML structure.
         """
-        logger.info(f"[SmartSynthesizer] Synthesizing trace from: {trace_file_path}")
+        if trace_file_path:
+            with open(trace_file_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            traces: List[Dict[str, Any]] = data.get("traces", [])
+        else:
+            # Fallback to annotations if provided in __init__
+            traces = []
+            for ann in self.annotations:
+                if hasattr(ann, 'action_payload'):
+                    # Handle TraceEvent objects
+                    payload = json.loads(ann.action_payload) if isinstance(ann.action_payload, str) else ann.action_payload
+                    traces.append({
+                        "action_type": ann.action_type,
+                        "parameters": payload
+                    })
         
-        with open(trace_file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            
-        traces: List[Dict[str, Any]] = data.get("traces", [])
         if not traces:
             return {"error": "Empty trace"}
 

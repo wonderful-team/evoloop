@@ -323,7 +323,7 @@ class SynthesisIntegration:
 
         # Normalize macro_script to list of dict steps
         steps = macro_script
-        if hasattr(macro_script, 'steps'):
+        if isinstance(macro_script, MacroScript):
             # MacroScript object - convert to dicts with proper nesting
             try:
                 # Try Pydantic v2 method first

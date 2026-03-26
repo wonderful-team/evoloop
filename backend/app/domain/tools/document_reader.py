@@ -124,7 +124,8 @@ def query_excel_sql(file_path: str, sql_query: str) -> str:
         result_df = pd.read_sql_query(sql_query, conn)
         conn.close()
 
-        return result_df.to_json(orient="records", force_ascii=False)
+        result = result_df.to_json(orient="records", force_ascii=False)
+        return result if result is not None else "[]"
 
     except Exception as e:
         return f"SQL Execution Error: {str(e)}"
@@ -255,7 +256,7 @@ def _read_file_content(real_path: str, start: int | None, end: int | None) -> st
         return _read_html(real_path)
     else:
         # Code/Text Fallback. Using utils reading.
-        content, _ = read_file_content(real_path)
+        content, _, _ = read_file_content(real_path)
         lang = detect_language(real_path)
         return _wrap_code_block(real_path, content, lang)
 
@@ -285,7 +286,7 @@ def _inspect_docx(path: str) -> dict[str, Any]:
     doc = docx.Document(path)
     headings = []
     for para in doc.paragraphs:
-        if para.style.name.startswith("Heading"):
+        if para.style and para.style.name and para.style.name.startswith("Heading"):
             headings.append({"style": para.style.name, "text": para.text})
 
     return {

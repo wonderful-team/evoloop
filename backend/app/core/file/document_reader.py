@@ -40,7 +40,7 @@ class DocumentReaderService:
                 return await self._read_media(file_path)
             else:
                 # Text/Code fallback with paging support
-                content, _ = read_file_content(file_path, start_page, end_page)
+                content, _, _ = read_file_content(file_path, start_page, end_page)
                 return content
         except Exception as e:
             logger.error(f"Failed to read document {file_path}: {e}")
