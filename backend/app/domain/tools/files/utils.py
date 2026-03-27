@@ -29,10 +29,20 @@ async def resolve_and_validate_path(path: str, config: RunnableConfig | None = N
         workspace_root = db_workspace_root if db_workspace_root else settings.WORKSPACE_ROOT
 
         if root == "." or root == workspace_root:
-            raise ValueError(
-                f"File operations are not available in global mode. "
-                f"Please switch to a specific project to use file tools."
+            # Global mode detected - request project via HITL
+            result = await require_project_for_tool(
+                tool_name="file_operation",
+                tool_category="file_operation",
+                prompt="📁 **文件操作需要项目**\n\n当前处于全局模式，文件操作需要在特定项目中进行。请选择一个项目继续："
             )
+
+            if isinstance(result, str):
+                # User cancelled or error
+                raise ValueError(f"❌ 文件操作已取消：{result}")
+
+            # Project selected via HITL (temp project is set automatically)
+            # Re-resolve working directory with new project context
+            root = get_working_directory(config)
 
     target_path = resolve_path(path, base_path=root)
 

@@ -21,7 +21,7 @@ Automates the workflow of harvesting data from the macOS native Mail.app.
 3. **Select Message**: Click the most recent unread email in the results.
 4. **Identify Attachment**: Look for the paperclip icon or a block in the body representing a file.
 5. **Download**: Right-click the attachment -> "Save Attachment...". In the dialog, type the target directory name and hit Enter.
-6. **Verify**: Use `bash` `ls` to ensure the file now exists in the local directory.
+6. **Verify**: Use `execute_command` `ls` to ensure the file now exists in the local directory.
 
 ## 🛟 Recovery Strategy
 - **Mail Not Synced**: If no emails appear, click the "Get Mail" icon (top left).

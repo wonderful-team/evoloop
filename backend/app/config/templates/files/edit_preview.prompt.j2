@@ -1,0 +1,24 @@
+{% if success -%}
+✅ {{ message }}
+
+**Strategy**: {{ strategy or "unknown" }}
+{{ details }}
+
+--- Preview Diff ---
+```diff
+{{ diff or "(No changes detected)" }}
+```
+
+{% if confidence == "low" -%}
+⚠️ Warning: Low confidence match. Please review carefully before applying.
+{%- endif %}
+
+> [!TIP]
+> To apply this change, use:
+> `edit_file(path='{{ path }}', target='''{{ target_preview }}''', replacement='''{{ replacement_preview }}''')`
+{%- else -%}
+❌ {{ message or "Preview failed." }}
+{% if details %}
+{{ details }}
+{% endif %}
+{%- endif %}

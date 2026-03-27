@@ -187,6 +187,11 @@ class _FileCacheCore:
             self._delete("hashes", name)
         return count
 
+    async def hlen(self, name: str) -> int:
+        """Get number of fields in hash."""
+        data = self._read("hashes", name)
+        return len(data) if isinstance(data, dict) else 0
+
     # Set operations
     async def sadd(self, name: str, *values: Any) -> int:
         """Add members to set."""
@@ -202,6 +207,11 @@ class _FileCacheCore:
 
         self._write("sets", name, data)
         return count
+
+    async def scard(self, name: str) -> int:
+        """Get number of members in set."""
+        data = self._read("sets", name)
+        return len(data) if isinstance(data, list) else 0
 
     async def srem(self, name: str, *values: Any) -> int:
         """Remove members from set."""
@@ -370,8 +380,16 @@ class FileCachePipelineAdapter(CachePipeline):
         self._commands.append(("hdel", (name,) + keys, {}))
         return self
 
+    def hlen(self, name: str) -> "FileCachePipelineAdapter":
+        self._commands.append(("hlen", (name,), {}))
+        return self
+
     def sadd(self, name: str, *values: Any) -> "FileCachePipelineAdapter":
         self._commands.append(("sadd", (name,) + values, {}))
+        return self
+
+    def scard(self, name: str) -> "FileCachePipelineAdapter":
+        self._commands.append(("scard", (name,), {}))
         return self
 
     def srem(self, name: str, *values: Any) -> "FileCachePipelineAdapter":
@@ -447,8 +465,14 @@ class FileCacheCore:
     async def hdel(self, name: str, *keys: str) -> int:
         return await self._core.hdel(name, *keys)
 
+    async def hlen(self, name: str) -> int:
+        return await self._core.hlen(name)
+
     async def sadd(self, name: str, *values: Any) -> int:
         return await self._core.sadd(name, *values)
+
+    async def scard(self, name: str) -> int:
+        return await self._core.scard(name)
 
     async def srem(self, name: str, *values: Any) -> int:
         return await self._core.srem(name, *values)
@@ -526,10 +550,16 @@ class FileCache(Cache):
     async def hdel(self, name: str, *keys: str) -> int:
         return await self._cache.hdel(name, *keys)
 
+    async def hlen(self, name: str) -> int:
+        return await self._cache.hlen(name)
+
     # ========== Set Operations ==========
 
     async def sadd(self, name: str, *values: Any) -> int:
         return await self._cache.sadd(name, *values)
+
+    async def scard(self, name: str) -> int:
+        return await self._cache.scard(name)
 
     async def srem(self, name: str, *values: Any) -> int:
         return await self._cache.srem(name, *values)

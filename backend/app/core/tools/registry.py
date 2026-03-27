@@ -27,8 +27,8 @@ _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "engine" / "config" / "age
 # --- Fallback Metadata for System/External Tools ---
 # Used for tools that are not decorated with @evoloop_tool or are external (MCP/Built-in)
 SYSTEM_TOOL_METADATA = {
-    "bash": {
-        "summary_template": "database_logger.tool_summary.bash",
+    "execute_command": {
+        "summary_template": "database_logger.tool_summary.execute_command",
         "is_state_mutating": True,
         "name_map": {"zh": "执行命令", "en": "Execute Command"},
     },
@@ -240,26 +240,22 @@ def _report_missing_tools(node_role: str, missing_tools: list[str]):
         f"These tools are declared in YAML but not found in Registry or MCP."
     )
 
-    try:
-        from app.core.monitoring.activity import activity_monitor
-        coro = activity_monitor.log_event(
-            event_type="tool_missing",
-            data={
-                "node_role": node_role,
-                "missing_tools": missing_tools,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-                "severity": "warning",
-            },
-        )
-        try:
-            loop = asyncio.get_running_loop()
-            if loop.is_running():
-                loop.create_task(coro)
-        except RuntimeError:
-            # No running loop, just ignore or log to standard logger
-            pass
-    except Exception as e:
-        logger.debug(f"Failed to report missing tools to activity monitor: {e}")
+    loop = asyncio.get_running_loop()
+    if not loop.is_running():
+        return  # No running loop, skip async logging
+
+    # We have a running loop, safe to create and schedule the coroutine
+    from app.core.monitoring.activity import activity_monitor
+    coro = activity_monitor.log_event(
+        event_type="tool_missing",
+        data={
+            "node_role": node_role,
+            "missing_tools": missing_tools,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "severity": "warning",
+        },
+    )
+    loop.create_task(coro)
 
 
 def get_node_tools(node_role: str, config_path: str | None = None) -> list[BaseTool]:

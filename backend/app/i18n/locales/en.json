@@ -273,6 +273,24 @@
             "edit_success_log": "Successfully updated {path}\n(Note: {log})",
             "edit_fallback_failed": "Error: Target snippet not found (Strict). Robust Fallback Failed: {log}",
             "edit_error": "Error during update: {error}",
+            "edit_labels": {
+                "semantic_errors": "SEMANTIC ERRORS DETECTED",
+                "fix_hint": "Please fix these errors to ensure code quality.",
+                "type_warnings": "Found {0} type warning(s).",
+                "common_causes": "Common causes:",
+                "what_to_do": "What to do:",
+                "strict_fail": "EDIT FAILED: Could not find the target text in file."
+            },
+            "edit_causes": [
+                "You didn't read the file first - ALWAYS call `read_file(path='{path}')` before editing",
+                "The `target` text doesn't match exactly (check whitespace, newlines, punctuation)",
+                "The file content has changed since you last read it"
+            ],
+            "edit_hints": [
+                "Read the file: `read_file(path='{path}')`",
+                "Copy the EXACT text you want to replace (including all whitespace)",
+                "Use `dry_run=True` first to preview: `edit_file(path='{path}', target='...', replacement='...', dry_run=True)`"
+            ],
             "fs_create_dir_success": "Successfully created directory: {path}",
             "fs_create_dir_error": "Error creating directory: {error}",
             "fs_not_found": "Error: Path not found: {path}",

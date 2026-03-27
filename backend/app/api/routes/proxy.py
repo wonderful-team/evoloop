@@ -90,9 +90,7 @@ async def proxy_chat_completions(request: ChatCompletionRequest):
             if request.stream:
                 # Streaming response
                 async def stream_generator() -> AsyncGenerator[str, None]:
-                    async with client.stream(
-                        "POST", url, headers=headers, json=payload, timeout=300.0
-                    ) as response:
+                    async with client.stream("POST", url, headers=headers, json=payload, timeout=300.0) as response:
                         if response.status_code != 200:
                             error = await response.aread()
                             logger.error(f"LLM streaming error: {error}")
@@ -113,9 +111,7 @@ async def proxy_chat_completions(request: ChatCompletionRequest):
                 )
             else:
                 # Non-streaming response
-                response = await client.post(
-                    url, headers=headers, json=payload, timeout=300.0
-                )
+                response = await client.post(url, headers=headers, json=payload, timeout=300.0)
                 response.raise_for_status()
                 return response.json()
 

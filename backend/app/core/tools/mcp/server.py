@@ -6,17 +6,20 @@ from app.core.memory import memory_manager
 from app.domain.codebase.indexing.tools import index_path
 from app.domain.codebase.retrieval.tools import search_codebase
 
-# Expose Facades via MCP
-from app.domain.tools.facades import (
-    explore_codebase,
-    manage_git,
-    manage_memory,
+# Import tools via MCP
+from app.domain.codebase.exploration import (
+    find_symbol,
+    search_code,
+    ask_codebase,
+    analyze_impact,
 )
+from app.domain.tools.execution import execute_command
 from app.domain.tools.files import (
     edit_file,
-    file_system,
-    list_files,
+    list_directory,
+    manage_directory,
     read_file,
+    search_files,
     write_file,
 )
 from app.utils import json as json_utils
@@ -76,10 +79,10 @@ async def edit_file_ops(path: str, target: str, replacement: str, allow_multiple
 
 
 @mcp.tool()
-async def list_files_ops(path: str, depth: int = 3, tree: bool = True) -> str:
+async def list_directory_ops(path: str, depth: int = 3, tree: bool = True) -> str:
     """List files in a directory. Use tree=True for annotated tree view."""
     try:
-        return _truncate(await list_files.ainvoke({
+        return _truncate(await list_directory.ainvoke({
             "path": path,
             "depth": depth,
             "tree": tree
@@ -89,10 +92,10 @@ async def list_files_ops(path: str, depth: int = 3, tree: bool = True) -> str:
 
 
 @mcp.tool()
-async def file_system_ops(action: str, path: str, destination: str = None) -> str:
-    """File system operations: mkdir, delete, move."""
+async def manage_directory_ops(action: str, path: str, destination: str = None) -> str:
+    """Directory operations: mkdir, delete, move."""
     try:
-        return await file_system.ainvoke({
+        return await manage_directory.ainvoke({
             "action": action,
             "path": path,
             "destination": destination
@@ -102,51 +105,52 @@ async def file_system_ops(action: str, path: str, destination: str = None) -> st
 
 
 @mcp.tool()
-async def explore_codebase_ops(
-    action: str,
-    query: str,
-    scope_path: str = None
-) -> str:
-    """
-    Unified Codebase Exploration.
-    Actions: 'search_symbol', 'search_text', 'search_concept'.
-    """
+async def find_symbol_ops(name: str, file_pattern: str = None) -> str:
+    """Find definition of a class or function in the codebase."""
     try:
-        return _truncate(await explore_codebase.ainvoke({
-            "action": action,
-            "query": query,
-            "scope_path": scope_path
+        return _truncate(await find_symbol.ainvoke({
+            "name": name,
+            "file_pattern": file_pattern
         }))
     except Exception as e:
         return f"Error: {e}"
 
 
 @mcp.tool()
-async def manage_git_ops(action: str, argument: str = None) -> str:
-    """Unified Git Operations."""
+async def search_code_ops(pattern: str, path: str = None) -> str:
+    """Search code with regex pattern."""
     try:
-        return _truncate(manage_git.invoke({"action": action, "argument": argument}))
+        return _truncate(await search_code.ainvoke({
+            "pattern": pattern,
+            "path": path
+        }))
     except Exception as e:
         return f"Error: {e}"
 
 
 @mcp.tool()
-async def manage_memory_ops(action: str, key: str = None, value: str = None) -> str:
-    """Unified Memory Operations."""
+async def ask_codebase_ops(question: str) -> str:
+    """Ask a natural language question about the codebase."""
     try:
-        return await manage_memory.ainvoke({"action": action, "key": key, "value": value})
+        return _truncate(await ask_codebase.ainvoke({"question": question}))
     except Exception as e:
         return f"Error: {e}"
 
 
-# Kept independent
 @mcp.tool()
-async def bash_ops(command: str) -> str:
-    """Run shell command."""
+async def analyze_impact_ops(symbol: str) -> str:
+    """Analyze the impact of changing a symbol (find usages/dependants)."""
     try:
-        from app.domain.tools.execution import bash
+        return _truncate(await analyze_impact.ainvoke({"symbol": symbol}))
+    except Exception as e:
+        return f"Error: {e}"
 
-        return _truncate(await bash.ainvoke({"command": command}))
+
+@mcp.tool()
+async def execute_command_ops(command: str) -> str:
+    """Execute shell command including Git operations."""
+    try:
+        return _truncate(await execute_command.ainvoke({"command": command}))
     except Exception as e:
         return f"Error: {e}"
 

@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import re
 from typing import Any
 
 from langchain_core.messages import (
@@ -410,17 +411,6 @@ class AgentEngine:
                             blackboard["metadata"][key] = val
                             logger.info(f"[{name}] 🧬 Session Metadata Updated via Signal: {key}={val}")
 
-                    # 2. Blackboard Update Signal (update_blackboard tool)
-                    elif sig_type == "update_blackboard":
-                        key = sig_payload.get("key")
-                        val = sig_payload.get("value")
-                        if key:
-                            blackboard = state.get("blackboard", {})
-                            if "metadata" not in blackboard:
-                                blackboard["metadata"] = {}
-                            blackboard["metadata"][key] = val
-                            logger.info(f"[{name}] 🖊️ Blackboard field '{key}' updated via Signal: {val}")
-
                 # 2. History Compression Signal (Formalized)
                 if "COMPRESSION_SIGNAL|" in str(tool_msg.content):
                     try:
@@ -585,3 +575,38 @@ class AgentEngine:
             "blackboard": state.get("blackboard"),
             "_routing_target": None,
         }
+
+    @staticmethod
+    def _parse_inferred_blackboard(content: Any, state: dict, name: str):
+        """
+        Parses the LLM response content for inferred blackboard updates.
+        Pattern: [BLACKBOARD: key=value]
+        """
+        if not content or not isinstance(content, str):
+            return
+
+        # Support [BLACKBOARD: key=value] pattern
+        pattern = r"\[BLACKBOARD:\s*(\w+)\s*=\s*(.*?)\]"
+        matches = re.findall(pattern, content)
+
+        if matches:
+            blackboard = state.get("blackboard") or {}
+            metadata = blackboard.get("metadata", {})
+
+            for key, val in matches:
+                # Basic type inference
+                val_str = val.strip()
+                if val_str.lower() == "true":
+                    val = True
+                elif val_str.lower() == "false":
+                    val = False
+                elif val_str.isdigit():
+                    val = int(val_str)
+                else:
+                    val = val_str
+
+                metadata[key] = val
+                logger.info(f"[{name}] 🖊️ Blackboard field '{key}' updated via Inference: {val}")
+
+            blackboard["metadata"] = metadata
+            state["blackboard"] = blackboard

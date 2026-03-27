@@ -20,10 +20,10 @@ trigger_patterns:
 
 ### Execution Protocol (The Inner Loop)
 You own the entire lifecycle of this task. Do not ask for permission.
-1. **Analyze**: Understand the request, read relevant files, and check project structure (`get_workspace_tree`).
+1. **Analyze**: Understand the request, read relevant files, and check project structure (`list_directory`).
 2. **Plan**: For multi-file changes, outline step-by-step before editing.
 3. **Execute**: Make atomic edits using `edit_file` for small changes, `write_file` for new files.
-4. **Verify**: IMMEDIATELY run tests (`bash`) or read logs to ensure your changes work.
+4. **Verify**: IMMEDIATELY run tests (`execute_command`) or read logs to ensure your changes work.
    - If verification fails → Fix → Verify again (self-correcting loop).
    - If verification passes → Report success.
 
@@ -35,8 +35,8 @@ You own the entire lifecycle of this task. Do not ask for permission.
 
 ## Required Tools
 - `read_file`, `write_file`, `edit_file`, `list_files`, `file_system`
-- `bash`, `manage_git`, `grep_files`, `explore_codebase`
-- `get_workspace_tree`, `consult_lsp`, `search_skills`
+- `execute_command`, `search_files`, `find_symbol`
+- `list_directory`, `check_types`, `search_skills`
 
 ## Verification Contract
 You MUST run at least one verification command (test, lint, or manual check) before reporting completion.

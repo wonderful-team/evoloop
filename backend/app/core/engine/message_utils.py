@@ -302,11 +302,9 @@ def prune_redundant_results(messages: list[BaseMessage], threshold: int = CONTEX
         # Determine resource key (e.g., tool_name:path)
         resource_key = None
         if msg.name == "read_file":
-            # Heuristic: try to find filename in content or from history if available
-            # In our system, the tool call args are in the preceding AI message
-            resource_key = f"read_file" # Simplified for now, can be improved
-        elif msg.name == "bash":
-            resource_key = f"bash"
+            resource_key = f"read_file"
+        elif msg.name == "execute_command":
+            resource_key = f"execute_command"
 
         if not resource_key:
             continue

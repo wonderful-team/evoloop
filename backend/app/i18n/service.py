@@ -1,6 +1,7 @@
 import json
 import logging
 from pathlib import Path
+from typing import Any, Optional
 
 from app.constants import LANGUAGE_MAP
 from app.infrastructure.config.service import SystemConfigService
@@ -42,9 +43,9 @@ class I18nService:
 
         self._loaded = True
 
-    def get(self, key: str, **kwargs) -> str:
+    def get(self, key: str, **kwargs) -> Any:
         """
-        Get localized string by key (dot notation).
+        Get localized value by key (dot notation).
         Example: i18n.get("tasks.objective", title="Foo")
 
         Use `default` kwarg to specify a fallback value when key is not found.
@@ -56,38 +57,45 @@ class I18nService:
         default = kwargs.pop("default", None)
 
         # 1. Determine Language
-        # Try to get from kwargs first (override), then system config
-        # We use .get() instead of .pop() because {lang} might be used as a placeholder in the string
         lang = kwargs.get("lang")
         if not lang:
-            # We use "zh" as default if SystemConfig isn't set, per previous logic
             lang = SystemConfigService.get_value("LANGUAGE", "zh")
-            # Ensure derived lang is available for formatting if needed
             kwargs["lang"] = lang
 
-        # 2. Fetch Template
-        template = self._get_template(lang, key)
+        # 2. Fetch Value
+        value = self._get_template(lang, key)
 
         # Fallback to English if not found in target language
-        if template is None and lang != "en":
-            template = self._get_template("en", key)
+        if value is None and lang != "en":
+            value = self._get_template("en", key)
 
         # Fallback to default or key if still not found
-        if template is None:
+        if value is None:
             logger.debug(f"Missing translation for key: {key} (lang={lang})")
             return default if default is not None else key
 
-        # 3. Format
-        try:
-            return template.format(**kwargs)
-        except KeyError as e:
-            logger.warning(f"Missing placeholder in i18n string '{key}': {e}")
-            return template
-        except Exception as e:
-            logger.error(f"Error formatting i18n string '{key}': {e}")
-            return template
+        # 3. Handle dictionaries (no formatting)
+        if isinstance(value, dict):
+            return value
+        
+        # 4. Handle lists (no formatting for now)
+        if isinstance(value, list):
+            return value
 
-    def _get_template(self, lang: str, key: str) -> str | None:
+        # 5. Format strings
+        if isinstance(value, str):
+            try:
+                return value.format(**kwargs)
+            except KeyError as e:
+                logger.warning(f"Missing placeholder in i18n string '{key}': {e}")
+                return value
+            except Exception as e:
+                logger.error(f"Error formatting i18n string '{key}': {e}")
+                return value
+        
+        return value
+
+    def _get_template(self, lang: str, key: str) -> Any:
         """Navigate the nested dict."""
         data = self._locales.get(lang)
         if not data:
@@ -101,7 +109,7 @@ class I18nService:
             else:
                 return None
 
-        return current if isinstance(current, str) else None
+        return current
 
 
 # Singleton instance

@@ -18,9 +18,9 @@ class ConceptInput(BaseModel):
 
 @evoloop_tool(
     is_state_mutating=True,
-    name_map={"zh": "记忆概念", "en": "Memorize Concepts"}
+    name_map={"zh": "保存概念", "en": "Save Concepts"}
 )
-async def memorize_concepts(
+async def save_concepts(
     concepts: list[ConceptInput],
     config: Annotated[RunnableConfig, InjectedToolArg] = None
 ) -> str:

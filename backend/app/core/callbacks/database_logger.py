@@ -89,9 +89,9 @@ class DatabaseCallbackHandler(AsyncCallbackHandler):
             if not isinstance(content, str):
                 content = str(content)
 
-            # 1. Parse Thinking
+            # 1. Parse Thinking (<think>)
             thinking = None
-            think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL)
+            think_match = re.search(r"<think>(.*?)</think>", content, re.DOTALL | re.IGNORECASE)
             if think_match:
                 thinking = think_match.group(1).strip()
                 content = content.replace(think_match.group(0), "").strip()

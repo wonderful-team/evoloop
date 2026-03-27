@@ -14,7 +14,7 @@ from app.models.learning import LearnedSkill
     is_state_mutating=True,
     name_map={"zh": "从轨迹学习技能", "en": "Learn Skill from Trace"}
 )
-async def learn_skill_from_trace(thread_id: str, session_id: str | None = None) -> str:
+async def learn_from_trace(thread_id: str, session_id: str | None = None) -> str:
     """
     Analyzes the execution trace of a given thread/session and learns a reusable skill from it.
     This uses "Imitation Learning" to synthesize a parameterized skill configuration.

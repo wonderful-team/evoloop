@@ -111,6 +111,11 @@ class ActivityMonitor:
                 f"chat:{thread_id}:events",
                 HumanRequestEvent(action="clear", data={}).model_dump_json(),
             )
+            # [UI Sync Fix]: Also publish StatusEvent to unlock input and hide card
+            await cache.publish(
+                f"chat:{thread_id}:events", 
+                StatusEvent(status="idle").model_dump_json()
+            )
 
     async def request_human_interaction(
         self,

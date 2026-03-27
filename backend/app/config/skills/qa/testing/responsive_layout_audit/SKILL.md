@@ -31,7 +31,7 @@ Execute the following steps for **each** target breakpoint defined above.
 
 1.  **Resize Viewport**:
     *   **Method A (Preferred - Browser DevTools)**: Use `keyboard` shortcut to open DevTools (`Cmd+Option+I` on Mac), click the "Device Toolbar" toggle (`Cmd+Shift+M`), and select the target device from the dropdown, OR manually input the dimensions.
-    *   **Method B (System Level - AppleScript)**: Use the `bash` tool to execute AppleScript to forcefully resize the active application window. Example for Chrome to Mobile:
+    *   **Method B (System Level - AppleScript)**: Use the `execute_command` tool to execute AppleScript to forcefully resize the active application window. Example for Chrome to Mobile:
         ```bash
         osascript -e 'tell application "Google Chrome" to set bounds of window 1 to {0, 0, 375, 812}'
         ```

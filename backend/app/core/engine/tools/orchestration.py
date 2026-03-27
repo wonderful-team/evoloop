@@ -103,7 +103,7 @@ def route_to(
                           The Supervisor should select appropriate tools from the
                           Worker Baseline Capability Pool defined in agent_main.yaml.
                           For deep_researcher: ["search_web", "browser_control", ...]
-                          For documenter: ["read_file", "write_file", "list_files", ...]
+                          For documenter: ["read_file", "write_file", "list_directory", ...]
     """
     target_val = target.value if hasattr(target, "value") else target
     
@@ -148,11 +148,21 @@ async def decompose_task(
     try:
         response = await llm.ainvoke([{"role": "user", "content": prompt}])
         json_content = extract_json_from_markdown(response.content)
-        plan = json.loads(json_content)
+        subtasks = json.loads(json_content)
 
-        plan["_routing_signal"] = "spawn_subtasks"
-        plan["_requires_aggregation"] = requires_aggregation
-        plan["parent_task"] = task_description
+        # LLM should return an array of task objects per the prompt
+        if not isinstance(subtasks, list):
+            return {
+                "status": "error",
+                "error": f"Expected JSON array of tasks, got {type(subtasks).__name__}. Please ensure the prompt requests an array format."
+            }
+
+        plan = {
+            "subtasks": subtasks,
+            "_routing_signal": "spawn_subtasks",
+            "_requires_aggregation": requires_aggregation,
+            "parent_task": task_description
+        }
 
         return {
             "status": "success",

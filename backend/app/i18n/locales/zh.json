@@ -274,6 +274,24 @@
             "edit_success_log": "成功更新 {path}\n(注: {log})",
             "edit_fallback_failed": "错误：未找到目标片段 (严格模式)。鲁棒回退失败：{log}",
             "edit_error": "更新期间错误：{error}",
+            "edit_labels": {
+                "semantic_errors": "检测到语义错误",
+                "fix_hint": "请修复这些错误以确保代码质量。",
+                "type_warnings": "发现 {0} 个类型警告。",
+                "common_causes": "常见原因：",
+                "what_to_do": "后续操作：",
+                "strict_fail": "编辑失败：在文件中找不到目标文本。"
+            },
+            "edit_causes": [
+                "您没有先读取文件 - 在编辑前请务必先调用 `read_file(path='{path}')`",
+                "`target` 文本不完全匹配（请检查空格、换行符、标点符号）",
+                "自您上次读取以来，文件内容已更改"
+            ],
+            "edit_hints": [
+                "读取文件：`read_file(path='{path}')`",
+                "复制您要替换的准确文本（包括所有空格）",
+                "先使用 `dry_run=True` 进行预览：`edit_file(path='{path}', target='...', replacement='...', dry_run=True)`"
+            ],
             "fs_create_dir_success": "成功创建目录：{path}",
             "fs_create_dir_error": "创建目录错误：{error}",
             "fs_not_found": "错误：路径未找到：{path}",

@@ -70,7 +70,8 @@ class PersistentTerminal:
         sig = str(uuid.uuid4())
         marker = f"EVO_SIG_DONE_{sig}_"
         # Wrap command to echo status at the end
-        full_cmd = f"{command}\necho \"{marker}$?\"\n"
+        # Use printf for reliable exit code capture: outputs "MARKER0\n" or "MARKER1\n"
+        full_cmd = f"{command}\nprintf '{marker}%d\\n' $?\n"
         
         try:
             os.write(self._master_fd, full_cmd.encode())
@@ -104,24 +105,29 @@ class PersistentTerminal:
         
         text = output.decode("utf-8", errors="replace")
         
-        # Parse result
-        exit_code = 0
+        # Parse result by looking for marker followed by exit code
+        # Format: "EVO_SIG_DONE_xxx_0" (marker + exit_code as single line)
+        marker_with_code = None
+        exit_code = -1
         actual_output = text
         
-        if marker in text:
-            parts = text.split(marker)
-            actual_output = parts[0].strip()
-            # The part after marker starts with the exit code
-            try:
-                exit_code_str = parts[1].split("\n")[0].strip()
-                exit_code = int(exit_code_str)
-            except (ValueError, IndexError):
-                logger.error(f"[PTY][{self.session_id}] Failed to parse exit code from fragment: {parts[1][:50]}")
-                exit_code = -1
-        else:
-            if time.time() - start_time >= timeout:
-                actual_output = text + "\n[Error: Command timed out]"
-                exit_code = -1
+        for line in text.split('\n'):
+            if line.startswith(marker):
+                marker_with_code = line
+                try:
+                    exit_code_str = line[len(marker):].strip()
+                    exit_code = int(exit_code_str)
+                except ValueError:
+                    logger.error(f"[PTY][{self.session_id}] Failed to parse exit code from: {line[:100]}")
+                    exit_code = -1
+                break
+        
+        if marker_with_code:
+            parts = text.split(marker_with_code)
+            actual_output = parts[0].strip() if parts else text
+        elif time.time() - start_time >= timeout:
+            actual_output = text + "\n[Error: Command timed out]"
+            exit_code = -1
 
         # Periodic state sync (CWD)
         self._sync_state()
@@ -132,7 +138,7 @@ class PersistentTerminal:
         """Silently query the shell for current CWD to keep session state accurate."""
         sig = str(uuid.uuid4())
         marker = f"EVO_PWD_SIG_{sig}_"
-        cmd = f"pwd\necho \"{marker}$?\"\n"
+        cmd = f"pwd\nprintf '{marker}%d\\n' $?\n"
         os.write(self._master_fd, cmd.encode())
         
         # Short timeout for internal sync
@@ -148,12 +154,15 @@ class PersistentTerminal:
                 except OSError: break
         
         text = output.decode("utf-8", errors="replace")
-        if marker in text:
-            new_cwd = text.split(marker)[0].strip()
-            # Clean up bash non-interactive noise if any
-            new_cwd = new_cwd.splitlines()[-1] if "\n" in new_cwd else new_cwd
-            if os.path.isdir(new_cwd):
-                self.cwd = new_cwd
+        # Look for line starting with marker (format: "EVO_PWD_SIG_xxx_0")
+        for line in text.split('\n'):
+            if line.startswith(marker):
+                new_cwd = text.split(line)[0].strip()
+                # Clean up bash non-interactive noise if any
+                new_cwd = new_cwd.splitlines()[-1] if "\n" in new_cwd else new_cwd
+                if os.path.isdir(new_cwd):
+                    self.cwd = new_cwd
+                break
 
     def teardown(self):
         if self._proc:

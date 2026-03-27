@@ -28,7 +28,7 @@ This SOP defines how to take system-level screenshots and ensure they are saved 
 ### Action: Full Screen
 1. **Execute Capture**: Use the `keyboard` tool to press `Cmd+Shift+3`.
 2. **Audio/Visual Cues**: You will hear a camera shutter sound. A thumbnail will appear in the bottom-right corner for a few seconds. Do NOT click the thumbnail unless you intend to annotate it.
-3. **Verify File**: Execute `bash` command `ls -t ~/Desktop | grep "Screen Shot" | head -n 1`. Confirm the file exists.
+3. **Verify File**: Execute `execute_command` command `ls -t ~/Desktop | grep "Screen Shot" | head -n 1`. Confirm the file exists.
 
 ### Action: Active Window (Clean Capture)
 1. **Focus Window**: Ensure the target application is in the foreground.
@@ -40,8 +40,8 @@ This SOP defines how to take system-level screenshots and ensure they are saved 
 ### Action: Specific Region (Drag Select)
 1. **Trigger Crosshairs**: Press `Cmd+Shift+4`.
 2. **Execute Drag**: This is complex for an Agent. You MUST use the `mouse_drag` tool (if available in your `desktop_control` suite) from `(start_x, start_y)` to `(end_x, end_y)`.
-3. **Fallback**: If `mouse_drag` is unavailable or unreliable, fallback to capturing the Full Screen and using a bash tool (like ImageMagick `convert -crop`) to crop it later.
+3. **Fallback**: If `mouse_drag` is unavailable or unreliable, fallback to capturing the Full Screen and using a command tool (like ImageMagick `convert -crop`) to crop it later.
 
 ## 🛟 Recovery Strategy
 - **Thumbnail Stuck**: If the thumbnail in the bottom right blocks UI elements you need to interact with, swipe it away (simulate a right-to-left swipe on trackpad) or wait 5 seconds for it to disappear naturally.
-- **File Not on Desktop**: If the file is not on the desktop, the user may have changed the default location. Execute `defaults read com.apple.screencapture location` in bash to find where it went.
+- **File Not on Desktop**: If the file is not on the desktop, the user may have changed the default location. Execute `defaults read com.apple.screencapture location` via execute_command to find where it went.

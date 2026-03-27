@@ -89,7 +89,7 @@ async def suggest_inline_completion(request: InlineCompletionRequest) -> InlineC
         # Read file content if exists
         file_content = ""
         try:
-            from app.domain.tools.files.read import safe_read_with_hash
+            from app.utils.file import safe_read_with_hash
             file_content, _, _ = safe_read_with_hash(request.file_path)
         except Exception:
             # File may not exist yet (new file)
@@ -185,7 +185,7 @@ async def preview_edit_ghost(request: EditPreviewRequest) -> EditPreviewResponse
         # Read file content
         file_content = ""
         try:
-            from app.domain.tools.files.read import safe_read_with_hash
+            from app.utils.file import safe_read_with_hash
             file_content, _, _ = safe_read_with_hash(request.file_path)
         except Exception:
             pass

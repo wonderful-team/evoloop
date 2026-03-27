@@ -10,32 +10,11 @@ from app.core.context.manager import ContextManager
 from app.core.memory import memory_manager
 from app.core.monitoring.ui_actions import require_project_for_tool
 from app.core.tools import evoloop_tool, get_working_directory
+from app.domain.tools.files import edit_file
 from app.utils import ProjectManagementFormatter
+from app.utils.file import write_file_contents
 
 logger = logging.getLogger(__name__)
-from app.domain.codebase.analysis.tools import find_definition
-from app.domain.codebase.retrieval.tools import search_codebase
-from app.domain.tools.files import edit_file, grep_files
-from app.domain.tools.git import (
-    git_commit,
-    git_create_branch,
-    git_diff,
-    git_history,
-    git_status,
-)
-
-# Import delegated tools
-from app.domain.tools.memory import (
-    add_concept,
-    get_user_preferences,
-    save_preference,
-    search_concepts,
-)
-from app.domain.tools.memory_search import search_chat_history
-
-# ... (Delegate imports removed as they are now in actions)
-# Import the new dispatched tool
-from app.utils.file import write_file_contents as utils_write_file
 
 
 @evoloop_tool(
@@ -54,7 +33,7 @@ async def write_document(path: str, content: str, config: Annotated[RunnableConf
     root = get_working_directory(config)
     target_path = os.path.abspath(os.path.join(root, path))
 
-    utils_write_file(content, target_path)
+    write_file_contents(content, target_path)
     return f"Successfully wrote documentation to {path}"
 
 
@@ -80,178 +59,6 @@ async def edit_document(
     return await edit_file.ainvoke(
         {"path": path, "target": target, "replacement": replacement}, config=config
     )
-
-
-@evoloop_tool(
-    is_pollable=True,
-    summary_template="database_logger.tool_summary.search_code",
-    name_map={"zh": "探索代码库", "en": "Explore Codebase"}
-)
-async def explore_codebase(
-    action: Literal["search_symbol", "search_text", "semantic_code_search", "analyze_impact"],
-    query: str,
-    scope_path: str | None = None,  # Optional file pattern or path
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
-) -> str:
-    """
-    Unified Codebase Exploration Tool.
-
-    Args:
-        action:
-            - 'search_symbol': Find definition of class/function (Graph + Fallback).
-            - 'search_text': Grep for string literal (Regex).
-            - 'semantic_code_search': Semantic search for "How does X work?" (Vector).
-            - 'analyze_impact': Find usages/dependants of a symbol (Graph).
-        query: The symbol name, regex pattern, or question.
-        scope_path: Optional glob pattern or path.
-    """
-    # ... imports delegated to function scope to avoid circular deps if needed
-    from app.domain.codebase.analysis.tools import analyze_impact
-
-    if action == "search_symbol":
-        return await find_definition.ainvoke(
-            {"symbol_name": query, "file_pattern": scope_path}, config=config
-        )
-
-    elif action == "search_text":
-        # Delegate to grep
-        args = {"pattern": query, "is_regex": True}
-        if scope_path:
-            args["path"] = scope_path
-        return await grep_files.ainvoke(args, config=config)
-
-    elif action == "semantic_code_search":
-        return await search_codebase.ainvoke({"query": query}, config=config)
-
-    elif action == "analyze_impact":
-        return await analyze_impact.ainvoke({"symbol_name": query}, config=config)
-
-    return f"Error: Unknown action '{action}'"
-
-
-@evoloop_tool(
-    is_state_mutating=True,
-    summary_template="database_logger.tool_summary.manage_git",
-    name_map={"zh": "管理Git", "en": "Manage Git"}
-)
-async def manage_git(
-    action: Literal["status", "diff", "commit", "log", "create_branch"],
-    argument: str | None = None,  # message for commit, branch name, etc.
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
-) -> str:
-    """
-    Unified Git Operations.
-
-    Args:
-        action: Git command.
-        argument: Contextual argument (commit message, branch name).
-    """
-    if action == "status":
-        return await git_status.ainvoke({}, config=config)
-    elif action == "diff":
-        return await git_diff.ainvoke({}, config=config)
-    elif action == "commit":
-        if not argument:
-            return "Error: 'argument' (message) required for commit."
-        return await git_commit.ainvoke({"message": argument}, config=config)
-    elif action == "log":
-        return await git_history.ainvoke({}, config=config)
-    elif action == "create_branch":
-        if not argument:
-            return "Error: 'argument' (branch_name) required."
-        return await git_create_branch.ainvoke({"branch_name": argument}, config=config)
-
-    return f"Error: Unknown action '{action}'"
-
-
-@evoloop_tool(
-    is_state_mutating=True,
-    is_memory_tool=True,
-    summary_template="database_logger.tool_summary.manage_memory",
-    name_map={"zh": "管理记忆", "en": "Manage Memory"}
-)
-async def manage_memory(
-    action: Literal[
-        "save_preference",
-        "retrieve_preferences",
-        "add_concept",
-        "search_concepts",
-        "find_related_episodes",
-        "search_history",
-    ] = "retrieve_preferences",
-    key: str | None = None,  # concept name or pref key
-    value: str | None = None,  # description or pref value
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
-) -> str:
-    """
-    Unified Memory Management.
-
-    Actions:
-    - save_preference: Save a user preference (key=name, value=preference)
-    - retrieve_preferences: Get all user preferences
-    - add_concept: Add a knowledge concept (key=name, value=description)
-    - search_concepts: Search for concepts (key=query)
-    - find_related_episodes: Find historical tasks related to a concept (key=concept_name)
-    - search_history: Search conversation history for past decisions or context (key=query)
-      
-      USE THIS WHEN:
-      • User refers to "之前说的" / "刚才讨论的" / "第X轮" / "earlier" / "previously"
-      • User asks to "回到" / "参考" / "基于之前的"某个方案或讨论
-      • Current context window doesn't contain the referenced information
-      • You need to recall requirements, decisions, or code from earlier in the conversation
-      
-      IMPORTANT: Automatically searches the CURRENT conversation thread.
-      DO NOT provide thread_id - the tool handles this internally.
-      
-      Examples:
-      • User: "回到第3轮的方案" → search_history(key="第3轮 方案")
-      • User: "之前说的数据库设计" → search_history(key="数据库设计")
-      • User: "参照刚才的错误处理逻辑" → search_history(key="错误处理")
-    """
-    # Assuming user_id is handled implicitly or 'user_default'
-    user_id = "user_default"
-
-    if action == "save_preference":
-        if not key or not value:
-            return "Error: key/value required."
-        return await save_preference.ainvoke({"key": key, "value": value}, config=config)
-
-    elif action == "retrieve_preferences":
-        return await get_user_preferences.ainvoke({"user_id": user_id}, config=config)
-
-    elif action == "add_concept":
-        if not key or not value:
-            return "Error: key (name) and value (description) required."
-        return await add_concept.ainvoke(
-            {"name": key, "description": value}, config=config
-        )
-
-    elif action == "search_concepts":
-        if not key:
-            return "Error: key (query) required."
-        return await search_concepts.ainvoke({"query": key}, config=config)
-
-    elif action == "search_history":
-        if not key:
-            return "Error: key (query) required."
-        return await search_chat_history.ainvoke({"query": key}, config=config)
-
-    elif action == "find_related_episodes":
-        if not key:
-            return "Error: key (concept_name) required."
-        ctx = ContextManager.current()
-        # Use project_id if available (including 0 for global), otherwise default to 1
-        project_id = ctx.project_id if ctx.project_id is not None else 1
-        episodes = await memory_manager.long_term.find_episodes_by_concept(key, project_id)
-        if not episodes:
-            return f"No historical episodes found related to '{key}'."
-        try:
-            return ProjectManagementFormatter.episodes(episodes)
-        except Exception as e:
-            logger.error(f"Failed to render episodes list: {e}")
-            return f"Found {len(episodes)} episodes."
-
-    return f"Error: Unknown action '{action}'"
 
 
 @evoloop_tool(

@@ -189,14 +189,14 @@ async def cancel_request(request_id: str) -> bool:
 
 
 @evoloop_tool(
-    "request_human_input",
+    "ask_human",
     args_schema=RequestHumanInputArgs,
     is_pollable=True,
     summary_template="database_logger.tool_summary.ask_user",
-    name_map={"zh": "请求人工输入", "en": "Request Human Input"},
+    name_map={"zh": "询问用户", "en": "Ask Human"},
     handle_tool_error=False,  # HITL must propagate interrupt exception
 )
-async def request_human_input(
+async def ask_human(
     prompt: str,
     input_type: Literal["text", "choice", "confirmation"] = "text",
     options: list[str] | None = None,
@@ -315,14 +315,14 @@ async def request_human_input(
 
 
 @evoloop_tool(
-    "request_approval",
+    "ask_confirm",
     args_schema=RequestApprovalArgs,
     is_pollable=True,
     summary_template="database_logger.tool_summary.ask_user",
-    name_map={"zh": "请求审批", "en": "Request Approval"},
+    name_map={"zh": "确认操作", "en": "Ask Confirm"},
     handle_tool_error=False,  # HITL must propagate interrupt exception
 )
-async def request_approval(
+async def ask_confirm(
     action_description: str,
     risk_level: Literal["low", "medium", "high", "critical"] = "medium",
     details: str | None = None,

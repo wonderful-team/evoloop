@@ -430,8 +430,7 @@ def git_harvest_task(cwd: str, project_id: int):
     """
     async def _run():
         import subprocess
-        from app.infrastructure.llm.factory import LLMFactory
-        from app.domain.tools.git import ExtractionResult
+        from app.models.schemas.git import ExtractionResult
         from app.infrastructure.config.service import SystemConfigService
 
         # 1. Get Diff

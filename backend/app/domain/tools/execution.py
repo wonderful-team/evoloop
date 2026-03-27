@@ -11,26 +11,15 @@ from app.utils import ControllerResponse, SkillResponse, render_template
 logger = logging.getLogger(__name__)
 
 
-@evoloop_tool(
-    is_state_mutating=True,
-    summary_template="database_logger.tool_summary.bash",
-    name_map={"zh": "执行命令", "en": "Execute Bash"}
-)
-async def bash(command: str) -> str:
+async def _execute_command(command: str) -> tuple[str, str, int]:
     """
-    Run a shell command (e.g., 'pytest', 'npm install', 'ls -la').
-
-    This is your primary tool for navigating the OS, running scripts, building projects,
-    and executing standard operating procedures.
-
-    WARNING: Use dedicated tools for standard operations when available:
-    - Version Control -> Use `manage_git` tools.
-    - File Editing -> Use `edit_file` / `write_file`.
-    - File Reading -> Use `read_file`.
-
-    Only use this for execution tasks like running tests, builds, or scripts.
+    Internal function to execute a shell command.
+    Used by execute_command tool and other internal operations.
+    
+    Returns:
+        tuple: (stdout, stderr, returncode)
     """
-    logger.info(f"Execution [Bash]: {command}")
+    logger.info(f"Execution [Command]: {command}")
 
     try:
         from app.core.execution import SandboxFactory
@@ -40,21 +29,62 @@ async def bash(command: str) -> str:
         # Run via Sandbox (handles stateful CWD/ENV if using LocalSandbox)
         stdout, stderr, returncode = await asyncio.to_thread(sandbox.run_command, command)
         
-        status_msg = "Command Succeeded." if returncode == 0 else f"Command Failed (Exit Code {returncode})."
+        return stdout, stderr, returncode
+
+    except Exception as e:
+        logger.error(f"Command execution error: {e}")
+        return "", str(e), -1
+
+
+def _format_command_result(stdout: str, stderr: str, returncode: int) -> str:
+    """Format command execution result for display."""
+    status_msg = "Command Succeeded." if returncode == 0 else f"Command Failed (Exit Code {returncode})."
+    
+    try:
         output_details = render_template(
             "report/tool_outputs.prompt.j2",
             stdout=stdout,
             stderr=stderr,
             returncode=returncode
         )
-        
-        if returncode == 0:
-            return ControllerResponse.success(status_msg, details=output_details)
-        else:
-            return ControllerResponse.error(status_msg, details=output_details)
+    except Exception:
+        # Fallback if template rendering fails
+        output_details = f"STDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+    
+    if returncode == 0:
+        return ControllerResponse.success(status_msg, details=output_details)
+    else:
+        return ControllerResponse.error(status_msg, details=output_details)
 
-    except Exception as e:
-        return ControllerResponse.error("Execution Error", details=str(e))
+
+@evoloop_tool(
+    is_state_mutating=True,
+    summary_template="database_logger.tool_summary.execute_command",
+    name_map={"zh": "执行命令", "en": "Execute Command"}
+)
+async def execute_command(command: str) -> str:
+    """
+    Execute a shell command (e.g., 'pytest', 'npm install', 'ls -la', 'git status').
+
+    This is your primary tool for navigating the OS, running scripts, building projects,
+    and executing standard operating procedures including Git operations.
+
+    WARNING: Use dedicated tools for standard operations when available:
+    - File Editing -> Use `edit_file` / `write_file`.
+    - File Reading -> Use `read_file`.
+    - Directory Operations -> Use `list_directory` / `manage_directory`.
+
+    Use this for execution tasks like running tests, builds, scripts, Git commands,
+    or when you need direct shell access beyond what specialized tools provide.
+
+    Examples:
+        execute_command(command="git status")
+        execute_command(command="git commit -m 'fix: bug'")
+        execute_command(command="pytest tests/")
+        execute_command(command="npm install")
+    """
+    stdout, stderr, returncode = await _execute_command(command)
+    return _format_command_result(stdout, stderr, returncode)
 
 
 @evoloop_tool(

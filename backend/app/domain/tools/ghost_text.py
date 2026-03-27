@@ -1,37 +1,31 @@
 """
-Ghost Text Tool
-===============
+Ghost Text Support
+==================
 
-Provides inline code suggestions (Ghost Text) for enhanced editing experience.
+Provides inline code suggestions (Ghost Text) for IDE integration.
+
+Note: These functions are NOT exposed as Agent tools.
+They are used internally by API routes for IDE/editor integration.
+
+For Agent file editing, use:
+- edit_file(path, target, replacement, dry_run=True) for preview
+- edit_file(path, target, replacement) for actual edit
 """
 
-from typing import Annotated
-
-from langchain_core.runnables import RunnableConfig
-from langchain_core.tools import InjectedToolArg
-
-from app.core.tools import evoloop_tool
 from app.core.ghost_text.suggester import suggest_ghost_text, ghost_suggester
 
 
-@evoloop_tool(
-    is_pollable=True,
-    is_state_mutating=False,
-    summary_template="database_logger.tool_summary.ghost_text",
-    name_map={"zh": "获取代码建议", "en": "Suggest Ghost Text"}
-)
 async def suggest_inline_completion(
     file_path: str,
     cursor_line: int,
     cursor_column: int,
     current_line_text: str | None = None,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
     Get inline code suggestions (Ghost Text) at cursor position.
     
-    This tool provides intelligent code completions that can be displayed
-    inline in the editor as gray/ghost text.
+    This function provides intelligent code completions for IDE integration.
+    It is NOT an Agent tool - use edit_file() for Agent file editing.
     
     Args:
         file_path: Path to the file being edited
@@ -41,15 +35,6 @@ async def suggest_inline_completion(
     
     Returns:
         JSON with suggestion text, confidence, and metadata
-    
-    Example:
-        suggest_inline_completion(
-            file_path="src/main.py",
-            cursor_line=10,
-            cursor_column=8,
-            current_line_text="def calc"
-        )
-        # Returns: {"text": "ulate_sum(a, b):", "confidence": 0.9, ...}
     """
     import json
     
@@ -79,21 +64,17 @@ async def suggest_inline_completion(
     return json.dumps({"suggestion": None})
 
 
-@evoloop_tool(
-    is_pollable=True,
-    is_state_mutating=False,
-    summary_template="database_logger.tool_summary.edit_preview",
-    name_map={"zh": "预览编辑建议", "en": "Preview Edit Suggestion"}
-)
 async def preview_edit_ghost(
     file_path: str,
     edit_description: str,
     cursor_line: int,
     cursor_column: int,
-    config: Annotated[RunnableConfig, InjectedToolArg] = None,
 ) -> str:
     """
     Preview what an edit would look like as Ghost Text.
+    
+    This function is for IDE integration.
+    It is NOT an Agent tool - use edit_file(dry_run=True) for Agent preview.
     
     Args:
         file_path: Path to the file
@@ -103,14 +84,6 @@ async def preview_edit_ghost(
     
     Returns:
         JSON with suggested edit preview
-    
-    Example:
-        preview_edit_ghost(
-            file_path="src/main.py",
-            edit_description="add docstring to this function",
-            cursor_line=10,
-            cursor_column=0
-        )
     """
     import json
     

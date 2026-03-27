@@ -41,7 +41,7 @@ This SOP defines how an Agent performs automated Visual QA, a traditionally brit
 
 ## Phase 3: Reporting
 1.  **Compile Matrix**: Aggregate the PASS/FAIL results into a markdown table.
-2.  **Highlight Failures**: If any assertion FAILs, you MUST use the `bash` tool to draw a red bounding box around the failing component (using ImageMagick or similar, if a local reference image was saved) OR simply describe its `(x, y)` location clearly in the final QA Report.
+2.  **Highlight Failures**: If any assertion FAILs, you MUST use the `execute_command` tool to draw a red bounding box around the failing component (using ImageMagick or similar, if a local reference image was saved) OR simply describe its `(x, y)` location clearly in the final QA Report.
 3.  **Finalize**: Save the QA report to a local `.md` file or output it directly to the user conversation.
 
 ## 🛟 Recovery Strategy

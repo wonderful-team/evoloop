@@ -8,7 +8,9 @@ import os
 import re
 import subprocess
 import tempfile
+import threading
 import time
+import uuid
 from datetime import datetime
 from typing import Any, Literal
 
@@ -28,6 +30,8 @@ class ADBDriver:
 
     def __init__(self):
         self._adb_path = self._find_adb()
+        # Lock for UI dump operations to prevent concurrent uiautomator conflicts
+        self._dump_lock = threading.Lock()
         self._app_cache = {}  # {device_id: (timestamp, app_data)}
         self._cache_ttl = 1.5  # seconds
 
@@ -435,79 +439,78 @@ class ADBDriver:
         """
         Dump the current UI hierarchy as XML.
         Robust version: tries exec-out first, then file-based with explicit verification.
+        Uses unique filenames and locking to prevent concurrent conflicts.
         """
-        start = time.time()
+        # uiautomator service doesn't support concurrent access, so we use a lock
+        with self._dump_lock:
+            start = time.time()
 
-        # Method 1: Try direct exec-out (Fastest, avoids device filesystem issues)
-        configs = [compressed, False] if compressed else [False]
-        for try_compressed in configs:
+            # Method 1: Try direct exec-out (Fastest, avoids device filesystem issues)
+            configs = [compressed, False] if compressed else [False]
+            for try_compressed in configs:
+                try:
+                    args = ["exec-out", "uiautomator", "dump"]
+                    if try_compressed:
+                        args.append("--compressed")
+                    args.append("/dev/tty")
+
+                    # exec-out streams directly, no "UI hierarchy dumped to" prefix
+                    stdout, _ = self._run_adb(args, device_id=device_id, timeout=10)
+                    
+                    # Verify we got a valid XML block
+                    xml_start = stdout.find("<?xml")
+                    if xml_start == -1:
+                        xml_start = stdout.find("<hierarchy")
+
+                    if xml_start >= 0 and "</hierarchy>" in stdout:
+                        logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (exec-out, compressed={try_compressed})")
+                        return stdout[xml_start:]
+                except Exception as e:
+                    if not try_compressed:
+                        logger.debug(f"exec-out dump failed: {e}")
+                    continue
+
+            # Method 2: Fallback to file-based approach with explicit existence verification
+            logger.warning("[ADB] exec-out dump failed, falling back to file-based dump")
+            # Use unique filename to avoid concurrent conflicts
+            unique_id = uuid.uuid4().hex[:8]
+            remote_path = f"/data/local/tmp/window_dump_{unique_id}.xml"
             try:
-                args = ["exec-out", "uiautomator", "dump"]
-                if try_compressed:
-                    args.append("--compressed")
-                args.append("/dev/tty")
+                # 1. Try Dump (no need to clean up stale file since we use unique name)
+                try:
+                    dump_cmd = ["shell", "uiautomator", "dump"]
+                    if compressed:
+                        dump_cmd.append("--compressed")
+                    dump_cmd.append(remote_path)
+                    self._run_adb(dump_cmd, device_id=device_id, timeout=15)
+                except ADBError:
+                    # 2. Final fallback: standard dump
+                    self._run_adb(["shell", "uiautomator", "dump", remote_path], device_id=device_id, timeout=15)
 
-                # exec-out streams directly, no "UI hierarchy dumped to" prefix
-                stdout, _ = self._run_adb(args, device_id=device_id, timeout=10)
-                
-                # Verify we got a valid XML block
-                xml_start = stdout.find("<?xml")
-                if xml_start == -1:
-                    xml_start = stdout.find("<hierarchy")
-
-                if xml_start >= 0 and "</hierarchy>" in stdout:
-                    logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (exec-out, compressed={try_compressed})")
-                    return stdout[xml_start:]
-            except Exception as e:
-                if not try_compressed:
-                    logger.debug(f"exec-out dump failed: {e}")
-                continue
-
-        # Method 2: Fallback to file-based approach with explicit existence verification
-        logger.warning("[ADB] exec-out dump failed, falling back to file-based dump")
-        remote_path = "/data/local/tmp/window_dump.xml"
-        try:
-            # 1. Clean up stale file if any
-            try:
-                self._run_adb(["shell", "rm", "-f", remote_path], device_id=device_id)
-            except:
-                pass
-
-            # 2. Try Dump
-            try:
-                dump_cmd = ["shell", "uiautomator", "dump"]
-                if compressed:
-                    dump_cmd.append("--compressed")
-                dump_cmd.append(remote_path)
-                self._run_adb(dump_cmd, device_id=device_id, timeout=15)
-            except ADBError:
-                # 3. Final fallback: standard dump
-                self._run_adb(["shell", "uiautomator", "dump", remote_path], device_id=device_id, timeout=15)
-
-            # 4. CRITICAL: Verify file existence and non-zero size
-            # This addresses the "silent failure" where uiautomator exits 0 but creates no file
-            try:
-                self._run_adb(["shell", "test", "-s", remote_path], device_id=device_id)
-            except ADBError:
-                time.sleep(1.0) # Grace period
+                # 3. CRITICAL: Verify file existence and non-zero size
+                # This addresses the "silent failure" where uiautomator exits 0 but creates no file
                 try:
                     self._run_adb(["shell", "test", "-s", remote_path], device_id=device_id)
                 except ADBError:
-                    raise ADBError(f"uiautomator dump reported success but file '{remote_path}' was not created or is empty. Device UI service might be unresponsive.")
+                    time.sleep(1.0) # Grace period
+                    try:
+                        self._run_adb(["shell", "test", "-s", remote_path], device_id=device_id)
+                    except ADBError:
+                        raise ADBError(f"uiautomator dump reported success but file '{remote_path}' was not created or is empty. Device UI service might be unresponsive.")
 
-            # 5. Read and Cleanup
-            stdout, _ = self._run_adb(["shell", "cat", remote_path], device_id=device_id)
+                # 4. Read and Cleanup
+                stdout, _ = self._run_adb(["shell", "cat", remote_path], device_id=device_id)
 
-            subprocess.Popen(
-                [self._adb_path] + (["-s", device_id] if device_id else []) + ["shell", "rm", "-f", remote_path],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-            )
+                subprocess.Popen(
+                    [self._adb_path] + (["-s", device_id] if device_id else []) + ["shell", "rm", "-f", remote_path],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                )
 
-            logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (file)")
-            return stdout
-        except Exception as e:
-            logger.error(f"UI hierarchy dump failed: {e}")
-            raise ADBError(f"Failed to capture UI hierarchy: {e}")
+                logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (file)")
+                return stdout
+            except Exception as e:
+                logger.error(f"UI hierarchy dump failed: {e}")
+                raise ADBError(f"Failed to capture UI hierarchy: {e}")
 
     def get_screen_size(self, device_id: str | None = None) -> tuple[int, int]:
         """

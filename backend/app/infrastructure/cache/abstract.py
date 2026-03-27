@@ -135,11 +135,21 @@ class Cache(ABC):
         """Delete field(s) from hash. Returns number of fields deleted."""
         ...
 
+    @abstractmethod
+    async def hlen(self, name: str) -> int:
+        """Get number of fields in hash."""
+        ...
+
     # ========== Set Operations ==========
 
     @abstractmethod
     async def sadd(self, name: str, *values: Any) -> int:
         """Add member(s) to set. Returns number of new members added."""
+        ...
+
+    @abstractmethod
+    async def scard(self, name: str) -> int:
+        """Get number of members in set."""
         ...
 
     @abstractmethod
@@ -242,8 +252,18 @@ class CachePipeline(ABC):
         ...
 
     @abstractmethod
+    def hlen(self, name: str) -> "CachePipeline":
+        """Queue hlen operation."""
+        ...
+
+    @abstractmethod
     def sadd(self, name: str, *values: Any) -> "CachePipeline":
         """Queue sadd operation."""
+        ...
+
+    @abstractmethod
+    def scard(self, name: str) -> "CachePipeline":
+        """Queue scard operation."""
         ...
 
     @abstractmethod

@@ -1,0 +1,56 @@
+{% if success -%}
+✅ {{ message }}
+{% if replaced_count %}   Replaced {{ replaced_count }} occurrence(s){% endif %}
+{% if new_hash %}   New hash: {{ new_hash }}{% endif %}
+{%- else -%}
+❌ {{ message or "Edit failed." }}
+{%- endif -%}
+
+{% if diagnostics -%}
+{%- set errors = diagnostics | selectattr("severity", "equalto", "Error") | list -%}
+{%- set warnings = diagnostics | selectattr("severity", "equalto", "Warning") | list -%}
+
+{% if errors -%}
+
+⚠️ **{{ labels.semantic_errors or "SEMANTIC ERRORS DETECTED" }}**:
+{% for e in errors[:5] -%}
+   - Line {{ e.line }}: {{ e.message }}
+{% endfor %}
+💡 {{ labels.fix_hint or "Please fix these errors to ensure code quality." }}
+{%- elif warnings -%}
+
+ℹ️ {{ labels.type_warnings | format(warnings | length) if labels.type_warnings else "Found " ~ (warnings | length) ~ " type warning(s)." }}
+{%- endif -%}
+{%- endif -%}
+
+{% if log -%}
+
+{{ log }}
+{%- endif -%}
+
+{% if details -%}
+
+{{ details }}
+{%- endif -%}
+
+{% if causes -%}
+
+**{{ labels.common_causes or "Common causes:" }}**
+{% for cause in causes -%}
+{{ loop.index }}. {{ cause }}
+{% endfor %}
+{%- endif -%}
+
+{% if hints -%}
+
+**{{ labels.what_to_do or "What to do:" }}**
+{% for hint in hints -%}
+{{ loop.index }}. {{ hint }}
+{% endfor %}
+{%- endif -%}
+
+{% if note -%}
+
+> [!NOTE]
+> {{ note }}
+{%- endif -%}

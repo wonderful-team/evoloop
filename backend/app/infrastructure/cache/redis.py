@@ -83,8 +83,16 @@ class RedisPipelineAdapter(CachePipeline):
         self._pipeline.hdel(name, *keys)
         return self
 
+    def hlen(self, name: str) -> "RedisPipelineAdapter":
+        self._pipeline.hlen(name)
+        return self
+
     def sadd(self, name: str, *values: Any) -> "RedisPipelineAdapter":
         self._pipeline.sadd(name, *values)
+        return self
+
+    def scard(self, name: str) -> "RedisPipelineAdapter":
+        self._pipeline.scard(name)
         return self
 
     def srem(self, name: str, *values: Any) -> "RedisPipelineAdapter":
@@ -203,11 +211,19 @@ class RedisCache(Cache):
         await self._ensure_connected()
         return await self._redis.hdel(name, *keys)
 
+    async def hlen(self, name: str) -> int:
+        await self._ensure_connected()
+        return await self._redis.hlen(name)
+
     # ========== Set Operations ==========
 
     async def sadd(self, name: str, *values: Any) -> int:
         await self._ensure_connected()
         return await self._redis.sadd(name, *values)
+
+    async def scard(self, name: str) -> int:
+        await self._ensure_connected()
+        return await self._redis.scard(name)
 
     async def srem(self, name: str, *values: Any) -> int:
         await self._ensure_connected()
