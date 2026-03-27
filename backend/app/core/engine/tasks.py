@@ -7,6 +7,8 @@ from typing import Any, cast
 
 from langchain_core.messages import SystemMessage
 
+from app.infrastructure.llm.factory import get_default_llm
+
 # Conditional import for Celery (embedded mode compatibility)
 try:
     from celery import shared_task
@@ -448,7 +450,7 @@ def git_harvest_task(cwd: str, project_id: int):
 
         # 2. Extract
         try:
-            llm = LLMFactory.create_llm(temperature=0.0)
+            llm = get_default_llm(temperature=0.0)
             structured_llm = llm.with_structured_output(ExtractionResult)
             user_lang = SystemConfigService.get_language_preference()
 

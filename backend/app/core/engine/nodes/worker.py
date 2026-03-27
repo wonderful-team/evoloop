@@ -316,7 +316,7 @@ class WorkerNode:
                     results.append({
                         "rel_path": display_path, 
                         "status": "directory", 
-                        "detail": "This is a directory. Use 'get_workspace_tree' or 'ls' to examine."
+                        "detail": "This is a directory. Use 'list_directory(tree=True)' to examine."
                     })
                     continue
 
