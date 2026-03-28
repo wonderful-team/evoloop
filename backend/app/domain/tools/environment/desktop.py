@@ -50,10 +50,44 @@ async def desktop_control(
     max_depth: int = 10,
 ) -> str:
     """
-    Control the MacOS desktop - screenshot, click, type, and more.
+    Control the MacOS desktop - ⚡ SPEED OPTIMIZED
 
-    This tool enables direct interaction with the Mac desktop environment.
-    Use in combination with analyze_image for vision-guided automation.
+    🎯 SPEED FIRST RULES - Follow these to execute 3x faster:
+
+    RULE 1: KEYBOARD FIRST (Always prefer keyboard over mouse)
+      ✅ key_press("cmd+w") to close window
+      ✅ key_press("return") to send message
+      ✅ key_press("cmd+v") to paste
+      ❌ DON'T click coordinates unless keyboard won't work
+
+    RULE 2: USE BATCH MODE (Execute multiple actions together)
+      ✅ When: All steps are in THE SAME input field
+      ✅ Example: [click input → type → return] as ONE batch
+      ✅ Skip verification between steps, verify at the END
+      ❌ DON'T batch across different screens or loading states
+
+    RULE 3: SKIP UNNECESSARY SCREENSHOTS
+      ✅ In batch: Only screenshot at the START and END
+      ✅ DON'T screenshot after every action
+
+    📋 COMMON SHORTCUTS (Memorize these!)
+    - WeChat: return (send), cmd+f (search), cmd+n (new chat)
+    - Chrome: cmd+l (address), cmd+t (new tab), cmd+w (close tab)
+    - System: cmd+tab (switch app), cmd+space (Spotlight)
+
+    💡 EXAMPLES
+
+    Fast - Send WeChat message (3 actions in 1 batch):
+      desktop_control(action="batch", actions=[
+          {"action": "click", "element_name": "输入框"},
+          {"action": "type_text", "text": "Hello"},
+          {"action": "key_press", "key": "return"}
+      ])
+
+    Slow - Don't do this (3 separate calls with screenshots):
+      desktop_control(action="click") → screenshot → verify
+      desktop_control(action="type_text") → screenshot → verify  
+      desktop_control(action="key_press") → screenshot → verify
 
     Args:
         action: The action to perform:
@@ -71,6 +105,7 @@ async def desktop_control(
             - "drag_drop": Drag from source to target (by element name or coordinates).
             - "dump_ui": Dump the Accessibility Tree as JSON array of UI elements.
             - "gui_extract": Intelligent text extraction from a region or near coordinates (x, y) using OCR.
+            - "batch": Execute multiple actions in sequence. Use for multi-step workflows like: click input -> type text -> press enter. See 'actions' parameter.
         x: X coordinate for click action.
         y: Y coordinate for click action.
         element_name: Semantic name/label of the UI element to click (e.g., "Login", "Close").
@@ -81,9 +116,56 @@ async def desktop_control(
         app_name: Application name for open_app action (e.g., "Safari", "Terminal").
         script: AppleScript code for applescript action.
         region: Optional region "x,y,w,h" for screenshot action.
+            If not provided, behavior depends on ENABLE_PARTIAL_SCREENSHOT config:
+            - True (default): Automatically captures the current active window region
+            - False: Captures the full screen
+            If the window bounds cannot be determined, falls back to full screen.
+            Examples:
+            - Auto-capture current window: region=None (recommended for most cases)
+            - Capture specific area: region="500,300,200,100" (from OCR/element bounds)
+            - Capture specific window: region="624,102,1195,812" (from get_active_app)
         force_keystroke: If True for type_text, uses slow AppleScript keystroke instead of fast clipboard paste.
         ocr: If True for "screenshot", immediately performs OCR and returns text elements + coordinates.
-        actions: List of action dicts for batch mode. Each dict has "action" and matching params.
+            NOTE: Coordinates are automatically converted to screen coordinates, even for partial screenshots.
+            You can directly use these coordinates with click/double_click actions.
+        actions: List of action dicts for batch mode. 
+            
+            ✅ CORRECT USE CASES (Safe for batch):
+            - All actions target the SAME input field
+            - Pure keyboard sequence: [cmd+f → type → return]
+            - Known workflow: [click input → type → return to send]
+            
+            ❌ DON'T USE BATCH (Use separate calls with verification):
+            - Actions that change screen/state
+            - Actions that need to wait for loading
+            - Actions across different windows
+            
+            📝 EXAMPLE 1 - WeChat send message (GOOD):
+            [
+                {"action": "click", "element_name": "输入框"},
+                {"action": "type_text", "text": "Hello"},  
+                {"action": "key_press", "key": "return"}
+            ]
+            Result: 1 screenshot at start, 1 at end. Fast!
+            
+            📝 EXAMPLE 2 - Chrome search (GOOD):
+            [
+                {"action": "key_press", "key": "cmd+l"},      # Focus address bar
+                {"action": "key_press", "key": "cmd+a"},      # Select all
+                {"action": "type_text", "text": "google.com"},
+                {"action": "key_press", "key": "return"}
+            ]
+            Result: All keyboard, very fast, no coordinates needed!
+            
+            📝 EXAMPLE 3 - Form fill (GOOD):
+            [
+                {"action": "click", "element_name": "用户名"},
+                {"action": "type_text", "text": "user@example.com"},
+                {"action": "key_press", "key": "tab"},        # Next field
+                {"action": "type_text", "text": "password"},
+                {"action": "key_press", "key": "return"}      # Submit
+            ]
+            Result: 5 actions, 1 batch, 2 screenshots total
         continue_on_error: For batch mode, whether to continue on error (default True).
         delay_ms: For batch mode, delay between actions in ms (default 100).
         direction: Scroll direction (up/down/left/right) for scroll action.

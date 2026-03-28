@@ -248,6 +248,23 @@ def smart_window_slice(
     def _calc_total_chars(msgs):
         return sum(len(get_message_text(m)) for m in msgs)
 
+    # 2. Content-Level Pre-Pruning (Aggressive truncation for huge tool results in history)
+    # This prevents a single 200KB message from consuming the entire window.
+    pruned_for_window = []
+    for m in sliced_msgs:
+        if isinstance(m, ToolMessage) and len(str(m.content)) > CONTEXT_PRUNE_THRESHOLD:
+            # We create a clone with truncated content
+            truncated_msg = ToolMessage(
+                content=str(m.content)[:CONTEXT_PRUNE_THRESHOLD] + "\n... [Output truncated by Window Manager]",
+                tool_call_id=m.tool_call_id,
+                name=m.name,
+                additional_kwargs={**(m.additional_kwargs or {}), "is_truncated": True}
+            )
+            pruned_for_window.append(truncated_msg)
+        else:
+            pruned_for_window.append(m)
+    
+    sliced_msgs = pruned_for_window
     total_chars = _calc_total_chars(sliced_msgs)
     
     if total_chars > max_total_chars:
@@ -433,46 +450,3 @@ def fold_messages(messages: list[BaseMessage]) -> list[dict]:
             i += 1
     
     return result
-
-
-def log_messages(messages: list[BaseMessage], context_name: str = "LLM Call") -> None:
-    """
-    Print a formatted list of messages for debugging.
-    Used to inspect what exactly is being sent to the LLM.
-    """
-    try:
-        msg_count = len(messages)
-        total_chars = sum(len(get_message_text(m)) for m in messages)
-        logger.info(f"\n{'='*20} [Prompt Messages: {context_name}] (Count: {msg_count}, Total Chars: {total_chars}) {'='*20}")
-        for i, msg in enumerate(messages):
-            role = "UNKNOWN"
-            if isinstance(msg, HumanMessage):
-                role = "HUMAN"
-            elif isinstance(msg, AIMessage):
-                role = "AI"
-            elif isinstance(msg, ToolMessage):
-                role = "TOOL"
-            elif isinstance(msg, SystemMessage):
-                role = "SYSTEM"
-            else:
-                role = f"RAW({type(msg).__name__})"
-            
-            content = get_message_text(msg)
-            # Truncate for log readability
-            if len(content) > 500:
-                display_content = content[:500] + f"\n... (Truncated {len(content)-500} chars) ..."
-            else:
-                display_content = content
-                
-            logger.info(f"[{i}] ROLE: {role}")
-            if display_content.strip():
-                logger.info(f"    CONTENT: {display_content}")
-            
-            if isinstance(msg, AIMessage) and msg.tool_calls:
-                logger.info(f"    TOOL_CALLS: {msg.tool_calls}")
-            if isinstance(msg, ToolMessage):
-                logger.info(f"    TOOL_ID: {msg.tool_call_id}")
-                
-        logger.info(f"{'='*65}\n")
-    except Exception as e:
-        logger.error(f"Failed to log messages: {e}")

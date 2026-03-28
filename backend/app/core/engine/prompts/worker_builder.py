@@ -63,6 +63,11 @@ class WorkerPromptBuilder:
             "project_concepts": ctx.metadata.get("project_concepts", ""),
         }
 
+        # Debug logging for target_apps in blackboard
+        ticket_params = self.blackboard.get("ticket", {}).get("parameters", {})
+        if ticket_params.get("target_apps"):
+            logger.info(f"[WorkerPromptBuilder] 📦 target_apps in ticket.parameters: {ticket_params['target_apps']}")
+        
         template_vars = {
             "project_id": ctx.project_id,
             "sys_info": sys_info,

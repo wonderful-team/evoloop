@@ -18,7 +18,7 @@ from app.core.engine.message_utils import (
     prune_redundant_results,
     repair_message_history,
     smart_window_slice,
-    truncate_message_content, log_messages,
+    truncate_message_content,
 )
 from app.core.engine.state import AgentState
 from app.core.tools.registry import get_tool_affected_paths
@@ -189,13 +189,13 @@ class AgentEngine:
             logger.warning("[AgentEngine] No history messages (only System Prompt). Skipping LLM call to prevent API errors.")
             return {"messages": []}
 
-        logger.debug(f"--- [AgentEngine] System Prompt ---\n{system_prompt}\n-----------------------------------------------------")
+        logger.info(f"--- [AgentEngine] System Prompt ---\n{system_prompt}\n-----------------------------------------------------")
 
         new_messages = []
         local_tool_history = []
 
         for i in range(max_steps):
-            log_messages(loop_messages, context_name=f"--- {name} Loop Step {i+1} ---")
+            logger.info(f"--- {name} Loop Step {i+1} ---")
 
             # Invoke LLM
             response = await llm_with_tools.ainvoke(loop_messages, config=config)

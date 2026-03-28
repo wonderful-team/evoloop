@@ -4,7 +4,7 @@ from typing import Any
 
 import anthropic
 
-from app.core.engine import repair_message_history, log_messages
+from app.core.engine import repair_message_history
 
 logger = logging.getLogger(__name__)
 
@@ -98,16 +98,12 @@ class CompatibleChatAnthropic(ChatAnthropic):
         if self.repair_history:
             messages = repair_message_history(messages)
 
-        log_messages(messages, "CompatibleChatAnthropic (Async)")
-
         return await super()._agenerate(messages, stop=stop, run_manager=run_manager, **kwargs)
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
         if self.repair_history:
             messages = repair_message_history(messages)
 
-        log_messages(messages, "CompatibleChatAnthropic (Sync)")
-            
         return super()._generate(messages, stop=stop, run_manager=run_manager, **kwargs)
 
     def _format_output(self, data: Any, **kwargs: Any) -> ChatResult:

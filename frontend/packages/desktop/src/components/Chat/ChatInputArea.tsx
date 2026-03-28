@@ -138,11 +138,12 @@ export const ChatInputArea = memo(
 
         // Infer type
         const isImage = file.type.startsWith("image/")
+        const isAudio = file.type.startsWith("audio/")
         const newAtt: Attachment = {
           id: crypto.randomUUID(),
           url: url,
           name: file.name,
-          type: isImage ? "image" : "file",
+          type: isImage ? "image" : isAudio ? "audio" : "file",
         }
 
         setAttachments((prev) => [...prev, newAtt])

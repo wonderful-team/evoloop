@@ -7,6 +7,12 @@
 💡 Installed macOS Apps (Top): {{ environment.macos.top_apps | join(', ') }}
 {%- endif %}
 {%- if not is_subtask %}
+💡 **App Name Resolution**: When user mentions apps in Chinese, map to actual system names:
+   - "微信" → "WeChat" | "谷歌浏览器/Chrome" → "Google Chrome" | "设置" → "System Settings"
+   - Use `open_app(app_name="EXACT_NAME")` with the exact name from the list above
+   - When routing to Worker, pass `target_apps=["AppName1", "AppName2"]` in context to help Worker use correct names
+{%- endif %}
+{%- if not is_subtask %}
 💡 Use `list_app_atlas()` to see apps with structural UI maps.
 {%- endif %}
 {%- endif %}

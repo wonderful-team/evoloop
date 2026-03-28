@@ -146,6 +146,10 @@ class AtlasApp:
             return state.elements
         return []
 
+    def add_state(self, state: AtlasState) -> None:
+        """Add a new state to the app model."""
+        self.states[state.state_id] = state
+
     def to_dict(self) -> dict:
         """Convert to dictionary with proper datetime handling."""
         return {

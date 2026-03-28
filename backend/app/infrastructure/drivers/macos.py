@@ -22,7 +22,7 @@ class MacOSDriver:
     @staticmethod
     def screenshot(
         region: str | None = None,
-        purpose: str = "debug",  # Default to debug for macOS as it's mainly for troubleshooting
+        purpose: str = "temp",  # Default to temp (auto-cleanup). Use "debug" for troubleshooting only.
         bundle_id: str | None = None,
         suffix: str | None = None
     ) -> str:
@@ -82,14 +82,18 @@ class MacOSDriver:
         """
         # Method 1: Try Quartz CGEvent (most reliable, no external deps)
         try:
-            from Quartz import (
-                CGEventCreateMouseEvent,
-                CGEventPost,
-                CGPointMake,
-                kCGEventLeftMouseDown,
-                kCGEventLeftMouseUp,
-                kCGHIDEventTap,
-            )
+            import Quartz
+            CGEventCreateMouseEvent = cast(Any, getattr(Quartz, "CGEventCreateMouseEvent", None))
+            CGEventPost = cast(Any, getattr(Quartz, "CGEventPost", None))
+            CGPointMake = cast(Any, getattr(Quartz, "CGPointMake", None))
+            
+            if not all([CGEventCreateMouseEvent, CGEventPost, CGPointMake]):
+                raise ImportError("Quartz symbols not found")
+
+            # Use specific constants for reliability
+            kCGEventLeftMouseDown = 5
+            kCGEventLeftMouseUp = 6
+            kCGHIDEventTap = 0
 
             point = CGPointMake(x, y)
 
@@ -152,16 +156,20 @@ class MacOSDriver:
 
         # Try Quartz CGEvent
         try:
-            from Quartz import (
-                CGEventCreateMouseEvent,
-                CGEventPost,
-                CGEventSetIntegerValueField,
-                CGPointMake,
-                kCGEventLeftMouseDown,
-                kCGEventLeftMouseUp,
-                kCGHIDEventTap,
-                kCGMouseEventClickState,
-            )
+            import Quartz
+            CGEventCreateMouseEvent = cast(Any, getattr(Quartz, "CGEventCreateMouseEvent", None))
+            CGEventPost = cast(Any, getattr(Quartz, "CGEventPost", None))
+            CGEventSetIntegerValueField = cast(Any, getattr(Quartz, "CGEventSetIntegerValueField", None))
+            CGPointMake = cast(Any, getattr(Quartz, "CGPointMake", None))
+            
+            if not all([CGEventCreateMouseEvent, CGEventPost, CGEventSetIntegerValueField, CGPointMake]):
+                raise ImportError("Quartz symbols not found")
+
+            # Constants
+            kCGEventLeftMouseDown = 5
+            kCGEventLeftMouseUp = 6
+            kCGHIDEventTap = 0
+            kCGMouseEventClickState = 1
 
             point = CGPointMake(x, y)
 
@@ -398,25 +406,34 @@ class MacOSDriver:
         except Exception:
             return 1920, 1080
 
+    _cached_scale_factor: float | None = None
+
     @classmethod
     def get_ui_scale_factor(cls) -> float:
         """
         Calculate the scale factor between logical points and physical pixels.
         Returns 2.0 for Retina, 1.0 for standard displays.
+        
+        Uses caching to avoid repeated screenshots.
         """
+        # Return cached value if available
+        if cls._cached_scale_factor is not None:
+            return cls._cached_scale_factor
+            
         try:
             # Get logical size
             log_w, _ = cls.get_screen_size()
 
-            # Take a temporary small screenshot to check pixel size
-            # Capturing a 1x1 region is enough to get the file but we need the full image
-            # metadata. Actually, a full screenshot (cached) is fine.
+            # Take a temporary screenshot to check pixel size
+            # Use suppress_logging to avoid cluttering logs
             screenshot_path = cls.screenshot()
             from PIL import Image
             with Image.open(screenshot_path) as img:
                 pixel_w, _ = img.size
 
             scale = round(pixel_w / log_w, 1) if log_w > 0 else 1.0
+            cls._cached_scale_factor = scale  # Cache the result
+            logger.info(f"[MacOSDriver] UI scale factor detected and cached: {scale}x")
             return scale
         except Exception as e:
             logger.debug(f"[MacOSDriver] Failed to calculate scale factor: {e}")
@@ -430,11 +447,20 @@ class MacOSDriver:
         Returns a JSON-able list of dictionaries.
         """
         try:
-            from AppKit import NSWorkspace
-            from HIServices import (
-                AXUIElementCopyAttributeValue,
-                AXUIElementCreateApplication,
-            )
+            import AppKit
+            # HIServices and others are often sub-modules or need specific pyobjc packages
+            try:
+                import HIServices
+            except ImportError:
+                import Quartz as HIServices
+            
+            NSWorkspace = cast(Any, getattr(AppKit, "NSWorkspace", None))
+            AXUIElementCopyAttributeValue = cast(Any, getattr(HIServices, "AXUIElementCopyAttributeValue", None))
+            AXUIElementCreateApplication = cast(Any, getattr(HIServices, "AXUIElementCreateApplication", None))
+            
+            if not all([NSWorkspace, AXUIElementCopyAttributeValue, AXUIElementCreateApplication]):
+                raise ImportError("HIServices or AppKit symbols not found")
+
             # Use literal strings for constants to ensure robustness across PyObjC versions
             kAXChildrenAttribute = "AXChildren"
             kAXDescriptionAttribute = "AXDescription"
@@ -683,14 +709,20 @@ class MacOSDriver:
         """
         try:
             # TRY NATIVE FIRST (FAST)
-            from AppKit import NSWorkspace
-            from Quartz import (
-                CGWindowListCopyWindowInfo,
-                kCGNullWindowID,
-                kCGWindowLayer,
-                kCGWindowListExcludeDesktopElements,
-                kCGWindowListOptionOnScreenOnly,
-            )
+            import AppKit
+            import Quartz
+            
+            NSWorkspace = cast(Any, getattr(AppKit, "NSWorkspace", None))
+            CGWindowListCopyWindowInfo = cast(Any, getattr(Quartz, "CGWindowListCopyWindowInfo", None))
+            
+            # Constants
+            kCGNullWindowID = 0
+            kCGWindowLayer = 0
+            kCGWindowListExcludeDesktopElements = 16
+            kCGWindowListOptionOnScreenOnly = 1
+            
+            if not all([NSWorkspace, CGWindowListCopyWindowInfo]):
+                raise ImportError("Quartz or AppKit symbols not found")
 
             workspace = NSWorkspace.sharedWorkspace()
             active_app = workspace.frontmostApplication()
@@ -786,8 +818,17 @@ class MacOSDriver:
         Check if accessibility permissions are granted.
         """
         try:
-            from ApplicationServices import AXIsProcessTrusted
-            return AXIsProcessTrusted()
+            # ApplicationServices is usually available if Quartz is
+            try:
+                import ApplicationServices
+                AXIsProcessTrusted = cast(Any, getattr(ApplicationServices, "AXIsProcessTrusted", None))
+            except ImportError:
+                import Quartz as ApplicationServices
+                AXIsProcessTrusted = cast(Any, getattr(ApplicationServices, "AXIsProcessTrusted", None))
+
+            if AXIsProcessTrusted:
+                return AXIsProcessTrusted()
+            return False
         except Exception:
             pass
 

@@ -1874,20 +1874,19 @@ async def run_smart_synthesis(
             job.status = "completed"
             job.progress_percent = 100
             job.completed_at = datetime.now()
-            skill_dict = skill.to_dict() if hasattr(skill, 'to_dict') else {
-                "name": skill.name,
-                "description": skill.description,
-                "namespace": skill.namespace,
-                "trigger_patterns": skill.trigger_patterns,
-                "instructions": skill.instructions,
-                "execution_mode": skill.execution_mode,
-                "macro_script": skill.macro_script or "",
+            skill_dict = skill if isinstance(skill, dict) else {
+                "name": getattr(skill, 'name', 'unnamed_skill'),
+                "description": getattr(skill, 'description', ''),
+                "namespace": getattr(skill, 'namespace', 'misc'),
+                "trigger_patterns": getattr(skill, 'trigger_patterns', []),
+                "instructions": getattr(skill, 'instructions', ''),
+                "execution_mode": getattr(skill, 'execution_mode', 'agentic'),
+                "macro_script": getattr(skill, 'macro_script', ''),
             }
             job.generated_skill = skill_dict
 
             # 保存到 LearnedSkill 表
             try:
-                import json
                 new_skill = LearnedSkill(
                     name=skill_dict.get("name", "unnamed_skill"),
                     description=skill_dict.get("description", ""),
@@ -1898,13 +1897,13 @@ async def run_smart_synthesis(
                     execution_mode=skill_dict.get("execution_mode", "agentic"),
                     macro_script=skill_dict.get("macro_script", ""),
                     is_active=False,
-                    status="pending_review",  # 标准化为 pending_review
-                    skill_source="smart_replay",  # 标识来源为智能回放合成
+                    status="pending_review",
+                    skill_source="smart_replay",
                 )
                 db.add(new_skill)
                 await db.flush()  # 获取 ID
                 job.skill_id = new_skill.id
-                logger.info(f"[Job {job_id}] Saved skill to LearnedSkill: {new_skill.id} - {skill.name}")
+                logger.info(f"[Job {job_id}] Saved skill to LearnedSkill: {new_skill.id} - {skill_dict.get('name')}")
             except Exception as e:
                 logger.warning(f"[Job {job_id}] Failed to save skill to LearnedSkill: {e}")
                 # 不影响主流程，继续提交
@@ -2029,12 +2028,12 @@ async def cleanup_recording_session(
                 )
             )
             result = await db.execute(stmt)
-            deleted_counts["events"] = result.rowcount
+            deleted_counts["events"] = getattr(result, "rowcount", 0)
 
             # 2. 删除 SynthesisJob
             stmt = delete(SynthesisJob).where(SynthesisJob.session_id == session_id)
             result = await db.execute(stmt)
-            deleted_counts["jobs"] = result.rowcount
+            deleted_counts["jobs"] = getattr(result, "rowcount", 0)
 
         # 4. 删除视频文件
         if video_path and os.path.exists(video_path):

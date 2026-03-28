@@ -9,10 +9,10 @@ from app.domain.codebase.retrieval.tools import search_codebase
 # Import tools via MCP
 from app.domain.codebase.exploration import (
     find_symbol,
-    search_code,
     ask_codebase,
     analyze_impact,
 )
+from app.domain.tools.files import search_files as search_code
 from app.domain.tools.execution import execute_command
 from app.domain.tools.files import (
     edit_file,

@@ -119,8 +119,8 @@ export interface Message {
   parent_id?: number // Parent message ID for threading
   references?: Array<{ // Persistent message references
     id: string
-    type: string // memory, file, knowledge
-    target_id: string
+    type: string // memory, file, knowledge, image
+    target_id: string // URL or path for images
     target_name: string
   }>
   originalRole?: string // Kept for filtering

@@ -37,7 +37,6 @@ class AtlasConfigManager:
 
         # 1. Try cache
         try:
-            
             bundle_id = await cache.hget(REDIS_KEY_APP_NAME_MAP, app_name)
             if bundle_id:
                 return bundle_id

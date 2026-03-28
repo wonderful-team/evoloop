@@ -124,22 +124,10 @@ def map_observed_ui_task(
                     "os_identifier": el.metadata.get("resource_id") or el.metadata.get("view_id") or el.metadata.get("ax_path")
                 })
 
-            # 4. Ensure screenshot is stored in atlas directory (if not already)
-            if image_source and os.path.exists(image_source):
-                # Check if already in atlas directory
-                if "atlas" not in image_source:
-                    try:
-                        stored_path = screenshot_storage.copy_to_purpose(
-                            source_path=image_source,
-                            purpose="atlas",
-                            platform=platform,  # type: ignore
-                            bundle_id=final_bundle_id,
-                            suffix="harvest"
-                        )
-                        if stored_path:
-                            logger.info(f"[AtlasTask] Screenshot copied to: {stored_path}")
-                    except Exception as copy_err:
-                        logger.warning(f"[AtlasTask] Failed to copy screenshot: {copy_err}")
+            # 4. Use temp screenshot directly (no copy to atlas for efficiency)
+            # The temp screenshot will be auto-cleaned after retention period
+            # Atlas only stores structured element data, not raw images
+            stored_path = image_source if image_source and os.path.exists(image_source) else None
 
             # 5. Trigger the Atlas engine via the event bus
             await event_bus.publish(UiTreeObservedEvent(

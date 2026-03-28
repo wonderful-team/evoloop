@@ -74,6 +74,8 @@ class SignalDispatcher:
             "agent_config": agent_config,
             "namespace_context": inferred_namespace,
             "skill_id": signal.skill_id,
+            "skill_ids": routing_context.get("skill_ids"),  # 新增：多技能工作流
+            "workflow_mode": routing_context.get("workflow_mode", "single"),  # 新增：工作流模式
             "parameters": parameters,
         }
         blackboard["ticket"] = execution_ticket

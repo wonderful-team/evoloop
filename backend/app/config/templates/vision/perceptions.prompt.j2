@@ -12,4 +12,7 @@
 {% elif type == "extractions" %}
 ### Extracted Data
 {{ list.render_kv_list(items) }}
+{% elif type == "tools_used" %}
+### Tools Used ({{ items|length }})
+{{ list.render_list(items) }}
 {% endif %}

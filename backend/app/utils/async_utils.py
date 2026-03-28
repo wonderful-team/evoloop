@@ -12,9 +12,11 @@ R = TypeVar("R")
 
 _ALL_LOOP_BOUND_RESOURCES: list[weakref.ReferenceType['LoopBoundResource']] = []
 
+
 def run_in_thread_sync(func: Callable[..., T], *args, **kwargs) -> T:
     """Run a blocking function in a separate thread."""
     pass # Defined below
+
 
 async def run_in_thread(func: Callable[..., T], *args, **kwargs) -> T:
     """

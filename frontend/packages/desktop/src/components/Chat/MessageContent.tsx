@@ -1,4 +1,4 @@
-import { FileText, X } from "lucide-react"
+import { FileText, X, Music } from "lucide-react"
 import { useState } from "react"
 import { useTranslation } from "react-i18next"
 import ReactMarkdown from "react-markdown"
@@ -58,8 +58,32 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
     )
   }
 
-  // Split by [Image: ...] or [File: ...]
-  const parts = content.split(/(\[(?:Image|File):\s*[^\]]+\])/g)
+  // 0. Pre-process: Filter out technical XML tags (audit, report, thought, etc.)
+  // This is a safety net for streaming and database markers.
+  let displayContent = content;
+
+  // A. If <report> exists, prioritize its content as the main message
+  const reportMatch = displayContent.match(/<report>([\s\S]*?)(?:<\/report>|$)/i);
+  if (reportMatch) {
+    displayContent = reportMatch[1].trim();
+  } else {
+    // B. Hide internal tags and their content
+    displayContent = displayContent
+      .replace(/<audit>[\s\S]*?(?:<\/audit>|$)/gi, "")
+      .replace(/<thought>[\s\S]*?(?:<\/thought>|$)/gi, "")
+      .replace(/<outcome>[\s\S]*?(?:<\/outcome>|$)/gi, "")
+      .replace(/<reason>[\s\S]*?(?:<\/reason>|$)/gi, "")
+      .replace(/<proof_points>[\s\S]*?(?:<\/proof_points>|$)/gi, "");
+    
+    // C. Peel any remaining report tags (e.g. if partial)
+    displayContent = displayContent.replace(/<\/?report>/gi, "");
+  }
+
+  // Clean up extra whitespace/newlines caused by stripping
+  displayContent = displayContent.trim();
+
+  // Split by [Image: ...], [File: ...], or [Audio: ...](url)
+  const parts = displayContent.split(/(\[(?:Image|File|Audio):\s*[^\]]+\]\([^)]+\)|\[(?:Image|File|Audio):\s*[^\]]+\])/g)
 
   const handleFileClick = (url: string) => {
     window.open(url, "_blank")
@@ -70,6 +94,8 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
       {parts.map((part, index) => {
         const imageMatch = part.match(/^\[Image:\s*([^\]]+)\]$/)
         const fileMatch = part.match(/^\[File:\s*([^\]]+)\]$/)
+        // Audio format: [Audio: name](url) or [Audio: url]
+        const audioMatch = part.match(/^\[Audio:\s*([^\]]+)\](?:\(([^)]+)\))?$/)
 
         if (imageMatch) {
           const url = imageMatch[1]
@@ -112,6 +138,33 @@ export function MessageContent({ content, isUser }: { content: string; isUser?: 
                 </span>
               </div>
             </button>
+          )
+        }
+
+        if (audioMatch) {
+          const name = audioMatch[1]
+          const url = audioMatch[2] || audioMatch[1] // fallback to name if no url group
+          return (
+            <div key={index} className="my-2">
+              <div className="inline-flex items-center gap-3 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg max-w-full">
+                <div className="bg-amber-500/20 p-2 rounded-md shrink-0">
+                  <Music className="w-5 h-5 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-medium text-amber-800 dark:text-amber-200 truncate">
+                    {name}
+                  </span>
+                  <audio
+                    controls
+                    src={url}
+                    className="h-8 w-[200px] sm:w-[250px] mt-1"
+                    preload="metadata"
+                  >
+                    {t("chat.messageList.audioNotSupported", "Your browser does not support audio playback")}
+                  </audio>
+                </div>
+              </div>
+            </div>
           )
         }
 

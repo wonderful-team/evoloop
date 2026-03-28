@@ -1,11 +1,11 @@
-import { File as FileIcon, X, MessageSquare } from "lucide-react"
+import { File as FileIcon, X, MessageSquare, Music } from "lucide-react"
 import { cn } from "@evoloop/shared/lib/utils"
 
 export interface Attachment {
   id: string
   url: string
   name: string
-  type: "image" | "file" | "reference" | "message"
+  type: "image" | "file" | "reference" | "message" | "audio"
 }
 
 interface AttachmentPreviewProps {
@@ -30,7 +30,9 @@ export function AttachmentPreview({
               ? "bg-green-500/10 border-green-500/20 text-green-700 dark:text-green-400"
               : att.type === "image"
                 ? "bg-purple-500/10 border-purple-500/20 text-purple-700 dark:text-purple-400"
-                : "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400"
+                : att.type === "audio"
+                  ? "bg-amber-500/10 border-amber-500/20 text-amber-700 dark:text-amber-400"
+                  : "bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400"
           )}
           title={att.name}
         >
@@ -40,6 +42,8 @@ export function AttachmentPreview({
             </div>
           ) : att.type === "message" ? (
             <MessageSquare className="w-3.5 h-3.5 shrink-0 opacity-70" />
+          ) : att.type === "audio" ? (
+            <Music className="w-3.5 h-3.5 shrink-0 text-amber-500" />
           ) : (
             <FileIcon className="w-3.5 h-3.5 shrink-0 opacity-70" />
           )}

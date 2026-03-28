@@ -20,6 +20,8 @@ import markdownify
 
 from app.constants import MAX_OUTPUT_LENGTH
 from app.core.atlas import atlas_engine, get_bundle_id
+from app.core.config import settings
+from app.core.shortcuts import get_shortcut
 from app.core.vision import vision_engine, VisionTask, get_vision_router
 from app.infrastructure.drivers.macos import macos_driver
 from app.core.learning.trace_recorder import get_recorder
@@ -167,6 +169,7 @@ class DesktopController:
             logger.debug(f"[Desktop] Atlas fallback failed: {e}")
 
         # 3. Try Local Vision OCR
+        temp_img = None
         try:
             app_info = macos_driver.get_current_app()
             bounds_str = app_info.get("bounds")
@@ -183,14 +186,16 @@ class DesktopController:
             result = await vision_engine.process(VisionTask.OCR, temp_img)
             target_name = normalize_text(name)
             if result.success:
-                cleanup_file(temp_img)
                 for el in result.elements:
                     if target_name in normalize_text(el.text):
                         logger.info(f"[Desktop] Resolved '{name}' via OCR → Absolute ({win_x + el.x}, {win_y + el.y})")
                         return {"type": "coords", "x": win_x + el.x, "y": win_y + el.y}
-            cleanup_file(temp_img)
         except Exception as e:
             logger.debug(f"[Desktop] Vision OCR fallback failed: {e}")
+        finally:
+            # Ensure screenshot is always cleaned up
+            if temp_img:
+                cleanup_file(temp_img)
 
         logger.error(f"[Desktop] Failed to resolve '{name}'.")
         return ControllerResponse.not_found(name, item_type="element")
@@ -242,29 +247,78 @@ class DesktopController:
                 screenshot_actions=("click", "double_click", "type_text", "key_press", "open_app", "drag_drop")
             )
 
+            # Optimization: Cache app_info within single execute call to avoid repeated system calls
+            _cached_app_info = None
+            
+            async def _get_cached_app_info():
+                nonlocal _cached_app_info
+                if _cached_app_info is None:
+                    _cached_app_info = await asyncio.to_thread(macos_driver.get_current_app)
+                return _cached_app_info
+
             async def _record(action_type: str, params: dict):
                 async def screenshot_fn():
                     return await asyncio.to_thread(macos_driver.screenshot)
 
-                def context_fn():
-                    app_info = macos_driver.get_current_app()
+                async def context_fn():
+                    app_info = await _get_cached_app_info()
                     return {"app": app_info.get("name"), "bundle_id": app_info.get("bundle_id")}
 
                 await recording_ctx.record(action_type, params, screenshot_fn, context_fn)
 
             if action == "screenshot":
-                app_info = await asyncio.to_thread(macos_driver.get_current_app)
+                app_info = await _get_cached_app_info()
                 bundle_id = app_info.get("bundle_id")
+                
+                # 如果没有提供 region，根据配置决定是否自动使用当前窗口的 bounds
+                region_offset_x, region_offset_y = 0, 0
+                if region is None:
+                    if settings.ENABLE_PARTIAL_SCREENSHOT:
+                        # 启用局部截图：自动获取当前窗口 bounds
+                        bounds = app_info.get("bounds")
+                        if bounds:
+                            region = bounds
+                            logger.info(f"[Desktop] Auto-capturing current window region: {region}")
+                        else:
+                            logger.warning("[Desktop] No window bounds available, capturing full screen")
+                    else:
+                        # 禁用局部截图：使用全屏（region=None）
+                        logger.info("[Desktop] Partial screenshot disabled, capturing full screen")
+                
+                # 解析 region 获取偏移量（用于 OCR 坐标转换）
+                if region:
+                    try:
+                        rx, ry, _, _ = map(int, region.split(','))
+                        region_offset_x, region_offset_y = rx, ry
+                    except ValueError:
+                        pass
+                
                 filepath = await asyncio.to_thread(macos_driver.screenshot, region=region, purpose="temp", bundle_id=bundle_id)
                 result_msg = ControllerResponse.screenshot_result(success=True, filename=filepath)
                 if ocr:
                     try:
                         ocr_result = await vision_engine.process(VisionTask.OCR, filepath)
                         if ocr_result.success and ocr_result.elements:
+                            # 转换 OCR 坐标：相对坐标 → 屏幕坐标
+                            elements_for_prompt = []
+                            for el in ocr_result.elements:
+                                el_dict = el.to_dict()
+                                # 如果是局部截图，需要加上 region 的偏移量
+                                if region_offset_x or region_offset_y:
+                                    el_dict['x'] = el.x + region_offset_x
+                                    el_dict['y'] = el.y + region_offset_y
+                                    # 记录原始坐标用于调试
+                                    el_dict['relative_x'] = el.x
+                                    el_dict['relative_y'] = el.y
+                                elements_for_prompt.append(el_dict)
+                            
+                            if region_offset_x or region_offset_y:
+                                result_msg += f"\n\n> [!NOTE]\n> Screenshot region: {region}\n> OCR coordinates are converted to screen coordinates."
+                            
                             result_msg += "\n\n" + render_template(
                                 "vision/ocr_results.prompt.j2",
                                 platform="macos",
-                                elements=[el.to_dict() for el in ocr_result.elements],
+                                elements=elements_for_prompt,
                                 total_count=len(ocr_result.elements)
                             )
                         else:
@@ -274,6 +328,19 @@ class DesktopController:
                 return result_msg
 
             elif action in ["click", "double_click"]:
+                # 🚀 SPEED OPTIMIZATION: Check for keyboard shortcut first
+                if element_name and action == "click":  # Only for click, not double_click
+                    try:
+                        app_info = await _get_cached_app_info()
+                        bundle_id = app_info.get("bundle_id", "")
+                        if shortcut := get_shortcut(bundle_id, element_name):
+                            logger.info(f"[Desktop] 🚀 Converting click('{element_name}') to shortcut '{shortcut}'")
+                            await asyncio.to_thread(macos_driver.key_press, shortcut)
+                            await _record("key_press", {"key": shortcut, "converted_from_click": element_name})
+                            return f"Pressed shortcut '{shortcut}' (converted from click on '{element_name}') - Faster!"
+                    except Exception as e:
+                        logger.debug(f"[Desktop] Shortcut conversion failed: {e}, falling back to click")
+                
                 target_x, target_y = x, y
                 element_path = None
 
@@ -300,7 +367,7 @@ class DesktopController:
                     target_y = resolved.get("y", target_y)
 
                 if element_path:
-                    res = macos_driver.perform_ax_action(element_path, "AXPress")
+                    res = await asyncio.to_thread(macos_driver.perform_ax_action, element_path, "AXPress")
                     if "Error" not in res:
                         return ControllerResponse.success(f"Natively clicked '{element_name}' without moving the mouse.")
                     logger.warning(f"[Desktop] Native AX action failed: {res}. Falling back to physical click.")
@@ -308,15 +375,15 @@ class DesktopController:
                 if target_x is None or target_y is None:
                     return ControllerResponse.error(f"'x' and 'y' coordinates OR 'element_name' are required for {action} action.")
 
-                screen_w, screen_h = macos_driver.get_screen_size()
+                screen_w, screen_h = await asyncio.to_thread(macos_driver.get_screen_size)
                 if not (0 <= target_x <= screen_w and 0 <= target_y <= screen_h):
                     return ControllerResponse.error(f"Coordinates ({target_x}, {target_y}) are out of screen bounds ({screen_w}x{screen_h}).")
 
-                    macos_driver.click(target_x, target_y)
+                    await asyncio.to_thread(macos_driver.click, target_x, target_y)
                     await _record("click", {"x": target_x, "y": target_y, "element_name": element_name})
                     return ControllerResponse.tap_result(target_x, target_y, element_name=element_name, success=True)
                 else:
-                    macos_driver.double_click(target_x, target_y)
+                    await asyncio.to_thread(macos_driver.double_click, target_x, target_y)
                     await _record("double_click", {"x": target_x, "y": target_y, "element_name": element_name})
                     return ControllerResponse.success(
                         f"Visually double-clicked at ({target_x}, {target_y})" +
@@ -326,21 +393,21 @@ class DesktopController:
             elif action == "type_text":
                 if not text:
                     return ControllerResponse.missing_param("text")
-                macos_driver.type_text(text, force_keystroke=force_keystroke)
+                await asyncio.to_thread(macos_driver.type_text, text, force_keystroke=force_keystroke)
                 await _record("type_text", {"text": text, "force_keystroke": force_keystroke})
                 return f"Typed: {text[:50]}{'...' if len(text) > 50 else ''} (via {'keystroke' if force_keystroke else 'clipboard'})"
 
             elif action == "get_info":
-                info = macos_driver.get_system_info()
-                return f"System Info: {info}"
+                info = await asyncio.to_thread(macos_driver.get_system_info)
+                return ControllerResponse.success("System Info", details=str(info))
 
             elif action == "list_apps":
-                apps = macos_driver.list_installed_apps()
-                return f"Installed Apps: {apps}"
+                apps = await asyncio.to_thread(macos_driver.list_installed_apps)
+                return ControllerResponse.success("Installed Apps", details=str(apps))
 
             elif action == "get_active_app":
-                app_info = macos_driver.get_current_app()
-                return f"Active Application: {app_info}"
+                app_info = await asyncio.to_thread(macos_driver.get_current_app)
+                return ControllerResponse.success("Active Application", details=str(app_info))
 
             elif action == "key_press":
                 if not key:
@@ -350,7 +417,7 @@ class DesktopController:
                 if key.lower().startswith("key") and len(key) == 4:
                     key = key[3:].lower()
                 
-                macos_driver.key_press(key)
+                await asyncio.to_thread(macos_driver.key_press, key)
                 await _record("key_press", {"key": key})
                 return ControllerResponse.success(f"Pressed key: {key}")
 
@@ -361,7 +428,7 @@ class DesktopController:
                 is_dynamic = await atlas_engine.is_dynamic_app(bundle_id, "macos") if bundle_id else False
                 app_type_str = "DYNAMIC" if is_dynamic else "STATIC"
                 icon = "🔄" if is_dynamic else "📍"
-                result = macos_driver.open_app(app_name)
+                result = await asyncio.to_thread(macos_driver.open_app, app_name)
                 if is_dynamic:
                     strategy = await atlas_engine.get_app_strategy(bundle_id, "macos")
                     if strategy:
@@ -376,7 +443,7 @@ class DesktopController:
             elif action == "applescript":
                 if not script:
                     return ControllerResponse.missing_param("script")
-                output = macos_driver.run_applescript(script)
+                output = await asyncio.to_thread(macos_driver.run_applescript, script)
                 if output:
                     if "</div>" in output or "</body>" in output or "<br>" in output:
                         try:
@@ -426,7 +493,7 @@ class DesktopController:
                     if k:
                         presses = max(1, amount // 300)
                         for _ in range(presses):
-                            macos_driver.key_press(k)
+                            await asyncio.to_thread(macos_driver.key_press, k)
                             await asyncio.sleep(0.1)
                         await _record("scroll", {"direction": direction, "amount": amount, "method": "key"})
                         return ControllerResponse.success(f"Scrolled {direction} (~{amount}px) via key_press.")

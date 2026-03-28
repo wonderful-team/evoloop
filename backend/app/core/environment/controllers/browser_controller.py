@@ -564,15 +564,21 @@ class BrowserController:
 
             elif action == "wait_for_stability":
                 # Wait until DOM stops changing or max timeout
+                # Optimization: Use lightweight JS hash instead of full HTML content
                 check_interval = 0.5
                 max_checks = int(timeout_ms / 1000 / check_interval)
-                last_html = ""
+                last_hash = ""
                 for _ in range(max_checks):
                     try:
-                        curr_html = await page.content()
-                        if curr_html == last_html:
-                            return render_template("report/response.prompt.j2", success=True, message="Page stable (DOM matched).")
-                        last_html = curr_html
+                        # Use innerText length + element count + scrollHeight as lightweight stability hash
+                        curr_hash = await page.evaluate(
+                            "() => document.body.innerText.length + ':' + " +
+                            "document.querySelectorAll('*').length + ':' + " +
+                            "document.body.scrollHeight"
+                        )
+                        if curr_hash == last_hash:
+                            return render_template("report/response.prompt.j2", success=True, message="Page stable (DOM hash matched).")
+                        last_hash = curr_hash
                         await asyncio.sleep(check_interval)
                     except Exception:
                         break

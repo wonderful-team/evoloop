@@ -1,5 +1,5 @@
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from app.core.engine.state import AgentState
 from app.core.learning.discovery import skill_discovery
@@ -12,6 +12,31 @@ class SkillHydrator:
     Middleware to handle skill/SOP discovery and hydration for agent nodes.
     Unifies 'Eager' (JIT injection) and 'Lazy' (Tool-based) patterns.
     """
+
+    @staticmethod
+    async def get_skill_by_id(skill_id: int) -> Optional[Any]:
+        """
+        Fetch a single skill by its ID.
+        Used for direct skill lookup without search overhead.
+        """
+        from sqlalchemy import select
+        from app.infrastructure.database.sql.database import session_scope
+        from app.models.learning import LearnedSkill
+
+        if not skill_id:
+            return None
+
+        try:
+            async with session_scope() as session:
+                stmt = select(LearnedSkill).where(
+                    LearnedSkill.id == skill_id,
+                    LearnedSkill.is_active == True
+                )
+                result = await session.execute(stmt)
+                return result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"[Hydrator] Failed to fetch skill {skill_id}: {e}")
+            return None
 
     @staticmethod
     async def hydrate(

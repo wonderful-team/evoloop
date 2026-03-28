@@ -159,16 +159,84 @@ class TransparentCallbackHandler(AsyncCallbackHandler):
 
             run_id = kwargs.get("run_id")
             if self.llm_task_id and run_id == self.active_llm_run_id:
+                # Defensive: Handle structured tokens (Anthropic/Kimi sending dicts/lists)
+                if not isinstance(token, str):
+                    try:
+                        if isinstance(token, list):
+                            parts = []
+                            for t in token:
+                                if isinstance(t, dict):
+                                    if "partial_json" in t:
+                                        parts.append(t["partial_json"])
+                                    elif "text" in t:
+                                        parts.append(t["text"])
+                                else:
+                                    parts.append(str(t))
+                            token = "".join(parts)
+                        elif isinstance(token, dict):
+                            token = token.get("partial_json") or token.get("text") or ""
+                        else:
+                            token = str(token)
+                    except Exception:
+                        token = ""
+
                 self._current_stream_buffer += token
+
+                # --- NEW: Real-time Terminal Print for Debugging ---
+                import sys
+                sys.stdout.write(token)
+                sys.stdout.flush()
+
+                # --- 🏅 Token-level Technical Tag Filtering (Phase 5 UI Optimization) ---
+                # We want to hide <audit>...</audit> and <think>...</think> from the user stream.
+                # We also want to strip <report> and </report> tags but keep their content.
+                
+                if not hasattr(self, "_in_hidden_tag"):
+                    self._in_hidden_tag = False
+                if not hasattr(self, "_tag_buffer"):
+                    self._tag_buffer = ""
+                
+                # Update tag buffer to detect tag boundaries
+                self._tag_buffer += token
+                if len(self._tag_buffer) > 100: # Safety cap
+                    self._tag_buffer = self._tag_buffer[-100:]
+
+                # 1. Detect start of hidden tags
+                if not self._in_hidden_tag:
+                    for tag in ["<audit>", "<think>", "<thought>", "<outcome>", "<reason>", "<proof_points>"]:
+                        if tag in self._tag_buffer:
+                            self._in_hidden_tag = True
+                            # The tokens that formed the tag shouldn't be published
+                            # (Note: simpler to just stop publishing from this point)
+                            break
+                
+                # 2. Detect end of hidden tags
+                if self._in_hidden_tag:
+                    for tag in ["</audit>", "</think>", "</thought>", "</outcome>", "</reason>", "</proof_points>"]:
+                        if tag in self._tag_buffer:
+                            self._in_hidden_tag = False
+                            self._tag_buffer = "" # Clear buffer after finding end tag
+                            break
+                    
+                    # While in hidden tag, we still update the step (for full history) 
+                    # but we don't ADD to the publish buffer.
+                    return
+
+                # 3. Strip <report> and </report> tags (just markers, content is welcome)
+                content_to_stream = token
+                if "<report>" in content_to_stream:
+                    content_to_stream = content_to_stream.replace("<report>", "")
+                if "</report>" in content_to_stream:
+                    content_to_stream = content_to_stream.replace("</report>", "")
 
                 # BUFFERED PUBLISH Strategy
                 if not hasattr(self, "_publish_buffer"):
                     self._publish_buffer = ""
 
-                self._publish_buffer += token
+                self._publish_buffer += content_to_stream
 
                 # Flush on Newline OR > 50 chars
-                if "\n" in token or len(self._publish_buffer) > 50:
+                if "\n" in content_to_stream or len(self._publish_buffer) > 50:
                     try:
                         if hasattr(self.monitor, "client") and self.monitor.client:
                             await self.monitor.client.publish(

@@ -12,10 +12,30 @@
 - {{ k }}: {{ v }}
 {% endfor %}
 {% endif %}
+{% if workflow_context %}
+**Workflow Step**: {{ workflow_context.step_number }} of {{ workflow_context.total_steps }}
+{% if not workflow_context.is_first_step %}
+Previous Output: {{ workflow_context.previous_results[-1].output[:200] }}...
+{% endif %}
+{% endif %}
 Execute using available tools. One turn only.
 {%- else -%}
 ### MISSION TICKET
 **Goal**: {{ topic }}
+
+{% if workflow_context %}
+## Workflow Context
+📍 **Step {{ workflow_context.step_number }} of {{ workflow_context.total_steps }}**
+🔧 **Current Skill**: {{ workflow_context.current_skill.name }}
+{% if not workflow_context.is_first_step %}
+📥 **Previous Step Output**: {{ workflow_context.previous_results[-1].output[:300] }}...
+{% endif %}
+{% if workflow_context.is_last_step %}
+🏁 **This is the FINAL step** — ensure the task is fully completed.
+{% endif %}
+
+---
+{% endif %}
 
 **Acceptance Criteria**:
 {% for c in acceptance_criteria -%}

@@ -44,13 +44,6 @@ class AdaptiveChatOpenAI(ChatOpenAI):
         current_temp = self.temperature if self.temperature is not None else 0.7
 
         for attempt in range(self.adaptive_retries + 1):
-            # --- Log Messages for Debugging ---
-            try:
-                from app.core.engine.message_utils import log_messages
-                log_messages(messages, f"AdaptiveChatOpenAI Attempt {attempt}")
-            except Exception as e:
-                logger.debug(f"Failed to log messages: {e}")
-
             try:
                 # Update params for this specific attempt
                 request_kwargs = kwargs.copy()

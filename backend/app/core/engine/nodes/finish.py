@@ -88,7 +88,7 @@ def _extract_final_summary(messages: list) -> str:
     return i18n.get("finish.session_concluded", default="Session concluded.")
 
 
-def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, original_skill_id: int | None = None):
+def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, original_skill_id: int | None = None, execution_ticket: dict | None = None):
     """
     Unconditionally trigger async side-effects when session ends.
     Always runs regardless of success/failure outcome.
@@ -112,7 +112,20 @@ def _trigger_session_recording(ctx, config: RunnableConfig, summary: str, origin
             fs = BrainFileSystem(settings.BRAIN_MEMORY_ROOT)
             fs.initialize()
             task_path = f"{MemoryZone.WORKING.value}/{MemoryFile.TASK.value}"
-            fs.write_file(task_path, summary)
+            
+            # [FIX] Use meaningful task description instead of raw summary
+            # Priority: execution_ticket.topic > execution_ticket.reason > summary
+            task_description = summary
+            if execution_ticket:
+                ticket_topic = execution_ticket.get("topic")
+                ticket_reason = execution_ticket.get("reason")
+                # Use the most descriptive available field
+                if ticket_topic and len(ticket_topic) > 10:  # Avoid placeholder-like short strings
+                    task_description = f"Task: {ticket_topic}\n\nOutcome:\n{summary}"
+                elif ticket_reason and len(ticket_reason) > 10:
+                    task_description = f"Task: {ticket_reason}\n\nOutcome:\n{summary}"
+            
+            fs.write_file(task_path, task_description)
             logger.info(f"Finish: 🧠 Synced session summary to Brain memory: {task_path}")
         except Exception as brain_err:
             logger.warning(f"Finish: Failed to sync to brain memory: {brain_err}")
@@ -249,7 +262,9 @@ async def finish_node(state: AgentState, config: RunnableConfig):
     # 3. Trigger Recording
     metadata = config.get("metadata", {})
     original_skill_id = metadata.get("original_skill_id")
-    _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id)
+    # Get execution_ticket for task description
+    blackboard_ticket = blackboard.get("ticket") or state.get("execution_ticket")
+    _trigger_session_recording(ctx, config, summary, original_skill_id=original_skill_id, execution_ticket=blackboard_ticket)
 
     # [CRITICAL FIX] Prevent pollution of future sessions
     # Use RemoveMessage to delete previous Session Reviewer outputs from history

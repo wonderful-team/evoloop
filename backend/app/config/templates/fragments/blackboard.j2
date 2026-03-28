@@ -8,6 +8,21 @@
 {% for c in blackboard.ticket.acceptance_criteria -%}
   - {{ c }}
 {% endfor %}{% endif %}
+{% if blackboard.ticket.parameters %}
+### 📋 TASK CONTEXT
+{% if blackboard.ticket.parameters.task_steps %}
+**Execution Plan**:
+{% for step in blackboard.ticket.parameters.task_steps -%}
+{{ step }}
+{% endfor %}{% endif %}
+{% if blackboard.ticket.parameters.fallback_strategy %}
+**Fallback Strategy**: {{ blackboard.ticket.parameters.fallback_strategy }}
+{% endif %}
+{% if blackboard.ticket.parameters.target_apps %}
+**Target Apps**: {{ blackboard.ticket.parameters.target_apps|join(', ') }}
+> ⚠️ **USE THESE EXACT APP NAMES** when calling `open_app(app_name="...")`. Do not translate or modify.
+{% endif %}
+{% endif %}
 {% else %}
 ## 🏢 LIVE EXECUTION STATUS (Blackboard)
 *No active ticket. Reviewing session history...*

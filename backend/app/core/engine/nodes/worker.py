@@ -66,10 +66,32 @@ class WorkerNode:
         logger.info(f"[Worker] 🦎 Hydrating '{role_name}'...")
 
         from app.core.engine.nodes.utils import SkillHydrator
-        tools_task = asyncio.to_thread(tool_manager.get_node_tools, "worker", state)
-        skills_task = SkillHydrator.get_node_skills(state, "worker")
-
-        tools, relevant_sops = await asyncio.gather(tools_task, skills_task)
+        
+        # 检查是否有多技能工作流
+        skill_ids = execution_ticket.get("skill_ids") or []
+        workflow_mode = execution_ticket.get("workflow_mode", "single")
+        
+        # 向后兼容：如果只有单个 skill_id，转换为列表
+        if not skill_ids and execution_ticket.get("skill_id"):
+            skill_ids = [execution_ticket["skill_id"]]
+            workflow_mode = "single"
+        
+        # 判断是否为多步骤工作流
+        is_multi_skill_workflow = workflow_mode == "sequential" and len(skill_ids) > 1
+        
+        if is_multi_skill_workflow:
+            # 多技能工作流：直接加载指定技能
+            logger.info(f"[Worker] 🔄 Multi-skill workflow detected: {skill_ids}")
+            tools_task = asyncio.to_thread(tool_manager.get_node_tools, "worker", state)
+            
+            # 按顺序加载所有技能
+            skills_task = self._load_skills_by_ids(skill_ids)
+            tools, relevant_sops = await asyncio.gather(tools_task, skills_task)
+        else:
+            # 单技能或传统模式
+            tools_task = asyncio.to_thread(tool_manager.get_node_tools, "worker", state)
+            skills_task = SkillHydrator.get_node_skills(state, "worker")
+            tools, relevant_sops = await asyncio.gather(tools_task, skills_task)
 
         # 2a. Fallback Recovery Skill Injection
         # During macro fallback, we explicitly inject the failed skill's instructions 
@@ -135,6 +157,25 @@ class WorkerNode:
 
         # 4. Execute (Using AgentEngine)
         try:
+            # 判断是否为多技能工作流
+            skill_ids = execution_ticket.get("skill_ids") or []
+            workflow_mode = execution_ticket.get("workflow_mode", "single")
+            is_multi_skill_workflow = workflow_mode == "sequential" and len(skill_ids) > 1
+
+            if is_multi_skill_workflow:
+                # 多技能顺序执行
+                logger.info(f"[Worker] 🚀 Launching sequential workflow with {len(skill_ids)} skills...")
+                return await self._execute_sequential_workflow(
+                    state=state,
+                    config=config,
+                    skills=relevant_sops,
+                    tools=tools,
+                    execution_ticket=execution_ticket,
+                    agent_config=agent_config,
+                    role_name=role_name
+                )
+
+            # 单技能传统执行
             logger.info(f"[Worker] 🚀 Launching '{role_name}' atomic loop...")
 
             # Subtasks should NOT inherit full message history to prevent "Echo Chamber" loops.
@@ -170,6 +211,161 @@ class WorkerNode:
                 "messages": [AIMessage(content=f"Worker '{role_name}' failed: {e}")],
                 "next_node": RoutingTarget.SUPERVISOR
             }
+
+    async def _load_skills_by_ids(self, skill_ids: list[int]) -> list[Any]:
+        """按 ID 列表加载技能（用于多技能工作流）"""
+        from app.core.engine.nodes.utils import SkillHydrator
+        
+        skills = []
+        for sid in skill_ids:
+            skill = await SkillHydrator.get_skill_by_id(sid)
+            if skill:
+                skills.append(skill)
+            else:
+                logger.warning(f"[Worker] Skill ID {sid} not found or inactive")
+        return skills
+
+    async def _execute_sequential_workflow(
+        self,
+        state: AgentState,
+        config: RunnableConfig,
+        skills: list[Any],
+        tools: list,
+        execution_ticket: dict,
+        agent_config: dict,
+        role_name: str
+    ) -> dict[str, Any]:
+        """
+        顺序执行多个技能，上一步输出作为下一步输入
+        """
+        from app.core.engine.prompts import WorkerPromptBuilder
+        from app.core.context import ContextManager
+        
+        results = []
+        blackboard = state.get("blackboard") or {}
+        ctx = ContextManager.current()
+        full_plan = state.get("structured_plan") or state.get("current_plan") or blackboard.get("plan")
+        
+        for i, skill in enumerate(skills):
+            is_last = (i == len(skills) - 1)
+            is_first = (i == 0)
+            
+            logger.info(f"[Worker] 🔄 Workflow Step {i+1}/{len(skills)}: {skill.name}")
+            
+            # 构建工作流上下文
+            workflow_context = {
+                "step_number": i + 1,
+                "total_steps": len(skills),
+                "is_first_step": is_first,
+                "is_last_step": is_last,
+                "previous_results": results,
+                "current_skill": {
+                    "id": skill.id,
+                    "name": skill.name,
+                    "description": skill.description or ""
+                }
+            }
+            
+            # 更新 ticket 用于当前步骤
+            step_ticket = copy.deepcopy(execution_ticket)
+            step_ticket["workflow_context"] = workflow_context
+            step_ticket["skill_id"] = skill.id  # 当前步骤的技能 ID
+            step_ticket["topic"] = f"Step {i+1}: {skill.name}"
+            
+            # 加载 Focus Files（只加载一次）
+            focus_files = await self._hydrate_focus_files(execution_ticket, ctx) if is_first else []
+            
+            # 构建 Prompt
+            prompt_builder = WorkerPromptBuilder(
+                agent_config,
+                blackboard,
+                skills=[skill],  # 只传递当前技能
+                ticket=step_ticket,
+                focus_files=focus_files,
+                plan=full_plan
+            )
+            system_prompt = prompt_builder.build(config)
+            mission_msg = prompt_builder.build_mission_message()
+            
+            # 构建消息
+            if is_first:
+                messages = [HumanMessage(content=mission_msg)]
+            else:
+                # 传递上一步的输出作为上下文
+                prev_output = results[-1].get("output", "") if results else ""
+                enhanced_mission = f"{mission_msg}\n\n[Previous Step Output]: {prev_output[:500]}"
+                messages = [HumanMessage(content=enhanced_mission)]
+            
+            try:
+                # 执行当前步骤
+                worker_state = copy.deepcopy(state) if agent_config.get("is_subtask") else state.copy()
+                worker_state["messages"] = messages
+                
+                engine_result = await AgentEngine.run_node(
+                    state=worker_state,
+                    config=config,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    name=f"Worker-{role_name}-Step{i+1}",
+                    max_steps=1 if agent_config.get("is_subtask") else settings.WORKER_AGENT_MAX_STEPS,
+                    is_subtask=agent_config.get("is_subtask", False),
+                )
+                
+                # 提取步骤输出
+                last_msg = engine_result["messages"][-1]
+                step_output = get_message_text(last_msg) if isinstance(last_msg, AIMessage) else ""
+                
+                results.append({
+                    "skill_id": skill.id,
+                    "skill_name": skill.name,
+                    "output": step_output,
+                    "status": "success"
+                })
+                
+                # 检查是否需要中断
+                if "[ERROR:" in step_output or step_output.strip().startswith("Error:"):
+                    logger.error(f"[Worker] Workflow failed at step {i+1}")
+                    summary = f"Workflow failed at step {i+1}/{len(skills)}: {skill.name}\n\n{step_output}"
+                    return {
+                        "messages": [AIMessage(content=summary)],
+                        "next_node": RoutingTarget.SUPERVISOR,
+                        "workflow_results": results
+                    }
+                    
+            except Exception as e:
+                logger.error(f"[Worker] Step {i+1} failed: {e}")
+                results.append({
+                    "skill_id": skill.id,
+                    "skill_name": skill.name,
+                    "output": str(e),
+                    "status": "failed"
+                })
+                return {
+                    "messages": [AIMessage(content=f"Workflow failed at step {i+1}: {e}")],
+                    "next_node": RoutingTarget.SUPERVISOR,
+                    "workflow_results": results
+                }
+        
+        # 所有步骤完成
+        final_result = results[-1] if results else {"output": "No output"}
+        summary_lines = [
+            f"✅ Workflow completed ({len(skills)} steps)",
+            "",
+            "Execution Summary:"
+        ]
+        for i, r in enumerate(results):
+            status_icon = "✅" if r["status"] == "success" else "❌"
+            output_preview = r["output"][:100] + "..." if len(r["output"]) > 100 else r["output"]
+            summary_lines.append(f"  {status_icon} Step {i+1} [{r['skill_name']}]: {output_preview}")
+        
+        summary_lines.append("")
+        summary_lines.append(f"Final Output:\n{final_result.get('output', '')}")
+        
+        return {
+            "messages": [AIMessage(content="\n".join(summary_lines))],
+            "next_node": RoutingTarget.FINISH,
+            "workflow_results": results
+        }
 
     def _post_process_result(
         self,

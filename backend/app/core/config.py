@@ -150,6 +150,9 @@ class Settings(BaseSettings):
 
     ENABLE_VISION_OCR: bool = True
     ENABLE_MACRO_SELF_HEALING: bool = True
+    
+    # Screenshot Configuration
+    ENABLE_PARTIAL_SCREENSHOT: bool = True  # True: Auto-capture current window region, False: Full screen only
 
     # --- Learning / Skill Synthesis Configuration ---
     # Maximum keyframes to extract for skill synthesis (multimodal learning)
@@ -221,6 +224,11 @@ class Settings(BaseSettings):
     # Client / Device Info
     EVOCLOUD_ACCESS_TOKEN: str | None = Field(None, validation_alias="EVOCLOUD_ACCESS_TOKEN")
     EVOCLOUD_DEVICE_NAME: str | None = Field("EvoLoop-Desktop", validation_alias="EVOCLOUD_DEVICE_NAME")
+
+    # --- Deprecated Configuration (Phase 4 Cleanup) ---
+    USE_CLIENT_FOR_TOOLS: bool = False  # @deprecated: Will be replaced by dynamic transport selection
+    CLOUD_ONLY_MODE: bool = False       # @deprecated: Will be replaced by hybrid execution mode
+    CLIENT_CALLBACK_URL: str | None = None  # @deprecated: Managed by WebSocket handshake
 
     # Project Management
     WORKSPACE_ROOT: str | None = Field(default=None, validation_alias="WORKSPACE_ROOT")

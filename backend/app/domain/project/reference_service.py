@@ -81,6 +81,16 @@ class ReferenceService:
                 })
                 reference_notes.append(f"Image Attachment: {att_name}")
 
+            # 4. Audio Attachments
+            elif att_type == "audio":
+                # Audio is rendered as a link/placeholder in content
+                # Frontend will parse [Audio: name](url) and render player
+                content_blocks.append({
+                    "type": "text",
+                    "text": f"[Audio: {att_name}]({att_id})"
+                })
+                reference_notes.append(f"Audio Attachment: {att_name}")
+
             else:
                 reference_notes.append(f"Attachment ({att_type}): {att_name}")
         

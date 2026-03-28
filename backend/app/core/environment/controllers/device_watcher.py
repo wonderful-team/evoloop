@@ -110,6 +110,22 @@ class DeviceWatcher:
 
         if status == "device":
             logger.info(f"Device connected: {serial}")
+            
+            # Detect device capabilities (uiautomator vs uiautomator2)
+            try:
+                logger.info(f"🔍 Detecting UI automation capabilities for {serial}...")
+                from app.infrastructure.drivers.adb import adb_driver
+                # Run in executor to not block async loop
+                loop = asyncio.get_event_loop()
+                capabilities = await loop.run_in_executor(
+                    None, 
+                    adb_driver.detect_device_capabilities, 
+                    serial
+                )
+                logger.info(f"✅ Device {serial} capabilities: {capabilities}")
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to detect capabilities for {serial}: {e}")
+            
             await mirror_manager.on_device_connected(serial)
             await event_bus.publish(DeviceConnectedEvent(
                 device_id=serial,

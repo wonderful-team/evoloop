@@ -105,6 +105,37 @@ class ClientWebSocketManager:
 
         logger.info(f"[WebSocket] Tool server started on ws://{host}:{port}")
 
+        # Start mDNS advertisement
+        if HAS_ZEROCONF:
+            try:
+                self._zeroconf = Zeroconf(ip_version=IPVersion.V4Only)
+                desc = {'description': 'EvoLoop Desktop Agent'}
+
+                import socket
+                local_ip = socket.gethostbyname(socket.gethostname())
+                # Fallback for some systems
+                if local_ip == "127.0.0.1":
+                    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    try:
+                        s.connect(("8.8.8.8", 80))
+                        local_ip = s.getsockname()[0]
+                    finally:
+                        s.close()
+
+                self._service_info = ServiceInfo(
+                    "_evoloop._tcp.local.",
+                    f"{settings.EVOCLOUD_DEVICE_NAME or platform.node()}._evoloop._tcp.local.",
+                    addresses=[socket.inet_aton(local_ip)],
+                    port=port,
+                    properties=desc,
+                )
+                self._zeroconf.register_service(self._service_info)
+                logger.info(f"[mDNS] Registered service: {self._service_info.name} at {local_ip}:{port}")
+            except Exception as e:
+                logger.warning(f"[mDNS] Failed to register service: {e}")
+        else:
+            logger.info("[mDNS] Zeroconf not installed, local discovery disabled.")
+
     async def stop(self):
         """Stop the WebSocket server."""
         self._is_running = False
@@ -119,6 +150,16 @@ class ClientWebSocketManager:
         if self._server:
             self._server.close()
             await self._server.wait_closed()
+
+        # Stop mDNS
+        if self._zeroconf:
+            try:
+                self._zeroconf.unregister_service(self._service_info)
+                self._zeroconf.close()
+                self._zeroconf = None
+                logger.info("[mDNS] Unregistered service")
+            except Exception as e:
+                logger.warning(f"[mDNS] Failed to unregister service: {e}")
 
         logger.info("[WebSocket] Tool server stopped")
 

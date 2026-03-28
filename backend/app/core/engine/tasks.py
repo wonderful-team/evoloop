@@ -228,7 +228,7 @@ def record_episode_task(
             await sync_thread_to_graph(
                 thread_id=thread_id,
                 project_id=project_id,
-                goal=goal,
+                goal=goal or "No goal specified",
                 result_summary=result_summary,
                 concept_names=concept_names,
                 source_message_id=source_message_id,

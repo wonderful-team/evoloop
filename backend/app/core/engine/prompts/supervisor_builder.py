@@ -84,6 +84,10 @@ class SupervisorPromptBuilder:
                     "macos": bool(state.macos),
                     "network": state.network.internet_connected if state.network else False
                 }
+                # Get installed apps for macOS (for app name resolution)
+                if state.macos and state.macos.installed_apps:
+                    macos_apps = state.macos.installed_apps[:50]
+                    logger.info(f"[SupervisorPrompt] 📱 macOS apps loaded: {len(macos_apps)} apps, top 10: {macos_apps[:10]}")
         except Exception as e:
             logger.warning(f"[SupervisorPrompt] Failed to fetch telemetry: {e}")
 

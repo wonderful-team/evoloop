@@ -167,7 +167,19 @@ class EvoCloudWebSocketLink(DeviceLinkProtocol):
 
                 async with websockets.connect(self.config.ws_url) as ws:
                     self.ws = ws
-                    logger.info("[EvoCloud] WS Connected")
+                    logger.info("[EvoCloud] WS Connected. Sending handshake...")
+
+                    # New Go Gateway Handshake
+                    handshake = {
+                        "type": "connect",
+                        "payload": {
+                            "device_type": "agent",
+                            "device_key": self.device_key,
+                            "token": self.api.get_token()
+                        }
+                    }
+                    await ws.send(json.dumps(handshake))
+
                     retry_count = 0  # Reset on success
                     async for message in ws:
                         await self._handle_ws_message(str(message))

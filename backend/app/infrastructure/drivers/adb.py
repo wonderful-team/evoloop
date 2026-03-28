@@ -34,7 +34,137 @@ class ADBDriver:
         self._dump_lock = threading.Lock()
         self._app_cache = {}  # {device_id: (timestamp, app_data)}
         self._cache_ttl = 1.5  # seconds
+        # Device capability cache: {device_id: {"uiautomator2": bool}}
+        self._device_capabilities = {}
 
+    def check_uiautomator2_available(self, device_id: str | None = None) -> bool:
+        """
+        Check if uiautomator2 is available for this device.
+        Returns True if uiautomator2 HTTP server is responding.
+        """
+        try:
+            import uiautomator2 as u2
+            d = u2.connect(device_id) if device_id else u2.connect()
+            # Quick ping test
+            d.info  # This will fail if server not running
+            return True
+        except Exception:
+            return False
+    
+    def install_uiautomator2(self, device_id: str | None = None) -> bool:
+        """
+        Install uiautomator2 service to the device.
+        This is required for Huawei/broken devices where native uiautomator doesn't work.
+        
+        Returns:
+            True if installation successful
+        """
+        try:
+            import uiautomator2 as u2
+            
+            logger.info(f"[ADB] Installing uiautomator2 service to device {device_id or 'default'}...")
+            
+            # Connect and init
+            d = u2.connect(device_id) if device_id else u2.connect()
+            
+            # Init pushes u2.jar and starts service
+            # This requires the device to be connected via USB with debugging enabled
+            d.shell("echo 'uiautomator2 init'")  # Test connection
+            
+            logger.info(f"[ADB] uiautomator2 service installed successfully")
+            return True
+            
+        except ImportError:
+            logger.error("[ADB] uiautomator2 Python package not installed. Run: uv pip install uiautomator2")
+            return False
+        except Exception as e:
+            logger.error(f"[ADB] Failed to install uiautomator2: {e}")
+            logger.error("[ADB] Please run manually: python -m uiautomator2 init --serial <device_id>")
+            return False
+    
+    def ensure_uiautomator2(self, device_id: str | None = None, auto_install: bool = True) -> bool:
+        """
+        Ensure uiautomator2 is available, optionally auto-install if missing.
+        
+        Args:
+            device_id: Device serial
+            auto_install: If True, try to install if not available
+            
+        Returns:
+            True if uiautomator2 is available (after possible installation)
+        """
+        # First check if already available
+        if self.check_uiautomator2_available(device_id):
+            return True
+        
+        if not auto_install:
+            return False
+        
+        # Try to install
+        logger.info(f"[ADB] uiautomator2 not available, attempting auto-install...")
+        if self.install_uiautomator2(device_id):
+            # Re-check after installation
+            return self.check_uiautomator2_available(device_id)
+        
+        return False
+    
+    def detect_device_capabilities(self, device_id: str) -> dict:
+        """
+        Detect and cache device capabilities.
+        Should be called when device is first connected.
+        """
+        logger.info(f"[ADB] Detecting capabilities for device {device_id}...")
+        
+        capabilities = {
+            "native_uiautomator": True,  # Assume working initially
+            "uiautomator2": False,
+        }
+        
+        # Test 1: Check native uiautomator (quick test)
+        try:
+            stdout, stderr = self._run_adb(
+                ["shell", "uiautomator", "dump", "/dev/null"], 
+                device_id=device_id, 
+                timeout=5
+            )
+            output = (stdout + stderr).lower()
+            if "idle" in output or "could not get" in output:
+                capabilities["native_uiautomator"] = False
+                logger.info(f"[ADB] Device {device_id}: Native uiautomator NOT working (idle state error)")
+            else:
+                logger.info(f"[ADB] Device {device_id}: Native uiautomator OK")
+        except Exception as e:
+            capabilities["native_uiautomator"] = False
+            logger.info(f"[ADB] Device {device_id}: Native uiautomator NOT working ({e})")
+        
+        # Test 2: Check uiautomator2 (with auto-install for broken devices)
+        if self.check_uiautomator2_available(device_id):
+            capabilities["uiautomator2"] = True
+            logger.info(f"[ADB] Device {device_id}: uiautomator2 OK")
+        elif not capabilities["native_uiautomator"]:
+            # Native is broken, try to auto-install uiautomator2
+            logger.info(f"[ADB] Device {device_id}: Native uiautomator broken, auto-installing uiautomator2...")
+            if self.ensure_uiautomator2(device_id, auto_install=True):
+                capabilities["uiautomator2"] = True
+                logger.info(f"[ADB] Device {device_id}: uiautomator2 installed successfully")
+            else:
+                logger.error(f"[ADB] Device {device_id}: Failed to install uiautomator2")
+        else:
+            logger.info(f"[ADB] Device {device_id}: uiautomator2 NOT available")
+        
+        # Cache the result
+        self._device_capabilities[device_id] = capabilities
+        
+        # Log recommendation
+        if capabilities["uiautomator2"]:
+            logger.info(f"[ADB] Device {device_id}: Will use uiautomator2 (optimal)")
+        elif capabilities["native_uiautomator"]:
+            logger.info(f"[ADB] Device {device_id}: Will use native uiautomator")
+        else:
+            logger.warning(f"[ADB] Device {device_id}: No working UI automation method!")
+        
+        return capabilities
+    
     def _find_adb(self) -> str:
         """Find the adb executable path."""
         # Common locations
@@ -438,79 +568,124 @@ class ADBDriver:
     def dump_ui(self, device_id: str | None = None, compressed: bool = True) -> str:
         """
         Dump the current UI hierarchy as XML.
-        Robust version: tries exec-out first, then file-based with explicit verification.
-        Uses unique filenames and locking to prevent concurrent conflicts.
+        
+        Strategy:
+        1. Check cached device capabilities
+        2. If uiautomator2 is available -> use it directly (optimal for Huawei/broken devices)
+        3. If only native uiautomator -> try exec-out first, then file-based
+        4. If unknown device -> auto-detect and retry with optimal method
         """
         # uiautomator service doesn't support concurrent access, so we use a lock
         with self._dump_lock:
             start = time.time()
-
-            # Method 1: Try direct exec-out (Fastest, avoids device filesystem issues)
-            configs = [compressed, False] if compressed else [False]
-            for try_compressed in configs:
+            
+            # Resolve device_id if not provided
+            if not device_id:
                 try:
-                    args = ["exec-out", "uiautomator", "dump"]
-                    if try_compressed:
-                        args.append("--compressed")
-                    args.append("/dev/tty")
-
-                    # exec-out streams directly, no "UI hierarchy dumped to" prefix
-                    stdout, _ = self._run_adb(args, device_id=device_id, timeout=10)
-                    
-                    # Verify we got a valid XML block
-                    xml_start = stdout.find("<?xml")
-                    if xml_start == -1:
-                        xml_start = stdout.find("<hierarchy")
-
-                    if xml_start >= 0 and "</hierarchy>" in stdout:
-                        logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (exec-out, compressed={try_compressed})")
-                        return stdout[xml_start:]
+                    from app.core.context.manager import ContextManager
+                    ctx_env = ContextManager.get_var("_env", {})
+                    devices = ctx_env.get("devices", [])
+                    if devices and len(devices) == 1:
+                        device_id = devices[0]
+                except Exception:
+                    pass
+            
+            # Check cached capabilities
+            capabilities = self._device_capabilities.get(device_id, {})
+            
+            # Strategy 1: Use uiautomator2 if known to be available (optimal path)
+            if capabilities.get("uiautomator2"):
+                try:
+                    import uiautomator2 as u2
+                    d = u2.connect(device_id) if device_id else u2.connect()
+                    xml_content = d.dump_hierarchy()
+                    if xml_content and "<hierarchy" in xml_content:
+                        logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (uiautomator2, cached)")
+                        return xml_content
                 except Exception as e:
-                    if not try_compressed:
-                        logger.debug(f"exec-out dump failed: {e}")
-                    continue
-
-            # Method 2: Fallback to file-based approach with explicit existence verification
-            logger.warning("[ADB] exec-out dump failed, falling back to file-based dump")
-            # Use unique filename to avoid concurrent conflicts
-            unique_id = uuid.uuid4().hex[:8]
-            remote_path = f"/data/local/tmp/window_dump_{unique_id}.xml"
+                    logger.warning(f"[ADB] Cached uiautomator2 failed: {e}, will retry")
+            
+            # Strategy 2: Use native uiautomator if known to work
+            elif capabilities.get("native_uiautomator") and not capabilities.get("uiautomator2"):
+                return self._dump_ui_native(device_id, compressed, start)
+            
+            # Strategy 3: Unknown device - try uiautomator2 first (faster), then native
+            logger.debug(f"[ADB] Unknown capabilities for {device_id}, trying uiautomator2 first...")
+            
             try:
-                # 1. Try Dump (no need to clean up stale file since we use unique name)
-                try:
-                    dump_cmd = ["shell", "uiautomator", "dump"]
-                    if compressed:
-                        dump_cmd.append("--compressed")
-                    dump_cmd.append(remote_path)
-                    self._run_adb(dump_cmd, device_id=device_id, timeout=15)
-                except ADBError:
-                    # 2. Final fallback: standard dump
-                    self._run_adb(["shell", "uiautomator", "dump", remote_path], device_id=device_id, timeout=15)
+                import uiautomator2 as u2
+                d = u2.connect(device_id) if device_id else u2.connect()
+                xml_content = d.dump_hierarchy()
+                if xml_content and "<hierarchy" in xml_content:
+                    # Cache this success for future calls
+                    if device_id:
+                        self._device_capabilities[device_id] = {"uiautomator2": True, "native_uiautomator": False}
+                    logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (uiautomator2, auto-detected)")
+                    return xml_content
+            except Exception:
+                pass  # uiautomator2 not available, fall through
+            
+            # Strategy 4: Fall back to native uiautomator
+            logger.debug(f"[ADB] uiautomator2 not available, trying native...")
+            try:
+                return self._dump_ui_native(device_id, compressed, start)
+            except Exception as native_err:
+                # Both failed
+                raise ADBError(f"Failed to capture UI hierarchy. uiautomator2 not available, native: {native_err}")
+    
+    def _dump_ui_native(self, device_id: str | None, compressed: bool, start_time: float) -> str:
+        """Internal method: dump UI using native uiautomator."""
+        # Method 1: Try direct exec-out (Fastest)
+        configs = [compressed, False] if compressed else [False]
+        for try_compressed in configs:
+            try:
+                args = ["exec-out", "uiautomator", "dump"]
+                if try_compressed:
+                    args.append("--compressed")
+                args.append("/dev/tty")
 
-                # 3. CRITICAL: Verify file existence and non-zero size
-                # This addresses the "silent failure" where uiautomator exits 0 but creates no file
-                try:
-                    self._run_adb(["shell", "test", "-s", remote_path], device_id=device_id)
-                except ADBError:
-                    time.sleep(1.0) # Grace period
-                    try:
-                        self._run_adb(["shell", "test", "-s", remote_path], device_id=device_id)
-                    except ADBError:
-                        raise ADBError(f"uiautomator dump reported success but file '{remote_path}' was not created or is empty. Device UI service might be unresponsive.")
+                stdout, _ = self._run_adb(args, device_id=device_id, timeout=10)
+                
+                xml_start = stdout.find("<?xml")
+                if xml_start == -1:
+                    xml_start = stdout.find("<hierarchy")
 
-                # 4. Read and Cleanup
-                stdout, _ = self._run_adb(["shell", "cat", remote_path], device_id=device_id)
+                if xml_start >= 0 and "</hierarchy>" in stdout:
+                    # Cache success
+                    if device_id:
+                        self._device_capabilities[device_id] = {"native_uiautomator": True, "uiautomator2": False}
+                    logger.info(f"Dumped UI hierarchy in {(time.time()-start_time)*1000:.0f}ms (native exec-out)")
+                    return stdout[xml_start:]
+            except Exception:
+                continue
 
-                subprocess.Popen(
-                    [self._adb_path] + (["-s", device_id] if device_id else []) + ["shell", "rm", "-f", remote_path],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                )
+        # Method 2: File-based approach
+        unique_id = uuid.uuid4().hex[:8]
+        remote_path = f"/data/local/tmp/window_dump_{unique_id}.xml"
+        try:
+            dump_cmd = ["shell", "uiautomator", "dump"]
+            if compressed:
+                dump_cmd.append("--compressed")
+            dump_cmd.append(remote_path)
+            self._run_adb(dump_cmd, device_id=device_id, timeout=15)
 
-                logger.info(f"Dumped UI hierarchy in {(time.time()-start)*1000:.0f}ms (file)")
-                return stdout
-            except Exception as e:
-                logger.error(f"UI hierarchy dump failed: {e}")
-                raise ADBError(f"Failed to capture UI hierarchy: {e}")
+            # Verify file exists
+            self._run_adb(["shell", "test", "-s", remote_path], device_id=device_id)
+            
+            # Read and cleanup
+            stdout, _ = self._run_adb(["shell", "cat", remote_path], device_id=device_id)
+            subprocess.Popen(
+                [self._adb_path] + (["-s", device_id] if device_id else []) + ["shell", "rm", "-f", remote_path],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            )
+            
+            # Cache success
+            if device_id:
+                self._device_capabilities[device_id] = {"native_uiautomator": True, "uiautomator2": False}
+            logger.info(f"Dumped UI hierarchy in {(time.time()-start_time)*1000:.0f}ms (native file)")
+            return stdout
+        except Exception as e:
+            raise ADBError(f"Native uiautomator failed: {e}")
 
     def get_screen_size(self, device_id: str | None = None) -> tuple[int, int]:
         """

@@ -83,6 +83,9 @@ def route_to(
     context: dict[str, Any] | None = None,
     authorized_tools: list[str] | None = None,
     skill_id: int | None = None,
+    # 新增：支持多技能工作流
+    skill_ids: list[int] | None = None,
+    workflow_mode: str = "single",
 ) -> str:
     """
     Hand off the current task to a specialist node.
@@ -104,17 +107,30 @@ def route_to(
                           Worker Baseline Capability Pool defined in agent_main.yaml.
                           For deep_researcher: ["search_web", "browser_control", ...]
                           For documenter: ["read_file", "write_file", "list_directory", ...]
+        skill_id: (Legacy) Single skill ID for backward compatibility.
+        skill_ids: List of skill IDs for multi-step workflows (executed in order).
+        workflow_mode: "single" for one skill, "sequential" for step-by-step execution.
     """
     target_val = target.value if hasattr(target, "value") else target
     
     context = context or {}
     if authorized_tools:
         context["authorized_tools"] = authorized_tools
-    
+
+    # 处理多技能工作流参数
+    if skill_ids:
+        context["skill_ids"] = skill_ids
+        context["workflow_mode"] = workflow_mode
+    elif skill_id:
+        context["skill_id"] = skill_id
+        context["workflow_mode"] = "single"
+
     context_str = json.dumps(context, ensure_ascii=False)
     skill_info = f" | Skill ID: {skill_id}" if skill_id else ""
+    if skill_ids:
+        skill_info = f" | Skill IDs: {skill_ids}"
     tool_info = f" | Tools: {authorized_tools}" if authorized_tools else ""
-    
+
     return f"ROUTE_SIGNAL|{target_val}|{reason}|{context_str}{skill_info}{tool_info}"
 
 

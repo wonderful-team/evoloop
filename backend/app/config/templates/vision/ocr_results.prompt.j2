@@ -1,7 +1,7 @@
 ### OCR Results ({{ platform|upper }})
 
 {% for el in elements %}
-[{{ loop.index }}] {{ el.role }}: {{ ("'" + el.name + "'") if el.name else "Unnamed" }} {{ el.bounds }} {{ ("path=" + el.path) if el.path else "" }}
+[{{ loop.index }}] {{ el.element_type }}: {{ ("'" + el.text + "'") if el.text else "Unnamed" }} ({{ el.x }}, {{ el.y }}) {{ ("path=" + el.metadata.path) if el.metadata and el.metadata.path else "" }}
 {% endfor %}
 
 {% if total_count > elements|length %}
