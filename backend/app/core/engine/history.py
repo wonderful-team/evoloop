@@ -1,3 +1,4 @@
+import json
 import logging
 import re
 
@@ -142,7 +143,6 @@ class HistoryService:
                     # Try to parse if it looks like JSON/Dict
                     if (content.startswith("{") and content.endswith("}")) or (content.startswith("[") and content.endswith("]")):
                         try:
-                            import json
                             parsed = json.loads(content)
                             return extract_text(parsed)
                         except:
@@ -152,7 +152,6 @@ class HistoryService:
                                 return extract_text(parsed)
                             except:
                                 # Fallback to regex if parsing failed
-                                import re
                                 text_matches = re.findall(r'["\']text["\']:\s*["\'](.*?)["\']', content)
                                 if text_matches:
                                     return "".join(text_matches).strip()
