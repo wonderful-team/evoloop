@@ -48,7 +48,8 @@
     ],
     "resources": {
       "../../backend/app": "backend-source/app",
-      "models": "models"
+      "models": "models",
+      "libs/libvosk.dylib": "../Frameworks/libvosk.dylib"
     },
     "externalBin": [
       "binaries/evoloop-backend"
